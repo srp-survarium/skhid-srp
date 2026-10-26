@@ -301,6 +301,10 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    // The enemy's health is put back every step ("who does not die"); only
+    // the old flat hit has no other pool to empty (the head's and the
+    // pain's, which the weapon's own damage now empties first).
+    game.damage.flat = true;
     // 8 m east of battery 1 (25, 0.3, 12), the enemy 10 m past it, on the
     // same side of the wall: the bot sees him as it walks in. The
     // teammate 13 m off him, out of the bot's line; or far off, behind
@@ -554,6 +558,10 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 3, None, None);
+    // The scenario's timing (the thief takes the battery at 3 s and is
+    // killed after, by the tuning above) was found with the flat fifth of
+    // the health a hit took: the weapon's own damage kills him at 2.6 s.
+    game.damage.flat = true;
     // Battery 0 is in team 0's container (id 0, at (12, 0, 30)); the
     // thief stands by it.
     game.batteries[0] = Lying::Home(0);

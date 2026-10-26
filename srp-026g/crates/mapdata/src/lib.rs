@@ -94,7 +94,7 @@ pub use project::{
     ZoneKind,
 };
 pub use resources::{Error, Resources};
-pub use sight::RayTree;
+pub use sight::{RayHit, RayTree};
 pub use stands::{UsePose, UseStand, UseStands};
 
 /// A play area margin around the `levelmap` box, metres.
@@ -109,8 +109,9 @@ pub const CELL: f32 = 0.25;
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
 pub const GRID_ALGO: u32 = 11;
-/// The same for [`RayTree::build`], in [`sight_key`].
-pub const SIGHT_ALGO: u32 = 1;
+/// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
+/// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
+pub const SIGHT_ALGO: u32 = 2;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {

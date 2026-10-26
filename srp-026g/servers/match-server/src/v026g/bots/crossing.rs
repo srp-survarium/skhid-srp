@@ -39,6 +39,7 @@
 use mapdata::{NodeId, Vec3};
 
 use super::path::{self, Route};
+use super::route_filter::RouteFilter;
 use super::plays::collect::{bears, CROSS_ABORT_LEFT, CROSS_MPS, CROSS_STEP_M};
 use super::stuck;
 use super::tactics::Tactics;
@@ -159,7 +160,9 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32) -> f32 {
 }
 
 /// A crossing's search from floor `from` to floor `to` for a bot of
-/// `health` ([`Tactics::start_crossing`] with [`crossable`]), counted.
+/// `health` ([`Tactics::start_crossing`] with [`crossable`]), counted. It
+/// keeps off the hard part of `filter` (the landings of jumps the body gave
+/// up), not its spots.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::result_large_err)]
 pub fn start(
@@ -170,7 +173,7 @@ pub fn start(
     side: Option<i32>,
     objective: bool,
     health: f32,
-    closed: &[Vec3],
+    filter: &RouteFilter,
     floors: &mut usize,
 ) -> Result<Option<Route>, path::Planning> {
     count(Count::Searched);
@@ -182,20 +185,12 @@ pub fn start(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, health) && !shut(tactics, closed, n),
+        |n| crossable(tactics, n, health) && filter.hard_open(&tactics.world.grid, n),
         floors,
     );
     #[cfg(test)]
     expanded(path::searches().expanded - before);
     route
-}
-
-/// Whether floor `n` is on a landing the body gave up jumping to
-/// ([`stuck::Stuck::shut_landings`]): shut to a crossing's search as to the
-/// plain one.
-fn shut(tactics: &Tactics, closed: &[Vec3], n: NodeId) -> bool {
-    let at = tactics.world.grid.position(n);
-    closed.iter().any(|&landing| stuck::on_landing(landing, at))
 }
 
 /// A crossing's search ([`start`]) goes on.
@@ -208,7 +203,7 @@ pub fn resume(
     side: Option<i32>,
     objective: bool,
     health: f32,
-    closed: &[Vec3],
+    filter: &RouteFilter,
     floors: &mut usize,
 ) -> Option<Option<Route>> {
     #[cfg(test)]
@@ -219,7 +214,7 @@ pub fn resume(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, health) && !shut(tactics, closed, n),
+        |n| crossable(tactics, n, health) && filter.hard_open(&tactics.world.grid, n),
         floors,
     );
     #[cfg(test)]
@@ -332,7 +327,7 @@ fn out_of_ring(
     }
     // A few metres: searched to its end at once.
     let mut iters = usize::MAX;
-    start(tactics, from, exit, time, side, objective, health, &[], &mut iters)
+    start(tactics, from, exit, time, side, objective, health, &RouteFilter::open(), &mut iters)
         .ok()
         .flatten()
         .or_else(|| path::plan(grid, from, exit))
@@ -461,12 +456,12 @@ mod tests {
     fn plan(tactics: &Tactics, from: Vec3, to: Vec3, health: f32) -> (Option<Route>, bool) {
         let grid = &tactics.world.grid;
         let (a, b) = (grid.locate(from, 1.5).unwrap(), grid.locate(to, 1.5).unwrap());
-        let plain = tactics.route_nodes(a, b, 0, Some(0), false, |_| true);
+        let plain = tactics.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
         if !wanted(tactics, plain.as_ref(), a, b, Some(0), false, health) {
             return (plain, false);
         }
         let mut iters = usize::MAX;
-        let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, health, &[], &mut iters) else {
+        let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, health, &RouteFilter::open(), &mut iters) else {
             panic!("an unbounded search ends");
         };
         let (route, crossing, _) = choose(tactics, a, plain, crossed, health, 0, Some(0), false);
@@ -522,7 +517,7 @@ mod tests {
         let plain = tactics(0.0, 0.0);
         let grid = &plain.world.grid;
         let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
-        let route = plain.route_nodes(a, b, 0, Some(0), false, |_| true);
+        let route = plain.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
         assert!(route.is_some());
         assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, 1.0));
     }

@@ -110,7 +110,12 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     // since, and of them those within 2 m of it; living ticks in all.
     let mut there = [false; 2];
     let mut held = [(0u32, 0u32, 0u32); 2];
-    let (limit_ms, mut clock, mut next_world) = (120_000, 0, 1_000);
+    // Long enough for the camper to live to its spot: with the weapon's own
+    // damage (3-4 hits kill) its lives are 5-10 s and it reaches the spot
+    // (13 s from its spawn) in one life of four, where the old flat fifth
+    // a hit gave it one in eight within 120 s. The property is that it
+    // holds the spot all the while it is there, not how long it lives.
+    let (limit_ms, mut clock, mut next_world) = (300_000, 0, 1_000);
     while clock < limit_ms {
         clock += 25;
         while game.tick + TICK_MS <= clock {
@@ -156,7 +161,8 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     let found = bots.bench_camper.and_then(|(_, spot)| spot.flatten());
     assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
     // The camper got there and held it while alive (the reflex never moves
-    // it off); its mate spent little of its life there.
+    // it off; 3 s of it at least: how soon it arrives depends on the
+    // match's draws); its mate spent little of its life there.
     let [camper, mate] = held;
     // Its lives end by kills, so the ticks it spends at the spot move with
     // any change to the other bodies of the game (a stuck recovery among

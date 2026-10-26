@@ -72,6 +72,11 @@ pub struct WeaponParams {
     pub bullet_damage: f32,
     pub max_damage_distance: f32,
     pub min_damage_distance: f32,
+    /// `bullet_pierce` (the armour piercing, before the ammo's `k_arp`) and
+    /// `min_damage_amount` (the share of the damage and the piercing left
+    /// from `min_damage_distance` on): [`super::damage`].
+    pub bullet_pierce: f32,
+    pub min_damage_amount: f32,
     /// `recoil`: `min/max_top_recoil`, `min/max_left_recoil`,
     /// `min/max_right_recoil` (the config's degrees), `recoil_power`, and
     /// the controller's gains (proportional, integral, derivational).
@@ -243,7 +248,13 @@ impl WeaponParams {
         self.first_fire_mode < 0
     }
 
-    /// From an item's config.
+    /// From an item's config. A number the config does not have reads as 0,
+    /// never as an error (`bullet_pierce` and `min_damage_amount` included):
+    /// the client's reader (`weapon_damage_params` 0x332330, through
+    /// `binary_config_value::operator[]` 0xF6B10, which has no end check)
+    /// would walk off the table for a missing key, so every weapon that
+    /// ships has them (PROVEN as code), and the server must not stop at
+    /// start for a config that does not.
     pub fn from_config(
         dict_id: u16,
         name: &'static str,
@@ -315,6 +326,8 @@ impl WeaponParams {
             bullet_damage: number(Some(p), "bullet_damage")?,
             max_damage_distance: number(Some(p), "max_damage_distance")?,
             min_damage_distance: number(Some(p), "min_damage_distance")?,
+            bullet_pierce: number(Some(p), "bullet_pierce")?,
+            min_damage_amount: number(Some(p), "min_damage_amount")?,
             top_recoil: range("top")?,
             left_recoil: range("left")?,
             right_recoil: range("right")?,
@@ -542,6 +555,29 @@ mod tests {
         assert_eq!(c.of(strafing, &mosin), 20.0);
     }
 
+    /// A weapon config with none of the damage keys reads (as zeros) rather
+    /// than failing, so `all()` cannot panic on a patch that lacks them.
+    #[test]
+    fn a_weapon_config_without_the_damage_keys_reads() {
+        let named = |entries: Vec<(&str, ConfigValue)>| {
+            ConfigValue::Named(entries.into_iter().map(|(k, v)| (k.to_owned(), v)).collect())
+        };
+        let config = named(vec![(
+            "parameters",
+            named(vec![
+                ("type", ConfigValue::String("wpn_aslt".into())),
+                ("fire_queue_types", ConfigValue::Indexed(vec![ConfigValue::Integer(-1)])),
+                ("rounds_per_minute", ConfigValue::Float(600.0)),
+            ]),
+        )]);
+        let w = WeaponParams::from_config(1, "bare", 8, &config).unwrap();
+        assert_eq!(
+            (w.bullet_damage, w.bullet_pierce, w.min_damage_amount, w.max_damage_distance),
+            (0.0, 0.0, 0.0, 0.0)
+        );
+        assert_eq!(w.rounds_per_minute, 600);
+    }
+
     /// The players' game data with the 0.29a3 weapons (revision 19 on):
     /// `SRP_TEST_NEW_WEAPONS_DATA=<server-game-data.db> cargo test -p
     /// survarium --lib -- --ignored every_weapon_of_the_players_data`.
@@ -568,5 +604,13 @@ mod tests {
         }
         let vssk = all.iter().find(|w| w.name == "vssk").unwrap();
         assert!(vssk.has_chamber && !vssk.automatic());
+        // The damage keys every weapon has (the client needs them).
+        for w in &all {
+            assert!(
+                w.bullet_damage > 0.0 && w.bullet_pierce > 0.0 && w.min_damage_amount > 0.0,
+                "{} {w:?}",
+                w.name
+            );
+        }
     }
 }

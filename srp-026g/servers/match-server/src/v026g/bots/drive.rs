@@ -58,8 +58,8 @@ pub(super) fn zone_way_out(
     {
         return Some(to);
     }
-    let closed: Vec<Vec3> = bot.stuck.shut_landings(time).collect();
-    let out = tactics.escape(from, None, time, bot.side, objective, &closed)?;
+    let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+    let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
     Some(to)
@@ -196,7 +196,7 @@ pub(super) fn drive_tick(
     // kept its view on an enemy pressed use at him: in the whole-match
     // soaks the battery where the teams meet lay there all match in 6 runs
     // of 16 (its takers had a target 91 % of their time by it).
-    let using = matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M);
+    let using = Gates::using(&intent, eye, bot.reflex.view_held());
     bot.motor.track = over.track.filter(|_| !glance_yields && !using);
     let aim = over
         .look_at
@@ -454,12 +454,11 @@ pub(super) fn drive_tick(
                 let objective = intent.objective;
                 // Round the spots it got stuck at, if there is a way; else
                 // through them (a second search only when there are any).
-                let spots: Vec<Vec3> = bot.stuck.avoided_for(time, at).collect();
-                let avoiding = !spots.is_empty();
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let closed: Vec<Vec3> = bot.stuck.shut_landings(time).collect();
-                let through_open = |node: NodeId| !shut_landing(&closed, grid.position(node));
+                let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+                let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
+                let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
                 // as near as it gets, nothing to search.
@@ -480,7 +479,7 @@ pub(super) fn drive_tick(
                 let mut left = None;
                 let mut route = if escaping {
                     let route = ends.and_then(|(from, _)| {
-                        tactics.escape(from, Some(at), time, side, objective, &closed)
+                        tactics.escape(from, Some(at), time, side, objective, &hard)
                     });
                     // [zones] Out of the same zones toward the same goal
                     // twice lately: the way there keeps going into them;
@@ -502,11 +501,7 @@ pub(super) fn drive_tick(
                 } else if there {
                     None
                 } else if let Some((from, to)) = ends {
-                    let open = |node: NodeId| {
-                        !(avoiding && near_any(&spots, grid.position(node)))
-                            && through_open(node)
-                    };
-                    match tactics.start_route(from, to, time, side, objective, open, floors) {
+                    match tactics.start_route(from, to, time, side, objective, &filter, floors) {
                         Ok(None) if avoiding => {
                             match tactics.start_route(
                                 from,
@@ -514,7 +509,7 @@ pub(super) fn drive_tick(
                                 time,
                                 side,
                                 objective,
-                                through_open,
+                                &hard,
                                 floors,
                             ) {
                                 Ok(route) => route,
@@ -540,7 +535,7 @@ pub(super) fn drive_tick(
                                 time,
                                 side,
                                 objective,
-                                through_open,
+                                &hard,
                                 floors,
                             );
                             match through {
@@ -581,7 +576,7 @@ pub(super) fn drive_tick(
                     )
                 {
                     match crossing::start(
-                        tactics, from, to, time, side, objective, me.health, &closed, floors,
+                        tactics, from, to, time, side, objective, me.health, &hard, floors,
                     )
                     {
                         Ok(crossing_route) => {
@@ -631,8 +626,7 @@ pub(super) fn drive_tick(
                         side,
                         objective,
                         ends,
-                        spots: None,
-                        closed: closed.clone(),
+                        filter: hard.clone(),
                         hazards: tactics.hazards.version(),
                         planning,
                         health: me.health,
@@ -642,11 +636,9 @@ pub(super) fn drive_tick(
                     // It goes on at the next polls (`Bots::go_on_searching`).
                     // Meanwhile the way so far, as Detour's partial paths:
                     // toward the goal, not standing (else the old route).
-                    let open = |node: NodeId| {
-                        !(round && near_any(&spots, grid.position(node))) && through_open(node)
-                    };
+                    let filter = if round { filter } else { hard };
                     if let Some(partial) =
-                        tactics.partial_route(&planning, ends.0, time, side, objective, open)
+                        tactics.partial_route(&planning, ends.0, time, side, objective, &filter)
                     {
                         #[cfg(test)]
                         {
@@ -662,8 +654,7 @@ pub(super) fn drive_tick(
                         side,
                         objective,
                         ends,
-                        spots: round.then_some(spots),
-                        closed,
+                        filter,
                         hazards: tactics.hazards.version(),
                         planning,
                         health: me.health,
@@ -1166,6 +1157,14 @@ impl Gates {
         straight && !zone_out
     }
 
+    /// Whether the play's use is within reach and takes the view: the use is of something within
+    /// `USE_LOOK_M` of the eye, and not while the reflex holds the view for a grenade between its press and
+    /// its launch (the use waits that second and a half: the grenade leaves along the view then, and a use
+    /// look at a battery by the thrower's feet sent it there, 0.8 m from him, in a smoke).
+    pub(super) fn using(intent: &Intent, eye: Vec3, view_held: bool) -> bool {
+        !view_held && matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M)
+    }
+
     /// The play's own exact spot (a goal within 0), whose route is not arrived at from over its end.
     pub(super) fn exact_spot(intent: &Intent) -> Option<Vec3> {
         match intent.go {
@@ -1310,6 +1309,18 @@ mod tests {
             tripped |= !may;
         }
         assert!(!tripped);
+    }
+
+    #[test]
+    fn a_use_takes_the_view_when_in_reach_and_the_reflex_holds_none_for_a_grenade() {
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let look = |at| Intent { look: Look::Use(at), ..Intent::stay() };
+        let near = Vec3::new(0.0, 0.5, 1.0);
+        let far = Vec3::new(0.0, 0.5, USE_LOOK_M + 1.0);
+        assert!(Gates::using(&look(near), eye, false));
+        assert!(!Gates::using(&look(near), eye, true));
+        assert!(!Gates::using(&look(far), eye, false));
+        assert!(!Gates::using(&Intent::stay(), eye, false));
     }
 
     #[test]

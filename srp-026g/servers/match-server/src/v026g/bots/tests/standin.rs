@@ -108,6 +108,15 @@ pub(crate) struct PutPress {
     pub(crate) putting: bool,
 }
 
+/// Whose body a kill is: an enemy's, a teammate's (the game has friendly
+/// fire), or the killer's own (a grenade at one's feet).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Kill {
+    Enemy,
+    Mate,
+    Own,
+}
+
 /// A body of the stand-in game.
 #[derive(Clone, Debug)]
 pub(crate) struct Body {
@@ -126,6 +135,8 @@ pub(crate) struct Body {
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
     pub(crate) health: f32,
+    /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
+    pub(crate) pools: standin_damage::Pools,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -234,6 +245,8 @@ pub(crate) struct Game {
     pub(crate) hurts: VecDeque<(u32, Vec<Hurt>)>,
     pub(crate) tick: u32,
     pub(crate) rng: Rng,
+    /// How a hit hurts ([`standin_damage`]).
+    pub(crate) damage: standin_damage::Model,
     pub(crate) shots: u32,
     pub(crate) hits: u32,
     /// By place: shots, and hits on an enemy.
@@ -438,6 +451,7 @@ impl Game {
             blend: Blend::default(),
             keys: 0,
             health: 1.0,
+            pools: standin_damage::Pools::default(),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -469,6 +483,7 @@ impl Game {
             hurts: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
+            damage: standin_damage::Model::default(),
             shots: 0,
             hits: 0,
             shots_hits: vec![(0, 0); teams.len()],
@@ -565,6 +580,7 @@ impl Game {
         body.pitch = 0.0;
         body.blend = Blend::default();
         body.health = 1.0;
+        body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
@@ -770,6 +786,7 @@ impl Game {
             }
         }
         self.shoot(tick);
+        standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
         if let Some((m, next)) = self.nudge
             && tick >= next
@@ -955,7 +972,7 @@ impl Game {
             aim_state,
             cone,
         });
-        let Some((target, _)) = best else {
+        let Some((target, along)) = best else {
             return;
         };
         let team_hit = self.bodies[target].team == body.team;
@@ -968,7 +985,7 @@ impl Game {
             self.hit_log.push((tick, shooter, target));
         }
         let other = &mut self.bodies[target];
-        other.health -= 0.2;
+        standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
@@ -977,34 +994,50 @@ impl Game {
             }
         }
         if other.health <= 1e-3 {
-            other.alive = false;
-            other.dead_at = tick;
-            if let Some(battery) = other.carrying.take() {
-                if self.took[target].is_some_and(|at| tick <= at + TAKEN_KILLED_MS) {
-                    self.taken_killed += 1;
-                }
-                self.batteries[battery] = Lying::Free(other.feet, 1 << other.team);
-                self.carrier_kills.push((shooter, target));
-                if let Some(Some((_, fell @ None))) = self.stolen_marks.get_mut(battery) {
-                    *fell = Some((tick, false));
-                    self.stolen_log.push(format!(
-                        "{tick} battery {battery} fell at its carrier's death"
-                    ));
-                }
+            let kind = if team_hit { Kill::Mate } else { Kill::Enemy };
+            self.kill(target, shooter, kind, tick);
+        }
+    }
+
+    /// `target` dies at `tick`, `killer`'s shot or blast the cause: it
+    /// stays where it fell, its battery drops there, the kill is written
+    /// down and counted as the kinds of [`Kill`] say, and its team loses a
+    /// ticket.
+    pub(crate) fn kill(&mut self, target: Place, killer: Place, kind: Kill, tick: u32) {
+        let other = &mut self.bodies[target];
+        other.alive = false;
+        other.dead_at = tick;
+        if let Some(battery) = other.carrying.take() {
+            if self.took[target].is_some_and(|at| tick <= at + TAKEN_KILLED_MS) {
+                self.taken_killed += 1;
             }
-            self.kill_log.push((tick, shooter, target));
-            self.stats[target].1 += 1;
-            self.stats[target].2 = 0;
-            if let Some(tickets) = self.tickets.as_mut() {
-                let team = usize::from(other.team);
-                tickets[team] = tickets[team].saturating_sub(1);
+            self.batteries[battery] = Lying::Free(other.feet, 1 << other.team);
+            if kind != Kill::Own {
+                self.carrier_kills.push((killer, target));
             }
-            if team_hit {
-                self.team_kills += 1;
-            } else {
-                self.stats[shooter].0 += 1;
-                self.stats[shooter].2 += 1;
+            if let Some(Some((_, fell @ None))) = self.stolen_marks.get_mut(battery) {
+                *fell = Some((tick, false));
+                self.stolen_log.push(format!(
+                    "{tick} battery {battery} fell at its carrier's death"
+                ));
             }
+        }
+        if kind != Kill::Own {
+            self.kill_log.push((tick, killer, target));
+        }
+        self.stats[target].1 += 1;
+        self.stats[target].2 = 0;
+        if let Some(tickets) = self.tickets.as_mut() {
+            let team = usize::from(other.team);
+            tickets[team] = tickets[team].saturating_sub(1);
+        }
+        match kind {
+            Kill::Mate => self.team_kills += 1,
+            Kill::Enemy => {
+                self.stats[killer].0 += 1;
+                self.stats[killer].2 += 1;
+            }
+            Kill::Own => {}
         }
     }
 

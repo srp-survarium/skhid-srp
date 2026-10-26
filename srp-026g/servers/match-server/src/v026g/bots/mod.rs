@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod arc;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
@@ -50,6 +51,7 @@ pub mod recoil;
 pub mod reflex;
 pub mod rng;
 pub mod route_end;
+pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
@@ -82,6 +84,7 @@ use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
 use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use rng::Rng;
 use sense::RayBudget;
 use signals::{Duel, MatchSignals, Mods, Skill};
@@ -249,6 +252,9 @@ pub struct Bot {
     /// Plays that failed at once at a target, and until when they are not
     /// taken there again (`plays::SET_ASIDE_MS`).
     set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
+    /// What it remembers of giving way to a teammate on a spot
+    /// ([`plays::goals::keep_apart`]).
+    apart: plays::goals::Apart,
     /// Stands its takes of batteries gave up at lately
     /// (`plays::collect::FailedStand`): its next take stands elsewhere.
     failed_stands: Vec<plays::collect::FailedStand>,
@@ -367,6 +373,7 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             set_aside: Vec::new(),
+            apart: Default::default(),
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
