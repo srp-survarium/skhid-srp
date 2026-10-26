@@ -160,4 +160,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_fr
 /* the IAT slot 0x870118 (kernel32, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_id)(void);
 
+/* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
+void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count);
+
 #endif

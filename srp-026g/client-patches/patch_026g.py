@@ -354,7 +354,7 @@ Patches:
   patches.code) first, which sets bit 24 on the key going down;
 - a killed player falls as a ragdoll (patch 76, with the late join;
   docs/notes/ragdoll.md): the Rust patch ragdoll (the blocks patches.code
-  and .data, over the solver crate srp-026g/crates/ragdoll), five lohooks
+  and .data, over the solver crate srp-026g/crates/ragdoll), six lohooks
   (ragdoll.toml, sites_026g.tsv): game_world::tick after the simulation's
   move (0x1F7C3C) steps every place's corpse (alive, or dead with its
   life's spawn time +328h as the death's key: a rollback that undoes the
@@ -362,14 +362,18 @@ Patches:
   the ragdolls (eleven capsules, XPBD, the level read by ray_test);
   mt_draw's cull (0x24757C) draws a corpse of ours; mt_draw after the bones
   (0x247716) captures the death clip and writes the ragdoll's bones over
-  its stack array; update_camera (0x1F3643) gives the local player's view
-  its ragdoll's eye; bullet::check_collision after its ray (0x32D627)
-  tests the bullet's segment against the ragdolls: the part hit is pushed
-  (once a shot: the bullet's shooter, id and segment and the corpse's
-  death, so a re-simulated tick pushes no more), a settled body wakes, and
-  the game's body-hit particle and sound play there; a bullet in a living
-  player's hit model is kept (once a shot) and its death starts with its
-  push (the round's momentum: the ammo's mass times the bullet's speed),
+  its stack array; mt_draw's read of the held item (0x24754F) poses a
+  corpse holding nothing (a battery carrier's once the battery drops,
+  when mt_draw updates no bone) from its ragdoll through update_skeleton;
+  update_camera (0x1F3643) gives the local player's view its ragdoll's
+  eye; bullet::check_collision after its ray (0x32D627) tests the bullet's
+  segment against the ragdolls: the part hit is pushed (once a bullet a
+  victim: the bullet's shooter and id and the corpse's death, so neither
+  a re-simulated tick nor the bullet's next segment pushes again), a
+  settled body wakes, and the game's body-hit particle and sound play
+  there; a bullet in a living player's hit model is kept (once a bullet)
+  and its death starts with its push (the round's momentum: the ammo's
+  mass, at most 0.04 kg, times the bullet's speed; a battery drops no gun),
   the body a powered ragdoll (muscles that weaken from the death, the
   kit's weight from the inventory on its parts). Drawn only: nothing a
   match computes, keeps or hashes changes, the bullet goes on as before;

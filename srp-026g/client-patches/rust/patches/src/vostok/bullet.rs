@@ -68,6 +68,16 @@ impl<'t> BulletRay<'t> {
         }
     }
 
+    /// The ammo config's `muzzle_speed`, m/s (NaN without ammo data): with
+    /// the mass, which ammo it is (one or two configs a pair).
+    pub fn muzzle_speed(&self) -> f32 {
+        // SAFETY: the bullet's ammo data, its muzzle speed.
+        unsafe {
+            pointer(raw::bullet::ammo(self.bullet.ptr()).cast())
+                .map_or(f32::NAN, |a| read(raw::ammo_data::muzzle_speed(a.ptr())))
+        }
+    }
+
     /// Its velocity now, its segment's (m/s).
     pub fn velocity(&self) -> [f32; 3] {
         // SAFETY: the bullet's float3.

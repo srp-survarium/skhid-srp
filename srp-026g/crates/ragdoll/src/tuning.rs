@@ -56,9 +56,20 @@ pub const HEAVY_HIT: f32 = 40.0;
 pub const MAX_LOAD: f32 = 40.0;
 
 /// A bullet's push, N s: its momentum at the hit (the ammo's `mass` x its
-/// speed then) times this (the game's masses are a gameplay scale: 0.02 kg
-/// for a 5.45 mm round, 0.1 for a 7.62x54, 0.01 a buckshot pellet).
+/// speed then) times this.
 pub const SHOT_MOMENTUM: f32 = 0.8;
+/// The ammo's `mass` counts at most this, kg (464f). The configs' masses are
+/// the game's impulse on a prop it hits (`mass` x the velocity, or x the
+/// speed lost in a pierce: 0x32E3E0 from process_collision 0x32EBD0,
+/// try_pierce and try_reflect), four classes, not the rounds': 0.01 a
+/// buckshot pellet, 0.02 every pistol and intermediate round (5.45 to 9x39),
+/// 0.1 the full-power rifles (7.62x51, 7.62x54R, .30-30), the 12.7x55 and the
+/// slug, 0.2 the 12.7x54. A 0.1 round pushed 5 to 10 times a 5.45 (the 464d
+/// trace: 40 N s at p50, 68 at most, against 6.8 and 12.8), every top knock
+/// its; real rounds' momenta differ by about 2 (7.62x51 against 5.45x39),
+/// so the heavy classes count as 0.04: a 7.62x51 at 850 m/s pushes 27 N s,
+/// 2.1 times a 5.45 at 800, the slug 14 and the 12.7x55 11.
+pub const SHOT_MAX_MASS: f32 = 0.04;
 /// A push when the bullet gives no mass or speed, N s (a rifle's).
 pub const SHOT_DEFAULT: f32 = 12.0;
 

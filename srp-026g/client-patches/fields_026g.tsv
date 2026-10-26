@@ -58,3 +58,9 @@ survarium::check_collision_frame	direction	0x20	f32	the ray's unit direction, a 
 survarium::check_collision_frame	origin	0x90	f32	the ray's origin, a float3 (esp+90h: the by-value argument; 0x32D5FE)
 survarium::image	animated_body_vtable	0x9E2AF4	u32	bt_animated_rigid_body's vtable (RTTI; its ctor 0x70E70 writes it)
 survarium::inventory	slots_end	0x168	u32	the slots' end: 23 slots (inventory::update_weight's loop, 0x2FC6FF mov ebx,17h)
+survarium::ammo_data	muzzle_speed	0x3C	f32	the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+survarium::player	game_world	0xF474	u32	its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
+survarium::game	renderer	0x5360	u32	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
+vostok::render::game::renderer	scene_renderer	0x200064	u32	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
+survarium::player_model	render_instance	0x108	u32	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
+survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h

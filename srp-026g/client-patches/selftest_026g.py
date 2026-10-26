@@ -4601,7 +4601,7 @@ def test_bake_cache(original, image, before):
 
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
-    ../docs/notes/ragdoll.md). Static, on the bytes: the five sites and what
+    ../docs/notes/ragdoll.md). Static, on the bytes: the six sites and what
     follows each in the original, the jmps to the generated lohook entries in
     patches.code in the build, no base relocation under a site and no
     branch inside one, the block the link's, the entries' shapes, the
@@ -4656,8 +4656,13 @@ def test_ragdoll(original, image, before):
     data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
     sym = linked.symbols
     hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627],
-          "the Rust patch ragdoll's five lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F],
+          "the Rust patch ragdoll's six lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    check(rows(stock, 0x24754F, 0xE) == ["mov esi,[ebx+0x128]", "test esi,esi", "jz near 0x24781e"]
+          and rows(stock, 0x2477FE, 0x20)[:4] == ["mov edx,[ecx+0x5360]", "mov edi,[edx+0x200064]", "call 0x22490",
+                                                  "jmp short 0x24781e"],
+          "mt_draw: with no held item (+128h 0) the je at 0x247557 skips every bone update to 0x24781E, where the "
+          "draw with bones joins after update_skeleton (0x24780A, EDI the renderer's +200064h)")
     for va, old, symbol, opcode in hooks:
         target = sym[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
@@ -4692,11 +4697,13 @@ def test_ragdoll(original, image, before):
                       and not block.va <= branch_target(t) < block.va + len(code)})
     library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
-    backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)}
+    backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
+        | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
     allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
-          "memcpy, memmove and memset, and each hook's way back past its site (the imports go by pointer)"
+          "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
+          "go by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]

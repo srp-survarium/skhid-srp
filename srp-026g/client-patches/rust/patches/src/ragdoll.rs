@@ -12,8 +12,12 @@
 //!   player's own ragdoll's eye;
 //! - `on_ray` (bullet::check_collision, the bullet's ray traced): the
 //!   segment tested against the ragdolls; a hit corpse's part is pushed at
-//!   the next step (once a shot) and the game's body-hit particle and sound
-//!   play at the hit; a living player's hit is kept for its death's push.
+//!   the next step (once a bullet) and the game's body-hit particle and
+//!   sound play at the hit; a living player's hit is kept for its death's
+//!   push (once a bullet: its first segment through the body);
+//! - `on_held_item` (mt_draw, before the held item is read): a corpse of
+//!   ours holding nothing (a battery carrier's once the battery drops: the
+//!   game then updates no bone) is posed from its ragdoll alone.
 //!
 //! The world is read once a frame into the crate's types (the places seen
 //! alive or dead with their death's key, the bones' matrices as world
@@ -27,15 +31,15 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, Level, Skeleton, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, Knock, Level, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
 use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::world::{BodyId, GameWorld, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId};
-use crate::vostok::{Context, Flow, Lock, NoExit, Thread, camera, clock};
+use crate::vostok::world::{BodyId, GameWorld, Held, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId};
+use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, Thread, camera, clock};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the foot IK's level (group 24h,
@@ -55,6 +59,13 @@ const LIVING_HITS: usize = 32;
 const PUSHES: usize = 32;
 /// A living hit's key's place (no corpse's: a place is below MAX_PLACES).
 const LIVING: u8 = 0xFE;
+/// The trace's spikes (464f): a push past `SPIKE_PUSH` N s (one round's is
+/// 27 at most), a death's whole-body knock past `SPIKE_KNOCK` m/s (one
+/// full-power round's is 0.83) or capped, a part past `SPIKE_SPEED` m/s
+/// after a hit (one hit's is at most its cap, 6, and the knock).
+const SPIKE_PUSH: f32 = 30.0;
+const SPIKE_KNOCK: f32 = 1.0;
+const SPIKE_SPEED: f32 = 7.0;
 
 /// A row-vector affine matrix (vostok's float4x4: rows i, j, k the axes,
 /// row c the place) as a rigid pose; `None` when it is not one (a scale, a
@@ -155,6 +166,18 @@ enum Clock {
     Running { ticks: u32, frequency: u32 },
 }
 
+/// A bullet's round as the trace says it: the ammo's mass and muzzle speed
+/// (its identity), its speed at the hit, its segment, its id and shooter.
+#[derive(Clone, Copy)]
+struct Round {
+    mass: f32,
+    muzzle: f32,
+    speed: f32,
+    segment: u32,
+    bullet: u32,
+    shooter: u8,
+}
+
 /// A shot's push on a corpse, for the next step.
 #[derive(Clone, Copy)]
 struct Push {
@@ -163,16 +186,16 @@ struct Push {
     part: Part,
     point: Vec3,
     impulse: Vec3,
+    round: Round,
 }
 
-/// A bullet in a living player's hit model: the body, the hit, the round's
-/// mass and speed (the step finds the place by the body).
+/// A bullet in a living player's hit model: the body, the hit, the round
+/// (the step finds the place by the body).
 #[derive(Clone, Copy)]
 struct Living {
     body: BodyId,
     hit: Hit,
-    mass: f32,
-    speed: f32,
+    round: Round,
 }
 
 /// The shots of the frame's bullets: the log of those applied, the pushes
@@ -212,6 +235,8 @@ struct State {
     recent: [Recent; MAX_PLACES],
     /// Each place's motion while alive (the next death's carried velocity).
     moving: [Moving; MAX_PLACES],
+    /// Each place's last living hit's round (the trace's spike of its death).
+    rounds: [Option<Round>; MAX_PLACES],
     trace: TraceState,
     shots: Shots,
 }
@@ -228,6 +253,7 @@ static STATE: Lock<State> = Lock::new(State {
     time: 0.0,
     recent: [Recent::new(); MAX_PLACES],
     moving: [Moving { at: Vec3::ZERO, velocity: Vec3::ZERO, known: false }; MAX_PLACES],
+    rounds: [None; MAX_PLACES],
     trace: TraceState::Closed,
     shots: Shots { log: ShotLog::new(), pushes: [None; PUSHES], living: [None; LIVING_HITS] },
 });
@@ -345,7 +371,9 @@ fn seen(
     let Some(skeleton) = player.skeleton() else { return (Seen::Alive, None) };
     let Some(index) = mapping(mappings, &skeleton) else { return (Seen::Alive, None) };
     let stood_on = pose_of(&player.transform()).map(|p| (p.position, UP));
-    let gun = player.holds_item().then_some(GunShape::RIFLE);
+    // a held item drops as a gun; a battery does not (the simulation drops
+    // the battery itself, 0x300E50)
+    let gun = (player.held() == Held::Item).then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
@@ -368,8 +396,11 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     // the pushes of the shots since the last step (the bullets' threads
     // are done: the simulation's move has returned)
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take() {
-            state.corpses.push(p.place, p.death, p.part, p.point, p.impulse);
+        if let Some(p) = push.take()
+            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
+            && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
+        {
+            spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
         }
     }
     let mut seen_places = [Seen::Alive; MAX_PLACES];
@@ -388,10 +419,13 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
             for l in living.iter().flatten() {
                 if body == Some(l.body) {
                     state.recent[place].record(state.time, l.hit);
+                    state.rounds[place] = Some(l.round);
+                    let r = &l.round;
                     trace_line(&mut state.trace, thread, |w| {
                         w.text("hit,");
-                        w.fields(&[(state.time, 3), (place as f32, 0), (l.mass, 4), (l.speed, 1),
-                                   (l.hit.impulse.length(), 2)]);
+                        w.fields(&[(state.time, 3), (place as f32, 0), (r.mass, 4), (r.speed, 1),
+                                   (l.hit.impulse.length(), 2), (r.muzzle, 0), (r.segment as f32, 0),
+                                   (r.bullet as f32, 0), (f32::from(r.shooter), 0)]);
                     });
                 }
             }
@@ -438,6 +472,9 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
                 (r.strengths[3], 2),
             ]);
         });
+        if r.capped || r.knock > SPIKE_KNOCK || r.push > SPIKE_PUSH || r.peak_speed > SPIKE_SPEED {
+            spike_of_death(&mut state.trace, thread, state.time, place, state.rounds[place].as_ref(), &r);
+        }
     }
     for (place, player) in players.iter().enumerate() {
         state.draws[place] = match (state.corpses.place(place), *player) {
@@ -452,6 +489,37 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
         _ => EyeView::Off,
     };
     ANY_BODIES.store(state.corpses.any_bodies(), Ordering::Release);
+}
+
+/// A death's spike line: its killing round (the place's last living hit),
+/// its hits summed, its fastest part, its kit, its push, that part's speed,
+/// whether the body's knock was capped.
+fn spike_of_death(file: &mut TraceState, thread: &Thread, time: f32, place: usize, round: Option<&Round>,
+                  r: &StartReport) {
+    let body: f32 = Part::ALL.iter().map(|p| p.mass()).sum();
+    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0 };
+    let round = round.unwrap_or(&none);
+    trace_line(file, thread, |w| {
+        w.text("spike,");
+        w.fields(&[(time, 3), (place as f32, 0)]);
+        w.text(",death,");
+        w.fields(&[(round.mass, 4), (round.speed, 1), (round.muzzle, 0), (round.segment as f32, 0),
+                   (f32::from(r.hits), 0), (r.peak.index() as f32, 0), (r.mass - body, 1), (r.push, 2),
+                   (r.peak_speed, 2), (u8::from(r.capped) as f32, 0)]);
+    });
+}
+
+/// A corpse push's spike line: its round, the part, the part's mass (its
+/// kit in), the push, the part's speed after, whether its speed was capped.
+fn spike_of_push(file: &mut TraceState, thread: &Thread, time: f32, place: usize, round: &Round, k: &Knock) {
+    trace_line(file, thread, |w| {
+        w.text("spike,");
+        w.fields(&[(time, 3), (place as f32, 0)]);
+        w.text(",push,");
+        w.fields(&[(round.mass, 4), (round.speed, 1), (round.muzzle, 0), (round.segment as f32, 0), (1.0, 0),
+                   (k.part.index() as f32, 0), (k.mass, 1), (k.push, 2), (k.speed, 2),
+                   (u8::from(k.capped) as f32, 0)]);
+    });
 }
 
 /// The trace's file name, in the user data folder.
@@ -470,9 +538,11 @@ fn trace_line(file: &mut TraceState, thread: &Thread, line: impl FnOnce(&mut Lin
             Some(handle) => {
                 let mut head = Line::new();
                 head.text(
-                    "# srp ragdoll trace: hit,time s,place,mass kg,speed m/s,push N s | death,time s,place,cause \
-                     (0 none 1 body 2 head 3 blast),hits,push N s,knock m/s,mass kg,speed m/s,legs,waist,neck,arms (the \
-                     muscles' strength at the start; the death clip is the game's, captured)\r\n",
+                    "# srp ragdoll trace: hit,time s,place,mass kg,speed m/s,push N s,muzzle m/s,segment,bullet,\
+                     shooter | death,time s,place,cause (0 none 1 body 2 head 3 blast),hits,push N s,knock m/s,mass \
+                     kg,speed m/s,legs,waist,neck,arms (the muscles' strength at the start) | spike,time s,place,\
+                     death or push,mass kg,speed m/s,muzzle m/s,segment,hits,part,kit kg (a push: the part's mass),\
+                     push N s,part speed m/s,capped\r\n",
                 );
                 handle.write(thread, head.bytes());
                 TraceState::Open(handle)
@@ -487,15 +557,15 @@ fn trace_line(file: &mut TraceState, thread: &Thread, line: impl FnOnce(&mut Lin
     }
 }
 
-/// A line of the trace, at most 400 bytes.
+/// A line of the trace, at most 512 bytes.
 struct Line {
-    bytes: [u8; 400],
+    bytes: [u8; 512],
     used: usize,
 }
 
 impl Line {
     fn new() -> Line {
-        Line { bytes: [0; 400], used: 0 }
+        Line { bytes: [0; 512], used: 0 }
     }
 
     fn bytes(&self) -> &[u8] {
@@ -591,28 +661,25 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
     let from = vec3(ray.origin());
     let direction = vec3(ray.direction());
     let shooter = ray.shooter_place();
-    let key = |place: u8, death: u32| ShotKey {
-        shooter: shooter.unwrap_or(u8::MAX),
-        bullet: ray.id(),
-        segment: ray.segment(),
-        place,
-        death,
-    };
+    // one push a bullet a victim, whatever its segment (shot.rs ShotKey)
+    let key = |place: u8, death: u32| ShotKey { shooter: shooter.unwrap_or(u8::MAX), bullet: ray.id(), place, death };
     // the bullet's round: its ammo's mass (kg) and its speed now (m/s, its
     // segment's)
-    let round = || (ray.ammo_mass(), vec3(ray.velocity()).length());
-    let push = |direction: Vec3| {
-        let (mass, speed) = round();
-        impulse(direction, mass, speed)
+    let round = Round {
+        mass: ray.ammo_mass(),
+        muzzle: ray.muzzle_speed(),
+        speed: vec3(ray.velocity()).length(),
+        segment: ray.segment(),
+        bullet: ray.id(),
+        shooter: shooter.unwrap_or(u8::MAX),
     };
-    // a living player hit: kept for its death's push, once a shot
+    let push = |direction: Vec3| impulse(direction, round.mass, round.speed);
+    // a living player hit: kept for its death's push, once a bullet
     if let Some(body) = ray.struck_body()
         && let Some(point) = ray.struck()
         && let Some(unit) = direction.direction()
     {
-        let hit = Hit { point: vec3(point), impulse: push(unit) };
-        let (mass, speed) = round();
-        let living = Living { body, hit, mass, speed };
+        let living = Living { body, hit: Hit { point: vec3(point), impulse: push(unit) }, round };
         STATE.with(thread, |state| take_living(&mut state.shots, key(LIVING, body.key()), living));
     }
     if !ANY_BODIES.load(Ordering::Acquire) {
@@ -626,7 +693,7 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
     let Some(shot) = Shot::new(from, direction, reach) else { return };
     let taken = STATE.with(thread, |state| {
         let hit = state.corpses.trace(&shot)?;
-        take_shot(&mut state.shots, key(hit.place as u8, hit.death.0), &hit, push(shot.direction)).then_some(hit)
+        take_shot(&mut state.shots, key(hit.place as u8, hit.death.0), &hit, push(shot.direction), round).then_some(hit)
     });
     if let Some(hit) = taken
         && shooter.is_some()
@@ -648,10 +715,17 @@ fn take_living(shots: &mut Shots, key: ShotKey, living: Living) {
 /// The shot's push queued for the next step, if it is the shot's first
 /// trace (a rollback's re-simulated tick traces it again) and a push is
 /// free. True if taken.
-fn take_shot(shots: &mut Shots, key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
+fn take_shot(shots: &mut Shots, key: ShotKey, hit: &CorpseHit, j: Vec3, round: Round) -> bool {
     match shots.pushes.iter_mut().find(|p| p.is_none()) {
         Some(free) if shots.log.first(key) => {
-            *free = Some(Push { place: hit.place, death: hit.death, part: hit.hit.part, point: hit.hit.point, impulse: j });
+            *free = Some(Push {
+                place: hit.place,
+                death: hit.death,
+                part: hit.hit.part,
+                point: hit.hit.point,
+                impulse: j,
+                round,
+            });
             true
         }
         _ => false,
@@ -708,6 +782,46 @@ fn apply(state: &mut State, bones: &DrawnBones<'_>) {
             bones.set(u32::from(i), matrix_of(back.then(skeleton[b])));
         }
     }
+}
+
+/// mt_draw before it reads the held item: a corpse of ours holding nothing
+/// (mt_draw would update no bone: the `je` after the span) is posed from its
+/// ragdoll alone and given to the renderer as mt_draw gives its own; then
+/// the draw goes on where that `je` goes.
+pub fn on_held_item(ctx: &mut Context<'_>) -> Flow<RagdollOnHeldItemExit> {
+    // the bones made under the lock, given to the renderer after it
+    let posed = draw::unheld_player(ctx).is_some_and(|player| {
+        STATE.with(ctx.thread(), |state| pose_unheld(state, &player)).is_some_and(|b| draw::post_bones(&player, &b))
+    });
+    if posed {
+        draw::no_held_item(ctx);
+        Flow::Exit(RagdollOnHeldItemExit::NoBones)
+    } else {
+        Flow::Continue
+    }
+}
+
+/// The ragdoll's bones of a corpse of ours that mt_draw made none for, in
+/// the game's order (model space); None when it is not one (a dying body:
+/// its clip not captured; a skeleton with bones not ours).
+fn pose_unheld(state: &State, player: &Player<'_>) -> Option<[[f32; 16]; BONE_COUNT]> {
+    let (_, slot, index) = draw_of(state, player)?;
+    let transform = pose_of(&player.transform())?;
+    // every matrix of the game's is one of ours (index: the game's bone - 1)
+    let count = player.skeleton().map_or(0, |s| s.bone_count() as usize).saturating_sub(1);
+    if count != BONE_COUNT || count > draw::MAX_BONES {
+        return None;
+    }
+    let mut skeleton: Skeleton = [Pose::IDENTITY; BONE_COUNT];
+    if state.corpses.slot(slot).draw_alone(&mut skeleton) != Drawn::Ragdoll {
+        return None;
+    }
+    let back = transform.inverse();
+    let mut bones = [[0.0f32; 16]; BONE_COUNT];
+    for (b, &i) in index.iter().enumerate() {
+        bones[usize::from(i)] = matrix_of(back.then(skeleton[b]));
+    }
+    Some(bones)
 }
 
 /// update_camera's eye: the local player's ragdoll's eye in the first

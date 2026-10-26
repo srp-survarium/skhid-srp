@@ -3103,3 +3103,4 @@ va	status	ref_021d	name
 0x00306d50	inferred-medium		survarium::game_material_manager::material_pair
 0x00332440	inferred-medium		survarium::ammo_data::load
 0x00018bd0	observed		vostok::engine::engine_world::get_user_data_directory
+0x0032e3e0	inferred-medium		survarium::bullet::apply_hit_impulse

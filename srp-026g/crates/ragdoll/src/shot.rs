@@ -9,7 +9,8 @@
 //! game traces it (`bullet::check_collision`), tests it here, and pushes the
 //! body it hits. The simulation re-traces the same bullet when a rollback
 //! simulates its ticks again, so [`ShotLog`] keeps the shots already applied:
-//! the same shot (the same bullet, segment and corpse) pushes once.
+//! the same shot (the same bullet and victim) pushes once, however many of
+//! its segments (a pierce through the body's parts) cross the victim.
 
 use crate::math::{Vec3, abs, clamp, max, min, sqrt};
 use crate::skeleton::Part;
@@ -151,12 +152,13 @@ pub fn hit_on_capsule(shot: &Shot, a: Vec3, b: Vec3, distance: f32, part: Part) 
 }
 
 /// A bullet's push along its direction, N s: its momentum at the hit, the
-/// ammo's `mass` (kg, the config's) times its speed then (m/s), times
-/// [`tuning::SHOT_MOMENTUM`]; [`tuning::SHOT_DEFAULT`] when the bullet gives
-/// no sane mass or speed. So a pistol round pushes less than a rifle's, a
-/// sniper's most, and each buckshot pellet a little.
+/// ammo's `mass` (kg, the config's, at most [`tuning::SHOT_MAX_MASS`]) times
+/// its speed then (m/s), times [`tuning::SHOT_MOMENTUM`];
+/// [`tuning::SHOT_DEFAULT`] when the bullet gives no sane mass or speed. So a
+/// pistol round pushes less than a rifle's, a full-power rifle's about twice
+/// a 5.45's, and each buckshot pellet a little.
 pub fn impulse(direction: Vec3, mass: f32, speed: f32) -> Vec3 {
-    let momentum = mass * speed;
+    let momentum = min(mass, tuning::SHOT_MAX_MASS) * speed;
     let size = if mass.is_finite()
         && speed.is_finite()
         && mass > 0.0
@@ -261,16 +263,17 @@ impl Default for Recent {
     }
 }
 
-/// One shot through one corpse: the bullet (its shooter's place, its id,
-/// its trajectory's segment) and the corpse (its place, its death). The game
-/// keeps the bullet's three in its state, so a re-simulated tick gives the
-/// same key; its own hit effects are deduplicated by the same three
-/// (`player_shootmarks_storage::add_shootmark` 0x32E460).
+/// One bullet through one victim: the bullet (its shooter's place, its id)
+/// and the victim (a corpse's place and death, or a living player's body).
+/// The game keeps the bullet's two in its state, so a re-simulated tick
+/// gives the same key. No segment: a bullet that pierces a body is traced
+/// again, a segment a part, from inside it (464d's trace: up to 17 lines a
+/// bullet, 850 -> 504.6 -> 504.6 -> 504.5 m/s at one place), and pushes once,
+/// with its first (its entry's, the fastest) segment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShotKey {
     pub shooter: u8,
     pub bullet: u32,
-    pub segment: u32,
     pub place: u8,
     pub death: u32,
 }
@@ -360,15 +363,14 @@ mod tests {
         let key = ShotKey {
             shooter: 3,
             bullet: 77,
-            segment: 0,
             place: 5,
             death: 9000,
         };
         assert!(log.first(key));
         // the same shot traced again (a rollback's re-simulated tick)
         assert!(!log.first(key));
-        // the bullet's next segment (after a pierce), another corpse, another shooter
-        assert!(log.first(ShotKey { segment: 1, ..key }));
+        // another corpse, another shooter (the bullet's next segment through
+        // the same victim is the same key)
         assert!(log.first(ShotKey { place: 6, ..key }));
         assert!(log.first(ShotKey { shooter: 4, ..key }));
         assert!(!log.first(key));

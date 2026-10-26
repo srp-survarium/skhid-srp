@@ -466,7 +466,7 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
 The Rust exe-patch framework's (`rust_patches.md`): the module `patches::ragdoll`
 (`client-patches/rust/patches/src/ragdoll.rs`, `#![forbid(unsafe_code)]`, vostok only) over the
 solver crate `ragdoll` (section 7, its own library crate, a path dependency of `patches`). Its
-five hooks are names only (`ragdoll.toml`: a site and a handler each); the sites are rows of
+six hooks (five since the port, the sixth 464f's) are names only (`ragdoll.toml`: a site and a handler each); the sites are rows of
 `sites_026g.tsv`, all kind `lohook` (each span 5 bytes or more and branch-free, so the
 generated entry saves the machine, calls the handler and replays the span, or skips it):
 
@@ -477,6 +477,7 @@ generated entry saves the machine, calls the handler and replays the span, or sk
 | `player_draw.bones` | 0x247716, 6 | `on_bones` | EBX the player, EBP mt_draw's frame | replay |
 | `camera.eye` | 0x1F3643, 6 | `on_eye` | EBX the player, EAX the eye given | EAX our eye for our corpse, replay |
 | `bullet.ray_traced` | 0x32D627, 10 | `on_ray` | EDI the bullet, EAX its result, ESP its frame | replay (the two moves) |
+| `player_draw.held_item` | 0x24754F, 6 | `on_held_item` | EBX the player | a corpse of ours holding nothing: its bones to update_skeleton, exit `no_bones` 0x24781E (464f, section 14); else replay |
 
 What the game is, is vostok's: `vostok::world` (the game world, the network client and its
 places, a player's fields, its skeleton's bones, its inventory's weights, the physics world's
@@ -885,6 +886,79 @@ stilts, the fall's direction, the kit, the rounds), and a running body carrying 
 the start report. The Unicorn check adds +1Ch from change_trajectory, the trace, a running
 player's death (the hip 1.8 m on, a standing one's 0.15 m).
 
+## 14. 464f: too much impulse, a battery carrier's corpse (2026-10-26)
+
+The owner on 464d: "sometimes ragdoll gets too much impulse". The 464d trace (4562 hits, 216
+deaths) shows two causes.
+
+**1. The ammo's `mass` is not the round's (PROVEN).** The configs hold four values: 0.01 (a
+buckshot pellet), 0.02 (every pistol and intermediate round, 5.45 to 9x39), 0.1 (7.62x51,
+7.62x54R, .30-30, the 12.7x55 and the 12 mm slug), 0.2 (the 12.7x54). It is the game's impulse
+on a prop a bullet hits: `bullet::apply_hit_impulse` 0x32E3E0 (new re-kit rows) applies the
+velocity times `[[bullet+40h]+14h]` to the object's physics body, from process_collision
+0x32EBF6 with the bullet's velocity and from try_pierce / try_reflect with the speed lost. A
+0.1 round pushed 5 to 10 times a 5.45; real rounds' momenta differ by about 2. The fix is the
+smallest: `SHOT_MAX_MASS` 0.04 kg in tuning.rs, the mass counted at most that, so the heavy
+classes push 2.1 times a 5.45. A table by calibre was the other way, but the ammo's data has no
+calibre and no name (ammo_data::load 0x332440 reads the distance, dispersion, damage, mass,
+muzzle speed, air resistance, the hit type and the kill feed's icon), so it would need the item's identity read
+and a hand-kept list of 34 configs that drifts with every content pack.
+
+**2. One bullet counted several times on one victim.** A bullet that pierces a body is traced
+again, a segment a part, from inside it (850 -> 504.6 -> 504.6 -> 504.5 m/s at one place and
+time, up to 17 lines a bullet; a death summed up to 4). The segment is out of `ShotKey` now:
+one hit a bullet a victim (living or a corpse), its first segment's (the fastest).
+
+| ammo (mass) | 464d push p50 / p90 / max, N s | 464f p50 / p90 / max | hits counted |
+|---|---|---|---|
+| 0.01 pellets | 1.25 / 2.0 / 8.0 | 2.0 / 2.0 / 8.0 | 1888 -> 473 |
+| 0.02 pistol, intermediate | 6.8 / 12.1 / 12.8 | 7.2 / 12.8 / 12.8 | 2567 -> 626 |
+| 0.1 full-power, 12.7x55, slug | 40.1 / 64.0 / 68.0 | 25.6 / 27.2 / 27.2 | 107 -> 28 |
+
+(464f from the same trace: the mass clamped, the first line of each bullet; the p50 of the
+first two rises because the repeats were the slowed segments.) The deaths' whole-body knock,
+modelled from the trace's hits (the model gives 464d's p50 and p90 exactly): p50 0.29 -> 0.20,
+p90 0.71 -> 0.54, max 3.05 -> 0.68 m/s.
+
+At the muzzle, a config's push is 0.8 x min(mass, 0.04) x its speed: a 5.45 12.8, a 7.62x39
+11.2, a 9x19 7.2, a 7.62x51 27.2, a 7.62x54 25.6, a slug 14.4, a 12.7x55 11.2, a pellet 2.
+
+**Detection, for the next time.**
+- The trace build's lines grow (old readers still read the first columns): `hit` adds the
+  muzzle speed (with the mass, the ammo's identity: one or two configs a pair), the segment,
+  the bullet's id and the shooter; a new `spike` line is written for a death whose knock is
+  past 1 m/s or capped, a push past 30 N s, or a part past 7 m/s after it (one hit gives at
+  most its cap, 6, and the knock), with its inputs: the round (mass, speed, muzzle, segment),
+  the hits summed, the part, the kit (a push: the part's mass), the push, the part's speed,
+  capped.
+- `srp-026g/scripts/ragdoll-trace/summary.py <srp_ragdoll.csv> [--calc calc.js]`: the pushes
+  per ammo (named from the damage calculator's table), the repeat groups, the top deaths by
+  knock, the spikes.
+- `no_single_hit_reaches_a_cap` (`cargo test -p ragdoll`): every distinct (mass, muzzle) of
+  the 34 configs, on seven parts: the whole body's knock never capped, no part seen faster than
+  `SHOT_MAX_SPEED` in the first frames. Without the clamp it fails (a slug on a shin).
+
+**A battery carrier's corpse (PROVEN in code; a design study of the carried battery,
+2026-10-26).** When the simulation drops a dead carrier's battery, +128h (the
+held item) becomes 0, and mt_draw's `je 0x24781E` at 0x247557 skips every bone update: no
+update_skeleton, neither of our hooks after it. The corpse froze at the drop.
+- A sixth lohook, `player_draw.held_item` (0x24754F, `mov esi,[ebx+128h]`, the
+  named exit `no_bones` at 0x24781E): a corpse of ours with a ragdoll and nothing held is
+  posed from the ragdoll alone (`Slot::draw_alone`: every one of the 69 bones from the
+  bodies, the drive's clip the last seen) and given to update_skeleton (0x22490, a new thunk
+  row: EDI the scene renderer `[[[player+F474h]+9Ch]+5360h]+200064h`, the model's +108h, the
+  matrices twice, 69) as mt_draw gives its own at 0x24780A; then the draw goes on at
+  0x24781E, ESI 0 as the je leaves it. A dying body (its clip not captured), a living player
+  or a skeleton with bones not ours take the original's je.
+- No gun capsule when the held item at the death is a battery (`[[player+128h]]` the
+  victory_item vtable 0xA042AC: an `::image` row; its +30h is is_ready_to_be_deactivated
+  0x301270, which the item switch 0x2D76A0 calls on +128h). The battery's own drop (the study's
+  option B, a simulation patch) is the owner's to decide and is not here.
+- Tests: `a_corpse_holding_no_item_is_still_drawn_and_settles` (cargo); the Unicorn check runs
+  the site for a corpse with +128h 0 (the 69 bones, the ragdoll's, to the stubbed
+  update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
+  (the original's je), and a carrier's ragdoll with no gun.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
@@ -908,6 +982,7 @@ player's death (the hip 1.8 m on, a standing one's 0.15 m).
 | 0x332440 | `ammo_data::load`: the ammo config's `data` (+14h mass, +3Ch muzzle_speed) | abi, abi_inputs, inferred |
 | 0x2FC6E0 | `inventory::update_weight`: the slots, an item's weight and count | abi, abi_inputs |
 | 0x18BD0 | `engine_world::get_user_data_directory` (the trace's folder) | abi, inferred |
+| 0x32E3E0 | `bullet::apply_hit_impulse` (464f: the ammo's mass x the velocity on a prop hit) | inferred, abi, abi_inputs |
 
 Already in the kit and used above: 0x338330 dead state activate, 0x3383E0 / 0x338430 /
 0x3384E0 its serialize / deserialize / end, 0x2474A0 mt_draw, 0x1F77E0 game_world::tick,

@@ -81,6 +81,26 @@ pub extern "C" fn hook_ragdoll_on_ray(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The named exits of ragdoll::on_held_item (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum RagdollOnHeldItemExit { NoBones }
+/// The entry `ragdoll_on_held_item` (0x24754f, mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_held_item` calls this, from the game's jump at 0x24754f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_held_item(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

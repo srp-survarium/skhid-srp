@@ -30,3 +30,10 @@ handler = "on_eye"
 [[hook]]
 site = "bullet.ray_traced"
 handler = "on_ray"
+
+# mt_draw before the held item is read: a corpse of ours holding nothing (a
+# battery carrier's once the battery drops; mt_draw makes no skeleton then)
+# is posed from its ragdoll alone
+[[hook]]
+site = "player_draw.held_item"
+handler = "on_held_item"

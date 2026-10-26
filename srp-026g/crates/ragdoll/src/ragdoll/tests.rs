@@ -1040,3 +1040,93 @@ fn render_dump5() {
         .unwrap();
     }
 }
+
+/// The game's ammo configs, (mass, muzzle speed): every distinct pair of
+/// 0.26g's 34 (items/weapons/ammo: the damage calculator's table): buckshot
+/// pellets, pistols and intermediate rounds, the full-power rifles, the
+/// 12.7x55 and the slug, the 12.7x54.
+const AMMO: [(f32, f32); 21] = [
+    (0.01, 250.0),
+    (0.02, 260.0),
+    (0.02, 270.0),
+    (0.02, 280.0),
+    (0.02, 300.0),
+    (0.02, 315.0),
+    (0.02, 410.0),
+    (0.02, 420.0),
+    (0.02, 430.0),
+    (0.02, 450.0),
+    (0.02, 520.0),
+    (0.02, 700.0),
+    (0.02, 725.0),
+    (0.02, 800.0),
+    (0.1, 350.0),
+    (0.1, 450.0),
+    (0.1, 700.0),
+    (0.1, 760.0),
+    (0.1, 800.0),
+    (0.1, 850.0),
+    (0.2, 320.0),
+];
+
+/// 464f (the owner: "sometimes ragdoll gets too much impulse"): no single
+/// hit of any ammo, at its muzzle speed, on any part, reaches a cap: the
+/// whole body's knock stays below `BODY_KNOCK_MAX` and no part is seen faster
+/// than `SHOT_MAX_SPEED` in the hit's first frames. The 464d trace's 0.1
+/// rounds (68 N s) capped the knock at once.
+#[test]
+fn no_single_hit_reaches_a_cap() {
+    let spots = [
+        Vec3::new(0.0, 1.3, 0.15),   // the chest
+        Vec3::new(0.0, 1.0, 0.12),   // the pelvis
+        Vec3::new(0.0, 1.62, 0.1),   // the head
+        Vec3::new(0.2, 1.32, 0.07),  // an upper arm
+        Vec3::new(0.21, 1.05, 0.08), // a forearm
+        Vec3::new(0.1, 0.75, 0.09),  // a thigh
+        Vec3::new(0.1, 0.3, 0.07),   // a shin
+    ];
+    let back = Vec3::new(0.0, 0.0, -1.0);
+    for (mass, speed) in AMMO {
+        for point in spots {
+            let hits = [crate::shot::Hit {
+                point,
+                impulse: crate::shot::impulse(back, mass, speed),
+            }];
+            let now = standing(Quat::IDENTITY, Vec3::ZERO);
+            let before = driver_bones(&now);
+            let mut s = start(&now, &before, Cause::Unknown, None);
+            s.hits = &hits;
+            let mut r = Ragdoll::new(&s).unwrap();
+            let report = r.report;
+            assert!(
+                !report.capped && report.knock < tuning::BODY_KNOCK_MAX,
+                "{mass} kg at {speed} m/s on {point:?}: the body's knock {} capped",
+                report.knock
+            );
+            let mut ground = Ground::flat();
+            let mut last = r.poses().0;
+            for frame in 0..6 {
+                r.step(1.0 / 60.0, None, &mut ground);
+                let now = r.poses().0;
+                for part in Part::ALL {
+                    let seen =
+                        (now[part.index()].position - last[part.index()].position).length() * 60.0;
+                    assert!(
+                        seen <= tuning::SHOT_MAX_SPEED,
+                        "{mass} kg at {speed} m/s on {point:?}: {part:?} at {seen} m/s in frame {frame}"
+                    );
+                }
+                last = now;
+            }
+        }
+    }
+    // the heavy classes count as SHOT_MAX_MASS
+    assert_eq!(
+        crate::shot::impulse(back, 0.1, 850.0),
+        crate::shot::impulse(back, tuning::SHOT_MAX_MASS, 850.0)
+    );
+    assert!(
+        crate::shot::impulse(back, 0.1, 850.0).length()
+            > 2.0 * crate::shot::impulse(back, 0.02, 800.0).length()
+    );
+}

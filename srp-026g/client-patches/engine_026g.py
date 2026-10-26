@@ -33,8 +33,8 @@ global symbol of its own, which the link resolves for every caller):
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
 address, for the `vostok` layer (rust_patches.md). An offset may be
-negative (a function's frame local, by its frame pointer) and up to 1 MiB
-(an object's far member). A kind ending in `::image` is the exe image
+negative (a function's frame local, by its frame pointer) and up to 4 MiB
+(an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
 itself: its rows are VAs of the game's data (a vtable), generated as
 constants `raw::image::<FIELD>`, the address only (vostok compares it, never
 reads through it).
@@ -302,12 +302,12 @@ def fields(path=None):
         module = kind.rpartition("::")[2]
         offset = number(row["offset"])
         image = module == "image"
-        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x100000)
+        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
         if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
                 or kind_type not in FIELD_TYPES or not low <= offset < high or offset % FIELD_TYPES[kind_type] \
                 or (module, field) in seen:
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
-                          f"from -0x1000 to under 0x100000 (an image VA for ::image) aligned to its type, a type "
+                          f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
                           f"of {', '.join(FIELD_TYPES)}")
         seen.add((module, field))
         out.append({"kind": kind, "module": module, "field": field, "offset": offset, "type": kind_type,

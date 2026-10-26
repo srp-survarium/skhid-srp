@@ -4625,3 +4625,6 @@ va	name	location	role	basis
 0x0032d4e0	survarium::bullet::check_collision	EAX	the bullet (+4 its id, +8 its shooter (+4 the place), +1Ch its velocity (LIKELY), +40h its ammo data (0x332440's: +0Ch k_power, +14h mass, +3Ch muzzle_speed, +50h combat_log_icon), +44h the bullet manager, +48h its material, +80h, +84h its segments)	observed
 0x00332440		entry ESP+4	the ammo data filled (the config's `data`: +0 distance, +4 dispersion, +8 k_damage, +0Ch k_power, +10h k_stamina_damage, +14h mass, +18h k_max_damage_distance, ... +28h air_resistance, +3Ch muzzle_speed, +50h combat_log_icon); EAX the config	observed
 0x002fc6e0	survarium::inventory::update_weight	ESI	the inventory (+10Ch its 23 slots' items, +180h m_carried_weight, +184h m_need_to_recalculate_weight)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	ESI	the velocity (a float3: the bullet's +1Ch, or the velocity a pierce or reflection lost)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	EDI	the object hit (+1Ch its owner)	observed
+0x0032e3e0	survarium::bullet::apply_hit_impulse	entry ESP+4	the bullet (+40h its ammo data)	observed

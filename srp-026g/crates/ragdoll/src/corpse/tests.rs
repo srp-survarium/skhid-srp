@@ -93,6 +93,68 @@ fn a_death_goes_dying_ragdoll_settled_and_a_respawn_drops_it() {
     assert!(corpses.pool.iter().all(|s| matches!(s, Slot::Free)));
 }
 
+/// 464f: a corpse whose player holds no item (a battery carrier's, once the
+/// simulation drops the battery: mt_draw then makes no skeleton) is still
+/// drawn, every bone from the ragdoll whatever the skeleton given, and it
+/// settles; a dying body (the clip not captured) is left to the game.
+#[test]
+fn a_corpse_holding_no_item_is_still_drawn_and_settles() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let d = [dead(7)];
+    let step = |corpses: &mut Corpses, ground: &mut Ground| {
+        corpses.step(
+            &Frame {
+                dt: 1.0 / 60.0,
+                up: UP,
+                places: &d,
+                local: None,
+            },
+            ground,
+        );
+    };
+    // the death: two draws of the clip (with the item), the ragdoll's start
+    for _ in 0..2 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    let Corpse::Body { slot, .. } = corpses.place(0) else {
+        panic!("no body")
+    };
+    assert_eq!(stage(&corpses, 0), "dying");
+    let mut empty = [Pose::IDENTITY; BONE_COUNT];
+    assert_eq!(
+        corpses.slot(slot).draw_alone(&mut empty),
+        Drawn::Game,
+        "a dying body is the game's"
+    );
+    step(&mut corpses, &mut ground);
+    assert_eq!(stage(&corpses, 0), "ragdoll");
+    // the item gone: no skeleton from the game, the ragdoll's own drawn
+    let mut frames = 0;
+    let mut first = None;
+    while stage(&corpses, 0) != "settled" {
+        let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+        assert_eq!(corpses.slot(slot).draw_alone(&mut skeleton), Drawn::Ragdoll);
+        // the same skeleton as a draw over the game's would give
+        let mut over = standing(Quat::IDENTITY, Vec3::new(5.0, 0.0, 0.0));
+        let mut copy = *corpses.slot(slot);
+        copy.draw(&mut over);
+        assert_eq!(skeleton, over, "every bone is the ragdoll's");
+        first.get_or_insert(skeleton);
+        step(&mut corpses, &mut ground);
+        frames += 1;
+        assert!(frames < 1200, "never settled");
+    }
+    let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+    assert_eq!(corpses.slot(slot).draw_alone(&mut skeleton), Drawn::Ragdoll);
+    let fell = first.unwrap()[crate::skeleton::HEAD.index()].position.y
+        - skeleton[crate::skeleton::HEAD.index()].position.y;
+    assert!(
+        fell > 0.8,
+        "it fell ({fell} m) and settled in {frames} frames"
+    );
+}
+
 #[test]
 fn a_rollback_that_undoes_the_death_drops_the_ragdoll_and_the_same_death_keeps_it() {
     let mut corpses = Corpses::new();
@@ -418,7 +480,11 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     let head = part_pose(&corpses, 0, Part::Head).position;
     let pelvis = part_pose(&corpses, 0, Part::Pelvis).position;
     let j = crate::shot::impulse(along, 0.02, 800.0);
-    assert!(corpses.push(0, DeathKey(7), hit.hit.part, hit.hit.point, j));
+    assert!(
+        corpses
+            .push(0, DeathKey(7), hit.hit.part, hit.hit.point, j)
+            .is_some()
+    );
     assert_eq!(stage(&corpses, 0), "ragdoll", "woken");
     for _ in 0..20 {
         frame(&mut corpses, &d, None, &mut ground);
@@ -459,7 +525,11 @@ fn a_shot_pushes_a_moving_ragdoll_and_a_miss_does_nothing() {
         assert_eq!(corpses.trace(&shot), None);
     }
     // the wrong death (the place died again since): nothing pushed
-    assert!(!corpses.push(0, DeathKey(8), Part::LeftForearm, arm, along));
+    assert!(
+        corpses
+            .push(0, DeathKey(8), Part::LeftForearm, arm, along)
+            .is_none()
+    );
     // the forearm, along +Z
     let mut pushed = Corpses::new();
     let mut alone = Corpses::new();
@@ -502,18 +572,19 @@ fn the_same_shot_traced_again_pushes_once() {
         let key = ShotKey {
             shooter: 2,
             bullet: 41,
-            segment: 0,
             place: hit.place as u8,
             death: hit.death.0,
         };
         log.first(key)
-            && corpses.push(
-                hit.place,
-                hit.death,
-                hit.hit.part,
-                hit.hit.point,
-                impulse(shot.direction, 0.02, 800.0),
-            )
+            && corpses
+                .push(
+                    hit.place,
+                    hit.death,
+                    hit.hit.part,
+                    hit.hit.point,
+                    impulse(shot.direction, 0.02, 800.0),
+                )
+                .is_some()
     };
     let mut ground = Ground::flat();
     let d = [dead(7)];
@@ -759,7 +830,6 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
                 let key = crate::shot::ShotKey {
                     shooter: 1,
                     bullet: k,
-                    segment: 0,
                     place: 0,
                     death: 7,
                 };

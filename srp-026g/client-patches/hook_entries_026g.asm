@@ -201,6 +201,48 @@ ragdoll_on_ray_replay:
     db 0xf3, 0x0f, 0x7e, 0x00, 0x66, 0x0f, 0xd6, 0x44, 0x24, 0x38
     jmp 0x32d631
 
+; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
+global ragdoll_on_held_item
+extern hook_ragdoll_on_held_item
+ragdoll_on_held_item:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_held_item
+    mov edx, ragdoll_on_held_item_replay
+    cmp eax, 0
+    je ragdoll_on_held_item_go
+    mov edx, 0x247555
+    cmp eax, 1
+    je ragdoll_on_held_item_go
+    mov edx, 0x24781e
+    cmp eax, 2
+    je ragdoll_on_held_item_go
+    ud2
+ragdoll_on_held_item_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_held_item_replay:
+    db 0x8b, 0xb3, 0x28, 0x01, 0x00, 0x00
+    jmp 0x247555
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

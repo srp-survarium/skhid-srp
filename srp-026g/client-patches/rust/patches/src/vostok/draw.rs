@@ -8,6 +8,38 @@ use super::context::{Context, Flag, Flow, NoExit, Reg};
 use super::world::{Player, floats};
 use crate::raw;
 
+/// The player at `player_draw.held_item` (EBX), when it holds nothing:
+/// mt_draw then skips every bone update (the `je 0x24781E` after the span).
+pub fn unheld_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+    Player::at(ctx, Reg::Ebx).filter(|p| p.held() == super::world::Held::Nothing)
+}
+
+/// The bones of a player mt_draw made none for, given to the renderer as
+/// mt_draw gives its own (update_skeleton 0x22490: the model's render
+/// instance, the matrices twice, their count): `bones` model-space
+/// row-vector 4x4s, the game's order, at most [`MAX_BONES`]. False if the
+/// player has no renderer.
+pub fn post_bones(player: &Player<'_>, bones: &[[f32; 16]]) -> bool {
+    let Some((scene, instance)) = player.renderer() else { return false };
+    let count = bones.len().min(MAX_BONES);
+    // SAFETY: the scene renderer and the render instance mt_draw passes
+    // (read through the same fields); our matrices, `count` of them, which
+    // update_skeleton copies into its command.
+    unsafe {
+        raw::engine_update_skeleton(scene, instance, bones.as_ptr().cast(), bones.as_ptr().cast(), count as u32)
+    };
+    true
+}
+
+/// The most matrices update_skeleton takes (its abi row: at most 80).
+pub const MAX_BONES: usize = 80;
+
+/// What the skip after `player_draw.held_item` leaves: ESI the held item,
+/// 0 (the span it skips is `mov esi,[ebx+128h]`).
+pub fn no_held_item(ctx: &mut Context<'_>) {
+    ctx.set_reg(Reg::Esi, 0);
+}
+
 /// The player mt_draw culls (EBX at `player_draw.cull`).
 pub fn culled_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
     Player::at(ctx, Reg::Ebx)

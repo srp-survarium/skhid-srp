@@ -131,6 +131,16 @@ impl<'t> NetworkClient<'t> {
     }
 }
 
+/// What a player holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Held {
+    Nothing,
+    /// A battery (a victory_item): no gun drops from a carrier's hands.
+    Battery,
+    /// A weapon or another item.
+    Item,
+}
+
 /// A player as a value kept between hooks: its address, compared, never
 /// read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -179,10 +189,32 @@ impl<'t> Player<'t> {
         unsafe { read(raw::player::spawned(self.this.ptr())) }
     }
 
-    /// Holding an item (a gun that drops).
-    pub fn holds_item(&self) -> bool {
-        // SAFETY: as inserted.
-        unsafe { read(raw::player::held_item(self.this.ptr())) != 0 }
+    /// What it holds (+128h: mt_draw draws it at the "Weapon" bone).
+    pub fn held(&self) -> Held {
+        // SAFETY: as inserted; the held item's vtable, a read of its first
+        // field.
+        unsafe {
+            match pointer(raw::player::held_item(self.this.ptr()).cast()) {
+                None => Held::Nothing,
+                Some(item) if read(item.ptr().cast::<u32>()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
+                Some(_) => Held::Item,
+            }
+        }
+    }
+
+    /// The model's render instance and the scene renderer, what
+    /// update_skeleton takes (mt_draw 0x2477E2..0x24780A).
+    pub(in crate::vostok) fn renderer(&self) -> Option<(*mut c_void, *mut c_void)> {
+        // SAFETY: the player's model and game world, the world's game, its
+        // renderer, the renderer's scene renderer.
+        unsafe {
+            let model = pointer(raw::player::model(self.this.ptr()).cast())?;
+            let world = pointer(raw::player::game_world(self.this.ptr()).cast())?;
+            let game = pointer(raw::game_world::game(world.ptr()).cast())?;
+            let renderer = pointer(raw::game::renderer(game.ptr()).cast())?;
+            let scene = pointer(raw::renderer::scene_renderer(renderer.ptr()).cast())?;
+            Some((scene.ptr(), raw::player_model::render_instance(model.ptr()).cast()))
+        }
     }
 
     /// The simulated transform, a row-vector 4x4 (rows i, j, k, place).

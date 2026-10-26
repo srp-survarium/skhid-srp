@@ -162,3 +162,6 @@ extern engine_query_performance_frequency
 ; the IAT slot 0x870118 (kernel32, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_current_thread_id
+; void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)
+; 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
+extern engine_update_skeleton

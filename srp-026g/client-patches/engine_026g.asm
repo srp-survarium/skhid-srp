@@ -54,6 +54,7 @@ global engine_active_player
 global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
+global engine_update_skeleton
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -752,6 +753,25 @@ engine_user_data_directory:
     push esi
     push edi
     call 0x18bd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_update_skeleton:
+    ; 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; count -> 16
+    push dword [esp + 36]   ; second -> 12
+    push dword [esp + 36]   ; bones -> 8
+    push dword [esp + 36]   ; instance -> 4
+    mov edi, [esp + 36]   ; scene_renderer
+    call 0x22490
     pop edi
     pop esi
     pop ebx

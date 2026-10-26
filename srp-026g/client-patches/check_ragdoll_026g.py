@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Run patch 76's five hooks (the death ragdoll; ../docs/notes/ragdoll.md)
+"""Run patch 76's six hooks (the death ragdoll; ../docs/notes/ragdoll.md)
 in the built exe, with Unicorn (2.1.4).
 
     python check_ragdoll_026g.py <original survarium.exe>
 
 The exe is built as patch_026g.py builds it (with the late join and the
-arena); the build without the late join keeps the original's five sites.
+arena); the build without the late join keeps the original's six sites.
 The hooks are the Rust patch `ragdoll` (rust/patches/src/ragdoll.rs, its
 lohooks ragdoll.toml), each site a jmp to its generated entry
 (hook_entries_026g.asm), which saves the machine, calls the handler and
-replays the site's instructions (or skips them: the cull of a corpse).
+replays the site's instructions (or skips them: the cull of a corpse, the
+held item's read for a corpse holding nothing).
 Each hook runs from its site in the build to the game's next instruction:
-game_world::tick 0x1F7C3C (the step), mt_draw 0x24757C (the cull) and
-0x247716 (the bones), update_camera 0x1F3643 (the eye), bullet::
+game_world::tick 0x1F7C3C (the step), mt_draw 0x24754F (the held item's
+read; 0x24781E when it is 0), 0x24757C (the cull) and 0x247716 (the
+bones), update_camera 0x1F3643 (the eye), bullet::
 check_collision 0x32D627 (a bullet's ray; the original's code at the same
 site runs too, from the original exe, for the same state). The step reaches the
 places through the game's own network client code (match_options 0x219990,
@@ -29,7 +31,7 @@ play_sound (0x3222F0), which record their arguments. The material pair
 (0x306D50) is the game's own code on a made-up material manager.
 
 Checked:
-- the five sites: the original's bytes in the original and the build
+- the six sites: the original's bytes in the original and the build
   without the late join, a jmp to the hook's entry in patches.code here;
 - every hook keeps the registers the game's code after it reads, and the
   flags of the two compares it stands in for (the step's `[esp+0Fh]`, the
@@ -62,7 +64,12 @@ Checked:
 - a bullet in a living player's hit model (its body a bt_animated_rigid_body,
   actor) is kept by the hook (registers, frame and XMM0 the original exe's)
   once, and the death that follows falls along it; the players' inventories
-  (a torso armour, a stack) are read for the kit's weight.
+  (a torso armour, a stack) are read for the kit's weight;
+- 464f: a battery carrier's ragdoll has no gun; once its held item is 0
+  (the simulation dropped the battery) mt_draw's read of it gives the
+  ragdoll's 69 bones to update_skeleton (0x22490, stubbed: it records them)
+  and goes on at 0x24781E, and the corpse falls and settles so; a living
+  player holding nothing takes the original's je.
 """
 import math
 import struct
@@ -80,6 +87,9 @@ CULL_SITE, CULL_NEXT = 0x24757C, 0x247583
 APPLY_SITE, APPLY_NEXT = 0x247716, 0x24771C
 EYE_SITE, EYE_NEXT = 0x1F3643, 0x1F3649
 BULLET_SITE, BULLET_NEXT = 0x32D627, 0x32D631
+HELD_SITE, HELD_NEXT, NO_BONES = 0x24754F, 0x24755D, 0x24781E      # mt_draw's read of the held item, its je's target
+UPDATE_SKELETON = 0x22490
+VICTORY_ITEM_VTABLE = 0xA042AC
 RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
 CHANGE_TRAJECTORY = 0x32EE20
@@ -101,6 +111,9 @@ PARTICLE_SLOTS, SOUND_RESOURCE = HEAP + 0x832000, 0x50D50000
 # what the game's bullet ray hit: a wall (a static body) or a living player's hit model
 WALL_OBJECT, HIT_BODIES, HIT_MODELS, INVENTORIES = HEAP + 0x833000, HEAP + 0x834000, HEAP + 0x835000, HEAP + 0x836000
 ANIMATED_BODY_VTABLE = 0x9E2AF4
+# a held weapon and a held battery (a victory_item: its vtable); the renderer
+# update_skeleton is given (the game's renderer +200064h)
+WEAPON_ITEM, BATTERY_ITEM, RENDERER, SCENE = HEAP + 0x900000, HEAP + 0x900100, HEAP + 0xA00000, 0x5CE0E000
 STUBS, STACK, RET = 0x48000000, 0x48300000, 0x48400000
 PHYSICS = 0x5A5A0000                           # a made-up physics world (ray_test's ECX)
 
@@ -193,6 +206,14 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA, end=USER_DATA)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
         self.particles, self.sounds = [], []
+        # update_skeleton (EDI the scene renderer; the instance, the bones
+        # twice, the count; pops 16): records its arguments and the matrices
+        self.skeletons = []
+        emu.hook_add(UC_HOOK_CODE, self.update_skeleton, begin=UPDATE_SKELETON, end=UPDATE_SKELETON)
+        self.u32(WEAPON_ITEM, 0x11110000)
+        self.u32(BATTERY_ITEM, VICTORY_ITEM_VTABLE)
+        self.u32(GAME + 0x5360, RENDERER)
+        self.u32(RENDERER + 0x200064, SCENE)
         emu.hook_add(UC_HOOK_CODE, self.play_particle, begin=PLAY_PARTICLE, end=PLAY_PARTICLE)
         emu.hook_add(UC_HOOK_CODE, self.play_sound, begin=PLAY_SOUND, end=PLAY_SOUND)
         self.make_bullet()
@@ -300,6 +321,14 @@ class Game:
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x14)
         emu.reg_write(UC_X86_REG_EIP, ret)
 
+    def update_skeleton(self, emu, *_):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        ret, instance, bones, second, count = (self.u32(esp + 4 * i) for i in range(5))
+        self.skeletons.append((emu.reg_read(UC_X86_REG_EDI), instance, bones, second, count,
+                               [list(self.floats(bones + 64 * i, 16)) for i in range(min(count, 80))]))
+        emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x10)
+        emu.reg_write(UC_X86_REG_EIP, ret)
+
     def play_sound(self, emu, *_):
         esp = emu.reg_read(UC_X86_REG_ESP)
         ret, manager, sound, position = (self.u32(esp + 4 * i) for i in range(4))
@@ -369,7 +398,8 @@ class Game:
         self.players.append(player)
         self.u32(player + REFS, 1)
         self.u8(player + PLACE, place)
-        self.u32(player + HELD, 0x12340000)
+        self.u32(player + HELD, WEAPON_ITEM)
+        self.u32(player + 0xF474, WORLD)                # its game world (the renderer's way)
         self.u32(player + PHYSICS_WORLD, PHYSICS)
         self.u32(player + MODEL_FIELD, model)
         self.u32(player + INPUT, 0x1A2B3C4D)
@@ -478,6 +508,16 @@ class Game:
         drawn = [list(self.floats(ARRAY + 64 * i, 16)) for i in range(len(COOKED))]
         return drawn, drawn != [[struct.unpack("<f", struct.pack("<f", v))[0] for v in m] for m in game]
 
+    def held_item(self, player):
+        """mt_draw's read of the held item: (where it went on, ESI, the
+        update_skeleton calls it made)."""
+        before = len(self.skeletons)
+        stop = NO_BONES if self.u32(player + HELD) == 0 else HELD_NEXT
+        regs = {UC_X86_REG_EBX: player, UC_X86_REG_ESI: 0x51, UC_X86_REG_EBP: FRAME, UC_X86_REG_EDI: 0xD7}
+        out = self.run(HELD_SITE, stop, regs)
+        assert out[UC_X86_REG_EBX] == player and out[UC_X86_REG_EBP] == FRAME, "on_held_item kept EBX and EBP"
+        return stop, out[UC_X86_REG_ESI], self.skeletons[before:]
+
     def eye(self, player):
         """update_camera's eye: the transform the view gets."""
         given = player + EYE
@@ -505,8 +545,8 @@ def main():
     linked = base.arena()
     block = linked.blocks["patches.code"]
     hooks = [h for h in base.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE],
-          "the Rust patch ragdoll's five lohooks (ragdoll.toml, sites_026g.tsv)")
+    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE],
+          "the Rust patch ragdoll's six lohooks (ragdoll.toml, sites_026g.tsv)")
     for va, old, symbol, opcode in hooks:
         at = base.file_offset(va)
         target = linked.symbols[symbol]
@@ -719,6 +759,35 @@ def main():
           and float(death[0][6]) > 0.2,
           f"the diagnostics build writes srp_ragdoll.csv in the user data folder: the hit (place 0, mass 0.02, "
           f"speed 800, push 12.8 N s) and its death (a body shot, one hit, the push, the knock): {lines[1:]}")
+    # 464f: three 7.62x51 rounds (the config's 0.1 kg, 850 m/s), each traced
+    # at three segments through the same body (a pierce), then the death:
+    # one hit a bullet, each pushing as 0.04 kg; the knock of the three a spike
+    heavy = traced.add_player(1, 5.0, 0.0)
+    traced.emu.mem_write(DAMAGE + 0x14, struct.pack("<f", 0.1))
+    traced.emu.mem_write(DAMAGE + 0x3C, struct.pack("<f", 850.0))
+    traced.emu.mem_write(BULLET + 0x1C, struct.pack("<3f", 850.0, 0.0, 0.0))
+    for bullet in (7001, 7002, 7003):
+        traced.u32(BULLET + 0x4, bullet)
+        for segment in (0, 1, 2):
+            traced.u32(BULLET + 0x84, segment)
+            traced.shoot((2.0, 1.3, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(4.88, 1.3, 0.0), body=traced.hit_body(heavy))
+    traced.u32(BULLET + 0x84, 0)
+    traced.step()
+    traced.set_alive(heavy, False, 1000)
+    for _ in range(4):
+        traced.step()
+        traced.draw(heavy)
+    lines = traced.written.decode().splitlines()
+    hit = [line.split(",") for line in lines if line.startswith("hit,") and line.split(",")[2] == "1"]
+    death = [line.split(",") for line in lines if line.startswith("death,") and line.split(",")[2] == "1"]
+    spike = [line.split(",") for line in lines if line.startswith("spike,")]
+    check(len(hit) == 3 and all(h[3:5] == ["0.1000", "850.0"] and abs(float(h[5]) - 27.2) < 0.01 and h[6] == "850"
+                                and h[7] == "0" for h in hit) and [h[8] for h in hit] == ["7001", "7002", "7003"]
+          and len(death) == 1 and death[0][4] == "3" and float(death[0][6]) > 1.0
+          and len(spike) == 1 and spike[0][2:8] == ["1", "death", "0.1000", "850.0", "850", "0"]
+          and spike[0][8] == "3",
+          f"three bullets through one body, three segments each: three hits (the first segment's, 0.1 kg at 850 m/s "
+          f"pushing 27.2 N s, as 0.04 kg), one death of three hits and its spike line: {lines[-6:]}")
 
     # a running player's death carries its speed: 5 m/s along +z while alive
     runner, calm = game.add_player(6, 50.0, 0.0), game.add_player(7, 60.0, 0.0)
@@ -735,6 +804,45 @@ def main():
     check(hips[runner][2] > 0.5 and abs(hips[calm][2]) < 0.2,
           f"a running player's death carries its speed: the hip {hips[runner][2]:+.2f} m ahead (in its model's "
           f"space), a standing one's {hips[calm][2]:+.2f} m")
+    # 464f: a battery carrier's death drops no gun; once the simulation drops
+    # the battery (+128h 0, mt_draw then updates no bone) the corpse is posed
+    # from its ragdoll alone, and settles
+    carrier, gunner = game.add_player(8, 70.0, 0.0), game.add_player(9, 80.0, 0.0)
+    game.u32(carrier + HELD, BATTERY_ITEM)
+    for player in (carrier, gunner):
+        game.set_alive(player, False, 1000)
+    weapon = [n for n, _ in COOKED].index("Weapon")
+    bones = {carrier: [], gunner: []}
+    for _ in range(40):
+        game.step()
+        for p in bones:
+            bones[p].append(game.draw(p)[0][weapon])
+    check(bones[carrier][5] == bones[carrier][-1] and bones[gunner][5] != bones[gunner][-1],
+          "a battery carrier's ragdoll has no gun (its Weapon bone stays with the root, where it was at the "
+          "death); a gunner's gun drops (its Weapon bone falls)")
+    check(game.held_item(gunner)[0] == HELD_NEXT and game.held_item(carrier)[2] == [],
+          "holding an item, mt_draw goes on as the original (no update_skeleton of ours)")
+    game.u32(carrier + HELD, 0)
+    living = game.add_player(10, 90.0, 0.0)
+    game.u32(living + HELD, 0)
+    game.step()
+    normal, _ = game.draw(carrier)
+    where, esi, calls = game.held_item(carrier)
+    plain = game.held_item(living)
+    check(where == NO_BONES and esi == 0 and len(calls) == 1 and calls[0][:2] == (SCENE, MODEL + 0x108)
+          and calls[0][2] == calls[0][3] and calls[0][4] == len(COOKED)
+          and all(max(abs(a - b) for a, b in zip(m, n)) < 1e-4 for m, n in zip(calls[0][5], normal))
+          and plain[0] == NO_BONES and plain[1] == 0 and plain[2] == [],
+          "the battery dropped (+128h 0): the corpse's 69 bones, its ragdoll's, go to update_skeleton (EDI the "
+          "scene renderer, the model's +108h, the bones twice) and the draw goes on at 0x24781E with ESI 0; a "
+          "living player holding nothing takes the original's je, nothing of ours")
+    frames = []
+    for _ in range(400):
+        game.step()
+        frames.append(game.held_item(carrier)[2][0][5])
+    still = all(max(abs(a - b) for a, b in zip(m, n)) < 1e-5 for m, n in zip(frames[-1], frames[-2]))
+    check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
+          f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
     print("all checks passed")
 
 

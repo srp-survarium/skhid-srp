@@ -24,7 +24,7 @@
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, Level, Motion, Ragdoll, Skeleton, Start, StartReport,
+    Cause, DriverBones, GunShape, Knock, Level, Motion, Ragdoll, Skeleton, Start, StartReport,
     driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
@@ -232,6 +232,22 @@ impl Slot {
         }
     }
 
+    /// The draw of this slot's body when the game made no skeleton (mt_draw
+    /// makes none for a player holding no item: a battery carrier's corpse
+    /// once the simulation drops the battery): a ragdoll's own, every bone
+    /// from the bodies; the clip the drive follows stays the last one seen.
+    /// A dying body (its clip not captured yet) is left to the game.
+    pub fn draw_alone(&self, skeleton: &mut Skeleton) -> Drawn {
+        match self {
+            Slot::Ragdoll { ragdoll, .. } | Slot::Settled { ragdoll, .. } => {
+                let (parts, gun) = ragdoll.poses();
+                ragdoll.rig().draw(&parts, gun, skeleton);
+                Drawn::Ragdoll
+            }
+            Slot::Free | Slot::Dying { .. } => Drawn::Game,
+        }
+    }
+
     /// The camera's bone on the drawn head (the eye, "Item") and the ground
     /// the head rests on, while a ragdoll draws the body.
     fn eye(&self) -> Option<(Pose, Option<(Vec3, Vec3)>)> {
@@ -348,7 +364,8 @@ impl Corpses {
     }
 
     /// A shot's push on a place's ragdoll part, if that place still has the
-    /// same death's ragdoll drawn: a settled one wakes. True if pushed.
+    /// same death's ragdoll drawn: a settled one wakes. What the push did,
+    /// None if nothing was pushed.
     pub fn push(
         &mut self,
         place: usize,
@@ -356,12 +373,12 @@ impl Corpses {
         part: Part,
         point: Vec3,
         j: Vec3,
-    ) -> bool {
+    ) -> Option<Knock> {
         let Some(Corpse::Body { death: d, slot }) = self.places.get(place).copied() else {
-            return false;
+            return None;
         };
         if d != death {
-            return false;
+            return None;
         }
         let current = &mut self.pool[slot.index()];
         match current {
@@ -369,15 +386,15 @@ impl Corpses {
             Slot::Settled { ragdoll, .. } => {
                 let mut ragdoll = *ragdoll;
                 ragdoll.wake();
-                ragdoll.push(part, point, j);
+                let knock = ragdoll.push(part, point, j);
                 *current = Slot::Ragdoll {
                     ragdoll,
                     clip: None,
                 };
+                knock
             }
-            Slot::Free | Slot::Dying { .. } => return false,
+            Slot::Free | Slot::Dying { .. } => None,
         }
-        true
     }
 
     pub fn place(&self, place: usize) -> Corpse {
