@@ -137,6 +137,8 @@ pub(crate) struct Body {
     pub(crate) health: f32,
     /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
     pub(crate) pools: standin_damage::Pools,
+    /// Its weapon's rounds and ammo ([`standin_weapon`]).
+    pub(crate) stock: standin_weapon::Stock,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -452,6 +454,7 @@ impl Game {
             keys: 0,
             health: 1.0,
             pools: standin_damage::Pools::default(),
+            stock: standin_weapon::Stock::new(bench_tier(), gun),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -568,6 +571,7 @@ impl Game {
             .or_else(|| grid.locate(point, 3.0));
         let feet = node.map_or(at, |n| self.world.grid.position(n));
         let tick = self.tick;
+        let tier = self.damage.tier;
         let body = &mut self.bodies[place];
         body.feet = feet;
         body.node = node;
@@ -595,6 +599,7 @@ impl Game {
         body.recoil = Recoil::new(kick_of(body.gun.item));
         body.cadence = Cadence::default();
         body.spread.reset();
+        body.stock.spawn(tier, body.gun);
     }
 
     pub(crate) fn eye(body: &Body) -> Vec3 {
@@ -629,6 +634,7 @@ impl Game {
         for body in &mut self.bodies {
             body.recoil.update(tick);
         }
+        let tier = self.damage.tier;
         for (place, queue) in self.inputs.iter_mut().enumerate() {
             while let Some(&(at, keys, turn, target, gun)) = queue.front() {
                 if at > tick {
@@ -660,8 +666,10 @@ impl Game {
                     body.recoil.update(tick);
                     body.cadence = Cadence::default();
                     body.spread.reset();
+                    body.stock.switch(tier, gun);
                 } else if pressed[place] & key::RELOAD != 0 {
                     body.recoil.reset();
+                    body.stock.reload_key(tick);
                 }
                 body.yaw += turn.0;
                 let taken = body.recoil.turn(turn.1);
@@ -875,16 +883,20 @@ impl Game {
     pub(crate) fn shoot(&mut self, tick: u32) {
         for shooter in 0..self.bodies.len() {
             let body = &mut self.bodies[shooter];
+            body.stock.tick(tick, body.keys, body.alive);
             let held = body.alive
                 && body.keys & key::FIRE != 0
                 && body.carrying.is_none()
-                && tick >= body.drawn_at;
+                && tick >= body.drawn_at
+                && body.stock.may_fire(tick);
             let (auto, interval_ms) = (body.gun.auto, body.gun.shot_ms());
             let mut times = Vec::new();
             body.cadence
                 .tick(tick, held, auto, interval_ms, |t| times.push(t));
             for at in times {
-                self.shot(shooter, at);
+                if self.bodies[shooter].stock.fired(at) {
+                    self.shot(shooter, at);
+                }
             }
         }
     }

@@ -47,6 +47,7 @@ mod grenades;
 mod jumps;
 mod moving;
 mod resupply;
+mod stock;
 
 use campers::*;
 use fight::*;
@@ -293,6 +294,7 @@ impl OwnerTally {
             self.moving_part(game, &presses, &scale),
             self.vertical_part(game),
             self.grenades_part(game),
+            self.stock_part(game),
             self.campers_part(),
             self.resupply_part(game, &scale),
         ];
