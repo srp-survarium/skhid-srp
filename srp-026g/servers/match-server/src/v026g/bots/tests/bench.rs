@@ -164,6 +164,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/client_numbers", true.into());
     }
+    // The bot's reckoned stamina steers its sprint and jumps (`ThinkTuning::stamina`; off by default).
+    if settings.var("SRP_BENCH_BOT_STAMINA").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/stamina", true.into());
+    }
     // A body on no floor plans from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`; off by default).
     if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stranded_start", true.into());

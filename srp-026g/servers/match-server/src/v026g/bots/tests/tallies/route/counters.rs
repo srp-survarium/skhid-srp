@@ -118,6 +118,25 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
+/// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
+/// first seen, and the seconds of sprint saved for them.
+pub(super) fn stamina() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || {
+            let mut v = super::super::stamina::counts::counts().to_vec();
+            v.push(super::super::stamina::counts::saved_ms());
+            v
+        },
+        |d, line| {
+            line.ends.push(format!(
+                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_saved_s {:.1}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6] as f32 / 1000.0
+            ));
+        },
+    )
+}
+
 /// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
 pub(super) fn stranded() -> Box<dyn RouteTopic> {
     Delta::of(

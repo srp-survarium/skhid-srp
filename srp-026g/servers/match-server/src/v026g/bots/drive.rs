@@ -134,7 +134,25 @@ pub(super) fn unstick_step(keys: u32, yaw: f32) -> Vec3 {
     )
 }
 
+/// One drive tick: the bot's stamina reckoning follows the keys of its last decision ([`stamina`]); with
+/// `think.stamina` the motor is told the bar and a jump the bar cannot pay is not pressed.
 pub(super) fn drive_tick(
+    bot: &mut Bot,
+    me: &PlaceView,
+    view: &MatchView,
+    tactics: &Tactics,
+    tuning: &Tuning,
+    time: u32,
+    searching: &mut Searching,
+) -> Decision {
+    bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some());
+    bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
+    let decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    bot.sent_keys = decision.keys;
+    decision
+}
+
+fn drive_tick_inner(
     bot: &mut Bot,
     me: &PlaceView,
     view: &MatchView,
@@ -167,7 +185,7 @@ pub(super) fn drive_tick(
         yaw: me.yaw,
         pitch: me.pitch,
         speed: me.speed(),
-        no_jump: !bot.hurt.may_jump(time),
+        no_jump: !bot.hurt.may_jump(time) || (tuning.think.stamina && !bot.stamina.may_jump()),
     };
     if bot
         .jump_watch
