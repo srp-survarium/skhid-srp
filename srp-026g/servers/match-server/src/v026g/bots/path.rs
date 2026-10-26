@@ -1153,10 +1153,10 @@ mod tests {
     /// The landings of the route's drops of a metre or more within reach, and no step, jump or short drop.
     #[test]
     fn the_landings_of_a_routes_drops_are_found_within_reach() {
-        let p = |x, y, jump| Waypoint {
+        let p = |x, y, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         // Along, down 0.5 m (a curb), along, down 2 m (a drop), along, up 1.2 m by a jump, along.

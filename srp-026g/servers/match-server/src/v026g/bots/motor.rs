@@ -1709,7 +1709,7 @@ mod tests {
     /// turned at, not cut by a heading to a point past it.
     #[test]
     fn a_capped_look_ahead_turns_at_the_corner_not_across_it() {
-        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
         let corner = || Route::new(vec![p(0.0, 0.0), p(3.0, 0.0), p(3.0, 4.0)]);
         let pose = Pose { feet: Vec3::new(2.5, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
         let heading = |cap: Option<f32>| {
