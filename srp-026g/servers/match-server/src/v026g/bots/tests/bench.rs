@@ -127,9 +127,9 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         bench_settings().var(&format!("{prefix}{name}"))
     };
     let mut tuning = Tuning::default();
-    // A hop answers a world that had the body moving (`Feel::hop_world_mps`; `off` is the old rule).
-    if bench_settings().var("SRP_BENCH_HOP_WORLD").is_ok_and(|v| v == "off") {
-        tuning.feel.hop_world_mps = 0.0;
+    // A hop answers a world that had the body moving at this speed or more (`Feel::hop_world_mps`; 0 is the old rule).
+    if let Some(mps) = bench_settings().number("SRP_BENCH_HOP_WORLD_MPS") {
+        tuning.feel.hop_world_mps = mps;
     }
     // The battery cheat instead of the fair battery knowledge.
     if bench_settings().flag("SRP_BENCH_CHEAT") {
