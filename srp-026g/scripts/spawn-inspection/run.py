@@ -69,6 +69,16 @@ def coverage(csv_path, edit_path, match_id=None):
     return len(occupied) == 20
 
 
+def login_port(cfg):
+    ports = cfg["ports"]
+    # local-clients/run.py stores [login TCP, lobby UDP, match UDP, web TCP].
+    # Also accept named ports in hand-written local configurations.
+    raw = ports[0] if isinstance(ports, list) and len(ports) == 4 else ports.get("login") if isinstance(ports, dict) else None
+    if isinstance(raw, bool) or raw is None or not 1 <= int(raw) <= 65535:
+        raise ValueError("local config ports must contain a login port from 1 to 65535")
+    return int(raw)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "private/local-clients/config.json")
@@ -100,7 +110,7 @@ def main():
             parser.error("build srp-bot and provide --bot-bin (or install beside the local srp)")
         print("Joining with 19 stationary clients. Wait for 20/20 in your private room, then press Start.", flush=True)
         print("Ctrl+C disconnects the test clients. This does not open game windows.", flush=True)
-        argv = [str(binary), "--server", f"127.0.0.1:{int(cfg['ports']['login'])}",
+        argv = [str(binary), "--server", f"127.0.0.1:{login_port(cfg)}",
                 "--name", "Spawn1", "--count", "19", "--revision", str(env.get("SRP_MIN_PATCH_REVISION", 35)),
                 "--room", str(args.room), "--pin", str(args.pin)]
         os.execv(str(binary), argv)
