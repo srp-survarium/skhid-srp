@@ -953,11 +953,33 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
 - No gun capsule when the held item at the death is a battery (`[[player+128h]]` the
   victory_item vtable 0xA042AC: an `::image` row; its +30h is is_ready_to_be_deactivated
   0x301270, which the item switch 0x2D76A0 calls on +128h). The battery's own drop (the study's
-  option B, a simulation patch) is the owner's to decide and is not here.
+  option B, a simulation patch) is the owner's to decide and is not here (since: patch 80, section 15).
 - Tests: `a_corpse_holding_no_item_is_still_drawn_and_settles` (cargo); the Unicorn check runs
   the site for a corpse with +128h 0 (the 69 bones, the ragdoll's, to the stubbed
   update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
   (the original's je), and a carrier's ragdoll with no gun.
+
+## 15. Patch 80: the battery drops at the death (2026-10-26)
+
+Patch 80 (`battery-drop.md`) drops a carrier's battery on the death's tick.
+The held item is then 0 before the dying body is drawn twice (often before
+it is drawn at all: a death simulated in a rollback, several ticks in one
+frame), and mt_draw makes no skeleton of a body holding nothing, so the
+slot stayed `Dying` and the corpse froze in its last drawn pose.
+- `Corpses::keep`: a living battery carrier's draw (on_bones, the player
+  alive and holding a battery) is kept, 8 at most (the oldest gives its room
+  up), each for 0.5 s (`KEPT`, `KEPT_AGE`): 15 kB of patches.data.
+- A new death takes its place's kept draw, if fresh, as its first capture
+  (`Captured::One`).
+- `Death::posed` (the player holds an item): a `Dying` body the game no
+  longer poses starts from its one capture, with no relative motion of the
+  parts and the carried velocity (`DEATH_VELOCITY_SHARE` of the player's).
+  With two captures it starts as before.
+- Unchanged for every other death (nothing kept for a player holding no
+  battery; a body holding a weapon is drawn and captured as before).
+- Test: `a_carrier_whose_battery_drops_at_the_death_starts_from_its_last_draw_alive`
+  (cargo): it starts, falls along its run and settles; a draw 0.25 s old
+  still starts it; none, or one 1 s old, leaves the body the game's.
 
 ## Addresses (re-kit rows added in this change)
 

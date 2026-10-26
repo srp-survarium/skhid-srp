@@ -162,6 +162,11 @@ pub struct Player<'t> {
 }
 
 impl<'t> Player<'t> {
+    /// The player a field of another object names.
+    pub(in crate::vostok) fn of(this: Object, thread: &'t Thread) -> Player<'t> {
+        Player { this, thread }
+    }
+
     /// The player a site's register names (`reg`, as sites_026g.tsv says).
     pub(in crate::vostok) fn at(ctx: &'t Context<'_>, reg: Reg) -> Option<Player<'t>> {
         Object::at(ctx.reg(reg)).map(|this| Player { this, thread: ctx.thread() })
@@ -187,6 +192,12 @@ impl<'t> Player<'t> {
     pub fn spawned(&self) -> u32 {
         // SAFETY: as inserted.
         unsafe { read(raw::player::spawned(self.this.ptr())) }
+    }
+
+    /// Its place in the match.
+    pub fn place(&self) -> usize {
+        // SAFETY: as inserted.
+        usize::from(unsafe { read(raw::player::place(self.this.ptr())) })
     }
 
     /// What it holds (+128h: mt_draw draws it at the "Weapon" bone).

@@ -378,6 +378,9 @@ fn seen(
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
+    // holding nothing (a carrier's battery dropped, patch 80), the game
+    // makes no skeleton of the body: it starts from one capture
+    death.posed = player.held() != Held::Nothing;
     (Seen::Dead(death), Some(index))
 }
 
@@ -766,21 +769,45 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn apply(state: &mut State, bones: &DrawnBones<'_>) {
     let player = bones.player();
-    let Some((_, slot, index)) = draw_of(state, &player) else { return };
-    if index.iter().any(|&i| u32::from(i) >= bones.count()) {
+    let Some((_, slot, index)) = draw_of(state, &player) else {
+        keep_carrier(state, bones, &player);
         return;
-    }
+    };
+    let Some(mut skeleton) = world_skeleton(bones, &player, &index) else { return };
     let Some(transform) = pose_of(&player.transform()) else { return };
-    let mut skeleton: Skeleton = [Pose::IDENTITY; BONE_COUNT];
-    for (b, &i) in index.iter().enumerate() {
-        let Some(model) = bones.get(u32::from(i)).as_ref().and_then(pose_of) else { return };
-        skeleton[b] = transform.then(model);
-    }
     if state.corpses.slot_mut(slot).draw(&mut skeleton) == Drawn::Ragdoll {
         let back = transform.inverse();
         for (b, &i) in index.iter().enumerate() {
             bones.set(u32::from(i), matrix_of(back.then(skeleton[b])));
         }
+    }
+}
+
+/// The game's drawn skeleton in world space, in our bones' order.
+fn world_skeleton(bones: &DrawnBones<'_>, player: &Player<'_>, index: &BoneIndex) -> Option<Skeleton> {
+    if index.iter().any(|&i| u32::from(i) >= bones.count()) {
+        return None;
+    }
+    let transform = pose_of(&player.transform())?;
+    let mut skeleton: Skeleton = [Pose::IDENTITY; BONE_COUNT];
+    for (b, &i) in index.iter().enumerate() {
+        let model = bones.get(u32::from(i)).as_ref().and_then(pose_of)?;
+        skeleton[b] = transform.then(model);
+    }
+    Some(skeleton)
+}
+
+/// A living battery carrier's draw, kept: patch 80 drops the battery at the
+/// death, and the game then makes no skeleton of the body holding nothing,
+/// so the dying body may never be drawn for its ragdoll to start from.
+fn keep_carrier(state: &mut State, bones: &DrawnBones<'_>, player: &Player<'_>) {
+    if !player.inserted() || !player.alive() || player.held() != Held::Battery {
+        return;
+    }
+    let Some(skeleton) = player.skeleton() else { return };
+    let Some(index) = mapping(&mut state.mappings, &skeleton) else { return };
+    if let Some(skeleton) = world_skeleton(bones, player, &index) {
+        state.corpses.keep(player.place(), &skeleton);
     }
 }
 

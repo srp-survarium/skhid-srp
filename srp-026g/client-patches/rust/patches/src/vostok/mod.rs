@@ -18,10 +18,12 @@
 //!   draws, the bullets) is a [`Lock`]; the ragdoll's world ([`world`]), the
 //!   draw's sites ([`draw`]), the camera's ([`camera`]), a bullet's ray
 //!   ([`bullet`]), the machine's clock ([`clock`]) and the opt-in
-//!   diagnostics ([`trace`]) are patch 76's.
+//!   diagnostics ([`trace`]) are patch 76's; a battery ([`VictoryItem`])
+//!   is patch 80's.
 //!
 //! It grows with what the patches need, and no further.
 
+mod battery;
 pub mod bullet;
 pub mod camera;
 mod cell;
@@ -45,9 +47,13 @@ mod generated {
     // which of these each hook uses depends on its kind; the shipped set is
     // one `call`, so some are unused until another kind ships.
     #[allow(unused_imports)]
+    use core::ffi::c_void;
+    #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
     use super::hook::{Handle, Out, Thread};
+    #[allow(unused_imports)]
+    use super::battery::VictoryItem;
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
@@ -55,6 +61,7 @@ mod generated {
     include!("../../../../hooks_026g.rs");
 }
 
+pub use battery::VictoryItem;
 pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};

@@ -188,7 +188,7 @@ named once in the callee's `vostok` column so every patch hooking it gets the
 same typed signature.
 
 Direct hooks of the same function share one generated `Original` type. A
-splice has its own `Orig<Function>For<Patch>_<Handler>` type because its
+splice has its own `Orig<Function>For<Patch><Handler>` type because its
 `call` must enter that hook's trampoline. Replayable spans are decoded into
 complete instructions with ndisasm; relative branches and truncated
 instructions are refused, while opcode-looking bytes in operands are safe.
@@ -201,9 +201,13 @@ kept, the right bytes cleaned):
 - `pointer`, `vtable`, `callback` (the convention entries): `RUST_THISCALL`
   / `RUST_CDECL`, the handler's `Original` the function the slot or callback
   used to name;
-- `splice`: the function's convention entry plus a trampoline (the relocated
-  prologue, checked branch-free, then a jump past the start our jump
-  replaced), which the handler's `Original` calls;
+- `splice`: a detour entry (`RUST_SPLICE`: the function's convention, its
+  arguments and ECX to the shim, the function's cleanup; the flags, every
+  register and the FPU/SSE state kept but EAX, the result) plus a trampoline
+  (the relocated prologue, checked branch-free, then a jump past the start
+  our jump replaced), which the handler's `Original` calls;
+- `write`: no entry; the site's span (its bytes read from the exe) written
+  over with the patch's `write`, `"nop"` or hex bytes of the span's length;
 - `code`: a hand-written cave the site jumps to, linked into `patches.code`
   with a byte limit (the escape hatch for what no typed kind fits);
 - `lohook`: a detour jumped to from a span (>= 5 bytes, branch-free so
@@ -217,13 +221,22 @@ kept, the right bytes cleaned):
   the named address; the generated shim compiles against the `Context`/`Flow`
   types.
 
-`write` is the design above; a register-ABI `call` still needs its reverse
-thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
-five) ship; the other kinds' generators are proven by check_hooks_026g.py and
-wait for their first patch to wire the install into patch_026g.py. A span
-hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
-reads them from the exe it builds from (hooks_026g.py and the checks take
-`SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
+A register-ABI `call` still needs its reverse thunk. `call` (the suicide-key
+example), `lohook` (patch 76, the ragdoll's six), `splice` and `write`
+(patch 80, the battery's drop) ship; the other kinds' generators are proven
+by check_hooks_026g.py and wait for their first patch to wire the install
+into patch_026g.py. A span hook's bytes come from the original exe:
+patch_026g.py's `rust_hooks()` and `rust_writes()` read them from the exe it
+builds from (hooks_026g.py and the checks take `SRP_026G_EXE`), apply()
+checks them again, and INSTALLS declares every lohook a JUMP and every
+splice an ENTRY (its model the function itself) from its site row. A
+`write` is declared with its bytes, names only:
+
+```toml
+[[hook]]
+site = "carried_state.dead_gate"   # sites_026g.tsv: VA 0x344B89, kind write, span 6
+write = "nop"
+```
 Which register or frame slot a site holds is said once, in vostok's view of
 that site (`vostok::draw`, `vostok::bullet`, ...); the site row's `what`
 says it for the reader. A frame local is a `fields_026g.tsv` row with a
@@ -233,7 +246,7 @@ row of the kind `<...>::image`, generated as a constant.
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not
 expect any register or FPU/SSE state to change across them, so their entries
-save and restore all of it. A `call`, `pointer`, `vtable` or `callback`
+save and restore all of it (a splice's but EAX, its result). A `call`, `pointer`, `vtable` or `callback`
 entry wraps a call boundary, where the host already treats EAX/ECX/EDX and
 the XMM registers as clobbered and the callee-saved ones as kept; its entry
 only aligns the stack, passes the arguments and cleans up as the function

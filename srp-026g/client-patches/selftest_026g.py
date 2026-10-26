@@ -1531,6 +1531,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] + [(va, len(old)) for va, old, _, _ in P.RUST_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.RUST_WRITES] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
@@ -4713,6 +4714,108 @@ def test_ragdoll(original, image, before):
           "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
+def test_battery_drop(original, image, before):
+    """Check 80: a carried battery drops at its carrier's death, from the
+    hand, with the hand's velocity (patch 80, the Rust patch
+    `battery_drop`; ../docs/notes/battery-drop.md). Static, on the bytes:
+    the two sites and what they stand in, the states' vtables (whose vt+28h
+    decides what execute tracks and what finalize gives), where the hand
+    comes from (the simulation's "Weapon" bone on the player's own
+    animation player), the item switch's call, the splice's jmp, entry and
+    trampoline, the write's nops, no base relocation under a site and no
+    branch inside one. check_battery_drop_026g.py runs them."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    u32 = lambda va: struct.unpack("<I", stock.read(va, 4))[0]
+    check(rows(stock, 0x301270, 0x2E) == ["push esi", "mov esi,ecx", "mov ecx,[esi+0x178]", "mov eax,[ecx]",
+                                           "mov edx,[eax+0x20]", "call edx", "test al,al", "jz 0x30129a",
+                                           "mov eax,[esi+0x1ac]", "mov ecx,[eax+0x20]", "cmp byte [ecx+0x2b],0x0",
+                                           "jz 0x30129a", "mov eax,0x1", "pop esi", "ret", "xor eax,eax", "pop esi",
+                                           "ret"]
+          and u32(0xA042AC + 0x30) == u32(0xA13DBC + 0x30) == 0x301270
+          and rtti_name(stock, 0xA042AC) == (".?AVvictory_item@survarium@@", 0)
+          and rtti_name(stock, 0xA13DBC) == (".?AVvictory_item_core@survarium@@", 0),
+          "victory_item_core::is_ready_to_be_deactivated 0x301270 (thiscall, `ret`, AL): the hands' expression "
+          "[+178h] done (vt+20h) and the logic's state [[+1ACh]+20h] +2Bh; both vtables' +30h (victory_item "
+          "0xA042AC, victory_item_core 0xA13DBC)")
+    check(rows(stock, 0x2D769E, 0x15) == ["mov edx,[ecx]", "mov eax,[edx+0x30]", "call eax", "test al,al",
+                                           "jz near 0x2d7731", "mov ecx,[esi+0x12c]"]
+          and rows(stock, 0x2D76D0, 0xF) == ["mov ecx,[esi+0x128]", "mov edx,[ecx]", "mov eax,[edx+0x1c]",
+                                              "push byte +0x1", "call eax"],
+          "base_player::tick_active_object: the held item's vt+30h (is_ready_to_be_deactivated) before its "
+          "deactivate(1) (vt+1Ch) when the wanted item differs (on_player_death makes it none for a carrier)")
+    vtables = {0xA1BF84: (".?AVvictory_item_core_take_state@survarium@@", 0x344C90, 0x3447F0),
+               0xA1BFB8: (".?AVvictory_item_core_carry_state@survarium@@", 0x344C90, 0x344C30),
+               0xA1BFE8: (".?AVvictory_item_core_drop_state@survarium@@", 0x372420, 0x3447F0)}
+    users = [va for va in range(0xA1BF00, 0xA1C100, 4) if u32(va) == 0x344B30]
+    check(all(rtti_name(stock, vt)[0] == name and u32(vt + 8) == 0x344B30 and u32(vt + 0x28) == dead
+              and u32(vt + 0xC) == leave for vt, (name, dead, leave) in vtables.items())
+          and users == [vt + 8 for vt in vtables]
+          and rows(stock, 0x344C90, 0x1C) == ["mov eax,[ecx+0x1c]", "mov eax,[eax+0x8]", "test eax,eax",
+                                               "jz 0x344ca9", "cmp byte [eax+0x33c],0x0", "jnz 0x344ca9",
+                                               "mov eax,0x1", "ret", "xor eax,eax", "ret"]
+          and stock.read(0x372420, 3) == bytes.fromhex("b001c3")
+          and rows(stock, 0x3447F0, 9) == ["push ecx", "push esi", "mov esi,ecx", "call 0x344c30"],
+          "the carried states sharing execute 0x344B30: take and carry, vt+28h is_user_dead 0x344C90 (the "
+          "battery's user exists and its +33Ch is 0), the put state (RTTI drop_state) vt+28h 0x372420 `mov al,1 "
+          "/ ret`; their leave (vt+0Ch) is finalize 0x344C30 (take and put: through 0x3447F0)")
+    check(rows(stock, 0x344B7E, 0x21) == ["mov eax,[ebx]", "mov edx,[eax+0x28]", "mov ecx,ebx", "call edx",
+                                           "test al,al", "jz near 0x344c23", "lea eax,[esp+0x60]", "push eax",
+                                           "lea ecx,[esp+0x24]", "push ecx", "push ebx", "call 0x344e40"]
+          and rows(stock, 0x344C30, 0x1F) == ["push esi", "mov esi,ecx", "mov eax,[esi]", "mov edx,[eax+0x28]",
+                                               "call edx", "test al,al", "jz 0x344c8b", "mov ecx,[esi+0x1c]",
+                                               "mov eax,[ecx]", "mov eax,[eax+0xa4]", "lea edx,[esi+0x2c]",
+                                               "push edx", "call eax"],
+          "execute: the state's vt+28h, then at 0x344B89 `je 0x344C23` over compute_carried_transform and the "
+          "velocities; finalize: its own vt+28h before the battery's set_transform (vt+A4h) and velocities")
+    weapon = rows(stock, 0x344E5E, 0xF)
+    check(weapon == ["push dword 0x9de384", "lea ecx,[esp+0x14]", "push ecx", "call 0x2da540"]
+          and stock.read(0x9DE384, 7) == b"Weapon\0"
+          and rows(stock, 0x2DA566, 0xC)[:2] == ["push esi", "lea ecx,[edi+0x750]"],
+          "the tracked hand: compute_carried_transform 0x344E40 takes the bone \"Weapon\" (0x9DE384) from "
+          "get_bone_transform 0x2DA540, which reads the player's own animation player +750h (the simulation's, "
+          "not the drawn bones)")
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    hook = [h for h in P.rust_hooks(original) if h[2].startswith("battery_drop_")]
+    writes = [w for w in P.rust_writes(original) if w[0] == 0x344B89]
+    check(len(hook) == 1 and len(writes) == 1, "the Rust patch battery_drop's splice and write "
+                                               "(rust/patches/src/battery_drop.toml, sites_026g.tsv)")
+    if len(hook) != 1 or len(writes) != 1:
+        return
+    va, old, symbol, opcode = hook[0]
+    entry = linked.symbols[symbol]
+    tramp = linked.symbols[symbol + "_tramp"]
+    shim = linked.symbols["hook_" + symbol]
+    new = P.hook_bytes(entry, va, old, 0, opcode)
+    check(va == 0x301270 and opcode == 0xE9 and old == stock.read(va, 9) == before.read(va, 9)
+          and image.read(va, 9) == new and block.va <= entry < block.va + block.size
+          and P.INSTALLS[va][0] == P.ENTRY,
+          f"{va:#x}: its prologue in the original and the build without the late join, `jmp {entry:#x}` "
+          f"({symbol}) and nops here, declared ENTRY (the model the function itself)")
+    texts = [text for _, _, text in ndisasm(image.read(entry, 0x40), entry)]
+    called = texts.index(f"call {shim:#x}") if f"call {shim:#x}" in texts else 0
+    check(texts[:5] == ["push ebp", "mov ebp,esp", "pushf", "pusha", "cld"] and "fxsave [esp]" in texts[:called]
+          and texts[called - 1] == "push dword [ebx+0x18]" and called
+          and texts[called + 1:called + 8] == ["mov [ebx+0x1c],eax", "fxrstor [esi]", "mov esp,ebx", "popa",
+                                               "popf", "pop ebp", "ret"],
+          f"the entry is RUST_SPLICE: the flags, the registers and fxsave kept (a detour), ECX to the shim "
+          f"{shim:#x}, its result the saved EAX, `ret` (the original pops nothing)")
+    check(image.read(tramp, 9) == old and rows(image, tramp + 9, 5) == ["jmp 0x301279"],
+          f"the trampoline {tramp:#x}: the original's 9 bytes, then `jmp 0x301279`")
+    gate, gate_old, gate_new = writes[0]
+    check(gate_old == bytes.fromhex("0f8494000000") == stock.read(gate, 6) == before.read(gate, 6)
+          and gate_new == image.read(gate, 6) == b"\x90" * 6,
+          f"{gate:#x}: `je 0x344C23` in the original and the build without the late join, six nops here")
+    sites = [(va, 9), (gate, 6)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + n for s, n in sites)]
+    hits = [h for s, n in sites for h in aimed_inside(original, s, n, 0x80)
+            if not s <= h < s + n and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the two sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6387,6 +6490,7 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
+    test_battery_drop(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

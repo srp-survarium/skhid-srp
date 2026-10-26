@@ -2022,6 +2022,7 @@ va	status	ref_021d	name
 0x003009b0	inferred-medium	0x001e7449	survarium::victory_item_core::set_transform
 0x00300a20	inferred-medium	0x001e7514	survarium::victory_item_core::get_transform
 0x00300b00	inferred-medium	0x001e7565	survarium::victory_item_core::set_user
+0x00300dc0	inferred-medium		survarium::victory_item_core::release_body
 0x00300e50	inferred-medium	0x001e7730	survarium::victory_item_core::drop
 0x00300f40	inferred-medium	0x001e77ad	survarium::victory_item_core::deactivate
 0x00301270	inferred-medium	0x001e793c	survarium::victory_item_core::is_ready_to_be_deactivated
@@ -2317,6 +2318,7 @@ va	status	ref_021d	name
 0x003438c0	inferred-medium	0x0020dc93	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_start,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_start *>,boost::arg<1> > > >::manager
 0x003440e0	inferred-medium	0x0020dfae	survarium::jump_logic_state_landing::initialize
 0x003443f0	inferred-medium	0x0020e20a	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_landing,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_landing *>,boost::arg<1> > > >::manager
+0x00344a70	inferred-medium		survarium::victory_item_core_base_state::initialize
 0x00344b30	inferred-medium		survarium::victory_item_core_base_state::execute
 0x00344c30	inferred-medium		survarium::victory_item_core_base_state::finalize
 0x00344c90	inferred-medium		survarium::victory_item_core_base_state::is_user_dead
@@ -2419,6 +2421,7 @@ va	status	ref_021d	name
 0x00356f20	inferred-medium	0x0021be50	vostok::physics::bt_static_rigid_body::~bt_static_rigid_body
 0x00357060	inferred-medium	0x0021c2e1	vostok::physics::bt_dynamic_rigid_body::~bt_dynamic_rigid_body
 0x00357100	inferred-medium	0x0021c095	vostok::physics::create_dynamic_rigid_body
+0x00357480	inferred-medium		survarium::rigid_body::apply_central_impulse
 0x003578f0	inferred-medium	0x0021be7f	vostok::physics::bt_ghost_object::bt_ghost_object
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object

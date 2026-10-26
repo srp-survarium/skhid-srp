@@ -190,7 +190,7 @@ def test_splice():
     # one (it calls the trampoline). orig: `mov eax,0x11110000` (the prologue)
     # then `add eax,[esp+4]; ret` (the rest).
     entry_src = ("extern orig_rest\n"
-                 "RUST_CDECL entry, stub, 1\n"
+                 "RUST_SPLICE entry, stub, 1, 0, 0\n"
                  "global entry_tramp\nentry_tramp:\n"
                  "    db 0xb8, 0x00, 0x00, 0x11, 0x11\n"      # mov eax, 0x11110000 (relocated prologue)
                  "    jmp orig_rest\n")
@@ -206,6 +206,39 @@ def test_splice():
           and through["popped"] == 0)
     check(ok, f"splice: the entry and trampoline run the function whole (eax {through['eax']:#x}), callee-saved "
           "kept, caller cleans (cdecl)")
+    # a thiscall splice (one dword, `ret 4`) whose shim clobbers what a
+    # detour must keep: ECX, EDX, the flags, DF and XMM0. The entry hands it
+    # ECX and the argument, gives back its EAX alone, and pops 4.
+    entry_src = ("extern this_rest\n"
+                 "RUST_SPLICE entry, stub, 1, 1, 4\n"
+                 "global entry_tramp\nentry_tramp:\n"
+                 "    db 0xb8, 0x00, 0x00, 0x22, 0x22\n"      # mov eax, 0x22220000 (relocated prologue)
+                 "    jmp this_rest\n")
+    stub_src = ("extern entry_tramp\nglobal stub\nstub:\n"
+                "    mov ecx, [esp+4]\n    push dword [esp+8]\n    call entry_tramp\n"
+                "    mov edx, 0x5a5a5a5a\n    pxor xmm0, xmm0\n    xor ecx, ecx\n    std\n    cld\n    ret\n"
+                "global this_rest\nthis_rest:\n    add eax, [esp+4]\n    add eax, ecx\n    ret 4\n")
+    blob, labels = assemble(entry_src, stub_src)
+    m = Machine(bytes(ORIGINAL), blob, TEST_VA)
+    from unicorn.x86_const import UC_X86_REG_XMM0
+    m.uc.reg_write(UC_X86_REG_XMM0, 0x0123456789ABCDEF_FEDCBA9876543210)
+    uc = m.uc
+    for name, reg in GP.items():
+        uc.reg_write(reg, SENTINELS.get(name, 0))
+    esp = STACK + 0x80000 - 8
+    uc.mem_write(esp, struct.pack("<II", 0xDEAD0000, 0x33))
+    uc.reg_write(UC_X86_REG_ESP, esp)
+    uc.reg_write(UC_X86_REG_ECX, 0x100)
+    uc.reg_write(UC_X86_REG_EDX, 0xED0000ED)
+    uc.reg_write(UC_X86_REG_EFLAGS, 0x203)              # CF set: kept
+    uc.emu_start(labels["entry"], 0xDEAD0000, count=500000)
+    kept = (uc.reg_read(UC_X86_REG_ECX) == 0x100 and uc.reg_read(UC_X86_REG_EDX) == 0xED0000ED
+            and uc.reg_read(UC_X86_REG_XMM0) == 0x0123456789ABCDEF_FEDCBA9876543210
+            and uc.reg_read(UC_X86_REG_EFLAGS) & 0x401 == 0x001
+            and all(uc.reg_read(GP[r]) == SENTINELS[r] for r in SAVED))
+    check(uc.reg_read(UC_X86_REG_EAX) == 0x22220133 and kept and uc.reg_read(UC_X86_REG_ESP) == esp + 8,
+          f"splice (thiscall, ret 4): ECX and the argument to the shim, its result back (eax "
+          f"{uc.reg_read(UC_X86_REG_EAX):#x}); ECX, EDX, the flags and XMM0 kept (a detour, fxsave), 4 bytes popped")
     # the generator relocates a real branch-free prologue (network_client's
     # destructor 0x219E60: push ebp / mov ebp,esp / and esp,-8 / sub esp,0x28),
     # read from the exe by the site's span; a branchy span is refused.

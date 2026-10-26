@@ -55,6 +55,7 @@ global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
+global engine_victory_item_is_ready
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -65,6 +66,7 @@ engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_ac
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_victory_item_is_ready equ 0x301270   ; 0x301270 survarium::victory_item_core::is_ready_to_be_deactivated: battery ECX; pops 0; AL; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

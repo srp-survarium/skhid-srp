@@ -165,3 +165,7 @@ extern engine_get_current_thread_id
 ; void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)
 ; 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
 extern engine_update_skeleton
+; unsigned char engine_victory_item_is_ready(void *battery)
+; 0x301270 survarium::victory_item_core::is_ready_to_be_deactivated: battery ECX; pops 0; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_victory_item_is_ready

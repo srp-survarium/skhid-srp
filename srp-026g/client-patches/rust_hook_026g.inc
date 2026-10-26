@@ -36,6 +36,10 @@
 ;   Calls target(the n dwords); EAX (EDX) target's.
 ;
 ; EBX, ESI, EDI and EBP are kept by all three (Rust's extern "C" keeps them).
+;
+; RUST_SPLICE name, target, n, this, pops
+;   A splice's entry (below): as RUST_THISCALL / RUST_CDECL, and the flags,
+;   the other registers and the FPU/SSE state kept too (a detour).
 
 %ifndef RUST_HOOK_026G_INC
 %define RUST_HOOK_026G_INC
@@ -122,6 +126,46 @@ extern %2
     call %2
     leave
     ret
+%endmacro
+
+; RUST_SPLICE name, target, n, this, pops
+;   `name`: a splice's entry, a function's start the game calls in the
+;   function's convention: n dwords on the stack (and ECX, `this` 1),
+;   `pops` bytes popped. A splice is a detour (rust_patches.md, the owner's
+;   rule): the flags, every register and the whole FPU/SSE state (fxsave)
+;   are as they were on the way out, but EAX, target's result. Calls
+;   target(ecx if this, the n dwords) (cdecl) with the stack aligned to 16
+;   and DF clear.
+%macro RUST_SPLICE 5
+global %1
+extern %2
+%1:
+    push ebp
+    mov ebp, esp                    ; [ebp+8 + 4i] = argument i
+    pushfd
+    pushad                          ; EDI ESI EBP ESP EBX EDX ECX EAX, then EFLAGS
+    cld
+    mov ebx, esp                    ; the saved machine (EBX, ESI kept by target)
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov esi, esp
+    RUST_PUSH_ARGUMENTS %3, %4
+%if %4
+    push dword [ebx + 24]           ; the saved ECX, `this`
+%endif
+    call %2
+    mov [ebx + 28], eax             ; the result into the saved EAX
+    fxrstor [esi]
+    mov esp, ebx
+    popad
+    popfd
+    pop ebp
+%if %5
+    ret %5
+%else
+    ret
+%endif
 %endmacro
 
 %endif

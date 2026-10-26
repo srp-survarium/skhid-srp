@@ -2709,6 +2709,7 @@ va	name	location	role	basis
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+8	float k, the modifier's weight (1.0 at the weapon draw)	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+8	configuration object pointer copied to EBX	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+4	destination parameter object; only present keys overwrite its scalar fields	observed
+0x002d7650	survarium::base_player::tick_active_object	EAX	the player	observed
 0x002d77c0	survarium::base_player::on_player_death	ECX	the player	observed
 0x002d7920	survarium::base_player::jump	entry ESP+4	base_player	observed
 0x002d7920	survarium::base_player::jump	EAX	jump direction, stored at base_player +0x338	observed
@@ -2917,6 +2918,10 @@ va	name	location	role	basis
 0x003009b0	survarium::victory_item_core::set_transform	entry ESP+4	the matrix	observed
 0x00300a20	survarium::victory_item_core::get_transform	ECX	the battery	observed
 0x00300a20	survarium::victory_item_core::get_transform	entry ESP+4	out matrix	observed
+0x00300dc0	survarium::victory_item_core::release_body	ECX	the battery	observed
+0x00300f40	survarium::victory_item_core::deactivate	ECX	the battery	observed
+0x00300f40	survarium::victory_item_core::deactivate	entry ESP+4	1: drop or put into a container (low byte)	observed
+0x00301270	survarium::victory_item_core::is_ready_to_be_deactivated	ECX	the battery (victory_item_core: +8 the user, +178h the hands' expression, +1ACh the logic)	observed
 0x00301c40	survarium::victory_item_core::set_spotted	ECX	the battery's spottable interface (item+54h)	observed
 0x00301c40	survarium::victory_item_core::set_spotted	entry ESP+4	the spotter (base_player)	observed
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	ECX	the battery's spottable interface (item+54h)	observed
@@ -3401,6 +3406,9 @@ va	name	location	role	basis
 0x00344870	survarium::victory_item_core_animation_end_aware_state::deserialize	stack+4	reader	inferred
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	ECX	victory animation aware state	inferred
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	stack+4	writer	inferred
+0x00344a70	survarium::victory_item_core_base_state::initialize	ECX	the state (+1Ch the battery)	observed
+0x00344b30	survarium::victory_item_core_base_state::execute	ECX	the state (+1Ch the battery)	observed
+0x00344c30	survarium::victory_item_core_base_state::finalize	ECX	the state (+1Ch the battery)	observed
 0x00344c90	survarium::victory_item_core_base_state::is_user_dead	ECX	the state (+1Ch the battery)	observed
 0x00344cb0	survarium::victory_item_core_base_state::serialize	ECX	victory item base state	inferred
 0x00344cb0	survarium::victory_item_core_base_state::serialize	stack+4	writer	inferred
@@ -3426,6 +3434,8 @@ va	name	location	role	basis
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	ESI	portal structure owner	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+4	query-volume pointer forwarded to virtual3C	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+8	visibility-byte-array pointer	observed
+0x00357480	survarium::rigid_body::apply_central_impulse	ECX	the rigid body (+14h the btRigidBody)	observed
+0x00357480	survarium::rigid_body::apply_central_impulse	entry ESP+4	the impulse (3 f32)	observed
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+4	memory of the ghost (0x1C bytes)	observed
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+8	shape, kept at +10h	observed
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+12	the bullet object (btCollisionObject, world transform at +10h, origin +40h), kept at +18h; its +F8h = the ghost	observed

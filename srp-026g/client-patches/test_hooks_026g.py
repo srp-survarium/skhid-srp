@@ -62,6 +62,27 @@ class Hooks(unittest.TestCase):
                         with self.assertRaises(H.Bad):
                             H.hooks(patches, [function()], sites, lambda va, n: span)
 
+    def test_write_nops_or_bytes_over_the_span(self):
+        span = bytes.fromhex("0f8494000000")
+        sites = {"test.site": {**site(0x2000, "write"), "callee": "-", "span": len(span)}}
+        write = lambda value: H.hooks([{"name": "fixture", "patch": 0,
+                                        "hook": [{"site": "test.site", "write": value}]}],
+                                      [function()], sites, lambda va, n: span)
+        hs = write("nop")
+        self.assertEqual((hs[0]["original"], hs[0]["new"]), (span, b"\x90" * 6))
+        self.assertEqual(H.writes(lambda va, n: span, [{"name": "fixture", "patch": 0,
+                         "hook": [{"site": "test.site", "write": "eb2190909090"}]}], [function()], sites),
+                         [(0x2000, span, bytes.fromhex("eb2190909090"), "fixture")])
+        self.assertEqual(H.installs(lambda va, n: span, [{"name": "fixture", "patch": 0,
+                         "hook": [{"site": "test.site", "write": "nop"}]}], [function()], sites), [])
+        self.assertEqual(H.rs_text(hs), H.rs_text([]))
+        for bad in ("9090", "0f8494000000", "zz"):
+            with self.subTest(value=bad), self.assertRaises(H.Bad):
+                write(bad)
+        with self.assertRaisesRegex(H.Bad, "needs `site` and `write`"):
+            H.hooks([{"name": "fixture", "patch": 0, "hook": [{"site": "test.site", "handler": "x"}]}],
+                    [function()], sites, lambda va, n: span)
+
     def test_multiple_originals_compile_and_dispatch(self):
         # Two calls share the direct Original. Two splices of the same
         # function each need their own trampoline, even beside those calls.

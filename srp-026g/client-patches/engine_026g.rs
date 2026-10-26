@@ -108,6 +108,8 @@ unsafe extern "thiscall" {
     pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
     /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
     pub fn engine_active_player(client: *mut c_void, out: *mut u32, place: u32) -> *mut u32;
+    /// 0x301270 survarium::victory_item_core::is_ready_to_be_deactivated: battery ECX; pops 0; AL; thiscall, called directly
+    pub fn engine_victory_item_is_ready(battery: *mut c_void) -> u8;
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -845,5 +847,20 @@ pub mod renderer {
     #[inline(always)]
     pub unsafe fn scene_renderer(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x200064).cast() }
+    }
+}
+
+/// survarium::victory_item_core's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod victory_item_core {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): the player carrying it, 0 none (set_user 0x300B00; deactivate 0x300F40 makes it 0 last)
+    ///
+    /// # Safety
+    /// `this` is a survarium::victory_item_core.
+    #[inline(always)]
+    pub unsafe fn user(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
     }
 }

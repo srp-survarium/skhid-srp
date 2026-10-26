@@ -1,0 +1,18 @@
+# Patch 80: a carried battery drops at its carrier's death, from the hand,
+# with the hand's velocity (docs/notes/battery-drop.md). Only the decisions:
+# which sites, the handler, the bytes. The sites (their VAs, kinds, spans)
+# are sites_026g.tsv's; the function and its typed signature
+# engine_026g.tsv's; the logic is battery_drop.rs.
+name = "battery_drop"
+patch = 80
+
+# the battery's is_ready_to_be_deactivated: ready at once for a dead carrier
+[[hook]]
+site = "victory_item.is_ready"
+handler = "on_is_ready"
+
+# the carried states' execute tracks the hand (its pose and velocity) every
+# tick, not only once the carrier is dead
+[[hook]]
+site = "carried_state.dead_gate"
+write = "nop"

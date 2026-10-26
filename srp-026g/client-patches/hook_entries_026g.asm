@@ -6,6 +6,13 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x301270 victory_item_core::is_ready_to_be_deactivated, both vtables +30h (push esi / mov esi,ecx / mov ecx,[esi+178h]; ECX the battery): splice -> battery_drop_on_is_ready (wraps engine_victory_item_is_ready 0x301270)
+    RUST_SPLICE battery_drop_on_is_ready, hook_battery_drop_on_is_ready, 0, 1, 0
+global battery_drop_on_is_ready_tramp
+battery_drop_on_is_ready_tramp:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x78, 0x01, 0x00, 0x00
+    jmp 0x301279
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

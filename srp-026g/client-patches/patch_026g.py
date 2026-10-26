@@ -377,6 +377,14 @@ Patches:
   the body a powered ragdoll (muscles that weaken from the death, the
   kit's weight from the inventory on its parts). Drawn only: nothing a
   match computes, keeps or hashes changes, the bullet goes on as before;
+- a carried battery drops at its carrier's death, from the hand, with the
+  hand's velocity (patch 80, with the late join; docs/notes/battery-drop.md):
+  the Rust patch battery_drop, a splice of is_ready_to_be_deactivated
+  (0x301270: ready at once when the carrier is dead, so the item switch
+  drops it on the death's tick) and a write of nops over the carried states'
+  gate (0x344B89: execute tracks the simulation's "Weapon" bone and its
+  velocity every tick, finalize still gives them to a dead carrier's battery
+  alone, release_body's impulse 10 x the velocity). A simulation change;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -1178,7 +1186,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll")
+RUST_PATCHES = ("suicide_key", "ragdoll", "battery_drop")
 
 
 def rust_hooks(original):
@@ -1189,13 +1197,22 @@ def rust_hooks(original):
     return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
 
 
+def rust_writes(original):
+    """The Rust patches' `write` hooks (site VA, the original's bytes, the
+    new ones): the original's read from `original`, the exe being built
+    from, and checked again by apply()."""
+    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n])
+    return tuple((va, old, new) for va, old, new, _owner in hooks_026g.writes(exe=read))
+
+
 def __getattr__(name):
-    """RUST_HOOKS, for the checks: rust_hooks() of the exe SRP_026G_EXE names."""
-    if name == "RUST_HOOKS":
+    """RUST_HOOKS and RUST_WRITES, for the checks: rust_hooks() and
+    rust_writes() of the exe SRP_026G_EXE names."""
+    if name in ("RUST_HOOKS", "RUST_WRITES"):
         path = os.environ.get("SRP_026G_EXE")
         if not path:
-            raise AttributeError("RUST_HOOKS needs the original exe: SRP_026G_EXE")
-        return rust_hooks(open(path, "rb").read())
+            raise AttributeError(f"{name} needs the original exe: SRP_026G_EXE")
+        return (rust_hooks if name == "RUST_HOOKS" else rust_writes)(open(path, "rb").read())
     raise AttributeError(name)
 
 # The scoreboard (Tab) shows the places in the match and no place whose
@@ -2501,6 +2518,10 @@ def audit_installs(data, writes, installs=None):
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+# The Rust splices: a function's start a jmp to its generated entry, which
+# the game calls in the function's place (the model: the function itself).
+for _va, _owner, _what in hooks_026g.splice_sites():
+    INSTALLS[_va] = (ENTRY, f"{_what}: {_owner} (Rust splice)", None, None)
 
 
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
@@ -3603,6 +3624,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                for va, expected, new in rust_writes(original):
+                    patch(data, va, expected, new)
+                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                        sys.exit(f"{va:#x}: a base relocation under the Rust write")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -3651,6 +3676,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "
+                     "a carried battery drops at its carrier's death, from the hand, with the hand's velocity, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "

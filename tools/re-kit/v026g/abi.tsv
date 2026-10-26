@@ -1146,6 +1146,7 @@ va	name	source	ret_cleanup	result
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
+0x002d7650	survarium::base_player::tick_active_object	manual	4	none; the held item +128h ticks (vt+2Ch); when the wanted one +12Ch differs and the held one is ready (vt+30h, is_ready_to_be_deactivated): its deactivate(1) (vt+1Ch), +128h := +12Ch, the new one's activation; on_player_death's inventory handler 0x2FCA50 makes +12Ch 0 for a carried battery
 0x002d77c0	survarium::base_player::on_player_death	manual		none; the same opening as 0x1F28E0: remove_alive(this, 1) at 0x2D77C6
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
@@ -1254,7 +1255,10 @@ va	name	source	ret_cleanup	result
 0x00300710		auto	4	
 0x003009b0	survarium::victory_item_core::set_transform	manual	4	none; +204h and +244h := the matrix; if physical (+2C8h), the body follows
 0x00300a20	survarium::victory_item_core::get_transform	manual	4	EAX = the out matrix: carried, the user's +40Ch; in a container, its vt+44h; else translate(-[+284h]) x +204h
+0x00300dc0	survarium::victory_item_core::release_body	manual	0	none; vt+B0h, vt+ACh (the body into the physics world), then the body +2A8h: a central impulse of 10.0 (0xA2D75C) x +290h (its vt+24h, 0x357480) and a torque impulse of +29Ch (vt+28h). drop 0x300E50 calls it at once for a dead or no user, later for a living one
 0x00300e50	survarium::victory_item_core::drop	manual	0	none; insert (vt+9Ch) at translate(+284h) x +204h: a battery drops at its last carried transform, the simulation's "Weapon" bone (0x344E40), not at the drawn bones
+0x00300f40	survarium::victory_item_core::deactivate	manual	4	none; +290h..+2A4h := 0 (the velocities), the hands' expression +178h released, the logic +1ACh's state left (vt+0Ch, the state's finalize); ESP+4 1: put into the user's container (vt+B8h) when +1A8h is the user's +134h, else drop (vt+B4h, 0x300E50); +8 := 0
+0x00301270	survarium::victory_item_core::is_ready_to_be_deactivated	manual	0	AL = 1 when the hands' expression [+178h] is done (its vt+20h) and the logic's state [[+1ACh]+20h] has +2Bh, else 0; both vtables (victory_item 0xA042AC, victory_item_core 0xA13DBC) +30h. Patch 80 splices it: 1 when the user [+8] is a dead player (+33Ch 0)
 0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
 0x00303da0	survarium::grenade_core::serialize	manual	8	
@@ -1472,6 +1476,9 @@ va	name	source	ret_cleanup	result
 0x00344830	survarium::victory_item_core_animation_end_aware_state::on_animation_end	manual	4	
 0x00344870	survarium::victory_item_core_animation_end_aware_state::deserialize	manual	12	
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	manual	8	
+0x00344a70	survarium::victory_item_core_base_state::initialize	manual	0	none; +28h := 0, +6Ch := identity, +2Ch := the battery's transform (vt+24h), +ACh and +B8h := 0, +0C4h := the user's time +324h
+0x00344b30	survarium::victory_item_core_base_state::execute	manual	0	none; when the user's time +324h is past +0C4h and the state's vt+28h is 1 (je 0x344B89; take and carry 0x344C90 is_user_dead, put 0x372420 always 1; patch 80 nops the je): compute_carried_transform into +2Ch and +6Ch, the hand's linear and angular velocity by finite difference (the physics world [+1Ch]+1B0h vt+5Ch) into +ACh and +B8h, +0C4h := the time
+0x00344c30	survarium::victory_item_core_base_state::finalize	manual	0	none; when the state's vt+28h is 1: the battery's set_transform (vt+A4h, 0x3009B0) := +2Ch, its +290h := +ACh, +29Ch := +B8h
 0x00344c90	survarium::victory_item_core_base_state::is_user_dead	manual	0	AL = 1 when [[state+1Ch]+8] exists and its +33Ch is 0
 0x00344cb0	survarium::victory_item_core_base_state::serialize	manual	8	
 0x00344d70	survarium::victory_item_core_base_state::deserialize	manual	12	
@@ -1483,6 +1490,7 @@ va	name	source	ret_cleanup	result
 0x0034ce30	vostok::render::culling::portal_sector_structure::sort_portal_ids	manual	4	
 0x0034ce80	vostok::render::culling::portal_sector_structure::initialize_portals_geometry	manual	4	
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	manual	8	
+0x00357480	survarium::rigid_body::apply_central_impulse	manual	4	none; the btRigidBody [+14h] activated, its linear velocity += the impulse x its inverse mass x its linear factor
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	manual	12	EAX: the ghost
 0x00357aa0	vostok::physics::create_ghost_object	manual		EAX: the bt_ghost_object (kept at collision_geometry+18h)
 0x00357f80	vostok::configs::apply_add_modifiers	manual	0	[ESI] = value + sum of the modifiers (type 1)

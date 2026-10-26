@@ -64,3 +64,4 @@ survarium::game	renderer	0x5360	u32	the game's vostok::render::game::renderer (m
 vostok::render::game::renderer	scene_renderer	0x200064	u32	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
 survarium::player_model	render_instance	0x108	u32	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
 survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
+survarium::victory_item_core	user	0x8	u32	the player carrying it, 0 none (set_user 0x300B00; deactivate 0x300F40 makes it 0 last)

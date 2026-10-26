@@ -2,7 +2,7 @@
 //! the pool of ragdolls it draws from.
 //!
 //! ```text
-//!                 seen dead(K)               two frames drawn          at rest 0.4 s, or 5 s
+//!                 seen dead(K)               two frames captured       at rest 0.4 s, or 5 s
 //!     Alive -------------------> Dying{K} -------------------> Ragdoll{K} --------------> Settled{K}
 //!       ^                          |  (a slot of the pool)                                 |
 //!       |  seen alive (respawn, a rollback or a loaded world that undid the death),       |
@@ -20,6 +20,13 @@
 //! captured, the ragdoll moving, the pose settled). With no slot free the
 //! oldest settled corpse gives its slot up (it is drawn as the game draws it
 //! again); with none settled a new death keeps the game's clip.
+//!
+//! A battery carrier's death (patch 80): the simulation drops the battery
+//! at once, and the game then makes no skeleton of a body holding nothing,
+//! so the dying body may be drawn once or never. The carrier's last draw
+//! alive is kept ([`Corpses::keep`]) as its first capture, and a dying body
+//! the game no longer poses (`Death::posed` false) starts from one capture,
+//! carrying the velocity it had.
 
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
@@ -79,6 +86,10 @@ pub struct Death {
     pub load: [f32; PARTS],
     /// How fast the player moved just before the death.
     pub velocity: Vec3,
+    /// The game still makes the body's skeleton: the player holds an item
+    /// (mt_draw makes none for a player holding nothing, a battery carrier
+    /// once the simulation dropped its battery, patch 80: at the death).
+    pub posed: bool,
 }
 
 impl Death {
@@ -101,8 +112,25 @@ impl Death {
             hit_count: 0,
             load: [0.0; PARTS],
             velocity: Vec3::ZERO,
+            posed: true,
         }
     }
+}
+
+/// The living battery carriers whose last drawn skeleton is kept.
+pub const KEPT: usize = 8;
+/// How old a kept skeleton may be for a death to start from it, s.
+pub const KEPT_AGE: f32 = 0.5;
+
+/// A living battery carrier's last drawn skeleton (world space): the start
+/// of its death's ragdoll when the game draws the dying body too seldom to
+/// capture it (patch 80 drops the battery at the death, and mt_draw then
+/// makes no skeleton of the body).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Kept {
+    place: u8,
+    skeleton: Skeleton,
+    age: f32,
 }
 
 /// A place's corpse.
@@ -306,6 +334,8 @@ pub struct Corpses {
     /// Each place's drawn ragdoll's box as the last step left it: the
     /// shots' broad phase (a shot is traced between two steps).
     bounds: [Option<(Vec3, Vec3)>; MAX_PLACES],
+    /// The living battery carriers' last drawn skeletons.
+    kept: [Option<Kept>; KEPT],
 }
 
 /// A shot through a corpse: the place, its death, where the shot met it.
@@ -325,6 +355,55 @@ impl Corpses {
             settles: 0,
             bounds: [None; MAX_PLACES],
             started: [None; 8],
+            kept: [None; KEPT],
+        }
+    }
+
+    /// A living battery carrier's draw (`skeleton` the game's, in world
+    /// space): kept, the start of its death's ragdoll if the dying body is
+    /// not drawn twice (the battery drops at the death, and mt_draw then
+    /// makes no skeleton of the body). A place's last one replaces its
+    /// earlier; with none free the oldest gives its room up.
+    pub fn keep(&mut self, place: usize, skeleton: &Skeleton) {
+        if place >= MAX_PLACES || !skeleton.iter().all(|p| p.is_finite()) {
+            return;
+        }
+        let at = self
+            .kept
+            .iter()
+            .position(|k| k.is_some_and(|k| usize::from(k.place) == place))
+            .or_else(|| self.kept.iter().position(Option::is_none))
+            .unwrap_or_else(|| {
+                (0..KEPT)
+                    .max_by(|&a, &b| {
+                        let age = |i: usize| self.kept[i].map_or(0.0, |k| k.age);
+                        age(a).total_cmp(&age(b))
+                    })
+                    .unwrap_or(0)
+            });
+        self.kept[at] = Some(Kept {
+            place: place as u8,
+            skeleton: *skeleton,
+            age: 0.0,
+        });
+    }
+
+    /// The kept skeleton of a place that just died, taken: fresh, it is the
+    /// dying body's first capture.
+    fn take_kept(&mut self, place: usize) -> Captured {
+        let Some(at) = self
+            .kept
+            .iter()
+            .position(|k| k.is_some_and(|k| usize::from(k.place) == place))
+        else {
+            return Captured::Nothing;
+        };
+        match self.kept[at].take() {
+            Some(k) if k.age <= KEPT_AGE => Captured::One {
+                now: k.skeleton,
+                age: k.age,
+            },
+            _ => Captured::Nothing,
         }
     }
 
@@ -442,13 +521,24 @@ impl Corpses {
                 self.release(place);
             }
         }
+        for kept in self.kept.iter_mut() {
+            if let Some(k) = kept {
+                k.age += frame.dt;
+                if k.age > KEPT_AGE {
+                    *kept = None;
+                }
+            }
+        }
         for place in 0..count {
             if let (Corpse::Alive, Seen::Dead(death)) = (self.places[place], frame.places[place]) {
+                // a battery carrier's last draw alive, if fresh, is its
+                // first capture (its own draws may stop: patch 80)
+                let captured = self.take_kept(place);
                 self.places[place] = match self.take_slot() {
                     Some(slot) => {
                         self.pool[slot.index()] = Slot::Dying {
                             clip_t: 0.0,
-                            captured: Captured::Nothing,
+                            captured,
                         };
                         Corpse::Body {
                             death: death.key,
@@ -517,6 +607,24 @@ impl Corpses {
     ) {
         // in place: a slot is a few kB, copied only when its stage changes
         let current = &mut self.pool[slot.index()];
+        // a dying body the game no longer draws (it holds nothing: a
+        // battery carrier, patch 80) starts from its one capture, the motion
+        // it had its carried velocity alone
+        let alone = match current {
+            Slot::Dying {
+                captured: Captured::One { now, age },
+                ..
+            } if !death.posed => Some(Captured::Two {
+                now: *now,
+                age: *age,
+                before: driver_bones(now),
+                dt: 1.0 / 60.0,
+            }),
+            _ => None,
+        };
+        if let (Some(two), Slot::Dying { captured, .. }) = (alone, &mut *current) {
+            *captured = two;
+        }
         let next = match current {
             Slot::Dying {
                 captured:

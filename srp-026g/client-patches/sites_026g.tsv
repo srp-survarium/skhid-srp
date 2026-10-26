@@ -6,3 +6,5 @@ player_draw.bones	0x247716	lohook	-	6	-	mt_draw after the bones, before the Weap
 camera.eye	0x1F3643	lohook	-	6	-	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
 bullet.ray_traced	0x32D627	lohook	-	10	-	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
 player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
+victory_item.is_ready	0x301270	splice	engine_victory_item_is_ready	9	-	victory_item_core::is_ready_to_be_deactivated, both vtables +30h (push esi / mov esi,ecx / mov ecx,[esi+178h]; ECX the battery)
+carried_state.dead_gate	0x344B89	write	-	6	-	victory_item_core_base_state::execute: the je over the hand's tracking when the state's vt+28h says no (0F 84 rel32 to 0x344C23; take and carry: is_user_dead)

@@ -50,3 +50,4 @@ engine_query_performance_counter	0x870158	-	unsigned int engine_query_performanc
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)	thunk	
+engine_victory_item_is_ready	0x301270	ECX:battery	unsigned char engine_victory_item_is_ready(void *battery)	thiscall	battery: VictoryItem -> bool

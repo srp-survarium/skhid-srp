@@ -155,6 +155,78 @@ fn a_corpse_holding_no_item_is_still_drawn_and_settles() {
     );
 }
 
+/// Patch 80: a battery carrier's battery drops at the death, so the game
+/// makes no skeleton of the dying body (it holds nothing) and never draws
+/// it for a capture. Its last draw alive, kept, starts the ragdoll, which
+/// falls and settles; without a kept draw, or with one too old, the body
+/// stays the game's.
+#[test]
+fn a_carrier_whose_battery_drops_at_the_death_starts_from_its_last_draw_alive() {
+    let run = |keep: Option<usize>| {
+        let mut corpses = Corpses::new();
+        let mut ground = Ground::flat();
+        let alive = [Seen::Alive];
+        let step = |corpses: &mut Corpses, ground: &mut Ground, places: &[Seen]| {
+            corpses.step(
+                &Frame {
+                    dt: 1.0 / 60.0,
+                    up: UP,
+                    places,
+                    local: None,
+                },
+                ground,
+            );
+        };
+        // alive, carrying: each frame's draw kept (the last `keep` frames
+        // before the death have none: a draw that stopped)
+        for i in 0..60 {
+            step(&mut corpses, &mut ground, &alive);
+            if keep.is_some_and(|k| i < 60 - k) {
+                corpses.keep(0, &standing(Quat::IDENTITY, Vec3::ZERO));
+            }
+        }
+        // dead, the battery already dropped: posed no more, never drawn
+        let Seen::Dead(mut death) = dead(7) else {
+            unreachable!()
+        };
+        death.posed = false;
+        death.velocity = Vec3::new(3.0, 0.0, 0.0);
+        let d = [Seen::Dead(death)];
+        step(&mut corpses, &mut ground, &d);
+        step(&mut corpses, &mut ground, &d);
+        let started = stage(&corpses, 0);
+        let mut frames = 0;
+        while started == "ragdoll" && stage(&corpses, 0) != "settled" && frames < 1200 {
+            step(&mut corpses, &mut ground, &d);
+            frames += 1;
+        }
+        let head = match corpses.place(0) {
+            Corpse::Body { slot, .. } => {
+                let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+                (corpses.slot(slot).draw_alone(&mut skeleton) == Drawn::Ragdoll)
+                    .then(|| skeleton[crate::skeleton::HEAD.index()].position)
+            }
+            _ => None,
+        };
+        (started, stage(&corpses, 0), head)
+    };
+    let standing_head =
+        standing(Quat::IDENTITY, Vec3::ZERO)[crate::skeleton::HEAD.index()].position;
+    let (started, end, head) = run(Some(0));
+    let head = head.expect("drawn by the ragdoll");
+    assert_eq!((started, end), ("ragdoll", "settled"));
+    assert!(
+        standing_head.y - head.y > 0.8 && head.x > 0.2,
+        "it fell ({} m) and along its run ({} m)",
+        standing_head.y - head.y,
+        head.x
+    );
+    // a draw 0.25 s before the death still starts it; none, or 1 s old, not
+    assert_eq!(run(Some(15)).0, "ragdoll");
+    assert_eq!(run(None), ("dying", "dying", None));
+    assert_eq!(run(Some(60)), ("dying", "dying", None));
+}
+
 #[test]
 fn a_rollback_that_undoes_the_death_drops_the_ragdoll_and_the_same_death_keeps_it() {
     let mut corpses = Corpses::new();

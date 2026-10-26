@@ -10,7 +10,7 @@ A patch's declaration is only names -- which site, and the handler:
 Everything else is a fact written once in the raw tables and read here:
 
     sites_026g.tsv    a named site: its VA, its kind (call/splice/pointer/
-                      vtable/callback/lohook/code), the callee it uses (an
+                      vtable/callback/lohook/code/write), the callee it uses (an
                       engine_026g.tsv row, for the kinds that call a game
                       function), the span it covers, its named exits (lohook)
                       and a short `what`. The kind follows from the site, so a
@@ -30,7 +30,14 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
     python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
 
-A span hook (lohook, splice, code) needs the original exe for its bytes: the
+A `write` names no handler but the bytes it writes over the site's span
+(`write = "nop"`, or their hex), the span's original bytes read from the exe:
+
+    [[hook]]
+    site = "carried_state.dead_gate"     # a `write` row of sites_026g.tsv
+    write = "nop"
+
+A span hook (lohook, splice, code, write) needs the original exe for its bytes: the
 caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
 checked); patch_026g.py passes the exe it builds from.
 """
@@ -74,6 +81,15 @@ TYPES = {
         "orig_raw": "{n}.0",
         "pass": "{n}",
         "null": "{a}",
+    },
+    "VictoryItem": {
+        "raw": "*mut c_void",
+        "fallible": True,
+        "build": "VictoryItem::from_raw(&thread, {a})",
+        "orig_type": "&mut VictoryItem",
+        "orig_raw": "{n}.ptr()",
+        "pass": "&mut {n}",
+        "null": "{a} as usize as *mut _",
     },
     "Out<u32>": {
         "raw": "*mut u32",
@@ -142,8 +158,9 @@ def read_sites(path=None):
 def site_of(patch_name, kind, row, sites):
     """The site a patch's row names (`site`), its kind matching the TOML
     section's."""
-    if "site" not in row or "handler" not in row and kind != "code":
-        raise Bad(f"{patch_name}: a [[{kind}]] needs `site`" + ("" if kind == "code" else " and `handler`"))
+    needs = {"code": None, "write": "write"}.get(kind, "handler")
+    if "site" not in row or needs and needs not in row:
+        raise Bad(f"{patch_name}: a [[{kind}]] needs `site`" + (f" and `{needs}`" if needs else ""))
     site = sites.get(row["site"])
     if site is None:
         raise Bad(f"{patch_name}: no site {row['site']!r} in sites_026g.tsv")
@@ -277,13 +294,14 @@ def splice_hook(patch, row, sites, functions, exe=None):
     nargs = len(args) - (1 if this else 0)
     if this and nargs < 0:
         raise Bad(f"{name}: a thiscall splice takes `this` as its first argument")
-    macro = {"stdcall": ("RUST_CALL", nargs, f["cleanup"]), "cdecl": ("RUST_CDECL", nargs),
-             "thiscall": ("RUST_THISCALL", nargs)}[convention]
+    # a detour (the owner's rule): the flags, the registers and the FPU/SSE
+    # state kept but the result; the function's own cleanup
+    macro = ("RUST_SPLICE", nargs, int(this), f["cleanup"])
     h.update(original=prologue, convention=convention, this=this, entry_macro=macro, install=("splice", 0xE9),
              orig_kind="trampoline", trampoline=(prologue, site["va"] + len(prologue)))
     # A splice's Original must call this entry's trampoline, not the direct
     # function (which now detours) or another hook's trampoline.
-    h["orig"] += "For" + camel(name) + "_" + camel(row["handler"])
+    h["orig"] += "For" + camel(name) + camel(row["handler"])
     return h
 
 
@@ -383,6 +401,31 @@ def code_hook(patch, row, sites, exe=None):
             "source": row["source"], "install": ("code", opcode), "limit": row.get("limit"), "what": site["what"]}
 
 
+def write_hook(patch, row, sites, exe=None):
+    """A `write`: the site's span (its length the site's, its bytes read from
+    the original exe) written over with the patch's bytes: `write = "nop"`
+    (nops over the whole span) or their hex, the span's length. Nothing is
+    called; patch_026g.py applies it like any write, checked against the
+    exe."""
+    name = patch["name"]
+    site = site_of(name, "write", row, sites)
+    original = span_bytes(name, site, exe)
+    value = str(row["write"]).strip()
+    if value == "nop":
+        new = b"\x90" * len(original)
+    else:
+        try:
+            new = bytes.fromhex(value)
+        except ValueError:
+            raise Bad(f"{name}: a [[write]] `write` is \"nop\" or hex bytes (got {value!r})") from None
+    if len(new) != len(original) or new == original:
+        raise Bad(f"{name}: the write at {site['va']:#x} gives {len(new)} bytes for the site's {len(original)}, "
+                  "other than the original's")
+    return {"patch": name, "patch_no": patch["patch"], "kind": "write", "site": site["va"],
+            "site_name": site["site"], "original": original, "new": new, "install": ("write", None),
+            "entry": None, "what": site["what"]}
+
+
 def hooks(tomls=None, functions=None, sites=None, exe=None):
     tomls = read_tomls() if tomls is None else tomls
     functions = engine_026g.every_function() if functions is None else functions
@@ -404,9 +447,11 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
                 out.append(code_hook(patch, row, sites, exe))
             elif kind == "lohook":
                 out.append(lohook_hook(patch, row, sites, exe))
+            elif kind == "write":
+                out.append(write_hook(patch, row, sites, exe))
             else:
                 raise Bad(f"{patch['name']}: site {row['site']} has unknown kind {kind!r}")
-    entries = [h["entry"] for h in out]
+    entries = [h["entry"] for h in out if h["entry"] is not None]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
@@ -429,8 +474,8 @@ def rs_text(hs):
              "// site's arguments. The shim builds the typed arguments and calls the",
              "// patch's function (rust_patches.md)."]
     for h in hs:
-        if h["kind"] == "code":
-            continue                                   # raw NASM, no shim or Original
+        if h["kind"] in ("code", "write"):
+            continue                                   # raw NASM or bytes, no shim or Original
         if h["kind"] == "lohook":
             lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
             arms = ["        Flow::Continue => 0,", "        Flow::Skip => 1,"]
@@ -472,11 +517,12 @@ def rs_text(hs):
         lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
         if h["orig_kind"] == "trampoline":
             ret = "" if h["raw_ret"] is None else f" -> {h['raw_ret']}"
-            lines += [f"/// The splice trampoline for {h['function']} ({h['target']:#x}): its relocated prologue,",
-                      "/// then a jump past the start our entry replaced (hook_entries_026g.asm).",
-                      f'unsafe extern "{abi}" {{ fn {h["entry"]}_tramp('
-                      + ", ".join(f"a{i}: {t}" for i, t in enumerate(h["raw_params"])) + f"){ret}; }}",
-                      ""]
+            lines += [f'unsafe extern "{abi}" {{',
+                      f"    /// The splice trampoline for {h['function']} ({h['target']:#x}): its relocated",
+                      "    /// prologue, then a jump past the start our entry replaced (hook_entries_026g.asm).",
+                      f'    fn {h["entry"]}_tramp('
+                      + ", ".join(f"a{i}: {t}" for i, t in enumerate(h["raw_params"])) + f"){ret};",
+                      "}", ""]
         original_key = (target_fn, abi, orig_params, result["type"])
         if h["orig"] in originals and originals[h["orig"]] != original_key:
             raise Bad(f"{h['orig']}: two different Originals have the same generated type name")
@@ -538,8 +584,8 @@ def asm_text(hs):
              "section .text",
              '%include "rust_hook_026g.inc"']
     for h in hs:
-        if h["kind"] == "code":
-            continue                                   # its own .asm source, not generated here
+        if h["kind"] in ("code", "write"):
+            continue                                   # its own .asm source, or bytes: not generated here
         if h["kind"] == "lohook":
             lines += ["", f"; {h['site']:#x} {h['what']}: lohook -> {h['entry']}"] + lohook_entry(h)
             continue
@@ -548,6 +594,8 @@ def asm_text(hs):
                   f"{h['target']:#x})"]
         if macro[0] == "RUST_CALL":
             lines += [f"global {h['entry']}", f"{h['entry']}:", f"    RUST_CALL {h['shim']}, {macro[1]}, {macro[2]}"]
+        elif macro[0] == "RUST_SPLICE":                # defines the label itself
+            lines.append(f"    RUST_SPLICE {h['entry']}, {h['shim']}, {macro[1]}, {macro[2]}, {macro[3]}")
         else:                                          # RUST_THISCALL / RUST_CDECL define the label themselves
             lines.append(f"    {macro[0]} {h['entry']}, {h['shim']}, {macro[1]}")
         if h.get("trampoline"):                        # splice: the relocated prologue, then a jump past it
@@ -572,12 +620,21 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     run time, not here; it is refused until patch_026g.py integrates it."""
     out = []
     for h in hooks(tomls, functions, sites, exe):
+        if h["kind"] == "write":
+            continue                                   # writes(): no call or jump
         how, opcode = h["install"]
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
         out.append((h["site"], h["original"], h["entry"], opcode, h["patch"]))
     return out
+
+
+def writes(exe=None, tomls=None, functions=None, sites=None):
+    """(site VA, the original's bytes, the new bytes, owner) of each `write`,
+    for patch_026g.py (its apply() checks the original's against the exe)."""
+    return [(h["site"], h["original"], h["new"], h["patch"]) for h in hooks(tomls, functions, sites, exe)
+            if h["kind"] == "write"]
 
 
 def arena_sources(tomls=None, functions=None, sites=None, exe=None):
@@ -599,6 +656,18 @@ def lohook_sites(tomls=None, sites=None):
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
             for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+
+
+def splice_sites(tomls=None, sites=None):
+    """(site VA, owner patch, what) of every splice, from the TOML and the
+    sites alone: the function's start a jmp to its generated entry, which
+    the game calls in the function's place (patch_026g.py's INSTALLS
+    declares them ENTRY from this, the function at the site the model of
+    what the entry pops)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "splice"]
 
 
 def install_sites(tomls=None, sites=None):

@@ -6,6 +6,41 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- battery_drop (patch 80) ----
+
+unsafe extern "thiscall" {
+    /// The splice trampoline for engine_victory_item_is_ready (0x301270): its relocated
+    /// prologue, then a jump past the start our entry replaced (hook_entries_026g.asm).
+    fn battery_drop_on_is_ready_tramp(a0: *mut c_void) -> u8;
+}
+
+/// engine_victory_item_is_ready (0x301270), as the splice hook at 0x301270 wraps it.
+pub struct OrigVictoryItemIsReadyForBatteryDropOnIsReady;
+
+impl OrigVictoryItemIsReadyForBatteryDropOnIsReady {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, battery: &mut VictoryItem) -> bool {
+        // SAFETY: engine_victory_item_is_ready at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { battery_drop_on_is_ready_tramp(battery.ptr()) != 0 }
+    }
+}
+
+/// The entry `battery_drop_on_is_ready` (0x301270, victory_item_core::is_ready_to_be_deactivated, both vtables +30h (push esi / mov esi,ecx / mov ecx,[esi+178h]; ECX the battery)) calls this with
+/// engine_victory_item_is_ready's 1 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_drop_on_is_ready(a0: u32) -> u32 {
+    // SAFETY: only the entry `battery_drop_on_is_ready` calls this, from the game's call at
+    // 0x301270, on the game's thread; a0.. are engine_victory_item_is_ready's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut battery) = (unsafe { VictoryItem::from_raw(&thread, a0) }) else {
+        // a null VictoryItem never happens at this site; take the unpatched path.
+        return u32::from(unsafe { battery_drop_on_is_ready_tramp(a0 as usize as *mut _) } != 0);
+    };
+    let orig = OrigVictoryItemIsReadyForBatteryDropOnIsReady;
+    u32::from(crate::battery_drop::on_is_ready(&orig, &mut battery))
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
