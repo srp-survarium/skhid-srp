@@ -376,6 +376,16 @@ impl Heal {
         acted
     }
 
+    /// The medkits in the slot of the kit in use, and in its store.
+    pub(crate) fn medkits(&self) -> (u16, u16) {
+        self.kits[self.kit]
+            .iter()
+            .filter(|slot| slot.drug == Drug::Medkit)
+            .fold((0, 0), |(hand, store), slot| {
+                (hand + slot.hand, store + slot.store)
+            })
+    }
+
     /// What the world shows of the drugs.
     fn readings(&self, alive: bool) -> Readings {
         let mut drugs = Vec::new();

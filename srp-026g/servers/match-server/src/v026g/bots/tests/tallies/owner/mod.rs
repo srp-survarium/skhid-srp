@@ -44,12 +44,14 @@ mod campers;
 mod fight;
 mod golden;
 mod grenades;
+mod heal;
 mod jumps;
 mod moving;
 
 use campers::*;
 use fight::*;
 use grenades::*;
+use heal::*;
 use jumps::*;
 use moving::*;
 
@@ -116,6 +118,8 @@ pub(crate) struct OwnerTally {
     grenades: GrenadeCounts,
     /// The campers counts ([`CamperCounts`], `campers.rs`).
     campers: CamperCounts,
+    /// The consumable counts ([`HealCounts`], `heal.rs`).
+    heal: HealCounts,
 }
 
 impl OwnerTally {
@@ -129,6 +133,7 @@ impl OwnerTally {
             moving: MoveCounts::new(n),
             grenades: GrenadeCounts::default(),
             campers: CamperCounts::default(),
+            heal: HealCounts::new(n),
             ..Self::default()
         }
     }
@@ -240,6 +245,7 @@ impl OwnerTally {
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);
+        self.heal_tick(game);
         self.campers_kills(game, &sight, &mut rays, tick);
         self.fight_reloads(game, &sight, &mut rays, tick);
         self.grenades_off(game, &sight, &mut rays, tick);
@@ -280,6 +286,7 @@ impl OwnerTally {
             self.vertical_part(game),
             self.grenades_part(game),
             self.campers_part(),
+            self.heal_part(game, &scale),
         ];
         let mut json = serde_json::Map::new();
         json.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
