@@ -133,13 +133,19 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
 ///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
 /// - The settings below it are older names for the same changes, kept so that the bench scripts and
 ///   BENCH-GUIDE go on working (`SRP_BENCH_CHEAT`, `_BATTERY_SIGHT_M`, `_FRIEND_NEAR_M`, `_FF_*`,
-///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_AIM`,
+///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_HEAL`, `_AIM`,
 ///   `_SENSE`). They are applied first, in the order they always were, and the patch last, so it wins.
 ///   For `side1` only the lists (`SRP_BENCH_SIDE1_<name>`) and the patch read team 1's names.
 pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
     let var = |name: &str| settings.var(&format!("{prefix}{name}"));
     let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
+    // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
+    // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
+    if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
+        set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
@@ -195,6 +201,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // aim's own (`AimTuning`: `range_m`, `fire_within_deg`, `pause_ms`, ...) and the senses' (`SenseTuning`) likewise.
     for (name, section, comma_or_semicolon) in [
         ("COMBAT", "/aim/combat", true),
+        ("HEAL", "/heal", true),
         ("AIM", "/aim", true),
         ("SENSE", "/sense", false),
     ] {
@@ -215,6 +222,19 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
                 .expect("a section is an object")
                 .insert(key.to_owned(), value);
         }
+    }
+    // The team's threat spots (K1): `0` off, else on; its parts, and the search's floors.
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT") {
+        set(&mut tuning, "/threat/spots", (v != "0").into());
+    }
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT_DETOUR") {
+        set(&mut tuning, "/threat/detour", (v != "0").into());
+    }
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT_SPRINT") {
+        set(&mut tuning, "/threat/sprint", (v != "0").into());
+    }
+    if let Some(n) = settings.number::<u32>("SRP_BENCH_THREAT_FLOORS") {
+        set(&mut tuning, "/threat/search_floors", n.into());
     }
     // A way out of a zone stays under its start's strength (`Tuning::escape_ceiling`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
@@ -412,7 +432,10 @@ pub(crate) fn real_bot_cost() {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
-        let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+        // The grid with the gap links when this run's tuning has them
+        // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
+        let links = bench_tuning().off_mesh_links();
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
@@ -639,6 +662,11 @@ pub(crate) fn real_bot_cost() {
             let mut holder_thefts = [0u32; 2];
             let mut unheld_ticks = [0u64; 2];
             let mut takes_all = 0u32;
+            let mut threat_changes = 0u32;
+            let mut detour_deaths = 0u32;
+            let (mut bot_deaths, mut bot_ticks, mut detour_ticks) = (0u32, 0u64, 0u64);
+            let threat_searches_before = threat::searches();
+            let threat_checks_before = threat::checks();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
@@ -717,6 +745,17 @@ pub(crate) fn real_bot_cost() {
                     };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
                         push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
+                        let detour = threat::rounded_within(place, game.tick, 15_000);
+                        if bots.bots[place].is_some() && game.bodies[place].alive {
+                            bot_ticks += 1;
+                            detour_ticks += u64::from(detour);
+                        }
+                        if now.1 > before.1 {
+                            bot_deaths += now.1 - before.1;
+                            if detour {
+                                detour_deaths += now.1 - before.1;
+                            }
+                        }
                         let side = &mut by_team[usize::from(teams[place])];
                         if now.0 > before.0 {
                             by_play.entry(play_of(place)).or_default()[2] += now.0 - before.0;
@@ -931,6 +970,7 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    standin_heal::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
@@ -999,6 +1039,9 @@ pub(crate) fn real_bot_cost() {
                     events.note(&note);
                     carry.note(&note);
                     push.note(&note, &bots);
+                    if note.text.contains(": threat spots keep ") {
+                        threat_changes += 1;
+                    }
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -1288,6 +1331,17 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
             eprintln!("  push: {}", push.line(&bots));
+            eprintln!(
+                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
+                bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                detour_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                threat::checks()[0] - threat_checks_before[0],
+                threat::checks()[1] - threat_checks_before[1],
+                threat::searches()[0] - threat_searches_before[0],
+                threat::searches()[1] - threat_searches_before[1],
+                threat::searches()[2] - threat_searches_before[2],
+                threat::searches()[3] - threat_searches_before[3]
+            );
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }

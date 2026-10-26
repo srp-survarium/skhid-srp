@@ -363,10 +363,12 @@ pub(super) fn sense_batteries(
 /// The memory takes the percepts, each after its notice time.
 pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
-        now, me, tuning, ..
+        now,
+        me,
+        tuning,
+        tactics,
+        ..
     } = *due;
-    #[cfg(test)]
-    let tactics = due.tactics;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
     let feet = me.feet;
@@ -374,15 +376,18 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
-            #[cfg(test)]
-            if p.source == Source::Seen {
-                super::foliage::through::count(
-                    tactics
-                        .foliage
-                        .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0)),
-                );
+            let base = sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor);
+            if p.source != Source::Seen {
+                return base;
             }
-            sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
+            // A sight that begins through bushes (`foliage.rs`) is noticed later.
+            let metres = tactics
+                .foliage
+                .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0));
+            let delayed = super::foliage::noticing_ms(base, metres, tuning.sense.bush_notice, tuning.sense.foliage_cap);
+            #[cfg(test)]
+            super::foliage::through::count(metres, delayed - base);
+            delayed
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
         tuning.sense.drop_ms,
@@ -418,6 +423,10 @@ pub(super) fn react(
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
+    }
+    // A grenade decided on: its place is the team's to skip for a while.
+    if let Some(at) = bot.reflex.take_throw_claim() {
+        state.knowledge.claim_throw(bot.place, at, now);
     }
     // Hit from a direction alone (the HUD's marker): its callout.
     if let Some((at, bearing)) = bot.reflex.take_hit_note() {
@@ -502,6 +511,8 @@ pub(super) fn decide(
             partner: bot.partner,
             paired: bot.paired,
             medkits_used: bot.medkits_used,
+            pantry: &bot.pantry,
+            pools: bot.pools,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,

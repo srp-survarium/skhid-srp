@@ -492,7 +492,7 @@ mod tests {
                 straight += from.distance_xz(to);
                 match tactics.route(from, to, 0, Some(row.team)) {
                     Some(way) => {
-                        jumps += way.points().iter().filter(|w| w.jump).count();
+                        jumps += way.points().iter().filter(|w| w.jump.is_some()).count();
                         length += way.length();
                     }
                     None => no_way += 1,
