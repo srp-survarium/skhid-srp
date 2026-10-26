@@ -35,8 +35,18 @@ pub(super) struct HealRec {
     /// Medkits in the slot of the kit in use.
     hand: u16,
     infection: f32,
+    /// The bot has a target (the reflex's).
+    target: bool,
+    /// An enemy within 40 m has a clear line to the body, or the body to him.
+    line: bool,
+    /// A heal cover walk was begun in the last 1.6 s.
+    walking: bool,
+    /// The cover walks begun so far (a bot, this match).
+    walks: u32,
 }
 
+/// An enemy this near with a clear line is "in an enemy's line", m (the situations).
+const LINE_M: f32 = 40.0;
 /// A hurt body: under this (the record's 0.995).
 const HURT: f32 = 0.995;
 /// Healed: from this (the record's 0.99).
@@ -68,14 +78,30 @@ struct Episode {
 
 impl OwnerTally {
     /// One tick: every bot's body pool and medkits, as the game has them.
-    pub(super) fn heal_tick(&mut self, game: &Game) {
+    pub(super) fn heal_tick(&mut self, game: &Game, nows: &[Option<BotNow>], sight: &mapdata::RayTree) {
         for (place, body) in game.bodies.iter().enumerate() {
             let (hand, _) = body.heal.medkits();
+            let now = nows.get(place).and_then(Option::as_ref);
+            // The rays only for a hurt bot: the line is asked of the presses on a hurt body.
+            let line = body.alive
+                && now.is_some()
+                && body.health < HURT
+                && game.bodies.iter().any(|him| {
+                    him.alive
+                        && him.team != body.team
+                        && him.feet.distance_xz(body.feet) <= LINE_M
+                        && (sight.visible(Game::eye(body), Game::chest(him))
+                            || sight.visible(Game::eye(him), Game::chest(body)))
+                });
             self.heal.recs[place].push(HealRec {
                 alive: body.alive,
                 body: body.health,
                 hand,
                 infection: body.rest.infection,
+                target: now.is_some_and(|n| n.target),
+                line,
+                walking: now.is_some_and(|n| n.heal_walking),
+                walks: now.map_or(0, |n| n.heal_walks),
             });
         }
     }
@@ -274,6 +300,40 @@ impl OwnerTally {
         } else {
             (10.0 * 100.0 * dead_soon as f64 / used.len() as f64).round() / 10.0
         };
+        // The situation of every press on a hurt body, to be read with the deaths soon after
+        // it: bits target 1, a loss in the last 2 s 2, an enemy's line 4, a heal cover walk
+        // in the last 1.6 s 8; each key [presses, of them dead within 5 s].
+        let mut situations: BTreeMap<u32, [u32; 2]> = BTreeMap::new();
+        for p in used.iter().filter(|p| p.3 < HURT) {
+            let k = self.index(p.0);
+            let recs = &self.heal.recs[p.1];
+            let Some(rec) = recs.get(k) else { continue };
+            let lost = (k.saturating_sub(40) + 1..=k.min(recs.len() - 1))
+                .any(|i| i > 0 && recs[i].alive && recs[i - 1].alive && recs[i].body < recs[i - 1].body);
+            let bits = u32::from(rec.target)
+                | u32::from(lost) << 1
+                | u32::from(rec.line) << 2
+                | u32::from(rec.walking) << 3;
+            let died = deaths
+                .iter()
+                .any(|&(place, dk)| place == p.1 && dk >= k && self.time_of(dk) - p.0 <= DEAD_AFTER_MS);
+            let e = situations.entry(bits).or_default();
+            e[0] += 1;
+            e[1] += u32::from(died);
+        }
+        // The cover walks begun (the last record of each bot), and the heal plays taken: with the
+        // habit on, none (a take of a Heal play displaces the running play).
+        let walks: u32 = self.heal.recs.iter().filter_map(|r| r.last()).map(|r| r.walks).sum();
+        let heal_index = self.play_index.get("Heal").copied();
+        let displaced: u32 = self
+            .recs
+            .iter()
+            .map(|recs| {
+                recs.windows(2)
+                    .filter(|w| Some(w[1].play) == heal_index && w[0].play != w[1].play)
+                    .count() as u32
+            })
+            .sum();
         let by_depth: Vec<f64> = bands.iter().map(|&(a, b)| Scale::pct(a, b)).collect();
         let json = serde_json::json!({
             "heal_fatal_fights": fights,
@@ -295,12 +355,15 @@ impl OwnerTally {
             "heal_dead_no_press_pct": pct(deaths_no_press, deaths_stock),
             "heal_full_3_9s_after_pct": pct(full_ok, full_of),
             "heal_infection_deaths": infection_deaths,
+            "heal_cover_walks": walks,
+            "heal_plays_displaced": displaced,
+            "heal_situations": situations,
         });
         let text = format!(
             "owner-test heal: hurt at the fatal fight's start {:.1} % ({:.1} % over 4 s old) of {} fights; hurt {:.1} % of alive time with stock; \
              episodes with a press {:.1} % of {} (depth >=0.8 / 0.6-0.8 / <0.6: {:.0} / {:.0} / {:.0} %), first press after {} s; \
              {} presses, {:.1} per 100 bot minutes on a hurt body, {} on an empty slot, {} on an active medkit; no stock at the spawn {:.1} % of alive time; \
-             dead within 5 s of a press {:.1} per 100; dead with a medkit unused {:.1} % (no press in the life {:.1} %) of {}; full 3-9 s after {:.1} %; infection <= 0.1 at {} deaths",
+             dead within 5 s of a press {:.1} per 100; dead with a medkit unused {:.1} % (no press in the life {:.1} %) of {}; full 3-9 s after {:.1} %; infection <= 0.1 at {} deaths; cover walks {}, heal plays taken {}",
             pct(hurt_start, fights),
             pct(hurt_old, fights),
             fights,
@@ -322,6 +385,8 @@ impl OwnerTally {
             deaths_stock,
             pct(full_ok, full_of),
             infection_deaths,
+            walks,
+            displaced,
         );
         Part::new(json, text)
     }

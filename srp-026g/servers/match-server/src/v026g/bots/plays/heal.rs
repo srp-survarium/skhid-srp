@@ -35,6 +35,16 @@
 //! - **Not built:** the antitoxin before a toxic zone with a full pool
 //!   (the zones are `hazards.rs`'s; no kit holds an antitoxin).
 //!
+//! **As a habit (`interrupt`, the default):** no play is taken at all. The
+//! reflex presses the key at once whatever the bot is doing ([`wish`], asked
+//! by `drive.rs` every tick, pressed in `Reflex::tick`), and in a duel walks
+//! to cover while the item works: the delay (the medkit's 2 s, PROVEN) is
+//! free walking time, so the press never waits for a step and no running
+//! play, assignment, route or cooldown is touched (the first look of #520
+//! counted 2.2 takes and 2.9 route ends a press from the play; 77 % of the
+//! 1.5 s cover steps ended on the timeout 2.7 m short of the spot). The play
+//! below is kept for the switch.
+//!
 //! `graded: false` (the tuning) is the old rule: a medkit with the body
 //! under `below`, out of every known enemy's line of sight, then still and
 //! crouched for `wait_s`, fire held; an enemy seen meanwhile ends it.
@@ -42,9 +52,9 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::pools::{Pool, Pools};
-use crate::v026g::bots::stock::{Drug, Held};
+use crate::v026g::bots::stock::{Drug, Held, Pantry};
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::tuning::NeedWeights;
+use crate::v026g::bots::tuning::{HealTuning, NeedWeights};
 use crate::v026g::bots::view::{EYE_CROUCHED, EYE_STANDING};
 use crate::v026g::drive::key;
 
@@ -140,9 +150,16 @@ fn busy(held: &Held, now: u32) -> bool {
 /// Its pools as they will be once every drug pressed has acted: the last
 /// world's, and for each press the part of its effect after that world.
 pub fn projected(cx: &Ctx) -> Pools {
-    let mut pools = cx.bot.pools.unwrap_or_else(|| Pools::of_body(cx.me.health));
-    let seen = cx.view.world_time;
-    for held in cx.bot.pantry.held() {
+    projected_of(
+        cx.bot.pools.unwrap_or_else(|| Pools::of_body(cx.me.health)),
+        cx.view.world_time,
+        &cx.bot.pantry,
+    )
+}
+
+/// [`projected`] from the raw inputs (the reflex habit has no [`Ctx`]).
+pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry) -> Pools {
+    for held in pantry.held() {
         let Some(at) = held.pressed else {
             continue;
         };
@@ -195,21 +212,28 @@ fn left_after(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
 /// that are not active, the one that leaves the least need (the shorter
 /// when two leave as much); none when no need reaches `start_need`.
 pub fn choose<'a>(cx: &'a Ctx) -> Option<(&'a Held, f32)> {
-    let heal = &cx.tuning.heal;
-    let pools = projected(cx);
+    choose_of(&projected(cx), &cx.bot.pantry, &cx.tuning.heal, cx.now)
+}
+
+/// [`choose`] from the raw inputs: the projected pools, the pantry, the tuning, the time.
+pub fn choose_of<'a>(
+    pools: &Pools,
+    pantry: &'a Pantry,
+    heal: &HealTuning,
+    now: u32,
+) -> Option<(&'a Held, f32)> {
     let w = &heal.weights;
     let total = |held: &Held| {
         let it = item(held.drug);
         it.delay_s + it.active_s
     };
-    cx.bot
-        .pantry
+    pantry
         .held()
         .iter()
-        .filter(|held| held.hand > 0 && !busy(held, cx.now))
-        .map(|held| (held, need(item(held.drug), &pools, w)))
+        .filter(|held| held.hand > 0 && !busy(held, now))
+        .map(|held| (held, need(item(held.drug), pools, w)))
         .filter(|&(_, need)| need >= heal.start_need)
-        .map(|(held, need)| (held, need, left_after(item(held.drug), &pools, w)))
+        .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w)))
         .min_by(|a, b| {
             if (a.2 - b.2).abs() < 0.05 {
                 total(a.0).total_cmp(&total(b.0))
@@ -218,6 +242,51 @@ pub fn choose<'a>(cx: &'a Ctx) -> Option<(&'a Held, f32)> {
             }
         })
         .map(|(held, need, _)| (held, need))
+}
+
+/// What the heal habit asks of the reflex this tick (the interrupt: the
+/// press is the reflex's, no play is taken, `HealTuning::interrupt`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Wish {
+    /// The item's quick-use key.
+    pub key: u32,
+    /// How far the cover walk may go while the item's delay runs, m: the
+    /// walk speed times the delay (`HealTuning::walk_mps`).
+    pub reach_m: f32,
+    /// No walk with a known enemy this near, m (`HealTuning::enemy_m`).
+    pub enemy_m: f32,
+}
+
+/// The press the bot wants now, from its own knowledge alone (pools, kit,
+/// the time): none off the habit's switch, for a carrier (the client most
+/// likely ignores the key with a battery in the hands: `process_quick_slots`
+/// 0x2D8DA0, so a press would be counted as used and heal nothing), when
+/// no need reaches `start_need`, or while the item is active. The pantry
+/// counts the press as it goes out (`drive.rs`), so the next tick wishes
+/// the next item or none: one hurt is not answered twice.
+pub fn wish(
+    pools: Option<Pools>,
+    health: f32,
+    world_time: u32,
+    carrying: bool,
+    pantry: &Pantry,
+    heal: &HealTuning,
+    now: u32,
+) -> Option<Wish> {
+    if !heal.interrupt || !heal.graded || carrying {
+        return None;
+    }
+    let pools = projected_of(
+        pools.unwrap_or_else(|| Pools::of_body(health)),
+        world_time,
+        pantry,
+    );
+    let (held, _) = choose_of(&pools, pantry, heal, now)?;
+    Some(Wish {
+        key: key::QUICK[held.quick],
+        reach_m: heal.walk_mps * item(held.drug).delay_s,
+        enemy_m: heal.enemy_m,
+    })
 }
 
 /// Whether an enemy it knows of has a clear line to it (crouched), or is
@@ -234,6 +303,10 @@ pub fn in_known_sight(cx: &Ctx) -> bool {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    // The habit presses (`wish`); the play is the old paths' (`interrupt` off).
+    if cx.tuning.heal.interrupt && cx.tuning.heal.graded {
+        return;
+    }
     if !cx.tuning.heal.graded {
         return legacy_candidates(cx, out);
     }
@@ -421,6 +494,8 @@ mod tests {
     /// A bot of the field at `at` with its body at `health`.
     fn hurt_bot(health: f32, at: Vec3) -> Scenario {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
+        // These tests are the play's; the habit has its own below.
+        s.tuning.heal.interrupt = false;
         s.bot(0, 0, at).health = health;
         s
     }
@@ -749,5 +824,76 @@ mod tests {
         s.tuning.heal.graded = false;
         s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.9;
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
+    }
+
+    /// The habit's wish for a body at `health` with the bots' standard kit (two medkits) at 10 s.
+    fn wish_for(health: f32, carrying: bool, pantry: &Pantry) -> Option<Wish> {
+        wish(
+            None,
+            health,
+            10_000,
+            carrying,
+            pantry,
+            &HealTuning::default(),
+            10_000,
+        )
+    }
+
+    #[test]
+    fn the_habit_wishes_the_kits_key_from_a_need_of_0_15_and_not_before() {
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        // A body at 0.90 has a need of 0.10 (none), 0.84 of 0.16, 0.78 of 0.22, 0.5 of 0.5.
+        assert_eq!(wish_for(0.9, false, &pantry), None);
+        for health in [0.84, 0.78, 0.5] {
+            let w = wish_for(health, false, &pantry).unwrap_or_else(|| panic!("{health}"));
+            assert_eq!(w.key, key::QUICK[0], "{health}");
+            // The medkit's 2 s delay at the walk pace (7 m), the 10 m enemy radius of the tuning.
+            assert_eq!((w.reach_m, w.enemy_m), (7.0, 10.0));
+        }
+        assert_eq!(wish_for(1.0, false, &pantry), None);
+    }
+
+    #[test]
+    fn the_habit_wishes_nothing_for_a_carrier_an_active_item_an_empty_slot_or_a_switch_off() {
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        assert!(wish_for(0.5, false, &pantry).is_some());
+        // A carrier: the client most likely ignores the key with a battery in the hands (0x2D8DA0).
+        assert_eq!(wish_for(0.5, true, &pantry), None);
+        // The press as it goes out (drive.rs) is counted: the next tick wishes nothing while the item acts ...
+        assert!(pantry.pressed(0, 10_000));
+        assert_eq!(wish_for(0.5, false, &pantry), None, "the first medkit is active");
+        // ... and the pools it will have given are not asked again; a second medkit only after the first is over.
+        let later = |pantry: &Pantry, now: u32| {
+            wish(None, 0.5, now, false, pantry, &HealTuning::default(), now)
+        };
+        assert!(later(&pantry, 15_500).is_some());
+        // Both medkits used: an empty slot is never wished.
+        assert!(pantry.pressed(0, 16_000));
+        assert_eq!(later(&pantry, 30_000), None);
+        // The switches.
+        let mut fresh = Pantry::standard();
+        fresh.new_life(0);
+        let off = HealTuning {
+            interrupt: false,
+            ..HealTuning::default()
+        };
+        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &off, 10_000), None);
+        let old_rule = HealTuning {
+            graded: false,
+            ..HealTuning::default()
+        };
+        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &old_rule, 10_000), None);
+    }
+
+    #[test]
+    fn with_the_habit_on_no_play_is_a_candidate_and_off_it_is() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.4;
+        assert!(s.tuning.heal.interrupt, "on by default");
+        assert!(heals(&s).is_none(), "the reflex presses, no play is taken");
+        s.tuning.heal.interrupt = false;
+        assert!(heals(&s).is_some());
     }
 }

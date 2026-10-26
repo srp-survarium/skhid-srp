@@ -803,8 +803,15 @@ mod tests {
     /// each world shows: they hurt one another, press the medkit and are
     /// healed by it, and no press goes into an empty slot or into an
     /// active medkit (the stock is the game's), in every life of the run.
-    #[test]
-    fn a_short_run_heals_its_bots_and_presses_no_empty_slot() {
+    /// A short run of eight bots (batteries) against the stand-in game for
+    /// `ms`. `each` is called around every poll: first `(bots, game, clock,
+    /// None)` before it, then `(bots, game, clock, Some(made))` after it with
+    /// what the poll made.
+    fn short_run(
+        ms: u32,
+        tuning: Tuning,
+        mut each: impl FnMut(&mut Bots, &mut Game, u32, Option<&[crate::v026g::bots::Made]>),
+    ) -> Game {
         let world = soak_world();
         let teams: Vec<u8> = (0..8).map(|p| u8::from(p >= 4)).collect();
         let mut bots = Bots::new(
@@ -814,14 +821,14 @@ mod tests {
             &teams,
             &[true; 8],
             &[None; 8],
-            Arc::new(Tuning::default()),
+            Arc::new(tuning),
             Trace::none(0),
         );
         bots.map_ready(world.clone());
         let mut game = Game::new(world, &teams, 3, None, None);
         (0..teams.len()).for_each(|place| bots.entered(place, true, 0));
         let (mut clock, mut next_world) = (0, 1_000);
-        while clock < 120_000 {
+        while clock < ms {
             clock += 25;
             while game.tick + TICK_MS <= clock {
                 game.step();
@@ -837,12 +844,14 @@ mod tests {
                     bots.facts(facts);
                 }
             }
+            each(&mut bots, &mut game, clock, None);
             let (made, _) = bots.poll(Clock {
                 clock,
                 time_left_s: 600.0,
                 total_s: 600.0,
                 playing: true,
             });
+            each(&mut bots, &mut game, clock, Some(&made));
             for made in made {
                 let r = made.input.rotation;
                 let turn = (
@@ -858,6 +867,12 @@ mod tests {
                 ));
             }
         }
+        game
+    }
+
+    #[test]
+    fn a_short_run_heals_its_bots_and_presses_no_empty_slot() {
+        let game = short_run(120_000, Tuning::default(), |_, _, _, _| {});
         let used = game
             .drug_log
             .iter()
@@ -874,5 +889,80 @@ mod tests {
             game.hits
         );
         assert!(wasted.is_empty(), "{wasted:?}");
+    }
+
+    /// The scenario of the habit: a heal is a press and nothing else. Whatever
+    /// play a bot runs, at the poll its key goes out its assignment (kind,
+    /// target, slot, since), the plays it has run (`last_ran`) and its route
+    /// are what they were before the poll, no Heal play is ever assigned or
+    /// remembered, and the bench counts no Heal play taken. (The old play
+    /// took the assignment, stamped `last_ran` and ended the route at each.)
+    #[test]
+    fn a_heal_is_a_press_and_the_running_play_assignment_and_route_are_untouched() {
+        use crate::v026g::bots::plays::PlayKind;
+        use crate::v026g::drive::key;
+        let mut before: Vec<Option<(Option<crate::v026g::bots::team::Assignment>, Vec<(PlayKind, u32)>, bool)>> = Vec::new();
+        let (mut pressed, mut unchanged) = (0, 0);
+        let game = short_run(120_000, Tuning::default(), |bots, game, _, made| {
+            match made {
+                None => {
+                    // Hurt bot 0 and bot 5 hard once a minute so the fights do not decide whether the key goes out.
+                    if game.tick % 30_000 == 0 && game.tick > 0 {
+                        game.bodies[0].health = game.bodies[0].health.min(0.5);
+                        game.bodies[5].health = game.bodies[5].health.min(0.5);
+                    }
+                    before = bots
+                        .bots
+                        .iter()
+                        .map(|b| {
+                            b.as_ref().map(|b| (b.assignment.clone(), b.last_ran.clone(), b.route.is_some()))
+                        })
+                        .collect();
+                }
+                Some(made) => {
+                    for m in made {
+                        let bot = bots.bots[m.place].as_ref().expect("a bot");
+                        assert!(bot.assignment.as_ref().is_none_or(|a| a.kind != PlayKind::Heal), "a Heal play assigned");
+                        assert!(bot.last_ran.iter().all(|(k, _)| *k != PlayKind::Heal), "a Heal play remembered");
+                        if m.input.actions & key::QUICK[0] == 0 {
+                            continue;
+                        }
+                        pressed += 1;
+                        let Some(Some((assignment, last_ran, routed))) = before.get(m.place) else {
+                            continue;
+                        };
+                        // The poll may have been the commander's or the play's own end: only a poll that kept its
+                        // assignment is compared, and then nothing else of the bot's play may have moved.
+                        if bot.assignment.as_ref() == assignment.as_ref() {
+                            assert_eq!(&bot.last_ran, last_ran, "last_ran stamped by a heal");
+                            assert_eq!(bot.route.is_some(), *routed, "route ended by a heal");
+                            unchanged += 1;
+                        }
+                    }
+                }
+            }
+        });
+        assert!(pressed >= 2, "{pressed} presses");
+        assert!(unchanged >= 1, "{unchanged} of {pressed} presses left the assignment as it was");
+        assert!(game.drug_log.iter().all(|p| matches!(p.2, Pressed::Used(_))));
+        // The test has teeth: with the play (the habit off) the same run does assign a Heal play.
+        let mut off = Tuning::default();
+        off.heal.interrupt = false;
+        let mut assigned = 0;
+        short_run(120_000, off, |bots, game, _, made| {
+            if made.is_none() && game.tick % 30_000 == 0 && game.tick > 0 {
+                game.bodies[0].health = game.bodies[0].health.min(0.5);
+                game.bodies[5].health = game.bodies[5].health.min(0.5);
+            }
+            if made.is_some() {
+                assigned += bots
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::Heal))
+                    .count();
+            }
+        });
+        assert!(assigned > 0, "the play is assigned with the habit off");
     }
 }

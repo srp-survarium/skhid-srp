@@ -98,6 +98,10 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// The reflex has a target; a heal cover walk begun in the last 1.6 s; the walks begun so far in the match.
+    target: bool,
+    heal_walking: bool,
+    heal_walks: u32,
 }
 
 #[derive(Default)]
@@ -189,6 +193,9 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    target: bot.reflex.target().is_some(),
+                    heal_walking: bot.reflex.heal_walking(),
+                    heal_walks: bot.reflex.heal_walks,
                 })
             })
             .collect();
@@ -252,7 +259,7 @@ impl OwnerTally {
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);
-        self.heal_tick(game);
+        self.heal_tick(game, nows, &sight);
         self.campers_kills(game, &sight, &mut rays, tick);
         self.fight_reloads(game, &sight, &mut rays, tick);
         self.grenades_off(game, &sight, &mut rays, tick);

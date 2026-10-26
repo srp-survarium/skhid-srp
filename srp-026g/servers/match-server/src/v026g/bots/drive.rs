@@ -156,6 +156,18 @@ pub(super) fn drive_tick(
     // (`Intent::let_go`) may fire while the view still shows it carried.
     let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
+    // [heal] The consumable is a habit of the reflex, as the reload is: the
+    // key goes out at once whatever the play, which is neither taken nor
+    // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
+    bot.reflex.set_heal(super::plays::heal::wish(
+        bot.pools,
+        me.health,
+        view.world_time,
+        me.carrying.is_some(),
+        &bot.pantry,
+        &tuning.heal,
+        time,
+    ));
     let over = bot.reflex.tick(
         aiming_me,
         view,

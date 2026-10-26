@@ -26,11 +26,26 @@ pub struct HealTuning {
     /// counts fully, what slows less (a broken leg 0.38; an infection at 0.8
     /// reaches `start_need`).
     pub weights: NeedWeights,
-    /// A cover step is taken first only if a cover spot is this near, m,
-    /// and no enemy it knows of is within `enemy_m`; it lasts at most
+    /// The heal is a habit of the reflex (like the reload): it presses the
+    /// item's key at once whatever the bot is doing, no play is taken, no
+    /// running play is displaced (the take, the route end and the commander's
+    /// re-choice of each press are gone). Off: the play (`plays/heal.rs`),
+    /// with its cover step first, as in #520's first look.
+    pub interrupt: bool,
+    /// The cover walk during the item's delay goes this far a second, m
+    /// (the walk pace, 3.5 m/s in `kin.rs`, PROVEN from the client's speeds):
+    /// a medkit's 2 s delay (PROVEN, `fact-health-recovery.md`) is a 7 m
+    /// walk, a bandage's 1 s 3.5 m. The reflex's own cover search
+    /// (`break_sight`, 48 samples, from 2 m) finds the spot within it.
+    pub walk_mps: f32,
+    /// No cover walk, and the old play's cover step is not taken, with an
+    /// enemy it knows of within this, m: GUESS (the humans press within 10 m
+    /// in 10 % of their presses; whether they walk off is not in the data).
+    pub enemy_m: f32,
+    /// The old play's cover step (`interrupt` off): taken first only if a
+    /// cover spot is within `cover_m`, m, and lasting at most
     /// `cover_step_ms`. Otherwise it presses at once.
     pub cover_m: f32,
-    pub enemy_m: f32,
     pub cover_step_ms: u32,
     /// The old rule's numbers (`graded` off).
     pub below: f32,
@@ -68,8 +83,10 @@ impl Default for HealTuning {
             start_need: 0.15,
             urgent_need: 0.2,
             weights: NeedWeights::default(),
-            cover_m: 4.0,
+            interrupt: true,
+            walk_mps: 3.5,
             enemy_m: 10.0,
+            cover_m: 4.0,
             cover_step_ms: 1_500,
             below: 0.6,
             wait_s: (1.5, 3.0),
@@ -94,6 +111,7 @@ pub(super) fn validate(heal: &HealTuning) -> Result<(), String> {
         heal.cover_m >= 0.0 && heal.enemy_m >= 0.0 && heal.cover_step_ms <= 5_000,
         "heal.cover_*",
     )?;
+    check((0.0..=10.0).contains(&heal.walk_mps), "heal.walk_mps")?;
     check(heal.below > 0.0 && heal.below <= 1.0, "heal.below")?;
     check(
         0.0 < heal.wait_s.0 && heal.wait_s.0 <= heal.wait_s.1,
