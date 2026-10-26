@@ -14,6 +14,12 @@ whose strength fades (the Bodycam study's recipe, section 7). All Rust client co
 the Rust framework PR (`feat/rust-framework`): the solver here is a pure crate; the game-side
 wiring (section 8) is rewired through the framework's hook template and bindings.
 
+**The owner's asks of 2026-10-26** (section 11): bullets that cross a corpse push it ("bodies
+continue on being physics objects so that bullets even in ragdoll state affected them"), and
+show the game's body-hit effect there ("bullet hits should also be seen on ragdoll bodies");
+bodies and batteries interact ("batteries and bodies should interact too": one way, a body
+rests on a battery, the battery is never moved).
+
 ## Summary and recommendation
 
 - **0.26g has no ragdoll, dormant or not.** Its Bullet build has rigid bodies, capsules and
@@ -158,7 +164,7 @@ wiring (section 8) is rewired through the framework's hook template and bindings
 | Question | 0.26g | Evidence |
 |---|---|---|
 | Does a corpse block players? | No: its controller leaves the world at the death | `deactivate_physics` 0x2D9980 (controller remove 0x7F520), from `remove_alive(p, 1)` 0x2D99C0, from `on_player_death` 0x1F28E0. PROVEN |
-| Does it stop bullets or grenades? | No: the hit model's body (`[+498h]+12Ch`, group 40h, mask 11h when alive) leaves the world | same call, world vtable+38h; `activate_physics` 0x2D9930 is the add. PROVEN, the field's meaning LIKELY |
+| Does it stop bullets or grenades? | No: the hit model's body (`[+498h]+12Ch`, group 40h, mask 11h when alive) leaves the world; a bullet's ray (group 10h, mask 48h) goes through a corpse as through air, and patch 76 keeps that (section 11) | same call, world vtable+38h; `activate_physics` 0x2D9930 is the add. PROVEN, the field's meaning LIKELY |
 | Do its hit shapes follow the pose? | No: `recompute_damage_collision_bones` 0x2DA5B0 returns 2 at once while +33Ch is clear, which remove_alive sets | PROVEN |
 | Is the death clip in the simulation? | Yes: index and end flag serialized; the end callback runs on +750h, which mt_draw also ticks | 0x3383E0, 0x3384E0, 0x24752B. PROVEN |
 | Battery and items | Dropped by the simulation's own states at the simulation's "Weapon" bone (its own animation player +750h, not the drawn bones) | PROVEN in phase 2 (section 6, item 4) |
@@ -461,7 +467,7 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
 
 ## 8. The game side (patch 76; to be rewired through the Rust framework)
 
-Four hooks, each a `call` over one instruction that the entry does itself (built first on
+Five hooks, each a `call` over the game's instructions, which the entry does itself (built first on
 #452's Rust tooling, checked in Unicorn). They move onto the Rust framework (#475) once it
 lands: one arena crate `patches` with a module per patch and generated hook entries, the
 solver staying its own library crate `ragdoll` that a `patches::ragdoll` module uses; the
@@ -479,6 +485,9 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
                                          0x247847 update_camera:
                                             0x1F3643 eye: the local player's ragdoll's
                                                      eye instead of &player+44Ch
+  inside move: bullet::check_collision (each bullet's ray, maybe on worker threads)
+     0x32D627 bullet: the segment against the ragdolls (read only); a hit's push
+              queued for the next step (once a shot), the body-hit particle and sound
 ```
 
 - **The step** reads the places through the network client's own vtable (0x9FFB14:
@@ -496,7 +505,7 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
 
 ## 9. Tests and costs
 
-- `cargo test -p ragdoll` (19): the rig draws the death pose back; a body shot holds its
+- `cargo test -p ragdoll` (19 of these; the shots' 7 more in section 11): the rig draws the death pose back; a body shot holds its
   pelvis up for half a second, its knees give way from 0.6 s and it is down by about 1 s,
   a headshot is down by 0.5 s; shot, blast and headshot bodies settle 0.8 to 2.0 s after
   landing (1.8 to 3.2 s after the death); limits held (8 degrees of give) through a
@@ -542,6 +551,7 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
   body that slumps too early or too late (`TRUNK_FADE`), feet that slide oddly while the
   body sags (`BALANCE_ASSIST`), a pistol that drops as long as a rifle (the gun's size is a
   rifle's for now).
+- **Shooting a corpse, a body on a battery:** section 11's list.
 
 ## 10. Left, and the tuning to watch
 
@@ -553,6 +563,131 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
 - **The drive's floor** (0.03): a clip whose end pose disagrees with the ground (a slope,
   the body landed the other way) keeps pulling; the 5 s cap ends it. Lower it to 0 if
   corpses crawl.
+- **Explosions** push no corpse yet (section 11).
+
+## 11. Bullets through a corpse, the hit effect, batteries (2026-10-26)
+
+**What stock 0.26g does at a corpse (PROVEN).** A bullet is a simulation object
+(`bullet_manager`, serialized and hashed); each tick `bullet::tick` (0x32C180) calls
+`check_collision` (0x32D4E0) with the segment from its last place to its place at the tick's
+end. That traces one ray through the physics world (vtable+48h = `ray_test` 0x75E20, group
+10h, mask 48h, the bullet as the hit models' delegate argument) and, on a hit, pierces,
+reflects or stops (try_pierce 0x32D960, try_reflect 0x32DE40, the process_* effects). A
+corpse's hit model has left the world at the death (section 3), so the ray goes through the
+corpse as through air: no hit, no effect, the bullet flies on. Patch 76 keeps exactly that:
+it only reads the ray and its result.
+
+**The hook (patch 76's fifth).** `check_collision` 0x32D627, right after the ray_test, over
+the two moves that copy its result (`movq xmm0,[eax]` / `movq [esp+38h],xmm0`, 10 bytes):
+`call rg_bullet` + 5 nops, the entry doing both moves. There EAX is the ray's result (+0 the
+point, +1Ch the object), EDI the bullet, and check_collision's frame holds the ray: +90h the
+origin, +20h the unit direction, +14h the length. It is the one place where each bullet's
+segment of each tick is known, on every client (the same simulation), and it runs again for
+every segment after a pierce or reflection (the loop at 0x32D7D1 too). With 256 bullets or
+more, `bullet_manager::tick` (0x321D10) ticks them as tasks of 256 on several threads and
+waits for them; the hook is thread safe (below).
+
+- **The segment** is cut where the game's own ray stopped (a wall, a living player): a
+  corpse behind a wall is not hit. `ragdoll_bullet` (the arena crate, its own function so it
+  ports cleanly to #475) tests it against the ragdolls, moving or settled: each place's box
+  (made by the last step) first, then the eleven capsules of those the segment crosses
+  (ray against capsule, the nearest hit). The corpses are only read here: the step writes
+  them after the move, never during it.
+- **The push** is queued (32 a frame at most) and applied at the next step: an impulse at
+  the hit point along the bullet, `tuning::SHOT_IMPULSE` 12 N s for a weapon of stopping
+  power 0.4, scaled by the bullet's weapon's `stopping_power` (`[[bullet+40h]+0Ch]`, what
+  hit_impl's stagger reads, 0x2D9D7E; 0.4 to 2 times), lifted by 0.35 of its size (a shot
+  from a standing shooter goes down into a body on the ground, which the ground would stop
+  dead), each body's speed change capped at 6 m/s and its spin's at 15 rad/s. The part hit
+  takes it: a head or a forearm swings on its joint, the torso hardly moves. For 0.3 s after
+  a push the near-rest slowing is off (it would take a small push away at once).
+- **A settled body wakes:** a settled slot now keeps its ragdoll frozen (`Slot::Settled {
+  ragdoll, since }`), so a shot makes it a moving ragdoll again, at rest where it lay, limp
+  (no drive: the clip's end pose would pull a body lying elsewhere along the ground). It
+  settles again by the same rules; the 5 s cap counts from the last push.
+- **Once a shot (rollbacks).** A rollback restores the bullets and simulates their ticks
+  again, so the same segment is traced again. The game's own hit effects are kept once by
+  `player_shootmarks_storage::add_shootmark` (0x32E460): per shooter's place
+  (`[[bullet+8]+4]`), the bullet's id (+4) and its segment (+84h, counted by its pierces and
+  reflections), all three in the bullet's serialized state, so a re-simulated tick gives the
+  same three. The push uses the same key with the corpse's place and death
+  (`shot::ShotKey`), in a log of the last 128 (`shot::ShotLog`): the first trace pushes and
+  plays, the next ones of the same shot do nothing. A rollback that takes the death back
+  drops the ragdoll anyway (section 5). A push of a shot the rollback took back (a mispredicted
+  shot of another player) stays: visual only.
+- **The hit effect (the owner's second ask).** A living player's hit model is game material
+  10, `actor` (`bt_animated_rigid_body` 0x70E70 sets every hit body's +38h to 10;
+  `game_materials/game.materials`); a bullet is material 7. Their pair
+  (`game_materials/material.pairs`, pair 7 x 10) plays `fx/material_hits/blod`, the sound
+  `material/body/bullet/body_hits` and the decal `decals/bullet_body_in`. A pierced player gets
+  them from `process_front_face_piercing` (0x32E4F0): the pair's first particle slot (+24h)
+  by `bullet_manager::play_particle` (0x3223E0: the point, the bullet's direction, the
+  surface's normal, the pair's +74h), its sound (+18h) by `play_sound` (0x3222F0) when the
+  bullet's +80h is clear and its segments at most one. The hook plays the same two, at the
+  point on the ragdoll's capsule, the normal of the capsule there, through the game's own
+  queues (they run after the bullets' tick, threads allowed), once a shot, and only when the
+  bullet has a shooter (the game's own condition, 0x32E54C). The material pair comes from the
+  game's own lookup (0x306D50). **No wound decal:** the game's own decal of a body hit
+  goes nowhere on the body (a player's hittable gives `add_decal` no model: vtable+2Ch and
+  +30h are both 0x1F1780, `*out = 0`; the decal falls to the world's), so a corpse gets
+  none either.
+- **Thread safety.** The trace only reads; the log and the queue are taken under a spin
+  lock (an atomic in the ragdoll's state); the effects go through the game's lock-free
+  queues. A flag set by the step (`any_bodies`) makes the hook return at once when no
+  ragdoll is drawn.
+- **Batteries (the owner's third ask).** The ragdoll's rays (group 24h, mask 2, the foot
+  IK's) did not hit batteries: a battery's dynamic body is put into the world by
+  `victory_item_core` 0x301CB0 (its vtable+0ACh) with group 0A18h, mask 418h, and Bullet's
+  filter (needsCollision 0x75BD0: the object's group has a bit of the ray's mask and its mask
+  a bit of the ray's group) fails both ways. The rays now use group 424h, mask 202h: the
+  level as before, and the batteries (bits 400h and 200h; no other object put in with an
+  immediate group has them: character controllers 824h/3, hit models 40h/11h, grenades
+  818h/8, the lobby's 800h/800h and 20h/20h). The rays only read: a body lies on a battery
+  or against it, and the battery is never moved or woken. A dropped battery (a dying
+  carrier's, at the simulation's "Weapon" bone, 0x300E50) is a dynamic body that the
+  simulation's physics drops (activated, then its velocity set, 0x300DC0); while carried it
+  is out of the world (vtable+0B0h removes it).
+- **A body over a battery:** the pickup is the simulation's own ray from the eye
+  (`detect_usable_object` 0x2D84C0, against the battery's usable shape, 2 m) and the
+  ragdoll is in no world, so a corpse never blocks a pickup or the prompt. A body can lie
+  on a battery and hide it from view (a torso is about as big), as a corpse's clip could
+  before; the pickup still works by looking at it. A battery picked up from under a settled
+  body leaves the body as it lay (a settled body asks the level nothing) until a shot wakes
+  it.
+- **Explosions (not built).** A grenade's blast is applied by grenade code that is not read
+  yet (`grenade_core::tick` 0x303A60 and what it calls); the push itself would be a few
+  lines (every body near the centre pushed away, `Ragdoll::push` per part, keyed by the
+  grenade's id), but the site, its frame and its Unicorn check are another hook's work, not
+  a few lines. Left for a next step.
+
+**Costs** (`cargo test --release -p ragdoll cost -- --ignored --nocapture`, x86-64 host):
+a segment's trace with 20 ragdolls is 0.14 microseconds when it misses every box, 0.3 to 0.5
+when it crosses some (4,000 segments in 0.5 to 2 ms); with no ragdoll the hook returns after
+one flag. Heavy fire, every one of 20 bodies hit every frame for 2 s (20 pushes a frame, all
+kept moving): the step and the draws 0.77 ms a frame on average, 2.0 ms at worst, up to 328
+rays (the game's cap 160); all settled again 2.3 s after the last shot.
+
+**Checked:** `cargo test -p ragdoll` (26, and 3 opt-in): the ray against a capsule's side,
+caps and edge, a miss beside or short of it, from inside, along its axis; the box test; the
+log takes a shot once and forgets the oldest after 128; the push's scale; a shot through a
+settled body hits its head, the head swings with the shot more than the pelvis, the body
+wakes and settles again within 6 s, above the ground; a shot pushes a moving ragdoll's
+forearm ahead of an unshot twin's; a miss (beside, above, short) and a push for another
+death do nothing; the same shot traced twice moves the body exactly as once.
+`check_ragdoll_026g.py` (Unicorn): the hook against the original exe's two moves (the same
+registers, frame and XMM0), the bullet and the result untouched; a ray above, short of or
+stopped before the corpse plays nothing; one through it plays the pair's particle (on the
+body, along the ray, the body's normal, the pair's parameter) and its sound, the next steps
+wake the corpse, the same ray again plays nothing, another bullet does, and the body settles
+again; a body that falls onto batteries by its feet rests on them (the stub's filter is
+Bullet's). The self-test's check 76 has the new site and entry.
+
+**What the owner should see:** shooting a corpse (lying or still falling) jolts the part hit:
+a head or an arm swings, legs kick a little, the torso barely moves; a burst keeps it moving;
+blood puffs and the body-hit sound at each hit; it lies still again about a second after the
+last shot. A bullet through a wall into a corpse does nothing. A body falling onto a battery
+lies over it, not through it, and the battery stays where it was. Tell me if a corpse jumps
+too much or too little (`tuning::SHOT_IMPULSE`, `SHOT_LIFT`), or blood shows where no body is.
 
 ## Addresses (re-kit rows added in this change)
 
@@ -568,6 +703,12 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
 | 0x2D99C0 | `base_player::remove_alive` | abi |
 | 0x2DA5B0 | `base_player::recompute_damage_collision_bones` | abi |
 | 0x1F28E0 | `player::on_player_death` | abi |
+| 0x32D4E0 | `bullet::check_collision`: the bullet's fields (EAX) | abi_inputs |
+| 0x306D50 | `game_material_manager::material_pair` (ECX, DX, DI; the pair record) | abi, abi_inputs, inferred |
+| 0x3223E0, 0x3222F0 | `bullet_manager::play_particle` / `play_sound` | abi, abi_inputs |
+| 0x32E460 | `player_shootmarks_storage::add_shootmark` (an effect once a shot) | abi |
+| 0x70E70 | `bt_animated_rigid_body` ctor: material 10 (`actor`) | abi |
+| 0x301CB0 | `victory_item_core::activate_physics`: group 0A18h, mask 418h | abi, inferred |
 
 Already in the kit and used above: 0x338330 dead state activate, 0x3383E0 / 0x338430 /
 0x3384E0 its serialize / deserialize / end, 0x2474A0 mt_draw, 0x1F77E0 game_world::tick,
