@@ -301,6 +301,10 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    // The enemy is held unhurt (his health back each tick): the flat hit,
+    // as a headshot of the weapon's damage can kill in one tick, and the
+    // bot now hits what it aims at.
+    game.damage.flat = true;
     // 8 m east of battery 1 (25, 0.3, 12), the enemy 10 m past it, on the
     // same side of the wall: the bot sees him as it walks in. The
     // teammate 13 m off him, out of the bot's line; or far off, behind
@@ -592,6 +596,7 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
         // he is unhurt until he is in the nook, as the owner's match had it.
         if clock < 5_000 {
             game.bodies[1].health = 1.0;
+            game.bodies[1].pools = super::standin_damage::Pools::default();
         }
         // He comes back at his spawn and stands there.
         if out.died.is_none() && !game.bodies[1].alive {

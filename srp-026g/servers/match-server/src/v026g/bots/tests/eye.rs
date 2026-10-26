@@ -315,7 +315,7 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
 }
 
 /// With the switch off (`SRP_BENCH_COMBAT=live_eye=false`) the soak is the base's to the shot: the
-/// counts of seeds 3, 7 and 12 of the 120 s 4 against 4 soak at 67f04e25, before the fix (shots, hits,
+/// counts of seeds 3, 7 and 12 of the 120 s 4 against 4 soak at caa7f4e2, before the fix (shots, hits,
 /// kills of each team, shots into a wall, at a hidden target, batteries delivered, sight and aim rays
 /// a bot second). The old heights, the old stand ranges, the shots after the move and a look every 100 ms
 /// alone.
@@ -323,9 +323,9 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
 pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     let _off = EyeOff::new();
     let base = [
-        (3, (522, 108, [9, 11], 1, 1, [1, 1]), 55.80),
-        (7, (607, 107, [6, 14], 5, 1, [1, 2]), 52.48),
-        (12, (855, 135, [13, 13], 2, 0, [1, 1]), 53.90),
+        (3, (466, 72, [10, 17], 1, 0, [1, 2]), 49.63),
+        (7, (574, 83, [14, 14], 0, 1, [1, 2]), 48.59),
+        (12, (788, 115, [12, 17], 2, 0, [1, 2]), 44.79),
     ];
     for (seed, want, rays) in base {
         let mut tuning = bench_tuning();
