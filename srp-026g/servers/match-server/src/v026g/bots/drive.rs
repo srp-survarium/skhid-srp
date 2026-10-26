@@ -1076,6 +1076,10 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     {
         bot.bench_guard = 0;
     }
+    // Off (the default): nothing is looked at.
+    if bot.motor.feel.lip_guard_ticks == 0 {
+        return;
+    }
     // A jump (the route's, a hop) goes off the floor on purpose.
     if decision.keys & key::JUMP != 0 || bot.motor.lining_up() {
         #[cfg(test)]

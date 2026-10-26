@@ -140,10 +140,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
     let var = |name: &str| settings.var(&format!("{prefix}{name}"));
     let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
-    // The lip guard and the short look-ahead on lips off (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
-    if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "off" || v == "0") {
-        set(&mut tuning, "/feel/lip_guard_ticks", 0.into());
-        set(&mut tuning, "/feel/lip_look_ahead_m", 0.0.into());
+    // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
+    // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
+    if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
+        set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
     }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
