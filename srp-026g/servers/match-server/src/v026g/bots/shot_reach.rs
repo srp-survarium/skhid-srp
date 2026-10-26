@@ -11,72 +11,40 @@
 //! SKS, SVD, SMGs) and 200 m (the bolt rifles). A few layers had no preset
 //! found (the record's last column), so a value is a lower bound there.
 //!
-//! The table is keyed by the weapon's config stem (`wpn_ak_74u` of
-//! `gameplay/items/weapons/wpn_ak_74u.options`, the dictionary item's
-//! `cfg_name`).
+//! The table is `shot_reach.tsv`, made by `srp-shot-reach` from the game's archives
+//! (`survarium::v026g::shot_reach` is the derivation, read from the files), keyed by the weapon's
+//! config stem (`wpn_ak_74u` of `gameplay/items/weapons/wpn_ak_74u.options`, the dictionary
+//! item's `cfg_name`). The server's game data carries no sound files, so a new or patched weapon
+//! gets its row when the tool is run on the release's archives (`srp-shot-reach <archives>
+//! --check shot_reach.tsv` says what is missing or differs).
+
+/// The table's text: `name TAB metres` a line, sorted by name.
+const TABLE: &str = include_str!("shot_reach.tsv");
 
 /// The shot's reach in metres by weapon config stem, sorted by name.
-pub const SHOT_REACH_M: &[(&str, f32)] = &[
-    ("wpn_a545", 150.0),
-    ("wpn_a9_91", 55.0),
-    ("wpn_ak_12", 150.0),
-    ("wpn_ak_74m", 150.0),
-    ("wpn_ak_74n", 150.0),
-    ("wpn_ak_74n_premium", 150.0),
-    ("wpn_ak_74u", 150.0),
-    ("wpn_akmn", 150.0),
-    ("wpn_aps", 100.0),
-    ("wpn_ash_12", 150.0),
-    ("wpn_benelli_m4", 100.0),
-    ("wpn_fort_17", 100.0),
-    ("wpn_izh_27_lancaster", 100.0),
-    ("wpn_izh_27_lancaster_premium", 100.0),
-    ("wpn_kiparis", 150.0),
-    ("wpn_kiparis_premium", 150.0),
-    ("wpn_mosin_nagant", 200.0),
-    ("wpn_mp_153", 100.0),
-    ("wpn_pm", 100.0),
-    ("wpn_pp2000", 150.0),
-    ("wpn_ppsh", 150.0),
-    ("wpn_rem_700", 200.0),
-    ("wpn_rem_870", 100.0),
-    ("wpn_rpd", 150.0),
-    ("wpn_rpk", 150.0),
-    ("wpn_sks", 150.0),
-    ("wpn_socom16", 150.0),
-    ("wpn_spas_12", 100.0),
-    ("wpn_sr2m", 150.0),
-    ("wpn_sr3m", 150.0),
-    ("wpn_sr3m_premium", 150.0),
-    ("wpn_sv_98", 200.0),
-    ("wpn_svd", 150.0),
-    ("wpn_toz_122", 150.0),
-    ("wpn_toz_34", 100.0),
-    ("wpn_toz_66", 100.0),
-    ("wpn_tt_33", 100.0),
-    ("wpn_ump45", 150.0),
-    ("wpn_uzi", 100.0),
-    ("wpn_uzi_premium", 100.0),
-    ("wpn_val", 55.0),
-    ("wpn_vepr", 150.0),
-    ("wpn_vityaz", 150.0),
-    ("wpn_vityaz_premium", 150.0),
-    ("wpn_vsk_94", 55.0),
-    ("wpn_vss", 55.0),
-    ("wpn_vss_premium", 55.0),
-    ("wpn_vssk", 55.0),
-    ("wpn_winchester_1894", 100.0),
-];
+pub fn table() -> &'static [(&'static str, f32)] {
+    static ROWS: std::sync::OnceLock<Vec<(&'static str, f32)>> = std::sync::OnceLock::new();
+    ROWS.get_or_init(|| {
+        TABLE
+            .lines()
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(|line| {
+                let (name, metres) = line.split_once('\t').expect("a row of shot_reach.tsv");
+                (name, metres.parse().expect("metres in shot_reach.tsv"))
+            })
+            .collect()
+    })
+}
 
 /// The reach of the weapon whose config is `cfg_name` (a path or a stem), if
 /// the table has it.
 pub fn reach_of(cfg_name: &str) -> Option<f32> {
     let stem = cfg_name.rsplit('/').next().unwrap_or(cfg_name);
     let stem = stem.strip_suffix(".options").unwrap_or(stem);
-    SHOT_REACH_M
-        .binary_search_by(|(name, _)| name.cmp(&stem))
+    let rows = table();
+    rows.binary_search_by(|(name, _)| name.cmp(&stem))
         .ok()
-        .map(|i| SHOT_REACH_M[i].1)
+        .map(|i| rows[i].1)
 }
 
 #[cfg(test)]
@@ -85,30 +53,51 @@ mod tests {
 
     #[test]
     fn the_table_is_sorted_and_finds_a_weapon_by_path_or_stem() {
-        assert!(SHOT_REACH_M.windows(2).all(|w| w[0].0 < w[1].0));
-        assert_eq!(SHOT_REACH_M.len(), 49);
+        assert!(table().windows(2).all(|w| w[0].0 < w[1].0));
         assert_eq!(reach_of("gameplay/items/weapons/wpn_ak_74u.options"), Some(150.0));
         assert_eq!(reach_of("wpn_vss"), Some(55.0));
         assert_eq!(reach_of("wpn_spas_12"), Some(100.0));
         assert_eq!(reach_of("wpn_nothing"), None);
     }
 
+    /// Every weapon any kit of any tier and role can carry has a row: a weapon added to a kit
+    /// without one fails here, named (run `srp-shot-reach` on the archives for its row).
     #[test]
     fn every_weapon_of_the_bots_kits_has_a_reach() {
         use crate::v026g::bots::guns::Arms;
-        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
+        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, RusherKits};
+        let mut missing = std::collections::BTreeSet::new();
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                for arms in Arms::kits_of(BotEquipment::of(tier, RusherKits::default()), role) {
-                    let item = arms.primary.0.item;
-                    assert!(reach_of(&format!("wpn_{item}")).is_some(), "{item}");
+            for kits in RusherKit::ALL.map(RusherKits::both).into_iter().chain([RusherKits::default()]) {
+                for role in BotRole::ALL {
+                    for arms in Arms::kits_of(BotEquipment::of(tier, kits), role) {
+                        let item = arms.primary.0.item;
+                        if reach_of(&format!("wpn_{item}")).is_none() {
+                            missing.insert(item);
+                        }
+                    }
                 }
             }
         }
+        assert!(missing.is_empty(), "no row in shot_reach.tsv for {missing:?}");
+    }
+
+    /// With the live game data (`SRP_GAME_DATA`, the server's file) every weapon of the
+    /// dictionary has a row, named when it has none.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn every_weapon_of_the_live_game_data_has_a_reach() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA");
+        let silent: Vec<String> = survarium::v026g::weapons::all()
+            .iter()
+            .filter(|w| reach_of(&w.name).is_none())
+            .map(|w| w.name.to_owned())
+            .collect();
+        assert!(silent.is_empty(), "no row in shot_reach.tsv for {silent:?}");
     }
 
     #[test]
     fn the_reaches_are_the_games_four() {
-        assert!(SHOT_REACH_M.iter().all(|&(_, m)| [55.0, 100.0, 150.0, 200.0].contains(&m)));
+        assert!(table().iter().all(|&(_, m)| [55.0, 100.0, 150.0, 200.0].contains(&m)));
     }
 }
