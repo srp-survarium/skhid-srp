@@ -597,10 +597,10 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
         }
         // The bot's shots now leave from the position the world shows (they
         // left a tick after it), and it hits him by the container at once:
-        // he is unhurt until he is in the nook, as the owner's match had it.
+        // he is kept alive, one hit from death, until he is in the nook, as
+        // the owner's match had it.
         if clock < 5_000 {
-            game.bodies[1].health = 1.0;
-            game.bodies[1].pools = super::standin_damage::Pools::default();
+            game.bodies[1].health = game.bodies[1].health.max(0.25);
         }
         // He comes back at his spawn and stands there.
         if out.died.is_none() && !game.bodies[1].alive {
