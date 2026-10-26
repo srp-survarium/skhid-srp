@@ -5856,6 +5856,65 @@ def test_arena(original):
           f"an arena whose bytes are not the lock's stops the build: {(text or 'built')[:160]}")
 
 
+def test_apply(original):
+    """The build's one writer (patch_026g.py apply(), rust_patches.md "The
+    build"): every write of the default build into the original's bytes, and
+    every section it adds, is a named instance's, no two overlap, and
+    replaying the recorded writes onto the original gives the build's bytes
+    exactly (outside the PE header's counters and the section table)."""
+    late_join = open(P.late_join_bin(), "rb").read()
+    code = open(P.default_bin("section"), "rb").read()
+    data, _ = P.build(original, "section", code, None, late_join)
+    applied = list(P.APPLIED)
+    owners = sorted({a.owner for a in applied})
+    check(applied and all(a.owner for a in applied),
+          f"every write of the default build is a named instance's ({len(applied)} writes, relocations and "
+          f"sections of {len(owners)} instances; patch_026g.py --installs lists them)")
+    spans = sorted((a.at, a.at + len(a.new)) for a in applied)
+    check(all(hi <= lo2 for (_, hi), (lo2, _) in zip(spans, spans[1:])),
+          "no two of them cover the same bytes (apply() refuses an overlap at build time)")
+    headers = P.Headers(original)
+    end = max(raw + rsize for _, _, _, raw, rsize, _ in headers.sections(original))
+    replay = bytearray(original)
+    for a in applied:
+        if a.kind in ("write", "relocation"):
+            replay[a.at:a.at + len(a.new)] = a.new
+    bookkeeping = set()
+    for at, size in ((headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
+                     (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8)):
+        bookkeeping.update(range(at, at + size))
+    for a in applied:
+        if a.kind == "section header":
+            bookkeeping.update(range(a.at, a.at + 40))
+    differ = [o for o in range(end) if o not in bookkeeping and replay[o] != data[o]]
+    check(not differ, f"replaying the recorded writes onto the original gives the build's first {end:#x} bytes "
+          "exactly (every change there went through apply())"
+          + (f": {len(differ)} bytes differ, the first at file {differ[0]:#x}" if differ else ""))
+    # an overlap and a write no instance holds stop the build
+    saved = (list(P.APPLIED), P._BUILDING[0])
+    try:
+        P.APPLIED.clear()
+        P._BUILDING[0] = True
+        scratch = bytearray(original)
+        va, old, new = P.TAB_SELF
+        P.patch(scratch, va, old, new)
+        try:
+            P.apply(scratch, P.file_offset(va), va, new, old, owner="a second patch")
+            overlap = False
+        except SystemExit:
+            overlap = True
+        try:
+            P.instance_of(0x401000)
+            unowned = False
+        except SystemExit:
+            unowned = True
+    finally:
+        P.APPLIED[:] = saved[0]
+        P._BUILDING[0] = saved[1]
+    check(overlap and unowned, "apply() refuses a second write over TAB_SELF's bytes, and a write in no named "
+          "instance")
+
+
 def test_engine(original):
     """The engine-function library (engine_026g.py; client_patch.md section
     0.5): check_engine_026g.py's cases, each thunk against the re-kit's rows
@@ -6265,6 +6324,7 @@ def main():
     print("variant section, the arena and the call shapes")
     test_arena(original)
     test_engine(original)
+    test_apply(original)
     test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]

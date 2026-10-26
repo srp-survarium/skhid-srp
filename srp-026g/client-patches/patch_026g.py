@@ -521,6 +521,7 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import collections
 import hashlib
 import os
 import re
@@ -2638,15 +2639,107 @@ def data_file_offset(va):
 # bytes, the new ones), in order. audit_installs reads it.
 WRITES = []
 
+# The one place build() writes (docs/notes/rust_patches.md, "The build"):
+# every write into the original's bytes (an install, a data or constant
+# patch, an in-place rewrite, a cave, a base relocation turned off) and every
+# section it adds goes through apply() / record_section(), which records its
+# owner (the named instance: the install table that holds its VA, a Rust
+# patch, or a section) and its span (file offsets), and stops the build when
+# two writes cover the same bytes. The PE header's counters (the number of
+# sections, SizeOfImage, SizeOfCode, the certificate directory, the
+# checksum) are the file's bookkeeping, updated by the section adders, not a
+# patch's write. selftest_026g.py replays APPLIED onto the original and
+# checks the image is exactly what build() made.
+Applied = collections.namedtuple("Applied", "owner kind va at new")
+APPLIED = []
+# Install tables that hold other named tables' rows: a write in both is the
+# aggregate's (one patch's whole install set) - GATHER is the gather events
+# and the gather lock, the late join's hooks and patches its many parts.
+INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES", "FORWARD_SCROLL_HOOKS")
+_INSTANCE_INDEX = {}
+_BUILDING = [False]                # inside build(): apply() records
 
-def patch_value(data, va, expected, new):
-    """As `patch`, for a value in .data."""
-    at = data_file_offset(va)
+
+def _install_rows(value):
+    """The install rows a module value holds: (VA, original bytes, ...) or a
+    tuple or list of them."""
+    is_row = lambda v: isinstance(v, tuple) and len(v) >= 2 and isinstance(v[0], int) \
+        and isinstance(v[1], (bytes, bytearray))
+    if is_row(value):
+        return [value]
+    if isinstance(value, (tuple, list)) and value and all(is_row(v) for v in value):
+        return list(value)
+    return []
+
+
+def instance_of(va):
+    """The named instance a write at `va` belongs to: the Rust patch whose
+    hook it is, else the one install table of this module that holds the VA
+    (an aggregate over its parts); the build stops on none or two."""
+    if not _INSTANCE_INDEX:
+        for name, value in globals().items():
+            if name.isupper() and name not in ("WRITES", "APPLIED"):
+                for row in _install_rows(value):
+                    _INSTANCE_INDEX.setdefault(row[0], set()).add(name)
+        for site, _, _, _, owner in hooks_026g.installs():
+            _INSTANCE_INDEX[site] = {f"rust:{owner}"}
+    names = _INSTANCE_INDEX.get(va, set())
+    names = (names & set(INSTANCE_AGGREGATES)) or names
+    if len(names) != 1:
+        sys.exit(f"{va:#x}: a write {'in no named instance' if not names else 'of ' + ', '.join(sorted(names))}: "
+                 "every write is one install table's (or a Rust patch's)")
+    return next(iter(names))
+
+
+def _claim(owner, kind, va, at, new):
+    """Records a write's span; stops on an overlap with any earlier one. A
+    write outside build() (a check patching its own copy) is not recorded."""
+    if not _BUILDING[0]:
+        return
+    hi = at + len(new)
+    for other in APPLIED:
+        if other.at < hi and at < other.at + len(other.new):
+            sys.exit(f"{kind} of {owner} at file {at:#x} ({va:#x}) overlaps {other.kind} of {other.owner} at file "
+                     f"{other.at:#x} ({other.va:#x}): two writes over the same bytes")
+    APPLIED.append(Applied(owner, kind, va, at, bytes(new)))
+
+
+def apply(data, at, va, expected, new, owner=None):
+    """Writes `new` over `expected` at file offset `at` (VA `va`): the build's
+    one writer of the original's bytes."""
     found = bytes(data[at:at + len(expected)])
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
+    if _BUILDING[0]:
+        _claim(owner or instance_of(va), "write", va, at, new)
     data[at:at + len(new)] = new
     WRITES.append((va, bytes(expected), bytes(new)))
+
+
+def instances_text(applied=None):
+    """Every named instance and what it wrote (`patch_026g.py <exe> --check
+    --installs`): its installs (VA, bytes), relocations turned off and
+    sections."""
+    applied = APPLIED if applied is None else applied
+    lines = []
+    for owner in sorted({a.owner for a in applied}):
+        mine = [a for a in applied if a.owner == owner]
+        lines.append(f"{owner}: {len(mine)}")
+        for a in mine:
+            where = f"{a.va:#x}" if a.va is not None else "-"
+            lines.append(f"    {a.kind:<15} {where:>10}  file {a.at:#x}  {len(a.new)} bytes")
+    return "\n".join(lines)
+
+
+def record_section(owner, at, size, slot):
+    """A section build() adds: its header slot and its file bytes, owned."""
+    _claim(owner, "section header", None, slot, bytes(40))
+    _claim(owner, "section", None, at, bytes(size))
+
+
+def patch_value(data, va, expected, new):
+    """As `patch`, for a value in .data."""
+    apply(data, data_file_offset(va), va, expected, new)
 
 
 def patch_section_value(data, va, expected, new):
@@ -2659,20 +2752,11 @@ def patch_section_value(data, va, expected, new):
             break
     else:
         sys.exit(f"{va:#x}: in no section")
-    found = bytes(data[at:at + len(expected)])
-    if found != expected or len(new) != len(expected):
-        sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
-    data[at:at + len(new)] = new
-    WRITES.append((va, bytes(expected), bytes(new)))
+    apply(data, at, va, expected, new)
 
 
-def patch(data, va, expected, new):
-    at = file_offset(va)
-    found = bytes(data[at:at + len(expected)])
-    if found != expected:
-        sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
-    data[at:at + len(new)] = new
-    WRITES.append((va, bytes(expected), bytes(new)))
+def patch(data, va, expected, new, owner=None):
+    apply(data, file_offset(va), va, expected, new, owner)
 
 
 class Headers:
@@ -2739,6 +2823,11 @@ def neutralize_relocs(data, ranges):
             e = struct.unpack_from("<H", data, at)[0]
             va = IMAGE_BASE + page + (e & 0xFFF)
             if e >> 12 == 3 and any(va + 4 > lo and va < hi for lo, hi in ranges):
+                # owned by the write the relocated dword is under
+                if _BUILDING[0]:
+                    owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
+                                  and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
+                    _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
                 struct.pack_into("<H", data, at, e & 0xFFF)
                 changed.append(va)
         o += block
@@ -2763,6 +2852,7 @@ def add_state_section(data, state_va):
     state_rva = state_va - IMAGE_BASE
     if name != SECTION_NAME or state_rva != align(rva + vsize, headers.section_alignment):
         sys.exit("the late join's state does not follow the code")
+    _claim(LATE_JOIN_STATE_NAME.rstrip(b"\0").decode(), "section header", None, slot, bytes(40))
     data[slot:slot + 40] = LATE_JOIN_STATE_NAME + struct.pack(
         "<IIIIIIHHI", LATE_JOIN_STATE_SIZE, state_rva, 0, 0, 0, 0, 0, 0, LATE_JOIN_STATE_CHARACTERISTICS)
     struct.pack_into("<H", data, headers.count_at, len(sections) + 1)
@@ -2807,6 +2897,7 @@ def add_section(data, cave):
     if (raw + raw_size) % 8:
         sys.exit("the certificate table would lose its 8-byte alignment")
 
+    record_section(SECTION_NAME.rstrip(b"\0").decode(), raw, raw_size, slot)
     out = bytearray(data[:raw]) + cave + b"\xCC" * (raw_size - len(cave)) + data[raw:]
     out[slot:slot + 40] = SECTION_NAME + struct.pack(
         "<IIIIIIHHI", len(cave), SECTION_RVA, raw_size, raw, 0, 0, 0, 0, SECTION_CHARACTERISTICS)
@@ -2842,6 +2933,7 @@ def add_code_section(data, name, va, code, characteristics):
     raw_size = align(len(code), headers.file_alignment)
     if (raw + raw_size) % 8:
         sys.exit("the certificate table would lose its 8-byte alignment")
+    record_section(name.rstrip(b"\0").decode(), raw, raw_size, slot)
     out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
     out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
@@ -2852,8 +2944,21 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
-          arena_blocks=None):
+def build(*args, **kwargs):
+    """build_image() with every write recorded by apply() (APPLIED, its
+    owners and spans, overlaps refused); APPLIED and WRITES stay this build's
+    after it returns."""
+    WRITES.clear()
+    APPLIED.clear()
+    _BUILDING[0] = True
+    try:
+        return build_image(*args, **kwargs)
+    finally:
+        _BUILDING[0] = False
+
+
+def build_image(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
+                arena_blocks=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2984,9 +3089,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         at = file_offset(HASH_MISMATCH_VA)
         if hashlib.sha256(data[at:at + HASH_MISMATCH_REGION]).hexdigest() != HASH_MISMATCH_SHA256:
             sys.exit(f"{HASH_MISMATCH_VA:#x}: on_hash_mismatch is not the original")
-        WRITES.append((HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
-                       cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))))
-        data[at:at + HASH_MISMATCH_REGION] = cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))
+        apply(data, at, HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
+              cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave)), owner="HASH_MISMATCH")
         rewritten.append((HASH_MISMATCH_VA, HASH_MISMATCH_VA + HASH_MISMATCH_REGION))
         where = "over on_hash_mismatch"
     else:
@@ -3189,8 +3293,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
         if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
             sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
-        WRITES.append((READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order))
-        data[at:at + READ_ORDER_SIZE] = read_order
+        apply(data, at, READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order, owner="READ_ORDER")
         if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
             sys.exit("a base relocation under hdd_manager_sorting_predicate")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
@@ -3761,10 +3864,12 @@ def late_join_bin():
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
-    mode, bin_path, server = "section", None, None
+    mode, bin_path, server, list_installs = "section", None, None, False
     late_join, late_join_path, revision, required = True, None, None, None
     for option in options:
-        if option == "--cert-only":
+        if option == "--installs":
+            list_installs = True
+        elif option == "--cert-only":
             mode = "cert-only"
         elif option == "--no-late-join":
             late_join = False
@@ -3806,6 +3911,8 @@ def main():
         with open(target, "wb") as out:
             out.write(data)
     print(f"{target}: {description}")
+    if list_installs:
+        print(instances_text())
 
 
 if __name__ == "__main__":
