@@ -150,6 +150,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
         set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
         set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
     }
+    // Routes of a carrier over the jump links up to the standing jump only (`Feel::carrier_jump_m`; off by default:
+    // every jump link of the grid).
+    if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());

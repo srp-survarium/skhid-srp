@@ -612,7 +612,11 @@ pub(super) fn drive_tick(
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
                 let landings = bot.stuck.shut_landings(time).collect();
-                let hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                // A body that cannot sprint takes no jump link above its standing jump.
+                if let Some(rise) = bot.motor.feel.carrier_jump_m.filter(|_| me.carrying.is_some()) {
+                    hard = hard.with_max_jump_rise(rise);
+                }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));

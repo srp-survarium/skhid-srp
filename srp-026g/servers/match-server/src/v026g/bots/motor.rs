@@ -126,6 +126,11 @@ pub struct Feel {
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
     pub lip_look_ahead_m: f32,
+    /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
+    /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
+    /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
+    /// link of the grid (up to `Body::max_jump`, 1.05).
+    pub carrier_jump_m: Option<f32>,
 }
 
 impl Default for Feel {
@@ -158,6 +163,7 @@ impl Default for Feel {
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
             lip_look_ahead_m: 0.0,
+            carrier_jump_m: None,
         }
     }
 }

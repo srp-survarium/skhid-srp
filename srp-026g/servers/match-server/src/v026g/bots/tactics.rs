@@ -1014,6 +1014,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.max_jump_rise(),
             iters,
         )
     }
@@ -1092,6 +1093,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }
@@ -2463,6 +2465,27 @@ pub(super) mod tests {
                 .route_nodes(end_node, to, 0, Some(0), false, &RouteFilter::open())
                 .is_some()
         );
+    }
+
+    /// A route for a body that cannot sprint (a battery carrier) takes no jump
+    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// 1.0 m platform is a jump away for the walker and no way for the
+    /// carrier, a 0.9 m one is a way for both.
+    #[test]
+    fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
+        let route = |rise: f32, filter: &RouteFilter| {
+            let solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
+            let world = field_with_solids(&solids, |_| {});
+            let tactics = Tactics::new(world.clone(), 1.0);
+            let grid = &world.grid;
+            let from = grid.locate(Vec3::new(7.0, 0.0, 7.0), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
+            tactics.route_nodes(from, to, 0, Some(0), false, filter)
+        };
+        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
+        assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
+        assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
     }
 
     /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it
