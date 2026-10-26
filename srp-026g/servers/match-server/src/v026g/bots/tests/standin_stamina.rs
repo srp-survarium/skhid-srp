@@ -31,8 +31,8 @@
 //! that tier's ([`bot_skills`]). A weapon of no kit gets a light kit's
 //! (`t = 0`, no skills).
 //!
-//! `SRP_BENCH_STAMINA=off`: no stamina (the stand-in before this file); the
-//! counts stay at zero.
+//! `SRP_BENCH_STAMINA=on` turns the model on; off (the default) is no stamina (the stand-in before this
+//! file), and the counts stay at zero.
 
 use survarium::v026g::bot_skills;
 use survarium::v026g::loadouts::BotEquipment;
@@ -46,9 +46,9 @@ use crate::v026g::bots::guns::Arms;
 
 use super::bench_settings;
 
-/// `SRP_BENCH_STAMINA=off` turns the model off.
+/// `SRP_BENCH_STAMINA=on` turns the model on (off by default: the stand-in's bodies then sprint and jump as before).
 fn enabled() -> bool {
-    !bench_settings().var("SRP_BENCH_STAMINA").is_ok_and(|v| v == "off")
+    bench_settings().var("SRP_BENCH_STAMINA").is_ok_and(|v| v == "on")
 }
 
 /// The bar's top, and what the stamina does a second (`default.player`'s
