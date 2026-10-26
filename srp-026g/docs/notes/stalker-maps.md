@@ -1,6 +1,6 @@
 # STALKER maps (team deathmatch)
 
-Six STALKER multiplayer maps as one content pack, `stalker-maps@3`, the owner's
+Six STALKER multiplayer maps as one content pack, `stalker-maps@4`, the owner's
 pick of 2026-10-24 on the map spot planner. Team deathmatch only (mode 4).
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
@@ -92,6 +92,8 @@ Training Camp's meadow.
 
 - About 23,000 and 22,000 of them are within 20 m of the spots; the rest
   cover the levels' outer hills, which the grass system culls past 100 m.
+- Normals are X-Ray's own detail normals (outward from the tuft's foot and
+  mostly up); the cards' face normals left the tufts black under a high sun.
 - Not carried over: X-Ray's per-slot sun, sky and colour terms (0.26g's grass
   has one colour per instance, fixed in the engine); 0.26g's own shadows
   light it.
@@ -186,8 +188,9 @@ The spawns do not come from the level: they are the planner's.
 - Loading pictures: Training Camp and Repair Depot use the earlier package's
   in-game shots; the other four have a placeholder cut from the top-down render
   until an in-game shot is taken.
-- `release/content.tsv`: the pack row `stalker-maps@3`. @2 has the planner's
-  spots on Experimental Pool; @1 has no grass.
+- `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
+  with flat-lying normals (black tufts under a high sun); @2 also has the
+  planner's spots on Experimental Pool; @1 has no grass.
 
 ## Still to do before a release
 
