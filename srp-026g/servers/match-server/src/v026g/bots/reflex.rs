@@ -2928,6 +2928,14 @@ impl Reflex {
         }
     }
 
+    /// Play 20: the view is held for a grenade: from the key's press to the
+    /// launch and `grenade_look_after_ms` more (the grenade leaves along the
+    /// view then). The play's use of something waits for it
+    /// ([`super::drive::Gates::using`]).
+    pub fn view_held(&self) -> bool {
+        self.throw.is_some_and(|throw| throw.pressed.is_some())
+    }
+
     /// Play 20: a throw not made, or given up: the note ("holds a grenade
     /// back at (x, y, z): <reason>").
     fn hold_back(&mut self, at: Vec3, why: Refuse) {
@@ -5698,6 +5706,8 @@ mod tests {
         notes: Vec<String>,
         /// The same with the tick each was made at.
         timed: Vec<(u32, String)>,
+        /// Whether the view was held for the grenade after each tick.
+        held: Vec<(u32, bool)>,
         thrown: Vec<u32>,
     }
 
@@ -5778,6 +5788,7 @@ mod tests {
             ticks: Vec::new(),
             notes: Vec::new(),
             timed: Vec::new(),
+            held: Vec::new(),
             thrown: Vec::new(),
         };
         let mut now = 1_800;
@@ -5810,6 +5821,7 @@ mod tests {
                 run.timed.push((now, note.clone()));
                 run.notes.push(note);
             }
+            run.held.push((now, reflex.view_held()));
             run.ticks.push((now, o));
             now += 50;
         }
@@ -6088,6 +6100,23 @@ mod tests {
             if (press..press + c.grenade_launch_ms + c.grenade_look_after_ms).contains(now) {
                 assert!(o.look_at.is_some() && o.legs.is_some(), "{now}: {o:?}");
             }
+        }
+    }
+
+    /// The view is held for the grenade from the key's press to the launch and
+    /// the look time after it, and not before or after.
+    #[test]
+    fn the_view_is_held_for_the_grenade_from_the_press_to_the_launch_and_after() {
+        let c = CombatTuning::default();
+        let run = throw_run(20.0, &[], c.clone(), None, 6_000);
+        let (press, _) = pressed_at(&run).expect("thrown");
+        let end = press + c.grenade_launch_ms + c.grenade_look_after_ms;
+        assert!(run.held.iter().any(|(_, held)| *held));
+        // (A second throw of the life may press after the first has ended.)
+        for (now, held) in run.held.iter().filter(|(now, _)| *now <= end) {
+            // The held flag is read after the tick: the tick of the press sets it.
+            let expect = (press..end).contains(now);
+            assert_eq!(*held, expect, "{now} (press {press}, end {end})");
         }
     }
 

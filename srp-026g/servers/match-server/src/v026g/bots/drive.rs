@@ -187,7 +187,7 @@ pub(super) fn drive_tick(
     // kept its view on an enemy pressed use at him: in the whole-match
     // soaks the battery where the teams meet lay there all match in 6 runs
     // of 16 (its takers had a target 91 % of their time by it).
-    let using = matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M);
+    let using = Gates::using(&intent, eye, bot.reflex.view_held());
     bot.motor.track = over.track.filter(|_| !glance_yields && !using);
     let aim = over
         .look_at
@@ -933,6 +933,14 @@ impl Gates {
         straight && !zone_out
     }
 
+    /// Whether the play's use is within reach and takes the view: the use is of something within
+    /// `USE_LOOK_M` of the eye, and not while the reflex holds the view for a grenade between its press and
+    /// its launch (the use waits that second and a half: the grenade leaves along the view then, and a use
+    /// look at a battery by the thrower's feet sent it there, 0.8 m from him, in a smoke).
+    pub(super) fn using(intent: &Intent, eye: Vec3, view_held: bool) -> bool {
+        !view_held && matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M)
+    }
+
     /// The play's own exact spot (a goal within 0), whose route is not arrived at from over its end.
     pub(super) fn exact_spot(intent: &Intent) -> Option<Vec3> {
         match intent.go {
@@ -962,6 +970,18 @@ mod tests {
         ] {
             assert_eq!(Gates::may_fire(&intent(fire, let_go, false), carrying), expect, "{fire} {let_go} {carrying}");
         }
+    }
+
+    #[test]
+    fn a_use_takes_the_view_when_in_reach_and_the_reflex_holds_none_for_a_grenade() {
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let look = |at| Intent { look: Look::Use(at), ..Intent::stay() };
+        let near = Vec3::new(0.0, 0.5, 1.0);
+        let far = Vec3::new(0.0, 0.5, USE_LOOK_M + 1.0);
+        assert!(Gates::using(&look(near), eye, false));
+        assert!(!Gates::using(&look(near), eye, true));
+        assert!(!Gates::using(&look(far), eye, false));
+        assert!(!Gates::using(&Intent::stay(), eye, false));
     }
 
     #[test]
