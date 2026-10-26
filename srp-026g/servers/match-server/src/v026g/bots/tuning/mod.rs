@@ -45,6 +45,7 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    pub commit: CommitTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
     pub grid: GridTuning,
@@ -87,6 +88,7 @@ pub use sense::CheatTuning;
 pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use team::AvoidTuning;
+pub use team::CommitTuning;
 pub use team::ModTuning;
 pub use team::Personalities;
 pub use team::Personality;

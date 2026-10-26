@@ -245,6 +245,8 @@ impl Bots {
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
         let mut shaky: Vec<Place> = Vec::new();
+        // Bots whose hold walks to its spot (`commit.hold_to_arrival`).
+        let mut committed: Vec<Place> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -305,6 +307,11 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if tuning.commit.hold_to_arrival
+                && bot.running.as_ref().is_some_and(plays::Running::travelling)
+            {
+                // A hold still walking to its spot (no way lately: not).
+                committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -314,6 +321,7 @@ impl Bots {
                 place: *place,
                 candidates: candidates.clone(),
                 current: current.as_ref(),
+                committed: committed.contains(place),
             })
             .collect();
         let gap = state.signals.score_gap;
