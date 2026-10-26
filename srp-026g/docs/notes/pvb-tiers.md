@@ -71,6 +71,16 @@ Why these:
   unless set, the kit is that of before it): bandages for the pain pool, traps for the placing habit, one grenade for the
   support where a pocket is free, the radio only where a pocket is left, and skill 109's extra ammo
   bag (`bot_skills::AMMO_POUCH`: 102, 104 and 108 on the way, none of them aim, damage or protection).
+- **Upgrades** (`loadouts::BOT_UPGRADES`, the owner's of 2026-10-26; on with `SRP_BOT_UPGRADES=1`, off
+  unless set). The safe set only: gear weight, carry capacity, movement speed and stamina spent; never an aim
+  time, a range or a bolt's chamber time. One upgrade a bot at 4-5, two at 9-10 and 13-15, at the
+  strengths the players of the tier have (live matches: speed 4 / 6 / 12 % of pieces at 1.8 / 2.7 / 2.7,
+  weight 6 / 10 / 15 % at 0.8 / 1.6 / 1.8, carry 4 / 3 / 6 % at 1.9 / 1.5 / 2.2). Flanker and rusher:
+  movement speed on the torso (+3 % at 4-5, +4 % above) and, at 9-10 and 13-15, stamina spent on the
+  boots (-6 %); support and camper: carry on the legs (+2 kg at 9-10, +3 kg at 13-15) and gear weight
+  on the torso (-8 % at 4-5, -10 % above). The clients apply them (the profile's item carries the
+  ids); the match server's speed prior reads the speed, the carry and the weight
+  (`bot_skills::profile_movement_level`). Reload upgrades wait until `Gun` takes the factor.
 - **Weapons.** What the top players used in matches of 6 players or more (the live server's match
   logs, 2026-10), where it is a stock item that fits the tier; else the strongest common pick of the
   kind. 4-5: the Vityaz (SMG, 4), the MP-153 (semi-automatic shotgun, 4), the Remington 700 (bolt
