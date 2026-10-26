@@ -55,7 +55,9 @@ use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::reflex::WeaponKind;
 use super::rng::Rng;
+use super::pools::Pools;
 use super::signals::{MatchSignals, Mods};
+use super::stock::Pantry;
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
@@ -302,6 +304,9 @@ pub struct Intent {
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
+    /// How near an exact spot (a goal within 0) the walk goes on to, metres: `None` ends it where every walk ends
+    /// ([`Feel::arrive_m`]). The jump test's walk to a start asks for a body within 0.3 m of it.
+    pub exact_arrive_m: Option<f32>,
 }
 
 impl Intent {
@@ -319,6 +324,7 @@ impl Intent {
             straight: false,
             zone_ok: false,
             failed_stand: None,
+            exact_arrive_m: None,
         }
     }
 
@@ -427,8 +433,14 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
-    /// Medkits it used this life (quick use 1 pressed).
+    /// Medkits it used this life (quick use 1 pressed): the tip's count, which the Heal play and Retreat go by
+    /// while `HealTuning::on` is off.
     pub medkits_used: u8,
+    /// The drugs of its kits (`stock.rs`), which they go by with it on.
+    pub pantry: &'a Pantry,
+    /// Its health pools as the last world showed them (`pools.rs`); none
+    /// before the first.
+    pub pools: Option<Pools>,
     /// Goals its searches proved no way to lately, and until when.
     pub no_way_to: &'a [(Vec3, u32)],
     /// Plays that failed at once at a target, and until when they are
@@ -661,6 +673,15 @@ impl Ctx<'_> {
         if start == Some(goal) {
             return true;
         }
+        // Given up in its pocket (every exit tried): nothing outside it is
+        // reachable, whatever the grid's links say of the floors round it
+        // (`drive`'s search would end at once, `shut_in_gate`).
+        if self.tuning.think.shut_in_gate
+            && self.trapped().is_some_and(|t| t.gave_up)
+            && start.and_then(|s| grid.pocket_of(s)) != grid.pocket_of(goal)
+        {
+            return false;
+        }
         let past = |b| self.tactics.past_fixed_zones(b);
         (past(goal) || grid.entered_from(goal, past))
             && grid.entered_from(goal, |b| {
@@ -841,6 +862,19 @@ impl Ctx<'_> {
         slot: Option<u32>,
         given: &[(Input, f32)],
     ) -> Option<Candidate> {
+        self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
+    }
+
+    /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
+    /// graded rule has its curve in `HealTuning`).
+    pub fn candidate_with(
+        &self,
+        kind: PlayKind,
+        target: TargetRef,
+        slot: Option<u32>,
+        considerations: &[curve::Consideration],
+        given: &[(Input, f32)],
+    ) -> Option<Candidate> {
         if self
             .bot
             .set_aside
@@ -851,7 +885,7 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
-        let (score, why) = curve::score(&play.considerations, |input| {
+        let (score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)

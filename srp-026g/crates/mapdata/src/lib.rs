@@ -50,8 +50,8 @@ pub mod sight;
 pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, Path, PocketEntry, PocketExit,
-    PocketId, Search, SlicedSearch, WalkGrid,
+    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
+    PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Library, Materials, WalkerBehaviour};
 
@@ -109,8 +109,13 @@ pub const CELL: f32 = 0.25;
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
 pub const GRID_ALGO: u32 = 11;
-/// The same for [`RayTree::build`], in [`sight_key`].
-pub const SIGHT_ALGO: u32 = 1;
+/// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
+/// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
+/// them keys, builds and writes as before they were made.
+pub const GAP_LINKS_ALGO: u32 = 1;
+/// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
+/// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
+pub const SIGHT_ALGO: u32 = 2;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -126,14 +131,20 @@ impl World {
     /// sight tree: 0.3-0.8 s for a 0.26g map at 0.25 m (timings in the
     /// notes).
     pub fn build(map: MapData, cell: f32, body: Body) -> Self {
+        Self::build_with_links(map, cell, body, OffMeshLinks::None)
+    }
+
+    /// [`Self::build`] with the off-mesh links `links` in its grid.
+    pub fn build_with_links(map: MapData, cell: f32, body: Body, links: OffMeshLinks) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
-        let grid = WalkGrid::build_kept(
+        let (grid, _) = WalkGrid::build_kept_with_links(
             &map.walker_triangles(),
             map.play_area(AREA_MARGIN),
             cell,
             body,
             &map.grid_seeds(),
             &spawns,
+            links,
         );
         let sight = RayTree::build(&map.bullet_triangles());
         Self::assemble(map, grid.into(), sight.into())
@@ -162,8 +173,25 @@ pub fn grid_key(
     body: Body,
     seeds: &[Vec3],
 ) -> u64 {
+    grid_key_with_links(triangles, area, cell, body, seeds, OffMeshLinks::None)
+}
+
+/// [`grid_key`] of a grid built with the off-mesh links `links`
+/// ([`WalkGrid::build_kept_with_links`]); with none, the same number.
+pub fn grid_key_with_links(
+    triangles: &[Triangle],
+    area: [f32; 4],
+    cell: f32,
+    body: Body,
+    seeds: &[Vec3],
+    links: OffMeshLinks,
+) -> u64 {
     let mut digest = digest::Digest::new();
     digest.u32(GRID_ALGO);
+    match links {
+        OffMeshLinks::None => {}
+        OffMeshLinks::Gaps => digest.u32(GAP_LINKS_ALGO),
+    }
     triangles_into(&mut digest, triangles, true);
     for value in area.into_iter().chain([cell]) {
         digest.f32(value);

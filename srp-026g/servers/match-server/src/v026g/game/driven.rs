@@ -49,7 +49,9 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
+use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
@@ -179,6 +181,11 @@ impl Walkers {
             let var = std::env::var_os("SRP_BOT_ROUTES");
             if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
                 walkers.bots.set_routes(&table);
+            }
+            // The bushes a sight line crosses (a private file; without it no bush hides anyone).
+            let var = std::env::var_os("SRP_BOT_FOLIAGE");
+            if let Some(foliage) = foliage_of(id, project, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_foliage(foliage);
             }
             walkers
         })
@@ -442,6 +449,12 @@ impl Game {
             .is_some_and(|walkers| walkers.bots.has_map())
     }
 
+    /// What the server's bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {
+        self.walkers.as_ref()?.bots.pantry_of(place)
+    }
+
     /// How often to ask for a world, `every` being what the match asks:
     /// sooner while the server's bots play.
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
@@ -507,6 +520,9 @@ impl Game {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
                 walkers.bots.hurt(place, hurt);
+                if let Some(pools) = Pools::of_world(&damage.part_health) {
+                    walkers.bots.pools(place, pools);
+                }
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
@@ -521,6 +537,28 @@ impl Game {
                 "Match {id:#x}: anomalies in the world at {} ms: {read} read, {missed} missed",
                 snapshot.time
             );
+        }
+    }
+
+    /// A trusted world's word on what the server's bots hold of drugs:
+    /// each bot's block as `players::Supplies` read it (`Observed`), the
+    /// quick-use stacks of its kits. Called once `observe` has them.
+    pub(super) fn observe_stock(&mut self, time: u32) {
+        let Some(walkers) = self.walkers.as_mut() else {
+            return;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        for (place, supplies) in state.supplies.iter().enumerate() {
+            let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
+            if let (true, Some(supplies), Some(profile)) =
+                (driven, supplies, self.formed.profiles.get(place))
+            {
+                let readings = crate::v026g::bots::stock::readings(supplies, profile, dictionary);
+                walkers.bots.stock(place, time, &readings);
+            }
         }
     }
 
@@ -667,6 +705,27 @@ fn route_table(
     }
 }
 
+/// The bushes of `project` a match's bots get ([`foliage::Source::choose`]): `var` is
+/// `SRP_BOT_FOLIAGE`, `mapdata` the mapdata folder. A file that fails to load: a warning.
+fn foliage_of(
+    id: u32,
+    project: &str,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<Foliage> {
+    let path = match foliage::Source::choose(var, mapdata) {
+        foliage::Source::Set(path) | foliage::Source::Default(path) => path,
+        foliage::Source::None => return None,
+    };
+    match Foliage::load(&path, project) {
+        Ok(foliage) => Some(foliage),
+        Err(why) => {
+            log::warn!("Match {id:#x}: the bot foliage not used ({why})");
+            None
+        }
+    }
+}
+
 /// TEST ONLY (`bots/jump_test.rs`, cargo feature `jump-test`): the jump test's reach into the match.
 #[cfg(feature = "jump-test")]
 impl Game {
@@ -702,10 +761,15 @@ impl Game {
 
     /// An upload came: its rows are logged; true when it answered a burst request.
     pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
-        self.walkers
-            .as_mut()
-            .and_then(|walkers| walkers.bots.jump_test.as_mut())
-            .is_some_and(|test| test.upload(time, clock, bytes, body))
+        let id = self.id;
+        let Some(walkers) = self.walkers.as_mut() else {
+            return false;
+        };
+        let asked = walkers.bots.jump_test.as_mut().is_some_and(|test| test.upload(time, clock, bytes, body));
+        if asked {
+            log_notes(id, walkers.bots.fix_from_burst());
+        }
+        asked
     }
 }
 

@@ -112,6 +112,10 @@ pub(crate) const CLOSE_GAP_S: u32 = 2;
 
 pub(crate) const ONE_BODY_M: f32 = 0.5;
 
+/// Two bodies on one spot are still when neither moves this far in the
+/// second after, metres.
+pub(crate) const ONE_BODY_STILL_M: f32 = 0.25;
+
 /// The stuck detector (`navigation/stuck.py`, `navigation.md` §2d, final).
 /// A designed hold's steps (and the Heal play); the steps with a goal to
 /// walk to; the Follow-type steps, a goal only with the leader (the goal)
@@ -200,6 +204,8 @@ pub(crate) const SPOT_M: [f32; 2] = [4.0, 2.0];
 /// [`STUCK_ORDER`] first); its cause; where.
 #[derive(Clone, Debug)]
 pub(crate) struct Episode {
+    /// The record index of its start.
+    pub(crate) k0: usize,
     pub(crate) t0: f32,
     pub(crate) t1: f32,
     pub(crate) kinds: Vec<&'static str>,
@@ -255,7 +261,8 @@ impl OwnerTally {
         } else if note.text.contains("no way to its goal") {
             at(&mut self.moving.no_way);
         } else if let Some((aim, time)) = thrown_at(&note.text) {
-            self.grenade_thrown(note.place, aim, time);
+            let team = game.bodies.get(note.place).map_or(0, |b| b.team);
+            self.grenade_thrown(note.place, team, aim, time);
         } else if let Some(why) = held_back(&note.text) {
             self.grenade_refused(why);
             // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
@@ -508,6 +515,7 @@ impl OwnerTally {
             };
             let at = pts.iter().fold(Vec3::ZERO, |a, &k| a + recs[k].feet) * (1.0 / pts.len() as f32);
             eps.push(Episode {
+                k0,
                 t0,
                 t1,
                 kinds,
@@ -657,6 +665,17 @@ impl OwnerTally {
         // Close pairs (teammates, from the seconds) and one body (any two,
         // every tick).
         let (mut close_eps, mut close_s, mut one_eps, mut one_ticks) = (0u32, 0u32, 0u32, 0u32);
+        // The same, where both bodies are still (under ONE_BODY_STILL_M in the
+        // second after): two bots standing on one spot, not walking one path.
+        let (mut still_eps, mut still_ticks) = (0u32, 0u32);
+        // And of those, the pairs of plays that stand a bot beside a teammate
+        // by their own spot choice, not by the batteries' stands (Collect), the
+        // spawn (no play) or Retreat's: narrowed after the trace of S1's first
+        // look (`push-record.md`).
+        let (mut moved_eps, mut moved_ticks) = (0u32, 0u32);
+        let counts = |play: u16, names: &[String]| {
+            !matches!(names[usize::from(play)].as_str(), "Collect" | "Retreat" | "none")
+        };
         for a in 0..n {
             for b in a + 1..n {
                 let (ra, rb) = (&self.recs[a], &self.recs[b]);
@@ -689,6 +708,8 @@ impl OwnerTally {
                     end(ep);
                 }
                 let mut last: Option<usize> = None;
+                let mut last_still: Option<usize> = None;
+                let mut last_moved: Option<usize> = None;
                 for k in 0..len {
                     let (x, y) = (&ra[k], &rb[k]);
                     if x.alive
@@ -701,6 +722,23 @@ impl OwnerTally {
                             one_eps += 1;
                         }
                         last = Some(k);
+                        let later = (k + TPS).min(len - 1);
+                        if x.feet.distance_xz(ra[later].feet) < ONE_BODY_STILL_M
+                            && y.feet.distance_xz(rb[later].feet) < ONE_BODY_STILL_M
+                        {
+                            still_ticks += 1;
+                            if last_still.is_none_or(|l| k > l + TPS / 2) {
+                                still_eps += 1;
+                            }
+                            last_still = Some(k);
+                            if counts(x.play, &self.plays) && counts(y.play, &self.plays) {
+                                moved_ticks += 1;
+                                if last_moved.is_none_or(|l| k > l + TPS / 2) {
+                                    moved_eps += 1;
+                                }
+                                last_moved = Some(k);
+                            }
+                        }
                     }
                 }
             }
@@ -711,11 +749,13 @@ impl OwnerTally {
         let mut stuck: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
         let mut stuck_cause: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
         let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
+        let mut pre = PreCounts::default();
         let mut blips = 0u32;
         for place in (0..n).filter(|&p| self.is_bot[p]) {
             let (eps, b) = self.stuck_episodes(place, &teams, presses);
             blips += b;
             for e in eps {
+                pre.add(self, e.cause, place, e.k0);
                 for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
                     let c = map.entry(name).or_default();
                     c.0 += 1;
@@ -741,6 +781,8 @@ impl OwnerTally {
             "stuck_s": stuck_s.round(),
             "stuck_by": round(stuck),
             "stuck_by_cause": round(stuck_cause),
+            "stuck_pre_5s": pre.by_json(),
+            "stuck_play": pre.plays,
             "stuck_per_bot_min": per_min(stuck_n.into()),
             "stuck_s_per_bot_min": per_min(stuck_s.into()),
             "stuck_blips": blips,
@@ -760,9 +802,13 @@ impl OwnerTally {
             "close_pair_s": close_s,
             "one_body": one_eps,
             "one_body_s": (f64::from(one_ticks) * tick_s).round(),
+            "one_body_still": still_eps,
+            "one_body_still_s": (f64::from(still_ticks) * tick_s).round(),
+            "one_body_still_plays": moved_eps,
+            "one_body_still_plays_s": (f64::from(moved_ticks) * tick_s).round(),
         });
         let text = format!(
-            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)",
+            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s); the 5 s before a stuck episode: {}",
             stuck_n,
             stuck_s,
             json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
@@ -784,6 +830,7 @@ impl OwnerTally {
             close_s,
             one_eps,
             f64::from(one_ticks) * tick_s,
+            pre.text(),
         );
         Part::new(json, text)
     }

@@ -242,6 +242,7 @@ impl Ctx<'_> {
             .into_iter()
             .map(|spot| spot.at)
             .filter(|&at| self.friends_near(at, num("apart_m")) == 0)
+            .filter(|&at| !self.spot_taken(at, super::goals::APART_M))
             .filter(|&at| last.is_none_or(|last| last.distance_xz(at) >= num("move_apart_m")))
             .collect();
         // The holder's: those facing the way a thief comes. None facing: any
@@ -426,7 +427,7 @@ mod tests {
     use super::*;
     use crate::v026g::bots::know::{Source, Theft};
     use crate::v026g::bots::team::{Asking, assign};
-    use crate::v026g::bots::view::{BatteryState, EYE_CROUCHED, Mode};
+    use crate::v026g::bots::view::{BatteryState, Mode, still_eye};
 
     const OURS: Vec3 = Vec3::new(12.0, 0.0, 30.0);
 
@@ -514,7 +515,7 @@ mod tests {
         for spot in &spots {
             let d = spot.distance_xz(OURS);
             assert!((11.5..=20.5).contains(&d), "{spot:?}");
-            let eye = *spot + Vec3::new(0.0, EYE_CROUCHED, 0.0);
+            let eye = still_eye(*spot, true);
             assert!(s.tactics.sees(eye, OURS + Vec3::new(0.0, 1.0, 0.0)));
         }
         assert!(spots[1].distance_xz(spots[0]) >= 6.0);
@@ -588,11 +589,11 @@ mod tests {
         let mut s = scene();
         s.tactics = Tactics::new(world, 1.0);
         assert_eq!(s.tactics.container_body(OURS), Some(body));
-        let eye = Vec3::new(28.0, EYE_CROUCHED, 30.0);
+        let eye = still_eye(Vec3::new(28.0, 0.0, 30.0), true);
         assert!(!s.tactics.sees(eye, middle), "its own faces block the line");
         assert!(s.tactics.sees_body(eye, middle, &body));
         // Behind the wall across x = 40: not seen.
-        let behind = Vec3::new(50.0, EYE_CROUCHED, 10.0);
+        let behind = still_eye(Vec3::new(50.0, 0.0, 10.0), true);
         assert!(!s.tactics.sees_body(behind, middle, &body));
         // A plain sight line finds no spot round it.
         let plain = SpotQuery {

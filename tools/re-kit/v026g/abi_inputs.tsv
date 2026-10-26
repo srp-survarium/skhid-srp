@@ -2665,6 +2665,7 @@ va	name	location	role	basis
 0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
 0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
+0x002d84c0	survarium::base_player::detect_usable_object	[player+47Ch]	the use ray's origin: the head matrix's position, along its forward at +46Ch	observed
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
 0x002d9a60	survarium::base_player::hit	stack+16	damage type	inferred
@@ -2719,6 +2720,7 @@ va	name	location	role	basis
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	stack+8	input direction	inferred
 0x002e23a0	survarium::weapon_core::instant_fire	stack+4	weapon receiver	inferred
 0x002e23a0	survarium::weapon_core::instant_fire	stack+8	fire-context pointer; time field observed at+10	inferred
+0x002e23a0	survarium::weapon_core::instant_fire	[user+44Ch]	the bullet's transform: the user's head matrix (the animation player's Head locator times the body transform), copied at 0x2E243D..0x2E2455	observed
 0x002e2990		ECX		auto
 0x002e2990		entry ESP+4		auto
 0x002e2a30		ECX		auto
@@ -4645,3 +4647,11 @@ va	name	location	role	basis
 0x00339de0	survarium::weapon_core_shotgun_reload_state::finish_reload_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed
 0x00339ea0	survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed
 0x00339ee0	survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed
+0x0033d700	survarium::medkit::action	stack+4	pressed (byte): ignored while the medkit is active (+2B0h) or its stack count (+260h) is 0; else set_active(1) and count - 1 at once (0x33D758..0x33D765). Quick-use keys act on press and on release, so the second call finds it active	observed
+0x0033d390	survarium::medkit::set_active	AL	1 = start: activity ms (+2A8h, modifier 34) and delay ms (+2ACh, modifier 33), links the damage_protection entries (+294h, count +298h) into the pools; 0 = end: unlinks them and zeroes the per-influence totals (+284h). Called by the press (action), by tick when the holder is dead (+33Ch) and when the activity is spent	observed
+0x002fcaa0	survarium::inventory::action	item+24Ch	1: the item's vtable slot 2Ch (medkit::action for a drug) is called at once and the hand is not changed; any other value takes the hand path	observed
+0x002fcb70	survarium::inventory::setup_from_profile	per stack item	at every spawn a stack slot gets min(the slot's count, the item's storage) and the storage loses it (0x2FCC5F..0x2FCCBD): a drug used is gone for the match, a death puts the slot back (unload_to_profile 0x2FD2D0), no refill	observed
+0x0032a4b0	survarium::body_part::regenerate	pool thresholds	regrows only while Hmax x threshold (+A8h) > H: body 0.5, head 0.2 (x 0.4), each leg and hand 0.1 (x 0.5), pain to full, infection never (speed 0); 8 s after the last hit (+B0h + timeout +ACh)	observed
+0x002fffe0	survarium::inventory_item::inventory_item	EAX	this (item base, filled in place): byte +0Eh is set to 0 (+0Ch 0FFh, +0Dh 1); only weapon_core::weapon_core (0x2DF100) and empty_hands (0x299851) set it to 1, no victory_item_core code does	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	[[player+128h]+0Eh]	byte of the active (hands) object; 0 stops the quick pockets 13..18 (0x2D8DA0) and the grenade key (0x2D8E0B); the drop of a carried battery (0x2D8E73) does not test it	observed
+0x003000a0	survarium::victory_item_core::victory_item_core	EAX/stack+4	builds the battery on the item base 0x2FFFE0; nothing in it sets byte +0Eh, so it stays 0 (that the carried battery is the active object, and so blocks quick use, is inferred from the carry states and 'weapon away', not traced)	inferred

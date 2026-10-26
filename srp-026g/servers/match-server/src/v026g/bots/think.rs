@@ -363,7 +363,11 @@ pub(super) fn sense_batteries(
 /// The memory takes the percepts, each after its notice time.
 pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
-        now, me, tuning, ..
+        now,
+        me,
+        tuning,
+        tactics,
+        ..
     } = *due;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
@@ -372,7 +376,18 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
-            sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
+            let base = sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor);
+            if p.source != Source::Seen {
+                return base;
+            }
+            // A sight that begins through bushes (`foliage.rs`) is noticed later.
+            let metres = tactics
+                .foliage
+                .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0));
+            let delayed = super::foliage::noticing_ms(base, metres, tuning.sense.bush_notice, tuning.sense.foliage_cap);
+            #[cfg(test)]
+            super::foliage::through::count(metres, delayed - base);
+            delayed
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
         tuning.sense.drop_ms,
@@ -409,6 +424,10 @@ pub(super) fn react(
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
     }
+    // A grenade decided on: its place is the team's to skip for a while.
+    if let Some(at) = bot.reflex.take_throw_claim() {
+        state.knowledge.claim_throw(bot.place, at, now);
+    }
     // Hit from a direction alone (the HUD's marker): its callout.
     if let Some((at, bearing)) = bot.reflex.take_hit_note() {
         state.knowledge.shots_from.push(know::ShotFrom {
@@ -428,13 +447,15 @@ pub(super) fn bench_camper(
     bot: &mut Bot,
     slot: &mut Option<(Place, Option<tests::CamperSpot>)>,
 ) -> bool {
-    let Due { tactics, .. } = *due;
+    let Due { tactics, me, .. } = *due;
     if let Some((camper, spot)) = slot.as_mut()
         && *camper == bot.place
     {
         let side = bot.side;
-        let found =
-            *spot.get_or_insert_with(|| side.and_then(|side| tests::camper_spot(tactics, side)));
+        let options = tests::CamperOptions::from_env();
+        let found = *spot.get_or_insert_with(|| {
+            side.and_then(|side| tests::camper_spot_by(tactics, side, options.rule, options.crouch))
+        });
         if let Some((at, _)) = found {
             bot.bench_camper = true;
             bot.intent = Intent {
@@ -443,6 +464,8 @@ pub(super) fn bench_camper(
                     within_m: tests::CAMPER_WITHIN_M,
                 },
                 pace: Pace::Run,
+                // Crouched once there, if it is to be.
+                crouch: options.crouch && me.feet.distance_xz(at) <= tests::CAMPER_WITHIN_M,
                 ..Intent::stay()
             };
             return true;
@@ -490,6 +513,8 @@ pub(super) fn decide(
             partner: bot.partner,
             paired: bot.paired,
             medkits_used: bot.medkits_used,
+            pantry: &bot.pantry,
+            pools: bot.pools,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,
@@ -506,9 +531,24 @@ pub(super) fn decide(
     };
     let mut rng = bot.rng.clone();
     let step = plays::step(&mut running, target, &cx, &mut rng);
+    // A hold on a spot a teammate of a lower place has claimed gives way
+    // (S1); the point it means to be at is its claim.
+    let (step, claim) = match step {
+        Step::Continue(intent) => {
+            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.apart, running.kind(), intent);
+            (Step::Continue(intent), Some(claim))
+        }
+        other => {
+            bot.apart.reset();
+            (other, None)
+        }
+    };
     bot.rng = rng;
     let step_name = running.step_name();
     bot.running = Some(running);
+    if let Some(at) = claim {
+        state.knowledge.claim(me.place, at, now);
+    }
     match step {
         // Its goal one its own search proved no way to lately: the play
         // is left, set aside while the proof holds, for the commander to

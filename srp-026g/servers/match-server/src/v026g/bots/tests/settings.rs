@@ -42,9 +42,9 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 }
 
 /// The names of the plays', the reflex's and the senses' number lists
-/// (`name=value,...`), read as `SRP_BENCH_<name>`, and for team 1 of a one-sided
-/// run as `SRP_BENCH_SIDE1_<name>` (`bench_tuning_of`).
-pub(crate) const TUNING_NAMES: [&str; 13] = [
+/// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
+/// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
+pub(crate) const TUNING_NAMES: [&str; 15] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -56,14 +56,17 @@ pub(crate) const TUNING_NAMES: [&str; 13] = [
     "CROSSFIRE",
     "PAIRUP",
     "COMBAT",
+    "HEAL",
     "AIM",
     "SENSE",
+    "TUNING",
 ];
 
 pub(crate) const SETTINGS: &[Setting] = &[
     // What is run.
     s("SRP_MAPDATA_DIR", "unset: the bench is skipped", "the folder of the map dumps"),
     s("SRP_BOT_ROUTES", "unset: no human routes", "the routes table (JSON)"),
+    s("SRP_BOT_FOLIAGE", "unset: bot-foliage.json of the mapdata folder, if any", "the bushes a sight line crosses (JSON, scripts/foliage-volumes); empty or `off`: none"),
     s("SRP_GAME_DATA", "unset: the built-in test archive, said in a loud line", "the server's game data (`server-game-data.db`) the run is on, read and checked as srp reads it (`game_data::init`); a file that fails refuses the run"),
     s("SRP_BENCH_MAPS", "6/2, 1/4, 3/3 (level/mode)", "the maps: `level/mode,...`"),
     s("SRP_BENCH_SIDES", "4,8,10", "the sizes, bots a side: `n,...`"),
@@ -80,6 +83,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
+    s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
+    s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),
     s("SRP_BENCH_BATTERY_SIGHT_M", "the tuning's", "SenseTuning::battery_sight_m"),
@@ -88,12 +93,20 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
+    s("SRP_BENCH_THREAT", "the tuning's (on)", "ThreatTuning::spots: `0` off (no threat spots, nothing kept out of a shooter's line), else on"),
+    s("SRP_BENCH_THREAT_DETOUR", "the tuning's (on)", "ThreatTuning::detour: `0` off (a route through a shooter's lane is walked as it is), else on"),
+    s("SRP_BENCH_THREAT_FLOORS", "the tuning's (3000)", "ThreatTuning::search_floors: floors of a poll's budget one search round a shooter's lane may take"),
+    s("SRP_BENCH_THREAT_SPRINT", "the tuning's (on)", "ThreatTuning::sprint: `0` off (a bot in a shooter's lane keeps the pace its play chose), else on"),
+    s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::escape_ceiling: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),
     s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
+    s("SRP_BENCH_CAMPER_SPOT", "most", "**model** `hidden`: the camper's spot is one that sees many route points of the other side and is seen from under half of them (else the one that sees the most)"),
+    s("SRP_BENCH_CAMPER_CROUCH", "unset", "**model** `1`: the camper crouches once at its spot (and picks it by the crouched eye and body)"),
+    s("SRP_BENCH_CAMPER_GUN", "unset", "**model** `long`: the camper carries the long gun (bolt, else marksman rifle) of the bench tier's kits"),
     // The game model (the stand-in's rules).
     s("SRP_BENCH_USE_LINE", "off", "**model** a use needs a clear line to the battery"),
     s("SRP_BENCH_TAKE_M", "BATTERY_M (0.2)", "**model** how near a battery's middle a take's ray must pass, m"),
@@ -106,8 +119,11 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_ZONE_DAMAGE", "off", "**model** zones hurt the stand-in's bodies; `1` only (a GUESS of the game's)"),
     s("SRP_BENCH_DAMAGE", "per weapon", "**model** `flat`: every stand-in hit takes a fifth of the health and nothing regenerates (the old stand-in); else the weapon's damage against the target's kit (`standin_damage.rs`)"),
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),
+    s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
+    s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
+    s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 
@@ -277,5 +293,22 @@ mod tests {
         assert!(found.len() > 20, "{found:?}");
         let missing: Vec<_> = found.iter().filter(|n| !known(n)).collect();
         assert!(missing.is_empty(), "not in tests/settings.rs: {missing:?}");
+    }
+
+    /// A listed setting is never also a plays' (or reflex's, or senses') number list
+    /// (`SRP_BENCH_<name>`, `SRP_BENCH_SIDE1_<name>` of [`TUNING_NAMES`]): the list is
+    /// `name=value,...`, so a plain switch of the same name would panic in its parser.
+    #[test]
+    fn no_setting_is_named_like_a_tuning_list() {
+        for setting in SETTINGS.iter() {
+            for t in TUNING_NAMES {
+                assert_ne!(setting.name, format!("SRP_BENCH_{t}"), "{t}");
+                assert_ne!(setting.name, format!("SRP_BENCH_SIDE1_{t}"), "{t}");
+            }
+        }
+        let mut names: Vec<_> = SETTINGS.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), SETTINGS.len(), "a setting is listed twice");
     }
 }

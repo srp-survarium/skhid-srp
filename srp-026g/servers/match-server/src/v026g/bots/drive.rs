@@ -101,12 +101,20 @@ pub(super) fn drive_tick(
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time);
     // Only this tick's walk to the play's own exact spot sets it (below).
-    bot.motor.exact_end = false;
+    bot.motor.exact_end = None;
     let me = &PlaceView {
         pitch: (me.pitch + kick).clamp(-1.0, 1.0),
         ..me.clone()
     };
     let intent = bot.intent;
+    #[cfg(test)]
+    {
+        bot.bench_walk = 0;
+        if bot.bench_est.len() == 10 {
+            bot.bench_est.pop_front();
+        }
+        bot.bench_est.push_back((me.known_at, me.feet));
+    }
     let pose = Pose {
         feet: me.feet,
         yaw: me.yaw,
@@ -156,6 +164,18 @@ pub(super) fn drive_tick(
     // (`Intent::let_go`) may fire while the view still shows it carried.
     let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
+    // [heal] The consumable is a habit of the reflex, as the reload is: the
+    // key goes out at once whatever the play, which is neither taken nor
+    // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
+    bot.reflex.set_heal(super::plays::heal::wish(
+        bot.pools,
+        me.health,
+        view.world_time,
+        me.carrying.is_some(),
+        &bot.pantry,
+        &tuning.heal,
+        time,
+    ));
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -208,6 +228,7 @@ pub(super) fn drive_tick(
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;
+        bot.bench_legs_why = over.legs.filter(|_| !using).map(|legs| legs.why);
     }
     // The bench's stand-in camper keeps to its spot.
     #[cfg(test)]
@@ -228,6 +249,20 @@ pub(super) fn drive_tick(
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
     };
+    // [K1] In a held shooter's lane on its way somewhere, a bot that was to
+    // walk runs: it crosses fast and keeps its task (the owner, 2026-10-26:
+    // "bots should still continue accomplish their tasks"). Not in a fight
+    // (the reflex's legs), not crouched.
+    if tuning.threat.sprint
+        && goal.is_some()
+        && over.legs.is_none()
+        && intent.pace == Pace::Walk
+        && !intent.crouch
+        && !bot.threat.is_empty()
+        && bot.threat.exposed_at(&tactics.world.grid, me.feet)
+    {
+        intent.pace = Pace::Run;
+    }
     // [zones] With no goal to walk (holding a spot, standing at its goal,
     // aiming still), out of a zone that is on or about to be first,
     // whatever the play: its way out is walked as the goal, the reflex
@@ -401,6 +436,21 @@ pub(super) fn drive_tick(
                 }
                 _ => false,
             };
+            // Given up in its pocket, its goal outside it: no search (the grid
+            // has no way, and the next goal is no different): the bot stays, the
+            // escape's tries are spent (`escape.rs`, `stuck::SelfKill` at the end).
+            let shut_in = tuning.think.shut_in_gate
+                && bot
+                    .stuck
+                    .escape
+                    .as_ref()
+                    .is_some_and(|escape| escape.trapped().gave_up)
+                && {
+                    let grid = &tactics.world.grid;
+                    let from = grid.locate(me.feet, 1.5).and_then(|n| grid.pocket_of(n));
+                    from.is_some()
+                        && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
+                };
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
@@ -422,7 +472,11 @@ pub(super) fn drive_tick(
                     };
                 }
                 bot.set_route(route.map(|route| (route, goal)), time);
-            } else if replan && no_way {
+            } else if replan && (no_way || shut_in) {
+                #[cfg(test)]
+                if !no_way {
+                    search::asks::count(search::asks::Ask::Skipped);
+                }
                 bot.end_route(RouteEnd::NoWay, time);
                 no_route = path::NoRoute::NoWay;
             } else if waiting
@@ -441,6 +495,13 @@ pub(super) fn drive_tick(
             } else if replan {
                 searching.left -= 1;
                 let grid = &tactics.world.grid;
+                #[cfg(test)]
+                {
+                    let in_pocket = grid
+                        .locate(me.feet, 1.5)
+                        .is_some_and(|node| grid.in_pocket(node));
+                    search::asks::searched(&mut bot.bench_asked, time, in_pocket);
+                }
                 let side = bot.side;
                 let objective = intent.objective;
                 // Round the spots it got stuck at, if there is a way; else
@@ -547,6 +608,65 @@ pub(super) fn drive_tick(
                 } else {
                     None
                 };
+                // A held shooter's lane (K1, `threat.rs`): a route that runs
+                // through it for long gets a local detour round the lane
+                // (searched from 13 m before it to 13 m after it, spliced in)
+                // where that is not much longer; else the plain route is kept
+                // and walked fast (`threat.sprint` below). A route that
+                // crosses no lane is the plain route and costs no search; one
+                // past this poll's floors is not looked at.
+                let mut detour = None;
+                if !escaping
+                    && !there
+                    && left.is_none()
+                    && tuning.threat.spots
+                    && !bot.threat.is_empty()
+                    && let Some(plain) = route.as_ref()
+                {
+                    let seen = threat::exposure(plain, |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
+                    threat::checked(&seen);
+                    if seen.metres > threat::EXPOSED_M
+                        && tuning.threat.detour
+                        && let Some(&(first, last)) = seen.spans.first()
+                    {
+                        let s0 = (first - threat::DETOUR_MARGIN_M).max(0.0);
+                        let s1 = (last + threat::DETOUR_MARGIN_M).min(plain.length());
+                        let ends = grid
+                            .locate(plain.point_at(s0), 1.5)
+                            .zip(grid.locate(plain.point_at(s1), 1.5));
+                        if let Some((n0, n1)) = ends
+                            && n0 != n1
+                            && !plain.jumps_between(s0, s1 + 3.0)
+                        {
+                            let free = threat::free_regions(&bot.threat, tactics, n0, n1);
+                            let avoid = hard
+                                .clone()
+                                .avoiding(bot.stuck.avoided_for(time, at).collect())
+                                .avoiding_threat(bot.threat.clone(), grid.position(n0), grid.position(n1), free);
+                            // At most `ThreatTuning::search_floors` of the
+                            // poll's floors: a search with no way round walks
+                            // the whole map first, and the other bots'
+                            // searches wait for what it takes.
+                            let cap = (*floors).min(tuning.threat.search_floors as usize);
+                            let mut mine = cap;
+                            let way = tactics.start_route(n0, n1, time, side, objective, &avoid, &mut mine);
+                            *floors -= cap - mine;
+                            match way {
+                                Ok(Some(local)) if stuck::worth_round(local.length(), s1 - s0) => {
+                                    threat::searched(threat::Searched::Round);
+                                    threat::rounded(bot.place, time);
+                                    detour = Some(plain.spliced(s0, s1, &local));
+                                }
+                                Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
+                                Ok(None) => threat::searched(threat::Searched::NoWay),
+                                Err(_) => threat::searched(threat::Searched::Budget),
+                            }
+                        }
+                    }
+                }
+                if detour.is_some() {
+                    route = detour;
+                }
                 // No way, or a long one past zones on all match: a crossing's
                 // search (`crossing.rs`).
                 let mut crossed = false;
@@ -690,10 +810,21 @@ pub(super) fn drive_tick(
                     // `route_at` is the goal's `at`, copied unchanged where
                     // the route was planned, so the two compare exactly (a
                     // replan that snapped it to a floor would turn this off).
-                    bot.motor.exact_end = exact_at == Some(*route_at);
+                    bot.motor.exact_end = (exact_at == Some(*route_at)).then(|| intent.exact_arrive_m.unwrap_or(bot.motor.feel.arrive_m));
                     let side = bot.side;
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
+                    // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the
+                    // corner it turns at over the rim.
+                    bot.motor.ahead_cap = {
+                        let grid = &tactics.world.grid;
+                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
+                    };
+                    #[cfg(test)]
+                    {
+                        bot.bench_walk = if aim.is_some() { 2 } else { 1 };
+                    }
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
@@ -726,7 +857,7 @@ pub(super) fn drive_tick(
                                 .enumerate()
                                 .find(|&(k, point)| {
                                     k >= 1
-                                        && point.jump
+                                        && point.jump.is_some()
                                         && route.points()[k - 1].at.distance_xz(take_off) < 0.3
                                 })
                                 .map(|(_, point)| point.at);
@@ -769,6 +900,10 @@ pub(super) fn drive_tick(
     };
     // The side step, where the ground that side is clear for a stride:
     // standing, or weaving a walk to or from the target.
+    #[cfg(test)]
+    {
+        bot.bench_stepped = 0;
+    }
     let stepped = if aiming_still {
         Some(decision.keys | over.strafe)
     } else if walking_aimed && tuning.aim.combat.strafe_walking {
@@ -783,11 +918,23 @@ pub(super) fn drive_tick(
         let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
         let clear = tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
         #[cfg(test)]
-        motor::counts::side_step(clear);
+        {
+            motor::counts::side_step(clear);
+            bot.bench_stepped = match (clear, aiming_still) {
+                (true, true) => 1,
+                (true, false) => 2,
+                (false, _) => 3,
+            };
+        }
         if clear {
             decision.keys = keys;
         }
     }
+    // [lip guard] On a lip's floors the keys of this tick are played forward to a stop: a key that carries the
+    // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
+    // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
+    // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
+    guard_keys(bot, &mut decision, me, tactics, tuning, time);
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
         decision.keys |= key::CROUCH;
@@ -819,6 +966,11 @@ pub(super) fn drive_tick(
     }
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);
+    }
+    for (quick, bit) in key::QUICK.into_iter().enumerate() {
+        if decision.keys & bit != 0 {
+            bot.pantry.pressed(quick, time);
+        }
     }
     let by = bot.motor.jumped().map(|by| match by {
         JumpBy::Route => "route",
@@ -930,6 +1082,165 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
     (keys | key::JUMP) & !key::FIRE
 }
 
+/// The route's drops this far on (m along it) are the guard's planned falls.
+const PLANNED_DROP_M: f32 = 6.0;
+/// The guard also looks this far on along the velocity (s) for a lip's floor.
+const LIP_LOOK_S: f32 = 0.4;
+/// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
+const LIP_HELD_SCORE: u8 = 3;
+/// The score at which the guard gives a bot up for [`LIP_OFF_MS`].
+const LIP_GIVE_UP: u8 = 30;
+const LIP_OFF_MS: u32 = 3_000;
+
+/// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
+/// walk, not saved it (a bot braked at a rim it must turn at, again and again). The score rises with each
+/// tick the keys are changed and falls with each that they are not; past [`LIP_GIVE_UP`] the guard leaves
+/// the bot's keys alone for [`LIP_OFF_MS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LipWatch {
+    Watching(u8),
+    /// Left off until this time (ms).
+    Off(u32),
+}
+
+impl Default for LipWatch {
+    fn default() -> Self {
+        Self::Watching(0)
+    }
+}
+
+impl LipWatch {
+    /// The watch after a tick's verdict at `time`; whether the guard may change the keys this tick.
+    fn after(self, guard: LipGuard, time: u32) -> (Self, bool) {
+        match self {
+            Self::Off(until) if time < until => (self, false),
+            Self::Off(_) => Self::Watching(0).after(guard, time),
+            Self::Watching(score) => {
+                let score = match guard {
+                    LipGuard::Swapped(_) | LipGuard::Braked(_) => score.saturating_add(LIP_HELD_SCORE),
+                    LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => score.saturating_sub(1),
+                };
+                if score >= LIP_GIVE_UP {
+                    (Self::Off(time + LIP_OFF_MS), false)
+                } else {
+                    (Self::Watching(score), true)
+                }
+            }
+        }
+    }
+}
+
+/// What the lip guard made of a tick's keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LipGuard {
+    /// Not on a lip's floors, nor about to be: the keys as they are.
+    Clear,
+    /// The keys stop on the floor.
+    Safe,
+    /// These keys instead stop on the floor.
+    Swapped(u32),
+    /// None stops on the floor: these brake hardest.
+    Braked(u32),
+    /// None stops on the floor, and the body has no speed to brake.
+    Doomed,
+}
+
+/// The lip guard: the keys `keys` of a tick (the view turns `turn` radians), played forward over the body
+/// model to a stop ([`body::stays_up`]). Those that carry the body off a lip's floor, the walk's own
+/// diagonal, a side step, the eight-way keys of a walk that aims, give way to the same without the side keys,
+/// to none, or to the brake against the velocity, whichever stops on the floor first. `planned`: the landings
+/// of the drops the route makes (a fall there is the route's). Every unplanned fall of the bench was off a
+/// lip (`WalkGrid::near_lip`), with the keys pushing the body over or its glide carrying it.
+pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32) -> LipGuard {
+    const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+    let node = grid.locate(me.feet, 1.5);
+    // On a lip's floors, or about to be (the glide of a stop is a stride or more).
+    let ahead = Vec3::new(me.feet.x + me.velocity[0] * LIP_LOOK_S, me.feet.y, me.feet.z + me.velocity[1] * LIP_LOOK_S);
+    let on_lip = |node: Option<NodeId>| node.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node));
+    if keys & MOVE == 0 || hold == 0 || !(on_lip(node) || on_lip(grid.locate(ahead, 1.0))) {
+        return LipGuard::Clear;
+    }
+    let at = body::Estimate::of_view(me, node);
+    let stop = body::Stop { kin, level: 1.0, grid, planned, hold };
+    let up = |keys: u32| body::stays_up(&at, keys, turn, &stop);
+    if up(keys) {
+        return LipGuard::Safe;
+    }
+    let speed = me.velocity[0].hypot(me.velocity[1]);
+    let brake = (speed > 0.5).then(|| {
+        let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
+        (keys & !MOVE) | motor::keys_toward(relative)
+    });
+    // The same walk slower (no sprint, then crouched), then without the side keys, then none, then the brake.
+    let walk = keys & !key::SPRINT;
+    let straight = keys & !(key::LEFT | key::RIGHT);
+    let found = [walk, walk | key::CROUCH, straight, (straight & !key::SPRINT) | key::CROUCH, keys & !MOVE]
+        .into_iter()
+        .chain(brake)
+        .filter(|&k| k != keys)
+        .find(|&k| up(k));
+    match (found, brake) {
+        (Some(found), _) => LipGuard::Swapped(found),
+        (None, Some(brake)) => LipGuard::Braked(brake),
+        (None, None) => LipGuard::Doomed,
+    }
+}
+
+/// [`lip_guard`] on the tick's decision.
+fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
+    #[cfg(test)]
+    {
+        bot.bench_guard = 0;
+    }
+    // Off (the default): nothing is looked at.
+    if bot.motor.feel.lip_guard_ticks == 0 {
+        return;
+    }
+    // A jump (the route's, a hop) goes off the floor on purpose.
+    if decision.keys & key::JUMP != 0 || bot.motor.lining_up() {
+        #[cfg(test)]
+        {
+            bot.bench_guard = 5;
+        }
+        return;
+    }
+    let planned = bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
+        let (walked, _) = route.progress(me.feet);
+        route.drop_landings(walked, PLANNED_DROP_M)
+    });
+    let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
+        LipGuard::Clear
+    } else {
+        lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, bot.motor.feel.lip_guard_ticks)
+    };
+    let (watch, may) = bot.lip_watch.after(guard, time);
+    bot.lip_watch = watch;
+    let guard = if may { guard } else { LipGuard::Clear };
+    #[cfg(test)]
+    {
+        bot.bench_guard_at = (me.velocity, me.feet);
+        bot.bench_guard = match guard {
+            LipGuard::Clear => 0,
+            LipGuard::Safe => 1,
+            LipGuard::Swapped(_) => 2,
+            LipGuard::Braked(_) | LipGuard::Doomed => 3,
+        };
+        if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) && bot.bench_guard_dbg < 6 && std::env::var_os("SRP_GUARD_DEBUG").is_some() {
+            bot.bench_guard_dbg += 1;
+            let route = bot.route.as_ref().map(|(r, goal)| (r.length(), r.points().len(), goal.to_array()));
+            eprintln!("GUARDDBG t={time} place={} guard={guard:?} keys={:#x} feet={:?} v={:?} planned={planned:?} route={route:?} intent={:?}", bot.place, decision.keys, me.feet.to_array(), me.velocity, bot.intent.go);
+        }
+        match guard {
+            LipGuard::Swapped(_) => motor::counts::lip_guard(true),
+            LipGuard::Braked(_) | LipGuard::Doomed => motor::counts::lip_guard(false),
+            _ => {}
+        }
+    }
+    if let LipGuard::Swapped(keys) | LipGuard::Braked(keys) = guard {
+        decision.keys = keys;
+    }
+}
+
 /// A walk's keys with the side step `strafe` woven in: a walk straight to
 /// or from where it looks (forward or back alone) goes the diagonal to that
 /// side, so the walk goes on while the body weaves; a walk already to a side
@@ -1002,9 +1313,127 @@ mod tests {
         }
     }
 
+    /// The ticks the tests count the keys held.
+    const HOLD: u32 = 2;
+
+    /// A body of the slab 2 m over the field, at `x` on its z = 33 line, walking at `speed` along `yaw`.
+    fn on_the_slab(x: f32, yaw: f32, speed: f32) -> PlaceView {
+        let [fx, fz] = kin::forward(yaw);
+        PlaceView {
+            place: 0,
+            team: 0,
+            bot: true,
+            present: true,
+            alive: true,
+            feet: Vec3::new(x, 2.0, 33.0),
+            yaw,
+            pitch: 0.0,
+            velocity: [fx * speed, fz * speed],
+            keys: key::FORWARD,
+            health: 1.0,
+            spawned: 0,
+            kills: 0,
+            deaths: 0,
+            streak: 0,
+            carrying: None,
+            seen_at: 0,
+            known_at: 0,
+        }
+    }
+
+    fn slab() -> Arc<World> {
+        let solids = crate::v026g::bots::body::tests::floor(50.0, 30.0, 56.0, 36.0, 2.0);
+        crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {})
+    }
+
+    /// A walk at a 2 m drop's rim is braked where its stop would take the body over, and left alone
+    /// walking away from it, along it, far from it, or to a landing the route drops to.
+    #[test]
+    fn a_walk_that_would_carry_the_body_over_a_rim_is_let_go() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let guard = |me: &PlaceView, planned: &[Vec3]| lip_guard(grid, &kin, me, 0.0, key::FORWARD, planned, HOLD);
+        let at_rim = on_the_slab(55.4, toward, 3.5);
+        // It brakes: the stop from 55.4 at 3.5 m/s is past the rim even braking (the reckoning's margin).
+        let swapped = |guard: LipGuard| match guard {
+            LipGuard::Swapped(keys) | LipGuard::Braked(keys) => Some(keys),
+            _ => None,
+        };
+        assert_eq!(swapped(guard(&at_rim, &[])), Some(key::BACK));
+        // The same body walking away, along the rim, or from far inside.
+        assert_eq!(guard(&on_the_slab(55.4, -toward, 3.5), &[]), LipGuard::Safe);
+        assert_eq!(guard(&on_the_slab(55.6, 0.0, 3.5), &[]), LipGuard::Safe);
+        assert_eq!(guard(&on_the_slab(52.0, toward, 3.5), &[]), LipGuard::Clear);
+        // The route drops off this rim, to a landing past it: its fall is planned.
+        assert_eq!(guard(&at_rim, &[Vec3::new(56.5, 0.0, 33.0)]), LipGuard::Safe);
+        // A landing elsewhere is not.
+        assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
+        // With no keys held there is nothing to let go of.
+        assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear);
+    }
+
+    /// A sprint at a rim is slowed to a walk or a creep before it is stopped, and the walk goes on where a
+    /// slower one stops short.
+    #[test]
+    fn a_sprint_at_a_rim_is_slowed_before_it_is_stopped() {
+        let world = slab();
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2;
+        let keys = key::FORWARD | key::SPRINT;
+        let mut slowed = 0;
+        for x in [53.5f32, 54.0, 54.5, 55.0, 55.3] {
+            let me = on_the_slab(x, toward, 5.0);
+            match lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD) {
+                LipGuard::Swapped(k) => {
+                    assert_eq!(k & key::SPRINT, 0, "{x}: {k:#x}");
+                    slowed += u32::from(k & key::FORWARD != 0);
+                }
+                LipGuard::Braked(_) | LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => {}
+            }
+        }
+        assert!(slowed > 0);
+    }
+
+    #[test]
+    fn the_guard_gives_a_bot_up_that_it_keeps_stopping() {
+        let mut watch = LipWatch::default();
+        let mut time = 0;
+        let mut may = true;
+        // Keys changed tick after tick: given up at the score.
+        for _ in 0..(LIP_GIVE_UP / LIP_HELD_SCORE + 1) {
+            (watch, may) = watch.after(LipGuard::Swapped(0), time);
+            time += 50;
+        }
+        assert!(!may);
+        assert!(matches!(watch, LipWatch::Off(_)));
+        // Left alone while it is off, picked up again after.
+        assert!(!watch.after(LipGuard::Swapped(0), time).1);
+        let LipWatch::Off(until) = watch else { unreachable!() };
+        assert_eq!(watch.after(LipGuard::Safe, until).0, LipWatch::Watching(0));
+        // A change every other tick adds up too, a change now and then does not.
+        let (mut watch, mut tripped) = (LipWatch::default(), false);
+        for k in 0..200 {
+            let guard = if k % 2 == 0 { LipGuard::Swapped(0) } else { LipGuard::Safe };
+            let (next, may) = watch.after(guard, k * 50);
+            watch = next;
+            tripped |= !may;
+        }
+        assert!(tripped);
+        let (mut watch, mut tripped) = (LipWatch::default(), false);
+        for k in 0..200 {
+            let guard = if k % 10 == 0 { LipGuard::Swapped(0) } else { LipGuard::Safe };
+            let (next, may) = watch.after(guard, k * 50);
+            watch = next;
+            tripped |= !may;
+        }
+        assert!(!tripped);
+    }
+
     #[test]
     fn a_use_takes_the_view_when_in_reach_and_the_reflex_holds_none_for_a_grenade() {
-        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let eye = super::view::still_eye(Vec3::ZERO, false);
         let look = |at| Intent { look: Look::Use(at), ..Intent::stay() };
         let near = Vec3::new(0.0, 0.5, 1.0);
         let far = Vec3::new(0.0, 0.5, USE_LOOK_M + 1.0);

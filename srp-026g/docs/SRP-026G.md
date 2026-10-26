@@ -230,7 +230,7 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
+| `SRP_PVB` | on (the compose file sets it too) | `off`: the mode is not offered |
 | `SRP_PVB_MAX_GEAR` | 15 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15. 15: every level (since 2026-10-23; the bots wear the equipment of the player's tier, `docs/notes/pvb-tiers.md`) |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
 | `SRP_PVB_PAY` | 0.25 | The share of a match's silver, experience and drop chance such a match gives, 0 to 1. Only a match that came to its own end (the mode's rule or the time limit) with its player in it pays at all: one left, lost or stalled pays nothing. It counts for no quest and no daily bonus, and moves no rating |

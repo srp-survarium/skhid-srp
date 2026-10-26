@@ -56,7 +56,7 @@
 //!
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
-//! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
+//! | `SRP_PVB` | on | `off`: the mode is not offered | the lobby, the match server |
 //! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (15: every player, the owner's of 2026-10-23) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_RUSHER_KIT` | smg | what the rusher bots of tiers 9-10 and 13-15 wear: `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet), `control` (the old kit: the SPAS-12 with buckshot); one word for both tiers or `9-10=control,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
@@ -110,7 +110,7 @@ pub const DEFAULT_MAX_GEAR: u8 = MOST_GEAR;
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// `SRP_PVB` (default off).
+    /// `SRP_PVB` (default on).
     pub enabled: bool,
     /// `SRP_PVB_MAX_GEAR` (default 15, every level): the highest equipment
     /// level let in.
@@ -123,10 +123,10 @@ pub struct Config {
 }
 
 impl Default for Config {
-    /// Off; the owner's numbers.
+    /// On; the owner's numbers.
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: session::v026g::pvb::DEFAULT_ENABLED,
             max_gear: DEFAULT_MAX_GEAR,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
             rusher_kits: RusherKits::default(),
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
-        assert!(!config.enabled);
+        assert!(config.enabled, "on unless SRP_PVB says off");
         assert_eq!((config.max_gear, config.max_matches), (15, 5));
         assert_eq!(parse_max_gear(" 4 "), Some(4));
         assert_eq!(parse_max_gear("16"), None);
