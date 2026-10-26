@@ -159,6 +159,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/client_numbers", true.into());
     }
+    // A body on no floor plans from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`; off by default).
+    if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/stranded_start", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
