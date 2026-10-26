@@ -227,15 +227,14 @@ package survarium.rooms
             _makePin.addEventListener(Event.CHANGE, onPinChange, false, 0, true);
             look.text(look._content, win.say("pinHint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
             y += 38;
-            // A private room (a PIN typed) has no size, players to start or
-            // time to start (the owner's of 2026-10-26: its owner starts it):
-            // their sliders hidden, their values kept for the next open room.
+            // A private room (a PIN typed) has no size, players to start, max
+            // level or time to start (the owner's of 2026-10-26: its owner
+            // starts it, any equipment comes in): their sliders hidden, their
+            // values kept for the next open room.
             if (privateRoom())
             {
                 look.text(look._content, win.say("privateRoom"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
-                y += 36;
-                slider(y, win.say("max"), "max");
-                y += SLIDER_H + 12;
+                y += 48;
             }
             else
             {
@@ -720,7 +719,11 @@ package survarium.rooms
             var wait:int = RoomsWire.WAITS.indexOf(_wait);
             if (wait < 0)
                 wait = WAIT_INDEX_DEFAULT;
-            valueOf("max");
+            // The max level as the slider shows it; a private room's is
+            // hidden and kept as it is (the server keeps it for the next
+            // open room, which fits it to the gear then).
+            if (!withPin)
+                valueOf("max");
             var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
             win._steps.push(RoomsWire.CREATE + code);
             if (withPin)

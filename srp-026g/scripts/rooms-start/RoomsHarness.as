@@ -20,7 +20,11 @@ package
    // - the owner of an open room: no Start, no move (its countdown starts it, its sides drawn);
    // - the owner of a private room playing its match: no Start, no move;
    // - a move told (the next state's `A;<sides>`): the member in the other column;
-   // - a private room's info line has no "N v N", an open room's has.
+   // - a private room's info line has no "N v N" and no max level, an open room's has both;
+   // - the list (`S1;L`): a private room's row has no max level, nor its facts beside the list;
+   //   an open room's has both;
+   // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
+   //   clearing it shows them again.
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
@@ -91,7 +95,182 @@ package
             "Waiting for the creator to start.", false);
          check("open, owner, waiting", 1003, false, true, 0, null, false, 0, "Waiting for players", true);
          check("private, owner, in match", 1004, true, true, 2, "01010", false, 0, null, false);
+         // Out of the room: the list. A private room of max level 0 (the server's for it) and an
+         // open room of max level 5; the private one chosen (the first). Then an open room alone
+         // under the same key, chosen too.
+         tell(["S1;N;0;0;0"]);
+         checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
+            "PIN · Alice", false, "Bob", true, false);
+         checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         checkCreate();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // The window told an answer, a row a field list.
+      private function tell(names:Array) : Boolean
+      {
+         var rows:Array = [];
+         for(var r:int = 0; r < names.length; r++)
+         {
+            rows.push({
+               "place":STATE - 1 + r,
+               "nickname":names[r]
+            });
+         }
+         try
+         {
+            Win.take(rows);
+         }
+         catch(err:Error)
+         {
+            failures.push(names[0] + ": " + err.message);
+            return false;
+         }
+         return true;
+      }
+
+      // The texts of the row of the list whose name is `name`: its cells, drawn in the row's own
+      // sprite (the chosen room's name beside the list is not in one).
+      private static function rowOf(texts:Array, name:String) : Array
+      {
+         var at:* = null;
+         for each(var t:Object in texts)
+         {
+            if(t.text == name && t.parent is Sprite && Sprite(t.parent).buttonMode)
+            {
+               at = t.parent;
+            }
+         }
+         var row:Array = [];
+         for each(var u:Object in texts)
+         {
+            if(at != null && u.parent == at)
+            {
+               row.push(u.text);
+            }
+         }
+         return row;
+      }
+
+      // The list told `names`: the private room's row (`pinName`) without a max level, the
+      // open room's row (`openName`, max level 5) with one, and the chosen room's facts with a
+      // "Max level" when `factsMax`.
+      private function checkList(what:String, names:Array, pinName:String, pinMax:Boolean, openName:String,
+         openMax:Boolean, factsMax:Boolean) : void
+      {
+         if(!tell(names))
+         {
+            return;
+         }
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var all:Array = texts.map(function(t:Object, ... rest):String
+         {
+            return t.text;
+         });
+         var hasMax:Function = function(row:Array):Boolean
+         {
+            return row.indexOf("Any") >= 0 || row.indexOf("0") >= 0 || row.indexOf("5") >= 0;
+         };
+         var pinRow:Array = pinName != null ? rowOf(texts,pinName) : [];
+         var openRow:Array = rowOf(texts,openName);
+         trace("ROOMS " + what + ": private row [" + pinRow.join(", ") + "], open row [" + openRow.join(", ") + "], facts "
+            + (all.indexOf("Max level") >= 0 ? "with" : "without") + " Max level");
+         if(pinName != null && pinRow.length == 0)
+         {
+            failures.push(what + ": no row " + pinName);
+         }
+         if(pinName != null && hasMax(pinRow) != pinMax)
+         {
+            failures.push(what + ": private row's max level " + (pinMax ? "missing" : "shown"));
+         }
+         if(openRow.length == 0 || hasMax(openRow) != openMax)
+         {
+            failures.push(what + ": open row's max level " + (openMax ? "missing" : "shown"));
+         }
+         if((all.indexOf("Max level") >= 0) != factsMax)
+         {
+            failures.push(what + ": the facts' Max level " + (factsMax ? "missing" : "shown"));
+         }
+      }
+
+      // New room pressed; a PIN typed, then cleared: Team size and Max level shown only while
+      // no PIN is typed.
+      private function checkCreate() : void
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         var press:* = null;
+         for each(var b:* in buttons)
+         {
+            if(b.label == "New room")
+            {
+               press = b;
+            }
+         }
+         if(press == null)
+         {
+            failures.push("create: no New room button");
+            return;
+         }
+         try
+         {
+            var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+            press.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+         }
+         catch(err:Error)
+         {
+            failures.push("create: New room: " + err.message);
+            return;
+         }
+         createShows("create, open",true);
+         typePin("1234");
+         createShows("create, PIN typed",false);
+         typePin("");
+         createShows("create, PIN cleared",true);
+      }
+
+      // The create window's PIN field (its one input) given `pin`, as typed.
+      private function typePin(pin:String) : void
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+         {
+            if(t.field.type == "input")
+            {
+               t.field.text = pin;
+               try
+               {
+                  t.field.dispatchEvent(new Event(Event.CHANGE));
+               }
+               catch(err:Error)
+               {
+                  // Its focus given back after the redraw (Scaleform's FocusManager): not ours.
+               }
+               return;
+            }
+         }
+         failures.push("create: no PIN field");
+      }
+
+      private function createShows(what:String, open:Boolean) : void
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var all:Array = texts.map(function(t:Object, ... rest):String
+         {
+            return t.text;
+         });
+         var sliders:Array = ["TEAM SIZE","PLAYERS TO START","MAX LEVEL","TIME TO START"].filter(function(label:String, ... rest):Boolean
+         {
+            return all.indexOf(label) >= 0;
+         });
+         trace("ROOMS " + what + ": sliders [" + sliders.join(", ") + "]");
+         if(sliders.length != (open ? 4 : 0))
+         {
+            failures.push(what + ": sliders [" + sliders.join(", ") + "]");
+         }
       }
 
       // The window told a state of room `key`; its buttons and texts read back: what it says of
@@ -140,7 +319,7 @@ package
          for each(var t:Object in texts)
          {
             texts1.push(t.text);
-            if(t.text.indexOf("Max level") >= 0 && t.text.indexOf("code") >= 0)
+            if(t.text.indexOf("Pool") >= 0 && t.text.indexOf("code") >= 0)
             {
                info = t.text;
             }
@@ -180,9 +359,18 @@ package
          {
             failures.push(what + ": no \"" + hint + "\"");
          }
+         if(info == "")
+         {
+            failures.push(what + ": no info line");
+         }
          if((info.indexOf(" v ") >= 0) != sizes)
          {
             failures.push(what + ": N v N " + (sizes ? "missing" : "shown"));
+         }
+         // A private room has no max level either (the owner's of 2026-10-26).
+         if((info.indexOf("Max level") >= 0) != !pin)
+         {
+            failures.push(what + ": max level " + (pin ? "shown" : "missing"));
          }
          if(teams != null && isNaN(team2X))
          {
@@ -196,10 +384,11 @@ package
          return text.split(digit).length - 1;
       }
 
-      // The labels of the buttons (CLIK: a `label`) and the texts (with their x on the stage)
-      // under `at`, shown ones only; `x` that of its parent in the window (unscaled: the window is
-   // scaled to a stage the game sizes).
-      private function walk(at:DisplayObject, labels:Array, texts:Array, x:Number) : void
+      // The labels of the buttons (CLIK: a `label`; the buttons themselves into `buttons`) and
+      // the texts (with their x and y in the window, their field and its parent) under `at`,
+      // shown ones only; `x` and `y` those of its parent in the window (unscaled: the window is
+      // scaled to a stage the game sizes).
+      private function walk(at:DisplayObject, labels:Array, texts:Array, x:Number, y:Number = 0, buttons:Array = null) : void
       {
          if(!at.visible)
          {
@@ -209,7 +398,10 @@ package
          {
             texts.push({
                "text":TextField(at).text,
-               "x":x + at.x
+               "x":x + at.x,
+               "y":y + at.y,
+               "field":at,
+               "parent":at.parent
             });
             return;
          }
@@ -219,6 +411,10 @@ package
             if(label is String && label != "")
             {
                labels.push(label);
+               if(buttons != null)
+               {
+                  buttons.push(at);
+               }
                return;
             }
          }
@@ -232,7 +428,7 @@ package
          }
          for(var i:int = 0; i < box.numChildren; i++)
          {
-            walk(box.getChildAt(i),labels,texts,x + at.x);
+            walk(box.getChildAt(i),labels,texts,x + at.x,y + at.y,buttons);
          }
       }
 

@@ -183,7 +183,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     "Switch and enter", even when two tie: no button a loadout (the owner's, 2026-10-23: "one
     offer keeps the popup simple").
   - A room's gear range is its max level alone (the room's "level" is its members' match level,
-    no cap). A room of any max level (0) offers nothing [choice].
+    no cap). A room of any max level (0) offers nothing [choice]; nor does a private room (a
+    PIN), which has no max level (the owner's of 2026-10-26).
   - **Room allows more than the kits:** gear at most the max, and a preset higher than the gear
     fits: "Enter anyway" (the kits as they are) or "Switch and enter". None higher: joins, no popup.
   - **Gear over the max:** a preset fits: "Exit" (no join) or "Switch and enter". None fits: the

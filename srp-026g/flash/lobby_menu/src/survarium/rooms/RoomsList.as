@@ -122,7 +122,8 @@ package survarium.rooms
                 look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17,
                     mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT);
                 look.text(row, String(room.level), tw * cols[1], 10, tw * 0.09, 17, RoomsLook.LIGHT);
-                look.text(row, win.levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, RoomsLook.LIGHT);
+                // A private room has no max level: its cell empty.
+                look.text(row, room.pin ? "" : win.levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, RoomsLook.LIGHT);
                 var e:Object = win.entry(room.map);
                 // No card leads alone yet (a tie, no votes): the start draws one.
                 look.text(row, e != null ? win.levelName(e.level) + " · " + win.weatherName(e.weather)
@@ -186,11 +187,16 @@ package survarium.rooms
             if (room == null)
                 return;
             var e:Object = win.entry(room.map);
+            // A private room has no max level (the owner's of 2026-10-26).
+            var facts:Array = [[win.say("level"), String(room.level)]];
+            if (!room.pin)
+                facts.push([win.say("max"), win.levelText(room.max)]);
+            facts.push([win.say("players"), room.players + " / " + room.size * 2], [win.say("state"), win.phaseText(room)]);
             // Its members below the facts (the owner's of 2026-10-20, "below
             // state"): the map's render made up to 60 lower when the panel is
             // short for the rows its players need at 18 each (two columns).
             var bottom:Number = look._h - RoomsLook.FOOT_H - 14;
-            var above:Number = 12 + 30 + (e != null ? 28 : 0) + 4 * 26 + (room.pin ? 36 : 0) + 10;
+            var above:Number = 12 + 30 + (e != null ? 28 : 0) + facts.length * 26 + (room.pin ? 36 : 0) + 10;
             var need:int = memberRows(room) * 18;
             var picH:int = 150 - int(Math.max(0, Math.min(60, need - (bottom - 52 - 150 - above))));
             if (e != null)
@@ -220,8 +226,6 @@ package survarium.rooms
                     x + 16, y, SIDE_W - 32, 15, RoomsLook.GREY);
                 y += 28;
             }
-            var facts:Array = [[win.say("level"), String(room.level)], [win.say("max"), win.levelText(room.max)],
-                [win.say("players"), room.players + " / " + room.size * 2], [win.say("state"), win.phaseText(room)]];
             for (var i:int = 0; i < facts.length; i++)
             {
                 look.text(look._content, facts[i][0], x + 16, y, 140, 15, RoomsLook.DIM);
