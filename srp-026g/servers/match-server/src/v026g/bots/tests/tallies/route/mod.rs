@@ -13,6 +13,7 @@ mod carries;
 mod counters;
 mod exact;
 mod falls;
+mod fields;
 mod pockets;
 mod probe;
 mod reversal_roles;
@@ -58,6 +59,8 @@ pub(super) struct TickAt<'a> {
     pub(super) before: Option<Vec3>,
     pub(super) fall: Option<Fall>,
     pub(super) carry: Option<CarryEvent>,
+    /// The anomaly field on the body's floor, and whether it hurts (`standin_fields`).
+    pub(super) field: Option<(crate::v026g::bots::live_zones::FieldId, bool)>,
 }
 
 /// The `routes:` line in its three places ([`RouteTally::line`]); a piece is `key value` pairs.
@@ -79,6 +82,9 @@ pub(super) trait RouteTopic {
 
     /// A bot's note.
     fn note(&mut self, _run: &RouteRun, _note: &Note) {}
+
+    /// The match is over: what the topic reads of the game's end.
+    fn finish(&mut self, _game: &Game) {}
 
     /// The topic's pieces of the line at the end, and any lines of its own it prints.
     fn line(&mut self, run: &RouteRun, line: &mut Line);
@@ -109,6 +115,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         asks(),
         route_ends(),
         Box::new(probe::Probe::new(bodies)),
+        Box::new(fields::Fields::new(bodies)),
     ]
 }
 
@@ -166,7 +173,11 @@ impl RouteTally {
                 }
                 _ => None,
             };
-            let at = TickAt { bots, time, place, body, before, fall, carry };
+            let field = (game.fields.on() && body.alive)
+                .then(|| game.world.grid.locate(body.feet, 1.0))
+                .flatten()
+                .and_then(|node| game.fields.here(node));
+            let at = TickAt { bots, time, place, body, before, fall, carry, field };
             for topic in &mut self.topics {
                 topic.tick(&self.run, &at);
             }
@@ -183,6 +194,13 @@ impl RouteTally {
     pub(crate) fn note(&mut self, note: &Note) {
         for topic in &mut self.topics {
             topic.note(&self.run, note);
+        }
+    }
+
+    /// The match is over.
+    pub(crate) fn finish(&mut self, game: &Game) {
+        for topic in &mut self.topics {
+            topic.finish(game);
         }
     }
 

@@ -466,6 +466,16 @@ pub(crate) fn real_bot_cost() {
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
         let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
+        // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
+        let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
+            Some(n) => {
+                let generator = standin_fields::FieldGen::new(&world, 0, 1, standin_fields::Taker::None, 0, 0.0);
+                let radius = bench_settings().number("SRP_BENCH_FIELD_RADIUS_M").unwrap_or(standin_fields::RADIUS_M);
+                let places = &generator.places()[..n.min(generator.places().len())];
+                Arc::new(standin_fields::baked_places(&world, places, radius))
+            }
+            None => world,
+        };
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
@@ -743,9 +753,18 @@ pub(crate) fn real_bot_cost() {
                         game.bodies[bot.place].why_now = bot.bench_why;
                     }
                     game.step();
+                    // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
+                    if game.fields.on() {
+                        let world = game.world.clone();
+                        game.fields.tick(game.tick, &world);
+                        if let Some(listed) = game.fields.world_due(game.tick) {
+                            bots.fields_given(&listed, game.tick);
+                            game.fields.sample_shut(world.grid.len());
+                        }
+                    }
                     if let Some(tactics) = bots.tactics.as_ref() {
-                        if zone_damage {
-                            game.zone_tick(&inside, &tactics.hazards);
+                        if zone_damage || game.fields.on() {
+                            game.zone_tick(&inside, &tactics.hazards, zone_damage);
                         }
                         for at in std::mem::take(&mut game.took_from) {
                             let fixed = tactics
@@ -1361,7 +1380,9 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {}", blocks.reloads.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
+            routes.finish(&game);
             eprintln!("  routes: {}", routes.line());
+            eprintln!("  {}", standin_fields::cost_line(&bots));
             eprintln!(
                 "  jumps: pressed {} refused {}; stand-in {}",
                 game.jumps_pressed,
