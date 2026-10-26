@@ -872,6 +872,7 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    standin_heal::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {

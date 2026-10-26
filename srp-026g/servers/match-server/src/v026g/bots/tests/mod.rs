@@ -75,6 +75,7 @@ mod soak;
 mod soaks;
 mod standin;
 mod standin_damage;
+mod standin_heal;
 mod standin_jump;
 mod walkway;
 mod world_facts;

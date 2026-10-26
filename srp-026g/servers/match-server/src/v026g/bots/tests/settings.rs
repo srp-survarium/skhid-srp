@@ -106,6 +106,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_DAMAGE", "per weapon", "**model** `flat`: every stand-in hit takes a fifth of the health and nothing regenerates (the old stand-in); else the weapon's damage against the target's kit (`standin_damage.rs`)"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
+    s("SRP_BENCH_HEAL_MODEL", "on", "**model** `off`: the stand-in has no drugs and no stock (standin_heal.rs)"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 
