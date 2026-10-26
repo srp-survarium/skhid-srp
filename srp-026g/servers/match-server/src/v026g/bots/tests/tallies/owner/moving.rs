@@ -249,6 +249,15 @@ impl OwnerTally {
             {
                 self.campers.counter_runs[0] += 1;
                 self.campers.counter_runs[1] += u32::from(kind == "Flank");
+                if let (Some(me), Some(them)) = (game.bodies.get(note.place), game.bodies.get(who)) {
+                    self.campers.counter_detail.push((
+                        note.place,
+                        who,
+                        note.time,
+                        me.feet.y - them.feet.y,
+                        me.feet.distance_xz(them.feet),
+                    ));
+                }
             }
         } else if note.text.starts_with("is stuck at") {
             at(&mut self.moving.stuck_notes);

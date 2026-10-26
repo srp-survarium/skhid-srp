@@ -615,25 +615,16 @@ fn battery_candidate_given(
     on_it: bool,
     near: f32,
 ) -> Option<Candidate> {
-    let mut given = [(Input::PathDist, 0.0); 2];
-    let mut n = 0;
-    // A battery a storey off is as far as the way between the floors.
-    if let TargetRef::Battery(battery) = target
-        && let Some(walk) = cx
-            .battery_lying(battery)
-            .and_then(|at| cx.storey_walk_dist(at))
-    {
-        given[n] = (Input::PathDist, walk);
-        n += 1;
-    }
     if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
-        given[n] = (Input::EnemiesNearTarget, near - COLLECT_ENEMY_MARGIN);
-        n += 1;
-    }
-    if n == 0 {
-        cx.candidate(PlayKind::Collect, target, slot)
+        let read = near - COLLECT_ENEMY_MARGIN;
+        cx.candidate_given(
+            PlayKind::Collect,
+            target,
+            slot,
+            &[(Input::EnemiesNearTarget, read)],
+        )
     } else {
-        cx.candidate_given(PlayKind::Collect, target, slot, &given[..n])
+        cx.candidate(PlayKind::Collect, target, slot)
     }
 }
 

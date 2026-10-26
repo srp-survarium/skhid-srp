@@ -145,9 +145,9 @@ pub struct Tactics {
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
     past_fixed: std::sync::Mutex<Option<PastFixed>>,
-    /// [`Self::walk_estimate`]'s distances by goal region, once made: they
-    /// depend on the map alone.
-    walks: std::sync::Mutex<std::collections::HashMap<u32, Arc<Vec<f32>>>>,
+    /// [`Self::walk_estimate`]'s distances by goal region: they depend on
+    /// the map alone; the most recent [`WALKS_MOST`] are kept.
+    walks: std::sync::Mutex<WalkCache>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
     /// [`Self::exit_of`]'s field, once made.
@@ -172,6 +172,45 @@ const SPAWN_BITS: u32 = 8;
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
 pub const TACTICS_ALGO: u32 = 3;
+
+/// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
+/// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
+/// 2.3 MB a match, against 80 MB for all of them.
+pub const WALKS_MOST: usize = 128;
+
+/// The kept distances to goal regions, oldest first out, and how often
+/// they served ([`Tactics::walk_stats`]).
+#[derive(Default)]
+struct WalkCache {
+    kept: std::collections::HashMap<u32, Arc<Vec<f32>>>,
+    order: std::collections::VecDeque<u32>,
+    hits: u64,
+    misses: u64,
+}
+
+impl WalkCache {
+    /// Keeps `walks` for `goal`, the oldest of more than `most` going out.
+    fn keep(&mut self, goal: u32, walks: Arc<Vec<f32>>, most: usize) {
+        if self.kept.insert(goal, walks).is_none() {
+            self.order.push_back(goal);
+            while self.order.len() > most {
+                if let Some(old) = self.order.pop_front() {
+                    self.kept.remove(&old);
+                }
+            }
+        }
+    }
+}
+
+/// What the walk cache has done: hits and misses, goals kept now, and the
+/// bytes they hold.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct WalkStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub kept: usize,
+    pub bytes: usize,
+}
 
 /// The grid's own A* over the regions' costs, in metres: the mean of its
 /// length over the regions' sum, measured on School's walks to a battery a
@@ -663,6 +702,20 @@ impl Tactics {
         bits
     }
 
+    /// What the walk cache has done so far.
+    pub fn walk_stats(&self) -> WalkStats {
+        let cache = self
+            .walks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        WalkStats {
+            hits: cache.hits,
+            misses: cache.misses,
+            kept: cache.kept.len(),
+            bytes: cache.kept.values().map(|w| w.len() * 4).sum(),
+        }
+    }
+
     /// The walk from floor `from` to floor `to` in metres, over the
     /// regions' directed links (a drop is short one way and long the
     /// other), times [`REGION_WALK_FACTOR`]: coarse (a region is a block of
@@ -671,15 +724,29 @@ impl Tactics {
     pub fn walk_estimate(&self, from: NodeId, to: NodeId) -> Option<f32> {
         let regions = &self.base.regions;
         let goal = regions.of(to);
-        let walks = {
-            let mut kept = self
+        let known = {
+            let mut cache = self
                 .walks
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            kept.entry(goal)
-                .or_insert_with(|| Arc::new(region_walks_to(regions, goal)))
-                .clone()
+            let known = cache.kept.get(&goal).cloned();
+            if known.is_some() {
+                cache.hits += 1;
+            } else {
+                cache.misses += 1;
+            }
+            known
         };
+        // Worked out with nothing locked, then kept.
+        let walks = known.unwrap_or_else(|| {
+            let made = Arc::new(region_walks_to(regions, goal));
+            let mut cache = self
+                .walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.keep(goal, made.clone(), WALKS_MOST);
+            made
+        });
         let d = walks[regions.of(from) as usize];
         d.is_finite().then_some(d * REGION_WALK_FACTOR)
     }
@@ -2264,4 +2331,20 @@ pub(super) mod tests {
         assert!(!spots.is_empty());
         assert!(spots.iter().all(|spot| spot.at.y < 1.0), "{spots:?}");
     }
+
+    /// The walk cache keeps the most recent goals only: the oldest goes out
+    /// at the limit, and a goal asked again is not made twice.
+    #[test]
+    fn the_walk_cache_keeps_a_bounded_number_of_goals() {
+        let mut cache = WalkCache::default();
+        for goal in 0..5u32 {
+            cache.keep(goal, Arc::new(vec![0.0; 10]), 3);
+        }
+        assert_eq!(cache.kept.len(), 3);
+        assert!(cache.kept.contains_key(&4) && cache.kept.contains_key(&2));
+        assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
+        cache.keep(4, Arc::new(vec![0.0; 10]), 3);
+        assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
 }

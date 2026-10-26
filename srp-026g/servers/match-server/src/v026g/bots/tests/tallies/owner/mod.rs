@@ -108,6 +108,8 @@ pub(crate) struct OwnerTally {
     metric_rays: u64,
     /// The fight counts ([`FightCounts`], `fight.rs`).
     fight: FightCounts,
+    /// The tactics' walk cache at the last tick (hits, misses, kept).
+    walk_stats: crate::v026g::bots::tactics::WalkStats,
     /// The jumps counts ([`JumpCounts`], `jumps.rs`).
     jumps: JumpCounts,
     /// The moving counts ([`MoveCounts`], `moving.rs`).
@@ -181,6 +183,9 @@ impl OwnerTally {
                 })
             })
             .collect();
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.walk_stats = tactics.walk_stats();
+        }
         self.step(game, &nows);
     }
 

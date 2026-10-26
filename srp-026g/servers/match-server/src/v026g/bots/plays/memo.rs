@@ -208,8 +208,8 @@ pub const STOREY_GAP_M: f32 = 2.5;
 impl Ctx<'_> {
     /// The walk to `at` when the bot and `at` are a storey or more apart
     /// ([`STOREY_GAP_M`]): the regions' way between the floors
-    /// ([`Tactics::walk_estimate`]) if longer than [`Ctx::path_dist`]'s
-    /// straight guess, which ignores the floor (a battery a storey up
+    /// ([`Tactics::walk_estimate`]) if longer than [`Ctx::straight_dist`]'s
+    /// guess, which ignores the floor (a battery a storey up
     /// looked near to everyone under it: 105 plays on School's battery 3,
     /// 58 % of the Collect time in the match). `None` on one level, or
     /// without a floor under either end: the straight guess stands.
@@ -221,7 +221,7 @@ impl Ctx<'_> {
             return None;
         }
         let walk = self.tactics.walk_estimate(from, to)?;
-        Some(walk.max(self.path_dist(at)))
+        Some(walk.max(self.straight_dist(at)))
     }
 }
 
@@ -492,7 +492,8 @@ mod tests {
         let cx = s.cx(0);
         let walk = cx.storey_walk_dist(battery).expect("a storey apart");
         assert!(walk > 40.0, "the way up is the ramp's: {walk}");
-        assert!(cx.path_dist(battery) < 10.0);
+        assert!(cx.straight_dist(battery) < 10.0);
+        assert_eq!(cx.path_dist(battery), walk, "path_dist is the floor-aware walk");
         // On the platform, one level: the straight guess stands.
         s.view.places[0].feet = Vec3::new(45.0, 3.4, 30.0);
         assert_eq!(s.cx(0).storey_walk_dist(battery), None);
