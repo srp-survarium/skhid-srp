@@ -49,6 +49,7 @@ pub mod plays;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
+pub mod route_end;
 pub mod routes;
 pub mod sense;
 pub mod signals;
@@ -80,6 +81,7 @@ use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
+use route_end::RouteEnd;
 use rng::Rng;
 use sense::RayBudget;
 use signals::{Duel, MatchSignals, Mods, Skill};
@@ -134,6 +136,12 @@ pub struct Bot {
     intent: Intent,
     /// The route and the goal it was planned to.
     route: Option<(Route, Vec3)>,
+    /// When the route was put in place, and how the last one ended with its
+    /// age in ms (the bench's counts, `route_end.rs`).
+    #[cfg(test)]
+    route_born: u32,
+    #[cfg(test)]
+    route_end: Option<(RouteEnd, u32)>,
     /// A goal no way was found to, and until when it is not tried again.
     no_way: Option<(Vec3, u32)>,
     /// Goals a search from its own floor proved no way to (over the floors
@@ -280,6 +288,10 @@ impl Bot {
             last_ran: Vec::new(),
             intent: Intent::stay(),
             route: None,
+            #[cfg(test)]
+            route_born: 0,
+            #[cfg(test)]
+            route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
             #[cfg(test)]
@@ -434,7 +446,7 @@ impl Bot {
             self.note(notes, now, format!("ends {kind:?}: {why}"));
         }
         self.assignment = None;
-        self.route = None;
+        self.end_route(RouteEnd::EndPlay, now);
         self.intent = Intent::stay();
     }
 
@@ -839,6 +851,7 @@ impl Bots {
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
+            bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
                 &mut notes,
@@ -939,7 +952,7 @@ impl Bots {
                     goal.to_array()
                 ),
             );
-            bot.route = None;
+            bot.end_route(RouteEnd::ReckoningError, time);
         }
         notes
     }

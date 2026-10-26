@@ -268,6 +268,8 @@ pub(super) fn drive_tick(
         goal
     } else {
         let grid = &tactics.world.grid;
+        #[cfg(test)]
+        let had_route = bot.route.is_some();
         let out = escape::tick(
             &mut bot.stuck.escape,
             &mut bot.route,
@@ -280,6 +282,10 @@ pub(super) fn drive_tick(
             time,
             bot.hurt.may_jump(time),
         );
+        #[cfg(test)]
+        if had_route && bot.route.is_none() {
+            bot.route_ended(RouteEnd::EscapeStep, time);
+        }
         if bot.tracing {
             for event in &out.events {
                 bot.traced.push(escape::trace(time, bot.place, grid, event));
@@ -303,7 +309,7 @@ pub(super) fn drive_tick(
     let mut decision = match goal {
         // A step or two in a line the play vouches for: by keys, no route.
         Some(at) if intent.straight => {
-            bot.route = None;
+            bot.end_route(RouteEnd::Straight, time);
             bot.motor.step_to(&pose, at, aim)
         }
         Some(asked) => {
@@ -355,7 +361,7 @@ pub(super) fn drive_tick(
                 if !crossing::still_borne(tactics, route, walked, me.health) {
                     crossing::count(crossing::Count::Aborted);
                     bot.crossing = None;
-                    bot.route = None;
+                    bot.end_route(RouteEnd::CrossingAborted, time);
                     crossing = false;
                     aborted = true;
                 }
@@ -368,7 +374,7 @@ pub(super) fn drive_tick(
                 })
             };
             if shut {
-                bot.route = None;
+                bot.end_route(RouteEnd::ZoneShut, time);
             }
             let replan = replan || shut;
             // A goal with no way lately: not searched again every tick.
@@ -414,9 +420,9 @@ pub(super) fn drive_tick(
                         _ => why::PLAIN,
                     };
                 }
-                bot.route = route.map(|route| (route, goal));
+                bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && no_way {
-                bot.route = None;
+                bot.end_route(RouteEnd::NoWay, time);
                 no_route = path::NoRoute::NoWay;
             } else if waiting
                 || (replan
@@ -595,7 +601,7 @@ pub(super) fn drive_tick(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.route = Some((plain, at));
+                        bot.set_route(Some((plain, at)), time);
                         bot.crossing = None;
                     }
                     no_route = path::NoRoute::Searching;
@@ -624,7 +630,7 @@ pub(super) fn drive_tick(
                         {
                             bot.bench_route = why::PLAIN;
                         }
-                        bot.route = Some((partial, at));
+                        bot.set_route(Some((partial, at)), time);
                     }
                     no_route = path::NoRoute::Searching;
                     searching.pending = Some(Pending {
@@ -662,7 +668,7 @@ pub(super) fn drive_tick(
                             why::PLAIN
                         };
                     }
-                    bot.route = route.map(|route| (route, at));
+                    bot.set_route(route.map(|route| (route, at)), time);
                     bot.crossing = crossed.then_some(at);
                 }
             }
@@ -709,7 +715,14 @@ pub(super) fn drive_tick(
                         {
                             bot.stuck.failed_jump(time, take_off);
                         }
-                        bot.route = None;
+                        bot.end_route(
+                            match walked {
+                                Walked::Arrived => RouteEnd::Arrived,
+                                Walked::Off(_) => RouteEnd::Off,
+                                _ => RouteEnd::JumpFailed,
+                            },
+                            time,
+                        );
                         path::no_route(path::NoRoute::Ended);
                     }
                     decision
@@ -727,7 +740,7 @@ pub(super) fn drive_tick(
             }
         }
         None => {
-            bot.route = None;
+            bot.end_route(RouteEnd::NoGoal, time);
             match aim {
                 Some(aim) => {
                     aiming_still = true;
