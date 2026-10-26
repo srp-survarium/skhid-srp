@@ -51,7 +51,7 @@ pub(crate) struct RouteTally {
     pub(crate) zone_left: Vec<Option<(u16, u32)>>,
     pub(crate) zone_on: u32,
     pub(crate) zone_entries: (u32, u32),
-    pub(crate) escapes: [u64; 3],
+    pub(crate) escapes: [u64; 5],
     /// Each body on a pocket's floor at the last world; living bot-worlds
     /// on pockets' floors, deaths there; the pocket escapes' count at the
     /// start (`escape::counts`).
@@ -289,7 +289,7 @@ impl RouteTally {
         let now = super::path::no_routes();
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
         let escapes = super::tactics::escapes::counts();
-        let escaped: Vec<u64> = (0..3).map(|k| escapes[k] - self.escapes[k]).collect();
+        let escaped: Vec<u64> = (0..5).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
         let pocketed: Vec<u64> = (0..7)
             .map(|k| pockets[k] - self.pocket_escapes[k])
@@ -298,7 +298,9 @@ impl RouteTally {
         let moved: Vec<u64> = (0..6).map(|k| motor[k] - self.motor_counts[k]).collect();
         // Each ending of a route: how many, and their mean age in ms.
         let ends = super::route_end::counts::counts();
-        let mut route_ends = format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
+        // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
+        let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);
+        route_ends += &format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;
             let age = ends[k].1 - self.route_ends[k].1;
