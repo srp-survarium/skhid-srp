@@ -1030,6 +1030,17 @@ pub enum Running {
 }
 
 impl Running {
+    /// Whether the play is a hold still walking to the spot it holds from
+    /// (`commit.hold_to_arrival`).
+    pub fn travelling(&self) -> bool {
+        matches!(
+            self,
+            Self::Crossfire(crossfire::State::Going { .. })
+                | Self::HoldExit(hold_exit::State::Going { .. })
+                | Self::Cut(cut::State::Going { .. })
+        )
+    }
+
     pub fn kind(&self) -> PlayKind {
         match self {
             Self::Roam(_) => PlayKind::Roam,
