@@ -140,7 +140,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
     let var = |name: &str| settings.var(&format!("{prefix}{name}"));
     let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
-    // The floor-aware path distance off: the straight ground distance for every play (`Tuning::floor_paths`).
+    // The floor-aware path distance on (`1`) or off (`0`, the default): `Tuning::floor_paths`.
     if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
         set(&mut tuning, "/floor_paths", (v != "0").into());
     }

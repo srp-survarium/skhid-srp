@@ -34,8 +34,10 @@ pub struct Tuning {
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// `Ctx::path_dist` is the regions' walk between floors when a target
-    /// is a storey off; off, the straight ground distance whatever the
-    /// floor (the bench's switch, `SRP_BENCH_FLOOR_PATHS=0`).
+    /// is a storey off; off (the default: merged switched off), the straight
+    /// ground distance whatever the floor, with Collect's batteries a storey
+    /// off priced by the walk as before (the bench's switch,
+    /// `SRP_BENCH_FLOOR_PATHS=1` on).
     pub floor_paths: bool,
     /// Whether a bot's way out of a zone stays under the strength of the
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
@@ -60,7 +62,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
-            floor_paths: true,
+            floor_paths: false,
             escape_ceiling: true,
             plays: PlayKind::ALL
                 .iter()
