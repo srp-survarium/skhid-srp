@@ -2637,6 +2637,7 @@ mod pvb_tests;
 mod reconnect_tests;
 mod replay_tests;
 mod room_chat_tests;
+mod room_bots_tests;
 mod rooms_tests;
 
 // ---- the premium shop, items for gold, the daily bonus, the tutorial, a

@@ -53,9 +53,11 @@ package survarium.rooms
         internal function render():void
         {
             var room:Object = win._room;
-            // A private room has no size of its own (the owner's of 2026-10-26).
+            // A private room has no size of its own (the owner's of 2026-10-26);
+            // the bots a team only when it has some.
             var info:String = win.say("level") + " " + String(room.level) + "  ·  " + win.say("max") + " "
-                + win.levelText(room.max) + (room.pin ? "" : "  ·  " + room.size + " v " + room.size) + "  ·  " + win.say("pool") + " "
+                + win.levelText(room.max) + (room.pin ? "" : "  ·  " + room.size + " v " + room.size)
+                + (room.bots > 0 ? "  ·  " + win.say("bots") + " " + room.bots : "") + "  ·  " + win.say("pool") + " "
                 + room.pool + "  ·  " + win.say("code") + " " + room.key + (room.pin ? "  ·  PIN" : "");
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.

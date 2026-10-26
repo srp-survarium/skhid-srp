@@ -139,6 +139,8 @@ const MIGRATIONS: &[&str] = &[
     drop_cards::MIGRATION,
     // 11: an account's kit presets and the active one (`presets`).
     presets::MIGRATION,
+    // 12: the bots a team of the last room made by hand (`room_settings`).
+    room_settings::BOTS_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -1047,6 +1049,7 @@ mod tests {
             min_side: 2,
             max_level: 7,
             wait: 45,
+            bots: crate::v026g::rooms::BotsPerTeam::new(1).unwrap(),
             tiles_off: vec![(2, 1), (4, 3)],
             tiles_on: vec![(10, 1)],
             modes_off: vec![4],

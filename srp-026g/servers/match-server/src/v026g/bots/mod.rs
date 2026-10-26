@@ -469,6 +469,11 @@ pub struct Bots {
     tactics: Option<Tactics>,
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
+    /// The match and each bot's role by place (`roles` of [`Bots::new`]):
+    /// a bot that leaves is made anew from them, for its place's next
+    /// entry ([`Bots::entered`]).
+    match_id: u32,
+    roles: Vec<Option<String>>,
     trace: Trace,
     /// Every place's weapon 1 kind, where known (play 11).
     weapons: Vec<Option<reflex::WeaponKind>>,
@@ -529,6 +534,11 @@ impl Bots {
             tactics: None,
             teams: [team_state(&tuning), team_state(&tuning)],
             bots,
+            match_id,
+            roles: roles
+                .iter()
+                .map(|role| role.map(str::to_owned))
+                .collect(),
             trace,
             tuning,
             battery_votes: (0, 0),
@@ -694,11 +704,14 @@ impl Bots {
 
     /// The place entered (`time` its 0xE9) or left.
     ///
-    /// A bot that left gave its place up to a late joiner (`game/driven.rs`)
-    /// and never comes back (its place is not used again): it is forgotten,
-    /// so it makes no input, holds no play, is nobody's partner and is in
-    /// no commander's count. Whoever leaves, a bot's memory of it and its
-    /// team's callouts about it go: nobody is to be hunted where it stood.
+    /// A bot that left gave its place up to a player of its team (a room's
+    /// bot, `game/driven.rs`): it is forgotten, so it makes no input, holds
+    /// no play, is nobody's partner and is in no commander's count. It may
+    /// come back on its place when a player of its team leaves: a bot anew
+    /// waits for that entry, as at the start, with what its kits have left
+    /// (a place's ammo lasts the match). Whoever leaves, a bot's memory of
+    /// it and its team's callouts about it go: nobody is to be hunted where
+    /// it stood.
     pub fn entered(&mut self, place: Place, entered: bool, time: u32) {
         self.tracker.entered(place, entered);
         if entered {
@@ -713,6 +726,10 @@ impl Bots {
             self.trace.line(serde_json::json!({
                 "t": time, "bot": place, "team": bot.team, "left": true,
             }));
+            let role = self.roles.get(place).and_then(Option::as_deref);
+            let mut anew = Bot::new(self.match_id, place, bot.team, role, &self.tuning);
+            anew.kits = bot.kits;
+            *slot = Some(anew);
         }
         for bot in self.bots.iter_mut().flatten() {
             bot.memory.forget(place);

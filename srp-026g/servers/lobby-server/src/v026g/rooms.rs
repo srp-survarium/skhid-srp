@@ -17,9 +17,20 @@
 //!   take it, are put on two sides (`rooms::sides`: squads together, the
 //!   sides as even as they can be by what their players count for) and
 //!   seated in a match of teams that are not fixed
-//!   (`Matchmaking::seat_sides_in_pool`), on the map the vote chose and
-//!   with none of the server's bots; then "match found" and `82`
-//!   as for any Play. Its rewards are any match's. A private room (a PIN)
+//!   (`Matchmaking::seat_sides_in_pool`), on the map the vote chose; then
+//!   "match found" and `82` as for any Play. Its rewards are any match's.
+//! - **Its bots** (the room's "Bots per team", 0 to 3; the owner's of
+//!   2026-10-26): the match starts with up to that many of the server's
+//!   bots on each team, in the places its players leave of the room's size
+//!   (`matchmaking_policy::start_bots`; a private room's arranged teams
+//!   too, the bots no part of the arrangement), after the players; none on
+//!   a Research map (the bots do not play it). A member who comes into the
+//!   match goes to a side as any late joiner, and on a side with a bot it
+//!   takes that bot's place (`matchmaking_policy::place_joiner`): the match
+//!   server takes the bot out when the player is in, and brings one back
+//!   when a player of the team leaves (`game/driven.rs`). A match with a
+//!   bot in it pays as one against bots (`rewards::MatchResult::
+//!   against_bots`). A private room (a PIN)
 //!   counts nothing down: its owner's Start makes the match at once with
 //!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
 //!   2026-10-26).
@@ -83,15 +94,15 @@ use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, PoolEntry,
-    RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, BotsPerTeam, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind,
+    PoolEntry, RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
-use super::play::{MatchPlayer, Running, match_profile};
+use super::play::{MatchPlayer, RoomLaunch, Running, match_profile};
 
 /// `SRP_ROOMS_MAX` when unset.
 pub const DEFAULT_MAX_ROOMS: usize = 50;
@@ -689,6 +700,7 @@ impl Core<'_> {
                 wait: spec.wait,
                 pin,
                 min_players: 2 * spec.min_side,
+                bots: spec.bots,
             },
             &entries,
             &default,
@@ -700,23 +712,25 @@ impl Core<'_> {
         if spec.pin {
             log::info!(
                 "{}: made room {key}: private (PIN), {} v {}, started by its owner, max level {}, \
-                 {pool} maps",
+                 {} bots a team, {pool} maps",
                 who.name,
                 model::PRIVATE_SIZE,
                 model::PRIVATE_SIZE,
-                spec.max_level
+                spec.max_level,
+                spec.bots
             );
         } else {
             log::info!(
                 "{}: made room {key}: {} v {}, from {} v {}, max level {}, wait {} s, no PIN, \
-                 {pool} maps",
+                 {} bots a team, {pool} maps",
                 who.name,
                 spec.size,
                 spec.size,
                 spec.min_side,
                 spec.min_side,
                 spec.max_level,
-                spec.wait
+                spec.wait,
+                spec.bots
             );
         }
         Ok(key)
@@ -737,6 +751,7 @@ impl Core<'_> {
             spec.min_side,
             spec.max_level,
             spec.wait,
+            spec.bots,
             &room.pool,
             &self.room_entries(),
         );
@@ -783,6 +798,7 @@ impl Core<'_> {
                                 wait: QUICK_WAIT,
                                 pin: false,
                                 min_side: 1,
+                                bots: BotsPerTeam::NONE,
                             };
                             match self.room_create(who, spec, now) {
                                 Ok(key) => {
@@ -952,6 +968,7 @@ impl Core<'_> {
                     .map(|member| room.sides.get(member).copied().unwrap_or(0))
                     .collect()
             }),
+            bots: room.spec.bots,
         })
     }
 
@@ -976,6 +993,7 @@ impl Core<'_> {
         let anyone = Worth {
             players: 1,
             strength: 0,
+            bots: 0,
         };
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
@@ -1533,6 +1551,7 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let bots_setting = room.spec.bots;
         let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
@@ -1654,8 +1673,26 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching
-            .insert(match_id, (map_id, room_minimum, private));
+        // The server's bots in the places its players leave (the owner's of
+        // 2026-10-26), none on a map of a mode they do not play (Research).
+        let research = maps::map_mode(map_id).is_some_and(|map| map.mode == maps::mode::RESEARCH);
+        let bots = if research {
+            [0, 0]
+        } else {
+            policy::start_bots(bots_setting.places(), size, teams.each_ref().map(Vec::len))
+        };
+        if research && bots_setting != BotsPerTeam::NONE {
+            log::info!("Room {key}: no bots on map {map_id}: they do not play Research");
+        }
+        self.room_launching.insert(
+            match_id,
+            RoomLaunch {
+                map_id,
+                minimum: room_minimum,
+                private,
+                bots,
+            },
+        );
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.
@@ -1671,9 +1708,12 @@ impl Core<'_> {
             .map(|player| player.account_id)
             .collect();
         log::info!(
-            "Room {key}: match {match_id:#x} on map {map_id}, {} v {}",
+            "Room {key}: match {match_id:#x} on map {map_id}, {} v {}, with {} v {} of the \
+             server's bots",
             teams[0].len(),
-            teams[1].len()
+            teams[1].len(),
+            bots[0],
+            bots[1]
         );
         for player in teams.iter().flatten() {
             self.room_send_to_match(*player, now);
@@ -1753,6 +1793,7 @@ impl Core<'_> {
         let worth = Worth {
             players: 1,
             strength: i64::from(ready.strength),
+            bots: 0,
         };
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
@@ -1792,7 +1833,9 @@ impl Core<'_> {
         }) else {
             return;
         };
-        let first = running.seats.len();
+        // The queue's roster has the players alone: the match's next place
+        // is past the server's bots too (`Running::place_of_seat`).
+        let first = running.player_seats();
         let host = self.host;
         let admitted =
             self.store

@@ -903,8 +903,9 @@ pub(crate) struct Game {
     pings_logged_at: u32,
     /// Since when a match with test bots has had no real client connected.
     bots_alone_since: Option<Instant>,
-    /// By place: the script of the server's own bot ([`driven`]).
-    drives: Vec<Option<super::drive::Drive>>,
+    /// By place: the server's own bot's place ([`driven`]): where it is,
+    /// and its script; none for a player's place.
+    bot_places: Vec<Option<driven::BotPlace>>,
     /// The server's bots that walk the map, with `SRP_MAPDATA_DIR`
     /// ([`driven`], stage 2).
     walkers: Option<driven::Walkers>,
@@ -974,7 +975,7 @@ impl Game {
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
-            drives: Self::new_drives(&formed),
+            bot_places: Self::new_bot_places(&formed),
             walkers,
             formed,
         }

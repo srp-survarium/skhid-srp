@@ -276,14 +276,49 @@ pub struct MatchTicket {
     pub port: u16,
 }
 
+/// A room's match being made (`rooms`): what [`Core::launch`] makes it
+/// with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RoomLaunch {
+    /// The map its vote chose.
+    pub map_id: u8,
+    /// The room's minimum of players (`MatchSetup::room_minimum`).
+    pub minimum: u8,
+    /// The room has a PIN: its match pays nothing.
+    pub private: bool,
+    /// The server's bots it starts with, by team
+    /// (`matchmaking_policy::start_bots`).
+    pub bots: [usize; 2],
+}
+
+/// Who has a roster place of a running match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Occupant {
+    /// A player, by the session its game signs its match connection with.
+    Player { session_id: u32 },
+    /// The match server's own bot (a room's, or one of a match against
+    /// bots): no account, no session.
+    Bot,
+}
+
+impl Occupant {
+    /// A player's session.
+    pub fn session(self) -> Option<u32> {
+        match self {
+            Self::Player { session_id } => Some(session_id),
+            Self::Bot => None,
+        }
+    }
+}
+
 /// A match made and not over.
 pub(super) struct Running {
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
     pub map_id: u8,
-    /// Its roster's sessions and teams, by place.
-    pub seats: Vec<(u32, u8)>,
+    /// Who has each roster place, and its team, by place.
+    pub seats: Vec<(Occupant, u8)>,
     /// By place: what its player counted for when it was seated, beside
     /// being there (`Weights::strength`).
     pub strengths: Vec<i32>,
@@ -293,6 +328,29 @@ pub(super) struct Running {
     pub predicted_at: Option<Instant>,
     /// One player against the server's own bots (`pvb`).
     pub vs_bots: bool,
+}
+
+impl Running {
+    /// The roster place of the queue's seat `index` (`QueueState::Placed`,
+    /// `formed_match`): the queue's roster has the players alone, and the
+    /// server's bots' places (after the players a match starts with) are
+    /// the match's only.
+    pub fn place_of_seat(&self, index: usize) -> Option<usize> {
+        self.seats
+            .iter()
+            .enumerate()
+            .filter(|(_, (occupant, _))| occupant.session().is_some())
+            .nth(index)
+            .map(|(place, _)| place)
+    }
+
+    /// The players' places: the queue's roster's length.
+    pub fn player_seats(&self) -> usize {
+        self.seats
+            .iter()
+            .filter(|(occupant, _)| occupant.session().is_some())
+            .count()
+    }
 }
 
 /// One player as the log's "sides" and "late join" lines have it: what it
@@ -426,15 +484,17 @@ impl Core<'_> {
 
     /// The sides of a running match as they are now: the players the
     /// match server says are in it (the whole roster when it says
-    /// nothing), and what they count for together.
+    /// nothing), the server's bots among them, and what they count for
+    /// together.
     fn sides_now(running: &Running, live: Option<&LiveView>) -> [Worth; 2] {
         let mut sides = [Worth::default(); 2];
-        for (place, &(_, team)) in running.seats.iter().enumerate() {
+        for (place, &(occupant, team)) in running.seats.iter().enumerate() {
             if live.is_some_and(|live| live.present >> place & 1 == 0) {
                 continue;
             }
             let side = &mut sides[usize::from(team.min(1))];
             side.players += 1;
+            side.bots += usize::from(occupant == Occupant::Bot);
             side.strength += i64::from(running.strengths.get(place).copied().unwrap_or(0));
         }
         sides
@@ -470,8 +530,10 @@ impl Core<'_> {
 
     /// The sides of a running match as they are now, and the rule a late
     /// joiner is put into it by ([`policy::place_joiner`]): sides of at
-    /// most `capacity` each (the caller's, a room's size), and no more
-    /// places than the match has left (places are never used twice).
+    /// most `capacity` each (the caller's, a room's size; a joiner on a
+    /// side with a bot takes its place), and no more places than the match
+    /// has left (places are never used twice; one is kept for each bot in
+    /// it, for the player who takes that bot's place).
     pub(super) fn late_rule(
         &self,
         running: &Running,
@@ -591,7 +653,12 @@ impl Core<'_> {
         let map = maps::map_mode(running.map_id).map_or(0, |map| map.level);
         let mut said = Vec::new();
         for &(player, team, strength) in joined {
-            running.seats.push((player.session_id, team));
+            running.seats.push((
+                Occupant::Player {
+                    session_id: player.session_id,
+                },
+                team,
+            ));
             running.strengths.push(strength);
             let mut name = String::new();
             if let Some(account) = self.accounts.get(player.account_id) {
@@ -821,10 +888,10 @@ impl Core<'_> {
                 // The queue keeps a seat by account; the match server finds
                 // a connecting client's place by its session. A player who
                 // signed in again and pressed Play comes with a new one.
-                let seated_as = self.matches[&match_id]
-                    .seats
-                    .get(index)
-                    .map(|(session, _)| *session);
+                let running = &self.matches[&match_id];
+                let seated_as = running
+                    .place_of_seat(index)
+                    .and_then(|place| running.seats[place].0.session());
                 if seated_as.is_some_and(|session| session != session_id) {
                     let account_id = self.player(addr).map_or(0, |player| player.account_id);
                     if self.host.reseat(ticket.match_id, account_id, session_id) {
@@ -840,12 +907,11 @@ impl Core<'_> {
                             ticket.match_id
                         );
                     }
-                    if let Some(seat) = self
-                        .matches
-                        .get_mut(&match_id)
-                        .and_then(|running| running.seats.get_mut(index))
-                    {
-                        seat.0 = session_id;
+                    if let Some(seat) = self.matches.get_mut(&match_id).and_then(|running| {
+                        let place = running.place_of_seat(index)?;
+                        running.seats.get_mut(place)
+                    }) {
+                        seat.0 = Occupant::Player { session_id };
                     }
                 }
                 self.store.matchmaking().mark_told(session_id);
@@ -931,12 +997,15 @@ impl Core<'_> {
     /// Make the match seated at the match server. `false` when that
     /// failed: its players are back in the lobby.
     ///
-    /// A room's match (`rooms`) is on the map its vote chose. A match
-    /// against bots (`pvb`, [`Core::pvb_launching`]) has the map chosen and
-    /// 2N − 1 of the server's bots for its one player ([`server_bot_teams`]
-    /// puts N − 1 of them on the player's side), in kits of its equipment
-    /// level ([`bots_gear_level`], `session::v026g::bot_kits`), and counts
-    /// towards no player's map rotation. A clan match is on a map of the pool drawn at
+    /// A room's match (`rooms`) is on the map its vote chose, with the
+    /// server's bots its room's setting gives each team
+    /// ([`RoomLaunch::bots`], after the players). A match against bots
+    /// (`pvb`, [`Core::pvb_launching`]) has the map chosen and 2N − 1 of
+    /// the server's bots for its one player ([`server_bot_teams`] puts
+    /// N − 1 of them on the player's side). Every bot is in kits of its
+    /// match's equipment level ([`bots_gear_level`],
+    /// `session::v026g::bot_kits`). A match against bots counts towards no
+    /// player's map rotation. A clan match is on a map of the pool drawn at
     /// random.
     pub(super) fn launch(&mut self, match_id: u32) -> bool {
         let Some(formed) = self.store.matchmaking().formed_match(match_id) else {
@@ -946,7 +1015,7 @@ impl Core<'_> {
         // A room's match: the map its vote chose, the room's minimum and
         // whether it has a PIN (`rooms`).
         let room = self.room_launching.get(&match_id).copied();
-        let room_map = room.map(|(map_id, ..)| map_id);
+        let room_map = room.map(|room| room.map_id);
         let unix = quests::now();
         // Its players' levels, and their equipment levels (the bots').
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -984,12 +1053,20 @@ impl Core<'_> {
             })
             .collect();
         // The match server's own bots, after the players: against bots,
-        // 2N - 1 of them; none in any other match.
+        // 2N - 1 of them; a room's, its teams' (team 0's first); none in a
+        // clan match.
         let seat_teams: Vec<u8> = formed.seats.iter().map(|seat| seat.team).collect();
-        let bots = pvb.map_or(0, |choice| {
-            (2 * usize::from(choice.size)).saturating_sub(formed.seats.len())
-        });
-        let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
+        let bot_teams = match (pvb, room) {
+            (Some(choice), _) => {
+                let bots = (2 * usize::from(choice.size)).saturating_sub(formed.seats.len());
+                server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots)
+            }
+            (None, Some(room)) => [0_u8, 1]
+                .into_iter()
+                .flat_map(|team| std::iter::repeat_n(team, room.bots[usize::from(team)]))
+                .collect(),
+            (None, None) => Vec::new(),
+        };
         let bot_roles = server_bot_roles(&bot_teams);
         // Their kits: of the players' equipment level, the top players'.
         let bot_level = bots_gear_level(&gear_levels);
@@ -1034,8 +1111,8 @@ impl Core<'_> {
                 match_level,
                 players,
                 vs_bots: pvb.is_some(),
-                private: room.is_some_and(|(.., private)| private),
-                room_minimum: room.map(|(_, minimum, _)| minimum),
+                private: room.is_some_and(|room| room.private),
+                room_minimum: room.map(|room| room.minimum),
                 blackout: blackout.is_some(),
             }),
             None => Err("a seated player is unavailable or uses an incompatible client".to_owned()),
@@ -1116,8 +1193,15 @@ impl Core<'_> {
                         seats: formed
                             .seats
                             .iter()
-                            .map(|seat| (seat.player.session_id, seat.team))
-                            .chain(bot_teams.iter().map(|&team| (0, team)))
+                            .map(|seat| {
+                                (
+                                    Occupant::Player {
+                                        session_id: seat.player.session_id,
+                                    },
+                                    seat.team,
+                                )
+                            })
+                            .chain(bot_teams.iter().map(|&team| (Occupant::Bot, team)))
                             .collect(),
                         // A bot counts for the level of its gear, as a
                         // player of level 0 with no rating.
@@ -1237,9 +1321,9 @@ impl Core<'_> {
             running.map_id,
             running.seats.len()
         );
-        for (session_id, _) in &running.seats {
+        for session_id in running.seats.iter().filter_map(|(occupant, _)| occupant.session()) {
             // A session that ended during the match was kept for it.
-            self.store.seen_in_match(*session_id);
+            self.store.seen_in_match(session_id);
         }
         for addr in self.players() {
             let Some(player) = self.player_mut(addr) else {
@@ -1355,7 +1439,7 @@ impl Core<'_> {
             .get(&match_id)?
             .seats
             .iter()
-            .find(|(session, _)| *session == session_id)
+            .find(|(occupant, _)| occupant.session() == Some(session_id))
             .map(|(_, team)| *team)
     }
 }

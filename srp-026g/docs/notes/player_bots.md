@@ -449,7 +449,8 @@ Bots and late joiners: a roster place is never reused, so a joiner cannot
 take the bot's own place; the bot leaves (0xEA) and the joiner comes on a
 new place. Every place ever used counts toward the 20 of a match, so bots
 should fill a match to a modest size: with 20 places used, a bot leaving
-lets nobody in.
+lets nobody in. A room's bots (2026-10-26, §9) keep a place free for each
+bot for that reason.
 
 **Giving way** (built 2026-10-14; `SRP_BOTS_GIVE_WAY`, match server;
 **removed 2026-10-17** with the server's bots in PvP matches: a match
@@ -579,3 +580,35 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   `world_bytes` + `TacticsBase::memory_bytes`) are within 2 MB of these.
 - **CPU.** A 10 v 10 of bots costs 30-65 ms a second on the host's core
   (`player_bots_mapdata.md`), so five at once may take a third of it.
+
+## 9. A room's bots (2026-10-26)
+
+A room's "Bots per team" (0 to 3; the rules: `rooms.md`, "Bots per team"):
+its match starts with up to that many of the server's bots a team, in the
+places its players leave, and they give their places up to players and come
+back for them.
+
+- **The lobby** puts them after the players (team 0's first), with the kit
+  of their role (`play::server_bot`, the same as against bots), and keeps a
+  place of the match free for each (`matchmaking_policy::start_bots`,
+  `place_joiner`). The queue's roster has the players alone: the match's
+  places past the bots are mapped to it (`Running::place_of_seat`).
+- **The match server** (`game/driven.rs`, `room_bots`): a bot's place is a
+  `BotSeat` (waiting, in since a tick, out since a tick), changed by one
+  transition (`BotSeat::after`). Each team keeps the size it was made with,
+  players and bots together (`matchmaking_policy::bot_move`): a player more
+  takes a bot's place (the team's last bot by place leaves a tick after the
+  player's entry, after a drop press and a release), a player fewer brings
+  one of the team's bots back on its own place (0xE9 again). A change waits
+  until every game simulating played the bot's last change; a team that can
+  no longer respawn keeps its bots. The giving way of 2026-10-14 (below,
+  removed 2026-10-17) chose the bot by the bots' view and kept carriers; this
+  one lets any bot go, the carrier dropping its battery first.
+- **The bots** (`Bots::entered`): a bot that leaves is forgotten as before,
+  and its place waits as a bot anew (its kits' rounds kept), entering again
+  as at the start.
+- Tests: `match-server` `tests/room_bots.rs`, `bots/tests.rs`
+  `a_bot_that_left_is_forgotten_and_may_come_back`, lobby
+  `core_tests/room_bots_tests.rs`, `session` `matchmaking_policy` and the
+  rewards' `a_rooms_match_with_the_servers_bots_pays_as_one_against_bots`.
+- Not run with a real game.

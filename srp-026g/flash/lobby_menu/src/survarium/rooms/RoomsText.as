@@ -43,6 +43,10 @@ package survarium.rooms
                 "4 цифры; пусто: открытая комната", "4 Ziffern; leer: offener Raum", "4 cyfry; puste: pokój otwarty"],
             "minPlayers": ["Players to start", "Гравців для старту", "Игроков для старта", "Spieler zum Start",
                 "Graczy do startu"],
+            // The server's bots a team (the owner's of 2026-10-26): they fill
+            // the places players leave, and a player who comes takes one's.
+            "bots": ["Bots per team", "Ботів на команду", "Ботов на команду", "Bots pro Team", "Boty na drużynę"],
+            "noBots": ["None", "Немає", "Нет", "Keine", "Brak"],
             "voting": ["Map vote", "Голосування", "Голосование", "Kartenwahl", "Głosowanie"],
             "voteNow": ["Vote for the next map: click a card. The match starts on the winner when the time is up.",
                 "Голосуйте за наступну карту: клацніть картку. Коли час вийде, матч почнеться на переможниці.",

@@ -942,7 +942,7 @@ package survarium.rooms
             }
             else if (kind == "F")
             {
-                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>`,
+                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<bots>`,
                 // then `E;<chunk>;<bits>`: a pool entry's tile is in by its bit.
                 var bits:Array = [];
                 for (var fb:int = 1; fb < rows.length; fb++)
@@ -1033,6 +1033,7 @@ package survarium.rooms
                 _room = {"key": int(head[2]), "level": int(head[3]), "max": int(head[4]), "size": int(head[5]),
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
+                    "bots": head.length > 17 ? int(head[17]) : 0,
                     "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null};
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert

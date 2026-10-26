@@ -2538,9 +2538,12 @@ fn standing(time: u32, x: f32, alive: bool) -> Fix {
     }
 }
 
-/// A bot that left is forgotten by the others.
+/// A bot that left is forgotten by the others; its place waits as a bot
+/// anew, with what its kits have left, and plays again once it comes back
+/// (a room's bot gives its place up to a player and comes back when one
+/// leaves, `game/driven.rs`).
 #[test]
-fn a_bot_that_left_is_forgotten() {
+fn a_bot_that_left_is_forgotten_and_may_come_back() {
     use survarium::v026g::maps::mode;
     // A human of team 0 at x = 0; team 1's bots at 5, 40 and 30 m.
     let teams = [0, 1, 1, 1];
@@ -2551,7 +2554,7 @@ fn a_bot_that_left_is_forgotten() {
         0,
         &teams,
         &driven,
-        &[None; 4],
+        &[None, None, None, Some("flanker")],
         Arc::new(Tuning::default()),
         Trace::none(0),
     );
@@ -2561,10 +2564,13 @@ fn a_bot_that_left_is_forgotten() {
     for (place, x) in [0.0, 5.0, 40.0, 30.0].into_iter().enumerate() {
         bots.fixed(place, standing(1_000, x, true), Some(1.0));
     }
-    // Bot 3 leaves: it is forgotten, and no partner of anyone.
+    // Bot 3 leaves: it is forgotten, and no partner of anyone; its place a
+    // bot's that has not entered, its rounds kept.
     bots.bots[1].as_mut().unwrap().partner = Some(3);
+    bots.bots[3].as_mut().unwrap().kits[0].1 = 7;
     bots.entered(3, false, 6_000);
-    assert!(!bots.is_bot(3) && bots.is_bot(1));
+    assert!(bots.is_bot(3) && !bots.has_entered(3) && bots.is_bot(1));
+    assert_eq!(bots.bots[3].as_ref().unwrap().kits[0].1, 7);
     assert_eq!(bots.bots[1].as_ref().unwrap().partner, None);
     assert!(
         !bots
@@ -2589,6 +2595,10 @@ fn a_bot_that_left_is_forgotten() {
         playing: true,
     });
     assert!(made.iter().all(|made| made.place != 3));
+    // It comes back on its place.
+    bots.entered(3, true, 9_000);
+    assert!(bots.has_entered(3));
+    assert_eq!(bots.bots[3].as_ref().unwrap().kits[0].1, 7);
 }
 
 /// The world's HUD mask reaches the teams' knowledge (`WorldFacts::marks`

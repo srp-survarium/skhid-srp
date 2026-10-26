@@ -141,6 +141,54 @@ pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
 /// in the game (`limits::NAME` is the buffer's).
 const ROW_NAME: usize = 32;
 
+/// The server's bots a room's match starts with on each team, at most
+/// (the owner's of 2026-10-26: "it should be possible in lobby to add up to
+/// 3 vs 3 bots, which will be replaced with real players once those join"):
+/// 0 to [`BotsPerTeam::MAX`]. They take only places its players do not
+/// have, and a player who comes takes a bot's place (`rooms.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BotsPerTeam(u8);
+
+impl BotsPerTeam {
+    /// No bots: what a room had before the setting.
+    pub const NONE: Self = Self(0);
+    /// The most a team takes.
+    pub const MAX: Self = Self(3);
+
+    /// `count` bots a team, if it is one a room may have.
+    pub const fn new(count: u8) -> Option<Self> {
+        if count <= Self::MAX.0 {
+            Some(Self(count))
+        } else {
+            None
+        }
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+
+    /// The count as places of a team.
+    pub const fn places(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl std::fmt::Display for BotsPerTeam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// The create codes of one count of bots: as many as the other fields have
+/// ([`create_start`]). A movie from before the setting sends only the first
+/// of these: a room of no bots.
+pub const CREATE_BOTS_STEP: u32 = (*SIZES.end() - *SIZES.start() + 1) as u32
+    * 16
+    * WAITS.len() as u32
+    * 2
+    * (*MIN_SIDES.end() - *MIN_SIDES.start() + 1) as u32;
+
 /// What a room is made with (the create window).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RoomSpec {
@@ -156,6 +204,8 @@ pub struct RoomSpec {
     /// The players a side it needs before its vote begins, one of
     /// [`MIN_SIDES`].
     pub min_side: u8,
+    /// The server's bots its match starts with on each team, at most.
+    pub bots: BotsPerTeam,
 }
 
 /// A room request, by its start.
@@ -217,9 +267,11 @@ pub enum RoomRequest {
     Create(RoomSpec),
 }
 
-/// The code of a create: `((((size − 6) × 16 + max level) × 10 + wait index)
-/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one. A room has no level of its
-/// own to make: the server works it out from its players.
+/// The code of a create: `bots × CREATE_BOTS_STEP + ((((size − 6) × 16 + max
+/// level) × 10 + wait index) × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when
+/// joining asks for one, the bots a team at the top ([`CREATE_BOTS_STEP`]).
+/// A room has no level of its own to make: the server works it out from its
+/// players.
 pub fn create_start(spec: RoomSpec) -> u32 {
     let wait = WAITS
         .iter()
@@ -230,7 +282,7 @@ pub fn create_start(spec: RoomSpec) -> u32 {
     let min_side =
         u32::from(spec.min_side.clamp(*MIN_SIDES.start(), *MIN_SIDES.end()) - MIN_SIDES.start());
     let code = (((size * 16 + max_level) * 10 + wait) * 2 + u32::from(spec.pin)) * 3 + min_side;
-    ROOM_CREATE_BASE + code
+    ROOM_CREATE_BASE + u32::from(spec.bots.get()) * CREATE_BOTS_STEP + code
 }
 
 /// The start of a kick of the member at `place` of a state of `serial`.
@@ -336,6 +388,8 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         }
         _ if start >= ROOM_CREATE_BASE => {
             let code = start - ROOM_CREATE_BASE;
+            let bots = BotsPerTeam::new(u8::try_from(code / CREATE_BOTS_STEP).ok()?)?;
+            let code = code % CREATE_BOTS_STEP;
             let min_side = MIN_SIDES.start() + (code % 3) as u8;
             let code = code / 3;
             let pin = code % 2 == 1;
@@ -352,6 +406,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
                 wait,
                 pin,
                 min_side,
+                bots,
             })
         }
         _ => return None,
@@ -542,6 +597,8 @@ pub struct RoomView {
     /// side (0, 1), in the order of [`Self::members`]; none for an open
     /// room (its sides are drawn at the start).
     pub teams: Option<Vec<u8>>,
+    /// The server's bots its match starts with on each team, at most.
+    pub bots: BotsPerTeam,
 }
 
 /// Why a member waiting in its room cannot go into the room's match being
@@ -593,6 +650,7 @@ pub struct RoomForm {
     pub max_level: u8,
     /// One of [`WAITS`].
     pub wait: u8,
+    pub bots: BotsPerTeam,
     /// By the pool's entries ([`room_pool`]'s order): the entry's map and
     /// weather (its tile in the window) are in. An entry is in the pool made
     /// when its tile is in and its mode is not in [`Self::modes_off`].
@@ -692,9 +750,10 @@ pub fn room_list(
 ///   the full room whose queue it waits in and its place there, 1 the
 ///   first; 0 and 0 when it waits in none);
 /// - in one: `S1;R;<key>;<level>;<max level>;<size>;<wait>;<phase>;<secs>;<owner>;
-///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>` (`code`
-///   as above: why a join of another room, or a room made, left it in this
-///   one), then a row a card, `C;<i>;<map_id>;
+///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>;<bots>`
+///   (`code` as above: why a join of another room, or a room made, left it
+///   in this one; `bots` the server's bots a team its match starts with, at
+///   most, [`BotsPerTeam`]), then a row a card, `C;<i>;<map_id>;
 ///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
@@ -721,7 +780,7 @@ pub fn room_state(
     at_most("room cards", room.cards.len(), CARDS)?;
     at_most("room members", room.members.len(), MEMBERS_MAX)?;
     let mut names = vec![format!(
-        "{ROOMS_VERSION};R;{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}",
+        "{ROOMS_VERSION};R;{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}",
         room.key,
         room.level,
         room.max_level,
@@ -736,7 +795,8 @@ pub fn room_state(
         u8::from(room.pin),
         room.next_map,
         room.min_players,
-        code as u8
+        code as u8,
+        room.bots
     )];
     names.extend(room.cards.iter().enumerate().map(|(index, card)| {
         format!(
@@ -859,9 +919,9 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
 }
 
 /// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
-/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
-/// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
-/// out, `,` between them, empty for none), then a row a chunk of 20 entries
+/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<bots>`
+/// (`saved` 1: the asker's own settings, 0: the defaults; `modes off` the
+/// modes left out, `,` between them, empty for none; `bots` a team), then a row a chunk of 20 entries
 /// of the pool, `E;<chunk>;<bits>`: entry `chunk × 20 + b`'s tile is in by
 /// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
 pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
@@ -872,13 +932,14 @@ pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
 fn form_names(form: &RoomForm) -> Vec<String> {
     let modes: Vec<String> = form.modes_off.iter().map(u8::to_string).collect();
     let mut names = vec![format!(
-        "{ROOMS_VERSION};F;{};{};{};{};{};{}",
+        "{ROOMS_VERSION};F;{};{};{};{};{};{};{}",
         u8::from(form.saved),
         form.size,
         form.min_side,
         form.max_level,
         form.wait,
-        modes.join(",")
+        modes.join(","),
+        form.bots
     )];
     let chunk = BITS_PER_CHUNK as usize;
     let chunks = form.tiles_on.len().div_ceil(chunk).max(1);
@@ -1102,21 +1163,56 @@ mod tests {
                 for wait in WAITS {
                     for pin in [false, true] {
                         for min_side in MIN_SIDES {
-                            let spec = RoomSpec {
-                                size,
-                                max_level,
-                                wait,
-                                pin,
-                                min_side,
-                            };
-                            let start = create_start(spec);
-                            assert!(start <= ROOMS_LAST);
-                            assert_eq!(room_request(start, 1), Some(RoomRequest::Create(spec)));
+                            for bots in 0..=BotsPerTeam::MAX.get() {
+                                let spec = RoomSpec {
+                                    size,
+                                    max_level,
+                                    wait,
+                                    pin,
+                                    min_side,
+                                    bots: BotsPerTeam::new(bots).unwrap(),
+                                };
+                                let start = create_start(spec);
+                                assert!(start <= ROOMS_LAST);
+                                assert_eq!(
+                                    room_request(start, 1),
+                                    Some(RoomRequest::Create(spec))
+                                );
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// The bots a team are the code's top: a movie from before the setting
+    /// sends a room of none, and more than [`BotsPerTeam::MAX`] is no
+    /// create.
+    #[test]
+    fn a_create_codes_bots_sit_above_the_other_fields() {
+        let spec = RoomSpec {
+            size: *SIZES.end(),
+            max_level: LEVEL_MAX,
+            wait: 60,
+            pin: true,
+            min_side: *MIN_SIDES.end(),
+            bots: BotsPerTeam::NONE,
+        };
+        // The largest code of no bots is the one before the first of one.
+        assert_eq!(create_start(spec) + 1, ROOM_CREATE_BASE + CREATE_BOTS_STEP);
+        assert_eq!(CREATE_BOTS_STEP, 4800);
+        let two = RoomSpec {
+            bots: BotsPerTeam::new(2).unwrap(),
+            ..spec
+        };
+        assert_eq!(create_start(two), create_start(spec) + 2 * CREATE_BOTS_STEP);
+        assert_eq!(
+            room_request(ROOM_CREATE_BASE + 4 * CREATE_BOTS_STEP, 1),
+            None
+        );
+        assert_eq!(BotsPerTeam::new(4), None);
+        assert_eq!(BotsPerTeam::new(3), Some(BotsPerTeam::MAX));
     }
 
     #[test]
@@ -1131,12 +1227,13 @@ mod tests {
             min_side: 2,
             max_level: 7,
             wait: 45,
+            bots: BotsPerTeam::new(2).unwrap(),
             tiles_on,
             modes_off: vec![3, 4],
         };
         assert_eq!(
             form_names(&form),
-            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+            ["S1;F;1;9;2;7;45;3,4;2", "E;0;524293", "E;1;5"]
         );
         assert!(room_form(&form).is_ok());
         // No pool: one chunk all the same; no mode out: an empty field.
@@ -1146,7 +1243,7 @@ mod tests {
             modes_off: Vec::new(),
             ..form
         };
-        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;;2", "E;0;0"]);
         // More entries than a create can name: refused.
         let form = RoomForm {
             tiles_on: vec![true; POOL_BITS + 1],

@@ -80,7 +80,10 @@
 //!   from them; reputation, the drop and the pay of a level reached are as
 //!   in any match. It counts for no quest and no daily bonus, and, as every
 //!   match with a bot of the server's, moves no rating and no balance
-//!   rating.
+//!   rating. A room's match with the server's bots in it (its "Bots per
+//!   team", the owner's of 2026-10-26) pays the same
+//!   ([`MatchResult::against_bots`]): its bots are kills and batteries a
+//!   player did not have to take from players.
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
@@ -311,6 +314,15 @@ pub struct MatchResult {
 pub const BLACKOUT_FACTOR: f64 = 2.0;
 
 impl MatchResult {
+    /// Its players faced the server's bots: a match against bots
+    /// ([`Self::vs_bots`]), or a room's match a bot of the server's played
+    /// in (a row of one, [`PlayerResult::driven`]). It pays as a match
+    /// against bots: [`Terms::pvb_pay`] of its silver and experience, no
+    /// quest, no daily bonus.
+    pub fn against_bots(&self) -> bool {
+        self.vs_bots || self.players.iter().any(|player| player.driven)
+    }
+
     /// The result with each account's latest place only: a player that
     /// left the match by its own word and came into it again is a new
     /// place, and the place it left counts for nothing, as if it was not
@@ -1864,7 +1876,7 @@ impl<'a> Shared<'a> {
         // match against the server's bots pays a share of the silver and
         // the experience (`SRP_PVB_PAY`): of every cell, so of the premium
         // half and the items' bonus too, which are counted from them.
-        let vs_bots = self.result.vs_bots;
+        let vs_bots = self.result.against_bots();
         let pvb_pay = if vs_bots {
             self.terms.pvb_pay.clamp(0.0, 1.0)
         } else {

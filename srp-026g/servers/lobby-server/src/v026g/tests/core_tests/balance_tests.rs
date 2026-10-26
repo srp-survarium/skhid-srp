@@ -99,7 +99,7 @@ fn strengths_in_a_match(world: &mut World) -> [i32; 2] {
         let place = running
             .seats
             .iter()
-            .position(|(session_id, _)| *session_id == world.ids[player].1)
+            .position(|(occupant, _)| occupant.session() == Some(world.ids[player].1))
             .unwrap();
         running.strengths[place]
     })

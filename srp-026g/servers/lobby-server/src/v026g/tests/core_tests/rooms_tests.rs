@@ -14,6 +14,8 @@ use survarium::v026g::lobby::rooms::{
 use super::pvb_tests::with_gear;
 use super::*;
 use crate::v026g::LiveView;
+use crate::v026g::play::Occupant;
+use survarium::v026g::lobby::rooms::BotsPerTeam;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
 /// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>;<next map>;
@@ -43,12 +45,12 @@ pub(super) fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Ve
     rows.iter().map(|(name, _)| name.clone()).collect()
 }
 
-fn state(world: &mut World, index: usize) -> Vec<String> {
+pub(super) fn state(world: &mut World, index: usize) -> Vec<String> {
     rows(world, index, ROOM_STATE, 1)
 }
 
 /// The fields of the state's header.
-fn header(state: &[String]) -> Vec<String> {
+pub(super) fn header(state: &[String]) -> Vec<String> {
     state[0].split(';').map(str::to_owned).collect()
 }
 
@@ -60,6 +62,7 @@ pub(super) fn spec(size: u8) -> RoomSpec {
         max_level: 0,
         wait: 15,
         pin: false,
+        bots: BotsPerTeam::NONE,
     }
 }
 
@@ -106,7 +109,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(
         alone[0],
         format!(
-            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2;0",
+            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2;0;0",
             world.core.settings.maps.len()
         )
     );
@@ -1167,6 +1170,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
             max_level: 3,
             wait: 45,
             pin: false,
+            bots: BotsPerTeam::NONE,
         },
         Some(1234),
     );
@@ -1221,6 +1225,7 @@ fn the_create_window_start_is_there_from_the_sign_in() {
         max_level: 0,
         wait: 60,
         pin: false,
+        bots: BotsPerTeam::NONE,
     };
     let key = create(&mut world, alice, made_spec, None);
     let made = (
@@ -1381,7 +1386,10 @@ fn room_match_of_four(world: &mut World) -> (u32, u32, u32, [usize; 4]) {
 fn seat_of(world: &World, id: u32, player: usize) -> (usize, u8) {
     let session = world.ids[player].1;
     let seats = &world.core.matches[&id].seats;
-    let place = seats.iter().position(|&(s, _)| s == session).unwrap();
+    let place = seats
+        .iter()
+        .position(|&(s, _)| s.session() == Some(session))
+        .unwrap();
     (place, seats[place].1)
 }
 
@@ -1415,7 +1423,7 @@ fn leave_and_come_back(
     assert_eq!(sent, ticket);
     let seats = &world.core.matches[&id].seats;
     assert_eq!(seats.len(), 5);
-    assert_eq!(seats[4].0, world.ids[player].1);
+    assert_eq!(seats[4].0.session(), Some(world.ids[player].1));
     seats[4].1
 }
 
@@ -1468,7 +1476,7 @@ fn one_who_comes_back_goes_to_the_side_with_fewer_players_whatever_its_team() {
 }
 
 /// The `J` row of a state: `J;<seconds>`, or `J;-1;<why>`.
-fn join_row(state: &[String]) -> Option<&str> {
+pub(super) fn join_row(state: &[String]) -> Option<&str> {
     state
         .iter()
         .find(|row| row.starts_with("J;"))
@@ -1521,7 +1529,12 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
             for n in 0..more {
                 running
                     .seats
-                    .push((9000 + u32::from(team) * 100 + n as u32, team));
+                    .push((
+                        Occupant::Player {
+                            session_id: 9000 + u32::from(team) * 100 + n as u32,
+                        },
+                        team,
+                    ));
                 running.strengths.push(0);
                 running.names.push(String::new());
             }
@@ -1972,7 +1985,7 @@ fn private_room(world: &mut World, count: usize) -> (u32, Vec<usize>) {
 
 /// The asker presses Start in its room: what it is sent (its state; "match
 /// found" too when its match is made).
-fn press_start(world: &mut World, index: usize) -> Vec<Decoded> {
+pub(super) fn press_start(world: &mut World, index: usize) -> Vec<Decoded> {
     let addr = world.clients[index].0;
     let now = world.now;
     world.core.handle(
@@ -2102,7 +2115,7 @@ fn a_private_rooms_1_v_0_takes_a_late_joiner_on_its_empty_side() {
 }
 
 /// A private room's teams as its state tells them (`A;<sides>`).
-fn arrangement(world: &mut World, index: usize) -> String {
+pub(super) fn arrangement(world: &mut World, index: usize) -> String {
     let state = state(world, index);
     state
         .iter()
@@ -2113,7 +2126,7 @@ fn arrangement(world: &mut World, index: usize) -> String {
 
 /// The owner moves the member at `place` to the other team, from the state
 /// it has now.
-fn move_member(world: &mut World, owner: usize, place: u8) -> String {
+pub(super) fn move_member(world: &mut World, owner: usize, place: u8) -> String {
     let serial: u32 = header(&state(world, owner))[SERIAL].parse().unwrap();
     rows(world, owner, move_start(place, serial), 1);
     arrangement(world, owner)
@@ -2191,7 +2204,14 @@ fn late_teams(world: &mut World, ticket: u32, id: u32, games: &[usize]) -> Vec<u
             assert_eq!(sent, ticket);
             let session = world.ids[game].1;
             let seats = &world.core.matches[&id].seats;
-            teams.push(seats.iter().rev().find(|(s, _)| *s == session).unwrap().1);
+            teams.push(
+                seats
+                    .iter()
+                    .rev()
+                    .find(|(s, _)| s.session() == Some(session))
+                    .unwrap()
+                    .1,
+            );
             false
         });
         if left.is_empty() {
