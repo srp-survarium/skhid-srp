@@ -57,7 +57,7 @@ impl Bots {
         if bench_camper(&due, bot, &mut self.bench_camper) {
             return;
         }
-        let Some(step_name) = decide(&due, bot, state, &self.memo, notes) else {
+        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.weapons, notes) else {
             return;
         };
         // [traps] A bot that carries traps may start to put one down.
@@ -421,7 +421,7 @@ pub(super) fn react(
         team: Some(&state.knowledge),
         side: bot.side,
         partner: bot.partner,
-        weapon: reflex::WeaponKind::of_role(&bot.personality(tuning).name),
+        weapon: bot.weapon(weapons, tuning),
         weapons,
     };
     bot.reflex
@@ -553,6 +553,7 @@ pub(super) fn decide(
     bot: &mut Bot,
     state: &mut TeamState,
     memo: &plays::memo::Memo,
+    weapons: &[Option<reflex::WeaponKind>],
     notes: &mut Vec<Note>,
 ) -> Option<String> {
     let Due {
@@ -577,6 +578,7 @@ pub(super) fn decide(
         me,
         bot: BotFacts {
             personality: bot.personality(tuning),
+            weapon: bot.weapon(weapons, tuning),
             side: bot.side,
             current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
             last_ran: &bot.last_ran,
@@ -681,6 +683,29 @@ mod phase_tests {
         bot.entered = entered;
         bot.next_think = next_think;
         (bot, tuning)
+    }
+
+    /// The kind of a bot's weapon 1 is the one its place was given (the kit it
+    /// wears), not its role's name: an SMG rusher plays the SMG band
+    /// ([`reflex::Situation::weapon`] feeds `preferred_band`); a place with
+    /// none known falls back to the role's.
+    #[test]
+    fn an_smg_rusher_is_an_smg_whatever_its_role_is_called() {
+        let tuning = Tuning::default();
+        let rusher = Bot::new(1, 3, 0, Some("rusher"), &tuning);
+        assert_eq!(tuning.personalities[rusher.personality].name, "rusher");
+        let mut weapons = vec![None; 4];
+        assert_eq!(
+            rusher.weapon(&weapons, &tuning),
+            Some(reflex::WeaponKind::Shotgun),
+            "unknown: the role's"
+        );
+        weapons[3] = Some(reflex::WeaponKind::Smg);
+        let kind = rusher.weapon(&weapons, &tuning);
+        assert_eq!(kind, Some(reflex::WeaponKind::Smg));
+        let c = &tuning.aim.combat;
+        assert_eq!(c.band(kind.unwrap()), c.band(reflex::WeaponKind::Smg));
+        assert_ne!(c.band(kind.unwrap()), c.band(reflex::WeaponKind::Shotgun));
     }
 
     #[test]

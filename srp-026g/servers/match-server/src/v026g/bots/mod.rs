@@ -80,7 +80,7 @@ mod think;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -330,7 +330,7 @@ impl Bot {
         // What it carries: its role's gear (the lowest tier's until
         // `Bots::with_tiers` says another), else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits = Self::kits_of(role, BotTier::Low);
+        let kits = Self::kits_of(role, BotEquipment::of(BotTier::Low, RusherKits::default()));
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
                 .personalities
@@ -438,21 +438,21 @@ impl Bot {
         }
     }
 
-    /// The kits of a bot of `role` (a personality's name) in `tier`, each
-    /// with its whole storage; none for no role.
-    fn kits_of(role: Option<&str>, tier: BotTier) -> Vec<(&'static guns::Arms, u32)> {
+    /// The kits of a bot of `role` (a personality's name) with `equipment`,
+    /// each with its whole storage; none for no role.
+    fn kits_of(role: Option<&str>, equipment: BotEquipment) -> Vec<(&'static guns::Arms, u32)> {
         role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role))
-            .map(|role| guns::Arms::kits_of(tier, role))
+            .map(|role| guns::Arms::kits_of(equipment, role))
             .unwrap_or_default()
             .into_iter()
             .map(|arms| (arms, arms.reserve))
             .collect()
     }
 
-    /// Its kits are those of `tier` (its role's): each full, the first in
-    /// hand. For a bot made before its life begins.
-    fn arm(&mut self, tier: BotTier) {
-        let kits = Self::kits_of(self.role.map(BotRole::name), tier);
+    /// Its kits are those of `equipment` (its role's): each full, the first
+    /// in hand. For a bot made before its life begins.
+    fn arm(&mut self, equipment: BotEquipment) {
+        let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
         }
@@ -546,6 +546,21 @@ impl Bot {
 
     fn personality<'t>(&self, tuning: &'t Tuning) -> &'t tuning::Personality {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
+    }
+
+    /// The kind of its weapon 1: the one the match gave its place
+    /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
+    /// personality's name as a role (the tests' bots, whose place has none).
+    fn weapon(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+    ) -> Option<reflex::WeaponKind> {
+        weapons
+            .get(self.place)
+            .copied()
+            .flatten()
+            .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
     }
 
     /// The commander gave it play `next`: the running play stops, and its
@@ -780,19 +795,25 @@ impl Bots {
         self
     }
 
-    /// The tier of each bot's gear (`tiers[place]`, read from its profile:
-    /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
-    /// that tier (`Bots::new` gives the lowest tier's), and the skill
-    /// starts at the highest of them ([`Bots::with_tier`]; the lobby gives
-    /// a match's bots one tier). Before play.
-    pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
-        for (bot, tier) in self.bots.iter_mut().zip(tiers) {
-            if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
-                bot.arm(*tier);
+    /// The equipment of each bot's gear (`equipments[place]`, read from its
+    /// profile: `survarium::v026g::loadouts::bot_equipment_of`): its kits
+    /// are its role's of that tier and of the kit that tier's rusher wears
+    /// (`Bots::new` gives the lowest tier's), and the skill starts at the
+    /// highest tier among them ([`Bots::with_tier`]; the lobby gives a
+    /// match's bots one tier). Before play.
+    pub fn with_tiers(mut self, equipments: &[Option<BotEquipment>]) -> Self {
+        for (bot, equipment) in self.bots.iter_mut().zip(equipments) {
+            if let (Some(bot), Some(equipment)) = (bot.as_mut(), equipment) {
+                bot.arm(*equipment);
             }
         }
-        match tiers.iter().flatten().max() {
-            Some(&tier) => self.with_tier(tier),
+        match equipments
+            .iter()
+            .flatten()
+            .map(|equipment| equipment.tier)
+            .max()
+        {
+            Some(tier) => self.with_tier(tier),
             None => self,
         }
     }
