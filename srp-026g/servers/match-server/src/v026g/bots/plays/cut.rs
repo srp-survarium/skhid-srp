@@ -322,6 +322,7 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
                 .copied()
                 .filter(|spot| {
                     cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
+                        && !cx.spot_taken(*spot, super::goals::APART_M)
                         && cx.can_go(*spot)
                         && !cx.exposed_climb(*spot, at)
                 })

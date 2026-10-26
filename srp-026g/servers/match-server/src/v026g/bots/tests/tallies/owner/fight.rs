@@ -417,7 +417,7 @@ pub(crate) fn the_counts_class_ranges_are_the_tunings_defaults() {
 }
 
 /// The living enemy of the body at `place` (of `team`) that `t` is, if it is one.
-fn enemy_of(game: &Game, place: Place, team: u8, t: Place) -> Option<&super::super::Body> {
+pub(super) fn enemy_of(game: &Game, place: Place, team: u8, t: Place) -> Option<&super::super::Body> {
     game.bodies
         .get(t)
         .filter(|b| t != place && b.alive && b.team != team)

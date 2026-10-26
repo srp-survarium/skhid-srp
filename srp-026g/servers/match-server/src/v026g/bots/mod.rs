@@ -230,6 +230,9 @@ pub struct Bot {
     /// Plays that failed at once at a target, and until when they are not
     /// taken there again (`plays::SET_ASIDE_MS`).
     set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
+    /// What it remembers of giving way to a teammate on a spot
+    /// ([`plays::goals::keep_apart`]).
+    apart: plays::goals::Apart,
     /// Stands its takes of batteries gave up at lately
     /// (`plays::collect::FailedStand`): its next take stands elsewhere.
     failed_stands: Vec<plays::collect::FailedStand>,
@@ -333,6 +336,7 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             set_aside: Vec::new(),
+            apart: Default::default(),
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
@@ -695,6 +699,7 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
+        tactics.escape_ceiling = self.tuning.escape_ceiling;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);

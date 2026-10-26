@@ -37,6 +37,21 @@
 //!    that lists a death threshold (`thresholds[].value 0` affecting 0:
 //!    body, head, pain, infection) kills at 0. PROVEN (code), the death
 //!    threshold LIKELY.
+//! 5. A grenade's blast ([`SplashParams`], [`BodyParams::hits_taken`]): in
+//!    the world's blast (0x339630) every player within `splash_radius` of the
+//!    blast takes, linearly in its distance `d` from the blast (the origin of
+//!    its transform), `min + (max − min) (R − d) / R`; for each body part the
+//!    grenade's `splash_affected_bodies` lists (indices into the human body's
+//!    part list) that amount, times what a ray from the part to the blast
+//!    keeps through walls ([`wall_share`], 0x3393f0, the power
+//!    `splash_pierce`), is **one hit of the grenade's `splash_damage_type`
+//!    with armour piercing 1.0** (the very argument layout of the bullet's
+//!    hit call, 0x32DA0D..0x32DA3A: PROVEN), so no armour holds against it
+//!    (every armour is below 1). A pool is hit directly or through the box's
+//!    `bdb_coeff`s, and a pool takes from one initiator only the largest of
+//!    its hits (`hit_by_type`'s list, DAMAGE-FORMULA step 15f: PROVEN code,
+//!    that the grenade is one initiator LIKELY). That the part indices are
+//!    the human body's own: LIKELY.
 
 use std::sync::OnceLock;
 
@@ -346,6 +361,130 @@ pub fn derive_armour(
     Ok(rows)
 }
 
+/// What a wall keeps of a blast or a bullet of power `power` (a bullet's
+/// `arp`, a blast's `splash_pierce`): `1 − (1 − clamp(power / resistance − 1,
+/// 0, 1))²`; a wall of resistance 0 keeps all (`try_pierce` 0x32D960 for
+/// bullets, 0x3393f0 for blasts: PROVEN).
+pub fn wall_share(power: f32, resistance: f32) -> f32 {
+    if resistance == 0.0 {
+        return 1.0;
+    }
+    let c = (power / resistance - 1.0).clamp(0.0, 1.0);
+    1.0 - (1.0 - c) * (1.0 - c)
+}
+
+/// A grenade's blast: `data/splash_*` of its config (the reader of the blast,
+/// `splash_parameters` 0x30A350).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SplashParams {
+    pub name: &'static str,
+    /// `splash_radius`, metres.
+    pub radius: f32,
+    /// `splash_max_damage` at the blast, `splash_min_damage` at the radius:
+    /// shares of a pool's health, before the pools' own coefficients.
+    pub max_damage: f32,
+    pub min_damage: f32,
+    /// `splash_pierce`: the power the blast has to get through walls.
+    pub pierce: f32,
+    /// `splash_damage_type` (`explosive`).
+    pub damage_type: String,
+    /// `splash_affected_bodies`: indices into [`BodyParams::parts`].
+    pub affected: Vec<usize>,
+}
+
+impl SplashParams {
+    /// From an item's config; `None` for one with no `data/splash_radius`.
+    pub fn from_config(
+        name: &'static str,
+        config: &ConfigValue,
+    ) -> Result<Option<Self>, ConfigError> {
+        let Some(data) = config.get("data") else {
+            return Ok(None);
+        };
+        if data.get("splash_radius").is_none() {
+            return Ok(None);
+        }
+        let number = |key: &str| -> Result<f32, ConfigError> {
+            data.req(key)?
+                .as_f32()
+                .ok_or_else(|| ConfigError(format!("`data.{key}` is not a number")))
+        };
+        let affected = data
+            .get("splash_affected_bodies")
+            .map(|list| {
+                list.children()
+                    .iter()
+                    .map(|v| {
+                        v.as_i32()
+                            .and_then(|i| usize::try_from(i).ok())
+                            .ok_or_else(|| {
+                                ConfigError("`data.splash_affected_bodies` holds a non-index".into())
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
+        Ok(Some(Self {
+            name,
+            radius: number("splash_radius")?,
+            max_damage: number("splash_max_damage")?,
+            min_damage: number("splash_min_damage")?,
+            pierce: data
+                .get("splash_pierce")
+                .and_then(ConfigValue::as_f32)
+                .unwrap_or(0.0),
+            damage_type: data
+                .get("splash_damage_type")
+                .and_then(ConfigValue::as_str)
+                .unwrap_or("explosive")
+                .to_owned(),
+            affected,
+        }))
+    }
+
+    /// The amount a player `distance` metres from the blast takes before
+    /// walls; `None` beyond the radius.
+    pub fn amount_at(&self, distance: f32) -> Option<f32> {
+        let f = (self.radius - distance) / self.radius;
+        (f >= 0.0).then_some(self.min_damage + (self.max_damage - self.min_damage) * f)
+    }
+}
+
+impl BodyParams {
+    /// The pools that hits on body parts take, as `hit_by_type` and
+    /// `apply_damage` work them for one initiator: `hits` are `(part index,
+    /// amount)`; a hit on a pool takes the amount from it, a hit on a box
+    /// takes `coefficient × amount` after the box's armour from each pool it
+    /// feeds (`armor(box)` against `arp`), and a pool takes only the largest
+    /// of the hits it gets from the one initiator. Returns `(pool, damage)`.
+    pub fn hits_taken(
+        &self,
+        hits: &[(usize, f32)],
+        arp: f32,
+        armor: &dyn Fn(&str) -> f32,
+    ) -> Vec<(String, f32)> {
+        let mut taken: Vec<(String, f32)> = Vec::new();
+        let mut take = |pool: &str, amount: f32| match taken.iter_mut().find(|(name, _)| name == pool) {
+            Some((_, most)) => *most = most.max(amount),
+            None => taken.push((pool.to_owned(), amount)),
+        };
+        for &(index, amount) in hits {
+            let Some(part) = self.parts.get(index) else {
+                continue;
+            };
+            let amount = after_armour(amount, arp, armor(&part.name).max(part.armor));
+            if part.feeds.is_empty() && part.health > 0.0 {
+                take(&part.name, amount);
+            }
+            for (pool, c) in &part.feeds {
+                take(pool, c * amount);
+            }
+        }
+        taken
+    }
+}
+
 /// Every ammunition of the game data, read once.
 pub fn ammo() -> &'static [AmmoParams] {
     static SHARED: OnceLock<Vec<AmmoParams>> = OnceLock::new();
@@ -372,6 +511,25 @@ pub fn armour() -> &'static [ArmourParams] {
 /// The armour item named `name` (`items_dict`).
 pub fn armour_named(name: &str) -> Option<&'static ArmourParams> {
     armour().iter().find(|item| item.name == name)
+}
+
+/// The blast of the grenade named `name` (`items_dict`), read once for all.
+pub fn splash_named(name: &str) -> Option<&'static SplashParams> {
+    static SHARED: OnceLock<Vec<SplashParams>> = OnceLock::new();
+    SHARED
+        .get_or_init(|| {
+            let data = super::game_data::shared();
+            Dictionary::shared()
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let config = super::game_data::config(data, &item.cfg_name).ok()??;
+                    SplashParams::from_config(&item.name, &config).ok()?
+                })
+                .collect()
+        })
+        .iter()
+        .find(|splash| splash.name == name)
 }
 
 /// The human body of the game data, read once.
@@ -530,6 +688,56 @@ mod tests {
             }
         }
         println!("{} ammo, {} armour, {} weapons", ammo.len(), armour.len(), weapons.len());
+    }
+
+    /// The RGD-5's blast: 10 m, 1.3 at the blast to 0.05 at the radius, linear; power
+    /// 0.15; explosive; the body parts 6, 0, 1, 7, 11, 12 (right leg, body, back, left leg,
+    /// left foot, right arm).
+    #[test]
+    fn the_grenades_blast_is_read_from_its_config() {
+        let rgd = splash_named("rgd-5").unwrap();
+        assert_eq!((rgd.radius, rgd.max_damage, rgd.min_damage), (10.0, 1.3, 0.05));
+        assert!(near(rgd.pierce, 0.15) && rgd.damage_type == "explosive");
+        let body = human();
+        let names: Vec<_> = rgd.affected.iter().map(|&i| body.parts[i].name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["right_leg", "body", "back", "left_leg", "left_foot", "right_arm"]
+        );
+        assert!(near(rgd.amount_at(0.0).unwrap(), 1.3) && near(rgd.amount_at(10.0).unwrap(), 0.05));
+        assert!(near(rgd.amount_at(5.0).unwrap(), 0.675) && rgd.amount_at(10.1).is_none());
+        assert!(splash_named("ak_74u").is_none());
+    }
+
+    /// A wall keeps `1 − (1 − clamp(power / resistance − 1, 0, 1))²`: a wall of twice the
+    /// power stops it, one of half the power's resistance passes it all, 0 keeps all.
+    #[test]
+    fn a_wall_keeps_what_the_power_beats() {
+        assert_eq!(wall_share(0.15, 0.30), 0.0);
+        assert_eq!(wall_share(0.15, 0.075), 1.0);
+        assert!(near(wall_share(0.15, 0.1), 0.75));
+        assert_eq!(wall_share(0.15, 0.0), 1.0);
+    }
+
+    /// One blast of 0.8 on the parts of the RGD-5: the body pool takes the largest of the body
+    /// part's and the back's 0.8, pain the largest of the back's, the foot's and the arm's
+    /// (0.8, not the sum); a leg pool its own part's; armour does not help (arp 1.0).
+    #[test]
+    fn a_blast_takes_each_pool_its_largest_hit() {
+        let body = human();
+        let rgd = splash_named("rgd-5").unwrap();
+        let hits: Vec<_> = rgd.affected.iter().map(|&i| (i, 0.8)).collect();
+        let taken = body.hits_taken(&hits, 1.0, &|_| 0.9);
+        let of = |pool: &str| taken.iter().find(|(p, _)| p == pool).map(|&(_, d)| d);
+        assert!(near(of("body").unwrap(), 0.8) && near(of("pain").unwrap(), 0.8), "{taken:?}");
+        assert!(near(of("right_leg").unwrap(), 0.8) && near(of("left_leg").unwrap(), 0.8));
+        assert_eq!(of("head"), None);
+        // Walls cut the back's blast to 0.2: the body pool keeps the direct hit's 0.8, pain the
+        // foot's and the arm's 0.8 x 0.8.
+        let hits = [(6, 0.8), (0, 0.8), (1, 0.2), (7, 0.8), (11, 0.8), (12, 0.8)];
+        let taken = body.hits_taken(&hits, 1.0, &|_| 0.0);
+        let of = |pool: &str| taken.iter().find(|(p, _)| p == pool).map(|&(_, d)| d);
+        assert!(near(of("body").unwrap(), 0.8) && near(of("pain").unwrap(), 0.64), "{taken:?}");
     }
 
     /// `amount × (1 − clamp(armor − arp, 0, 1))` (step 3): armour below the

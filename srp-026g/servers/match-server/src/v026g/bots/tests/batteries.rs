@@ -853,3 +853,55 @@ pub(crate) fn a_battery_a_thief_dropped_by_our_container_is_looked_for_and_taken
         );
     }
 }
+
+/// The resupply box in the game: the own team's zone, met by the view's ray
+/// from a use pressed (the edge), tops the stack up 3 s later, and not for a
+/// body looking away, the other team's, or a key let go on the way.
+#[test]
+pub(crate) fn a_stand_in_resupplies_at_its_own_teams_box_after_its_time() {
+    use super::standin_weapon::RESUPPLY_MS;
+    let mut world = soak_world();
+    let home = Game::new(world.clone(), &[0], 1, None, None).containers[0].1;
+    let zone = |team: i32, at: Vec3| mapdata::Zone {
+        kind: mapdata::ZoneKind::Resupply,
+        name: String::new(),
+        team,
+        position: at,
+        damage_type: String::new(),
+        damage: None,
+        shapes: vec![use_box(at)],
+    };
+    let far = Vec3::new(70.0, 0.0, 5.0);
+    Arc::get_mut(&mut world).expect("a world of its own").map.zones = vec![zone(1, home), zone(0, far)];
+    let run = |yaw: f32, team: u8, release_at: Option<u32>| {
+        let mut game = Game::new(world.clone(), &[team], 1, None, None);
+        let body = &mut game.bodies[0];
+        body.alive = true;
+        body.feet = home + Vec3::new(0.0, 0.0, 1.0);
+        body.yaw = yaw;
+        body.pitch = (1.0 - 1.6f32).atan2(1.0);
+        for i in 0..20 {
+            assert!(body.stock.fired(i as f32 * 100.0));
+        }
+        let before = body.stock.load.spare;
+        game.tick = 10_000;
+        body.keys = key::USE;
+        game.resupply(&[key::USE]);
+        let began = game.tick;
+        while game.tick < began + RESUPPLY_MS {
+            game.tick += 50;
+            if release_at.is_some_and(|at| game.tick >= began + at) {
+                game.bodies[0].keys = 0;
+            }
+            game.resupply(&[0]);
+        }
+        (game.bodies[0].stock.load.spare - before, game.bodies[0].stock.counts)
+    };
+    // The zone at the container is team 1's: team 1's body topped up.
+    let (put, counts) = run(std::f32::consts::PI, 1, None);
+    assert_eq!((put, counts.box_topped), (20, 1));
+    assert_eq!(run(std::f32::consts::PI, 0, None).0, 0, "team 0's box is far");
+    assert_eq!(run(0.0, 1, None).0, 0, "looking away");
+    let (put, counts) = run(std::f32::consts::PI, 1, Some(1_000));
+    assert_eq!((put, counts.box_cut), (0, 1), "the key let go");
+}
