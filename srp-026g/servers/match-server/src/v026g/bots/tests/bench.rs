@@ -1250,6 +1250,15 @@ pub(crate) fn real_bot_cost() {
                 side[0] += stat.0;
                 side[1] += stat.1;
             }
+            // The same by role (kills, deaths of both teams' bots of each):
+            // the rusher's kit (`SRP_BENCH_RUSHER`) against the other three's.
+            let mut kd_by_role: std::collections::BTreeMap<&str, [u32; 2]> = Default::default();
+            for (place, stat) in game.stats.iter().enumerate() {
+                let role = roster.roles.get(place).copied().flatten().unwrap_or("none");
+                let row = kd_by_role.entry(role).or_default();
+                row[0] += stat.0;
+                row[1] += stat.1;
+            }
             let secs = |ticks: u64| (ticks as f64 * f64::from(TICK_MS) / 100.0).round() / 10.0;
             let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
                 .iter()
@@ -1310,6 +1319,7 @@ pub(crate) fn real_bot_cost() {
                     "seed": seed,
                     "kills": [kd[0][0], kd[1][0]],
                     "deaths": [kd[0][1], kd[1][1]],
+                    "kd_by_role": kd_by_role,
                     "delivered": game.delivered,
                     "points": game.points,
                     "taken": game.taken,
