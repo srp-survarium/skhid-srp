@@ -24,9 +24,7 @@ use std::collections::HashMap;
 
 use mapdata::NodeId;
 
-use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldPhase, FieldShape, WorldField};
-
-use crate::v026g::bots::live_zones::{hit_per_s, FieldBoard};
+use crate::v026g::bots::live_zones::{hit_per_s, FieldBoard, FieldId, FieldKind, FieldPhase, WorldField};
 
 /// Charging, then damaging, ms (the release: 20 s, 4 s).
 pub(crate) const CHARGE_MS: u32 = 20_000;
@@ -73,7 +71,7 @@ impl Truth {
         } else if age < CHARGE_MS + DAMAGE_MS {
             FieldPhase::Damaging { until: Some(self.born + CHARGE_MS + DAMAGE_MS) }
         } else {
-            FieldPhase::Holding { since: self.born + CHARGE_MS + DAMAGE_MS }
+            FieldPhase::Holding
         }
     }
 
@@ -247,8 +245,12 @@ impl FieldGen {
             .map(|f| WorldField {
                 id: f.id,
                 kind: FieldKind::Lifebone,
-                centre: [f.at.x, f.at.y + 1.0, f.at.z],
-                shape: FieldShape::Cylinder { radius: self.radius, half_height: 2.0 },
+                shape: mapdata::Shape {
+                    kind: mapdata::ShapeKind::Cylinder,
+                    center: Vec3::new(f.at.x, f.at.y + 1.0, f.at.z),
+                    rotation: mapdata::Rotation::IDENTITY,
+                    half: Vec3::new(self.radius, 2.0, self.radius),
+                },
                 phase: f.phase(now),
             })
             .collect()
@@ -373,7 +375,7 @@ mod tests {
         let f = &gen.active[0];
         assert_eq!(f.phase(f.born), FieldPhase::Charging { damage_from: f.born + CHARGE_MS });
         assert_eq!(f.phase(f.born + CHARGE_MS), FieldPhase::Damaging { until: Some(f.born + CHARGE_MS + DAMAGE_MS) });
-        assert!(matches!(f.phase(f.born + CHARGE_MS + DAMAGE_MS), FieldPhase::Holding { .. }));
+        assert!(matches!(f.phase(f.born + CHARGE_MS + DAMAGE_MS), FieldPhase::Holding));
         assert!(gen.stats.held_ms > 0);
     }
 

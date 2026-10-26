@@ -1247,6 +1247,19 @@ impl Bots {
         })
     }
 
+    /// The bench's source (`standin_fields`): the fields of a world as the generator lists them, with no world bytes.
+    /// As [`Self::fields_from_world`], off with `Tuning::live_zones`.
+    #[cfg(test)]
+    pub fn fields_given(&mut self, fields: &[live_zones::WorldField], time: u32) -> usize {
+        if !self.tuning.live_zones {
+            return 0;
+        }
+        self.tactics.as_mut().map_or(0, |tactics| {
+            tactics.hazards.set_fields(fields, &tactics.world.grid, time);
+            tactics.hazards.live.fields().len()
+        })
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).

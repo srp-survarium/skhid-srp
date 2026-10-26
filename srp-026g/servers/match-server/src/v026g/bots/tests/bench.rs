@@ -722,7 +722,7 @@ pub(crate) fn real_bot_cost() {
                         let world = game.world.clone();
                         game.fields.tick(game.tick, &world);
                         if let Some(listed) = game.fields.world_due(game.tick) {
-                            bots.fields_from_world(&listed, game.tick);
+                            bots.fields_given(&listed, game.tick);
                             game.fields.sample_shut(world.grid.len());
                         }
                     }
