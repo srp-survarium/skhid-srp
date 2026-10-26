@@ -153,7 +153,7 @@ pub fn projected(cx: &Ctx) -> Pools {
     projected_of(
         cx.bot.pools.unwrap_or_else(|| Pools::of_body(cx.me.health)),
         cx.view.world_time,
-        &cx.bot.pantry,
+        cx.bot.pantry,
     )
 }
 
@@ -212,7 +212,7 @@ fn left_after(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
 /// that are not active, the one that leaves the least need (the shorter
 /// when two leave as much); none when no need reaches `start_need`.
 pub fn choose<'a>(cx: &'a Ctx) -> Option<(&'a Held, f32)> {
-    choose_of(&projected(cx), &cx.bot.pantry, &cx.tuning.heal, cx.now)
+    choose_of(&projected(cx), cx.bot.pantry, &cx.tuning.heal, cx.now)
 }
 
 /// [`choose`] from the raw inputs: the projected pools, the pantry, the tuning, the time.

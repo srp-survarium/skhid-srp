@@ -901,7 +901,9 @@ mod tests {
     fn a_heal_is_a_press_and_the_running_play_assignment_and_route_are_untouched() {
         use crate::v026g::bots::plays::PlayKind;
         use crate::v026g::drive::key;
-        let mut before: Vec<Option<(Option<crate::v026g::bots::team::Assignment>, Vec<(PlayKind, u32)>, bool)>> = Vec::new();
+        // A bot's assignment, the plays it has run, and whether it has a route, before a poll.
+        type Before = (Option<crate::v026g::bots::team::Assignment>, Vec<(PlayKind, u32)>, bool);
+        let mut before: Vec<Option<Before>> = Vec::new();
         let (mut pressed, mut unchanged) = (0, 0);
         let game = short_run(120_000, Tuning::default(), |bots, game, _, made| {
             match made {
