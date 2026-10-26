@@ -1770,11 +1770,15 @@ impl ReachSets {
     /// and both must have a way back.
     fn refuse(&self, world: &World, def: &TryDef) -> Option<String> {
         let floor = |at: Vec3| path::goal_floor(&world.grid, at);
-        let (Some(start), Some(top)) = (floor(start_of(def)), floor(top_of(def))) else {
-            return Some("the start or the top is on no floor".to_owned());
+        // A gap's far side is not reached until a link joins it, and may be no floor at the point past the face: its
+        // start is the only floor the bots walk to.
+        let top = if def.site.gap { None } else { floor(top_of(def)) };
+        let Some(start) = floor(start_of(def)) else {
+            return Some("the start is on no floor".to_owned());
         };
-        // A gap's far side is not reached until a link joins it: its start is the only floor the bots walk to.
-        let top = (!def.site.gap).then_some(top);
+        if !def.site.gap && top.is_none() {
+            return Some("the top is on no floor".to_owned());
+        }
         for team in 0..2usize {
             let checks = [
                 ("start reached from", Some(self.forward[team][start as usize])),
