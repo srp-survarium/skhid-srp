@@ -52,6 +52,41 @@ Ask, in this order:
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
+3. **The release notes, written while the release is being built.** While
+   build-content, build-zip and the dry runs run, draft them from what ships:
+   every PR merged since the last tag (`git log --merges --first-parent
+   026g-rev<last>..origin/main`) and the content file list. Give them to the
+   owner with the file list, in exactly this format (the owner's, from v30
+   on):
+
+   ```
+   **v<n>**:
+   - One line per change a player notices, in players' words.
+   ```
+
+   - The heading is `**v<n>**:`, bold with two asterisks on each side, with the
+     revision the release takes.
+   - New features and modes first, then balance, then fixes ("Fixed …"), then
+     the rest (download, lobby, crash reports).
+   - One short line each. Numbers as `old → new` (`SVD: level 12 → 15`).
+     Items, weapons and modes by their names in the game. No PR numbers, no
+     code names, no implementation detail.
+   - Leave out what players can't see: tooling, tests, refactors, docs, a
+     change that keeps behaviour identical.
+   - Example, as released:
+
+     ```
+     **v34**:
+     - Fixed short freezes when players join or respawn.
+     - Fixed falling damage: falls during heavy shooting no longer hurt more than they should.
+     - SOCOM 16: damage 70 → 60, armour piercing 45 → 40, level 12 → 15.
+     - SVD: level 12 → 15.
+     - Modification rolls now always cost the same as the first one.
+     - Clearer error when the server can't be reached.
+     ```
+
+   After the release, the owner's final wording of these notes replaces the
+   record's `TODO` changelog entry (Record, below).
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
@@ -545,7 +580,8 @@ nixpkgs#shellcheck -c release/test.sh`); it sends nothing anywhere.
 The release makes it (step 7): the tag, and the merged commit `Release
 revision <n>`. What is left to the owner: the changelog entry's wording
 (its `TODO` heading and lines: players' words, "update required"), in a
-PR of its own. If the run ended with `THE RECORD IS NOT COMPLETE`, do
+PR of its own, from the release notes drafted while the release was built
+(step 3 of "When the owner says make a release") as the owner worded them. If the run ended with `THE RECORD IS NOT COMPLETE`, do
 what it says (merge the open PR as a merge commit; push the tag) before
 the next release. The release folder has the hashes in `new.sha` too.
 
