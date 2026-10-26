@@ -184,6 +184,9 @@ pub enum SoundKind {
     Switch,
     Use,
     Jump,
+    /// A bear trap went off under a body (`Tracker::snap`): the sound is the
+    /// body's, heard at the loudness of its steps.
+    Trap,
 }
 
 /// A sound a player made.
@@ -833,6 +836,35 @@ impl Tracker {
     /// sprint_body_mps`): `None`, SPRINT and FORWARD held make the sprint
     /// sound; `Some(v)`, only a body that also sprints by the client's key
     /// rule ([`Kinematics::sprints`]) and moves at `v` m/s or more.
+    /// The alive body nearest `at` within `within` metres, if any: whose
+    /// foot a trap that went off there was under.
+    pub fn nearest_body(&self, at: Vec3, within: f32) -> Option<Place> {
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|(_, state)| state.present && state.alive)
+            .filter_map(|(place, state)| {
+                let feet = state.body.estimate()?.feet;
+                let d = feet.distance_xz(at);
+                (d <= within && (feet.y - at.y).abs() < 2.0).then_some((place, d))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(place, _)| place)
+    }
+
+    /// A trap went off under body `victim` at `at`: a sound of its own, heard
+    /// by the enemies of the body like its steps.
+    pub fn snap(&mut self, victim: Place, at: Vec3, time: u32) {
+        self.sounds.push_back(Sound {
+            from: victim,
+            kind: SoundKind::Trap,
+            at,
+            time,
+            // A trap's snap has no weapon reach.
+            reach_m: None,
+        });
+    }
+
     pub fn held_sounds(&mut self, clock: u32, sprint_body_mps: Option<f32>) {
         for (place, state) in self.places.iter_mut().enumerate() {
             let Some(at) = state.body.estimate().map(|e| e.feet) else {

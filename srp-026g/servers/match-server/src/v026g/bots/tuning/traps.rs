@@ -120,6 +120,33 @@ pub struct ReactTuning {
     /// (a GUESS: the body clears 0.22 m for about 0.6 m beyond the trap at a
     /// run).
     pub jump_before_m: f32,
+    /// Whether a trap that goes off is heard by the enemies of the body that
+    /// set it off, as a sound of the loudness of footsteps (`sense.step_m`).
+    /// Independent of `on`. A disarm makes no sound.
+    pub hear: bool,
+    /// The body nearest a trap that went off, within this, is the one that
+    /// set it off, metres (the worlds show no name).
+    pub snap_near_m: f32,
+    /// Whether a bot that noticed a trap and does not shoot it walks up and
+    /// defuses it by hand: USE held on it, crouched beside it (needs `on`).
+    pub defuse: bool,
+    /// The chance a noticing bot decides to defuse, rolled once a trap and a
+    /// life (a GUESS: the players' hand defuses are about 3 % of traps).
+    pub defuse_p: f32,
+    /// A trap farther than this (metres) or longer to walk to than
+    /// `defuse_walk_s` is not defused.
+    pub defuse_walk_m: f32,
+    pub defuse_walk_s: f32,
+    /// The bot stands this far from the trap's centre, metres: outside the
+    /// foot's 0.6 m reach, inside the use ray's 2.0 m from the eye.
+    pub defuse_stand_m: f32,
+    /// The trap's defuse time, seconds (`defuse_time` 5, PROVEN); the hold is
+    /// given up 1.5 s after it.
+    pub defuse_s: f32,
+    /// The view must be this near the trap's centre to press USE, radians,
+    /// and is held `use_settle_ms` first.
+    pub use_ok_rad: f32,
+    pub use_settle_ms: u32,
 }
 
 impl Default for ReactTuning {
@@ -147,6 +174,16 @@ impl Default for ReactTuning {
             pass: false,
             jump: false,
             jump_before_m: 1.1,
+            hear: false,
+            snap_near_m: 3.0,
+            defuse: false,
+            defuse_p: 0.3,
+            defuse_walk_m: 10.0,
+            defuse_walk_s: 8.0,
+            defuse_stand_m: 0.85,
+            defuse_s: 5.0,
+            use_ok_rad: 0.05,
+            use_settle_ms: 250,
         }
     }
 }
@@ -214,7 +251,14 @@ impl Check for TrapTuning {
                 && r.max_shoot_s > 0.0
                 && r.claim_m >= 0.0
                 && r.claim_yaw_deg > 0.0
-                && r.jump_before_m > 0.4,
+                && r.jump_before_m > 0.4
+                && r.snap_near_m > 0.0
+                && (0.0..=1.0).contains(&r.defuse_p)
+                && r.defuse_walk_m > 0.0
+                && r.defuse_walk_s > 0.0
+                && r.defuse_stand_m > 0.6
+                && r.defuse_s > 0.0
+                && r.use_ok_rad > 0.0,
             "traps.react",
         )?;
         Ok(())

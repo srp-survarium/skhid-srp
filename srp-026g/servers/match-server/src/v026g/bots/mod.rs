@@ -93,6 +93,8 @@ use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::loadouts::BotTier;
 use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
+use survarium::v026g::match_msgs::traps::PlacedTrap;
+use survarium::v026g::match_msgs::traps::TrapState;
 
 use crate::v026g::drive::half_value;
 use crate::v026g::drive::key;
@@ -1271,11 +1273,15 @@ impl Bots {
     /// the traps the world shows (0 while no bot has put one down).
     pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
         let react = self.tuning.traps.react.on;
+        let hear = self.tuning.traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
-        if !own && !react {
+        if !own && !react && !hear {
             return 0;
         }
         let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        if hear {
+            self.hear_snaps(&found, time);
+        }
         // The armed traps of the world, for the bots' notice (off: none).
         let armed = Arc::new(if react {
             trap_react::armed_of(&found)
@@ -1297,6 +1303,35 @@ impl Bots {
             self.count_own_traps(time, &went_off);
         }
         found.len()
+    }
+
+    /// A trap the last world showed armed that this one shows fired went off
+    /// under the body nearest it: a sound of that body, heard like its steps
+    /// (`SoundKind::Trap`, `traps.react.hear`). A disarmed trap makes none.
+    fn hear_snaps(&mut self, found: &[PlacedTrap], time: u32) {
+        let at = |trap: &PlacedTrap| Vec3::new(trap.position[0], trap.position[1], trap.position[2]);
+        let near = self.tuning.traps.react.snap_near_m;
+        for fired in found.iter().filter(|trap| trap.state == TrapState::Fired) {
+            let spot = at(fired);
+            if !self.features.snaps.armed.iter().any(|armed| armed.distance_xz(spot) < trap_know::MATCH_M)
+            {
+                continue;
+            }
+            if let Some(victim) = self.tracker.nearest_body(spot, near) {
+                self.tracker.snap(victim, spot, time);
+                self.features.snaps.heard += 1;
+            }
+        }
+        self.features.snaps.armed = found
+            .iter()
+            .filter(|trap| trap.state == TrapState::Armed)
+            .map(at)
+            .collect();
+    }
+
+    /// Snaps given to the bots' ears, for the bench.
+    pub fn snaps_heard(&self) -> u32 {
+        self.features.snaps.heard
     }
 
     /// A team's trap went off: counted, and whether a body of the team with

@@ -55,6 +55,14 @@ pub struct OwnTrapCounts {
     pub own_team_caught: u32,
 }
 
+/// What the snap sound keeps (`Bots::hear_snaps`): the armed traps the last world showed, and the snaps given to
+/// the ears.
+#[derive(Clone, Debug, Default)]
+pub struct Snaps {
+    pub armed: Vec<Vec3>,
+    pub heard: u32,
+}
+
 /// Where a team's trap is in its life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
