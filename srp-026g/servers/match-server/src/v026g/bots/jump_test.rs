@@ -1470,7 +1470,7 @@ impl Zone {
 /// collide, and the run is lost when one comes near.
 const YIELD_M: f32 = 4.0;
 /// A bot waits this long at most for enemy tries on its way, ms, from the first wait.
-const YIELD_MAX_MS: u32 = 12_000;
+const YIELD_MAX_MS: u32 = 60_000;
 
 fn yield_to(zones: &[Zone], team: u8, feet: Vec3) -> bool {
     zones.iter().any(|z| z.live && z.team != team && z.nearest(feet).1 < YIELD_M)
