@@ -250,6 +250,8 @@ pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
     assert_eq!(logic["rolls"], 3, "{json}");
     assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0]), "{json}");
     assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
+    assert_eq!(logic["volley"], serde_json::json!([0, 0, 0, 0]), "{json}");
+    assert_eq!(logic["near"], serde_json::json!([0, 0, 0]), "{json}");
     // No bot thought: no key.
     let (mut game, mut tally) = made_up(&[0, 1]);
     game.tick = TICK_MS;
@@ -750,6 +752,8 @@ impl GrenadeCounts {
                 "rechecks": s.rechecks,
                 "thrown_from": s.thrown_from,
                 "pushes_skipped": s.pushes_skipped,
+                "volley": s.volley,
+                "near": s.near,
                 "fire_hidden_throw": hidden_throw,
             });
         }
@@ -806,8 +810,8 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
-                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, hidden_throw,
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, s.volley, s.near, hidden_throw,
             ));
         }
         if let Some(listed) = self.listed {

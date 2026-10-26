@@ -164,6 +164,9 @@ pub struct Tactics {
     walks: std::sync::Mutex<WalkCache>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
+    /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
+    /// on the map alone and the point asked.
+    walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
     /// [`Self::exit_of`]'s field, once made.
     exit_field: std::sync::Mutex<Option<ExitField>>,
     /// The teams' escapes from pockets that worked, and their trapped bots
@@ -181,6 +184,38 @@ type ExitField = Arc<std::collections::HashMap<NodeId, NodeId>>;
 
 /// A list of [`Tactics::spots_kept`]: (key, kept until, the spots).
 type KeptSpots = (u64, u32, Arc<Vec<Vec3>>);
+
+/// How many of [`Tactics::walk_up_set`]'s sets are kept (each is a bit a floor of the
+/// grid, a few hundred KB on the biggest map).
+const WALK_UP_KEPT: usize = 32;
+
+/// The point and radius a [`WalkUp`] was made for, as bits.
+type WalkUpKey = [u32; 4];
+
+/// The floors a walk up from a point gets to ([`Tactics::walk_up_from`]): a bit
+/// a floor of the grid, in place of a hash set (the profile of the spot
+/// lists: 92 % of a build was this search, 6 ms of 5.2-5.7).
+pub(super) struct WalkUp(Vec<u64>);
+
+impl WalkUp {
+    fn new(floors: usize) -> Self {
+        Self(vec![0; floors.div_ceil(64)])
+    }
+
+    /// Adds `node`; whether it was not in.
+    fn insert(&mut self, node: NodeId) -> bool {
+        let (word, bit) = (node as usize >> 6, 1u64 << (node & 63));
+        let was = self.0[word] & bit != 0;
+        self.0[word] |= bit;
+        !was
+    }
+
+    pub(super) fn contains(&self, node: NodeId) -> bool {
+        self.0
+            .get(node as usize >> 6)
+            .is_some_and(|word| word >> (node & 63) & 1 == 1)
+    }
+}
 
 /// The label's bits for the sides' spawn areas.
 const SPAWN_BITS: u32 = 8;
@@ -627,6 +662,7 @@ impl Tactics {
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
+            walk_ups: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
@@ -1777,7 +1813,7 @@ impl Tactics {
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         // Rays lazily, from the best down.
         let mut out = Vec::new();
-        let mut by_walk: Option<std::collections::HashSet<NodeId>> = None;
+        let mut by_walk: Option<Arc<WalkUp>> = None;
         for spot in found {
             if out.len() >= n {
                 break;
@@ -1786,8 +1822,8 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
-                    .contains(&spot.node)
+                    .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .contains(spot.node)
             {
                 continue;
             }
@@ -1824,7 +1860,61 @@ impl Tactics {
     /// stand-turn +31 % in the smoke of the search without this rule). The
     /// jumps are the grid's and the motor's to mend; until they are, the
     /// storeys over the ring are the ones a walk reaches.
-    fn walk_up_from(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
+    ///
+    /// The search is a breadth-first one in the order of the links, and its cap
+    /// ([`WALK_UP_MAX_FLOORS`]) cuts it at the same floor whatever holds the
+    /// set; the set is kept for the same point and radius (the grid does
+    /// not change), so a list made again 15 s later does not search again.
+    fn walk_up_set(&self, around: Vec3, radius: f32) -> Arc<WalkUp> {
+        let key = [around.x.to_bits(), around.y.to_bits(), around.z.to_bits(), radius.to_bits()];
+        let mut kept = self.walk_ups.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, set)) = kept.iter().find(|(k, _)| *k == key) {
+            return set.clone();
+        }
+        let set = Arc::new(self.walk_up_from(around, radius));
+        if kept.len() >= WALK_UP_KEPT {
+            kept.remove(0);
+        }
+        kept.push((key, set.clone()));
+        set
+    }
+
+    /// The search [`Self::walk_up_set`] keeps.
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> WalkUp {
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = WalkUp::new(grid.len());
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return seen;
+        };
+        let mut queue = vec![start];
+        let mut count = 1usize;
+        seen.insert(start);
+        let mut head = 0;
+        while head < queue.len() {
+            let u = queue[head];
+            head += 1;
+            if count >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk
+                    && !seen.contains(v)
+                    && grid.position(v).distance_xz(around) <= radius
+                {
+                    seen.insert(v);
+                    count += 1;
+                    queue.push(v);
+                }
+            }
+        }
+        seen
+    }
+
+    /// The set [`Self::walk_up_from`] was before the bit set and the kept
+    /// sets: the reference the test holds the new one to.
+    #[cfg(test)]
+    pub(super) fn walk_up_reference(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
         use mapdata::LinkKind;
         let grid = &self.world.grid;
         let mut seen = std::collections::HashSet::new();
@@ -2092,6 +2182,80 @@ pub(super) mod tests {
         }
         assert!(2.0 * per_s(0.02) <= 0.1);
         assert!(mild(per_s(0.02)));
+    }
+
+    /// The set of floors a walk up gets to is the hash set's, floor for
+    /// floor, for points across the grid and radii (the spot lists made
+    /// from it are then the same), and the kept set is the one made.
+    #[test]
+    fn the_walk_up_set_is_the_reference_set_floor_for_floor() {
+        let t = Tactics::new(tests::platform_world(), 1.0);
+        let grid = &t.world.grid;
+        let mut rng = Rng::new(7);
+        let mut nonempty = 0;
+        for i in 0..300 {
+            let around = Vec3::new(rng.range(0.0, 70.0), rng.range(-1.0, 6.0), rng.range(0.0, 45.0));
+            let radius = [4.0, 12.0, 30.0, 80.0][i % 4];
+            let reference = t.walk_up_reference(around, radius);
+            let set = t.walk_up_set(around, radius);
+            nonempty += usize::from(!reference.is_empty());
+            for node in 0..grid.len() as NodeId {
+                assert_eq!(set.contains(node), reference.contains(&node), "{around:?} {radius} {node}");
+            }
+            assert!(Arc::ptr_eq(&set, &t.walk_up_set(around, radius)));
+        }
+        assert!(nonempty > 20, "{nonempty}");
+    }
+
+    /// The same on the real maps, where the search is cut by its cap too.
+    /// Run with `SRP_MAPDATA_DIR` set, in release.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn the_walk_up_set_is_the_reference_set_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+            panic!("set SRP_MAPDATA_DIR");
+        };
+        let (mut cut, mut checked) = (0, 0);
+        let (mut old_t, mut new_t, mut kept_t) = (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+        for level in 1..=8u8 {
+            for mode in [2u8, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+                let t = Tactics::new(world, 1.0);
+                let grid = &t.world.grid;
+                let mut rng = Rng::new(u64::from(level) * 10 + u64::from(mode));
+                for i in 0..25 {
+                    let Some(spawn) = t.world.map.spawns.get(i % t.world.map.spawns.len().max(1)) else {
+                        break;
+                    };
+                    let around = spawn.position
+                        + Vec3::new(rng.range(-60.0, 60.0), 0.0, rng.range(-60.0, 60.0));
+                    let radius = [30.0, 45.0, 65.0][i % 3];
+                    let start = std::time::Instant::now();
+                    let reference = t.walk_up_reference(around, radius);
+                    old_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let set = t.walk_up_set(around, radius);
+                    new_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let _ = t.walk_up_set(around, radius);
+                    kept_t += start.elapsed();
+                    cut += usize::from(reference.len() >= WALK_UP_MAX_FLOORS);
+                    checked += 1;
+                    let in_set = (0..grid.len() as NodeId).filter(|&n| set.contains(n)).count();
+                    assert_eq!(in_set, reference.len(), "{level} {mode} {around:?} {radius}");
+                    assert!(reference.iter().all(|&n| set.contains(n)));
+                }
+            }
+        }
+        eprintln!("walk-up sets checked {checked}, cut by the cap {cut}");
+        eprintln!(
+            "per set: old {:?}, new (made) {:?}, kept {:?}",
+            old_t / checked as u32,
+            new_t / checked as u32,
+            kept_t / checked as u32
+        );
     }
 
     /// F4: a stuck body finds the ledge it can jump up (more than the

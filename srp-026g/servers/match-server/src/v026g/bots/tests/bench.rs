@@ -155,6 +155,18 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
     }
+    // The maps' grids built with the numbers the clients run (`GridTuning::client_numbers`; off by default).
+    if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/client_numbers", true.into());
+    }
+    // A body on no floor plans from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`; off by default).
+    if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/stranded_start", true.into());
+    }
+    // A rest point on a lip moved inward (`ThinkTuning::rest_off_lip`; off by default).
+    if settings.var("SRP_BENCH_REST_OFF_LIP").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/rest_off_lip", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
@@ -453,7 +465,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {
@@ -528,6 +540,18 @@ pub(crate) fn real_bot_cost() {
                     .collect();
                 bots.set_weapons(weapons);
             }
+            // Every bot's weapon 1 shot reach (H1c, `shot_reach`; read only
+            // when `SenseTuning::shots` is by weapon).
+            let reach = bots
+                .bots
+                .iter()
+                .map(|bot| {
+                    let bot = bot.as_ref()?;
+                    let gun = bot.kits.get(bot.kit)?.0.primary.0;
+                    super::shot_reach::reach_of(&format!("wpn_{}", gun.item))
+                })
+                .collect();
+            bots.set_shot_reach(reach);
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
@@ -1008,6 +1032,7 @@ pub(crate) fn real_bot_cost() {
                         bots.hurt(place, hurt);
                     }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
+                    standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
@@ -1368,6 +1393,13 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {owner_line}");
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
+            }
+            // The stand-in's bear traps (none carried: no line, the log as it was).
+            if !game.traps.events.is_empty() {
+                let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
+                eprintln!(
+                    "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
+                );
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!(
