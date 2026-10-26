@@ -96,10 +96,10 @@ mod tests {
     #[test]
     fn every_weapon_of_the_bots_kits_has_a_reach() {
         use crate::v026g::bots::guns::Arms;
-        use survarium::v026g::loadouts::{BotRole, BotTier};
+        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
-                for arms in Arms::kits_of(tier, role) {
+                for arms in Arms::kits_of(BotEquipment::of(tier, RusherKits::default()), role) {
                     let item = arms.primary.0.item;
                     assert!(reach_of(&format!("wpn_{item}")).is_some(), "{item}");
                 }
