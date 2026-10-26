@@ -159,6 +159,7 @@ impl Scenario {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                world_speed: None,
                 known_at: 0,
             });
         }

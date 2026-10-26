@@ -113,6 +113,8 @@ pub(super) fn drive_tick(
         pitch: me.pitch,
         speed: me.speed(),
         no_jump: !bot.hurt.may_jump(time),
+        world_speed: me.world_speed,
+        world_age_ms: time.saturating_sub(me.seen_at),
     };
     if bot
         .jump_watch

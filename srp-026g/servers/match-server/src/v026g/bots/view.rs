@@ -162,6 +162,9 @@ pub struct PlaceView {
     pub carrying: Option<usize>,
     /// The time of the world (or input) the body was last put right by.
     pub seen_at: u32,
+    /// `m_linear_horizontal_speed` of that world, if it was read: what the body did then, not what the
+    /// reckoning has it do now.
+    pub world_speed: Option<f32>,
     /// The time (ms) `feet` and `velocity` are for: a bot's last decided
     /// tick (up to [`super::encode::LEAD_TICKS`] past the clock), a human's
     /// reckoning to the clock. A bot's input for a tick runs then, so what
@@ -1030,6 +1033,7 @@ impl Tracker {
                     streak: state.stats.2,
                     carrying,
                     seen_at: state.body.fix().map_or(0, |fix| fix.time),
+                    world_speed: state.body.fix().and_then(|fix| fix.speed),
                     known_at: estimate.map_or(clock.clock, |e| e.time),
                 }
             })

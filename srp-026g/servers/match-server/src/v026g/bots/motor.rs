@@ -118,6 +118,9 @@ pub struct Feel {
     pub hop_every_s: f32,
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
+    /// No hop while a world this fresh (ms) showed the body moving at this speed (m/s) or more; 0 m/s is off.
+    pub hop_world_mps: f32,
+    pub hop_world_fresh_ms: u32,
 }
 
 impl Default for Feel {
@@ -147,6 +150,8 @@ impl Default for Feel {
             hop_max_turn: 0.35,
             hop_every_s: 4.0,
             hop_after_jump_s: 2.0,
+            hop_world_mps: 1.5,
+            hop_world_fresh_ms: 500,
         }
     }
 }
@@ -162,6 +167,20 @@ pub struct Pose {
     /// Hurt so it does not jump now ([`Hurt::may_jump`]): the motor
     /// presses no jump and counts no try at one.
     pub no_jump: bool,
+    /// What the last world showed of the body's speed (not the reckoning's `speed`), and how old that world is.
+    pub world_speed: Option<f32>,
+    pub world_age_ms: u32,
+}
+
+impl Pose {
+    /// Whether a world not older than [`Feel::hop_world_fresh_ms`] showed the body moving at
+    /// [`Feel::hop_world_mps`] or more: it was not caught then, so a reckoning that has it behind is the
+    /// reckoning's gap, not a lip (88 of 187 hops came at 2.5 m/s or more at the world before them).
+    fn moving_at_world(&self, feel: &Feel) -> bool {
+        feel.hop_world_mps > 0.0
+            && self.world_age_ms <= feel.hop_world_fresh_ms
+            && self.world_speed.is_some_and(|v| v >= feel.hop_world_mps)
+    }
 }
 
 /// What the world last showed of the body's hurts, as the jump needs it
@@ -695,7 +714,8 @@ impl Motor {
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
+        let moving = pose.moving_at_world(&self.feel);
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, moving);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -792,7 +812,8 @@ impl Motor {
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
+        let moving = pose.moving_at_world(&self.feel);
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, moving);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -1030,6 +1051,7 @@ impl Motor {
         feet: Vec3,
         way: Option<[f32; 2]>,
         may: bool,
+        world_moving: bool,
     ) -> u32 {
         let feel = &self.feel;
         let fresh = self
@@ -1065,6 +1087,14 @@ impl Motor {
         if let Some(way) = way {
             self.way = way;
         }
+        // The last world had the body moving: it is not caught, the reckoning is behind.
+        let hop = if hop && world_moving {
+            #[cfg(test)]
+            counts::hop_refused();
+            false
+        } else {
+            hop
+        };
         if hop {
             self.hopped = Some(self.clock);
             self.jump = Some(JumpBy::Hop);
@@ -1253,7 +1283,7 @@ pub fn keys_toward(relative: f32) -> u32 {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1273,6 +1303,11 @@ pub mod counts {
 
     pub fn side_step(clear: bool) {
         add(if clear { 4 } else { 5 });
+    }
+
+    /// A hop the last world showed no need for (the body was moving then).
+    pub fn hop_refused() {
+        add(6);
     }
 
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
@@ -1298,7 +1333,7 @@ pub mod counts {
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
     /// steps clear, side steps refused).
-    pub fn counts() -> [u64; 6] {
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2033,10 +2068,25 @@ mod tests {
         motor: &mut Motor,
         route: &mut Route,
         ground: impl Fn(f32) -> f32,
+        world: impl FnMut(f32, usize) -> f32,
+        (period, reach): (usize, f32),
+        ticks: usize,
+        aiming: bool,
+    ) -> Vec<usize> {
+        reckoned_seen(motor, route, ground, world, (period, reach), ticks, aiming, None)
+    }
+
+    /// [`reckoned_to`] with the speed the last world showed (it came at the tick it corrected the reckoning).
+    #[allow(clippy::too_many_arguments)]
+    fn reckoned_seen(
+        motor: &mut Motor,
+        route: &mut Route,
+        ground: impl Fn(f32) -> f32,
         mut world: impl FnMut(f32, usize) -> f32,
         (period, reach): (usize, f32),
         ticks: usize,
         aiming: bool,
+        world_speed: Option<f32>,
     ) -> Vec<usize> {
         let step = 3.3 * TICK_S;
         let mut x = 2.0_f32;
@@ -2050,6 +2100,8 @@ mod tests {
                 yaw: yaw_of([1.0, 0.0]),
                 pitch: 0.0,
                 speed: 3.3,
+                world_speed,
+                world_age_ms: (tick % period) as u32 * 50,
                 ..Default::default()
             };
             let (decision, walked) = if aiming {
@@ -2107,6 +2159,30 @@ mod tests {
                 assert_eq!(jumps, [30], "aiming {aiming}, replay {replay}");
             }
         }
+    }
+
+    /// A world that showed the body moving at 3 m/s a moment ago is no catch: the reckoning is behind, and no
+    /// hop; one that showed it still, or none, hops as before; an old one, or 0 m/s, does not count.
+    #[test]
+    fn a_world_that_had_the_body_moving_is_no_catch() {
+        let mut rng = Rng::new(13);
+        for aiming in [false, true] {
+            let mut hops = |world_speed: Option<f32>| {
+                let mut motor = Motor::new(Feel::default(), &mut rng);
+                let mut route = route(&[(0.0, 0.0), (30.0, 0.0)]);
+                reckoned_seen(&mut motor, &mut route, lip, caught(0.0), (30, f32::INFINITY), 100, aiming, world_speed)
+            };
+            assert_eq!(hops(Some(3.0)), Vec::<usize>::new(), "aiming {aiming}");
+            assert_eq!(hops(Some(0.2)), [30], "aiming {aiming}");
+            assert_eq!(hops(None), [30], "aiming {aiming}");
+        }
+        let feel = Feel::default();
+        let pose = |speed, age| Pose { world_speed: speed, world_age_ms: age, ..Default::default() };
+        assert!(pose(Some(3.0), 100).moving_at_world(&feel));
+        assert!(!pose(Some(3.0), 900).moving_at_world(&feel));
+        assert!(!pose(Some(1.0), 100).moving_at_world(&feel));
+        assert!(!pose(None, 100).moving_at_world(&feel));
+        assert!(!pose(Some(3.0), 100).moving_at_world(&Feel { hop_world_mps: 0.0, ..feel }));
     }
 
     /// Caught for 12 s: a hop at most every [`Feel::hop_every_s`].

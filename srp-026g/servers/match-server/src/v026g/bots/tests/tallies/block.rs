@@ -122,6 +122,7 @@ pub(crate) fn measure_place_view(game: &Game, place: Place) -> PlaceView {
         streak: 0,
         carrying: None,
         seen_at: 0,
+        world_speed: None,
         known_at: 0,
     }
 }
@@ -411,6 +412,7 @@ impl BlockTally {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                world_speed: None,
                 known_at: 0,
             }
         };

@@ -78,6 +78,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_WRITE_GOLDEN", "off", "a path: the made-up match test writes its counts there instead of comparing (tallies/owner/golden.rs)"),
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
+    s("SRP_BENCH_HOP_WORLD", "on", "`off` lets a hop answer a world that had the body moving (`Feel::hop_world_mps` 0)"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
     // The bots' side: tuning of the bench's bots.
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),
