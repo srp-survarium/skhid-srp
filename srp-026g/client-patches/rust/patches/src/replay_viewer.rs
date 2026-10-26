@@ -1,6 +1,10 @@
 //! The replay viewer (README "24 to 26", client_patch.md section 3.24;
 //! docs/notes/replay_sur.md). Nothing a match computes.
 //!
+//! - 24, the camera after a kit change: replay_network_client's "is this
+//!   place mine" (vtable slot +54h) was a stub saying no, so the client
+//!   respawn rule's kit change never re-attached the camera to the new
+//!   kit's object; mine is the place the camera is on.
 //! - 25, a full sound queue: a weapon's delayed sounds' add pushes without
 //!   looking, and push_back asserts at the capacity (64; seen in a replay
 //!   about 50 s after a seek). With the queue full the new sound is dropped
@@ -12,8 +16,14 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::replay::{ReplaySeek, SoundQueue};
-use crate::vostok::{Context, Flow, NoExit, Reg, ReplayViewerOnSoundAddedExit};
+use crate::vostok::replay::{Place, ReplayClient, ReplaySeek, SoundQueue};
+use crate::vostok::{Context, Flow, NoExit, OrigReplayPlaceMine, Reg, ReplayViewerOnSoundAddedExit};
+
+/// `replay_client.place_mine`: the replay's "is this place mine" is
+/// whether the camera is on it (the stock slot, `orig`, says no).
+pub fn on_place_mine(_orig: &OrigReplayPlaceMine, client: &mut ReplayClient, place: Place) -> bool {
+    client.is_camera_place(place)
+}
 
 /// `replay.seek`: a user seek, the clock at the target; then the seek's
 /// own `lea` (Continue).

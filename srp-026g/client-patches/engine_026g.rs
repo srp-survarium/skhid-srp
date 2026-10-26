@@ -106,6 +106,8 @@ unsafe extern "C" {
     pub fn engine_strcmp(first: *const u8, second: *const u8) -> u32;
     /// 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
     pub fn engine_file_offset(node: *mut c_void) -> u64;
+    /// 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
+    pub fn engine_is_player_current(client: *mut c_void, place: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -134,6 +136,8 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: *mut c_void, out: *mut u32, place: u32) -> *mut u32;
     /// 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
+    /// 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
+    pub fn engine_replay_place_mine(client: *mut c_void, place: u32) -> u8;
 }
 
 /// 0x301ca0 survarium::victory_item_core::can_be_spotted_by: spottable ECX, spotter ESP+4; pops 4; AL; through its vtable's slot +0x4 (thiscall; this the model)

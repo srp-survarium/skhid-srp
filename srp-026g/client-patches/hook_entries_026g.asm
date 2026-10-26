@@ -1069,6 +1069,9 @@ replay_viewer_on_sound_added_replay:
     db 0x8b, 0x4e, 0x04
     jmp 0x2454c6
 
+; 0x9ff398 replay_network_client's vtable 0x9FF344, slot +54h: is_this_place_mine (the stock slot 0x54E10, xor al,al / ret 4); the client respawn rule's kit change 0x2678E0 asks it: pointer -> replay_viewer_on_place_mine (wraps engine_replay_place_mine 0x54e10)
+    RUST_THISCALL replay_viewer_on_place_mine, hook_replay_viewer_on_place_mine, 1
+
 ; 0x29aad5 drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame): lohook -> shared_upgrades_on_drop_sent
 global shared_upgrades_on_drop_sent
 extern hook_shared_upgrades_on_drop_sent

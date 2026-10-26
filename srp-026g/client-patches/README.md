@@ -85,6 +85,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
 | `rust/patches/src/shared_upgrades.rs`, `shared_upgrades.toml`, `port/equiv/shared_upgrades.py` | Patch 30 (one upgrade on several items: taking it off names the item) as the Rust patch `shared_upgrades` (four lohooks), and its equivalence spec against the asm it replaced |
+| `check_replay_reattach_026g.py` | Calls replay_network_client's "is this place mine" slot of the original and the build on made-up clients: the build says yes for the camera player's place alone (needs Unicorn) |
 | `check_sound_queue_026g.py` | Runs the original's and the build's delayed sounds' add after its drain on queues up to and past their capacity: the build drops the new sound at it (needs Unicorn) |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -1551,9 +1552,10 @@ of them changes what a match computes, so they have no revision of their own.
 
 - **24. The camera follows its player into another kit.** In first or third
   person, the replay died at the watched player's first respawn into another
-  kit. The replay client's "is this place mine" slot now points at a thunk
-  in int3 padding (0x242A69) that answers "the place the camera is on", so
-  the camera re-attaches as a live game's does.
+  kit. The replay client's "is this place mine" slot now names the Rust
+  patch `replay_viewer`'s pointer hook (`replay_client.place_mine`; once a
+  thunk in int3 padding at 0x242A69), which answers "the place the camera is
+  on", so the camera re-attaches as a live game's does.
 - **25. A weapon with a full sound queue drops the new sound.** A weapon's
   delayed sounds (64 items) asserted when full, which killed a replay about
   50 s after a seek. The Rust patch `replay_viewer`'s lohook at 0x2454C1

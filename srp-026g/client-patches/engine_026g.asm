@@ -71,6 +71,8 @@ global engine_process_detach_upgrade
 global engine_physical_path
 global engine_strcmp
 global engine_file_offset
+global engine_replay_place_mine
+global engine_is_player_current
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -90,6 +92,7 @@ engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (kernel32, stdcal
 engine_get_module_file_name_w equ 0x870074   ; the IAT slot 0x870074 (kernel32, stdcall)
 engine_enqueue equ 0x379640   ; 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
 engine_process_detach_upgrade equ 0x275220   ; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
+engine_replay_place_mine equ 0x54e10   ; 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -910,6 +913,22 @@ engine_file_offset:
     push edi
     mov ecx, [esp + 20]   ; node
     call 0x47160
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_is_player_current:
+    ; 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov eax, [esp + 24]   ; client
+    call 0x242a40
     pop edi
     pop esi
     pop ebx

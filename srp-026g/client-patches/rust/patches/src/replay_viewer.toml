@@ -15,3 +15,8 @@ handler = "on_seek"
 [[hook]]
 site = "weapon_sounds.added"
 handler = "on_sound_added"
+
+# 24: the replay's "is this place mine" is the place the camera is on
+[[hook]]
+site = "replay_client.place_mine"
+handler = "on_place_mine"

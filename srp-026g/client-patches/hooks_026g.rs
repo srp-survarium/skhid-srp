@@ -459,6 +459,36 @@ pub extern "C" fn hook_replay_viewer_on_sound_added(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 26) ----
+
+/// engine_replay_place_mine (0x54e10), as the pointer hook at 0x9ff398 wraps it.
+pub struct OrigReplayPlaceMine;
+
+impl OrigReplayPlaceMine {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, client: &mut ReplayClient, place: Place) -> bool {
+        // SAFETY: engine_replay_place_mine at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_replay_place_mine(client.ptr(), place.0) != 0 }
+    }
+}
+
+/// The entry `replay_viewer_on_place_mine` (0x9ff398, replay_network_client's vtable 0x9FF344, slot +54h: is_this_place_mine (the stock slot 0x54E10, xor al,al / ret 4); the client respawn rule's kit change 0x2678E0 asks it) calls this with
+/// engine_replay_place_mine's 2 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_place_mine(a0: u32, a1: u32) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_place_mine` calls this, from the game's call at
+    // 0x9ff398, on the game's thread; a0.. are engine_replay_place_mine's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut client) = (unsafe { ReplayClient::from_raw(&thread, a0) }) else {
+        // a null ReplayClient never happens at this site; take the unpatched path.
+        return u32::from(unsafe { raw::engine_replay_place_mine(a0 as usize as *mut _, a1) } != 0);
+    };
+    let place = Place(a1);
+    let orig = OrigReplayPlaceMine;
+    u32::from(crate::replay_viewer::on_place_mine(&orig, &mut client, place))
+}
+
 // ---- shared_upgrades (patch 30) ----
 
 /// The entry `shared_upgrades_on_drop_sent` (0x29aad5, drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame)) calls this with the saved machine.

@@ -100,6 +100,23 @@ TYPES = {
         "pass": "{n}",
         "null": "{a}",
     },
+    "ReplayClient": {
+        "raw": "*mut c_void",
+        "fallible": True,
+        "build": "ReplayClient::from_raw(&thread, {a})",
+        "orig_type": "&mut ReplayClient",
+        "orig_raw": "{n}.ptr()",
+        "pass": "&mut {n}",
+        "null": "{a} as usize as *mut _",
+    },
+    "Place": {
+        "raw": "u32",
+        "binding": "let {n} = Place({a});",
+        "orig_type": "Place",
+        "orig_raw": "{n}.0",
+        "pass": "{n}",
+        "null": "{a}",
+    },
     "ChatText": {
         "raw": "*const c_void",
         "binding": "let {n} = ChatText({a});",
@@ -657,16 +674,28 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     bytes are derived (a `call rel32` to the callee), so the exe is not
     needed for one; a span hook (splice, lohook, code) reads its bytes from
     `exe`. patch_026g.py's apply() checks every write against the exe. A
-    pointer, vtable or callback hook is installed by a pointer write or at
-    run time, not here; it is refused until patch_026g.py integrates it."""
+    pointer hook is pointer_installs()'; a vtable or callback hook is
+    installed at run time, not here, and is refused until patch_026g.py
+    integrates it."""
     out = []
     for h in hooks(tomls, functions, sites, exe):
         how, opcode = h["install"]
+        if how == "pointer":
+            continue
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
         out.append((h["site"], h["original"], h["entry"], opcode, h["patch"]))
     return out
+
+
+def pointer_installs(exe=None, tomls=None, functions=None, sites=None):
+    """(the slot's VA, its original 4 bytes: the callee's VA, the entry
+    symbol, owner) of each `pointer` hook: patch_026g.py writes the entry's
+    VA over the pointer (the slot keeps its base relocation, a pointer it
+    still is), and checks the old value against the exe."""
+    return [(h["site"], h["original"], h["entry"], h["patch"]) for h in hooks(tomls, functions, sites, exe)
+            if h["install"][0] == "pointer"]
 
 
 def arena_sources(tomls=None, functions=None, sites=None, exe=None):
@@ -688,6 +717,15 @@ def lohook_sites(tomls=None, sites=None):
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
             for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+
+
+def pointer_sites(tomls=None, sites=None):
+    """(the slot's VA, owner patch, what) of every pointer hook, from the TOML
+    and the sites alone (patch_026g.py's INSTALLS declares them SLOT)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "pointer"]
 
 
 def install_sites(tomls=None, sites=None):

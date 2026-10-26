@@ -222,3 +222,10 @@ extern engine_strcmp
 ; unsigned long long engine_file_offset(void *node)
 ; 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
 extern engine_file_offset
+; unsigned char engine_replay_place_mine(void *client, unsigned int place)
+; 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_replay_place_mine
+; unsigned int engine_is_player_current(void *client, unsigned int place)
+; 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
+extern engine_is_player_current

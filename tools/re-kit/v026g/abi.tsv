@@ -1996,3 +1996,4 @@ va	name	source	ret_cleanup	result
 0x0004bc10	vostok::vfs::vfs_iterator::get_physical_path	manual	0	
 0x0003b5a0	vostok::detail::strcmp_s	manual	0	EAX: -1, 0 or 1 (a null text is "")
 0x00047160	vostok::vfs::get_file_offs<1>	manual	0	EDX:EAX: the file's offset in its archive (0 for a node not in one)
+0x00242a40	survarium::network_client::is_player_current	manual	4	EAX: 1 when the client's player (+4) is in the place, else 0

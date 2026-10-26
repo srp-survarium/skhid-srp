@@ -9,7 +9,7 @@ use core::ffi::c_void;
 use core::marker::PhantomData;
 
 use super::context::{Context, Reg};
-use super::hook::Thread;
+use super::hook::{Handle, Thread};
 use super::object::{Object, pointer, read, vtable, write};
 use crate::raw;
 
@@ -127,5 +127,37 @@ impl<'t> SoundQueue<'t> {
     pub fn full(&self) -> bool {
         // SAFETY: as end.
         self.end() >= unsafe { read(raw::delayed_callbacks_queue::capacity_end(self.queue.ptr())) }
+    }
+}
+
+/// A match place (a roster place's index), as the network clients' place
+/// queries take it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Place(pub u32);
+
+/// The replay's network client (replay_network_client), as its vtable's
+/// slots are called with it.
+pub struct ReplayClient<'t> {
+    client: Object,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Handle<'t> for ReplayClient<'t> {
+    unsafe fn from_raw(_: &'t Thread, raw: u32) -> Option<Self> {
+        Object::at(raw).map(|client| ReplayClient { client, thread: PhantomData })
+    }
+}
+
+impl ReplayClient<'_> {
+    pub(in crate::vostok) fn ptr(&self) -> *mut c_void {
+        self.client.ptr()
+    }
+
+    /// Whether `place` is the place of the player the camera is on
+    /// (network_client::is_player_current, the client's own).
+    pub fn is_camera_place(&self, place: Place) -> bool {
+        // SAFETY: a live network client (a replay's is one); the game's own
+        // function, which reads its +4 and that player's place.
+        unsafe { raw::engine_is_player_current(self.client.ptr(), place.0) != 0 }
     }
 }

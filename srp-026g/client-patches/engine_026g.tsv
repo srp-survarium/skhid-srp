@@ -72,3 +72,5 @@ engine_process_detach_upgrade	0x275220	ESP+4:client ESP+8:upgrade	unsigned int e
 engine_physical_path	0x04bc10	EDI:path ESP+4:node	void engine_physical_path(void *path, void *node)	thunk	
 engine_strcmp	0x03b5a0	EAX:first ECX:second	unsigned int engine_strcmp(const char *first, const char *second)	thunk	
 engine_file_offset	0x047160	ECX:node	unsigned long long engine_file_offset(void *node)	thunk	
+engine_replay_place_mine	0x054e10	ECX:client ESP+4:place	unsigned char engine_replay_place_mine(void *client, unsigned int place)	thiscall	client: ReplayClient, place: Place -> bool
+engine_is_player_current	0x242a40	EAX:client ESP+4:place	unsigned int engine_is_player_current(void *client, unsigned int place)	thunk	

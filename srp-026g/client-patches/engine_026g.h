@@ -211,4 +211,10 @@ unsigned int engine_strcmp(const char *first, const char *second);
 /* 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX */
 unsigned long long engine_file_offset(void *node);
 
+/* 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_replay_place_mine(void *client, unsigned int place);
+
+/* 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX */
+unsigned int engine_is_player_current(void *client, unsigned int place);
+
 #endif

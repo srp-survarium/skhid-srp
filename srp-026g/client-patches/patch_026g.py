@@ -781,12 +781,12 @@ MEMORY_DEFAULTS = (
 # new kit object when it says yes, as the live client's 0x27B550 does for
 # its own place; the replay never did, kept drawing the old kit's object as
 # the one watched and gave the new one's weapon a HUD of 0 + 0x2E4
-# (weapon::draw 0x24502B). The slot gets a thunk in the int3 padding after
+# (weapon::draw 0x24502B). The slot names the Rust patch replay_viewer's
+# pointer hook (sites_026g.tsv replay_client.place_mine), which asks
 # is_player_current 0x242A40 (the client in eax, the place on the stack,
-# `ret 4`): `mov eax,ecx` / `jmp 242A40h`, so "mine" is "the place the
-# camera is on". The slot keeps its base relocation.
-REPLAY_REATTACH_THUNK = (0x242A69, bytes.fromhex("cc") * 7, bytes.fromhex("8bc1e9d0ffffff"))
-REPLAY_REATTACH_SLOT = (0x9FF398, struct.pack("<I", 0x54E10), struct.pack("<I", 0x242A69))
+# `ret 4`): "mine" is "the place the camera is on". The slot keeps its base
+# relocation. (Until the Rust port the slot named a 7-byte thunk written
+# into the int3 padding at 0x242A69, `mov eax,ecx` / `jmp 242A40h`.)
 
 # A weapon's delayed sounds (delayed_callbacks_queue<64>, weapon+9FCh:
 # begin, end, capacity end; 0x38 bytes an item) are emptied by nothing but
@@ -2224,9 +2224,6 @@ INSTALLS = {
     0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
     0x284F7F: (INLINE, "on_player_ready: made", None, None),
     0x284B7C: (INLINE, "setup_profile's early return: early", None, None),
-    # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
-    REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
-                              "the thunk to is_player_current", None, None),
     # Research, patch 53 (in `.srpx`)
     0x1E9B4C: (INLINE, "the game's constructor, `mov eax,ebx / call 0x1EC170`: register (it does both, the call "
                        "as a tail jump with the return address moved past the nops)", None, None),
@@ -2434,6 +2431,17 @@ def audit_installs(data, writes, installs=None):
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+# The Rust pointer hooks: each slot names its generated entry.
+for _va, _owner, _what in hooks_026g.pointer_sites():
+    INSTALLS[_va] = (SLOT, f"{_what}: {_owner} (Rust pointer)", None, None)
+
+
+def rust_pointers(original):
+    """The Rust pointer hooks' installs (the slot's VA, its old 4 bytes, the
+    entry's arena symbol), the old bytes checked against `original`'s."""
+    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n]) if TEXT_VA <= va < TEXT_VA + TEXT_VSIZE \
+        else None
+    return tuple((va, old, symbol) for va, old, symbol, _owner in hooks_026g.pointer_installs(exe=read))
 
 
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
@@ -3123,10 +3131,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
-        patch(data, *REPLAY_REATTACH_THUNK)
-        sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
-        # An address: its relocation stays.
-        patch_section_value(data, *REPLAY_REATTACH_SLOT)
         patch(data, *REMOVE_MODEL)
         # The one address in what is replaced: the loader must not add to it.
         if neutralize_relocs(data, [(REMOVE_MODEL_VA, REMOVE_MODEL_VA + len(REMOVE_MODEL[1]))]) != [REMOVE_MODEL_VA + 2]:
@@ -3448,6 +3452,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     disabled = neutralize_relocs(data, [(va, va + len(expected))])
                     if not set(disabled) <= set(RUST_HOOK_RELOCS):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                # a pointer hook: the slot names its entry (an address: its
+                # base relocation stays)
+                for va, old, symbol in rust_pointers(original):
+                    patch_section_value(data, va, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)

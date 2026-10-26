@@ -1455,7 +1455,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.LATE_JOIN_HOOKS] + \
         [(P.RUN_UNFOCUSED_VA, len(P.RUN_UNFOCUSED[1])), (P.REMOVE_MODEL_VA, len(P.REMOVE_MODEL[1])),
          (P.PREGAME_PROGRESS_VA, len(P.PREGAME_PROGRESS[1])), (P.TDM_DEATHS[0], len(P.TDM_DEATHS[1])),
-         (P.REPLAY_REATTACH_THUNK[0], len(P.REPLAY_REATTACH_THUNK[1])),
          (P.SOUND_QUEUE_HOOK_VA, 5),
          ] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
@@ -2995,53 +2994,38 @@ def forward_fill_offset(stock):
 
 def test_replay_reattach(original, image, before):
     """A replay's camera follows its player into another kit (patch
-    revision 11, REPLAY_REATTACH): replay_network_client's slot +0x54 is
-    a thunk to is_player_current 0x242A40 in that function's int3 padding;
-    the build without the late join keeps both."""
+    revision 11): replay_network_client's slot +0x54 names the Rust patch
+    replay_viewer's pointer hook (replay_client.place_mine), its generated
+    thiscall entry, which asks is_player_current 0x242A40; the build without
+    the late join keeps the stub. check_replay_reattach_026g.py runs it."""
     stock = Image(original)
-    va, old, new = P.REPLAY_REATTACH_THUNK
-    slot, slot_old, slot_new = P.REPLAY_REATTACH_SLOT
-    check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(old)) == new,
-          f"{va:#x}: seven int3 in the original and the build without the late join, the thunk in this one")
-    rows = [text for _, _, text in ndisasm(image.read(va, len(new)), va)]
-    check(rows == ["mov eax,ecx", "jmp 0x242a40"], f"{va:#x}: `mov eax,ecx` / `jmp 0x242a40`: {rows}")
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    [(slot, slot_old, symbol)] = [h for h in P.rust_pointers(original) if h[2].startswith("replay_viewer_")]
+    entry = linked.symbols[symbol]
+    check(slot == 0x9FF398 and stock.read(slot, 4) == slot_old == struct.pack("<I", 0x54E10)
+          and before.read(slot, 4) == slot_old and image.read(slot, 4) == struct.pack("<I", entry)
+          and block.va <= entry < block.va + block.size,
+          f"{slot:#x}: 0x54e10 (`xor al,al` / `ret 4`) in the original and the build without, {entry:#x} "
+          f"({symbol}, a generated entry of patches.code) in this one")
+    rows = [text for _, _, text in ndisasm(image.read(entry, 0x40), entry)]
+    pops = next((text for text in rows if text.startswith("ret")), None)
+    check(rows[:2] == ["push ebp", "mov ebp,esp"] and "push ecx" in rows and pops == "ret 0x4",
+          f"{symbol}: the generated thiscall entry (ECX and the place to the shim, `ret 4` as the stub)")
     target = [text for _, _, text in ndisasm(stock.read(0x242A40, 0x29), 0x242A40)]
     check(target == ["mov eax,[eax+0x4]", "test eax,eax", "jz 0x242a64", "mov ecx,0x119190", "test ecx,ecx",
                      "jz 0x242a64", "mov dl,[eax+0x114]", "cmp dl,[esp+0x4]", "jnz 0x242a64", "mov eax,0x1",
                      "ret 0x4", "xor eax,eax", "ret 0x4"],
           "is_player_current 0x242A40: the client in eax, the attached player at +4, its place (+0x114) against "
-          "the one pushed, `ret 4`; the padding after it is the thunk's")
-    # Nothing aims into the padding: rel8 and rel32 branch bytes of .text,
-    # and 4-byte values anywhere in the file.
-    text = original[P.TEXT_FILE:P.TEXT_FILE + P.TEXT_VSIZE]
-    inside = lambda target: va <= target < va + len(old)
-    hits = []
-    for at in range(va - P.TEXT_VA - 0x90, va - P.TEXT_VA + len(old) + 0x90):
-        op = text[at]
-        if (op == 0xEB or 0x70 <= op <= 0x7F or 0xE0 <= op <= 0xE3) and inside(P.TEXT_VA + at + 2 + struct.unpack_from("<b", text, at + 1)[0]):
-            hits.append(f"{P.TEXT_VA + at:#x} rel8")
-    for opcode, size in ((bytes([0xE8]), 5), (bytes([0xE9]), 5), (bytes([0x0F]), 6)):
-        at = text.find(opcode)
-        while at != -1:
-            if at + size <= len(text) and (size == 5 or 0x80 <= text[at + 1] <= 0x8F):
-                target = (P.TEXT_VA + at + size + struct.unpack_from("<i", text, at + size - 4)[0]) & 0xFFFFFFFF
-                if inside(target):
-                    hits.append(f"{P.TEXT_VA + at:#x} rel32")
-            at = text.find(opcode, at + 1)
-    for target in range(va, va + len(old)):
-        if original.find(struct.pack("<I", target)) != -1:
-            hits.append(f"{target:#x} as a value")
-    check(not hits, "no branch bytes or pointer values aim into the padding" + "".join(", " + h for h in hits))
-    check(stock.read(slot, 4) == slot_old and before.read(slot, 4) == slot_old and image.read(slot, 4) == slot_new,
-          f"{slot:#x}: 0x54e10 (`xor al,al` / `ret 4`) in the original and the build without, {va:#x} in this one")
+          "the one pushed, `ret 4`")
     check([text for _, _, text in ndisasm(stock.read(0x54E10, 5), 0x54E10)] == ["xor al,al", "ret 0x4"],
           "0x54E10 is `xor al,al` / `ret 4`")
     check(rtti_name(stock, 0x9FF344)[0] == ".?AVreplay_network_client@survarium@@",
           "the vtable at 0x9FF344 is replay_network_client's")
     relocated = lambda img: [rva for kind, rva in img.relocations().values() if kind == 3 and rva == slot]
     check(relocated(stock) and relocated(image), f"the slot {slot:#x} keeps its base relocation")
-    under = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
-    check(not under, "no base relocation under the thunk")
+    check(image.read(0x242A69, 7) == stock.read(0x242A69, 7) == bytes.fromhex("cc") * 7,
+          "the int3 padding after is_player_current is the original's (the thunk of the asm port is gone)")
 
 
 def branches_into(original, lo, hi):
@@ -6023,7 +6007,7 @@ def test_late_join(original, without, server, source):
     # Every byte before .srp's file data, against the build without.
     ranges = [(P.file_offset(va), size) for va, size in late_join_sites()]
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
-    ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
+    ranges += [(image.offset(va), 4) for va, _, _ in P.rust_pointers(original)]
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),

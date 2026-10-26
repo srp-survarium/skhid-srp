@@ -75,6 +75,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
+    use super::replay::{Place, ReplayClient};
+    #[allow(unused_imports)]
     use crate::raw;
     include!("../../../../hooks_026g.rs");
 }
