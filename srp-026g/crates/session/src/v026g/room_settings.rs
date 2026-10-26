@@ -19,7 +19,7 @@ use survarium::v026g::lobby::rooms::{LEVEL_MAX, MIN_SIDES, PoolEntry, RoomForm, 
 
 /// The window's defaults (and a room Play makes): 8 v 8, from 1 v 1, any
 /// max level, a wait of 30 s, the match pool without the experimental maps,
-/// every mode.
+/// every mode (Blackout too, when the server offers it).
 pub const DEFAULT_SIZE: u8 = 8;
 pub const DEFAULT_MIN_SIDE: u8 = 1;
 pub const DEFAULT_MAX_LEVEL: u8 = 0;
@@ -237,6 +237,25 @@ mod tests {
             .filter(|(entry, on)| **on && !form.modes_off.contains(&entry.mode))
             .map(|(entry, _)| entry.map_id)
             .collect()
+    }
+
+    #[test]
+    fn blackout_is_in_the_defaults_and_its_maker_may_leave_it_out() {
+        let mut entries = pool();
+        entries.push(entry(255, 1, 1, survarium::v026g::maps::mode::BLACKOUT, false));
+        let form = form(None, &entries, 4);
+        assert!(form.modes_off.is_empty());
+        assert!(chosen(&form, &entries).contains(&255));
+        // Left out once, kept out: a room made without it gives that back.
+        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &entries);
+        assert_eq!(kept.modes_off, vec![survarium::v026g::maps::mode::BLACKOUT]);
+        let again = super::form(Some(&kept), &entries, 4);
+        assert!(!chosen(&again, &entries).contains(&255));
+        // Settings kept before Blackout was offered: it is in, as any mode
+        // added later (no schema step needed).
+        let before = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &pool());
+        let now = super::form(Some(&before), &entries, 4);
+        assert!(chosen(&now, &entries).contains(&255));
     }
 
     #[test]

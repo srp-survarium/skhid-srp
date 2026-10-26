@@ -1983,3 +1983,7 @@ va	name	source	ret_cleanup	result
 0x0032e3e0	survarium::bullet::apply_hit_impulse	manual	4	none; when the object hit has a physics body ([[EDI+1Ch]+0Ch], whose vtable +10h answers non-zero), applies [ESI] times the ammo's mass ([[entry ESP+4]+40h]+14h) as an impulse through [obj+2A8h] vtable +20h: the config's mass is the bullet's impulse on a prop (called from process_collision 0x32EBF6 with the velocity +1Ch, try_pierce 0x32DD9D and try_reflect 0x32E2AA with the speed lost)
 0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	manual	8	
 0x00236c30	survarium::game_world_ui::set_local_respawn_time	manual	4	
+0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	manual	4	EAX: the data
+0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	manual	0	EAX: the record
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
+0x002384c0	survarium::game_world_ui::show_player_list	manual	4	

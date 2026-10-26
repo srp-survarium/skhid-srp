@@ -64,3 +64,15 @@ survarium::game	renderer	0x5360	u32	the game's vostok::render::game::renderer (m
 vostok::render::game::renderer	scene_renderer	0x200064	u32	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
 survarium::player_model	render_instance	0x108	u32	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
 survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
+survarium::match_options	srp_blackout	0x57870	u32	patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
+vostok::buffer_reader	begin	0x0	u32	a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
+vostok::buffer_reader	cursor	0x4	u32	the next byte to read
+vostok::buffer_reader	size	0x8	u32	the bytes from begin
+survarium::game_world_ui	hud_movie	0x8	u32	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
+survarium::game_world_ui	icons_movie	0x10	u32	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+vostok::ui::movie_holder	view	0x108	u32	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
+vostok::ui::movie_view	movie	0x4	u32	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
+survarium::static_info_frame	reader	-0x2C	u32	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
+survarium::replay_options_frame	options	0x40	u32	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
+survarium::replay_options_frame	reader	0x14	u32	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
+survarium::update_player_icons_frame	ui	0x4	u32	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)

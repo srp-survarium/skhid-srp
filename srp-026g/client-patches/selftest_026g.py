@@ -3900,6 +3900,56 @@ def test_suicide_key(original, image, before):
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_blackout(original, image, before):
+    """Check 65: Blackout (patch 65, the Rust patch `blackout`, five
+    lohooks of blackout.toml at sites of its own). check_blackout_026g.py
+    runs each from the game's code before its site on made-up objects."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x27B921, 12) == ["add esi,byte +0xc", "push esi", "lea eax,[ebp-0x2c]", "call 0x1f0e70"]
+          and rows(0x27B903, 6) == ["mov [ebp-0x2c],eax", "mov [ebp-0x28],eax"]
+          and rows(0x1F095C, 0x15)[:5] == ["mov ecx,[esp+0x40]", "push eax", "push ecx", "lea eax,[esp+0x1c]",
+                                          "mov [edi+0x680],edx"]
+          and rows(0x1F0971, 8) == ["pop esi", "pop ebx", "add esp,byte +0x34", "ret 0x8"]
+          and stock.read(0x1F0F35, 3) == bytes.fromhex("c20800"),
+          "match_options::deserialize (0x1F0E70, eax the reader, its first argument the options, `ret 8`) is "
+          "called with ESI the options and the reader at EBP-2Ch (0x27B928) and, for a replay's chunk 1, the "
+          "options from [esp+40h] and the reader at esp+14h (0x1F096C), back at 0x27B92D and 0x1F0971")
+    check(rows(0x25CD22, 0x1F) == ["push byte +0xf", "call eax", "mov bl,al", "mov [esp+0x14],bl",
+                                   "mov ecx,[esp+0x14]", "lea esi,[edi+0x4]", "push ecx", "call 0x2384c0",
+                                   "test bl,bl", "jnz near 0x25cf0d"]
+          and rows(0x23B206, 6) == ["push edi", "call 0x23aa10"],
+          "on_keyboard_action asks for Tab (0x25CD22), keeps it in bl and [esp+14h], gives show_player_list the "
+          "dword and sends every key to its end while bl is set (0x25CD39); update_ui calls update_player_icons "
+          "with the ui pushed (0x23B206)")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "blackout"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    state = linked.blocks.get("patches.state")
+    sites = {h["site_name"]: h for h in hooks}
+    check(sorted(sites) == ["input_builder.end", "keyboard.tab_state", "player_icons.update_start",
+                            "replay.options_read", "static_info.options_read"]
+          and all(h["kind"] == "lohook" for h in hooks) and state is not None,
+          "blackout.toml's five hooks are lohooks at the sites static_info.options_read, replay.options_read, "
+          "player_icons.update_start, keyboard.tab_state and input_builder.end; the crate's statics are the "
+          "block patches.state")
+    for h in hooks:
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        # a branch into bytes 1.. of the span (a 4-byte value spelling an address there is no pointer
+        # without a relocation; a pattern inside another instruction is no branch)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4383,7 +4433,8 @@ def test_hide_ui(original, image, before):
     icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
     check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
-          and hud_adds == [("HUD.as", "stage", "this.deathEyes"), ("HUD.as", "stage", "this.effectContainer")]
+          and hud_adds == [("HUD.as", "stage", "this._keptLayer"), ("HUD.as", "stage", "this.deathEyes"),
+                           ("HUD.as", "stage", "this.effectContainer")]
           and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
           and "stage.addChildAt(this.deathEyes,stage.getChildIndex(this));" in hud
@@ -6380,6 +6431,7 @@ def test_late_join(original, without, server, source):
     test_upgrade_preview(original, image, before)
     test_research(original, image, before)
     test_suicide_key(original, image, before)
+    test_blackout(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_spot(original, image, before)

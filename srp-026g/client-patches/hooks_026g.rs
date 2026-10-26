@@ -6,6 +6,81 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_replay_options(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_update_icons(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_update_icons` calls this, from the game's jump at 0x23aa10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_update_icons(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_tab` (0x25cd2c, game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_tab(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_tab` calls this, from the game's jump at 0x25cd2c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_tab(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_input_end` calls this, from the game's jump at 0x2421b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_input_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
