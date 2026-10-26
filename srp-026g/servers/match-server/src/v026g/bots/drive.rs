@@ -354,6 +354,14 @@ pub(super) fn drive_tick(
             intent.straight = false;
         }
     }
+    // A rest point on a lip is moved inward (`ThinkTuning::rest_off_lip`): the walk ends with the centre on the floor.
+    if tuning.think.rest_off_lip
+        && let Go::To { at, within_m } = intent.go
+        && let Some(shifted) = path::off_lip(&tactics.world.grid, at)
+    {
+        path::rests::count();
+        intent.go = Go::To { at: shifted, within_m };
+    }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,

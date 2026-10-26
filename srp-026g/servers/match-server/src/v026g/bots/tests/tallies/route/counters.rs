@@ -76,11 +76,33 @@ pub(super) fn request_gaps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The shots bots heard (`sense::shot_heard`): by the weapon's reach, at the fallback of an unknown weapon, from
+/// over the flat range.
+pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::sense::shots_heard().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "shots_heard_table {} shots_heard_unknown {} shots_heard_far {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::below_walk::counts()],
         |d, line| line.ends.push(format!("off_below_walk {}", d[0])),
+    )
+}
+
+/// The rest points moved off a lip (`path::rests`).
+pub(super) fn rests() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::rests::counts()],
+        |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
     )
 }
 

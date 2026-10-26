@@ -1514,7 +1514,7 @@ impl WalkGrid {
                             from: word(0),
                             to: word(4),
                             kind,
-                            press: gap::PressLead::from_centimetres(half(10)),
+                            press: gap::Takeoff::from_centimetres(half(10)),
                         }
                     })?
                     },

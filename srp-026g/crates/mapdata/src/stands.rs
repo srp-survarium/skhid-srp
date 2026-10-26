@@ -254,6 +254,14 @@ pub fn ray_meets(sight: &RayTree, eye: Vec3, dir: Vec3, shape: &Shape) -> bool {
         .is_some_and(|t| t <= USE_RAY_M && sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none())
 }
 
+/// How far along a ray from `eye` along `dir` (unit) the oriented `shape`
+/// is entered, if the ray meets it at all (whatever its length): the length
+/// of the use ray that reaches the box, to set against the client's
+/// `usable_objects_detection_distance`.
+pub fn ray_distance(eye: Vec3, dir: Vec3, shape: &Shape) -> Option<f32> {
+    ray_box(eye, dir, shape.center, &shape.rotation, shape.half)
+}
+
 /// Where a ray from `origin` along `dir` (unit) enters the oriented box;
 /// `None` if it misses.
 fn ray_box(origin: Vec3, dir: Vec3, centre: Vec3, rotation: &Rotation, half: Vec3) -> Option<f32> {
