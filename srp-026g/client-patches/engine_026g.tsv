@@ -38,3 +38,5 @@ engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsi
 engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	import	
 engine_write_file	0x870108	-	unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)	import	
 engine_close_handle	0x870040	-	unsigned int engine_close_handle(void *handle)	import	
+engine_spottable_can_be_spotted_by	0x301ca0	ECX:spottable ESP+4:spotter	unsigned char engine_spottable_can_be_spotted_by(void *spottable, void *spotter)	virtual+0x4	
+engine_spottable_set_spotted	0x301c40	ECX:spottable ESP+4:spotter	void engine_spottable_set_spotted(void *spottable, void *spotter)	virtual+0x0	

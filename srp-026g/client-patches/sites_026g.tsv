@@ -1,2 +1,3 @@
 site	va	kind	callee	span	exits	what
 input_builder.spot_query	0x242196	call	engine_action_present	-	-	the input builder's last action query (spot)
+spot.hit_owner	0x2D8A0F	lohook	-	5	spotted@0x2D888F;not_spotted@0x2D8A8F	base_player::apply_new_input, a spottable hit with no player behind it: its owner (mov ecx,[esi]; mov ecx,[ecx+0Ch]; ESI the hit's object pointer, EDI the spotter); spotted ends the walk, not_spotted takes 800h out and goes to the next hit

@@ -324,12 +324,11 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     body's owner (0x301CC0, group 0A18h at 0x301CF5), whose slots 1 and 2
     are 0x300040 `xor eax,eax; ret`, stored by the two constructors alone.
     The build: `mov dword [edi+0x34c],0x0` at 0x2D87C1 (two bytes
-    differ), and 0x2D8A0F a jump to spot_026g.section.bin at SPOT_VA,
-    which leaves only to 0x2D888F, 0x2D8A8F and 0x2D8A14, calls only
-    through the battery's vtable, holds one absolute value (0xA13EEC) and
-    whose branches inside land on instructions; the build without the
-    late join keeps both; no relocation under the sites and nothing aims
-    inside them. check_spot_026g.py runs it.
+    differ), and 0x2D8A0F the Rust patch spot's lohook (spot.toml, the
+    site spot.hit_owner, its exits 0x2D888F and 0x2D8A8F, Continue
+    0x2D8A14); the build without the late join keeps both; no relocation
+    under the sites and nothing aims inside them. check_spot_026g.py runs
+    it (and port/equiv/spot.py compared it with the asm it replaces).
 40. the same build: a model's LOD and screen factor at a wider field of
     view are the original's (patch 40). select_lod's `mulss xmm0,[0x927a44]`
     (0.5, 0x16F2A4) and calculate_screen_factor's `fmul dword [0xa710d0]`
@@ -443,6 +442,7 @@ import subprocess
 import sys
 import tempfile
 
+import engine_026g
 import patch_026g as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -629,13 +629,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.death_camera_bin(), "rb").read(),
           f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SPOT_VA:#x}",
-                        os.path.join(HERE, "spot_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.spot_bin(), "rb").read(),
-          f"{os.path.basename(P.spot_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.REPLAY_LINK_VA:#x}",
@@ -1531,7 +1524,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] + [(va, len(old)) for va, old, _, _ in P.RUST_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
-        [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
+        [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
         [(P.DEATH_VIEW_HOOK[0], len(P.DEATH_VIEW_HOOK[1]))] + \
         [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
@@ -3839,6 +3832,70 @@ def test_death_camera(original, image, before):
           "instruction; `ret 10h` and `ret 8`")
 
 
+def rust_field(kind, field):
+    """fields_026g.tsv's offset (or image VA) of `kind`'s `field`."""
+    rows = [f for f in engine_026g.fields() if f["kind"] == kind and f["field"] == field]
+    if len(rows) != 1:
+        raise SystemExit(f"fields_026g.tsv has no {kind} {field}")
+    return rows[0]["offset"]
+
+
+def rust_lohooks(original, image, before, patch, sites, exits=()):
+    """A Rust patch's lohooks (its <patch>.toml, sites_026g.tsv), static, on
+    the bytes: `sites` {VA: the instructions the original has there, the
+    span}; each site those bytes in the original and the build without the
+    late join and `jmp` to its generated entry (in patches.code) and nops
+    here; the entry the generated lohook entry (the machine saved, the shim
+    called, its Flow taken) with its replay the span's own instructions
+    (relative branches made again to the same targets) and its way back past
+    the span; `exits` exactly the named exits the entry may jump to; no base
+    relocation under a site and no branch aims inside one."""
+    stock = Image(original)
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    sym = linked.symbols
+    hooks = [h for h in P.rust_hooks(original) if h[2].startswith(patch + "_")]
+    check(sorted(h[0] for h in hooks) == sorted(sites),
+          f"the Rust patch {patch}'s lohooks are at {', '.join(f'{va:#x}' for va in sorted(sites))} "
+          f"(rust/patches/src/{patch}.toml, sites_026g.tsv)")
+    named = set()
+    for va, old, symbol, opcode in hooks:
+        target = sym[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(opcode == 0xE9 and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and [text for _, _, text in ndisasm(old, va)] == sites.get(va)
+              and image.read(va, len(hook)) == hook and block.va <= target < block.va + block.size,
+              f"{va:#x}: {'; '.join(sites.get(va, ()))} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({symbol}, a generated entry of patches.code) and nops here")
+        texts = [(at, text) for at, _, text in ndisasm(image.read(target, 0x200), target)]
+        words = [text for _, text in texts]
+        shim = sym["hook_" + symbol]
+        moves = [int(t.split(",")[1], 16) for t in words[:words.index("ud2")] if t.startswith("mov edx,0x")] \
+            if "ud2" in words else []
+        past = va + len(old)
+        replay = moves[0] if len(moves) >= 2 and moves[1] == past else None    # Continue's, then Skip's
+        check(words[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
+              and f"call {shim:#x}" in words and replay is not None,
+              f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
+              "called, its Flow taken: the replay, past the span, the named exits)")
+        if replay is None:
+            continue
+        named |= set(moves[2:])
+        played = [text for at, text in texts if at >= replay]
+        spans = [text for _, _, text in ndisasm(old, va)]
+        check(played[:len(spans)] == spans and played[len(spans)] == f"jmp {past:#x}",
+              f"{symbol}: its replay is the span's instructions at their own targets, then `jmp {past:#x}`")
+    check(named == set(exits), f"the named exits of {patch}'s lohooks are "
+          + (", ".join(f"{e:#x}" for e in sorted(exits)) or "none") + f" (found {sorted(hex(e) for e in named)})")
+    spans = [(s, o) for s, o, _, _ in hooks]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in spans)]
+    hits = [h for s, o in spans for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, f"{patch}: no base relocation under its sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+
+
 def test_suicide_key(original, image, before):
     """Check 35: the commit_suicide key (patch 34, the Rust patch
     `suicide_key`, RUST_HOOKS). check_suicide_key_026g.py runs the builder's
@@ -4634,13 +4691,14 @@ def test_spot(original, image, before):
           "the wait: counted down by the player's tick to 0 at the least (0x2DAB44), kept by "
           "base_player::serialize (0x2DB34D) and read back (0x2DB95C), reset at a spawn (0x2DAE6B)")
     u32 = lambda va: struct.unpack("<I", stock.read(va, 4))[0]
-    stores = [P.TEXT_VA + m.start() - P.TEXT_FILE - 3 for m in re.finditer(re.escape(struct.pack("<I", P.SPOT_OWNER_VTABLE)), original)
+    owner_vtable = rust_field("survarium::image", "victory_item_body_owner_vtable")
+    stores = [P.TEXT_VA + m.start() - P.TEXT_FILE - 3 for m in re.finditer(re.escape(struct.pack("<I", owner_vtable)), original)
               if P.TEXT_FILE <= m.start() < P.TEXT_FILE + P.TEXT_VSIZE]
     check(rtti_name(stock, 0xA13EE0) == (".?AVvictory_item_core@survarium@@", 0x54)
-          and rtti_name(stock, P.SPOT_OWNER_VTABLE) == (".?AVvictory_item_core@survarium@@", 0x58)
+          and rtti_name(stock, owner_vtable) == (".?AVvictory_item_core@survarium@@", 0x58)
           and (u32(0xA13EE0), u32(0xA13EE4)) == (0x301C40, 0x301CA0) and stock.read(0x301CA0, 5) == bytes.fromhex("b001c20400")
           and stock.read(0x301C95, 3) == bytes.fromhex("c20400")
-          and u32(P.SPOT_OWNER_VTABLE + 4) == u32(P.SPOT_OWNER_VTABLE + 8) == 0x300040
+          and u32(owner_vtable + 4) == u32(owner_vtable + 8) == 0x300040
           and stock.read(0x300040, 3) == bytes.fromhex("33c0c3")
           and stores == [0x30011D, 0x3004EA]
           and stock.read(0x30011D, 3) == bytes.fromhex("c74358") and stock.read(0x3004EA, 3) == bytes.fromhex("c74558")
@@ -4655,29 +4713,9 @@ def test_spot(original, image, before):
           and [i for i in range(len(old)) if old[i] != new[i]] == [6, 7],
           f"{va:#x}: `mov dword [edi+0x34c],0xbb8` in the original and the build without the late join, "
           "`mov dword [edi+0x34c],0x0` here (two bytes differ)")
-    va, old, offset, opcode = P.SPOT_HOOK
-    hook = P.hook_bytes(P.SPOT_VA, va, old, offset, opcode)
-    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook,
-          f"{va:#x}: `mov ecx,[esi]; mov ecx,[ecx+0xc]` in the original and the build without the late join, "
-          f"`jmp {P.SPOT_VA:#x}` here")
-    code = open(P.spot_bin(), "rb").read()
-    check(image.read(P.SPOT_VA, len(code)) == code,
-          f"the code at {P.SPOT_VA:#x} is spot_026g.section.bin ({len(code)} bytes)")
-    listing = [row for row in ndisasm(code, P.SPOT_VA) if row[2] != "int3"]
-    inside = lambda target: P.SPOT_VA <= target < P.SPOT_VA + len(code)
-    targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
-    starts = {address for address, _, _ in listing}
-    texts = [text for _, _, text in listing]
-    calls = [text for text in texts if text.startswith("call")]
-    absolute = [text for text in texts if re.search(r"0x[0-9a-f]{5,}", text) and branch_target(text) is None]
-    check({t for t in targets if not inside(t)} == set(P.SPOT_EXITS) and all(t in starts for t in targets if inside(t))
-          and texts[:2] == ["mov ecx,[esi]", "mov ecx,[ecx+0xc]"] and calls == ["call [eax+0x4]", "call [eax]"]
-          and absolute == [f"cmp dword [ecx],{P.SPOT_OWNER_VTABLE:#x}"]
-          and set(code[listing[-1][0] - P.SPOT_VA + 5:]) <= {0xCC},
-          "the code begins with the two instructions it replaces, leaves only to 0x2d888f, 0x2d8a8f and 0x2d8a14, "
-          "calls only the battery's can_be_spotted_by and set_spotted through its vtable, holds one absolute "
-          "value (0xa13eec), every branch inside lands on an instruction, int3 after it")
-    for va, size in ((P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))):
+    rust_lohooks(original, image, before, "spot", {0x2D8A0F: ["mov ecx,[esi]", "mov ecx,[ecx+0xc]"]},
+                 exits={0x2D888F, 0x2D8A8F})
+    for va, size in ((P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])),):
         hits = aimed_inside(original, va, size, 0x80)
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
         under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + size]
@@ -5982,82 +6020,36 @@ def test_late_join(original, without, server, source):
           f".srp: virtual {vsize:#x} = one page, the {len(code)} bytes of late-join code and the weapon preview's "
           f"{len(weapon_preview)} at +{P.WEAPON_PREVIEW_OFFSET:#x}, file {raw:#x}+{rsize:#x}")
     body = bytes(data[raw:raw + rsize])
-    pickup = open(P.pickup_bin(), "rb").read()
-    seek = open(P.seek_clear_bin(), "rb").read()
-    stale_dll = open(P.stale_dll_bin(), "rb").read()
-    mount_patches = open(P.mount_patches_bin(), "rb").read()
-    forward_scroll = open(P.forward_scroll_bin(), "rb").read()
-    kit_change = open(P.kit_change_bin(), "rb").read()
-    warmup_look = open(P.warmup_look_bin(), "rb").read()
-    warmup_limits = open(P.warmup_limits_bin(), "rb").read()
-    warmup_keys = open(P.warmup_keys_bin(), "rb").read()
-    # The first page's pieces, in order, none overlapping the next.
-    link = open(P.replay_link_bin(), "rb").read()
-    shared = open(P.shared_upgrades_bin(), "rb").read()
-    spot = open(P.spot_bin(), "rb").read()
-    pieces = [(0, len(first_page), "the build without the late join's first page"),
-              (P.REPLAY_LINK_OFFSET, len(link), "the replay link code"),
-              (P.MOUNT_PATCHES_OFFSET, len(mount_patches), "the patches' mount"),
-              (P.SHARED_UPGRADES_OFFSET, len(shared), "the shared upgrades' code"),
-              (P.SPOT_OFFSET, len(spot), "the spot code"),
-              (P.PICKUP_OFFSET, len(pickup), "the pickup code"),
-              (P.WARMUP_KEYS_OFFSET, len(warmup_keys), "the warmup keys"),
-              (P.SEEK_CLEAR_OFFSET, len(seek), "the seek code"),
-              (P.WARMUP_LIMITS_OFFSET, len(warmup_limits), "the warmup camera's limits"),
-              (P.FORWARD_SCROLL_OFFSET, len(forward_scroll), "the forward effect's scrolling"),
-              (P.WEAPON_DRAW_OFFSET, len(weapon_draw), "the weapon preview's draw"),
-              (P.WARMUP_LOOK_OFFSET, len(warmup_look), "the warmup look"),
-              (P.STALE_DLL_OFFSET, len(stale_dll), "the shell_32.dll check"),
-              (P.KIT_CHANGE_OFFSET, len(kit_change), "the kit change"),
-              (P.LATE_JOIN_OFFSET, len(code), "the late-join code"),
-              (P.WEAPON_PREVIEW_OFFSET, len(weapon_preview), "the weapon preview"),
-              (P.late_join_state_va(code) - P.SECTION_VA, 0, "the state page")]
-    overlaps = [f"{a[2]} ends at {a[0] + a[1]:#x}, past {b[2]} at {b[0]:#x}"
-                for a, b in zip(pieces, pieces[1:]) if a[0] + a[1] > b[0]]
+    # The first page's pieces, in order, none overlapping the next: each
+    # the bytes of its .bin where patch_026g.py puts it, int3 between them.
+    pieces = [(0, first_page, "the build without the late join's first page")] + [
+        (offset, open(path(), "rb").read(), what) for offset, path, what in (
+            (P.REPLAY_LINK_OFFSET, P.replay_link_bin, "the replay link code"),
+            (P.MOUNT_PATCHES_OFFSET, P.mount_patches_bin, "the patches' mount"),
+            (P.SHARED_UPGRADES_OFFSET, P.shared_upgrades_bin, "the shared upgrades' code"),
+            (P.PICKUP_OFFSET, P.pickup_bin, "the pickup code"),
+            (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
+            (P.SEEK_CLEAR_OFFSET, P.seek_clear_bin, "the seek code"),
+            (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
+            (P.FORWARD_SCROLL_OFFSET, P.forward_scroll_bin, "the forward effect's scrolling"),
+            (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
+            (P.WARMUP_LOOK_OFFSET, P.warmup_look_bin, "the warmup look"),
+            (P.STALE_DLL_OFFSET, P.stale_dll_bin, "the shell_32.dll check"),
+            (P.KIT_CHANGE_OFFSET, P.kit_change_bin, "the kit change"))] + [
+        (P.LATE_JOIN_OFFSET, code, "the late-join code"),
+        (P.WEAPON_PREVIEW_OFFSET, weapon_preview, "the weapon preview")]
+    ends = pieces[1:] + [(len(body), b"", "the section's end")]
+    state_at = P.late_join_state_va(code) - P.SECTION_VA
+    overlaps = [f"{a[2]} ends at {a[0] + len(a[1]):#x}, past {b[2]} at {b[0]:#x}"
+                for a, b in zip(pieces, pieces[1:] + [(state_at, b"", "the state page")])
+                if a[0] + len(a[1]) > b[0]]
     check(not overlaps, "the first page's code does not overlap: " + ", ".join(
-        f"{name} [{start:#x}, {start + size:#x})" for start, size, name in pieces) + "".join("; " + o for o in overlaps))
-    check(body[:len(first_page)] == first_page
-          and set(body[len(first_page):P.REPLAY_LINK_OFFSET]) <= {0xCC}
-          and body[P.REPLAY_LINK_OFFSET:P.REPLAY_LINK_OFFSET + len(link)] == link
-          and set(body[P.REPLAY_LINK_OFFSET + len(link):P.MOUNT_PATCHES_OFFSET]) <= {0xCC}
-          and body[P.MOUNT_PATCHES_OFFSET:P.MOUNT_PATCHES_OFFSET + len(mount_patches)] == mount_patches
-          and set(body[P.MOUNT_PATCHES_OFFSET + len(mount_patches):P.SHARED_UPGRADES_OFFSET]) <= {0xCC}
-          and body[P.SHARED_UPGRADES_OFFSET:P.SHARED_UPGRADES_OFFSET + len(shared)] == shared
-          and set(body[P.SHARED_UPGRADES_OFFSET + len(shared):P.SPOT_OFFSET]) <= {0xCC}
-          and body[P.SPOT_OFFSET:P.SPOT_OFFSET + len(spot)] == spot
-          and set(body[P.SPOT_OFFSET + len(spot):P.PICKUP_OFFSET]) <= {0xCC}
-          and body[P.PICKUP_OFFSET:P.PICKUP_OFFSET + len(pickup)] == pickup
-          and set(body[P.PICKUP_OFFSET + len(pickup):P.WARMUP_KEYS_OFFSET]) <= {0xCC}
-          and body[P.WARMUP_KEYS_OFFSET:P.WARMUP_KEYS_OFFSET + len(warmup_keys)] == warmup_keys
-          and set(body[P.WARMUP_KEYS_OFFSET + len(warmup_keys):P.SEEK_CLEAR_OFFSET]) <= {0xCC}
-          and body[P.SEEK_CLEAR_OFFSET:P.SEEK_CLEAR_OFFSET + len(seek)] == seek
-          and set(body[P.SEEK_CLEAR_OFFSET + len(seek):P.WARMUP_LIMITS_OFFSET]) <= {0xCC}
-          and body[P.WARMUP_LIMITS_OFFSET:P.WARMUP_LIMITS_OFFSET + len(warmup_limits)] == warmup_limits
-          and set(body[P.WARMUP_LIMITS_OFFSET + len(warmup_limits):P.FORWARD_SCROLL_OFFSET]) <= {0xCC}
-          and body[P.FORWARD_SCROLL_OFFSET:P.FORWARD_SCROLL_OFFSET + len(forward_scroll)] == forward_scroll
-          and set(body[P.FORWARD_SCROLL_OFFSET + len(forward_scroll):P.WEAPON_DRAW_OFFSET]) <= {0xCC}
-          and body[P.WEAPON_DRAW_OFFSET:P.WEAPON_DRAW_OFFSET + len(weapon_draw)] == weapon_draw
-          and set(body[P.WEAPON_DRAW_OFFSET + len(weapon_draw):P.WARMUP_LOOK_OFFSET]) <= {0xCC}
-          and body[P.WARMUP_LOOK_OFFSET:P.WARMUP_LOOK_OFFSET + len(warmup_look)] == warmup_look
-          and set(body[P.WARMUP_LOOK_OFFSET + len(warmup_look):P.STALE_DLL_OFFSET]) <= {0xCC}
-          and body[P.STALE_DLL_OFFSET:P.STALE_DLL_OFFSET + len(stale_dll)] == stale_dll
-          and set(body[P.STALE_DLL_OFFSET + len(stale_dll):P.KIT_CHANGE_OFFSET]) <= {0xCC}
-          and body[P.KIT_CHANGE_OFFSET:P.KIT_CHANGE_OFFSET + len(kit_change)] == kit_change
-          and set(body[P.KIT_CHANGE_OFFSET + len(kit_change):P.LATE_JOIN_OFFSET]) <= {0xCC}
-          and body[P.LATE_JOIN_OFFSET:P.LATE_JOIN_OFFSET + len(code)] == code
-          and set(body[P.LATE_JOIN_OFFSET + len(code):P.WEAPON_PREVIEW_OFFSET]) <= {0xCC}
-          and body[P.WEAPON_PREVIEW_OFFSET:P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)] == weapon_preview
-          and set(body[P.WEAPON_PREVIEW_OFFSET + len(weapon_preview):]) <= {0xCC},
-          f"its first page is the build's without the late join ({len(first_page)} bytes, then int3) with the "
-          f"replay link code at +{P.REPLAY_LINK_OFFSET:#x}, the patches' mount at +{P.MOUNT_PATCHES_OFFSET:#x}, "
-          f"the shared upgrades' code at +{P.SHARED_UPGRADES_OFFSET:#x}, the spot code at +{P.SPOT_OFFSET:#x}, "
-          f"the pickup code at +{P.PICKUP_OFFSET:#x}, "
-          f"the warmup keys at +{P.WARMUP_KEYS_OFFSET:#x}, the seek "
-          f"code at +{P.SEEK_CLEAR_OFFSET:#x}, the warmup camera's limits at +{P.WARMUP_LIMITS_OFFSET:#x}, the forward effect's scrolling at +{P.FORWARD_SCROLL_OFFSET:#x}, "
-          f"the weapon preview's draw at +{P.WEAPON_DRAW_OFFSET:#x}, the warmup look at +{P.WARMUP_LOOK_OFFSET:#x}, "
-          f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
-          f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
-          f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
+        f"{name} [{start:#x}, {start + len(bytes_):#x})" for start, bytes_, name in pieces)
+          + "".join("; " + o for o in overlaps))
+    check(all(body[at:at + len(bytes_)] == bytes_ and set(body[at + len(bytes_):after[0]]) <= {0xCC}
+              for (at, bytes_, _), after in zip(pieces, ends)),
+          f"its first page is the build's without the late join ({len(first_page)} bytes, then int3) with "
+          + ", ".join(f"{name} at +{at:#x}" for at, _, name in pieces[1:]) + ", each followed by int3 padding")
     name, state_rva, state_size, state_raw, state_rsize, flags = sections[-4]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)

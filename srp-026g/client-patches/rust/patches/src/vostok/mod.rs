@@ -20,8 +20,10 @@ mod cell;
 mod context;
 mod hook;
 mod input;
+mod object;
 pub mod log;
 pub mod parse;
+pub mod spotting;
 mod rt;
 pub mod types;
 

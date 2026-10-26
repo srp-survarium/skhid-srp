@@ -1,8 +1,9 @@
 # Spotting (patch 38)
 
-The rules the code and the tests follow. Code: `client-patches/spot_026g.asm` and
-`SPOT_COOLDOWN` in `client-patches/patch_026g.py`, README patch 38, `client_patch.md`
-section 3.35; the check: `client-patches/check_spot_026g.py`.
+The rules the code and the tests follow. Code: the Rust patch
+`client-patches/rust/patches/src/spot.rs` (its site `spot.hit_owner` in
+`sites_026g.tsv`) and `SPOT_COOLDOWN` in `client-patches/patch_026g.py`, README
+patch 38, `client_patch.md` section 3.35; the check: `client-patches/check_spot_026g.py`.
 
 - **Decision (the owner, 2026-10-19):** no spot cooldown at all, for every spot (players
   and batteries); a hit on a battery's body spots it, as its use box does. Reported:

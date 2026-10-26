@@ -6,6 +6,26 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- spot (patch 38) ----
+
+/// The named exits of spot::on_hit_owner (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpotOnHitOwnerExit { Spotted, NotSpotted }
+/// The entry `spot_on_hit_owner` (0x2d8a0f, base_player::apply_new_input, a spottable hit with no player behind it: its owner (mov ecx,[esi]; mov ecx,[ecx+0Ch]; ESI the hit's object pointer, EDI the spotter); spotted ends the walk, not_spotted takes 800h out and goes to the next hit) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spot_on_hit_owner(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spot_on_hit_owner` calls this, from the game's jump at 0x2d8a0f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spot::on_hit_owner(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

@@ -1,2 +1,5 @@
 kind	field	offset	type	about
 survarium::player_input_handler	actions	0x33C	u32	the action mask of the input being built (process_first_person_mode 0x241250; bit 24 commit_suicide)
+physics::collision_object	owner	0xC	u32	the object's owner, asked for a player (slot 2) or a geometry (slot 1) by a spot (0x2D8A11, 0x2D8851)
+survarium::victory_item_body_owner	spottable	-0x4	u32	the battery's spottable interface (victory_item_core+54h), beside its rigid body's owner (+58h, 0x301CC0)
+survarium::image	victory_item_body_owner_vtable	0xA13EEC	u32	victory_item_core+58h's vtable, its rigid body's owner (RTTI victory_item_core at +58h; slots 1 and 2 0x300040 xor eax,eax)

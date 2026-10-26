@@ -84,10 +84,8 @@ USAGE (this script never touches the source exe):
     (checked in; STATE is 0xE20 of the late join's state page, checked)
     (checked in). The commit_suicide key is the Rust patch suicide_key, in
     the arena's block patches.code (rust/patches, hooks_026g.py, link_026g.py;
-    docs/notes/rust_patches.md). A spot's hit on a battery's body comes from
-    spot_026g.asm:
-        nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
-    (checked in). The camera on the death screen comes from death_camera_026g.asm,
+    docs/notes/rust_patches.md). A spot's hit on a battery's body is the Rust
+    patch spot, in the same block. The camera on the death screen comes from death_camera_026g.asm,
     a section of its own, `.srpc`, on the page after the late join's state page:
         nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
     (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
@@ -353,8 +351,9 @@ Patches:
   (0x2D87C1); it is set to 0, so the next press spots again. A ray hit on a
   battery's rigid body (group 0A18h) found neither a player nor a geometry
   through its owner (victory_item_core+58h, vtable 0xA13EEC) and spotted
-  nothing; 0x2D8A0F jumps to spot_026g.asm at 0x7C0 of `.srp`, which spots
-  the battery through its spottable interface (+54h), as its use box does;
+  nothing; 0x2D8A0F is the Rust patch spot's lohook (the block patches.code;
+  spot.toml, sites_026g.tsv spot.hit_owner), which spots the battery through
+  its spottable interface (+54h), as its use box does;
 - a baked camouflage/decal texture that is no longer in the baker's list
   is baked again instead of stopping the game (patch 35, with the late
   join, client_patch.md section 3.33). The baker keeps a list of the
@@ -1147,7 +1146,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key",)
+RUST_PATCHES = ("suicide_key", "spot")
 
 
 def rust_hooks(original):
@@ -1293,18 +1292,14 @@ STAGE_FOCUS = (0x771FED,
 # battery's rigid body (group 0A18h, 0x301CF5) has the owner
 # victory_item_core+58h, vtable 0xA13EEC (written by the two constructors
 # alone, 0x30011D and 0x3004EA), whose slots 1 and 2 return 0; its use box
-# answers through slot 1. SPOT_HOOK jumps to spot_026g.asm at SPOT_OFFSET
-# of `.srp` (after the shared upgrades' code, before the pickup code): for
+# answers through slot 1. The site 0x2D8A0F is the Rust patch spot's
+# lohook (rust/patches/src/spot.toml, sites_026g.tsv spot.hit_owner): for
 # that owner it spots the battery through its spottable interface at +54h
-# (vtable 0xA13EE0: set_spotted 0x301C40, can_be_spotted_by 0x301CA0) and
-# ends the walk as a spotted target does (0x2D888F); any other owner goes
-# on to 0x2D8A14 as before. No base relocation under the site.
+# (vtable 0xA13EE0: set_spotted 0x301C40, can_be_spotted_by 0x301CA0,
+# through the vtable as the game's calls) and ends the walk as a spotted
+# target does (0x2D888F); any other owner goes on to 0x2D8A14 as before.
+# No base relocation under the site.
 SPOT_COOLDOWN = (0x2D87C1, bytes.fromhex("c7874c030000b80b0000"), bytes.fromhex("c7874c03000000000000"))
-SPOT_OFFSET = 0x7C0
-SPOT_VA = SECTION_VA + SPOT_OFFSET
-SPOT_HOOK = (0x2D8A0F, bytes.fromhex("8b0e8b490c"), 0, 0xE9)
-SPOT_OWNER_VTABLE = 0xA13EEC                  # victory_item_core at +58h: its rigid body's owner
-SPOT_EXITS = (0x2D888F, 0x2D8A8F, 0x2D8A14)   # spotted; not spotted, the next hit; the original
 
 # Fall speed (patch 72, ../docs/notes/fall_damage.md "Split ticks"). The
 # world steps to each precise input (a change of the fire bit, 0xDD) inside
@@ -2234,7 +2229,6 @@ INSTALLS = {
     0x27534D: (CALLEE, "process_detach_upgrade's find_if: find_host", None, None),
     READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
     # patch 38, 44, 45, 47, 48
-    0x2D8A0F: (JUMP, "the spot's owner: spot", None, None),
     0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
     0x284020: (INLINE, "the lobby camera's tick: tick", None, None),
     0x247576: (INLINE, "mt_draw's culled player: cull", None, None),
@@ -3520,26 +3514,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon camouflage's hook")
-        spot = open(spot_bin(), "rb").read()
-        if SHARED_UPGRADES_OFFSET + len(shared_upgrades) > SPOT_OFFSET or SPOT_OFFSET + len(spot) > PICKUP_OFFSET:
-            sys.exit("the shared upgrades' code, the spot code and the pickup code do not fit")
-        # It begins `mov ecx,[esi]; mov ecx,[ecx+0Ch]` (the five bytes it
-        # replaces) and leaves by its three jumps.
-        exits = [SPOT_VA + at + 5 + struct.unpack_from("<i", spot, at + 1)[0]
-                 for at in range(len(spot) - 4) if spot[at] == 0xE9]
-        if spot[:5] != SPOT_HOOK[1] or exits != list(SPOT_EXITS):
-            sys.exit(f"spot_026g.section.bin was assembled for another address: -DCAVE={SPOT_VA:#x}")
-        va, expected, offset, opcode = SPOT_HOOK
-        patch(data, va, expected, hook_bytes(SPOT_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the spot's hook")
 
     if mode == "section":
         if late_join is not None:
             cave = cave + b"\xCC" * (REPLAY_LINK_OFFSET - len(cave)) + replay_link
             cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
-            cave = cave + b"\xCC" * (SPOT_OFFSET - len(cave)) + spot
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (SEEK_CLEAR_OFFSET - len(cave)) + seek_clear
@@ -3704,10 +3684,6 @@ def mount_patches_bin():
 
 def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
-
-
-def spot_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "spot_026g.section.bin")
 
 
 def pickup_bin():

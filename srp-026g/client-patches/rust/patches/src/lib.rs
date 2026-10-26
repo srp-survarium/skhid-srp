@@ -31,4 +31,5 @@ mod raw {
 
 pub mod vostok;
 
+pub mod spot;
 pub mod suicide_key;

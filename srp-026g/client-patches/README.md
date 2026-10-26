@@ -96,7 +96,6 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
 | `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
-| `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
@@ -2333,8 +2332,9 @@ ends the walk. Two faults made a spot of a battery fail:
 at 0x2D87C1 becomes 0 (two bytes): the field is 0 at every tick, so every
 press spots, and every snapshot saves 0 (the countdown 0x2DAB44 keeps 0, a
 spawn sets 0). And 0x2D8A0F, where the walk asks the owner for a geometry,
-jumps to `spot_026g.asm` (50 bytes at `.srp`+7C0h, after the shared
-upgrades' code, before the pickup code): for a battery's body owner it asks
+is the Rust patch spot's lohook (`rust/patches/src/spot.rs`, the site
+`spot.hit_owner`; ported from `spot_026g.asm` with no change of behaviour,
+proven by `port/equiv/spot.py`): for a battery's body owner it asks
 the battery's spottable interface (+54h, vtable 0xA13EE0) and spots it as
 the use box's path does (can_be_spotted_by 0x301CA0, set_spotted 0x301C40:
 the spotter's team bit into +1A4h, event 4 to the match statistics) and

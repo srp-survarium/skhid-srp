@@ -6,6 +6,52 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x2d8a0f base_player::apply_new_input, a spottable hit with no player behind it: its owner (mov ecx,[esi]; mov ecx,[ecx+0Ch]; ESI the hit's object pointer, EDI the spotter); spotted ends the walk, not_spotted takes 800h out and goes to the next hit: lohook -> spot_on_hit_owner
+global spot_on_hit_owner
+extern hook_spot_on_hit_owner
+spot_on_hit_owner:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spot_on_hit_owner
+    mov edx, spot_on_hit_owner_replay
+    cmp eax, 0
+    je spot_on_hit_owner_go
+    mov edx, 0x2d8a14
+    cmp eax, 1
+    je spot_on_hit_owner_go
+    mov edx, 0x2d888f
+    cmp eax, 2
+    je spot_on_hit_owner_go
+    mov edx, 0x2d8a8f
+    cmp eax, 3
+    je spot_on_hit_owner_go
+    ud2
+spot_on_hit_owner_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spot_on_hit_owner_replay:
+    db 0x8b, 0x0e
+    db 0x8b, 0x49, 0x0c
+    jmp 0x2d8a14
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

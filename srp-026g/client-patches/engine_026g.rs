@@ -88,6 +88,34 @@ unsafe extern "stdcall" {
     pub fn engine_action_present(handler: *mut c_void, action: u32, state: *mut u32) -> u8;
 }
 
+/// 0x301ca0 survarium::victory_item_core::can_be_spotted_by: spottable ECX, spotter ESP+4; pops 4; AL; through its vtable's slot +0x4 (thiscall; this the model)
+///
+/// # Safety
+/// `spottable` is an object whose vtable's slot +0x4 is a function of the model's convention and arguments.
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_spottable_can_be_spotted_by(spottable: *mut c_void, spotter: *mut c_void) -> u8 {
+    unsafe {
+        let slot = (*(spottable as *const *const u32)).byte_add(0x4).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, *mut c_void) -> u8 = core::mem::transmute(slot);
+        function(spottable, spotter)
+    }
+}
+
+/// 0x301c40 survarium::victory_item_core::set_spotted: spottable ECX, spotter ESP+4; pops 4; through its vtable's slot +0x0 (thiscall; this the model)
+///
+/// # Safety
+/// `spottable` is an object whose vtable's slot +0x0 is a function of the model's convention and arguments.
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_spottable_set_spotted(spottable: *mut c_void, spotter: *mut c_void) {
+    unsafe {
+        let slot = (*(spottable as *const *const u32)).byte_add(0x0).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, *mut c_void) = core::mem::transmute(slot);
+        function(spottable, spotter)
+    }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (kernel32, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -111,4 +139,42 @@ pub mod player_input_handler {
     pub unsafe fn actions(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x33c).cast() }
     }
+}
+
+/// physics::collision_object's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod collision_object {
+    use core::ffi::c_void;
+
+    /// +0xc (u32): the object's owner, asked for a player (slot 2) or a geometry (slot 1) by a spot (0x2D8A11, 0x2D8851)
+    ///
+    /// # Safety
+    /// `this` is a physics::collision_object.
+    #[inline(always)]
+    pub unsafe fn owner(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::victory_item_body_owner's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod victory_item_body_owner {
+    use core::ffi::c_void;
+
+    /// -0x4 (u32): the battery's spottable interface (victory_item_core+54h), beside its rigid body's owner (+58h, 0x301CC0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::victory_item_body_owner.
+    #[inline(always)]
+    pub unsafe fn spottable(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x4).cast() }
+    }
+}
+
+/// survarium::image: VAs of the game's data (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod image {
+
+    /// 0xa13eec (u32): victory_item_core+58h's vtable, its rigid body's owner (RTTI victory_item_core at +58h; slots 1 and 2 0x300040 xor eax,eax)
+    pub const VICTORY_ITEM_BODY_OWNER_VTABLE: u32 = 0xa13eec;
 }
