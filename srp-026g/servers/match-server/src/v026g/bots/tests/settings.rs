@@ -42,9 +42,9 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 }
 
 /// The names of the plays', the reflex's and the senses' number lists
-/// (`name=value,...`), read as `SRP_BENCH_<name>`, and for team 1 of a one-sided
-/// run as `SRP_BENCH_SIDE1_<name>` (`bench_tuning_of`).
-pub(crate) const TUNING_NAMES: [&str; 13] = [
+/// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
+/// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
+pub(crate) const TUNING_NAMES: [&str; 14] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -58,6 +58,7 @@ pub(crate) const TUNING_NAMES: [&str; 13] = [
     "COMBAT",
     "AIM",
     "SENSE",
+    "TUNING",
 ];
 
 pub(crate) const SETTINGS: &[Setting] = &[
@@ -88,7 +89,6 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
-    s("SRP_BENCH_OFF_WALK_BELOW_M", "the tuning's (0.9)", "Feel::off_walk_below_m: how far under a walked leg a body is still on its route, m; `1.5` the old rule"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::escape_ceiling: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),

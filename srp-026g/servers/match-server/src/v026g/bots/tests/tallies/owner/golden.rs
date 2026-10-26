@@ -3,11 +3,13 @@ use crate::v026g::bots::tests::settings::bench_settings;
 
 /// A deterministic made-up match of six bodies, long enough that every topic of the counts has
 /// something to count (presses and landings, reloads, fire and hits, kills and held lines, a
-/// grenade, takes and stuck notes), run through `step` and `finish`. The counts and the
-/// owner-test text it gives are `golden.txt`: a change to how the counts are worked out (not to
-/// what they count) shows here. `SRP_WRITE_GOLDEN=<path> cargo test ... the_counts_of_a_made_up_match`
-/// writes the counts to <path> (then copy it over `golden.txt`) and does not compare.
-fn made_up_match() -> String {
+/// grenade, takes and stuck notes), run through `step` and `finish_topics`. The counts and the
+/// owner-test text of each topic are its file in `golden/` (`core.txt` for what the run shares): a
+/// change to how the counts are worked out (not to what they count) shows in the file of its
+/// topic only, and a new topic is a new file. A file is the topic's text, then its keys, one a line
+/// and sorted. `SRP_WRITE_GOLDEN=<dir> cargo test ... the_counts_of_a_made_up_match` writes the
+/// files to <dir> (the folder `golden/` of this one, to keep them) and does not compare.
+fn made_up_match() -> Vec<(&'static str, String)> {
     let teams = [0u8, 0, 0, 1, 1, 1];
     let (mut game, mut tally) = made_up(&teams);
     let mut seed = 0x2545_F491_4F6C_DD1Du64;
@@ -174,19 +176,56 @@ fn made_up_match() -> String {
         tally.step(&mut game, &nows);
     }
     tally.camper = Some(3);
-    let (line, json) = tally.finish(&game);
-    format!("{line}\n{json}\n")
+    let Topics { core, parts } = tally.finish_topics(&game);
+    let file = |text: Option<&str>, json: serde_json::Map<String, serde_json::Value>| {
+        let json = serde_json::to_string_pretty(&serde_json::Value::Object(json)).unwrap();
+        match text {
+            Some(text) => format!("{text}\n{json}\n"),
+            None => format!("{json}\n"),
+        }
+    };
+    let mut files = vec![("core", file(None, core))];
+    files.extend(parts.into_iter().map(|(topic, part)| (topic, file(Some(&part.text), part.json))));
+    files
+}
+
+/// A golden file as its text and its keys: the keys parsed, so that key order or the way a float is
+/// written never makes a difference (the text is compared as it is).
+fn read_golden(file: &str) -> (String, serde_json::Value) {
+    let file = file.replace("\r\n", "\n");
+    let at = file.lines().position(|line| line.starts_with('{')).expect("a golden file has its keys");
+    let lines: Vec<&str> = file.lines().collect();
+    (lines[..at].join("\n"), serde_json::from_str(&lines[at..].join("\n")).expect("the keys are JSON"))
 }
 
 #[test]
 fn the_counts_of_a_made_up_match_are_what_they_were() {
     let got = made_up_match();
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/v026g/bots/tests/tallies/owner/golden.txt");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/v026g/bots/tests/tallies/owner/golden");
     if let Some(out) = bench_settings().var_os("SRP_WRITE_GOLDEN") {
-        std::fs::write(out, &got).unwrap();
+        let out = std::path::Path::new(&out);
+        std::fs::create_dir_all(out).unwrap();
+        for (topic, file) in &got {
+            std::fs::write(out.join(format!("{topic}.txt")), file).unwrap();
+        }
         return;
     }
-    let want = std::fs::read_to_string(&path).unwrap().replace("\r\n", "\n");
-    assert!(got == want, "the counts changed:\n--- got\n{got}\n--- want\n{want}");
+    let mut have: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    have.sort();
+    let mut topics: Vec<String> = got.iter().map(|(topic, _)| format!("{topic}.txt")).collect();
+    topics.sort();
+    assert_eq!(have, topics, "a topic without a file, or a file without a topic (golden/)");
+    for (topic, file) in &got {
+        let want = std::fs::read_to_string(dir.join(format!("{topic}.txt"))).unwrap();
+        let (got_text, got_keys) = read_golden(file);
+        let (want_text, want_keys) = read_golden(&want);
+        assert!(
+            got_text == want_text && got_keys == want_keys,
+            "the counts of `{topic}` changed:\n--- got\n{file}\n--- want\n{want}"
+        );
+    }
 }
