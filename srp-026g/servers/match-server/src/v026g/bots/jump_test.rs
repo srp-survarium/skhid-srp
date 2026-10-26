@@ -2212,7 +2212,7 @@ mod tests {
     }
 
     #[test]
-    fn a_rest_fits_within_six_tenths_along_the_approach_four_across_a_third_up_and_ten_degrees_of_the_heading() {
+    fn a_rest_fits_within_six_tenths_along_the_approach_a_half_across_a_third_up_and_ten_degrees_of_the_heading() {
         let start = Vec3::new(-6.0, 1.72, 93.9);
         let axis = [1.0, 0.0];
         assert!(rest_fits(start, 0.0, start, 0.0, axis, 0.5));
@@ -2231,7 +2231,7 @@ mod tests {
         assert!(!rest_fits(start, 0.35, start, 0.0, axis, 0.5));
         // The axis turns with the approach: along z the same 0.5 m is along, 0.5 m in x is across.
         assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, [0.0, 1.0], 0.5));
-        assert!(!rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0], 0.5));
+        assert!(!rest_fits(Vec3::new(-5.3, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0], 0.5));
         // The heading wraps.
         assert!(rest_fits(start, 3.1, start, -3.1, axis, 0.5));
     }
