@@ -399,7 +399,7 @@ impl MatchRegistry {
             .filter(|map| map.is_playable())
             .ok_or(CreateError::Map(setup.map_id))?;
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
+        if !maps::mode::bots_play(map.mode) && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(setup.map_id));
         }
         let mut inner = self.inner();

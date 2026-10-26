@@ -51,6 +51,13 @@ pub mod mode {
     pub const ALL: [u8; 4] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH, RESEARCH];
     /// The modes whose maps have the teams' battery containers.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
+
+    /// Whether the server's bots play a match of `mode` (their plays are
+    /// the battery modes' and Team Deathmatch's; none of Research). A
+    /// Blackout match is one of [`super::BLACKOUT_RULES`]: they play it.
+    pub const fn bots_play(mode: u8) -> bool {
+        matches!(mode, BATTERIES | TIMED_BATTERIES | TEAM_DEATHMATCH)
+    }
     /// Blackout ("Protective device: blackout", `docs/notes/blackout.md`): a mode of
     /// the lobby's only. A match of it is one of [`super::BLACKOUT_RULES`]
     /// with the static info's Blackout flag; no config says 6.

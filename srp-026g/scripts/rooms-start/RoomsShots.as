@@ -1,5 +1,7 @@
 package
 {
+   import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.display.StageAlign;
@@ -9,12 +11,16 @@ package
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
+   import flash.text.TextField;
+   import flash.text.TextFieldType;
 
    // A private room's window as the lobby draws it, for a screenshot (shots.sh): the lobby
    // movie's own RoomsWindow over its bottom bar, on a stage of the game's size (the movie's
    // MainScene.stage is this harness), told one room state through RoomsWindow.take.
    // Parameters: movie, members (1 to 20), owner (1: the asker owns the room), teams (a digit a
-   // member, its team), phase (0 waiting, 2 in match). Traces "SHOT ready" once drawn.
+   // member, its team), phase (0 waiting, 2 in match), bots (the room's bots a team), create
+   // ("open" or "private": New room's form instead, from no room, a PIN typed for "private").
+   // Traces "SHOT ready" once drawn.
    public class RoomsShots extends Sprite
    {
       private static const STATE:int = 2060000001;
@@ -58,7 +64,7 @@ package
             var win:* = new Win(panel);
             Win.me = win;
             addChild(win);
-            var head:String = ["S1","R",4242,7,0,10,30,phase,0,owner ? 1 : 0,24,count,99,1,0,1,0].join(";");
+            var head:String = ["S1","R",4242,7,0,10,30,phase,0,owner ? 1 : 0,24,count,99,1,0,1,0,int(p.bots || 0)].join(";");
             var names:Array = [head,"C;0;61;1;0","C;1;63;0;0","C;2;117;0;0"];
             for(var i:int = 0; i < count; i++)
             {
@@ -80,8 +86,60 @@ package
                   "nickname":names[r]
                });
             }
+            if(p.create == "open" || p.create == "private")
+            {
+               rows = [{
+                  "place":STATE,
+                  "nickname":"S1;N;0;0;0"
+               }];
+               // A pool of a map the bots play, the same map in Research and a map without their
+               // data, and a form of `bots` a team: with bots the last two greyed out.
+               var pool:Array = ["S1;M;3;0","0;61;1;1;2;0;1","1;71;1;1;5;0;0","2;63;2;1;2;0;0"];
+               var poolRows:Array = [];
+               for(var q:int = 0; q < pool.length; q++)
+               {
+                  poolRows.push({
+                     "place":STATE + 9 + q,
+                     "nickname":pool[q]
+                  });
+               }
+               Win.take(poolRows);
+               Win.take([{
+                  "place":STATE + 8,
+                  "nickname":"S1;F;1;8;1;0;30;;" + int(p.bots || 0)
+               },{
+                  "place":STATE + 9,
+                  "nickname":"E;0;7"
+               }]);
+            }
             Win.take(rows);
             win.layout();
+            if(p.create == "open" || p.create == "private")
+            {
+               var press:Class = domain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               // In no room the window shows when it is opened (the top menu's tab).
+               win.show(true);
+               find(win,function(at:DisplayObject):Boolean
+               {
+                  try
+                  {
+                     return Object(at)["label"] == "New room";
+                  }
+                  catch(err:Error)
+                  {
+                  }
+                  return false;
+               }).dispatchEvent(new press(press.CLICK));
+               if(p.create == "private")
+               {
+                  var pin:TextField = TextField(find(win,function(at:DisplayObject):Boolean
+                  {
+                     return at is TextField && TextField(at).type == TextFieldType.INPUT;
+                  }));
+                  pin.text = "1234";
+                  pin.dispatchEvent(new Event(Event.CHANGE));
+               }
+            }
          }
          catch(err:Error)
          {
@@ -97,6 +155,29 @@ package
                trace("SHOT ready " + stage.stageWidth + "x" + stage.stageHeight + " window scale " + win.scaleX);
             }
          });
+      }
+
+      // The first shown object under `at` that `which` takes.
+      private static function find(at:DisplayObject, which:Function) : DisplayObject
+      {
+         if(!at.visible)
+         {
+            return null;
+         }
+         if(which(at))
+         {
+            return at;
+         }
+         var box:DisplayObjectContainer = at as DisplayObjectContainer;
+         for(var i:int = 0; box != null && i < box.numChildren; i++)
+         {
+            var found:DisplayObject = find(box.getChildAt(i),which);
+            if(found != null)
+            {
+               return found;
+            }
+         }
+         return null;
       }
    }
 }

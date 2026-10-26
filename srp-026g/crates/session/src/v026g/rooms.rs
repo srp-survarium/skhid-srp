@@ -44,6 +44,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
+pub use survarium::v026g::lobby::rooms::BotsPerTeam;
+
 /// How long a pool sent in pieces before a create waits for that create.
 pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 /// How long a PIN given before a JOIN waits for that JOIN.
@@ -76,6 +78,10 @@ pub struct Spec {
     /// The players an open room needs before its vote begins: 2 (1 v 1), 4
     /// or 6. A private room has none: its owner starts it ([`Room::needs`]).
     pub min_players: u8,
+    /// The server's bots its match starts with on each team, at most, in
+    /// the places its players do not have (the owner's of 2026-10-26); a
+    /// player who comes takes a bot's place.
+    pub bots: BotsPerTeam,
 }
 
 /// The vote's own time before each match: always this long, whatever the
@@ -409,7 +415,16 @@ impl Rooms {
     /// The pool the account's draft names among `entries` (the maps a pool
     /// may hold, in their order), taken up; `None` when it sent none lately.
     fn take_draft(&mut self, account_id: u32, entries: &[u8], now: Instant) -> Option<Vec<u8>> {
-        let draft = self.drafts.remove(&account_id)?;
+        let pool = self.drafted(account_id, entries, now);
+        self.drafts.remove(&account_id);
+        pool
+    }
+
+    /// The pool the account's draft names among `entries` now, as its next
+    /// create would take it ([`Rooms::create`]); `None` when it sent none
+    /// lately (the create takes the default pool then).
+    pub fn drafted(&self, account_id: u32, entries: &[u8], now: Instant) -> Option<Vec<u8>> {
+        let draft = self.drafts.get(&account_id)?;
         if now.saturating_duration_since(draft.at) > DRAFT_LIFE || draft.seen == 0 {
             return None;
         }
@@ -1128,6 +1143,7 @@ mod tests {
             wait: 30,
             pin,
             min_players: 2,
+            bots: BotsPerTeam::NONE,
         }
     }
 

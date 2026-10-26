@@ -5,6 +5,15 @@
 //! `rooms`) takes a member who comes while it is played so, until [`LOAD_MARGIN`]
 //! is left of it (the owner's of 2026-10-17: the queue's late joins, their
 //! scoring across matches and their patience went with the queue).
+//!
+//! A room's server bots (the owner's of 2026-10-26: "up to 3 vs 3 bots,
+//! which will be replaced with real players once those join"): the bots a
+//! room's match starts with ([`start_bots`]), a joiner taking a bot's place
+//! ([`place_joiner`] on a side with one), and when the match server takes a
+//! bot out for one ([`bot_gives_way`]). A place of a
+//! match is never used twice, and every place counts toward its 20: a
+//! joiner comes on a new place, the bot's own is left. So the match keeps
+//! a place for each bot in it, for the player who takes that bot's place.
 
 use std::time::Duration;
 
@@ -40,8 +49,12 @@ pub enum Closed {
 /// `crate::matchmaking::STRENGTH_SCALE`s).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Worth {
+    /// Everyone in it, the server's bots too: what the clients see.
     pub players: usize,
     pub strength: i64,
+    /// Of [`Self::players`], the server's bots (a room's, `start_bots`):
+    /// a joiner on the side takes one's place. A joiner has none.
+    pub bots: usize,
 }
 
 /// How a player is put into a match being played ([`place_joiner`]).
@@ -100,7 +113,13 @@ pub fn place_joiner(
         )
     };
     let side = usize::from(key(1) < key(0));
-    placed(sides, joiner, side, rule)
+    // A side that cannot take it: the other in a bot's place, if it has
+    // one (a player never waits while a bot holds a place).
+    placed(sides, joiner, side, rule).or_else(|| {
+        (sides[1 - side].bots > 0)
+            .then(|| placed(sides, joiner, 1 - side, rule))
+            .flatten()
+    })
 }
 
 /// Where a match being played takes `joiner` that has a side of its own
@@ -118,15 +137,29 @@ pub fn place_joiner_on(
 }
 
 /// `joiner` on `side`, unless that side is full with it or the match has
-/// no place.
+/// no place. On a side with the server's bots in the match, each player of
+/// it takes a bot's place: the side keeps its size, and the place the
+/// match kept for that bot is the joiner's. Elsewhere it takes a place the
+/// match does not keep for a bot.
 fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Option<LatePlacement> {
     let worth = |sides: &[Worth; 2], side: usize| {
         rule.player_value * sides[side].players as i64 + sides[side].strength + rule.lead[side]
     };
+    let gives_way = sides[side].bots.min(joiner.players);
+    // The places the match keeps for the bots that stay.
+    let kept = if gives_way == joiner.players {
+        0
+    } else {
+        sides[0].bots + sides[1].bots - gives_way
+    };
     let mut after = sides;
-    after[side].players += joiner.players;
+    after[side].players += joiner.players - gives_way;
+    after[side].bots -= gives_way;
     after[side].strength += joiner.strength;
-    if joiner.players == 0 || joiner.players > rule.room || after[side].players > rule.capacity {
+    if joiner.players == 0
+        || joiner.players + kept > rule.room
+        || after[side].players > rule.capacity
+    {
         return None;
     }
     Some(LatePlacement {
@@ -137,12 +170,124 @@ fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Opt
     })
 }
 
+/// The server's bots a room's match starts with on each team, its players
+/// being `players` (the owner's of 2026-10-26: bots fill only places
+/// players do not have): `bots` a team where its players leave that many
+/// of the team's `size` places, fewer where they do not. The match keeps a
+/// place for each bot, for the player who comes to take its place
+/// ([`placed`]): `players + 2 × bots` is at most the 20 a match has, the
+/// team with more bots giving one up first (team 1 of two alike).
+pub fn start_bots(bots: usize, size: usize, players: [usize; 2]) -> [usize; 2] {
+    let mut each = players.map(|team| bots.min(size.saturating_sub(team)));
+    let seated = players[0] + players[1];
+    while seated + 2 * (each[0] + each[1]) > crate::MAX_PLAYERS_PER_MATCH {
+        let team = usize::from(each[1] >= each[0]);
+        each[team] -= 1;
+    }
+    each
+}
+
+/// Whether a team of a room's match has a server's bot to take out now
+/// (the owner's of 2026-10-26: bots "replaced with real players once those
+/// join"): one for each player who came into the match late on the team
+/// (`joined`: its late places that entered), less the bots that gave way
+/// already (`replaced`), while it has one in (`bots_in`). A bot that gave
+/// way is gone for the match: a team that loses a player plays short, as
+/// any room's, and the room's next match starts its bots afresh.
+pub fn bot_gives_way(joined: usize, replaced: usize, bots_in: usize) -> bool {
+    bots_in > 0 && joined > replaced
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn side(players: usize, strength: i64) -> Worth {
-        Worth { players, strength }
+        Worth {
+            players,
+            strength,
+            bots: 0,
+        }
+    }
+
+    /// A side of `players` in the match, `bots` of them the server's.
+    fn with_bots(players: usize, bots: usize) -> Worth {
+        Worth {
+            players,
+            strength: 0,
+            bots,
+        }
+    }
+
+    /// A room of 3 a team: each team's players leave places for its bots,
+    /// and the match keeps a place for each bot beside them.
+    #[test]
+    fn a_rooms_bots_fill_the_places_its_players_leave_and_keep_a_place_each() {
+        // 1 v 1 in an 8 v 8: three bots a side.
+        assert_eq!(start_bots(3, 8, [1, 1]), [3, 3]);
+        // A team nearly full of players takes fewer.
+        assert_eq!(start_bots(3, 8, [7, 2]), [1, 3]);
+        assert_eq!(start_bots(3, 8, [8, 8]), [0, 0]);
+        assert_eq!(start_bots(0, 8, [1, 1]), [0, 0]);
+        // A private room's 1 v 10 (its size the 10 a team).
+        assert_eq!(start_bots(3, 10, [1, 10]), [3, 0]);
+        // 6 v 6 players and 3 a team would leave the match 2 places for 6
+        // bots: 4 bots, 2 a team, each keeping a place (12 + 4 + 4 = 20).
+        assert_eq!(start_bots(3, 8, [6, 6]), [2, 2]);
+        // The team with more bots gives one up first.
+        assert_eq!(start_bots(3, 10, [9, 6]), [1, 1]);
+        for players in [[0, 0], [1, 0], [5, 5], [9, 10], [3, 7]] {
+            for bots in 0..=3 {
+                let each = start_bots(bots, 10, players);
+                let seated = players[0] + players[1];
+                assert!(seated + 2 * (each[0] + each[1]) <= 20, "{players:?} {bots}");
+                assert!(each.iter().all(|&team| team <= bots));
+            }
+        }
+    }
+
+    /// A joiner on a side with a bot takes its place (the side keeps its
+    /// size, also at its capacity) on the place the match kept for it;
+    /// elsewhere it needs a place the match does not keep for a bot.
+    #[test]
+    fn a_joiner_takes_a_bots_place_and_the_kept_places_are_theirs() {
+        let one = side(1, 0);
+        let room = |room| LateRule {
+            capacity: 8,
+            room,
+            ..rule()
+        };
+        // 1 + 3 bots against 1 + 3: alike, side 0; a bot of it gives way.
+        let placed = place_joiner([with_bots(4, 3), with_bots(4, 3)], one, None, &room(12)).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
+        assert_eq!(placed.sides[0], with_bots(4, 2));
+        // A side full of players and bots still takes one in a bot's place.
+        let placed = place_joiner([with_bots(8, 1), side(8, 0)], one, None, &room(2)).unwrap();
+        assert_eq!(placed.sides[0], with_bots(8, 0));
+        // A side with no bot: not into the places kept for the bots; the
+        // joiner takes a bot's place on the other side instead.
+        let placed = place_joiner([side(2, 0), with_bots(4, 3)], one, None, &room(3)).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        assert_eq!(placed.sides, [side(2, 0), with_bots(4, 2)]);
+        let placed = place_joiner([side(2, 0), with_bots(4, 3)], one, None, &room(4)).unwrap();
+        assert_eq!(placed.sides[0], side(3, 0));
+        // No bot anywhere and no place: nobody, as before.
+        assert!(place_joiner([side(2, 0), side(3, 0)], one, None, &room(0)).is_none());
+        // Its own side has none, the other has: the other's capacity counts.
+        let placed = place_joiner_on([side(8, 0), with_bots(8, 2)], one, 0, &room(4)).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+    }
+
+    /// A bot gives way for each late player of its team, once; none comes
+    /// back, whoever leaves.
+    #[test]
+    fn a_teams_bot_gives_way_once_for_each_late_player() {
+        assert!(!bot_gives_way(0, 0, 3));
+        assert!(bot_gives_way(1, 0, 3));
+        assert!(!bot_gives_way(1, 1, 2));
+        assert!(bot_gives_way(3, 1, 2));
+        // No bot left to take out.
+        assert!(!bot_gives_way(4, 3, 0));
     }
 
     fn rule() -> LateRule {

@@ -85,14 +85,12 @@ pub fn pay() -> f64 {
 }
 
 /// How many bots' maps the match server may keep in memory at once: what
-/// `SRP_MAPDATA_AT_ONCE` asks for, and with the mode on at least one for
-/// each match against bots that may run (`SRP_PVB_MAX_MATCHES`).
-pub fn maps_at_once(at_once: usize, enabled: bool, max_matches: usize) -> usize {
-    if enabled {
-        at_once.max(max_matches)
-    } else {
-        at_once
-    }
+/// `SRP_MAPDATA_AT_ONCE` asks for, and at least one for each match with
+/// bots that may run (`SRP_PVB_MAX_MATCHES`: against bots and rooms' with
+/// bots together, whether Player vs Bots is on or not: any room may have
+/// bots).
+pub fn maps_at_once(at_once: usize, max_matches: usize) -> usize {
+    at_once.max(max_matches)
 }
 
 #[cfg(test)]
@@ -114,8 +112,7 @@ mod tests {
         assert_eq!(pay_from(Some("2")), 0.5);
         assert_eq!(pay_from(Some("NaN")), 0.5);
         // The maps follow the cap only with the mode on.
-        assert_eq!(maps_at_once(1, true, 5), 5);
-        assert_eq!(maps_at_once(1, false, 5), 1);
-        assert_eq!(maps_at_once(8, true, 5), 8);
+        assert_eq!(maps_at_once(1, 5), 5);
+        assert_eq!(maps_at_once(8, 5), 8);
     }
 }

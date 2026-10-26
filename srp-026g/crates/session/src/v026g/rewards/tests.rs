@@ -2743,11 +2743,11 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
         store
     };
 
-    // The same match as any other: the quest is paid, the day's first
+    // The same match with Bob a player: the quest is paid, the day's first
     // victory doubled.
     let store = fresh();
     let plain = Results::new()
-        .settle(&outcome, &store, &terms(), &mut Rng::new(1))
+        .settle(&without_bots(&outcome), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let plain = &plain.players[0].reward;
     assert!(plain.daily_bonus && plain.quest_money >= quest.money);
@@ -2787,10 +2787,8 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
         money_rate: pay::MoneyRate::Flat(50),
         ..terms()
     };
-    let mut reference = outcome.clone();
-    reference.vs_bots = false;
     let reference = Results::new()
-        .settle(&reference, &store, &half, &mut Rng::new(1))
+        .settle(&without_bots(&outcome), &store, &half, &mut Rng::new(1))
         .unwrap();
     let reference = &reference.players[0];
     let whole = Terms {
@@ -2818,6 +2816,61 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
     assert!(report.players[0].reward.money < plain.money);
     // The screen of the player still comes out.
     assert!(report.screen_for(10).is_some());
+}
+
+/// `outcome` as a match of players: no bot of the server's in it, Bob's row
+/// a player's (account 0: nobody's to pay).
+fn without_bots(outcome: &MatchResult) -> MatchResult {
+    let mut plain = outcome.clone();
+    plain.vs_bots = false;
+    for player in &mut plain.players {
+        player.driven = false;
+    }
+    plain
+}
+
+/// A room's match with the server's bots in it ("Bots per team", the
+/// owner's of 2026-10-26; not a match against bots, `vs_bots` false) pays
+/// as one against bots: the same report, row by row; and with every bot
+/// replaced it still does, the bots' rows being in the result (a bot that
+/// gave its place up has its row, left).
+#[test]
+fn a_rooms_match_with_the_servers_bots_pays_as_one_against_bots() {
+    let mut players = alice_and_bob();
+    players[1].driven = true;
+    (players[1].account_id, players[1].session_id) = (0, 0);
+    let mut room = result(players);
+    room.trusted_by = 2;
+    assert!(room.against_bots() && !room.vs_bots);
+    let against = MatchResult {
+        vs_bots: true,
+        ..room.clone()
+    };
+    let fresh = || {
+        let store = accounts(&alice_and_bob()[..1]);
+        store.get(10).unwrap().locked().extras.bonus = Default::default();
+        store
+    };
+    let settle = |outcome: &MatchResult| {
+        Results::new()
+            .settle(outcome, &fresh(), &terms(), &mut Rng::new(1))
+            .unwrap()
+            .players[0]
+            .clone()
+    };
+    let (in_room, vs) = (settle(&room), settle(&against));
+    assert_eq!(in_room.reward.money, vs.reward.money);
+    assert_eq!(in_room.reward.experience, vs.reward.experience);
+    assert!(!in_room.reward.daily_bonus && in_room.reward.quest_money == 0);
+    let plain = settle(&without_bots(&room));
+    assert!(in_room.reward.money < plain.reward.money);
+    assert!(in_room.reward.experience < plain.reward.experience);
+    // The bot left (a player took its place): its row still says a bot
+    // played in it.
+    room.players[1].left = true;
+    room.players[1].present_at_end = false;
+    assert!(room.against_bots());
+    assert_eq!(settle(&room).reward.money, vs.reward.money);
 }
 
 /// Alice and Bob, and Carol, who came late (two minutes before the end)

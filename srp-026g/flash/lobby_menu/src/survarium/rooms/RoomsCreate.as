@@ -15,8 +15,9 @@ package survarium.rooms
     import survarium.constants.GameMode;
     import survarium.constants.RoomCode;
 
-    // Making a room: size, players to start, max level, wait, PIN, the
-    // modes, then the pool's tiles (a map and weather each). It opens as
+    // Making a room: size, players to start, the server's bots a team, max
+    // level, wait, PIN, the modes, then the pool's tiles (a map and weather
+    // each). It opens as
     // the player's last room made by hand, which the server keeps (`S1;F`,
     // the owner's of 2026-10-20) and the window has had since the lobby
     // came up (RoomsWindow._form; the owner's of 2026-10-25: opened filled,
@@ -35,14 +36,21 @@ package survarium.rooms
         private static const TRACK_W:Number = 406;
         private static const KNOB_R:Number = 8;
         private static const SLIDER_H:Number = 64;
+        // Two sliders side by side (players to start and the bots): this far
+        // apart, each half the rest.
+        private static const PAIR_GAP:Number = 24;
+        // A half slider's value ("None", "3 v 3"): its label has the rest of
+        // the line (the longest, Russian and Ukrainian, about 125 px).
+        private static const HALF_VALUE_W:Number = 52;
         // The wait index sent when the wait is none of WAITS: 30 s.
         private static const WAIT_INDEX_DEFAULT:int = 3;
         // The window's defaults, the server's (room_settings::DEFAULT_*; a
         // Rust test keeps them the same): 8 v 8, from 1 v 1, any max level,
-        // 30 s; every mode, the pool without the experimental maps.
+        // 30 s, no bots; every mode, the pool without the experimental maps.
         public static const DEFAULT_SIZE:int = 8;
         public static const DEFAULT_MIN_SIDE:int = 1;
         public static const DEFAULT_WAIT:int = 30;
+        public static const DEFAULT_BOTS:int = 0;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
@@ -51,11 +59,16 @@ package survarium.rooms
         private var _minSide:int = DEFAULT_MIN_SIDE;
         private var _max:int = RoomsWire.LEVEL_ANY;
         private var _wait:int = DEFAULT_WAIT;
+        // The server's bots a team: 0 to RoomsWire.BOTS_MAX.
+        private var _bots:int = DEFAULT_BOTS;
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
         private var _modesOff:Object = {};
         internal var _sliders:Object = {};
         private var _drag:String = null;
+        // The bots a team as the drag began: greying changes when it goes
+        // from none to some or back (redrawn as the drag ends).
+        private var _dragBots:int = 0;
         // What the create on its way makes (`kept`): the window's start
         // once its room is made (`made`, Back pressed meanwhile too); none
         // once it is refused or Play chosen instead (`notMade`).
@@ -99,6 +112,7 @@ package survarium.rooms
                 _minSide = DEFAULT_MIN_SIDE;
                 _max = RoomsWire.LEVEL_ANY;
                 _wait = DEFAULT_WAIT;
+                _bots = DEFAULT_BOTS;
                 _modesOff = {};
                 defaultPool();
                 return;
@@ -106,6 +120,7 @@ package survarium.rooms
             _size = form.size;
             _minSide = form.min;
             _wait = form.wait;
+            _bots = form.bots;
             _max = form.max;
             if (_max != RoomsWire.LEVEL_ANY && _max < win._gear)
                 _max = Math.min(win._gear, RoomsWire.LEVEL_MAX);
@@ -131,6 +146,7 @@ package survarium.rooms
             var min:int = int(head[4]);
             var max:int = int(head[5]);
             var wait:int = int(head[6]);
+            var bots:int = head.length > 8 ? int(head[8]) : DEFAULT_BOTS;
             var modesOff:Object = {};
             if (head.length > 7 && head[7] != "")
             {
@@ -158,6 +174,7 @@ package survarium.rooms
                 "min": stops("min").indexOf(min) >= 0 ? min : DEFAULT_MIN_SIDE,
                 "max": max >= 0 && max <= RoomsWire.LEVEL_MAX ? max : RoomsWire.LEVEL_ANY,
                 "wait": stops("wait").indexOf(wait) >= 0 ? wait : DEFAULT_WAIT,
+                "bots": stops("bots").indexOf(bots) >= 0 ? bots : DEFAULT_BOTS,
                 "modesOff": modesOff, "off": off};
         }
 
@@ -188,7 +205,8 @@ package survarium.rooms
                 if (modeIn[String(e.mode)] != true)
                     modesOff[String(e.mode)] = true;
             }
-            return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "modesOff": modesOff, "off": off};
+            return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "bots": _bots, "modesOff": modesOff,
+                "off": off};
         }
 
         // RoomsWindow: a room new to us, ours, came while a create was on
@@ -230,18 +248,25 @@ package survarium.rooms
             // A private room (a PIN typed) has no size, players to start or
             // time to start (the owner's of 2026-10-26: its owner starts it):
             // their sliders hidden, their values kept for the next open room.
+            // The bots a team in both: a private room's beside nothing, an
+            // open room's beside its players to start (one row: the form
+            // keeps its height).
+            var half:Number = (TRACK_W - PAIR_GAP) / 2;
             if (privateRoom())
             {
                 look.text(look._content, win.say("privateRoom"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
                 y += 36;
                 slider(y, win.say("max"), "max");
+                y += SLIDER_H;
+                slider(y, win.say("bots"), "bots");
                 y += SLIDER_H + 12;
             }
             else
             {
                 slider(y, win.say("size"), "size");
                 y += SLIDER_H;
-                slider(y, win.say("minPlayers"), "min");
+                slider(y, win.say("minPlayers"), "min", TRACK_X, half);
+                slider(y, win.say("bots"), "bots", TRACK_X + half + PAIR_GAP, half);
                 y += SLIDER_H;
                 slider(y, win.say("max"), "max");
                 y += SLIDER_H;
@@ -266,16 +291,25 @@ package survarium.rooms
                 area.graphics.drawRect(0, 10, FORM_W - 28, 22);
                 area.graphics.endFill();
                 toggle.addChild(area);
-                toggle.addChild(look.box(_modesOff[String(mode)] != true));
-                look.text(toggle, win.modeName(mode), 26, 12, FORM_W - 40, 16, RoomsLook.LIGHT);
-                toggle.buttonMode = true;
-                toggle.mouseChildren = false;
+                // A mode the bots don't play, with bots chosen: greyed out,
+                // unticked and not to be ticked (its choice kept for None).
+                var playable:Boolean = modeOk(mode);
+                toggle.addChild(look.box(playable && _modesOff[String(mode)] != true));
+                look.text(toggle, win.modeName(mode) + (playable ? "" : "  ·  " + win.say("botsCant")), 26, 12,
+                    FORM_W - 40, 16, playable ? RoomsLook.LIGHT : RoomsLook.GREY);
                 toggle.name = String(mode);
-                toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
-                look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                if (playable)
                 {
-                    flipMode(control.name);
-                });
+                    toggle.buttonMode = true;
+                    toggle.mouseChildren = false;
+                    toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
+                    look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                    {
+                        flipMode(control.name);
+                    });
+                }
+                else
+                    toggle.alpha = 0.45;
                 look._content.addChild(toggle);
                 y += 24;
             }
@@ -335,7 +369,7 @@ package survarium.rooms
             var tiles:Array = poolTiles();
             var on:int = 0;
             for (var t:int = 0; t < tiles.length; t++)
-                if (tiles[t].on)
+                if (tiles[t].on && tileOk(tiles[t]))
                     on++;
             look.text(look._content, win.say("pool").toUpperCase() + ": " + on + " / " + tiles.length,
                 x0 + 16, 58, 260, 16, RoomsLook.LIGHT);
@@ -370,9 +404,16 @@ package survarium.rooms
             {
                 var map:Object = rows[r];
                 var any:Boolean = false;
+                // A map none of whose tiles the bots play (bots chosen):
+                // its row greyed out, not to be ticked.
+                var mapOk:Boolean = false;
                 for (var c:int = 0; c < map.tiles.length; c++)
-                    if (map.tiles[c].on)
+                {
+                    if (map.tiles[c].on && tileOk(map.tiles[c]))
                         any = true;
+                    if (tileOk(map.tiles[c]))
+                        mapOk = true;
+                }
                 var check:Sprite = new Sprite();
                 check.x = 0;
                 check.y = y - 12;
@@ -384,34 +425,47 @@ package survarium.rooms
                 line_hit.graphics.endFill();
                 check.addChild(line_hit);
                 check.addChild(look.box(any));
-                look.text(check, win.levelName(map.level), 24, 13, areaW - 40, 16, RoomsLook.LIGHT);
-                check.buttonMode = true;
-                check.mouseChildren = false;
+                look.text(check, win.levelName(map.level) + (mapOk ? "" : "  ·  " + win.say("botsCant")), 24, 13,
+                    areaW - 40, 16, mapOk ? RoomsLook.LIGHT : RoomsLook.GREY);
                 check.name = String(map.level);
-                check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                if (mapOk)
+                {
+                    check.buttonMode = true;
+                    check.mouseChildren = false;
+                    check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                }
+                else
+                    check.alpha = 0.45;
                 area.addChild(check);
                 for (var k:int = 0; k < map.tiles.length; k++)
                 {
                     var one:Object = map.tiles[k];
+                    // A tile the bots play none of (bots chosen): greyed out,
+                    // said so, not to be ticked.
+                    var ok:Boolean = tileOk(one);
+                    var lit:Boolean = one.on && ok;
                     var chip:Sprite = new Sprite();
                     chip.x = 2 + k * (cw + 10);
                     chip.y = y + 28;
                     var pic:Bitmap = look.mapRender(one.level, one.weather, cw, ch);
-                    pic.alpha = one.on ? 1 : 0.35;
+                    pic.alpha = !ok ? 0.15 : lit ? 1 : 0.35;
                     chip.addChild(pic);
                     var edge:Shape = new Shape();
                     edge.graphics.beginFill(0x000000, 0.66);
                     edge.graphics.drawRect(0, ch - 22, cw, 22);
                     edge.graphics.endFill();
-                    edge.graphics.lineStyle(2, one.on ? RoomsLook.GOLD : 0x26323C);
+                    edge.graphics.lineStyle(2, lit ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
-                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : ""),
-                        0, ch - 22 + 3, cw, 12, 0xFFFFFF, "center");
-                    chip.buttonMode = true;
-                    chip.mouseChildren = false;
+                    look.text(chip, ok ? win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : "")
+                        : win.say("botsCant").toUpperCase(), 0, ch - 22 + 3, cw, 12, ok ? 0xFFFFFF : RoomsLook.GREY, "center");
                     chip.name = one.key;
-                    chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    if (ok)
+                    {
+                        chip.buttonMode = true;
+                        chip.mouseChildren = false;
+                        chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    }
                     area.addChild(chip);
                 }
                 look.line(area, 0, y + rowH - 6, areaW - 4);
@@ -448,19 +502,22 @@ package survarium.rooms
             win.render();
         }
 
-        private function slider(y:Number, label:String, what:String):void
+        // A slider at `x`, `w` wide (the form's whole width unless told).
+        private function slider(y:Number, label:String, what:String, x:Number = TRACK_X, w:Number = TRACK_W):void
         {
-            look.text(look._content, label.toUpperCase(), TRACK_X, y + 4, 260, 12, RoomsLook.DIM);
-            var value:TextField = look.text(look._content, "", TRACK_X + TRACK_W - 160, y - 2, 160, 18, RoomsLook.GOLD, "right");
+            // The value's own width at the right, the label's before it.
+            var valueW:Number = w < TRACK_W ? HALF_VALUE_W : 160;
+            look.text(look._content, label.toUpperCase(), x, y + 4, Math.min(260, w - valueW), 12, RoomsLook.DIM);
+            var value:TextField = look.text(look._content, "", x + w - valueW, y - 2, valueW, 18, RoomsLook.GOLD, "right");
             var box:Sprite = new Sprite();
-            box.x = TRACK_X;
+            box.x = x;
             box.y = y + 24;
             box.name = what;
             box.buttonMode = true;
             var hit:Shape = new Shape();
             // Not alpha 0: Scaleform hit-tests no fully clear fill.
             hit.graphics.beginFill(0x000000, 0.01);
-            hit.graphics.drawRect(-KNOB_R, -4, TRACK_W + 2 * KNOB_R, 28);
+            hit.graphics.drawRect(-KNOB_R, -4, w + 2 * KNOB_R, 28);
             hit.graphics.endFill();
             box.addChild(hit);
             var bar:Shape = new Shape();
@@ -474,20 +531,23 @@ package survarium.rooms
             // Its range, small and dim right under the track, and a line under
             // the whole: each slider a block of its own.
             var list:Array = stops(what);
-            look.text(look._content, stopText(what, int(list[0])), TRACK_X, y + 40, 120, 11, 0x5E6E7A);
-            look.text(look._content, stopText(what, int(list[list.length - 1])), TRACK_X + TRACK_W - 120, y + 40, 120, 11,
+            var endW:Number = Math.min(120, w / 2);
+            look.text(look._content, stopText(what, int(list[0])), x, y + 40, endW, 11, 0x5E6E7A);
+            look.text(look._content, stopText(what, int(list[list.length - 1])), x + w - endW, y + 40, endW, 11,
                 0x5E6E7A, "right");
             var rule:Shape = new Shape();
             rule.graphics.beginFill(0x232C34, 1);
-            rule.graphics.drawRect(TRACK_X, y + SLIDER_H - 6, TRACK_W, 1);
+            rule.graphics.drawRect(x, y + SLIDER_H - 6, w, 1);
             rule.graphics.endFill();
             look._content.addChild(rule);
-            _sliders[what] = {"box": box, "bar": bar, "value": value};
+            _sliders[what] = {"box": box, "bar": bar, "value": value, "w": w};
             drawSlider(what);
         }
 
         private function stopText(what:String, v:int):String
         {
+            if (what == "bots")
+                return v == 0 ? win.say("noBots") : v + " v " + v;
             return what == "wait" ? startText(v) : what == "size" || what == "min" ? v + " v " + v
                 : win.levelText(v);
         }
@@ -511,6 +571,11 @@ package survarium.rooms
                 list = [6, 7, 8, 9, 10];
             else if (what == "min")
                 list = [1, 2, 3];
+            else if (what == "bots")
+            {
+                for (var b:int = 0; b <= RoomsWire.BOTS_MAX; b++)
+                    list.push(b);
+            }
             else if (what == "wait")
                 list = RoomsWire.WAITS.concat();
             else
@@ -527,7 +592,8 @@ package survarium.rooms
         {
             if (what == "max" && _max != RoomsWire.LEVEL_ANY && _max < win._gear)
                 _max = RoomsWire.LEVEL_ANY;
-            return what == "size" ? _size : what == "min" ? _minSide : what == "wait" ? _wait : _max;
+            return what == "size" ? _size : what == "min" ? _minSide : what == "wait" ? _wait
+                : what == "bots" ? _bots : _max;
         }
 
         private function drawSlider(what:String):void
@@ -537,13 +603,13 @@ package survarium.rooms
                 return;
             var list:Array = stops(what);
             var at:int = Math.max(0, list.indexOf(valueOf(what)));
-            var kx:Number = list.length > 1 ? TRACK_W * at / (list.length - 1) : 0;
+            var kx:Number = list.length > 1 ? s.w * at / (list.length - 1) : 0;
             var g:* = s.bar.graphics;
             g.clear();
             // Plain rectangles of one height: the gold part on the track
             // exactly (Scaleform's round rectangles come out uneven).
             g.beginFill(0x3A434B, 1);
-            g.drawRect(0, 8, TRACK_W, 4);
+            g.drawRect(0, 8, s.w, 4);
             g.endFill();
             if (kx > 0)
             {
@@ -570,6 +636,7 @@ package survarium.rooms
         {
             RoomsLook.clickSound();
             _drag = what;
+            _dragBots = _bots;
             slideTo(stageX);
             if (win.stage == null)
                 return;
@@ -586,7 +653,12 @@ package survarium.rooms
         {
             e.currentTarget.removeEventListener(MouseEvent.MOUSE_MOVE, onSlideMove);
             e.currentTarget.removeEventListener(MouseEvent.MOUSE_UP, onSlideUp);
+            var greying:Boolean = _drag == "bots" && (_dragBots == 0) != (_bots == 0);
             _drag = null;
+            // Bots chosen or set back to None: the maps and modes they don't
+            // play greyed out, or back.
+            if (greying)
+                win.render();
         }
 
         private function slideTo(stageX:Number):void
@@ -596,12 +668,14 @@ package survarium.rooms
                 return;
             var local:Number = s.box.globalToLocal(new Point(stageX, 0)).x;
             var list:Array = stops(_drag);
-            var at:int = Math.round(Math.max(0, Math.min(1, local / TRACK_W)) * (list.length - 1));
+            var at:int = Math.round(Math.max(0, Math.min(1, local / s.w)) * (list.length - 1));
             var v:int = int(list[at]);
             if (_drag == "size")
                 _size = v;
             else if (_drag == "min")
                 _minSide = v;
+            else if (_drag == "bots")
+                _bots = v;
             else if (_drag == "wait")
                 _wait = v;
             else
@@ -636,11 +710,13 @@ package survarium.rooms
                 if (tile == null)
                 {
                     tile = {"key": key, "level": e.level, "weather": e.weather, "extra": e.extra,
-                        "entries": [], "on": _off[key] != true};
+                        "entries": [], "on": _off[key] != true, "bots": false};
                     at[key] = tile;
                     tiles.push(tile);
                 }
                 tile.entries.push(e);
+                if (e.bots)
+                    tile.bots = true;
             }
             return tiles;
         }
@@ -664,10 +740,38 @@ package survarium.rooms
         }
 
         // Whether a pool entry is in the room made: its tile and its mode
-        // in, and a bit a create can name it by.
+        // in, a bit a create can name it by, and with bots chosen one they
+        // play (the server refuses a room with bots and another).
         private function chosen(p:Object):Boolean
         {
-            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS;
+            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS
+                && botsOk(p);
+        }
+
+        // With bots chosen, whether the server's bots play a pool entry (the
+        // pool's `bots`, the server's word: a mode of theirs, a map with
+        // their walk data); with none, every entry is open (the owner's of
+        // 2026-10-26: the others greyed out while bots are chosen).
+        private function botsOk(p:Object):Boolean
+        {
+            return _bots == 0 || p.bots == true;
+        }
+
+        // A tile some entry of which the bots play (or no bots chosen).
+        private function tileOk(tile:Object):Boolean
+        {
+            return _bots == 0 || tile.bots == true;
+        }
+
+        // A mode some entry of which the bots play (or no bots chosen).
+        private function modeOk(mode:int):Boolean
+        {
+            if (_bots == 0)
+                return true;
+            for (var i:int = 0; i < win._pool.length; i++)
+                if (int(win._pool[i].mode) == mode && win._pool[i].bots == true)
+                    return true;
+            return false;
         }
 
         private function onAll(e:Event):void
@@ -721,7 +825,7 @@ package survarium.rooms
             if (wait < 0)
                 wait = WAIT_INDEX_DEFAULT;
             valueOf("max");
-            var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
+            var code:int = _bots * RoomsWire.BOTS_STEP + ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
             win._steps.push(RoomsWire.CREATE + code);
             if (withPin)
                 win._steps.unshift(RoomsWire.PIN + int(pinText));

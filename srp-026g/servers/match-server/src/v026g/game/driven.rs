@@ -15,10 +15,37 @@
 //!   on);
 //! - it is no witness of the world (`Game::is_bot`): no reports, no
 //!   uploads, never counted among the clients that agree;
-//! - it never times out and never leaves; a match with only bots in it is
-//!   over after [`BOTS_ALONE`] (`check_bots_alone`). Its match takes no
-//!   late joiner: its teams are fixed ("Player vs Bots", the lobby's `pvb`;
-//!   no PvP match has the server's bots since the owner's of 2026-10-17).
+//! - it never times out; a match with only bots in it is over after
+//!   [`BOTS_ALONE`] (`check_bots_alone`). A match against bots ("Player vs
+//!   Bots", the lobby's `pvb`) takes no late joiner: its teams are fixed,
+//!   and its bots never leave.
+//!
+//! A room's bots (its "Bots per team", the owner's of 2026-10-26: "up to 3
+//! vs 3 bots, which will be replaced with real players once those join";
+//! `MatchSetup::room_minimum` and driven places; `room_bots`,
+//! `matchmaking_policy::bot_gives_way`):
+//! - each player who comes into the match late on a team with a bot takes a
+//!   bot's place: the team's last bot by place leaves as a player leaves
+//!   (0xEA), a tick after the player's entry, so the team is never a player
+//!   short; one bot for each late player, once.
+//!   Just before its leave it presses drop (bit 22, which acts only while
+//!   it carries a battery: a carrier lets it go where it stands, as a
+//!   player may) and then lets every key go, so nothing stays pressed for
+//!   its place;
+//! - a bot that gave way is gone for the match: nothing brings it back (a
+//!   place entered again desyncs a game that loaded a world while it was
+//!   out, `client_patch.md`, `snapshot_rules.md` §7.3). A team that loses a
+//!   player plays short, as any room's; the room's next match starts its
+//!   bots afresh. A place is never used twice, so the player who takes a
+//!   bot's place comes on a new one: the lobby keeps one for each bot
+//!   (`matchmaking_policy::start_bots`, `place_joiner`);
+//! - never a leave of a team that can no longer respawn (Team Deathmatch
+//!   out of tickets: a bot may be its last life, and the mode's rule ends
+//!   the match on that), and a bot leaves only once every game simulating
+//!   has played its entry (a leave for a tick a game has not played the
+//!   entry of is dropped, `start.rs`);
+//! - the clients see an ordinary leave and an ordinary entry: no new
+//!   message; the recordings and replays have them as any.
 //!
 //! Where its inputs come from:
 //! - with `SRP_MAPDATA_DIR` ([`Walkers`]): `super::super::bots`, bots that
@@ -44,6 +71,8 @@ use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
 use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 
+use session::matchmaking_policy::bot_gives_way;
+
 use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
@@ -61,6 +90,57 @@ use crate::v026g::drive::{self, Drive};
 const PLAYING_REFRESH: Duration = Duration::from_secs(2);
 /// While a bot waits to see its body, sooner.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
+
+/// Where a server's bot's place is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BotSeat {
+    /// Not entered yet: it enters once a real game simulates.
+    Waiting,
+    /// In the match since its entry's tick.
+    In { since: u32 },
+    /// Out: it gave its place up to a player (a room's, `room_bots`), for
+    /// the rest of the match.
+    Out,
+}
+
+/// What happens to a bot's place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BotEvent {
+    /// Its entry (0xE9) at `at`.
+    Enters { at: u32 },
+    /// Its leave (0xEA).
+    Leaves,
+}
+
+impl BotSeat {
+    /// The seat after `event`; `None` when the event does not happen to
+    /// it (only a bot waiting enters, only one in leaves, and one out stays
+    /// out): then nothing is sent.
+    pub(super) fn after(self, event: BotEvent) -> Option<Self> {
+        match (self, event) {
+            (Self::Waiting, BotEvent::Enters { at }) => Some(Self::In { since: at }),
+            (Self::In { .. }, BotEvent::Leaves) => Some(Self::Out),
+            (Self::Waiting, BotEvent::Leaves)
+            | (Self::In { .. }, BotEvent::Enters { .. })
+            | (Self::Out, _) => None,
+        }
+    }
+
+    /// Its entry's tick, while it is in.
+    fn since(self) -> Option<u32> {
+        match self {
+            Self::In { since } => Some(since),
+            Self::Waiting | Self::Out => None,
+        }
+    }
+}
+
+/// A server's bot's place: where it is, and the stage 0 script its inputs
+/// come from without the map's walk grid (started at its entry).
+pub(super) struct BotPlace {
+    pub seat: BotSeat,
+    drive: Drive,
+}
 
 /// The bots of a match and their map.
 pub(super) struct Walkers {
@@ -416,18 +496,23 @@ fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
 }
 
 impl Game {
-    /// The scripts of the server's bots, by place.
-    pub(super) fn new_drives(formed: &Formed) -> Vec<Option<Drive>> {
+    /// The server's bots' places, by place: each waits to enter.
+    pub(super) fn new_bot_places(formed: &Formed) -> Vec<Option<BotPlace>> {
         formed
             .places
             .iter()
-            .map(|place| place.driven.then(|| Drive::new(drive::stage_0())))
+            .map(|place| {
+                place.driven.then(|| BotPlace {
+                    seat: BotSeat::Waiting,
+                    drive: Drive::new(drive::stage_0()),
+                })
+            })
             .collect()
     }
 
     /// A place a late joiner takes: never one of the server's bots.
     pub(super) fn push_driven_place(&mut self, team: u8) {
-        self.drives.push(None);
+        self.bot_places.push(None);
         if let Some(walkers) = self.walkers.as_mut() {
             walkers.bots.push_place(team);
         }
@@ -558,34 +643,29 @@ impl Game {
         }
         let clock = self.clock(now);
         let mut due = Vec::new();
-        for index in 0..self.drives.len() {
-            if self.drives[index].is_none() {
+        for index in 0..self.bot_places.len() {
+            let Some(seat) = self.bot_places[index].as_ref().map(|place| place.seat) else {
                 continue;
-            }
-            let entered = self
-                .events
-                .iter()
-                .any(|(_, who, entered)| *who == index && *entered);
-            if !entered {
-                if self.live() == 0 {
+            };
+            match seat {
+                BotSeat::Waiting => {
+                    if self.live() > 0 {
+                        let at = self.bot_enters(index, grid_up(clock + ROSTER_LEAD_MS), now);
+                        log::info!(
+                            "Match {:#x}: player {index} (the server's bot) entered at {at} ms",
+                            self.id
+                        );
+                    }
                     continue;
                 }
-                let at = grid_up(clock + ROSTER_LEAD_MS);
-                let at = self.roster_change(None, index, true, at, now);
-                if let Some(drive) = self.drives[index].as_mut() {
-                    drive.entered(at);
-                }
-                log::info!(
-                    "Match {:#x}: player {index} (the server's bot) entered at {at} ms",
-                    self.id
-                );
-                continue;
+                BotSeat::Out => continue,
+                BotSeat::In { .. } => {}
             }
             if self.walkers.as_ref().is_some_and(|walkers| !walkers.absent) {
                 continue;
             }
-            if let Some(drive) = self.drives[index].as_mut() {
-                for sent in drive.due(clock) {
+            if let Some(place) = self.bot_places[index].as_mut() {
+                for sent in place.drive.due(clock) {
                     if let Some(part) = sent.what {
                         log::debug!(
                             "Match {:#x}: player {index} (the server's bot) at {} ms: {part}",
@@ -636,5 +716,145 @@ impl Game {
             self.relay_to_others(index, &what, time, now);
             self.inputs.push((time, index, what));
         }
+        // After the inputs made: one that gives way now makes none after
+        // its drop.
+        self.room_bots(now);
+    }
+
+    /// The bot at `index` enters at `at` (or the tick the roster change
+    /// takes, after the stand-ins'), its script starting: its entry's tick.
+    fn bot_enters(&mut self, index: usize, at: u32, now: Instant) -> u32 {
+        let at = self.roster_change(None, index, true, at, now);
+        if let Some(place) = self.bot_places[index].as_mut()
+            && let Some(seat) = place.seat.after(BotEvent::Enters { at })
+        {
+            place.seat = seat;
+            place.drive.entered(at);
+        }
+        at
+    }
+
+    /// A room's match: each player who came into it late on a team with a
+    /// server's bot takes a bot's place (the top of this file), one bot for
+    /// each, once all the bots have entered; a bot that gave way is gone for
+    /// the match.
+    fn room_bots(&mut self, now: Instant) {
+        if self.formed.room_minimum.is_none()
+            || self.result_made
+            || !self.bot_places.iter().any(Option::is_some)
+        {
+            return;
+        }
+        let seats: Vec<Option<BotSeat>> = self
+            .bot_places
+            .iter()
+            .map(|place| place.as_ref().map(|place| place.seat))
+            .collect();
+        if seats.contains(&Some(BotSeat::Waiting)) {
+            return;
+        }
+        // The places a player entered (a late place's first entry is its
+        // player's coming; its returns are its own).
+        let mut entered = vec![false; self.players()];
+        for &(_, who, came) in self.players_events() {
+            if came && let Some(slot) = entered.get_mut(who) {
+                *slot = true;
+            }
+        }
+        let initial = self.formed.initial_players;
+        for team in 0..2_u8 {
+            let of_team = |index: &usize| self.formed.places[*index].team.min(1) == team;
+            let joined = (initial..self.players())
+                .filter(of_team)
+                .filter(|&index| seats[index].is_none() && entered[index])
+                .count();
+            let replaced = (0..self.players())
+                .filter(of_team)
+                .filter(|&index| seats[index] == Some(BotSeat::Out))
+                .count();
+            let bots_in: Vec<usize> = (0..self.players())
+                .filter(of_team)
+                .filter(|&index| matches!(seats[index], Some(BotSeat::In { .. })))
+                .collect();
+            if !bot_gives_way(joined, replaced, bots_in.len()) || !self.team_respawns(team) {
+                continue;
+            }
+            if let Some(&bot) = bots_in.iter().rev().find(|&&bot| self.bot_settled(bot)) {
+                self.bot_gives_way(bot, now);
+            }
+        }
+    }
+
+    /// Whether `team` can still respawn (Team Deathmatch's tickets, as the
+    /// match's trusted world has them; any other mode, or no world yet:
+    /// yes).
+    fn team_respawns(&self, team: u8) -> bool {
+        self.state
+            .as_ref()
+            .and_then(|state| state.rules.as_ref())
+            .is_none_or(|rules| rules.team_respawn[usize::from(team.min(1))])
+    }
+
+    /// Whether every game simulating has played the bot's entry (its report
+    /// is of a tick at or past it): only then may it leave, or a game would
+    /// drop the leave.
+    fn bot_settled(&self, bot: usize) -> bool {
+        let Some(since) = self.bot_places[bot]
+            .as_ref()
+            .and_then(|place| place.seat.since())
+        else {
+            return false;
+        };
+        (0..self.peers.len()).all(|index| {
+            self.is_bot(index)
+                || self.peers[index].as_ref().is_none_or(|peer| {
+                    peer.stage != Stage::Live || peer.reported_tick.is_some_and(|tick| tick >= since)
+                })
+        })
+    }
+
+    /// The bot gives its place up to a player of its team: drop pressed
+    /// (a carried battery let go) and then every key let go, after its last
+    /// input, and its leave after them and after every roster change sent
+    /// (the player's entry).
+    fn bot_gives_way(&mut self, bot: usize, now: Instant) {
+        let clock = self.clock(now);
+        let last_input = self
+            .inputs
+            .iter()
+            .filter(|(_, who, what)| *who == bot && matches!(what, Relayed::Input(_)))
+            .map(|(time, _, _)| *time)
+            .max();
+        let drop_at = grid_up(clock + TICK_MS).max(last_input.map_or(0, |time| time + TICK_MS));
+        for (time, actions) in [(drop_at, drive::key::DROP), (drop_at + TICK_MS, 0)] {
+            let input = PlayerInput {
+                time: WireTime::tick(time),
+                rotation: [0; 4],
+                actions,
+            };
+            self.relay_to_others(bot, &Relayed::Input(input), time, now);
+            self.inputs.push((time, bot, Relayed::Input(input)));
+        }
+        let last = self.events.iter().map(|(at, _, _)| *at).max().unwrap_or(0);
+        let at = grid_up(clock + ROSTER_LEAD_MS)
+            .max(drop_at + 2 * TICK_MS)
+            .max(last + TICK_MS);
+        let at = self.roster_change(None, bot, false, at, now);
+        if let Some(place) = self.bot_places[bot].as_mut()
+            && let Some(seat) = place.seat.after(BotEvent::Leaves)
+        {
+            place.seat = seat;
+        }
+        log::info!(
+            "Match {:#x}: player {bot} (the server's bot) gives its place up to a player of its \
+             team: drop at {drop_at} ms, leaves at {at} ms",
+            self.id
+        );
+        let note = serde_json::json!({
+            "note": "gave way",
+            "place": bot,
+            "match_ms": at,
+        });
+        self.record_note(note, now);
     }
 }

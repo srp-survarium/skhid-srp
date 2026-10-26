@@ -65,10 +65,14 @@ package survarium.rooms
         public static const MIN_SIDES:int = 3;
         public static const LEVEL_ANY:int = 0;
         public static const LEVEL_MAX:int = 15;
-        // The create code: ((((size - SIZE_MIN) * LEVELS + max) * WAIT_COUNT
-        // + wait index) * 2 + PIN) * MIN_SIDES + min side - 1.
+        // The create code: bots * BOTS_STEP + ((((size - SIZE_MIN) * LEVELS
+        // + max) * WAIT_COUNT + wait index) * 2 + PIN) * MIN_SIDES + min side
+        // - 1; the server's bots a team (0 to BOTS_MAX) on top, the codes of
+        // the rest below (the server's CREATE_BOTS_STEP).
         public static const LEVELS:int = 16;
         public static const WAIT_COUNT:int = 10;
+        public static const BOTS_MAX:int = 3;
+        public static const BOTS_STEP:int = 4800;
         // The pool in CHUNKS pieces of BITS_PER_CHUNK entries (POOL_BITS in
         // all), each sent at BITS + chunk * CHUNK_STEP + its bits.
         public static const BITS_PER_CHUNK:int = 20;

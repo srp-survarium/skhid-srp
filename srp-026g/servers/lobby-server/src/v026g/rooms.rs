@@ -17,9 +17,20 @@
 //!   take it, are put on two sides (`rooms::sides`: squads together, the
 //!   sides as even as they can be by what their players count for) and
 //!   seated in a match of teams that are not fixed
-//!   (`Matchmaking::seat_sides_in_pool`), on the map the vote chose and
-//!   with none of the server's bots; then "match found" and `82`
-//!   as for any Play. Its rewards are any match's. A private room (a PIN)
+//!   (`Matchmaking::seat_sides_in_pool`), on the map the vote chose; then
+//!   "match found" and `82` as for any Play. Its rewards are any match's.
+//! - **Its bots** (the room's "Bots per team", 0 to 3; the owner's of
+//!   2026-10-26): the match starts with up to that many of the server's
+//!   bots on each team, in the places its players leave of the room's size
+//!   (`matchmaking_policy::start_bots`; a private room's arranged teams
+//!   too, the bots no part of the arrangement), after the players; none on
+//!   a map they do not play (`BotMaps`), none past `SRP_PVB_MAX_MATCHES`
+//!   matches with bots. A member who comes into the match goes to a side as
+//!   any late joiner, and on a side with a bot it takes that bot's place
+//!   (`matchmaking_policy::place_joiner`): the match server takes the bot
+//!   out when the player is in, for the rest of the match
+//!   (`game/driven.rs`). A match with a bot in it pays as one against bots
+//!   (`rewards::MatchResult::against_bots`). A private room (a PIN)
 //!   counts nothing down: its owner's Start makes the match at once with
 //!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
 //!   2026-10-26).
@@ -71,6 +82,7 @@
 //! |---|---|---|
 //! | `SRP_ROOMS_MAX` | 50 | the most rooms at once, 1 to 1000 |
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
+//! | `SRP_MAPDATA_DIR` | (none) | the bots' map files, the match server's (`BotMaps`): a pool entry is the bots' when its map has one |
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -83,15 +95,15 @@ use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, PoolEntry,
-    RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, BotsPerTeam, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind,
+    PoolEntry, RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
-use super::play::{MatchPlayer, Running, match_profile};
+use super::play::{MatchPlayer, RoomLaunch, Running, match_profile};
 
 /// `SRP_ROOMS_MAX` when unset.
 pub const DEFAULT_MAX_ROOMS: usize = 50;
@@ -103,6 +115,50 @@ const QUICK_WAIT: u8 = 30;
 /// room before it is put into the match, unless it asks first (the owner's
 /// of 2026-10-19).
 pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
+
+/// The maps the server's bots play (the owner's of 2026-10-26: "if a
+/// player chooses bots, the maps (levels) and modes that bots don't
+/// support should be greyed out"): a mode of theirs
+/// (`maps::mode::bots_play`), on a map whose walk data is in
+/// `SRP_MAPDATA_DIR` as the match server reads it (`<project>.mapdata`,
+/// `mapdata::format::file_name`; the release ships them, `bot-data.tsv`).
+/// Looked at each time: a file put there later counts.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BotMaps {
+    /// `SRP_MAPDATA_DIR`: none, every map lacks the bots' data.
+    dir: Option<std::path::PathBuf>,
+}
+
+impl BotMaps {
+    /// `SRP_MAPDATA_DIR`: unset, empty or `off` for none, as the match
+    /// server takes it.
+    pub fn from_env() -> Self {
+        let dir = std::env::var("SRP_MAPDATA_DIR").ok().and_then(|value| {
+            let value = value.trim();
+            (!value.is_empty() && !value.eq_ignore_ascii_case("off")).then(|| value.into())
+        });
+        Self { dir }
+    }
+
+    /// The bots' map files in `dir`.
+    pub fn in_dir(dir: std::path::PathBuf) -> Self {
+        Self { dir: Some(dir) }
+    }
+
+    /// Whether the bots play the pool entry `map_id` (a `maps_dict` id, or
+    /// the lobby's Blackout id, which plays its battery map).
+    pub fn plays(&self, map_id: u8) -> bool {
+        let played = maps::blackout_played(map_id).unwrap_or(map_id);
+        let Some(map) = maps::map_mode(played) else {
+            return false;
+        };
+        maps::mode::bots_play(map.mode)
+            && self
+                .dir
+                .as_ref()
+                .is_some_and(|dir| dir.join(mapdata::format::file_name(map.project)).is_file())
+    }
+}
 
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,6 +172,8 @@ pub struct Config {
     /// `docs/notes/blackout.md`): each plain battery map of the pool once
     /// more, as mode 6 by its lobby id (`maps::blackout_pairs`).
     pub blackout: bool,
+    /// The maps the server's bots play (`SRP_MAPDATA_DIR`).
+    pub bot_maps: BotMaps,
 }
 
 impl Default for Config {
@@ -124,6 +182,7 @@ impl Default for Config {
             max_rooms: DEFAULT_MAX_ROOMS,
             extra_maps: Vec::new(),
             blackout: false,
+            bot_maps: BotMaps::default(),
         }
     }
 }
@@ -168,6 +227,7 @@ impl Config {
             max_rooms,
             extra_maps,
             blackout,
+            bot_maps: BotMaps::from_env(),
         }
     }
 }
@@ -240,6 +300,7 @@ impl Core<'_> {
                     weather: map.weather,
                     mode: map.mode,
                     extra,
+                    bots: self.settings.rooms.bot_maps.plays(id),
                 })
             })
             .collect::<Vec<_>>();
@@ -248,9 +309,11 @@ impl Core<'_> {
                 .iter()
                 .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
                 .filter_map(|entry| {
+                    let map_id = maps::blackout_id(entry.map_id)?;
                     Some(PoolEntry {
-                        map_id: maps::blackout_id(entry.map_id)?,
+                        map_id,
                         mode: maps::mode::BLACKOUT,
+                        bots: self.settings.rooms.bot_maps.plays(map_id),
                         ..*entry
                     })
                 })
@@ -678,6 +741,23 @@ impl Core<'_> {
                     .ok_or(Refused::Bad)?,
             ),
         };
+        // With bots, every map of its pool must be theirs (the owner's of
+        // 2026-10-26: the others are greyed out in the window): the pool its
+        // draft names, or the default one.
+        if spec.bots != BotsPerTeam::NONE {
+            let pool = self
+                .rooms
+                .drafted(who.account_id, &entries, now)
+                .unwrap_or_else(|| default.clone());
+            let bot_maps = &self.settings.rooms.bot_maps;
+            if let Some(&map_id) = pool.iter().find(|&&map_id| !bot_maps.plays(map_id)) {
+                log::info!(
+                    "{}: no room with bots: they do not play map {map_id} of its pool",
+                    who.name
+                );
+                return Err(Refused::Bad);
+            }
+        }
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let rng = &mut self.rng;
         let key = self.rooms.create(
@@ -689,6 +769,7 @@ impl Core<'_> {
                 wait: spec.wait,
                 pin,
                 min_players: 2 * spec.min_side,
+                bots: spec.bots,
             },
             &entries,
             &default,
@@ -700,23 +781,25 @@ impl Core<'_> {
         if spec.pin {
             log::info!(
                 "{}: made room {key}: private (PIN), {} v {}, started by its owner, max level {}, \
-                 {pool} maps",
+                 {} bots a team, {pool} maps",
                 who.name,
                 model::PRIVATE_SIZE,
                 model::PRIVATE_SIZE,
-                spec.max_level
+                spec.max_level,
+                spec.bots
             );
         } else {
             log::info!(
                 "{}: made room {key}: {} v {}, from {} v {}, max level {}, wait {} s, no PIN, \
-                 {pool} maps",
+                 {} bots a team, {pool} maps",
                 who.name,
                 spec.size,
                 spec.size,
                 spec.min_side,
                 spec.min_side,
                 spec.max_level,
-                spec.wait
+                spec.wait,
+                spec.bots
             );
         }
         Ok(key)
@@ -737,6 +820,7 @@ impl Core<'_> {
             spec.min_side,
             spec.max_level,
             spec.wait,
+            spec.bots,
             &room.pool,
             &self.room_entries(),
         );
@@ -783,6 +867,7 @@ impl Core<'_> {
                                 wait: QUICK_WAIT,
                                 pin: false,
                                 min_side: 1,
+                                bots: BotsPerTeam::NONE,
                             };
                             match self.room_create(who, spec, now) {
                                 Ok(key) => {
@@ -952,6 +1037,7 @@ impl Core<'_> {
                     .map(|member| room.sides.get(member).copied().unwrap_or(0))
                     .collect()
             }),
+            bots: room.spec.bots,
         })
     }
 
@@ -976,6 +1062,7 @@ impl Core<'_> {
         let anyone = Worth {
             players: 1,
             strength: 0,
+            bots: 0,
         };
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
@@ -1533,6 +1620,10 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let bots_setting = room.spec.bots;
+        // The bots' equipment: within an open room's max level (none: any);
+        // a private room has no cap (#569).
+        let bots_cap = (room.spec.pin.is_none() && room.spec.max_level != 0).then_some(room.spec.max_level);
         let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
@@ -1654,8 +1745,36 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching
-            .insert(match_id, (map_id, room_minimum, private));
+        // The server's bots in the places its players leave (the owner's of
+        // 2026-10-26), none on a map they do not play (its pool has none
+        // with bots, `room_create`; a map file gone since, or Research).
+        let unplayed = bots_setting != BotsPerTeam::NONE && !self.settings.rooms.bot_maps.plays(map_id);
+        // As many matches with bots as SRP_PVB_MAX_MATCHES at most, against
+        // bots and rooms' together (their maps in memory, their thinking).
+        let at_limit = bots_setting != BotsPerTeam::NONE
+            && self.pvb_running() >= self.settings.pvb.max_matches;
+        let bots = if unplayed {
+            log::info!("Room {key}: no bots on map {map_id}: they do not play it");
+            [0, 0]
+        } else if at_limit {
+            log::info!(
+                "Room {key}: no bots: {} matches with bots run, the most (SRP_PVB_MAX_MATCHES)",
+                self.settings.pvb.max_matches
+            );
+            [0, 0]
+        } else {
+            policy::start_bots(bots_setting.places(), size, teams.each_ref().map(Vec::len))
+        };
+        self.room_launching.insert(
+            match_id,
+            RoomLaunch {
+                map_id,
+                minimum: room_minimum,
+                private,
+                bots,
+                bots_cap,
+            },
+        );
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.
@@ -1671,9 +1790,12 @@ impl Core<'_> {
             .map(|player| player.account_id)
             .collect();
         log::info!(
-            "Room {key}: match {match_id:#x} on map {map_id}, {} v {}",
+            "Room {key}: match {match_id:#x} on map {map_id}, {} v {}, with {} v {} of the \
+             server's bots",
             teams[0].len(),
-            teams[1].len()
+            teams[1].len(),
+            bots[0],
+            bots[1]
         );
         for player in teams.iter().flatten() {
             self.room_send_to_match(*player, now);
@@ -1753,6 +1875,7 @@ impl Core<'_> {
         let worth = Worth {
             players: 1,
             strength: i64::from(ready.strength),
+            bots: 0,
         };
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
@@ -1792,7 +1915,9 @@ impl Core<'_> {
         }) else {
             return;
         };
-        let first = running.seats.len();
+        // The queue's roster has the players alone: the match's next place
+        // is past the server's bots too (`Running::place_of_seat`).
+        let first = running.player_seats();
         let host = self.host;
         let admitted =
             self.store

@@ -8,8 +8,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 `BottomPanel`, `PlayerRanking`) ([lobby-source.md](lobby-source.md)). Contract: `lobby.md` §2.16.3.
 
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
-  Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots
-  and clan-team matches stay (clan matches: a uniform random map, no bots).
+  Matches tab and its JOIN, the skewed map draw and the queue's server bots are gone (a
+  room's own bots, "Bots per team" below, are its maker's choice). Play vs Bots and clan-team
+  matches stay (clan matches: a uniform random map, no bots).
 - **Making one:** team size 6 v 6 to 10 v 10 and players to start 1 v 1 to 3 v 3 (an open
   room's; a private one has neither, "A private room is started by its owner"); max level
   (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
@@ -21,10 +22,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
-    reinstalls, other PCs): team size, players to start, max level, time to start, the
-    map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
-    that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
-    any max level, 30 s, every mode, the pool without the experimental maps).
+    reinstalls, other PCs): team size, players to start, max level, time to start, bots per
+    team (since 2026-10-26), the map/weather tiles and the modes. Not the PIN: typed each time
+    (the owner may change that). A room Play made keeps nothing. Nothing kept: the defaults (8
+    v 8, from 1 v 1, any max level, 30 s, no bots, every mode, the pool without the
+    experimental maps).
   - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
     (an experimental one out); the max level never below the maker's gear; other values
     within today's ranges; nothing of the pool left: the default pool.
@@ -167,6 +169,74 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - It pays nothing, as every PIN room's match ("A PIN: no rewards", above).
   - Its info line and banner say no "N v N" (the banner: members / 20); the list never did.
   - Open rooms and Play keep their size, players to start and countdown.
+- **Bots per team** (the owner's of 2026-10-26: "it should be possible in lobby to add up to 3 vs
+  3 bots, which will be replaced with real players once those join"; "the game doesn't support
+  more than 20 people and bots are people"). Code: `BotsPerTeam` (the wire), `matchmaking_policy`
+  (`start_bots`, `place_joiner`, `bot_move`), the lobby's `room_start` and `launch`, the match
+  server's `game/driven.rs` (`room_bots`, `BotSeat`).
+  - A setting of the room, 0 (none) to 3, made with it and never changed: New room's "Bots per
+    team" slider, None to 3 v 3, for open and private rooms (an open room's beside Players to
+    start, a private room's under Max level). Remembered with the other settings (Play's room has
+    none). The room's info line says "Bots per team N" when it has some.
+  - The match starts with up to that many of the server's bots on each team, in the places its
+    players leave of the room's size (a private room: of 10): 1 v 1 in an 8 v 8 with 3 plays 4 v
+    4, 7 v 2 plays 8 v 5, 8 v 8 none. In a private room they fill its owner's arranged teams (1 v
+    3 with 2 plays 3 v 5), and are no part of the arrangement. A room of none plays none.
+  - **20 places:** every place of a match counts toward its 20 and is never used twice, so a player
+    who takes a bot's place comes on a new one. The match keeps a place for each bot in it:
+    players + 2 × bots is at most 20 at the start (the team with more bots gives one up first:
+    7 v 7 with 3 plays with 3 bots in all), and a player who would not take a bot's place does not
+    take a kept place. So a player never waits for a place while a bot holds one (a failed late
+    join still uses a place).
+  - **A player comes** (Play, Join, the PIN, a queue, a late join): it goes to a side as any late
+    joiner (the side with fewer, bots counted; a private room's member to its arranged team), and
+    on a side with a bot it takes that bot's place, also when the side is full of players and
+    bots (no "The match is full."); a side that cannot take it sends it to the other side's bot.
+    In the match the player enters as any late joiner; a tick after its entry the team's last bot
+    by place leaves as a player who quits: it presses drop just before (a battery it carries is let
+    go where it stands, as a player can) and lets every key go. The clients see an ordinary leave
+    and an ordinary entry: nothing new on the wire. From the countdown on, as late joins are; a
+    group of joiners replaces as many bots, one at a time.
+  - **A bot that gave way is gone for the match.** A player who leaves brings no bot back: the team
+    plays short, as any room's; the room's next match starts its bots afresh. (A place entered
+    again desyncs a game that loaded a world while it was out, `client_patch.md`,
+    `snapshot_rules.md` §7.3: a returning bot would cost a resync each time.)
+  - A bot leaves only once every game simulating has played its entry (a leave a game takes before
+    it played the entry is dropped by it).
+  - **How many at once:** `SRP_PVB_MAX_MATCHES` (5) is the most matches with the server's bots
+    together, against bots and rooms' (each holds a bots' map in memory and their thinking): a
+    room whose match would be one more starts it without bots (said in the log); Player vs Bots is
+    refused at the limit as before, rooms' bot matches counted.
+  - No bot of a team that can no longer respawn leaves (Team Deathmatch out of tickets: it may be
+    its team's last life, and the mode ends the match on that); the player plays beside it.
+  - **The maps and modes the bots play** (the owner's of 2026-10-26: "if a player chooses bots,
+    the maps (levels) and modes that bots don't support should be greyed out"): a mode of theirs
+    (the battery modes, Blackout among them, and Team Deathmatch; not Research,
+    `maps::mode::bots_play`, the match server's own check) on a map whose walk data the server has
+    (`<project>.mapdata` in `SRP_MAPDATA_DIR`, the files the release ships, `bot-data.tsv`). The
+    server says it of each pool entry (the pool's `bots` field, `rooms::BotMaps`). In New room,
+    with Bots per team over None, every other map and mode is greyed out, says "Bots can't play
+    it" and cannot be ticked (a map's tile, its row when none of its tiles is theirs, a mode's
+    row); back to None, they are as chosen before. The server refuses (code 8) a room with bots
+    whose pool has another; Play's room has no bots. A map whose file went after the room was made
+    starts its match without bots.
+  - **Blackout** ("Protective device: blackout"): the plain battery rules with the interface hidden
+    on the clients; the match server and the bots get its battery map (`maps::BLACKOUT_RULES`). Not
+    greyed out; its bots play it as any battery match.
+  - **Their equipment** (`session::v026g::bot_kits`, #578): the top players' kits of the match's
+    equipment level; in an open room with a max level never over it (the review of #577): the
+    nearest level at or below the cap; with none, the role's fixed kits only when they are within
+    it; else that bot is not there (the room plays with fewer). A private room has no cap (#569).
+  - **Pay:** a match a server's bot played in pays as Play vs Bots does (`SRP_PVB_PAY`, half by
+    default, of the silver and experience; no quest, no daily bonus; no rating), even when every
+    bot was replaced later: its bots are kills and batteries a player did not take from players,
+    and its maker chose them. A private room's pays nothing, as before.
+  - The results: a bot's row is its place's (what it scored before it left); the team points are
+    the world's. Recordings and replays have the bots' leaves as any player's (the recording's
+    note "gave way").
+  - Not run in a game yet: that a client takes a server's bot's leave as any player's (it cannot
+    tell them apart, `player_bots.md` §1), and that a carrier's drop before its leave lets the
+    battery go (bit 22 is PROVEN to run, `player_bots.md` §2).
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.

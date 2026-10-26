@@ -474,6 +474,7 @@ dependencies = [
  "bytemuck",
  "env_logger",
  "log",
+ "mapdata",
  "openssl",
  "session",
  "survarium",

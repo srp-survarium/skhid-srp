@@ -3,7 +3,8 @@
 # Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU). RoomsHarness.as makes the
 # lobby movie's own rooms window and tells it room states: Start and the move buttons (» «) for a
 # private room's owner only, never for a member, an open room or a room playing its match; its two
-# team columns, a member in the other after a move; no "N v N" for a private room.
+# team columns, a member in the other after a move; no "N v N" for a private room; the room's bots
+# a team on its info line, and New room's "Bots per team" slider (open and private).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

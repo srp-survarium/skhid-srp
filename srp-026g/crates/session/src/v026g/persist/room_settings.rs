@@ -6,6 +6,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use super::bad_row;
 use crate::persist::PersistError;
 use crate::v026g::room_settings::{RoomSettings, Tile};
+use crate::v026g::rooms::BotsPerTeam;
 
 /// The schema step that adds the table. An account of before has no row:
 /// its create window starts with the defaults.
@@ -22,6 +23,12 @@ pub(super) const MIGRATION: &str = "
         -- Modes, `,` between them.
         modes_off  TEXT NOT NULL
     );
+    ";
+
+/// The schema step that adds the bots a team (the owner's of 2026-10-26):
+/// a row of before has none.
+pub(super) const BOTS_MIGRATION: &str = "
+    ALTER TABLE g26_room_settings ADD COLUMN bots INTEGER NOT NULL DEFAULT 0;
     ";
 
 fn tiles_text(tiles: &[Tile]) -> String {
@@ -70,7 +77,7 @@ pub(super) fn load(
     account_id: u32,
 ) -> Result<Option<RoomSettings>, PersistError> {
     let mut statement = connection.prepare_cached(
-        "SELECT size, min_side, max_level, wait, tiles_off, tiles_on, modes_off
+        "SELECT size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, bots
          FROM g26_room_settings WHERE account_id = ?1",
     )?;
     let row = statement
@@ -83,17 +90,21 @@ pub(super) fn load(
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
+                row.get::<_, u8>(7)?,
             ))
         })
         .optional()?;
-    let Some((size, min_side, max_level, wait, tiles_off, tiles_on, modes_off)) = row else {
+    let Some((size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, bots)) = row else {
         return Ok(None);
     };
+    let bots = BotsPerTeam::new(bots)
+        .ok_or_else(|| bad_row(account_id, "room bots", &bots.to_string()))?;
     Ok(Some(RoomSettings {
         size,
         min_side,
         max_level,
         wait,
+        bots,
         tiles_off: parse_tiles(account_id, &tiles_off)?,
         tiles_on: parse_tiles(account_id, &tiles_on)?,
         modes_off: parse_modes(account_id, &modes_off)?,
@@ -115,13 +126,13 @@ pub(super) fn save(
     };
     connection.execute(
         "INSERT INTO g26_room_settings
-            (account_id, size, min_side, max_level, wait, tiles_off, tiles_on, modes_off)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            (account_id, size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, bots)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(account_id) DO UPDATE SET
             size = excluded.size, min_side = excluded.min_side,
             max_level = excluded.max_level, wait = excluded.wait,
             tiles_off = excluded.tiles_off, tiles_on = excluded.tiles_on,
-            modes_off = excluded.modes_off",
+            modes_off = excluded.modes_off, bots = excluded.bots",
         params![
             account_id,
             settings.size,
@@ -131,6 +142,7 @@ pub(super) fn save(
             tiles_text(&settings.tiles_off),
             tiles_text(&settings.tiles_on),
             modes_text(&settings.modes_off),
+            settings.bots.get(),
         ],
     )?;
     Ok(())
@@ -162,6 +174,7 @@ mod tests {
             min_side: 3,
             max_level: 12,
             wait: 60,
+            bots: BotsPerTeam::new(3).unwrap(),
             tiles_off: vec![(1, 1), (6, 5)],
             tiles_on: Vec::new(),
             modes_off: vec![2, 3],
@@ -186,6 +199,7 @@ mod tests {
         // A second room's settings replace the first's.
         let next = RoomSettings {
             size: 6,
+            bots: BotsPerTeam::NONE,
             tiles_off: Vec::new(),
             tiles_on: vec![(13, 1)],
             modes_off: Vec::new(),

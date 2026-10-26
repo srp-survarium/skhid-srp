@@ -15,15 +15,18 @@
 //! player's equipment now (never under it), when the window asks
 //! ([`form`]).
 
-use survarium::v026g::lobby::rooms::{LEVEL_MAX, MIN_SIDES, PoolEntry, RoomForm, SIZES, WAITS};
+use survarium::v026g::lobby::rooms::{
+    BotsPerTeam, LEVEL_MAX, MIN_SIDES, PoolEntry, RoomForm, SIZES, WAITS,
+};
 
 /// The window's defaults (and a room Play makes): 8 v 8, from 1 v 1, any
-/// max level, a wait of 30 s, the match pool without the experimental maps,
-/// every mode (Blackout too, when the server offers it).
+/// max level, a wait of 30 s, no bots, the match pool without the
+/// experimental maps, every mode (Blackout too, when the server offers it).
 pub const DEFAULT_SIZE: u8 = 8;
 pub const DEFAULT_MIN_SIDE: u8 = 1;
 pub const DEFAULT_MAX_LEVEL: u8 = 0;
 pub const DEFAULT_WAIT: u8 = 30;
+pub const DEFAULT_BOTS: BotsPerTeam = BotsPerTeam::NONE;
 
 /// A map (`maps::MapMode::level`) and a weather: a tile of the window.
 pub type Tile = (u8, u8);
@@ -39,6 +42,8 @@ pub struct RoomSettings {
     pub max_level: u8,
     /// The wait, seconds (the vote's 15 s not counted).
     pub wait: u8,
+    /// The server's bots a team its matches start with, at most.
+    pub bots: BotsPerTeam,
     /// Tiles of the match pool it left out.
     pub tiles_off: Vec<Tile>,
     /// Experimental tiles it put in.
@@ -79,11 +84,13 @@ impl RoomSettings {
     /// (`maps_dict` ids) as the pool offered now (`entries`) names them.
     /// A tile is in when an entry of it is, a mode when an entry of it is:
     /// the same tiles and modes give the same pool back.
+    #[allow(clippy::too_many_arguments)]
     pub fn of_room(
         size: u8,
         min_side: u8,
         max_level: u8,
         wait: u8,
+        bots: BotsPerTeam,
         pool: &[u8],
         entries: &[PoolEntry],
     ) -> Self {
@@ -110,6 +117,7 @@ impl RoomSettings {
             min_side,
             max_level,
             wait,
+            bots,
             tiles_off,
             tiles_on,
             modes_off,
@@ -126,6 +134,7 @@ pub fn defaults(entries: &[PoolEntry]) -> RoomForm {
         min_side: DEFAULT_MIN_SIDE,
         max_level: DEFAULT_MAX_LEVEL,
         wait: DEFAULT_WAIT,
+        bots: DEFAULT_BOTS,
         tiles_on: entries
             .iter()
             .map(|entry| {
@@ -179,6 +188,7 @@ pub fn form(saved: Option<&RoomSettings>, entries: &[PoolEntry], gear: u8) -> Ro
         min_side: saved.min_side.clamp(*MIN_SIDES.start(), *MIN_SIDES.end()),
         max_level: max_level(saved.max_level, gear),
         wait: nearest_wait(saved.wait),
+        bots: saved.bots,
         tiles_on,
         modes_off,
     }
@@ -207,6 +217,8 @@ fn nearest_wait(wait: u8) -> u8 {
 mod tests {
     use super::*;
 
+    const NONE: BotsPerTeam = BotsPerTeam::NONE;
+
     fn entry(map_id: u8, level: u8, weather: u8, mode: u8, extra: bool) -> PoolEntry {
         PoolEntry {
             map_id,
@@ -214,6 +226,7 @@ mod tests {
             weather,
             mode,
             extra,
+            bots: true,
         }
     }
 
@@ -247,13 +260,13 @@ mod tests {
         assert!(form.modes_off.is_empty());
         assert!(chosen(&form, &entries).contains(&255));
         // Left out once, kept out: a room made without it gives that back.
-        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &entries);
+        let kept = RoomSettings::of_room(8, 1, 0, 30, NONE, &[10, 11, 12, 20, 21], &entries);
         assert_eq!(kept.modes_off, vec![survarium::v026g::maps::mode::BLACKOUT]);
         let again = super::form(Some(&kept), &entries, 4);
         assert!(!chosen(&again, &entries).contains(&255));
         // Settings kept before Blackout was offered: it is in, as any mode
         // added later (no schema step needed).
-        let before = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &pool());
+        let before = RoomSettings::of_room(8, 1, 0, 30, NONE, &[10, 11, 12, 20, 21], &pool());
         let now = super::form(Some(&before), &entries, 4);
         assert!(chosen(&now, &entries).contains(&255));
     }
@@ -270,6 +283,7 @@ mod tests {
                 min_side: 1,
                 max_level: 0,
                 wait: 30,
+                bots: BotsPerTeam::NONE,
                 tiles_on: vec![true, true, true, true, true, false],
                 modes_off: Vec::new(),
             }
@@ -281,7 +295,8 @@ mod tests {
         let entries = pool();
         // School (2) left out, the experimental map put in, deathmatch (4)
         // out: Rudnya by day and evening, the experimental map, in mode 2.
-        let kept = RoomSettings::of_room(9, 2, 6, 45, &[10, 12, 30], &entries);
+        let two = BotsPerTeam::new(2).unwrap();
+        let kept = RoomSettings::of_room(9, 2, 6, 45, two, &[10, 12, 30], &entries);
         assert_eq!(kept.tiles_off, [(2, 1)]);
         assert_eq!(kept.tiles_on, [(9, 1)]);
         assert_eq!(kept.modes_off, [4]);
@@ -292,14 +307,15 @@ mod tests {
                 form.size,
                 form.min_side,
                 form.max_level,
-                form.wait
+                form.wait,
+                form.bots
             ),
-            (true, 9, 2, 6, 45)
+            (true, 9, 2, 6, 45, two)
         );
         assert_eq!(form.tiles_on, [true, true, true, false, false, true]);
         assert_eq!(chosen(&form, &entries), [10, 12, 30]);
         // Every mode and the whole pool: nothing differs from the defaults.
-        let all = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21, 30], &entries);
+        let all = RoomSettings::of_room(8, 1, 0, 30, NONE, &[10, 11, 12, 20, 21, 30], &entries);
         assert_eq!(
             (all.tiles_off.len(), all.tiles_on.len(), all.modes_off.len()),
             (0, 1, 0)
@@ -318,7 +334,7 @@ mod tests {
     fn a_map_no_longer_offered_is_dropped_and_a_new_one_starts_as_the_defaults() {
         let entries = pool();
         // School left out, the experimental map in.
-        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 30], &entries);
+        let kept = RoomSettings::of_room(8, 1, 0, 30, NONE, &[10, 11, 12, 30], &entries);
         // Later: the experimental map gone, Rudnya's evening gone; a new map
         // (3) and a new experimental one (10) offered.
         let later = vec![
@@ -334,7 +350,7 @@ mod tests {
         assert_eq!(chosen(&form, &later), [10, 11, 40]);
         // A mode no longer offered is dropped too.
         let only_deathmatch = vec![entry(11, 1, 1, 4, false), entry(21, 2, 1, 4, false)];
-        let no_tdm = RoomSettings::of_room(8, 1, 0, 30, &[10, 12, 20], &entries);
+        let no_tdm = RoomSettings::of_room(8, 1, 0, 30, NONE, &[10, 12, 20], &entries);
         assert_eq!(no_tdm.modes_off, [4]);
         let left = vec![entry(10, 1, 1, 2, false), entry(20, 2, 1, 2, false)];
         assert_eq!(form_of(&no_tdm, &left).modes_off, Vec::<u8>::new());
@@ -353,6 +369,7 @@ mod tests {
             min_side,
             max_level,
             wait,
+            bots: NONE,
             tiles_off: Vec::new(),
             tiles_on: Vec::new(),
             modes_off: Vec::new(),
@@ -388,6 +405,7 @@ mod tests {
             ("DEFAULT_SIZE", DEFAULT_SIZE),
             ("DEFAULT_MIN_SIDE", DEFAULT_MIN_SIDE),
             ("DEFAULT_WAIT", DEFAULT_WAIT),
+            ("DEFAULT_BOTS", DEFAULT_BOTS.get()),
         ] {
             assert!(
                 create.contains(&format!("const {name}:int = {value};")),
@@ -410,6 +428,7 @@ mod tests {
             "_minSide = DEFAULT_MIN_SIDE;",
             "_max = RoomsWire.LEVEL_ANY;",
             "_wait = DEFAULT_WAIT;",
+            "_bots = DEFAULT_BOTS;",
             "_modesOff = {};",
             "defaultPool();",
         ] {
@@ -420,11 +439,21 @@ mod tests {
             "_minSide = form.min;",
             "_max = form.max;",
             "_wait = form.wait;",
+            "_bots = form.bots;",
             "_off = copy(form.off);",
             "_modesOff = copy(form.modesOff);",
         ] {
             assert!(copy.contains(line), "{line}: {start}");
         }
+        // The bots a team sit on top of the create code, as the server reads
+        // it (`create_start`), 0 to 3.
+        let step = survarium::v026g::lobby::rooms::CREATE_BOTS_STEP;
+        assert!(wire.contains(&format!("const BOTS_STEP:int = {step};")));
+        assert!(wire.contains(&format!(
+            "const BOTS_MAX:int = {};",
+            BotsPerTeam::MAX.get()
+        )));
+        assert!(create.contains("var code:int = _bots * RoomsWire.BOTS_STEP + "));
         // The window asks; New room never does.
         assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
         assert!(!create.contains("RoomsWire.SETTINGS"));

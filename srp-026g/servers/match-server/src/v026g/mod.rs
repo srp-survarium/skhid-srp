@@ -330,15 +330,14 @@ impl Settings {
                     var("SRP_MAPDATA_KEEP").as_deref(),
                     bots::maps::KEEP as u32,
                 ),
-                // With "Player vs Bots" on, one map for each match against
-                // bots that may run at once (`SRP_PVB_MAX_MATCHES`).
+                // One map for each match with bots that may run at once
+                // (`SRP_PVB_MAX_MATCHES`: against bots and rooms' together).
                 session::v026g::pvb::maps_at_once(
                     parse_number(
                         "SRP_MAPDATA_AT_ONCE",
                         var("SRP_MAPDATA_AT_ONCE").as_deref(),
                         bots::maps::AT_ONCE as u32,
                     ) as usize,
-                    session::v026g::pvb::enabled(),
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),

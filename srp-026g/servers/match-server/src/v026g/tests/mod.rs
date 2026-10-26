@@ -14,6 +14,7 @@ mod game;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
+mod room_bots;
 mod sockets;
 mod start;
 mod units;
@@ -157,6 +158,23 @@ impl Bench {
         }
         setup.room_minimum = Some(minimum);
         Self::with_setup(setup, settings, &[], &[], true)
+    }
+
+    /// A room's match as [`Bench::room`], with the server's own bots at
+    /// `driven` (the room's "Bots per team").
+    pub fn room_with_bots(
+        teams: &[u8],
+        map_id: u8,
+        settings: Settings,
+        minimum: u8,
+        driven: &[usize],
+    ) -> Self {
+        let mut setup = setup(teams.len(), map_id);
+        for (player, &team) in setup.players.iter_mut().zip(teams) {
+            player.profile.team = team;
+        }
+        setup.room_minimum = Some(minimum);
+        Self::with_setup(setup, settings, &[], driven, true)
     }
 
     /// A match of one player against the server's own bots at `driven`

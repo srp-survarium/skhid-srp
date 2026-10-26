@@ -1181,6 +1181,27 @@ fn a_short_soak_without_the_battery_cheat_finds_and_brings_batteries() {
     );
 }
 
+/// Blackout ("Protective device: blackout", a room's mode 6; the owner's of
+/// 2026-10-26: bots must play it) is the plain battery mode for the match
+/// and its bots (`maps::BLACKOUT_RULES`; the interface is hidden on the
+/// clients only): its bots find the batteries and bring them home as in any
+/// battery match (the soak's mode is that one).
+#[test]
+fn a_blackout_match_is_the_battery_mode_its_bots_bring_batteries_home() {
+    use survarium::v026g::maps;
+    assert_eq!(maps::BLACKOUT_RULES, maps::mode::BATTERIES);
+    assert!(maps::mode::bots_play(maps::BLACKOUT_RULES));
+    assert!(!maps::mode::bots_play(maps::mode::RESEARCH));
+    let mut tuning = Tuning::default();
+    tuning.cheats.batteries = false;
+    let out = soak_tuned(4, 3, 0, None, 150, 3, tuning);
+    assert!(
+        out.delivered[0] + out.delivered[1] >= 1,
+        "batteries brought: {:?}",
+        out.delivered
+    );
+}
+
 /// [`four_bots_a_side_fight_and_bring_batteries_to_a_win`] and
 /// [`timed_batteries_are_waited_for_at_the_stations_and_brought_home`]
 /// with the battery cheat on (off by default).
