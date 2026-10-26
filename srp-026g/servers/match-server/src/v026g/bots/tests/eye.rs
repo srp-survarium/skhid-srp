@@ -325,6 +325,12 @@ fn pre_eye_pin_tuning() -> Tuning {
     // #534: the eye is where the game's bullet starts.
     tuning.aim.combat.live_eye = false;
 
+    // X1 (#552): the trigger's range by weapon class; the pin has the old 80 m.
+    tuning.aim.combat.range_by_weapon = false;
+
+    // K1: the threat spots; the pinned counts predate them.
+    tuning.threat.spots = false;
+
     tuning
 }
 

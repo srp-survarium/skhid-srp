@@ -32,6 +32,7 @@ pub struct Tuning {
     pub mods: ModTuning,
     pub think: ThinkTuning,
     pub heal: HealTuning,
+    pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// Whether a bot's way out of a zone stays under the strength of the
@@ -57,6 +58,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             heal: HealTuning::default(),
+            threat: ThreatTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
             plays: PlayKind::ALL
@@ -83,7 +85,7 @@ pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
+pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {

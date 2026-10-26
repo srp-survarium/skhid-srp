@@ -36,6 +36,8 @@ use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::reflex::gate;
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::drive::key;
@@ -89,7 +91,8 @@ struct Rec {
 /// What the bench reads of a bot at a tick: out of rounds with nothing
 /// to load, its last reload (start, end), the jump it pressed (why, and
 /// the route's take-off and landing for a route jump), its play, its
-/// play's step (once a second: none between), and how far its goal is.
+/// play's step (once a second: none between), how far its goal is, and
+/// the reflex tick, if any, at which the weapon's range alone held its shot.
 #[derive(Clone, Debug, Default)]
 struct BotNow {
     dry: bool,
@@ -104,6 +107,9 @@ struct BotNow {
     heal_walks: u32,
     /// Why the last heal press's cover walk was or was not made.
     heal_note: Option<crate::v026g::bots::reflex::HealNote>,
+    range_held: Option<u32>,
+    /// What its reflex's grenade logic has counted this life.
+    grenades: GrenadeStats,
 }
 
 #[derive(Default)]
@@ -181,6 +187,7 @@ impl OwnerTally {
                 let watch = bot
                     .jump_watch
                     .filter(|w| w.at.abs_diff(tick) <= TICK_MS * 2);
+                let gates = bot.reflex.gates();
                 Some(BotNow {
                     dry: bot.reflex.dry(),
                     reload: bot.reflex.reload_note().map(|r| (r.at, r.until)),
@@ -199,6 +206,10 @@ impl OwnerTally {
                     heal_walking: bot.reflex.heal_walking(),
                     heal_walks: bot.reflex.heal_walks,
                     heal_note: bot.reflex.heal_note(),
+                    // The range was the only gate that failed (with the
+                    // gate tally on, the wall test too was made).
+                    range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
+                    grenades: bot.reflex.grenade_stats(),
                 })
             })
             .collect();
@@ -256,9 +267,11 @@ impl OwnerTally {
                 continue;
             };
             self.grenades_keys(place, tick, body, &prev);
+            self.grenades_logic(place, &now.grenades);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
+            self.fight_range_held(place, body, now);
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);

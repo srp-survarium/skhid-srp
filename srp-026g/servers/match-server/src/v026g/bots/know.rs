@@ -547,6 +547,28 @@ pub struct Claim {
 /// A claim is dropped when not renewed for this long, ms.
 pub const CLAIM_KEEP_MS: u32 = 2_000;
 
+/// A bot's claim on a throw spot: the place it decided to throw a grenade
+/// at, stamped when it decided. A teammate's roll skips places within
+/// `CombatTuning::grenade_claim_m` of one for `grenade_claim_ms`.
+///
+/// Root cause (`grenades-record.md` 2.4): two bots of a team throwing at
+/// one spot waste the second grenade (the blast is 10 m; humans' same-team
+/// throws land within 8 m of a teammate's during the next 5 s in 1.7 % of
+/// throws, twice the chance level, so they do not avoid it by design). The
+/// owner: do not make several bots throw at the same spots. A spot claim
+/// is a place where a bot stands, 1.5 m apart ([`Claim`]); a throw claim
+/// a blast, metres apart, kept for the fuse and what follows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ThrowClaim {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// A throw claim is dropped after this, ms, whatever the roll's own window
+/// asks (the fuse is 4 s; `grenade_claim_ms` is 6 s).
+pub const THROW_CLAIM_KEEP_MS: u32 = 30_000;
+
 /// What a team's bots share: callouts (one bot's sense, the others' a
 /// moment later), danger spots, thefts, and with the battery cheat off
 /// what they know of the batteries and the spawners they have looked at.
@@ -590,6 +612,9 @@ pub struct TeamKnowledge {
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
+    /// The places the team's bots decided to throw at, each throw a claim
+    /// ([`Self::claim_throw`]).
+    throws: Vec<ThrowClaim>,
 }
 
 impl TeamKnowledge {
@@ -650,6 +675,25 @@ impl TeamKnowledge {
         self.claims
             .iter()
             .filter(move |c| c.who != except && c.time + CLAIM_KEEP_MS >= now)
+    }
+
+    /// `who` decided to throw a grenade at `at` (one claim a throw: a bot's
+    /// own volley is not held against it, [`Self::throws_of_others`]).
+    pub fn claim_throw(&mut self, who: Place, at: Vec3, now: u32) {
+        self.throws.push(ThrowClaim { who, at, time: now });
+    }
+
+    /// The throw claims of bots other than `except` made within `ms` of
+    /// `now`.
+    pub fn throws_of_others(
+        &self,
+        except: Place,
+        now: u32,
+        ms: u32,
+    ) -> impl Iterator<Item = &ThrowClaim> {
+        self.throws
+            .iter()
+            .filter(move |c| c.who != except && c.time + ms >= now)
     }
 
     /// The player at `who` left the match: no callout about it is heard,
@@ -871,6 +915,7 @@ impl TeamKnowledge {
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
         self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
         self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
+        self.throws.retain(|c| c.time + THROW_CLAIM_KEEP_MS >= now);
     }
 
     /// `who`, going for a battery lying at `at`, fell near it (once in
@@ -1030,6 +1075,20 @@ impl TeamKnowledge {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A throw claim holds against the teammates' rolls, not the thrower's
+    /// own, for the window the roll asks, and is dropped much later.
+    #[test]
+    fn a_throw_claim_holds_against_others_for_its_window() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(10.0, 0.0, 20.0);
+        team.claim_throw(3, at, 1_000);
+        assert_eq!(team.throws_of_others(4, 5_000, 6_000).count(), 1);
+        assert_eq!(team.throws_of_others(3, 5_000, 6_000).count(), 0, "his own volley");
+        assert_eq!(team.throws_of_others(4, 7_001, 6_000).count(), 0, "after the window");
+        team.forget_old(31_001);
+        assert_eq!(team.throws_of_others(4, 31_001, 60_000).count(), 0, "dropped");
+    }
 
     fn seen(who: Place, time: u32) -> Percept {
         Percept {
