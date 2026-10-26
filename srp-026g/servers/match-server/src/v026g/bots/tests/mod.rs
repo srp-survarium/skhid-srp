@@ -69,6 +69,7 @@ mod fights;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
+mod live_zones;
 mod no_way;
 mod pocket_runs;
 mod settings;

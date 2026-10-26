@@ -89,9 +89,9 @@ const ESCAPE_WALK_MPS: f32 = 3.0;
 /// ways out are compared by it ([`Tactics::escape`]): a zone the map file
 /// gives no hit for is infinite (`Hazard::hit_per_s`).
 const ESCAPE_HIT_CAP: f32 = 1.0;
-/// The floors [`Tactics::live_exit_of`] looks over for the way out of a live field (a field a few metres wide; this is
-/// room for one wider than [`ESCAPE_FLOORS`]).
-const LIVE_EXIT_FLOORS: usize = 4_000;
+/// The floors [`Tactics::live_exit_of`] looks over for the way out of a live field: most of a big map's, for a field
+/// wider than [`ESCAPE_FLOORS`] reaches (it runs only when the escape search found nothing).
+const LIVE_EXIT_FLOORS: usize = 100_000;
 /// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
 /// as `BodyView::health` and the zones' hits), may be walked on through to a
 /// way out further on while on. GUESS: under a tenth of a body's health in a
@@ -2685,6 +2685,121 @@ pub(super) mod tests {
         assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
         cache.keep(4, Arc::new(vec![0.0; 10]), 3);
         assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
+    // The live zones (`live_zones.rs`): a world's anomaly fields next to the baked zones.
+
+    fn live_field(
+        id: u32,
+        at: Vec3,
+        radius: f32,
+        phase: survarium::v026g::match_msgs::anomaly_fields::FieldPhase,
+    ) -> survarium::v026g::match_msgs::anomaly_fields::WorldField {
+        use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldShape, WorldField};
+        WorldField {
+            id: FieldId(id),
+            kind: FieldKind::Spring,
+            centre: [at.x, 1.0, at.z],
+            shape: FieldShape::Cylinder { radius, half_height: 2.0 },
+            phase,
+        }
+    }
+
+    const LIVE_ON: survarium::v026g::match_msgs::anomaly_fields::FieldPhase =
+        survarium::v026g::match_msgs::anomaly_fields::FieldPhase::Damaging { until: None };
+
+    /// Floors only: a region is not shut because a live field lies on a few of its floors (its test is the baked
+    /// zone's), while the floors' own test shuts them.
+    #[test]
+    fn a_live_field_shuts_floors_and_not_regions() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let from = Vec3::new(5.0, 0.0, 20.0);
+        let region = tactics.base.regions.of(inside);
+        assert!(tactics.allowed(inside, 0, Some(0), false));
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON)], &c.grid, 0);
+        assert!(!tactics.allowed(inside, 0, Some(0), false), "the floor is shut");
+        assert!(!tactics.allowed_from(inside, 0, Some(0), false, from), "and by the arrival test");
+        assert!(tactics.region_allowed_from(region, 0, Some(0), false, from), "the region is open");
+        assert!(tactics.hazards.zone_of(tactics.base.regions.middle(region)).is_none());
+    }
+
+    /// A body inside a live field gets out to the nearest floor that is open, and the route to it does not cross a
+    /// second field.
+    #[test]
+    fn a_body_in_a_live_field_walks_out_and_not_through_a_second() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(
+            &[
+                live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON),
+                live_field(2, Vec3::new(28.0, 0.0, 20.0), 3.0, LIVE_ON),
+            ],
+            &c.grid,
+            0,
+        );
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let second = grid.locate(Vec3::new(28.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(!tactics.hazards.set_of(inside).is_none());
+        assert_ne!(tactics.hazards.set_of(inside), tactics.hazards.set_of(second));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end = out.point_at(out.length());
+        let end_node = grid.locate(end, 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false), "out onto an open floor: {end:?}");
+        assert!(end.x < 20.0, "west, away from the second field: {end:?}");
+        let mut s = 0.0;
+        while s <= out.length() {
+            let node = grid.locate(out.point_at(s), 1.0).unwrap();
+            assert!(tactics.hazards.live.at(node).all(|f| f.id.0 != 2), "not over the second field");
+            s += 0.5;
+        }
+    }
+
+    /// A body deeper in a live field than the breadth-first search reaches ([`ESCAPE_FLOORS`]) still gets out: the
+    /// board has its own way out, since the exit field is the baked zones'.
+    #[test]
+    fn a_body_deep_in_a_wide_live_field_still_gets_out() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        // 25 m round, on a floor 40 m across: the nearest open floor is 26 m off, past the 20,000 floors the escape
+        // search expands before it gives up, so the way out is the board's own (`Tactics::live_exit_of`).
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(30.0, 0.0, 20.0), 25.0, LIVE_ON)], &c.grid, 0);
+        let inside = grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(tactics.exit_of(inside).is_some_and(|n| tactics.hazards.set_of(n).is_none()));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end_node = grid.locate(out.point_at(out.length()), 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false));
+    }
+
+    /// A step out of a blast does not end on a live field's floor: the nearest floor outside the radius that is
+    /// open, round the field.
+    #[test]
+    fn a_step_out_of_a_blast_avoids_a_live_field() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let open = RouteFilter::open();
+        let plain = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        assert!(plain.x > 29.0, "east, as the nearest: {plain:?}");
+        let c = tactics.world.clone();
+        let wide = Vec3::new(32.0, 0.0, 20.0);
+        tactics.hazards.set_fields(&[live_field(1, wide, 3.0, LIVE_ON)], &c.grid, 0);
+        let out = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let node = grid.locate(out, 0.5).unwrap();
+        assert!(tactics.allowed(node, 0, Some(0), false), "not onto the field: {out:?}");
     }
 
 }
