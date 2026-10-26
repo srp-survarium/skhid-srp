@@ -551,3 +551,12 @@ Applied to the live files: 8 files edited, 0 unexpected differences. The simulat
 | `gameplay/items/boosters/regeneration_booster.options` `default_modifications`: [1094] -> [1094, 1165] (`append_item`, new in `content_edit.py`) | the regeneration +15 % stays; a booster works carried, as the energy drink's two modifications do. The card shows both lines |
 
 Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.
+
+## protein-aim-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| a new modification 1085 at the end of `modifications` (after 1165), made like 1084 (the rolled aim time -10 %: `aim_time_modifier`, card line 102 "Aiming speed") with -0.15 and `drop_weight` 0 | the owner: protein gets "aiming speed -15%" on top of what it does. Index 49: scope-in and scope-out (0x2E1B50, 0x2E1BF0) take the weapon's `aim_time` x max(0, 1 + the sum) |
+| `gameplay/items/boosters/weight_booster.options` `default_modifications`: [1124] -> [1124, 1085] | the weight limit +5 kg stays |
+
+Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.

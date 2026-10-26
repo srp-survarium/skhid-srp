@@ -1,0 +1,9 @@
+{
+ "_about": "The protein buff (the owner, 2026-10-26: \"aiming speed -15%\", on top of what it does; srp-026g/docs/notes/booster-buffs.md). Anomalous Force Protein (weight_booster, a booster: it works carried, no timed effect) keeps its default modification 1124 (weight limit +5 kg) and gets a second one: a new modification 1085, aim_time_modifier (index 49: scope-in 0x2E1B50 and scope-out 0x2E1BF0 take the weapon's aim_time x max(0, 1 + the sum)) -0.15, made like 1084 (the rolled aim time -10 %, card line 102 \"Aiming speed\", lower is better) with drop_weight 0, so it never rolls; added at the end of the table (after rations-stamina-1's 1165). The card shows both: \"Weight limit: +5kg\" and \"Aiming speed: -15%\".",
+ "add_entry": [
+  {"files": "gameplay/items/modifications/modifications.options", "list": "modifications", "after": {"id": 1165}, "like": {"id": 1084}, "values": {"id": 1085, "drop_weight": 0, "modifiers[0]/value": -0.15, "lobby_info/aim_time_modifier": -0.15, "ui_desc/props_list[0]/prop_value": "-0.15"}}
+ ],
+ "append_item": [
+  {"file": "gameplay/items/boosters/weight_booster.options", "path": "default_modifications", "value": 1085}
+ ]
+}
