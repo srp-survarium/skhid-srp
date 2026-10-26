@@ -232,6 +232,38 @@ impl Speed {
     }
 }
 
+/// The keys held from a landing on ([`Mid::Land`]): what, if anything, cancels the carry of the landing clip.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Landing {
+    /// Nothing held.
+    Nothing,
+    Back,
+    Crouch,
+    Left,
+    Right,
+    /// Forward alone.
+    Forward,
+    /// Forward and sprint, as the run-up.
+    Sprint,
+}
+
+impl Landing {
+    fn keys(self) -> u32 {
+        match self {
+            Self::Nothing => 0,
+            Self::Back => key::BACK,
+            Self::Crouch => key::CROUCH,
+            Self::Left => key::LEFT,
+            Self::Right => key::RIGHT,
+            Self::Forward => key::FORWARD,
+            Self::Sprint => key::FORWARD | key::SPRINT,
+        }
+    }
+}
+
+/// How long the keys of a [`Mid::Land`] try are played after they change, ms.
+const LAND_KEYS_MS: u32 = 1_500;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mid {
     Hold,
@@ -247,6 +279,10 @@ pub enum Mid {
     CrouchPre,
     /// The yaw turned by this many degrees over 0.4 s from the take-off.
     Turn(f32),
+    /// Every key released 0.25 s after the press (the air gets no control), then `keys` from `after_ms` after the press
+    /// (about the landing: the clip ends 0.9-1.2 s after it): what carries the body after a sprint jump lands, and what
+    /// stops it (`land_back_1100`).
+    Land { keys: Landing, after_ms: u32 },
 }
 
 /// Who works a try: a named bot, or whichever bot of the match is free (the pool).
@@ -328,6 +364,24 @@ fn parse_mid(text: &str) -> Result<Mid, String> {
         "crouch" => Mid::Crouch,
         "crouch_jump" => Mid::CrouchJump,
         "crouch_pre" => Mid::CrouchPre,
+        other if other.starts_with("land_") => {
+            let (keys, ms) = other["land_".len()..].split_once('_').ok_or_else(|| format!("mid {other:?}"))?;
+            let keys = match keys {
+                "nothing" | "none" => Landing::Nothing,
+                "back" => Landing::Back,
+                "crouch" => Landing::Crouch,
+                "left" => Landing::Left,
+                "right" => Landing::Right,
+                "forward" => Landing::Forward,
+                "sprint" => Landing::Sprint,
+                _ => return Err(format!("mid {other:?}: keys")),
+            };
+            let after_ms = ms.parse::<u32>().map_err(|e| format!("mid {other:?}: {e}"))?;
+            if !(300..=1_500).contains(&after_ms) {
+                return Err(format!("mid {other:?}: the keys change 300-1500 ms after the press"));
+            }
+            Mid::Land { keys, after_ms }
+        }
         other => match other.strip_prefix("turn") {
             Some(degrees) => Mid::Turn(degrees.parse::<f32>().map_err(|e| format!("mid {other:?}: {e}"))?),
             None => return Err(format!("mid {other:?}")),
@@ -568,7 +622,7 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
     let ticks = table.ticks_for(def.speed, run);
     let press_at = first + ticks * TICK_MS;
     let end = match press {
-        Some(()) => press_at + KEYS_AFTER_MS,
+        Some(()) => press_at + if let Mid::Land { after_ms, .. } = def.mid { after_ms + LAND_KEYS_MS } else { KEYS_AFTER_MS },
         None => press_at + 600,
     };
     Some(Plan {
@@ -617,6 +671,9 @@ impl Plan {
                 Mid::Back => keys = (keys & !(key::FORWARD | key::SPRINT)) | key::BACK,
                 Mid::Crouch => keys |= key::CROUCH,
                 Mid::CrouchJump | Mid::CrouchPre => {}
+                Mid::Land { keys: land, after_ms } => {
+                    keys = if time >= press + after_ms { land.keys() } else { 0 };
+                }
                 Mid::Turn(degrees) => {
                     // Eight ticks (0.4 s).
                     if time < mid_from + 8 * TICK_MS {
@@ -2139,6 +2196,23 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.take_rows(rows.clone(), 1_000, 1_050, 100);
         assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
         assert!(jt.take_fresh().is_empty(), "once");
+    }
+
+    #[test]
+    fn a_landing_try_releases_everything_in_the_air_and_holds_its_keys_from_the_landing() {
+        assert_eq!(parse_mid("land_back_1100"), Ok(Mid::Land { keys: Landing::Back, after_ms: 1_100 }));
+        assert_eq!(parse_mid("land_none_900"), Ok(Mid::Land { keys: Landing::Nothing, after_ms: 900 }));
+        assert!(parse_mid("land_back").is_err() && parse_mid("land_up_900").is_err() && parse_mid("land_back_100").is_err());
+        let d = def(1.0, 0.0, Face::Along, 5.5, Speed::Sprint, Mid::Land { keys: Landing::Back, after_ms: 1_100 });
+        let plan = plan_from(&d, site_start(), 0.0, 1_000, &RunTable::default()).expect("fits");
+        let press = plan.press.expect("a press");
+        assert_eq!(plan.end, press + 1_100 + LAND_KEYS_MS);
+        let before = plan.at(press + MID_AT_MS - TICK_MS);
+        assert!(before.keys & key::FORWARD != 0, "the run goes on to the take-off");
+        assert_eq!(plan.at(press + MID_AT_MS + TICK_MS).keys, 0, "all released in the air");
+        assert_eq!(plan.at(press + 1_100 - TICK_MS).keys, 0);
+        assert_eq!(plan.at(press + 1_100).keys, key::BACK);
+        assert_eq!(plan.at(plan.end).keys, 0, "and nothing after the keys");
     }
 
     #[test]
