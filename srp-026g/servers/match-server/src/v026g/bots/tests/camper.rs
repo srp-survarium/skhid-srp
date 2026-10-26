@@ -25,11 +25,6 @@ pub(crate) enum SpotRule {
 /// pillar, seeing down a lane).
 pub(crate) const HIDDEN_RATIO: f32 = 0.5;
 
-/// The camper's eye height standing and crouched, m (the middle of the
-/// client's `mapdata::stands::EYE_STANDING` and `EYE_CROUCHED`).
-const EYE_STANDING_M: f32 = 1.6;
-const EYE_CROUCHED_M: f32 = 0.95;
-
 /// The stand-in camper's fidelity options, each off when unset: a spot rule,
 /// the stance at the spot and the weapon (`settings.rs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,7 +148,8 @@ pub(crate) fn camper_spot_by(
     };
     let (mine, theirs) = (points(side), points(1 - side));
     let sight = &tactics.world.sight;
-    let eye_up = Vec3::new(0.0, if crouched { EYE_CROUCHED_M } else { EYE_STANDING_M }, 0.0);
+    // The eye of the stance is the game's (`view::eye_height`).
+    let eye_up = super::view::still_eye(Vec3::ZERO, crouched);
     let candidates: Vec<Candidate> = mine
         .iter()
         .map(|&p| {
@@ -166,7 +162,7 @@ pub(crate) fn camper_spot_by(
                 .count() as u32;
             // Seen from only matters to the hidden rule, and only where it sees some.
             let seen = if rule == SpotRule::Hidden && sees > 0 {
-                let standing = Vec3::new(0.0, EYE_STANDING_M, 0.0);
+                let standing = super::view::still_eye(Vec3::ZERO, false);
                 theirs
                     .iter()
                     .filter(near)

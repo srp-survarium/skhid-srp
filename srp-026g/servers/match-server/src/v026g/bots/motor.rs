@@ -66,6 +66,9 @@ pub struct Feel {
     /// The point steered at is this far ahead, metres, plus
     /// `look_ahead_per_speed` × speed.
     pub look_ahead_m: f32,
+    /// How far under a walked leg's floor a body is still on the route, m
+    /// (`path::OFF_WALK_BELOW_M`); 1.5 (`path::OFF_ROUTE_HEIGHT_M`) is the old rule.
+    pub off_walk_below_m: f32,
     pub look_ahead_per_speed: f32,
     /// Sprint only with this much straight route ahead, metres …
     pub sprint_from_m: f32,
@@ -134,6 +137,7 @@ impl Default for Feel {
             stop_turn: 1.4,
             go_turn: 0.7,
             look_ahead_m: 1.6,
+            off_walk_below_m: super::path::OFF_WALK_BELOW_M,
             look_ahead_per_speed: 0.35,
             sprint_from_m: 10.0,
             sprint_until_m: 3.5,
@@ -606,6 +610,7 @@ impl Motor {
         self.next_tick();
         self.look = None;
         self.under_jump(route, pose.feet);
+        route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
@@ -744,6 +749,7 @@ impl Motor {
         self.sprinting = false;
         self.facing_ticks = 0;
         self.under_jump(route, pose.feet);
+        route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
             self.walking = false;

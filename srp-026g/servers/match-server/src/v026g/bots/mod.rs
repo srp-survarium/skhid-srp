@@ -863,6 +863,7 @@ impl Bots {
         if self.is_bot(place) {
             return;
         }
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -913,6 +914,7 @@ impl Bots {
 
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1076,6 +1078,7 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

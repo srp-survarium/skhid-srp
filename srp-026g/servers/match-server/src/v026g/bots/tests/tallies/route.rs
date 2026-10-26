@@ -61,6 +61,8 @@ pub(crate) struct RouteTally {
     pub(crate) pocket_escapes: [u64; 7],
     pub(crate) motor_counts: [u64; 8],
     pub(crate) route_ends: [(u64, u64); super::route_end::RouteEnd::ALL.len()],
+    /// The ticks off the route by the walked-leg rule alone, at the start (`path::below_walk`).
+    pub(crate) below_walk: u64,
     /// The sights' count at the start (`foliage::through`).
     pub(crate) foliage: [u64; 3],
     /// [CG-17] Each body's walk at the last tick to an exact spot
@@ -102,6 +104,7 @@ impl RouteTally {
             pocket_escapes: super::escape::counts::counts(),
             motor_counts: super::motor::counts::counts(),
             route_ends: super::route_end::counts::counts(),
+            below_walk: super::path::below_walk::counts(),
             foliage: super::foliage::through::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
@@ -557,6 +560,7 @@ impl RouteTally {
         );
         // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
         let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);
+        route_ends += &format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
         route_ends += &foliage_line;
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;

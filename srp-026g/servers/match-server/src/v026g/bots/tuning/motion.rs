@@ -10,5 +10,6 @@ pub(super) fn validate_feel(feel: &Feel) -> Result<(), String> {
         "feel.hop_*",
     )?;
     check(feel.lip_look_ahead_m >= 0.0, "feel.lip_look_ahead_m")?;
+    check(feel.off_walk_below_m >= 0.6, "feel.off_walk_below_m")?;
     Ok(())
 }
