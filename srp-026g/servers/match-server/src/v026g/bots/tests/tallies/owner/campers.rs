@@ -14,6 +14,9 @@ pub(super) struct CamperCounts {
     /// Flank or Crossfire takes on a shooter holding his kill spot: all,
     /// and Flank's.
     pub(super) counter_runs: [u32; 2],
+    /// Probe: each counter run's runner, holder, take time, the runner's
+    /// height over the holder and the distance across at the take.
+    pub(super) counter_detail: Vec<(Place, Place, u32, f32, f32)>,
     /// Shooters killed while holding their kill spot: who, and whether the
     /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
     pub(super) held_kills: Vec<(Place, bool)>,
@@ -114,6 +117,15 @@ impl Topic for CamperCounts {
         {
             self.counter_runs[0] += 1;
             self.counter_runs[1] += u32::from(play == "Flank");
+            if let (Some(me), Some(them)) = (game.bodies.get(note.place), game.bodies.get(who)) {
+                self.counter_detail.push((
+                    note.place,
+                    who,
+                    note.time,
+                    me.feet.y - them.feet.y,
+                    me.feet.distance_xz(them.feet),
+                ));
+            }
         }
     }
 
@@ -122,12 +134,43 @@ impl Topic for CamperCounts {
         self.kills_tick(run, game, sight, rays, tick);
     }
 
-    fn parts(&mut self, run: &Run, _game: &Game, _scale: &Scale) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         vec![("campers", self.part(run))]
     }
 }
 
 impl CamperCounts {
+    /// Probe: the counter runs by the runner's height over the holder
+    /// (flat under 1.5 m, a floor 1.5-2.5 m, a storey over 2.5 m, above or
+    /// below), whether the runner came within 10 m of the holder (same
+    /// level) in the next 30 s and whether the holder died in them.
+    fn counter_split(&self, run: &Run) -> String {
+        let mut split: BTreeMap<String, u32> = BTreeMap::new();
+        for &(runner, holder, time, dy, dist) in &self.counter_detail {
+            let k0 = (time.saturating_sub(run.first_tick) / TICK_MS) as usize;
+            let k1 = k0 + TPS * 30;
+            let (Some(rr), Some(rh)) = (run.recs.get(runner), run.recs.get(holder)) else {
+                continue;
+            };
+            let len = rr.len().min(rh.len());
+            let reached = (k0..k1.min(len)).any(|k| {
+                rr[k].alive && rh[k].alive && rr[k].feet.distance_xz(rh[k].feet) <= 10.0 && (rr[k].feet.y - rh[k].feet.y).abs() <= 1.5
+            });
+            let killed = (k0..k1.min(len)).any(|k| !rh[k].alive);
+            let level = match dy.abs() {
+                d if d < 1.5 => "flat",
+                d if d < 2.5 => "floor",
+                _ if dy > 0.0 => "storey-over",
+                _ => "storey-under",
+            };
+            let range = if dist < 20.0 { "<20m" } else if dist < 40.0 { "20-40m" } else { "40m+" };
+            *split
+                .entry(format!("{level} {range} reached {} holder-died {}", u8::from(reached), u8::from(killed)))
+                .or_default() += 1;
+        }
+        format!("owner-test counter runs split: {split:?}")
+    }
+
     /// A kill: the shooter's held spot goes on (within [`SPOT_HOLD_M`] of
     /// it and [`RUN_APART_MS`] of his last kill there), or a new one starts
     /// with who of the victims' team is in his line now.
@@ -499,8 +542,10 @@ impl CamperCounts {
             "camper_kills_off_lane": held_all[1],
             "stand_in_camper": camper,
         });
+        let counter_split = self.counter_split(run);
         let text = format!(
-            "owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
+            "{counter_split}
+  owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
             camp_runs,
             camp_run_kills,
             camp_longest,

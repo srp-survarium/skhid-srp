@@ -49,8 +49,10 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
+use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
@@ -139,6 +141,7 @@ impl Walkers {
                 .collect::<Vec<_>>()
         );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        let pockets = formed.profiles.iter().map(pockets_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -169,6 +172,7 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_pockets(pockets);
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
@@ -303,6 +307,35 @@ fn weapon_of(
     WeaponKind::of_item(kind, category)
 }
 
+/// A player's pockets (profile slots 13..=18 of its first kit) for the
+/// throw keys: what each holds, a frag (`rgd-5`), a smoke (`rdg-m`) or
+/// something else the quick-use keys count, and the units. A server bot's
+/// throw key is a frag, so it has none. The first kit is the one the
+/// player spawns in unless it picked another (LIKELY: `kit_changes`
+/// counts the picks; the picked kit is not tracked here).
+fn pockets_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Option<Pockets> {
+    if survarium::v026g::loadouts::bot_role_of(profile).is_some() {
+        return None;
+    }
+    let kit = profile.kits.first()?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let slots = std::array::from_fn(|i| {
+        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+        let (index, units) = kit.slots[slot]?;
+        let item = profile.items.get(usize::from(index))?;
+        let name = dictionary.item(item.dict_id)?.name.as_str();
+        let held = match name {
+            "rgd-5" => Pocketed::Frag,
+            "rdg-m" => Pocketed::Smoke,
+            _ => Pocketed::Other,
+        };
+        Some((held, units))
+    });
+    Some(Pockets::new(slots))
+}
+
 fn log_notes(id: u32, notes: Vec<Note>) {
     for note in notes {
         if note.place == usize::MAX {
@@ -432,6 +465,12 @@ impl Game {
             .is_some_and(|walkers| walkers.bots.has_map())
     }
 
+    /// What the server's bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {
+        self.walkers.as_ref()?.bots.pantry_of(place)
+    }
+
     /// How often to ask for a world, `every` being what the match asks:
     /// sooner while the server's bots play.
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
@@ -497,12 +536,18 @@ impl Game {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
                 walkers.bots.hurt(place, hurt);
+                if let Some(pools) = Pools::of_world(&damage.part_health) {
+                    walkers.bots.pools(place, pools);
+                }
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
         }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
+        walkers
+            .bots
+            .traps_from_world(decoded.sections.objects, snapshot.time);
         let (read, missed) = walkers
             .bots
             .anomalies_from_world(decoded.sections.objects, snapshot.time);
@@ -511,6 +556,28 @@ impl Game {
                 "Match {id:#x}: anomalies in the world at {} ms: {read} read, {missed} missed",
                 snapshot.time
             );
+        }
+    }
+
+    /// A trusted world's word on what the server's bots hold of drugs:
+    /// each bot's block as `players::Supplies` read it (`Observed`), the
+    /// quick-use stacks of its kits. Called once `observe` has them.
+    pub(super) fn observe_stock(&mut self, time: u32) {
+        let Some(walkers) = self.walkers.as_mut() else {
+            return;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        for (place, supplies) in state.supplies.iter().enumerate() {
+            let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
+            if let (true, Some(supplies), Some(profile)) =
+                (driven, supplies, self.formed.profiles.get(place))
+            {
+                let readings = crate::v026g::bots::stock::readings(supplies, profile, dictionary);
+                walkers.bots.stock(place, time, &readings);
+            }
         }
     }
 

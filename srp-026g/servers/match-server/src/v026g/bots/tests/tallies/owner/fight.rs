@@ -5,6 +5,8 @@ use super::*;
 pub(super) struct FightCounts {
     /// By place: what the bot's reflex says at this tick's reading (none: not a bot).
     pub(super) now: Vec<Option<FightNow>>,
+    /// The tactics' walk cache at the last tick (hits, misses, kept).
+    pub(super) walk_stats: crate::v026g::bots::tactics::WalkStats,
     /// Bot state of the last tick: dry, the last reload's (at, until).
     pub(super) dry: Vec<bool>,
     pub(super) last_reload: Vec<Option<(u32, u32)>>,
@@ -38,6 +40,9 @@ pub(super) struct FightCounts {
     /// the eye to his chest or head; with none.
     pub(super) fire_on_target: u32,
     pub(super) fire_hidden: u32,
+    /// Fire at a target out of sight, in a throw's hold, and within 3 s after
+    /// a throw (the grenade logic's own reading of the +5.9 % of look 2).
+    pub(super) fire_hidden_throw: [u32; 2],
     pub(super) fire_no_target: u32,
     /// By place: the last tick's target, and the enemies who hit it (who,
     /// when).
@@ -198,6 +203,9 @@ pub(super) struct FightNow {
     pub(super) dry: bool,
     pub(super) reload: Option<(u32, u32)>,
     pub(super) range_held: Option<u32>,
+    /// Its view is held for a throw, and ms since it let go of its last grenade.
+    pub(super) throw_held: bool,
+    pub(super) thrown_ago_ms: Option<u32>,
 }
 
 impl Topic for FightCounts {
@@ -213,13 +221,27 @@ impl Topic for FightCounts {
                 reload: bot.reflex.reload_note().map(|r| (r.at, r.until)),
                 // The range was the only gate that failed (with the gate tally on, the wall test too was made).
                 range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
+                throw_held: bot.reflex.view_held(),
+                thrown_ago_ms: bot.reflex.thrown_ago(tick),
             }
         });
     }
 
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.walk_stats = tactics.walk_stats();
+        }
+    }
+
     #[cfg(test)]
     fn inject(&mut self, place: Place, now: Option<&BotNow>) {
-        self.now[place] = now.map(|n| FightNow { dry: n.dry, reload: n.reload, range_held: n.range_held });
+        self.now[place] = now.map(|n| FightNow {
+            dry: n.dry,
+            reload: n.reload,
+            range_held: n.range_held,
+            throw_held: n.throw_held,
+            thrown_ago_ms: n.thrown_ago_ms,
+        });
     }
 
     /// The game's hits this tick are kept, and the enemies who hurt each victim lately.
@@ -236,7 +258,7 @@ impl Topic for FightCounts {
             return;
         };
         self.fight_ammo(place, tick, body, &now);
-        self.fight_fire(game, place, body, at.rec, at.sight, rays);
+        self.fight_fire(game, place, body, at.rec, at.sight, rays, &now);
         self.fight_range_held(place, body, &now);
         self.fight_switch(game, place, body, at.sight, rays);
     }
@@ -247,7 +269,11 @@ impl Topic for FightCounts {
         self.fight_reloads(run, game, sight, rays, tick);
     }
 
-    fn parts(&mut self, run: &Run, _game: &Game, scale: &Scale) -> Vec<(&'static str, Part)> {
+    fn publish(&self) -> Vec<(&'static str, serde_json::Value)> {
+        vec![("fire_hidden_throw", serde_json::json!(self.fire_hidden_throw))]
+    }
+
+    fn parts(&mut self, run: &Run, _game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         for r in std::mem::take(&mut self.reloads) {
             self.reload_done(run, &r);
         }
@@ -541,7 +567,7 @@ impl FightCounts {
     }
 
     /// Fire this tick: by movement, at a target in line or not, by range.
-    pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
+    pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64, now: &FightNow) {
         if body.alive && body.keys & key::FIRE != 0 {
             self.fire_move[move_of(rec)] += 1;
             // At the target: with a line to him or not.
@@ -550,6 +576,11 @@ impl FightCounts {
                     self.fire_on_target += 1;
                     if !in_sight(sight, body, him, f32::INFINITY, rays) {
                         self.fire_hidden += 1;
+                        if now.throw_held {
+                            self.fire_hidden_throw[0] += 1;
+                        } else if now.thrown_ago_ms.is_some_and(|ago| ago <= 3_000) {
+                            self.fire_hidden_throw[1] += 1;
+                        }
                     }
                 }
                 None => self.fire_no_target += 1,
@@ -688,7 +719,7 @@ impl FightCounts {
         // Turned on the shooter.
         let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
         let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
-        for &(t, shooter, victim) in &self.hits {
+        for &(t, shooter, victim) in &run.hits {
             let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
             last_hit.insert(victim, t);
             if !apart || !bot(victim) {
@@ -833,6 +864,16 @@ impl FightCounts {
             self.fire_no_target,
             self.switches,
             self.switches_off_hurter,
+        );
+        let w = self.walk_stats;
+        let text = format!(
+            "{text}
+  owner-test walk cache: {} hits {} misses ({:.1} % hit), {} goals kept, {} KB",
+            w.hits,
+            w.misses,
+            100.0 * w.hits as f64 / (w.hits + w.misses).max(1) as f64,
+            w.kept,
+            w.bytes / 1024
         );
         Part::new(json, text)
     }

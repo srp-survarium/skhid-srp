@@ -59,6 +59,10 @@ impl Bots {
         let Some(step_name) = decide(&due, bot, state, &self.memo, notes) else {
             return;
         };
+        // [traps] A bot that carries traps may start to put one down.
+        traps::think(bot, &due, state);
+        // [trap_react] A trap that is not the team's: a chance to notice it.
+        trap_react::think(bot, &due, state);
         if self.trace.enabled() && now >= bot.last_trace + tuning.think.trace_every_ms {
             bot.last_trace = now;
             let line = serde_json::json!({
@@ -511,10 +515,13 @@ pub(super) fn decide(
             partner: bot.partner,
             paired: bot.paired,
             medkits_used: bot.medkits_used,
+            pantry: &bot.pantry,
+            pools: bot.pools,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,
             dry: bot.reflex.dry(),
+            ammo: bot.ammo(),
             crossing: walks_crossing(bot),
         },
         memory: &bot.memory,
@@ -559,6 +566,11 @@ pub(super) fn decide(
         }
         Step::Continue(mut intent) => {
             bot.press |= intent.press;
+            if let Some(zone) = intent.resupplied.take() {
+                bot.resupplies += 1;
+                let rounds = bot.top_up();
+                bot.note(notes, now, format!("resupplied at zone {zone}: +{rounds} rounds"));
+            }
             if let Some(failed) = intent.failed_stand.take() {
                 bot.failed_stands.retain(|f| f.until > now);
                 bot.failed_stands.push(failed);

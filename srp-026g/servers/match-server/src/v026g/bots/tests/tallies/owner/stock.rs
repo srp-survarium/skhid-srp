@@ -13,7 +13,7 @@ impl Topic for StockCounts {
         self
     }
 
-    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         vec![("stock", self.part(run, game))]
     }
 }

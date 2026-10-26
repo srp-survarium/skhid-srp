@@ -47,9 +47,11 @@ mod campers;
 mod fight;
 mod golden;
 mod grenades;
+mod heal;
 mod jumps;
 mod moving;
 mod pre;
+mod resupply;
 mod run;
 mod stock;
 mod topic;
@@ -57,9 +59,11 @@ mod topic;
 use campers::*;
 use fight::*;
 use grenades::*;
+use heal::*;
 use jumps::*;
 use moving::*;
 use pre::*;
+use resupply::*;
 use run::*;
 use stock::*;
 use topic::*;
@@ -118,6 +122,9 @@ impl OwnerTally {
         // The step once a second, at the stuck detector's samples.
         let sample = self.run.first_tick == 0
             || ((tick.saturating_sub(self.run.first_tick) / TICK_MS) as usize).is_multiple_of(TPS);
+        for topic in &mut self.topics {
+            topic.bots(bots, game);
+        }
         let mut doing = Vec::with_capacity(game.bodies.len());
         for place in 0..game.bodies.len() {
             let bot = bots.bots.get(place).and_then(Option::as_ref);
@@ -137,6 +144,7 @@ impl OwnerTally {
             self.run.first_tick = tick;
         }
         let mut rays = 0u64;
+        self.run.read_game(game);
         for topic in &mut self.topics {
             topic.begin(&self.run, game);
         }
@@ -218,8 +226,10 @@ impl OwnerTally {
         let bot_min = self.run.bot_min();
         let scale = Scale { tick_s: TICK_S as f64, bot_min };
         let mut parts = Vec::new();
+        let mut shared = Shared::new();
         for topic in &mut self.topics {
-            parts.extend(topic.parts(&self.run, game, &scale));
+            parts.extend(topic.parts(&self.run, game, &scale, &shared));
+            shared.extend(topic.publish());
         }
         let mut core = serde_json::Map::new();
         core.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));

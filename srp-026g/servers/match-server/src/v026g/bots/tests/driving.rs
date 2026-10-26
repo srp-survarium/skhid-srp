@@ -31,7 +31,7 @@ pub(crate) fn a_crossing_with_no_route_left_does_not_hold_a_carriers_way_out() {
     let point = |x: f32| Waypoint {
         at: Vec3::new(x, 0.0, 0.0),
         node: 0,
-        jump: false,
+        jump: None,
         low: false,
     };
     bot.route = Some((Route::new(vec![point(0.0), point(5.0)]), home));

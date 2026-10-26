@@ -85,6 +85,12 @@ pub(super) struct Run {
     pub(super) stuck_notes: Vec<Vec<u32>>,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
     pub(super) camper: Option<Place>,
+    /// Every hit on an enemy and every kill of the match, as the game logged them (the bench drains the game's
+    /// logs): (tick, shooter, victim).
+    pub(super) hits: Vec<(u32, Place, Place)>,
+    pub(super) kills: Vec<(u32, Place, Place)>,
+    kills_seen: usize,
+    last_kill: Option<(u32, Place, Place)>,
 }
 
 impl Run {
@@ -96,6 +102,17 @@ impl Run {
             stuck_notes: vec![Vec::new(); n],
             ..Self::default()
         }
+    }
+
+    /// The game's logs of this tick: its hits, and the kills made since the last read.
+    pub(super) fn read_game(&mut self, game: &Game) {
+        self.hits.extend(game.hit_log.iter().copied());
+        if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
+            self.kills_seen = 0;
+        }
+        self.kills.extend(game.kill_log[self.kills_seen.min(game.kill_log.len())..].iter().copied());
+        self.kills_seen = game.kill_log.len();
+        self.last_kill = game.kill_log.last().copied();
     }
 
     fn play_id(&mut self, name: String) -> u16 {

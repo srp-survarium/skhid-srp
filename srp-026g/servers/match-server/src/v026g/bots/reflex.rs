@@ -83,6 +83,7 @@ use super::arc;
 use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
+use super::plays::heal::Wish as HealWish;
 use super::recoil::{Cadence, Recoil, kick_of};
 use super::rng::Rng;
 use super::signals::mix;
@@ -371,6 +372,21 @@ pub struct CombatTuning {
     /// ... 6 s: C, PROVEN: the fuse is 4 s from the press; G: 2 s for the
     /// flush that follows. Swept: 4 s and 10 s.
     pub grenade_claim_ms: u32,
+    /// [G2] At the press and in the hold the trace is made again from where
+    /// the thrower stands now; when the chosen arc fails then for what is in
+    /// the way (the thrower moved since the roll: 451 of the 540 throws given
+    /// up in look 1 of the combined arm were that) the arc is searched again
+    /// for the same place, and the view turns to it, instead of the throw
+    /// being given up. Off: given up, as before. Swept: this switch.
+    pub grenade_repick: bool,
+    /// After a throw the legs go at its place from the blast for 2 s
+    /// (`grenade_push_after_blast`) also when the place came from a track
+    /// (G1: where an enemy was last sensed), as for a held angle or a camp.
+    /// The push was built for an enemy that stays. Off: no push after a
+    /// throw at a track's place. On (as before): look 1 of the combined arm
+    /// had reversals +3.2 % (z 2.3), in 10v10 only; the push is the
+    /// candidate cause (`grenades-record.md` 13). Swept: this switch.
+    pub grenade_push_tracks: bool,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -957,6 +973,8 @@ impl Default for CombatTuning {
             grenade_claim: false,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
+            grenade_repick: false,
+            grenade_push_tracks: true,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1222,6 +1240,57 @@ struct Push {
     why: LegsWhy,
 }
 
+/// What [`Reflex::break_sight`] came to (the heal's cover walk counts the reasons it did not walk).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sought {
+    /// A spot was found and the bot hides there.
+    Began,
+    /// Already hiding.
+    Hiding,
+    /// A push at an enemy's reload is on.
+    Pushing,
+    /// Not in a duel (no target and no hit within `duel_ms`).
+    NotDuel,
+    NoTactics,
+    /// A carrier, or `hit_cover` off.
+    Declined,
+    /// No enemy it fights to hide from.
+    NoEnemy,
+    /// The ring of the search holds no spot hidden from him.
+    NoSpot,
+}
+
+/// Why a heal press did or did not owe a cover walk, for the bench's counts (nothing decides by it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HealWhy {
+    Walked,
+    /// The think came more than `HEAL_WALK_LATE_MS` after the press.
+    Late,
+    Carrier,
+    Throwing,
+    /// The item's delay allows a walk shorter than the search's near edge.
+    ShortReach,
+    /// A known enemy within the wish's `enemy_m`.
+    EnemyNear,
+    Hiding,
+    Pushing,
+    NotDuel,
+    NoTactics,
+    NoEnemy,
+    NoSpot,
+}
+
+/// The note of a heal press's walk: when the think made it, why, the nearest known enemy and the cover found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HealNote {
+    pub at: u32,
+    pub why: HealWhy,
+    /// The nearest known enemy (any track), m.
+    pub enemy_m: Option<f32>,
+    /// The distance to the spot walked to, m.
+    pub cover_m: Option<f32>,
+}
+
 /// Play 7's steps.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Cover {
@@ -1293,6 +1362,8 @@ struct Throw {
     pitch: Option<f32>,
     /// The arc weighed and held: the flat one, or the search's.
     pick: ArcPick,
+    /// Where its place came from.
+    source: PlaceSource,
 }
 
 /// [play 20] What a grenade roll looks at: the bot, its situation (the
@@ -1448,6 +1519,17 @@ pub struct GrenadeStats {
     pub given_up: [u32; GRENADE_REASONS],
     /// Throws let go as the 1st, 2nd and 3rd or later of the life.
     pub nth: [u32; 3],
+    /// Throws dropped because the view was not on them within
+    /// `grenade_give_up_ms`: by whether a target was in view then (0 none,
+    /// 1 one) and the arc kind.
+    pub timeouts: [[u32; GRENADE_ARCS]; 2],
+    /// Traces at the press or in the hold that failed for what is in the way
+    /// and were searched again (`grenade_repick`): 0 an arc found, 1 none.
+    pub rechecks: [u32; 2],
+    /// Throws let go, by the source of their place.
+    pub thrown_from: [u32; GRENADE_SOURCES],
+    /// Pushes after a throw left out (`grenade_push_tracks` off).
+    pub pushes_skipped: u32,
 }
 
 impl GrenadeStats {
@@ -1474,6 +1556,10 @@ impl GrenadeStats {
             passed: std::array::from_fn(|i| sub(self.passed[i], before.passed[i])),
             given_up: sub(self.given_up, before.given_up),
             nth: sub(self.nth, before.nth),
+            timeouts: std::array::from_fn(|i| sub(self.timeouts[i], before.timeouts[i])),
+            rechecks: sub(self.rechecks, before.rechecks),
+            thrown_from: sub(self.thrown_from, before.thrown_from),
+            pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
         };
         (change, false)
     }
@@ -1499,6 +1585,12 @@ impl GrenadeStats {
         }
         plus(&mut self.given_up, &other.given_up);
         plus(&mut self.nth, &other.nth);
+        for (a, b) in self.timeouts.iter_mut().zip(&other.timeouts) {
+            plus(a, b);
+        }
+        plus(&mut self.rechecks, &other.rechecks);
+        plus(&mut self.thrown_from, &other.thrown_from);
+        self.pushes_skipped += other.pushes_skipped;
     }
 }
 
@@ -1975,6 +2067,14 @@ pub const GATE_NOTE_MS: u32 = 1000;
 pub const GATE_NOTE_AFTER_MS: u32 = 300;
 pub const GATE_NOTE_SLACK_DEG: f32 = 2.0;
 
+/// A heal cover walk counts as on for this long after it begins, ms (the
+/// bench's situation bit).
+const HEAL_WALKING_MS: u32 = 1_600;
+
+/// A heal press owes its cover walk only if the think comes within this, ms
+/// (a late walk would not use the item's delay).
+const HEAL_WALK_LATE_MS: u32 = 600;
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -2029,6 +2129,19 @@ pub struct Reflex {
     last_spot: Option<u32>,
     spotted: Vec<(Place, u32)>,
     throw: Option<Throw>,
+    /// The heal habit ([`super::plays::heal::wish`]): what `drive` asked for
+    /// this tick, taken by [`Self::tick`], which presses the key.
+    heal_wish: Option<HealWish>,
+    /// The cover walk owed to the press just made, and when it was made:
+    /// begun at the next think (the item's delay is the walking time).
+    heal_walk: Option<(HealWish, u32)>,
+    /// When the last heal walk began (for the bench's situations).
+    heal_walk_at: Option<u32>,
+    /// Why the last heal press's walk was or was not made.
+    heal_note: Option<HealNote>,
+    /// The bench's counts: heal presses made, cover walks begun.
+    pub heal_presses: u32,
+    pub heal_walks: u32,
     thrown: u8,
     next_grenade_roll: u32,
     /// [measure] What the grenade logic did this life ([`GrenadeStats`]).
@@ -2036,6 +2149,8 @@ pub struct Reflex {
     /// A grenade decided on at this place, for the team's claim
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
+    /// When the last grenade was let go.
+    last_throw: Option<u32>,
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
@@ -2310,6 +2425,15 @@ impl Reflex {
         }
     }
 
+    /// A resupply zone's top-up: `rounds` more of weapon 1's ammo in the
+    /// stack (the magazine is not touched; the reload habit loads it).
+    pub fn top_up(&mut self, rounds: u32) {
+        match &mut self.hands {
+            Some(hands) => hands.primary.spare += rounds,
+            None => self.carried = Some(self.left() + rounds),
+        }
+    }
+
     /// Nothing to fire: weapon 1 has no round in it nor to load, and no
     /// pistol with one (the kit's ammo lasts the match: dry until a spawn
     /// with another kit).
@@ -2430,6 +2554,17 @@ impl Reflex {
 
     /// [measure] The bot's own gates before its tick: the play allows no
     /// fire; a jump is held (by the source [`Self::jumped`] noted).
+    /// The heal habit's word for this tick (`None`: nothing to press).
+    pub fn set_heal(&mut self, wish: Option<HealWish>) {
+        self.heal_wish = wish;
+    }
+
+    /// A heal cover walk begun within the last 1.6 s of the last tick (the
+    /// bench's situation bit).
+    pub fn heal_walking(&self) -> bool {
+        matches!((self.heal_walk_at, self.last_tick), (Some(at), Some(now)) if now < at + HEAL_WALKING_MS)
+    }
+
     pub fn outer_gates(&mut self, now: u32, play_off: bool, jump_held: bool) {
         let jump = self.jump_gate();
         let g = self.gate_tick(now);
@@ -2482,6 +2617,17 @@ impl Reflex {
     /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
     pub fn take_throw_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.throw_notes)
+    }
+
+    /// [measure] How long ago, ms, the last grenade was let go.
+    pub fn thrown_ago(&self, now: u32) -> Option<u32> {
+        self.last_throw.map(|at| now.saturating_sub(at))
+    }
+
+    /// [measure] Whether the legs are in the push after a grenade at `now`.
+    pub fn after_grenade(&self, now: u32) -> bool {
+        self.push
+            .is_some_and(|p| p.why == LegsWhy::AfterGrenade && p.from <= now && now < p.until)
     }
 
     /// The place a grenade was decided on since the last call: the team's
@@ -2564,14 +2710,17 @@ impl Reflex {
             if self.target.is_some() {
                 self.step_aside(now, c, rng);
             }
-            self.break_sight(me, sit, memory, now, true, true, c, rng);
+            self.break_sight(me, sit, memory, now, true, true, c.hide_m, c, rng);
+        }
+        if let Some((wish, at)) = self.heal_walk.take() {
+            self.heal_cover(wish, at, me, sit, memory, now, c, rng);
         }
         // The magazine out with a target seen: out of sight to reload, else
         // reload where it stands. (Out of ammo too, it takes the pistol
         // where it stands: [`Self::reload`].)
         let empty = self.hands().held().needs_reload();
         if empty && self.target.is_some() && !self.reload_here {
-            self.break_sight(me, sit, memory, now, false, true, c, rng);
+            self.break_sight(me, sit, memory, now, false, true, c.hide_m, c, rng);
             self.reload_here = !matches!(self.cover, Cover::Hiding { .. });
         }
         self.cover_steps(me, sit, now, c, rng);
@@ -2584,7 +2733,7 @@ impl Reflex {
             && !matches!(self.cover, Cover::Hiding { .. })
         {
             self.next_outranged = now + c.outranged_again_ms;
-            self.break_sight(me, sit, memory, now, false, false, c, rng);
+            self.break_sight(me, sit, memory, now, false, false, c.hide_m, c, rng);
         }
         let look = RollView {
             me,
@@ -3122,17 +3271,21 @@ impl Reflex {
         now: u32,
         hit: bool,
         repeek: bool,
+        hide_m: (f32, f32),
         c: &CombatTuning,
         rng: &mut Rng,
-    ) {
-        if matches!(self.cover, Cover::Hiding { .. })
-            || self.push.is_some_and(|p| now < p.until)
-            || now >= self.duel_until
-        {
-            return;
+    ) -> Sought {
+        if matches!(self.cover, Cover::Hiding { .. }) {
+            return Sought::Hiding;
+        }
+        if self.push.is_some_and(|p| now < p.until) {
+            return Sought::Pushing;
+        }
+        if now >= self.duel_until {
+            return Sought::NotDuel;
         }
         let Some(tactics) = sit.tactics else {
-            return;
+            return Sought::NoTactics;
         };
         let still_wait =
             |rng: &mut Rng| rng.range(c.still_wait_ms.0 as f32, c.still_wait_ms.1 as f32) as u32;
@@ -3141,7 +3294,7 @@ impl Reflex {
         {
             // A carrier keeps its way home.
             if me.carrying.is_some() || !c.hit_cover {
-                return;
+                return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
             let covered = |at: Vec3| {
@@ -3158,7 +3311,7 @@ impl Reflex {
             let query = SpotQuery {
                 side: sit.side,
                 samples: 48,
-                ..SpotQuery::ring(me.feet, c.hide_m.0, c.hide_m.1)
+                ..SpotQuery::ring(me.feet, hide_m.0, hide_m.1)
             };
             // Every floor sampled, nearest first (no rays in `spots`
             // without a sight test: the cover rays are these).
@@ -3166,17 +3319,18 @@ impl Reflex {
                 .spots(&query, now, query.samples, rng)
                 .into_iter()
                 .find(|spot| covered(spot.at));
-            if let Some(spot) = spot {
-                self.cover = Cover::Hiding {
-                    at: spot.at,
-                    enemy: threat.at,
-                    started: now,
-                    arrived: None,
-                    wait_ms: still_wait(rng),
-                    repeek: false,
-                };
-            }
-            return;
+            let Some(spot) = spot else {
+                return Sought::NoSpot;
+            };
+            self.cover = Cover::Hiding {
+                at: spot.at,
+                enemy: threat.at,
+                started: now,
+                arrived: None,
+                wait_ms: still_wait(rng),
+                repeek: false,
+            };
+            return Sought::Began;
         }
         // The enemy it fights: hit, the threat that shot it (not the
         // target it sees); else the target, else the last one seen.
@@ -3199,13 +3353,13 @@ impl Reflex {
                     .map(|t| t.at)
             });
         let Some(enemy) = enemy else {
-            return;
+            return Sought::NoEnemy;
         };
         let query = SpotQuery {
             hidden_from: Some(enemy),
             side: sit.side,
             samples: 48,
-            ..SpotQuery::ring(me.feet, c.hide_m.0, c.hide_m.1)
+            ..SpotQuery::ring(me.feet, hide_m.0, hide_m.1)
         };
         if let Some(spot) = tactics.spots(&query, now, 1, rng).first() {
             self.last_peek = Some(me.feet);
@@ -3222,7 +3376,9 @@ impl Reflex {
                 wait_ms,
                 repeek,
             };
+            return Sought::Began;
         }
+        Sought::NoSpot
     }
 
     /// Play 7 on: there, waited, then back at another angle.
@@ -3491,6 +3647,10 @@ impl Reflex {
         }) {
             Ok((at, pick)) => {
                 self.throw_claim = Some(at);
+                let source = places
+                    .iter()
+                    .find(|(place, _)| *place == at)
+                    .map_or(PlaceSource::Held, |(_, source)| *source);
                 self.throw = Some(Throw {
                     at,
                     started: now,
@@ -3500,6 +3660,7 @@ impl Reflex {
                     released: false,
                     pitch: None,
                     pick,
+                    source,
                 });
             }
             Err((at, why)) => self.hold_back(at, why),
@@ -3512,6 +3673,32 @@ impl Reflex {
     /// ([`super::drive::Gates::using`]).
     pub fn view_held(&self) -> bool {
         self.throw.is_some_and(|throw| throw.pressed.is_some())
+    }
+
+    /// [G2] The arc for `throw`'s place searched again from where the
+    /// thrower stands now, when the chosen arc failed for what is in the way
+    /// (`why`) and `grenade_repick` is on: the new arc, or none (counted).
+    fn repick(
+        &mut self,
+        mesh: Option<&mapdata::RayTree>,
+        throw: &Throw,
+        me: &PlaceView,
+        view: &MatchView,
+        c: &CombatTuning,
+        why: Refuse,
+    ) -> Option<ArcPick> {
+        if !c.grenade_repick
+            || !c.grenade_search
+            || !matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Off)
+        {
+            return None;
+        }
+        let pick = over_ground(mesh, throw.at.y, |ground| {
+            weigh_place(me, view, throw.at, throw.error, c, ground)
+        })
+        .ok();
+        self.grenade_stats.rechecks[usize::from(pick.is_none())] += 1;
+        pick
     }
 
     /// [measure] A throw under way given up at the press or in the hold:
@@ -3575,10 +3762,10 @@ impl Reflex {
         };
         throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
-        let weigh = |mates: bool| {
-            over_ground(mesh.as_deref(), throw.at.y, |ground| match throw.pick {
+        let weigh = |mates: bool, pick: ArcPick| {
+            over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
-                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, throw.pick)
+                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, pick)
                     .ok_or(Refuse::Reach)
                     .and_then(|v| {
                         weigh_view(
@@ -3606,14 +3793,20 @@ impl Reflex {
                 <= c.grenade_within_deg.to_radians() =>
             {
                 // The trace again at the press, from where it stands now.
-                if let Err(why) = weigh(c.grenade_recheck) {
-                    self.give_up(throw.at, why);
-                    return None;
+                if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
+                    // The arc found again for the place, the view to turn to it first.
+                    let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
+                        self.give_up(throw.at, why);
+                        return None;
+                    };
+                    throw.pick = pick;
+                } else {
+                    throw.pressed = Some(now);
+                    keys = key::GRENADE;
                 }
-                throw.pressed = Some(now);
-                keys = key::GRENADE;
             }
             None if now >= throw.started + c.grenade_give_up_ms => {
+                self.grenade_stats.timeouts[usize::from(self.target.is_some())][throw.pick.kind()] += 1;
                 self.throw = None;
                 return None;
             }
@@ -3622,9 +3815,12 @@ impl Reflex {
                 if now < pressed + throw.hold_ms {
                     // A teammate in the blast, or about to walk into it:
                     // the key let go before the throw starts.
-                    if let Err(why) = weigh(c.grenade_recheck) {
-                        self.give_up(throw.at, why);
-                        return None;
+                    if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
+                        let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
+                            self.give_up(throw.at, why);
+                            return None;
+                        };
+                        throw.pick = pick;
                     }
                     keys = key::GRENADE;
                 } else if !throw.released {
@@ -3633,18 +3829,24 @@ impl Reflex {
                     throw.released = true;
                     self.thrown += 1;
                     self.grenade_stats.nth[(self.thrown as usize - 1).min(2)] += 1;
+                    self.grenade_stats.thrown_from[throw.source.index()] += 1;
+                    self.last_throw = Some(now);
                     let blast = pressed + fuse;
                     let from = if c.grenade_push_after_blast {
                         blast + c.grenade_push_after_ms
                     } else {
                         now + c.grenade_push_ms.0
                     };
-                    self.push = Some(Push {
-                        toward: throw.at,
-                        from,
-                        until: from + c.grenade_push_ms.1.saturating_sub(c.grenade_push_ms.0),
-                        why: LegsWhy::AfterGrenade,
-                    });
+                    if throw.source.is_track() && !c.grenade_push_tracks {
+                        self.grenade_stats.pushes_skipped += 1;
+                    } else {
+                        self.push = Some(Push {
+                            toward: throw.at,
+                            from,
+                            until: from + c.grenade_push_ms.1.saturating_sub(c.grenade_push_ms.0),
+                            why: LegsWhy::AfterGrenade,
+                        });
+                    }
                     self.throw_notes.push(format!(
                         "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}",
                         throw.at.x, throw.at.y, throw.at.z
@@ -3896,7 +4098,98 @@ impl Reflex {
     ) -> Override {
         let mut over = self.combat_tick(me, view, memory, now, fire_allowed, aim, skill, rng);
         self.keep_loop_going(&mut over, now, &aim.combat);
+        self.heal_press(&mut over, me, now);
         over
+    }
+
+    /// The heal habit: the item's key goes out this tick, over whatever the
+    /// bot does (a use changes no hand, no speed and holds no fire: PROVEN for
+    /// the medkit, `medkit::action` 0x33D700, `inventory::action` 0x2FCAA0;
+    /// LIKELY for the bandages and the antitoxin, the same kind-1 path). Not
+    /// for a carrier, whose hands the battery has (`process_quick_slots`
+    /// 0x2D8DA0), nor in a grenade throw. The cover walk it owes begins at
+    /// the next think ([`Self::heal_cover`]).
+    fn heal_press(&mut self, over: &mut Override, me: &PlaceView, now: u32) {
+        let Some(wish) = self.heal_wish.take() else {
+            return;
+        };
+        if me.carrying.is_some() || self.throw.is_some() {
+            return;
+        }
+        over.keys |= wish.key;
+        self.heal_presses += 1;
+        self.heal_walk = Some((wish, now));
+    }
+
+    /// The walk owed to a heal press: in a duel, hidden from the enemy it
+    /// fights, within the item's delay of walking (the reflex's own cover
+    /// search, [`Self::break_sight`]); not with a known enemy within the
+    /// wish's `enemy_m`, not a carrier, not while it already hides, and
+    /// gone if the think came too late to use the delay.
+    #[allow(clippy::too_many_arguments)]
+    fn heal_cover(
+        &mut self,
+        wish: HealWish,
+        pressed_at: u32,
+        me: &PlaceView,
+        sit: &Situation,
+        memory: &Memory,
+        now: u32,
+        c: &CombatTuning,
+        rng: &mut Rng,
+    ) {
+        let enemy_m = memory
+            .tracks()
+            .iter()
+            .map(|t| t.at.distance_xz(me.feet))
+            .min_by(f32::total_cmp);
+        let mut note = HealNote {
+            at: now,
+            why: HealWhy::Walked,
+            enemy_m,
+            cover_m: None,
+        };
+        let refused = if now > pressed_at + HEAL_WALK_LATE_MS {
+            Some(HealWhy::Late)
+        } else if me.carrying.is_some() {
+            Some(HealWhy::Carrier)
+        } else if self.throw.is_some() {
+            Some(HealWhy::Throwing)
+        } else if wish.reach_m < c.hide_m.0 {
+            Some(HealWhy::ShortReach)
+        } else if enemy_m.is_some_and(|m| m <= wish.enemy_m) {
+            Some(HealWhy::EnemyNear)
+        } else {
+            None
+        };
+        if let Some(why) = refused {
+            note.why = why;
+            self.heal_note = Some(note);
+            return;
+        }
+        let sought =
+            self.break_sight(me, sit, memory, now, false, false, (c.hide_m.0, wish.reach_m), c, rng);
+        note.why = match sought {
+            Sought::Began => HealWhy::Walked,
+            Sought::Hiding => HealWhy::Hiding,
+            Sought::Pushing => HealWhy::Pushing,
+            Sought::NotDuel => HealWhy::NotDuel,
+            Sought::NoTactics => HealWhy::NoTactics,
+            Sought::Declined => HealWhy::Carrier,
+            Sought::NoEnemy => HealWhy::NoEnemy,
+            Sought::NoSpot => HealWhy::NoSpot,
+        };
+        if let (Sought::Began, Cover::Hiding { at, .. }) = (sought, self.cover) {
+            note.cover_m = Some(at.distance_xz(me.feet));
+            self.heal_walks += 1;
+            self.heal_walk_at = Some(now);
+        }
+        self.heal_note = Some(note);
+    }
+
+    /// The last heal press's walk note (the bench reads it; nothing decides by it).
+    pub fn heal_note(&self) -> Option<HealNote> {
+        self.heal_note
     }
 
     /// The rounds the client has put in by `now` ([`super::guns::Load::advance`]), under
@@ -4623,6 +4916,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 
@@ -6541,6 +6835,7 @@ mod tests {
         assert_eq!(s.passed[0][0] + refused, s.weighed[0], "{s:?}");
         assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
         assert_eq!(s.nth[0], 1, "{s:?}");
+        assert!(run.thrown_ago.is_some_and(|ago| ago < 12_000));
     }
 
     /// [G2] A wall 8 m ahead and 3 m high: the flat arc to a place 21 m
@@ -6698,6 +6993,40 @@ mod tests {
         assert!(run(&own).1.is_some(), "his own volley is not held against him");
     }
 
+    /// The arc searched again at the press: only with `grenade_repick` (and
+    /// the search), only for what is in the way, counted; the flat arc if it
+    /// passes from where the thrower stands now.
+    #[test]
+    fn a_failed_recheck_is_searched_again_only_when_asked_and_for_what_is_in_the_way() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let throw = Throw {
+            at: Vec3::new(0.0, 0.0, 20.0),
+            started: 0,
+            hold_ms: 500,
+            pressed: None,
+            error: (0.0, 0.0),
+            released: false,
+            pitch: None,
+            pick: ArcPick::Pitch { pitch: 0.5 },
+            source: PlaceSource::Heard,
+        };
+        let on = CombatTuning {
+            grenade_search: true,
+            grenade_repick: true,
+            ..CombatTuning::default()
+        };
+        let mut reflex = Reflex::default();
+        assert_eq!(
+            reflex.repick(None, &throw, &me, &view, &on, Refuse::Thrower),
+            Some(ArcPick::Flat)
+        );
+        assert_eq!(reflex.grenade_stats().rechecks, [1, 0]);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &on, Refuse::Mate(3)), None);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &CombatTuning::default(), Refuse::Thrower), None);
+        assert_eq!(reflex.grenade_stats().rechecks, [1, 0], "no search, no count");
+    }
+
     #[test]
     fn the_grenade_counts_since_a_reading_and_a_new_life() {
         let mut a = GrenadeStats {
@@ -6745,6 +7074,8 @@ mod tests {
         thrown: Vec<u32>,
         /// The reflex's grenade counts at the end.
         stats: GrenadeStats,
+        /// Ms from the last throw to the end of the run.
+        thrown_ago: Option<u32>,
     }
 
     fn throw_run(
@@ -6849,6 +7180,7 @@ mod tests {
             held: Vec::new(),
             thrown: Vec::new(),
             stats: GrenadeStats::default(),
+            thrown_ago: None,
         };
         let mut now = 1_800;
         while now < until {
@@ -6885,6 +7217,7 @@ mod tests {
             now += 50;
         }
         run.stats = reflex.grenade_stats();
+        run.thrown_ago = reflex.thrown_ago(until);
         run
     }
 
@@ -9321,5 +9654,132 @@ mod tests {
                 assert!(fired < pressed.expect("aimed") + aim_in, "{at_m} m without: {fired} {pressed:?}");
             }
         }
+    }
+
+    /// The heal habit: the field of `hit_in_a_duel_it_breaks_sight...`, the
+    /// bot west of the wall at (32, 28) with a target 23 m off. Returns the
+    /// reflex, the world and what the walk needs.
+    fn heal_duel(enemy_at: Vec3, carrying: bool) -> (Reflex, PlaceView, MatchView, Memory, Rng) {
+        let mut me = body(0, 0, Vec3::new(32.0, 0.0, 28.0), 0.0);
+        me.carrying = carrying.then_some(0);
+        let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        (Reflex::default(), me, view, Memory::default(), Rng::new(8))
+    }
+
+    fn wish(reach_m: f32) -> HealWish {
+        HealWish {
+            key: key::QUICK[0],
+            reach_m,
+            enemy_m: 10.0,
+        }
+    }
+
+    #[test]
+    fn a_heal_wish_presses_the_key_once_beside_everything_else_the_bot_does() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let aim = AimTuning::default();
+        let run = |wished: bool| {
+            let (mut reflex, me, view, mut memory, mut rng) = heal_duel(enemy_at, false);
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                ..Situation::of(&view)
+            };
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, enemy_at, now, Source::Seen)], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            let mut out = Vec::new();
+            for now in [1_350, 1_400, 1_450] {
+                reflex.set_heal(wished.then(|| wish(7.0)).filter(|_| now == 1_350));
+                out.push(reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng));
+            }
+            (out, reflex.heal_presses)
+        };
+        let (with, presses) = run(true);
+        let (without, none) = run(false);
+        assert_eq!((presses, none), (1, 0));
+        // The key once, in the tick asked, and nothing else differs: the fire, the sights, the legs, the other keys.
+        assert_eq!(with[0].keys & key::QUICK[0], key::QUICK[0]);
+        assert_eq!(with[1].keys & key::QUICK[0], 0);
+        assert_eq!(with[2].keys & key::QUICK[0], 0);
+        for (a, b) in with.iter().zip(&without) {
+            assert_eq!(a.keys & !key::QUICK[0], b.keys, "no other key changes");
+            assert_eq!((a.fire, a.legs, a.look_at), (b.fire, b.legs, b.look_at));
+        }
+    }
+
+    #[test]
+    fn a_carrier_presses_nothing_and_walks_nowhere() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let aim = AimTuning::default();
+        let (mut reflex, me, view, mut memory, mut rng) = heal_duel(enemy_at, true);
+        let sit = Situation {
+            tactics: Some(&tactics),
+            side: Some(0),
+            ..Situation::of(&view)
+        };
+        for now in [1_000, 1_300] {
+            sense(&mut memory, &[percept(1, enemy_at, now, Source::Seen)], now);
+            reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+        }
+        reflex.set_heal(Some(wish(7.0)));
+        let o = reflex.tick(&me, &view, &memory, 1_350, true, &aim, 0.5, &mut rng);
+        assert_eq!(o.keys & key::QUICK[0], 0, "a battery in the hands: the key does nothing");
+        assert_eq!(reflex.heal_presses, 0);
+        reflex.think_with(&me, &sit, &memory, 1_600, &aim, 0.5, &mut rng);
+        assert_eq!(reflex.heal_walks, 0);
+    }
+
+    #[test]
+    fn in_a_duel_it_walks_to_cover_within_the_items_delay_and_not_when_it_should_not() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let aim = AimTuning::default();
+        // Press, then the next think: the reflex's own cover search, within the reach, the key not blocked by it.
+        let walk = |reach_m: f32, enemy_at: Vec3, think_at: u32| {
+            let (mut reflex, mut me, view, mut memory, mut rng) = heal_duel(enemy_at, false);
+            me.feet = Vec3::new(32.0, 0.0, 28.0);
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                ..Situation::of(&view)
+            };
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, enemy_at, now, Source::Seen)], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            reflex.set_heal(Some(wish(reach_m)));
+            let pressed = reflex.tick(&me, &view, &memory, 1_350, true, &aim, 0.5, &mut rng);
+            assert_eq!(pressed.keys & key::QUICK[0], key::QUICK[0]);
+            sense(&mut memory, &[percept(1, enemy_at, think_at, Source::Seen)], think_at);
+            reflex.think_with(&me, &sit, &memory, think_at, &aim, 0.5, &mut rng);
+            let o = reflex.tick(&me, &view, &memory, think_at + 50, true, &aim, 0.5, &mut rng);
+            (o.legs, reflex.heal_walks, me.feet, reflex.heal_note())
+        };
+        let (legs, walks, from, note) = walk(7.0, enemy_at, 1_600);
+        let legs = legs.expect("walks to cover");
+        assert_eq!((legs.why, walks), (LegsWhy::BreakSight, 1));
+        let d = legs.at.distance_xz(from);
+        assert!((2.0..=7.5).contains(&d), "{d}");
+        // The note: walked, the nearest known enemy 23 m off, the spot's distance.
+        let note = note.expect("a note");
+        assert_eq!(note.why, HealWhy::Walked);
+        assert!((note.enemy_m.unwrap() - 23.4).abs() < 0.5, "{note:?}");
+        assert!((note.cover_m.unwrap() - d).abs() < 1e-3, "{note:?}");
+        let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
+        assert!(!tactics.sees(eye(enemy_at), eye(legs.at)), "{:?}", legs.at);
+        // A known enemy within 10 m: no walk (it fights on). The wall's west end is 15 m from him; this one 6 m.
+        let near = Vec3::new(38.0, 0.0, 30.0);
+        assert!(walk(7.0, near, 1_600).0.is_none_or(|l| l.why != LegsWhy::BreakSight));
+        assert_eq!(walk(7.0, near, 1_600).1, 0);
+        assert_eq!(walk(7.0, near, 1_600).3.map(|n| n.why), Some(HealWhy::EnemyNear));
+        // A delay too short to walk to a spot 2 m off (a reach under the search's near edge), or a think too late.
+        assert_eq!(walk(1.0, enemy_at, 1_600).1, 0);
+        assert_eq!(walk(1.0, enemy_at, 1_600).3.map(|n| n.why), Some(HealWhy::ShortReach));
+        assert_eq!(walk(7.0, enemy_at, 2_300).1, 0);
+        assert_eq!(walk(7.0, enemy_at, 2_300).3.map(|n| n.why), Some(HealWhy::Late));
     }
 }

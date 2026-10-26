@@ -241,7 +241,7 @@ impl Topic for MoveCounts {
         }
     }
 
-    fn parts(&mut self, run: &Run, game: &Game, scale: &Scale) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, run: &Run, game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         let presses = run.sorted_presses();
         vec![
             ("moving", self.moving_part(run, game, &presses, scale)),

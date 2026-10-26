@@ -1,4 +1,6 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::grenade_threat::AvoidStats;
+use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
 use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
 use crate::v026g::bots::view::{eye_height, still_eye};
@@ -81,6 +83,24 @@ pub(super) struct GrenadeCounts {
     pub(super) blast_kills: [u32; 3],
     pub(super) blast_in: [u32; 3],
     pub(super) walked_in: [u32; 3],
+    /// The server's list of live grenades at this tick (`Tracker::live_grenades`) and what its throw keys
+    /// came to; `None` until a bench tick has read them (the made-up matches never do).
+    pub(super) live: Vec<LiveGrenade>,
+    pub(super) listed: Option<ThrowCounts>,
+    pub(super) live_blasts: LiveBlasts,
+    /// By bot: what its avoidance of live grenades has counted this match (the last reading).
+    pub(super) avoid: BTreeMap<Place, AvoidStats>,
+}
+
+/// The tally's blasts against the list's entries for the same throw: found with a landing, found still in the
+/// hand (not launched by then), not found; and for those with a landing how far its rest point is from the
+/// tally's own, by `<= 1 m`, `<= 2 m`, `<= 4 m` and more.
+#[derive(Default)]
+pub(super) struct LiveBlasts {
+    pub(super) matched: u32,
+    pub(super) pending: u32,
+    pub(super) missing: u32,
+    pub(super) err: [u32; 4],
 }
 
 /// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
@@ -373,13 +393,24 @@ impl Topic for GrenadeCounts {
         self
     }
 
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        self.listed = Some(bots.tracker.throw_counts());
+        self.live = bots.tracker.live_grenades().to_vec();
+    }
+
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         self.read_stats(place, bot.map(|bot| bot.reflex.grenade_stats()));
+        if let Some(bot) = bot {
+            self.avoid.insert(place, bot.avoid.stats);
+        }
     }
 
     #[cfg(test)]
     fn inject(&mut self, place: Place, now: Option<&BotNow>) {
         self.read_stats(place, now.map(|now| now.grenades));
+        if let Some(now) = now {
+            self.avoid.insert(place, now.avoid);
+        }
     }
 
     /// A throw noted at its let-go, or one the bot weighed and did not make (and the throw it gave up).
@@ -411,8 +442,8 @@ impl Topic for GrenadeCounts {
         self.grenades_off(run, game, sight, rays, tick);
     }
 
-    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale) -> Vec<(&'static str, Part)> {
-        vec![("grenades", self.part(game))]
+    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("grenades", self.part(game, shared))]
     }
 }
 
@@ -540,6 +571,29 @@ impl GrenadeCounts {
         }
     }
 
+    /// A blast against the server's list: the entry of the same thrower and press, and where it put the rest
+    /// point (only in a bench run, which reads the list).
+    fn live_blast(&mut self, blast: &Blast) {
+        if self.listed.is_none() {
+            return;
+        }
+        let press = blast.time.saturating_sub(FUSE_MS);
+        let found = self
+            .live
+            .iter()
+            .find(|g| g.by == blast.thrower && g.press.abs_diff(press) <= 100);
+        let live = &mut self.live_blasts;
+        match found.map(|g| g.phase) {
+            None => live.missing += 1,
+            Some(Phase::Pressed) => live.pending += 1,
+            Some(Phase::Flying { rest, .. }) => {
+                live.matched += 1;
+                let d = rest.distance_xz(blast.at);
+                live.err[usize::from(d > 1.0) + usize::from(d > 2.0) + usize::from(d > 4.0)] += 1;
+            }
+        }
+    }
+
     /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
     pub(super) fn grenades_off(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         self.grenade_launches(run, game, tick);
@@ -554,6 +608,7 @@ impl GrenadeCounts {
             !off
         });
         for blast in gone {
+            self.live_blast(&blast);
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
@@ -601,7 +656,12 @@ impl GrenadeCounts {
     }
 
     /// The grenades counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    fn part(&self, game: &Game) -> Part {
+    fn part(&self, game: &Game, shared: &Shared) -> Part {
+        // The fight topic's count of fire at a hidden target in a throw's hold and after one.
+        let hidden_throw: [u32; 2] = shared
+            .get("fire_hidden_throw")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
         let mut json = serde_json::json!({
             "grenades": self.grenades,
             "grenade_damage_applied": game.damage.blasts_hurt(),
@@ -634,6 +694,41 @@ impl GrenadeCounts {
                 "passed": s.passed,
                 "given_up": s.given_up,
                 "nth": s.nth,
+                "timeouts": s.timeouts,
+                "rechecks": s.rechecks,
+                "thrown_from": s.thrown_from,
+                "pushes_skipped": s.pushes_skipped,
+                "fire_hidden_throw": hidden_throw,
+            });
+        }
+        if let Some(listed) = self.listed {
+            let live = &self.live_blasts;
+            json["grenade_live"] = serde_json::json!({
+                "frag": listed.frag,
+                "smoke": listed.smoke,
+                "no_pockets": listed.no_pockets,
+                "launched": listed.launched,
+                "unplaced": listed.unplaced,
+                "died_throwing": listed.died_throwing,
+                "blasts_matched": live.matched,
+                "blasts_pending": live.pending,
+                "blasts_unlisted": live.missing,
+                "rest_error_m": live.err,
+            });
+            let mut avoid = AvoidStats::default();
+            for stats in self.avoid.values() {
+                avoid.add(stats);
+            }
+            json["grenade_avoid"] = serde_json::json!({
+                "noticed": avoid.noticed,
+                "stepped": avoid.stepped,
+                "held": avoid.held,
+                "out_at_act": avoid.out_at_act,
+                "no_way": avoid.no_way,
+                "retried": avoid.retried,
+                "escaped": avoid.escaped,
+                "caught": avoid.caught,
+                "react_ms": avoid.react,
             });
         }
         let mut text = format!(
@@ -658,8 +753,40 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}",
-                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth,
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, hidden_throw,
+            ));
+        }
+        if let Some(listed) = self.listed {
+            let live = &self.live_blasts;
+            text.push_str(&format!(
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}",
+                listed.frag,
+                listed.smoke,
+                listed.no_pockets,
+                listed.launched,
+                listed.unplaced,
+                listed.died_throwing,
+                live.matched,
+                live.pending,
+                live.missing,
+                live.err,
+            ));
+            let mut avoid = AvoidStats::default();
+            for stats in self.avoid.values() {
+                avoid.add(stats);
+            }
+            text.push_str(&format!(
+                "; avoiding live grenades by [told, saw, heard]: noticed {:?}, stepped out {:?}, held at the edge {:?}, already out at the act {:?}, no floor in reach {:?}, started again {:?}, at the blast out {:?} caught {:?}, reaction to the step (<=0.5, 1, 1.5, 2 s, more) {:?}",
+                avoid.noticed,
+                avoid.stepped,
+                avoid.held,
+                avoid.out_at_act,
+                avoid.no_way,
+                avoid.retried,
+                avoid.escaped,
+                avoid.caught,
+                avoid.react,
             ));
         }
         Part::new(json, text)

@@ -38,16 +38,19 @@ pub mod encode;
 pub mod escape;
 pub mod foliage;
 pub mod friends;
+pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod live_grenades;
 pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod pools;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
@@ -56,11 +59,15 @@ pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
+pub mod stock;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
 pub mod threat;
 pub mod trace;
+pub mod trap_know;
+pub mod trap_react;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
@@ -83,6 +90,7 @@ use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
 use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
+use pools::Pools;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
 use route_end::RouteEnd;
@@ -157,12 +165,34 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
+    lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// Which reflex play had the legs at that tick (the falls probe).
+    #[cfg(test)]
+    pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
+    /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
+    #[cfg(test)]
+    pub(crate) bench_stepped: u8,
+    /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
+    #[cfg(test)]
+    pub(crate) bench_guard: u8,
+    #[cfg(test)]
+    pub(crate) bench_guard_dbg: u8,
+    /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
+    #[cfg(test)]
+    pub(crate) bench_walk: u8,
+    /// The velocity and feet the last guard check was made from.
+    #[cfg(test)]
+    pub(crate) bench_guard_at: ([f32; 2], Vec3),
+    /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
+    #[cfg(test)]
+    pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
@@ -208,8 +238,23 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
-    /// Medkits used this life.
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
     medkits_used: u8,
+    /// The bear-trap habit (`traps.rs`), and the point of the trap it let go
+    /// of since the last think.
+    traps: traps::Habit,
+    trap_placed: Option<(Vec3, u32)>,
+    /// Its notice of the traps of others, and the counts of its passes
+    /// (`trap_react.rs`).
+    react: trap_react::React,
+    /// The floors of its team's traps it keeps off (`trap_know.rs`), shared
+    /// at each commander tick.
+    trap_field: Arc<trap_know::TrapField>,
+    /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
+    pantry: stock::Pantry,
+    /// Its health pools as the last trusted world showed them
+    /// ([`Bots::pools`]); none before the first.
+    pools: Option<Pools>,
     /// The answer of its route search that went on over several polls
     /// ([`Pending`]): the goal, the route or none, and whether the route is
     /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
@@ -248,6 +293,11 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// Its state towards the live grenades it knows of, and what it did
+    /// ([`grenade_threat`]).
+    avoid: grenade_threat::Avoid,
+    /// The resupply holds it finished this match (`Intent::resupplied`).
+    resupplies: u32,
 }
 
 impl Bot {
@@ -309,8 +359,23 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_legs_why: None,
+            #[cfg(test)]
+            bench_stepped: 0,
+            #[cfg(test)]
+            bench_guard: 0,
+            #[cfg(test)]
+            bench_guard_dbg: 0,
+            #[cfg(test)]
+            bench_walk: 0,
+            #[cfg(test)]
+            bench_guard_at: ([0.0; 2], Vec3::ZERO),
+            #[cfg(test)]
+            bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
             #[cfg(test)]
@@ -339,6 +404,12 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            traps: traps::Habit::none(),
+            trap_placed: None,
+            react: trap_react::React::default(),
+            trap_field: Arc::new(trap_know::TrapField::default()),
+            pantry: stock::Pantry::standard(),
+            pools: None,
             found: None,
             crossing: None,
             long_kept: None,
@@ -351,6 +422,8 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            avoid: grenade_threat::Avoid::default(),
+            resupplies: 0,
         }
     }
 
@@ -378,6 +451,32 @@ impl Bot {
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
+    }
+
+    /// Its weapon 1's ammo and what a resupply could bring it to; none for
+    /// a bot of no role.
+    pub fn ammo(&self) -> guns::Ammo {
+        let Some(&(arms, _)) = self.kits.get(self.kit) else {
+            return guns::Ammo::default();
+        };
+        let have = self.reflex.left();
+        guns::Ammo {
+            have,
+            whole: arms.primary.1,
+            storage: self.kit_left(self.kit).saturating_sub(have),
+        }
+    }
+
+    /// A resupply zone's top-up came: the rounds go from the kit's storage
+    /// to the stack (what the kit has for the match is the same), and how
+    /// many.
+    fn top_up(&mut self) -> u32 {
+        let take = self.ammo().missing();
+        if take > 0 {
+            self.reflex.top_up(take);
+            self.life_carried += take;
+        }
+        take
     }
 
     /// The rounds kit `i` has left for the match: the present kit's
@@ -484,6 +583,7 @@ impl Bot {
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
+        self.avoid.died();
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).
@@ -502,6 +602,9 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.traps.new_life();
+        self.react.new_life();
+        self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -560,6 +663,8 @@ pub struct Bots {
     foliage: foliage::Foliage,
     /// This poll's route searches ([`Searching`]).
     searching: Searching,
+    /// How the teams' own traps went off ([`trap_know::OwnTrapCounts`]).
+    own_traps: trap_know::OwnTrapCounts,
     /// Kit choices made since they were last taken
     /// ([`Bots::take_kit_choices`]): the place and the kit's index.
     kit_choices: Vec<(Place, u8)>,
@@ -590,6 +695,9 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            trap_field: Arc::new(trap_know::TrapField::default()),
+            trap_field_version: 0,
+            world_traps: Arc::new(Vec::new()),
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
@@ -630,6 +738,7 @@ impl Bots {
                 floors: 0,
                 pending: None,
             },
+            own_traps: trap_know::OwnTrapCounts::default(),
             kit_choices: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
@@ -686,6 +795,12 @@ impl Bots {
     /// move at it until a world shows a life's own.
     pub fn set_speed_levels(&mut self, levels: &[Option<f32>]) {
         self.tracker.set_prior_levels(levels);
+    }
+
+    /// Every place's pockets (a human's), for the throw keys
+    /// ([`live_grenades`]).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+        self.tracker.set_pockets(pockets);
     }
 
     /// Every place's weapon 1 kind (the matchup, play 11).
@@ -862,6 +977,29 @@ impl Bots {
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
+        }
+    }
+
+    /// What the bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
+        self.bots.get(place)?.as_ref().map(|bot| &bot.pantry)
+    }
+
+    /// A trusted world's word on one place's health pools (with its body's,
+    /// [`Self::fixed`]): the consumables' need.
+    pub fn pools(&mut self, place: Place, pools: Pools) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pools = Some(pools);
+        }
+    }
+
+    /// A trusted world's word on what one place's kits hold of drugs
+    /// ([`stock::readings`], from `players::Supplies`): the bot's own count
+    /// follows it.
+    pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pantry.read(time, readings);
         }
     }
 
@@ -1051,13 +1189,90 @@ impl Bots {
         })
     }
 
+    /// A trusted world's objects section: the bear traps the teams' bots
+    /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
+    /// the traps the world shows (0 while no bot has put one down).
+    pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        let react = self.tuning.traps.react.on;
+        let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        if !own && !react {
+            return 0;
+        }
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        // The armed traps of the world, for the bots' notice (off: none).
+        let armed = Arc::new(if react {
+            trap_react::armed_of(&found)
+        } else {
+            Vec::new()
+        });
+        let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        for (team, state) in self.teams.iter_mut().enumerate() {
+            if own {
+                let fired = state.knowledge.traps.sync(time, &found);
+                went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
+                if let Some(tactics) = self.tactics.as_ref() {
+                    state.refresh_traps(&tactics.world.grid);
+                }
+            }
+            state.world_traps = armed.clone();
+        }
+        if !went_off.is_empty() {
+            self.count_own_traps(time, &went_off);
+        }
+        found.len()
+    }
+
+    /// A team's trap went off: counted, and whether a body of the team with
+    /// a broken leg (a catch's mark, PROVEN) stands within
+    /// [`trap_know::CAUGHT_NEAR_M`] of it as the world shows (a proxy: the
+    /// worlds are seconds apart, and a human ally's legs are not known).
+    fn count_own_traps(&mut self, time: u32, went_off: &[(u8, Vec3)]) {
+        let world = self.tactics.as_ref().map(|t| t.world.clone());
+        let clock = Clock {
+            clock: time,
+            time_left_s: 0.0,
+            total_s: 0.0,
+            playing: true,
+        };
+        let view = self
+            .tracker
+            .view(&clock, &self.tuning.kin, world.as_deref());
+        for &(team, at) in went_off {
+            self.own_traps.fired += 1;
+            let caught = self.bots.iter().flatten().any(|bot| {
+                bot.team == team
+                    && bot.hurt.leg_broken
+                    && view
+                        .place(bot.place)
+                        .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
+            });
+            self.own_traps.own_team_caught += u32::from(caught);
+        }
+    }
+
+    /// How the teams' own traps went off (`trap_know.rs`).
+    pub fn own_trap_counts(&self) -> trap_know::OwnTrapCounts {
+        self.own_traps
+    }
+
+    /// The counts of the bots' notice of traps and passes by them, over all
+    /// the bots (`trap_react.rs`).
+    pub fn react_counts(&self) -> trap_react::ReactCounts {
+        let mut sum = trap_react::ReactCounts::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.react.counts());
+        }
+        sum
+    }
+
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         view::set_live_eye(self.tuning.aim.combat.live_eye);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        self.tracker.held_sounds(now);
+        self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
+        self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }
