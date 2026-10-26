@@ -72,8 +72,11 @@ REG_NAMES = ("eax", "ecx", "edx", "ebx", "ebp", "esi", "edi")
 
 class External:
     """A game function a hook calls: `inputs` what it takes ("eax".. a
-    register, "arg0".. the dword at [esp+4+4i] at its entry), `pops` the
-    bytes it pops; a stub sets EAX from the run's generator, then
+    register, "arg0".. the dword at [esp+4+4i] at its entry; either with
+    ":str", ":wstr" or ":mem:N" after it, what it points to: a NUL-ended
+    byte or UTF-16 string, or N bytes, for a pointer into a frame or a
+    block whose address the two builds need not share), `pops` the bytes
+    it pops; a stub sets EAX from the run's generator, then
     `model(machine, args, rng)` may set the return registers and write
     memory; `real` runs the game's own code instead."""
 
@@ -85,11 +88,18 @@ class Hook:
     """A way the game enters the patch: a run starts at `site` (the game's
     instruction that calls or jumps to the patch) and ends at the first
     leaving of the patch's code that is not a call (a jump or a return into
-    the game); `live` the registers compared there (ESP always);
-    `externals` this hook's {VA: External} (else the spec's EXTERNALS)."""
+    the game); `live` the registers compared there (ESP always; "al" the
+    low byte of EAX alone, "st0" the x87 top: its value and TOP);
+    `externals` this hook's {VA: External} (else the spec's EXTERNALS);
+    `aliases` {exit VA: the VA it stands for}, an exit that runs nothing
+    before it (a `call` site's return onto its nops: the old's 0x2D84EE is
+    the port's 0x2D84EF); `tails` the game functions a jump may reach with a
+    return address into the game on top (a tail jump): such a jump is a
+    call of that External, as the port's call of it and its return there."""
 
-    def __init__(self, name, site, live=("ebx", "esi", "edi", "ebp"), externals=None):
+    def __init__(self, name, site, live=("ebx", "esi", "edi", "ebp"), externals=None, aliases=None, tails=()):
         self.name, self.site, self.live, self.externals = name, site, tuple(live), externals
+        self.aliases, self.tails = dict(aliases or {}), frozenset(tails)
 
 
 class Case:
@@ -242,14 +252,13 @@ class Machine:
             return                                         # the game's site, before the patch
         esp = self.reg("esp")
         back = self.read32(esp)
-        if self.ours_at(back):                             # a call into the game
+        if self.ours_at(back) or address in self.hook.tails:   # a call into the game (or a tail jump)
             external = (getattr(self.hook, "externals", None) or self.spec.EXTERNALS).get(address)
             if external is None:
                 self.error = f"a call of {address:#x}, which the spec does not name (EXTERNALS)"
                 uc.emu_stop()
                 return
-            args = [self.read32(esp + 4 + 4 * int(i[3:])) if i.startswith("arg") else self.reg(i)
-                    for i in external.inputs]
+            args = [self.input(esp, i) for i in external.inputs]
             self.calls.append((external.name, args))
             if external.real:
                 self.inside = False                        # the game's code, until it returns to ours
@@ -261,9 +270,38 @@ class Machine:
             self.set_reg("eip", back)
             return
         # left the patch: a jump or a return into the game
-        self.exit = (f"{address:#x}", {r: self.reg(r) for r in self.hook.live}, (esp - self.entry_esp) & 0xFFFFFFFF)
+        self.exit = (f"{self.hook.aliases.get(address, address):#x}", {r: self.live(r) for r in self.hook.live},
+                     (esp - self.entry_esp) & 0xFFFFFFFF)
         self.stopped = True
         uc.emu_stop()
+
+    def input(self, esp, spec):
+        """An External's input at its entry (External's `inputs`)."""
+        where, _, what = spec.partition(":")
+        value = self.read32(esp + 4 + 4 * int(where[3:])) if where.startswith("arg") else self.reg(where)
+        if not what:
+            return value
+        if what.startswith("mem:"):
+            return bytes(self.uc.mem_read(value, int(what[4:], 0))).hex()
+        unit = {"str": 1, "wstr": 2}[what]
+        out = bytearray()
+        while len(out) < 0x10000:
+            piece = bytes(self.uc.mem_read(value + len(out), unit))
+            if piece == bytes(unit):
+                break
+            out += piece
+        return out.decode("latin-1" if unit == 1 else "utf-16-le", "replace")
+
+    def live(self, name):
+        """A live register at the exit: a general register, "al", or "st0"
+        (the x87 top's value as the FPU holds it, and TOP)."""
+        from unicorn import x86_const
+        if name == "al":
+            return self.reg("eax") & 0xFF
+        if name == "st0":                                  # FP0..7 are the physical registers: ST0 is TOP's
+            top = self.uc.reg_read(x86_const.UC_X86_REG_FPSW) >> 11 & 7
+            return self.uc.reg_read(x86_const.UC_X86_REG_FP0 + top), top
+        return self.reg(name)
 
     def run(self, hook, case, seed, old):
         from unicorn import UcError

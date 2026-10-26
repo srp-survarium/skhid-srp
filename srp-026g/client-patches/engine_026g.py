@@ -33,7 +33,13 @@ global symbol of its own, which the link resolves for every caller):
                vtable; va is a function a vtable holds there (the model: its
                re-kit rows give the convention, checked as thiscall's), so a
                call reaches whatever the object's own vtable names, as the
-               game's `call [eax+N]` does. Rust alone (no C or NASM symbol)
+               game's `call [eax+N]` does. Rust alone (no C or NASM symbol);
+               or "proc": a kernel32 export the exe does not import, va
+               `module!Export` (kernel32.dll!GetTempPathA), stdcall,
+               arguments "-", no re-kit row: vostok asks GetModuleHandleA and
+               GetProcAddress for its address at run time, as the asm did,
+               and the raw function calls that address (its first parameter,
+               then the prototype's). Rust alone
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
@@ -79,7 +85,7 @@ REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
 FIELDS = HERE / "fields_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
-CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "proc")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
@@ -207,10 +213,20 @@ def parse_vostok(text, name, params):
 def function(row, abi=None, inputs=None):
     """A spec row checked against the re-kit: {symbol, va, args: [location],
     params, ret, cleanup, result, name, call, vostok}."""
-    va = number(row["va"])
     ret, name, params = parse_prototype(row["prototype"])
     vostok = parse_vostok(row.get("vostok"), name, params)
     call = (row.get("call") or "thunk").strip()
+    if call == "proc":
+        export = re.fullmatch(r"([A-Za-z0-9_]+\.dll)!([A-Za-z_][A-Za-z0-9_]*)", row["va"].strip())
+        if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name) or export is None \
+                or row["arguments"].strip() != "-":
+            raise Refused(f"{row['symbol']}: a proc is engine_<what>, its va module.dll!Export, its arguments \"-\"")
+        return {"symbol": name, "va": None, "module": export.group(1), "export": export.group(2),
+                "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params, "ret": ret,
+                "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
+                "name": f"{export.group(1)}!{export.group(2)}", "prototype": row["prototype"].strip(),
+                "call": call, "vostok": vostok, "slot": None}
+    va = number(row["va"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
     slot = None
@@ -330,6 +346,8 @@ def fields(path=None):
 def describe(f):
     if f["call"] == "import":
         return f"the IAT slot {f['va']:#x} (kernel32, stdcall)"
+    if f["call"] == "proc":
+        return f"{f['name']}, not imported: its address from GetProcAddress at run time (stdcall)"
     where = describe_args(f["params"], f["args"])
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
             + (f"; {f['result']}" if f["result"] else "")
@@ -369,7 +387,7 @@ def thunk(f):
 def asm_text(fs):
     """`fs`: every row; a thunk for each called through one, the address of
     each other (a direct function's VA, an import's IAT slot)."""
-    fs = [f for f in fs if f["call"] != "virtual"]                 # Rust's alone
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     thunks = [f for f in fs if f["call"] == "thunk"]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
@@ -386,7 +404,7 @@ def asm_text(fs):
 
 
 def header_text(fs):
-    fs = [f for f in fs if f["call"] != "virtual"]                 # Rust's alone
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     tags = sorted({t for f in fs for t in re.findall(r"\bstruct\s+(\w+)", f["prototype"])})
     lines = [f"/* The engine-function library ({GENERATED}).",
              " *",
@@ -411,7 +429,7 @@ def header_text(fs):
 
 
 def include_text(fs):
-    fs = [f for f in fs if f["call"] != "virtual"]                 # Rust's alone
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     lines = [f"; The engine-function library's functions ({GENERATED}).",
              "; cdecl: push the arguments right to left, call, add esp, 4 x their count;",
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
@@ -423,8 +441,8 @@ def include_text(fs):
     return "\n".join(lines) + "\n"
 
 
-RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
-              "unsigned long long": "u64"}
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned short": "u16", "unsigned int": "u32",
+              "float": "f32", "unsigned long long": "u64"}
 # C parameter names that are Rust keywords: written as raw identifiers.
 RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",
                  "extern", "false", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "match", "mod", "move",
@@ -489,6 +507,28 @@ def rust_text(fs, fields_=()):
                   "    unsafe {",
                   f"        let slot = (*({this} as *const *const u32)).byte_add({f['slot']:#x}).read() as usize;",
                   f'        let function: unsafe extern "thiscall" fn({types}){ret} = core::mem::transmute(slot);',
+                  f"        function({names})",
+                  "    }", "}"]
+    procs = [f for f in fs if f["call"] == "proc"]
+    if procs:
+        lines += ["", "/// A kernel32 export the exe does not import: the module and the export's name, for",
+                  "/// GetModuleHandleA and GetProcAddress (vostok asks them at run time).",
+                  "#[allow(dead_code)]", "pub struct Proc {", "    pub module: &'static core::ffi::CStr,",
+                  "    pub name: &'static core::ffi::CStr,", "}"]
+    for f in procs:
+        params, ret = signature(f)
+        types = ", ".join(rust_type(kind) for kind, _ in f["params"])
+        names = ", ".join(f"{'r#' if n in RUST_KEYWORDS else ''}{n}" for _, n in f["params"])
+        lines += ["", f"/// {describe(f)}: {f['prototype']}", "#[allow(dead_code)]",
+                  f"pub const {f['symbol'].upper()}: Proc = Proc {{ module: c\"{f['module']}\", "
+                  f"name: c\"{f['export']}\" }};",
+                  "", f"/// {f['name']} at `proc_address`, stdcall.", "///", "/// # Safety",
+                  f"/// `proc_address` is GetProcAddress's answer (not null) for {f['symbol'].upper()}.",
+                  "#[allow(dead_code)]", "#[inline(always)]",
+                  f"pub unsafe fn {f['symbol']}(proc_address: *const c_void"
+                  + (", " + params if params else "") + f"){ret} {{",
+                  "    unsafe {",
+                  f'        let function: unsafe extern "stdcall" fn({types}){ret} = core::mem::transmute(proc_address);',
                   f"        function({names})",
                   "    }", "}"]
     imports = [f for f in fs if f["call"] == "import"]

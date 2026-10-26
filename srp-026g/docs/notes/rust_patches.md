@@ -71,7 +71,9 @@ one crate, `client-patches/rust/patches`, in three layers:
   `fields_026g.tsv` (the fields). A function Rust can call directly (stdcall,
   cdecl, thiscall) is declared in that convention at its VA; one the game
   takes in registers keeps its cdecl thunk (block `engine.code`). kernel32's
-  imports are declarations over their IAT slots. Only `vostok` names `raw`.
+  imports are declarations over their IAT slots; an export the exe does not
+  import (a `proc` row, `kernel32.dll!GetTempPathA`) is a function of the
+  address GetProcAddress gives vostok at run time. Only `vostok` names `raw`.
 - **`vostok`** (the engine, safe and typed): handles (`InputHandler`),
   enums and newtypes (`Action`, `ActionState`, `ActionMask`), and the hook
   system. It is the only place with `unsafe`, each block with its invariant.
@@ -340,6 +342,11 @@ Unicorn check against the original exe (`check_<patch>_026g.py`), which runs
 to the reconvergence point; the gate stays for shape-preserving ports and as
 the porting model.
 
+A spec compares what a pointer argument points to where the builds' addresses
+differ (a frame's buffer, a string of the code: `arg0:str`, `:wstr`,
+`:mem:N`), names an exit that only ran a `call` site's nops after it as the
+port's (`aliases`), takes a tail jump into a game function as its call
+(`tails`), and may compare AL alone or the x87 top (`live` "al", "st0").
 The equivalence gate may skip an out-pointer argument and a slot the game
 never reads again (declared in the spec, with the proof cited), and a new
 Rust patch that is not a port needs no spec -- its Unicorn check and cargo
