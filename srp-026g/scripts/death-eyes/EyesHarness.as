@@ -20,15 +20,16 @@ package
    import flash.text.TextFormat;
    import flash.utils.getTimer;
 
-   // The eyes closing on the death screen (docs/notes/death-eyes.md) with the hud movie's own class
+   // The view fading on the death screen (docs/notes/death-eyes.md) with the hud movie's own class
    // (survarium.controls.DeathEyes) and kit panel (HUDProfileSelector), laid out as HUD lays them:
    // the eyes on the stage, a stand-in of the hud's root with the kits over them.
    // - mode "check" (the default): the countdown as the exe sends it (root.set_respawn_time,
    //   "<prefix> MM:SS" each second, the seconds rounded up, "" at the end) on a made-up clock:
-   //   the openness at 0, 25, 50, 75 and 100 % of a 5 s and a 10 s countdown, open again at the
-   //   respawn; a time that is not whole seconds; a rollback over the death; a countdown that stops;
-   //   the texts; then in real time a 5 s countdown with a real mouse click (check.sh's xdotool) on
-   //   kit 3 once the eyes are three quarters shut. Prints "EYES ..." lines, ends with
+   //   the openness (how much of the view shows) at 0, 25, 50, 75 and 100 % of a 5 s and a 10 s
+   //   countdown, the curve going down but for its dims, deepest at the end and the scene still
+   //   showing there, clear again at the respawn; a time that is not whole seconds; a rollback over
+   //   the death; a countdown that stops; the texts; then in real time a 5 s countdown with a real
+   //   mouse click (check.sh's xdotool) on kit 3 at three quarters of it. Prints "EYES ..." lines, ends with
    //   "EYES RESULT pass" or "EYES RESULT fail: ...".
    // - mode "video": 1 s alive, a 5 s countdown in real time over a backdrop (-Pbackdrop=<png>)
    //   with the kits and the countdown's text, the respawn, 1.5 s alive; check.sh records it. With
@@ -252,15 +253,15 @@ package
                }
             }
             trace(line);
-            if(by[total][0] != 1 || by[total][4] != 0)
+            if(by[total][0] != 1 || !(by[total][4] > 0.25 && by[total][4] < 0.5))
             {
-               fail(total + " ms: not open at the start or not shut at the end");
+               fail(total + " ms: not clear at the start, or at the end not between 0.25 and 0.5 (the scene faintly showing)");
             }
             for(var i:int = 1; i < shares.length; i++)
             {
                if(by[total][i] >= by[total][i - 1])
                {
-                  fail(total + " ms: not closing from " + shares[i - 1] + "% to " + shares[i] + "%");
+                  fail(total + " ms: not fading from " + shares[i - 1] + "% to " + shares[i] + "%");
                }
             }
             // the respawn: "" at the end
@@ -280,6 +281,29 @@ package
                fail("5 s and 10 s differ at " + shares[i] + "%");
             }
          }
+         // the curve: down but inside a dim, never below its end, which is above 0
+         var curve:Object = Object(Eyes);
+         var last:Number = curve.opennessAt(1);
+         var dims:Array = curve.DIMS;
+         for(var step:int = 1; step <= 200; step++)
+         {
+            var p:Number = step / 200;
+            var q:Number = (step - 1) / 200;
+            var inDim:Boolean = false;
+            for each(var dim:Array in dims)
+            {
+               inDim = inDim || Math.abs(p - dim[0]) < dim[1] || Math.abs(q - dim[0]) < dim[1];
+            }
+            if(!inDim && curve.opennessAt(p) > curve.opennessAt(q) + 1e-9)
+            {
+               fail("the curve rises from " + q + " to " + p + " outside the dims");
+            }
+            if(curve.opennessAt(p) < last - 1e-9)
+            {
+               fail("the curve at " + p + " is below its end (" + curve.opennessAt(p) + " < " + last + ")");
+            }
+         }
+         trace("EYES the curve: down but in its dims " + dims.length + ", deepest at the end, " + last.toFixed(3));
          // a time that is not whole seconds: 8.65 s shows 00:09 first, 00:08 at 0.65 s
          e = new Eyes();
          run(e,8650,4325);
@@ -290,9 +314,9 @@ package
          }
          e = new Eyes();
          run(e,8650,8650,true);
-         if(e.openness != 0)
+         if(!near(e.openness,last,0.002))
          {
-            fail("8.65 s: not shut at its end (" + e.openness + ")");
+            fail("8.65 s: not at its deepest at its end (" + e.openness + ")");
          }
          // a rollback over the death: the countdown gone at 6 s of 10 (the exe's "")
          e = new Eyes();
@@ -300,7 +324,7 @@ package
          var before:Number = e.openness;
          e.countdown("",6010);
          trace("EYES rollback at 6 s of 10: openness " + before.toFixed(3) + " -> " + e.openness + ", shown " + e.visible);
-         if(!(before < 0.6) || e.openness != 1 || e.visible)
+         if(!(before < 0.9) || e.openness != 1 || e.visible)
          {
             fail("rollback: openness " + before + " -> " + e.openness);
          }
@@ -354,7 +378,7 @@ package
          }
          if(target != null && clicked != null && Point.distance(clicked,target) < 3)
          {
-            trace("EYES click on kit 3 with the eyes at " + Number(Object(eyes).openness).toFixed(3) + ": selected " + selector.tabPage.selectedIndex + ", picks " + picks);
+            trace("EYES click on kit 3 with the view at " + Number(Object(eyes).openness).toFixed(3) + ": selected " + selector.tabPage.selectedIndex + ", picks " + picks);
             if(selector.tabPage.selectedIndex != 2 || picks != 1)
             {
                fail("the click on kit 3 over the eyes picked nothing");

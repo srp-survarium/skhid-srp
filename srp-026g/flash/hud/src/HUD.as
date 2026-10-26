@@ -132,7 +132,7 @@ package
       
       protected const effectContainer:Sprite = new Sprite();
 
-      // The eyes closing over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
+      // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
       // stage between the screen effects and the root, so the kits and the countdown are over it.
       protected const deathEyes:DeathEyes = new DeathEyes();
       

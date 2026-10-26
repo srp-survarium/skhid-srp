@@ -8,37 +8,30 @@ package survarium.controls
    import flash.geom.Matrix;
    import flash.utils.getTimer;
 
-   // The eyes closing on the death screen (docs/notes/death-eyes.md): over the respawn countdown a
-   // vignette narrows, the screen darkens and two soft lids close, slowly at first, with two slow
-   // blinks near the end, shut when the countdown ends; open at once when it is gone (the respawn,
-   // a rollback over the death, the hud's reset). The countdown is the hud's own: the exe's
-   // root.set_respawn_time (0x236C30) with "<prefix> MM:SS" once a second, the seconds being the
-   // respawn rule's time left rounded up (0x316C20), and "" at 0. On the stage below the hud's
-   // root, in screen pixels, as the screen effects: the kits and the countdown stay over it and
-   // take clicks, and hiding the interface (F11, Blackout) leaves it.
+   // The view fading on the death screen (docs/notes/death-eyes.md): over the respawn countdown
+   // the view slowly loses brightness and colour (a dark grey wash) under a soft vignette that
+   // narrows, with three faint dims like a slowing heartbeat; at the countdown's end it is at its
+   // darkest, the scene still faintly visible, and it is clear again at once when the countdown is
+   // gone (the respawn, a rollback over the death, the hud's reset). The countdown is the hud's
+   // own: the exe's root.set_respawn_time (0x236C30) with "<prefix> MM:SS" once a second, the
+   // seconds being the respawn rule's time left rounded up (0x316C20), and "" at 0. On the stage
+   // below the hud's root, in screen pixels, over the screen effects: the kits and the countdown
+   // stay over it and take clicks, and hiding the interface (F11, Blackout) leaves it.
    public class DeathEyes extends Sprite
    {
-      // Each blink: its middle and half width (shares of the countdown) and how far it closes the
-      // eyes that are left open.
-      public static const BLINKS:Array = [[0.62,0.05,0.45],[0.86,0.05,0.6]];
+      // Each dim: its middle and half width (shares of the countdown) and how dark it goes.
+      public static const DIMS:Array = [[0.22,0.03,0.1],[0.48,0.035,0.1],[0.74,0.04,0.12]];
 
-      // The countdown's ticks come once a second; the closing waits for one that is late (a world
+      // The countdown's ticks come once a second; the fading waits for one that is late (a world
       // that has stopped, the end of a match) instead of running on alone.
       public static const TICK_WAIT:int = 1100;
 
-      // The lids' soft edge, and how much lower than their middle their corners are, as shares of
-      // the screen's height; the edge's steps.
-      protected static const FEATHER:Number = 0.1;
+      // The wash at the countdown's end, and its colour.
+      protected static const WASH:Number = 0.6;
 
-      protected static const CORNER:Number = 0.12;
-
-      protected static const STEPS:int = 16;
+      protected static const WASH_COLOUR:uint = 0x161616;
 
       protected var _shade:Shape = new Shape();
-
-      protected var _top:Shape = new Shape();
-
-      protected var _bottom:Shape = new Shape();
 
       protected var _width:Number = 1280;
 
@@ -64,35 +57,37 @@ package survarium.controls
          mouseChildren = false;
          visible = false;
          addChild(this._shade);
-         addChild(this._top);
-         addChild(this._bottom);
-         this.drawLids();
       }
 
-      // How open the eyes are (1 open, 0 shut) at a share of the countdown.
-      public static function opennessAt(p:Number) : Number
+      // How dark the dims make the view at a share of the countdown.
+      public static function dimAt(p:Number) : Number
       {
-         var open:Number;
-         var blink:Array;
+         var dim:Array;
          var d:Number;
-         if(p <= 0)
+         var sum:Number = 0;
+         for each(dim in DIMS)
          {
-            return 1;
-         }
-         if(p >= 1)
-         {
-            return 0;
-         }
-         open = 1 - Math.pow(p,1.8);
-         for each(blink in BLINKS)
-         {
-            d = (p - blink[0]) / blink[1];
+            d = (p - dim[0]) / dim[1];
             if(d > -1 && d < 1)
             {
-               open *= 1 - blink[2] * 0.5 * (1 + Math.cos(Math.PI * d));
+               sum += dim[2] * 0.5 * (1 + Math.cos(Math.PI * d));
             }
          }
-         return open;
+         return sum;
+      }
+
+      // The wash at a share of the countdown.
+      public static function washAt(p:Number) : Number
+      {
+         return WASH * Math.pow(Math.max(0,Math.min(1,p)),1.2);
+      }
+
+      // How much of the view shows in the middle of the screen (1 all, before the death) at a share
+      // of the countdown: under the wash and the dims, the vignette's clear middle.
+      public static function opennessAt(p:Number) : Number
+      {
+         p = Math.max(0,Math.min(1,p));
+         return (1 - washAt(p)) * (1 - dimAt(p));
       }
 
       // The seconds of the countdown's text: the "MM:SS" it ends with, 0 for none. (By hand: no
@@ -143,7 +138,6 @@ package survarium.controls
          {
             this._width = width;
             this._height = height;
-            this.drawLids();
             this.update();
          }
       }
@@ -203,76 +197,27 @@ package survarium.controls
          visible = true;
       }
 
-      // The vignette narrowing and the darkening, the lids where the openness puts them.
+      // The wash, then the vignette (clear in its middle but for the dims, dark from its rim out),
+      // narrowing as the countdown runs, slightly darker toward the top.
       protected function draw() : void
       {
          var p:Number = this._progress;
-         var closing:Number = 1 - this._openness;
-         var dark:Number = 0.6 * Math.pow(p,1.5);
-         var edge:Number = Math.min(1,dark + 0.85 * Math.sqrt(p));
-         var core:Number = 255 * Math.max(0.05,0.55 - 0.45 * p);
+         var dim:Number = Math.min(1,dimAt(p));
+         var core:Number = 255 * (0.58 - 0.33 * p);
+         var rim:Number = Math.max(dim,Math.min(1,0.85 * Math.sqrt(p)));
          var box:Matrix = new Matrix();
          var g:Graphics = this._shade.graphics;
-         var travel:Number = this._height * (0.5 + FEATHER + CORNER);
-         box.createGradientBox(this._width * 1.3,this._height * 1.6,0,-this._width * 0.15,-this._height * 0.3);
          g.clear();
-         g.beginGradientFill(GradientType.RADIAL,[0,0,0],[dark,dark,edge],[0,core,255],box);
+         g.beginFill(WASH_COLOUR,washAt(p));
          g.drawRect(0,0,this._width,this._height);
          g.endFill();
-         this._top.y = this._height / 2 - this._openness * travel;
-         this._bottom.y = this._height / 2 + this._openness * travel;
-         // shut: nothing of the lids' soft edges shows between them
-         this._top.visible = this._bottom.visible = closing > 0.001;
-      }
-
-      // A lid: black above its edge (y 0 in the middle, lower to the corners), then a soft edge of
-      // steps, drawn widest first, whose alphas add up to a smooth fall to nothing; the bottom lid
-      // is the top one turned over.
-      protected function drawLids() : void
-      {
-         var lid:Shape;
-         var g:Graphics;
-         var i:int;
-         var want:Number;
-         var below:Number;
-         var alpha:Number;
-         var reach:Number;
-         for each(lid in [this._top,this._bottom])
-         {
-            g = lid.graphics;
-            g.clear();
-            for(i = STEPS; i >= 1; i--)
-            {
-               // what the edge should be at step i (smooth from 1 to 0), and at the step past it
-               want = smooth(i - 0.5);
-               below = i == STEPS ? 0 : smooth(i + 0.5);
-               alpha = 1 - (1 - want) / (1 - below);
-               reach = this._height * FEATHER * i / STEPS;
-               this.lidShape(g,reach,alpha);
-            }
-            this.lidShape(g,0,1);
-            lid.scaleY = lid == this._bottom ? -1 : 1;
-         }
-      }
-
-      protected static function smooth(step:Number) : Number
-      {
-         var t:Number = Math.max(0,Math.min(1,step / STEPS));
-         return Math.min(0.999,1 - t * t * (3 - 2 * t));
-      }
-
-      // The lid down to its edge moved by reach: a curve from corner to corner through the middle.
-      protected function lidShape(g:Graphics, reach:Number, alpha:Number) : void
-      {
-         var corner:Number = this._height * CORNER;
-         var over:Number = this._width * 0.05;
-         g.beginFill(0,alpha);
-         g.moveTo(-over,-this._height * 1.5);
-         g.lineTo(this._width + over,-this._height * 1.5);
-         g.lineTo(this._width + over,corner + reach);
-         // a quadratic whose middle is at reach: its control point as far above it as the corners below
-         g.curveTo(this._width / 2,reach - corner,-over,corner + reach);
-         g.lineTo(-over,-this._height * 1.5);
+         box.createGradientBox(this._width * 1.3,this._height * 1.6,0,-this._width * 0.15,-this._height * 0.3);
+         g.beginGradientFill(GradientType.RADIAL,[0,0,0],[dim,dim,rim],[0,core,Math.min(255,core + 107)],box);
+         g.drawRect(0,0,this._width,this._height);
+         g.endFill();
+         box.createGradientBox(this._width,this._height * 0.6,Math.PI / 2,0,0);
+         g.beginGradientFill(GradientType.LINEAR,[0,0],[0.2 * p,0],[0,255],box);
+         g.drawRect(0,0,this._width,this._height * 0.6);
          g.endFill();
       }
    }
