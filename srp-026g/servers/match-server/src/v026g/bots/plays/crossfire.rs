@@ -157,7 +157,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         }
         for half in 0..2 {
             out.extend(
-                cx.candidate(PlayKind::Crossfire, choke, Some(key * 2 + half))
+                super::super::cpu_trace::span("xf candidate", || cx.candidate(PlayKind::Crossfire, choke, Some(key * 2 + half)))
                     .and_then(|c| weighed(cx, PlayKind::Crossfire, c)),
             );
         }
@@ -217,6 +217,7 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let key = Tactics::spot_key(PlayKind::Crossfire as u32, cx.bot.side, choke);
     let keep = (num("spots_keep_s") * 1000.0) as u32;
     cx.tactics.spots_kept(key, cx.now, keep, || {
+      super::super::cpu_trace::span("xf spots find", || {
         let query = SpotQuery {
             sight_to: Some(choke),
             prefer_high: num("prefer_high"),
@@ -232,6 +233,7 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
             .map(|s| s.at)
             .filter(|at| !cx.tactics.in_spawn_area(*at, None))
             .collect()
+      })
     })
 }
 
@@ -251,21 +253,24 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
 /// Whether [`fine_spots`] has one: it stops at the first, where the list
 /// is built whole (the offer only asks whether there is a spot).
 fn has_fine_spot(cx: &Ctx, choke: Vec3) -> bool {
+    super::super::cpu_trace::span("xf has_fine_spot", || {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
-    let others = halves(cx, choke);
-    spots_by(cx, choke)
+    let others = super::super::cpu_trace::span("xf halves", || halves(cx, choke));
+    let spots = super::super::cpu_trace::span("xf spots_by", || spots_by(cx, choke));
+    spots
         .iter()
         .any(|at| is_fine(cx, choke, apart, &others, *at))
+    })
 }
 
 /// Whether the bot may take `at` now: a fine goal it has a way to, `apart`
 /// degrees round the choke from every teammate in its ring (`others`).
 fn is_fine(cx: &Ctx, choke: Vec3, apart: f32, others: &[(Place, Vec3)], at: Vec3) -> bool {
-    cx.tactics.fine_goal(at, cx.now, cx.bot.side)
+    super::super::cpu_trace::span("xf fine_goal", || cx.tactics.fine_goal(at, cx.now, cx.bot.side))
         && others.iter().all(|(_, o)| round(choke, at, *o) >= apart)
-        && !cx.spot_taken(at, super::goals::APART_M)
-        && cx.can_go(at)
-        && !cx.exposed_climb(at, choke)
+        && !super::super::cpu_trace::span("xf spot_taken", || cx.spot_taken(at, super::goals::APART_M))
+        && super::super::cpu_trace::span("xf can_go", || cx.can_go(at))
+        && !super::super::cpu_trace::span("xf exposed_climb", || cx.exposed_climb(at, choke))
 }
 
 /// A spot for the choke, `apart_deg` from every teammate in its ring.

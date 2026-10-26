@@ -100,7 +100,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         // Offered only where a spot is fine for it now: taking it to find
         // none ended it within the second (the audit's churn), and the
         // set-aside that followed let it be taken again 8 s later.
-        if running != Some(index) && fine_spots(cx, exit).is_empty() {
+        if running != Some(index) && super::super::cpu_trace::span("he fine_spots", || fine_spots(cx, exit)).is_empty() {
             continue;
         }
         out.extend(

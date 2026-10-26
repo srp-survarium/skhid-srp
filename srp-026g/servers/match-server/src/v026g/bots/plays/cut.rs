@@ -233,10 +233,10 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         Some((PlayKind::Cut, TargetRef::Point(p), _)) => Some(p),
         _ => None,
     };
-    for (index, at, from, worth) in cuts(cx) {
+    for (index, at, from, worth) in super::super::cpu_trace::span("cut cuts", || cuts(cx)) {
         // Offered only where a spot is fine for it now.
         let runs = running.is_some_and(|p| p.distance_xz(at) < 1.0);
-        if !runs && fine_spots(cx, at, from).is_empty() {
+        if !runs && super::super::cpu_trace::span("cut fine_spots", || fine_spots(cx, at, from)).is_empty() {
             continue;
         }
         if let Some(mut c) = cx.candidate(PlayKind::Cut, TargetRef::Point(at), Some(index as u32)) {
