@@ -3,16 +3,21 @@
 # Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU), by EyesHarness.as: the
 # openness over a 5 s and a 10 s countdown, the respawn, the edge cases, and a real mouse click
 # (xdotool) on a kit over the closing eyes. Exits 0 when it says pass; prints its lines.
-# check.sh --video <out.mp4> <hud.swf> [backdrop.png] [work dir]: records the closing over a 5 s
-# countdown at 1280x720 (1 s alive, the countdown, the respawn, 1.5 s alive) over the backdrop.
+# check.sh --video <out.mp4> [--blood under|over|over-normal] <hud.swf> [backdrop.png] [work dir]:
+# records the closing over a 5 s countdown at 1280x720 (1 s alive, the countdown, the respawn, 1.5 s
+# alive) over the backdrop, with the hud's blood while dead under or over the eyes if asked.
 # A work dir given is kept (the harness, Ruffle's log). Java and Flex from
 # private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
-video=''
+video='' blood=''
 if [[ ${1:-} == --video ]]; then
     video=$(readlink -f "$2")
     shift 2
+    if [[ ${1:-} == --blood ]]; then
+        blood=$2
+        shift 2
+    fi
 fi
 hud=$(readlink -f "$1")
 shift
@@ -49,6 +54,7 @@ cp "$hud" "$work/hud.swf"
 params=(-Pmovie=hud.swf)
 if [[ -n $video ]]; then
     params+=(-Pmode=video)
+    [[ -z $blood ]] || params+=(-Pblood="$blood")
     if [[ -n $backdrop ]]; then
         cp "$backdrop" "$work/backdrop.png"
         params+=(-Pbackdrop=backdrop.png)

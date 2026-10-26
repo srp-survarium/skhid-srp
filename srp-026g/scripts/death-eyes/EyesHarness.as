@@ -1,5 +1,6 @@
 package
 {
+   import flash.display.BlendMode;
    import flash.display.DisplayObject;
    import flash.display.Loader;
    import flash.display.MovieClip;
@@ -30,7 +31,9 @@ package
    //   kit 3 once the eyes are three quarters shut. Prints "EYES ..." lines, ends with
    //   "EYES RESULT pass" or "EYES RESULT fail: ...".
    // - mode "video": 1 s alive, a 5 s countdown in real time over a backdrop (-Pbackdrop=<png>)
-   //   with the kits and the countdown's text, the respawn, 1.5 s alive; check.sh records it.
+   //   with the kits and the countdown's text, the respawn, 1.5 s alive; check.sh records it. With
+   //   -Pblood=under|over|over-normal the hud's blood (BloodEffect) while dead, under the eyes
+   //   (HUD's order), over them (multiply, as the game blends it) or over them unblended.
    public class EyesHarness extends Sprite
    {
       private var loader:Loader = new Loader();
@@ -49,6 +52,8 @@ package
       private var selector:Object;
 
       private var label:TextField;
+
+      private var blood:MovieClip;
 
       private var picks:int = 0;
 
@@ -119,6 +124,28 @@ package
          eyes = new Eyes() as Sprite;
          addChild(eyes);
          Object(eyes).place(stage.stageWidth,stage.stageHeight);
+         // the video's blood (-Pblood=under|over|over-normal): the hud's own BloodEffect as add_effect
+         // makes it (multiply), placed as placeEffects does, under the eyes (HUD's order) or over them
+         var where:String = loaderInfo.parameters.blood;
+         if(mode == "video" && where)
+         {
+            var Blood:Class = domain.getDefinition("BloodEffect") as Class;
+            blood = new Blood() as MovieClip;
+            blood.gotoAndStop(0);
+            blood.blendMode = where == "over-normal" ? BlendMode.NORMAL : BlendMode.MULTIPLY;
+            blood.scaleX = stage.stageWidth / 1280;
+            blood.scaleY = stage.stageHeight / 720;
+            blood.visible = false;
+            addChildAt(blood,where == "under" ? getChildIndex(eyes) : getChildIndex(eyes) + 1);
+            try
+            {
+               Object(blood).update(0.8);
+            }
+            catch(err:Error)
+            {
+               trace("EYES blood update threw " + err);
+            }
+         }
          face.scaleX = face.scaleY = stage.stageHeight / 1080;
          addChild(face);
          panel = new Panel() as MovieClip;
@@ -366,6 +393,10 @@ package
             label.text = text(left);
          }
          panel.visible = t >= 0 && t < 5000;
+         if(blood != null)
+         {
+            blood.visible = panel.visible;
+         }
          if(t > 7000)
          {
             finish("pass");
