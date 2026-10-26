@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 159933,
-  "sha256": "bcc8a651777a56a4a85c975653512610c7520bd7f88792352f58f98e2c7f0867",
+  "size": 159981,
+  "sha256": "276647e1cfdc88a804f13e2b011aa58324cac554f5e0be1ba567b00731162340",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,10 +62,15 @@
     "patches.code": {
       "kind": "code",
       "va": "0xa454000",
-      "size": 189
+      "size": 237
     }
   },
   "symbols": {
+    "__rodata_bake_cache_code": "0xa43a0e9",
+    "__rodata_hide_ui_code": "0xa4351e2",
+    "__rodata_kill_feed_code": "0xa438178",
+    "__rodata_match_keys_code": "0xa4330f1",
+    "__rodata_research_code": "0xa42f2f9",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
@@ -177,7 +182,7 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
-    "suicide_key_on_spot": "0xa4540a0"
+    "suicide_key_on_spot": "0xa4540d0"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

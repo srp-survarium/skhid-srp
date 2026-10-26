@@ -1148,8 +1148,24 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
 RUST_PATCHES = ("suicide_key",)
-RUST_HOOKS = tuple((va, original, symbol, opcode)
-                   for va, original, symbol, opcode, _owner in hooks_026g.installs())
+
+
+def rust_hooks(original):
+    """The Rust hooks' installs (site VA, the bytes replaced, the entry's
+    arena symbol, the opcode): a span hook's bytes read from `original`, the
+    exe being built from."""
+    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n])
+    return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
+
+
+def __getattr__(name):
+    """RUST_HOOKS, for the checks: rust_hooks() of the exe SRP_026G_EXE names."""
+    if name == "RUST_HOOKS":
+        path = os.environ.get("SRP_026G_EXE")
+        if not path:
+            raise AttributeError("RUST_HOOKS needs the original exe: SRP_026G_EXE")
+        return rust_hooks(open(path, "rb").read())
+    raise AttributeError(name)
 
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
@@ -2450,6 +2466,12 @@ def audit_installs(data, writes, installs=None):
             sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
 
 
+# The Rust lohooks (hooks_026g.py): each a jmp to its generated entry,
+# which goes on past the span or replays it.
+for _va, _owner, _what in hooks_026g.lohook_sites():
+    INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+
+
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
 # README "The arena"). The exe's section table has room for twelve entries
 # (it is at 210h and the headers end at 400h, where the first section's
@@ -2681,7 +2703,7 @@ def instance_of(va):
             if name.isupper() and name not in ("WRITES", "APPLIED"):
                 for row in _install_rows(value):
                     _INSTANCE_INDEX.setdefault(row[0], set()).add(name)
-        for site, _, _, _, owner in hooks_026g.installs():
+        for site, owner in hooks_026g.install_sites():
             _INSTANCE_INDEX[site] = {f"rust:{owner}"}
     names = _INSTANCE_INDEX.get(va, set())
     names = (names & set(INSTANCE_AGGREGATES)) or names
@@ -3542,7 +3564,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + RUST_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

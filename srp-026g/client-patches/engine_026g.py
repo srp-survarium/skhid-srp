@@ -32,7 +32,12 @@ global symbol of its own, which the link resolves for every caller):
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
-address, for the `vostok` layer (rust_patches.md).
+address, for the `vostok` layer (rust_patches.md). An offset may be
+negative (a function's frame local, by its frame pointer) and up to 4 MiB
+(an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
+itself: its rows are VAs of the game's data (a vtable), generated as
+constants `raw::image::<FIELD>`, the address only (vostok compares it, never
+reads through it).
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -285,6 +290,8 @@ def functions(spec=None, abi=None, inputs=None):
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
+# An `::image` row's VA: inside the exe's image (its data sections).
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
 
 
 def fields(path=None):
@@ -294,11 +301,14 @@ def fields(path=None):
         kind, field, kind_type = row["kind"].strip(), row["field"].strip(), row["type"].strip()
         module = kind.rpartition("::")[2]
         offset = number(row["offset"])
+        image = module == "image"
+        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
         if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
-                or kind_type not in FIELD_TYPES or not 0 <= offset < 0x10000 or offset % FIELD_TYPES[kind_type] \
+                or kind_type not in FIELD_TYPES or not low <= offset < high or offset % FIELD_TYPES[kind_type] \
                 or (module, field) in seen:
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
-                          f"under 0x10000 aligned to its type, a type of {', '.join(FIELD_TYPES)}")
+                          f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
+                          f"of {', '.join(FIELD_TYPES)}")
         seen.add((module, field))
         out.append({"kind": kind, "module": module, "field": field, "offset": offset, "type": kind_type,
                     "about": row["about"].strip()})
@@ -462,13 +472,24 @@ def rust_text(fs, fields_=()):
         lines.append("}")
     for module in dict.fromkeys(x["module"] for x in fields_):
         group = [x for x in fields_ if x["module"] == module]
+        if module == "image":
+            lines += ["", f"/// {group[0]['kind']}: VAs of the game's data (fields_026g.tsv).", "#[allow(dead_code)]",
+                      "pub mod image {"]
+            for x in group:
+                lines += ["", f"    /// {x['offset']:#x} ({x['type']}): {x['about']}",
+                          f"    pub const {x['field'].upper()}: u32 = {x['offset']:#x};"]
+            lines.append("}")
+            continue
         lines += ["", f"/// {group[0]['kind']}'s fields (fields_026g.tsv).", "#[allow(dead_code)]",
                   f"pub mod {module} {{", "    use core::ffi::c_void;"]
         for x in group:
-            lines += [f"", f"    /// +{x['offset']:#x} ({x['type']}): {x['about']}", "    ///",
+            off = x["offset"]
+            at = f"+{off:#x}" if off >= 0 else f"-{-off:#x}"
+            expr = f"this.byte_add({off:#x})" if off >= 0 else f"this.byte_sub({-off:#x})"
+            lines += [f"", f"    /// {at} ({x['type']}): {x['about']}", "    ///",
                       "    /// # Safety", f"    /// `this` is a {x['kind']}.", "    #[inline(always)]",
                       f"    pub unsafe fn {x['field']}(this: *mut c_void) -> *mut {x['type']} {{",
-                      f"        unsafe {{ this.byte_add({x['offset']:#x}).cast() }}", "    }"]
+                      f"        unsafe {{ {expr}.cast() }}", "    }"]
         lines.append("}")
     return "\n".join(lines) + "\n"
 
