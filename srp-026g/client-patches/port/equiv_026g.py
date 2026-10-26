@@ -82,10 +82,19 @@ class External:
     EAX; a model may append its own records of what the call was given to
     machine.calls, e.g. a text or a struct an argument points to, which
     the two builds keep at different addresses); `real` runs the game's own
-    code instead."""
+    code instead. An input may also be a function of the machine,
+    `input(machine)` (what a pointer names: a text, a value, a place of the
+    patch's state by `machine.normal`), so an argument that points into the
+    patch's own code or state compares by what it names, not by where each
+    build put it. `from_game`: the stub stands also where the game's own
+    code calls it, or where the patch tail-jumps to it (a run that reaches
+    it with a return into the game on the stack: the stub returns there),
+    so a site whose call the old patch made and the new one leaves to the
+    game compares."""
 
-    def __init__(self, name, inputs, pops=0, model=None, real=False):
+    def __init__(self, name, inputs, pops=0, model=None, real=False, from_game=False):
         self.name, self.inputs, self.pops, self.model, self.real = name, tuple(inputs), pops, model, real
+        self.from_game = from_game
 
 
 class Hook:
@@ -99,11 +108,18 @@ class Hook:
     before it (a `call` site's return onto its nops: the old's 0x2D84EE is
     the port's 0x2D84EF); `tails` the game functions a jump may reach with a
     return address into the game on top (a tail jump): such a jump is a
-    call of that External, as the port's call of it and its return there."""
+    call of that External, as the port's call of it and its return there.
+    `until`: the run ends when the game reaches that VA instead (its exit
+    is that VA), the game's code between the patch's leaving and it run as
+    it is: a patch that returned to the site's next instruction (a call
+    over nops) and one that replays the instructions after it (a lohook)
+    compare at the first instruction both reach."""
 
-    def __init__(self, name, site, live=("ebx", "esi", "edi", "ebp"), externals=None, aliases=None, tails=()):
+    def __init__(self, name, site, live=("ebx", "esi", "edi", "ebp"), externals=None, aliases=None, tails=(),
+                 until=None):
         self.name, self.site, self.live, self.externals = name, site, tuple(live), externals
         self.aliases, self.tails = dict(aliases or {}), frozenset(tails)
+        self.until = until
 
 
 class Case:
@@ -144,7 +160,8 @@ def build_into(out_dir, spec_path):
     linked = base.arena()
     meta = {"ranges": [list(r) for r in spec.ranges(base, linked)],
             "entries": list(spec.entries(base, linked)),
-            "blocks": {b.name: [b.va, b.size] for b in linked.blocks.values()}}
+            "blocks": {b.name: [b.va, b.size] for b in linked.blocks.values()},
+            "places": {name: list(place) for name, place in getattr(spec, "places", lambda P, l: {})(base, linked).items()}}
     Path(out_dir, "exe").write_bytes(bytes(built))
     Path(out_dir, "meta.json").write_text(json.dumps(meta))
 
@@ -202,6 +219,9 @@ class Machine:
             va, size = meta["blocks"]["engine.code"]
             self.ours.append((va, va + size))
         self.blocks = {name: (va, size) for name, (va, size) in meta["blocks"].items()}
+        # the patch's state by name (the spec's places(): {name: (VA, size)}),
+        # so an old block's variable and the new crate's static compare
+        self.places = {name: (va, size) for name, (va, size) in meta.get("places", {}).items()}
         uc.hook_add(UC_HOOK_BLOCK, self.on_block)
         uc.hook_add(UC_HOOK_MEM_WRITE, self.on_write)
         uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED | UC_HOOK_MEM_FETCH_UNMAPPED,
@@ -252,27 +272,29 @@ class Machine:
         if self.ours_at(address):
             self.inside = True
             return
-        if self.stopped or not self.inside or address == STOP:
-            return                                         # the game's site, before the patch
+        if self.stopped or address == STOP:
+            return
         esp = self.reg("esp")
         back = self.read32(esp)
+        external = (getattr(self.hook, "externals", None) or self.spec.EXTERNALS).get(address)
+        if external is not None and external.from_game and not external.real and not self.ours_at(back):
+            self.stub(external, esp, back)                 # the game's own call, or the patch's tail jump
+            return
+        if not self.inside:
+            return                                         # the game's site, before the patch
         if self.ours_at(back) or address in self.hook.tails:   # a call into the game (or a tail jump)
-            external = (getattr(self.hook, "externals", None) or self.spec.EXTERNALS).get(address)
             if external is None:
                 self.error = f"a call of {address:#x}, which the spec does not name (EXTERNALS)"
                 uc.emu_stop()
                 return
-            args = [self.input(esp, i) for i in external.inputs]
-            self.calls.append((external.name, args))
             if external.real:
+                self.calls.append((external.name, self.inputs(external, esp)))
                 self.inside = False                        # the game's code, until it returns to ours
                 return
-            self.at_call = {r: self.reg(r) for r in REG_NAMES}   # what a model may read of the call
-            self.set_reg("eax", self.rng.getrandbits(32))
-            if external.model:
-                external.model(self, args, self.rng)
-            self.set_reg("esp", esp + 4 + external.pops)
-            self.set_reg("eip", back)
+            self.stub(external, esp, back)
+            return
+        if getattr(self.hook, "until", None) is not None:
+            self.inside = False                            # the game's code, up to `until`
             return
         # left the patch: a jump or a return into the game
         self.exit = (f"{self.hook.aliases.get(address, address):#x}", {r: self.live(r) for r in self.hook.live},
@@ -281,7 +303,10 @@ class Machine:
         uc.emu_stop()
 
     def input(self, esp, spec):
-        """An External's input at its entry (External's `inputs`)."""
+        """An External's input at its entry (External's `inputs`): a
+        function of the machine, or a location with what it points to."""
+        if callable(spec):
+            return spec(self)
         where, _, what = spec.partition(":")
         value = self.read32(esp + 4 + 4 * int(where[3:])) if where.startswith("arg") else self.reg(where)
         if not what:
@@ -296,6 +321,25 @@ class Machine:
                 break
             out += piece
         return out.decode("latin-1" if unit == 1 else "utf-16-le", "replace")
+
+    def inputs(self, external, esp):
+        return [self.input(esp, i) for i in external.inputs]
+
+    def stub(self, external, esp, back):
+        """`external` answered by its stub: recorded, EAX the generator's,
+        its model, its pops, and back to `back`."""
+        args = self.inputs(external, esp)
+        self.calls.append((external.name, args))
+        self.at_call = {r: self.reg(r) for r in REG_NAMES}   # what a model may read of the call
+        self.set_reg("eax", self.rng.getrandbits(32))
+        if external.model:
+            external.model(self, args, self.rng)
+        self.set_reg("esp", esp + 4 + external.pops)
+        self.set_reg("eip", back)
+
+    def text(self, address, limit=64):
+        """The C string at `address` (an input's helper)."""
+        return bytes(self.uc.mem_read(address, limit)).split(b"\0")[0]
 
     def live(self, name):
         """A live register at the exit: a general register, "al", or "st0"
@@ -331,9 +375,12 @@ class Machine:
         self.set_reg("esp", esp)
         self.written.clear()
         try:
-            uc.emu_start(hook.site, STOP, count=2_000_000)
+            uc.emu_start(hook.site, STOP if hook.until is None else hook.until, count=2_000_000)
         except UcError as error:
             self.error = self.error or f"{error} at {self.reg('eip'):#x}"
+        if hook.until is not None and self.exit is None and self.error is None and self.reg("eip") == hook.until:
+            self.exit = (f"{hook.until:#x}", {r: self.live(r) for r in hook.live},
+                         (self.reg("esp") - self.entry_esp) & 0xFFFFFFFF)
         if self.exit is None and self.error is None:
             self.error = f"no exit (stopped at {self.reg('eip'):#x})"
         # the run's machine keeps its memory until reset(): compare() reads it
@@ -342,15 +389,16 @@ class Machine:
 
     def normal(self, address):
         """An address as both builds name it: an arena block's by block and
-        offset."""
-        for name, (va, size) in self.blocks.items():
+        offset; a place of the patch's state (the spec's places()) by its
+        name first, so old and new layouts compare."""
+        for name, (va, size) in list(self.places.items()) + list(self.blocks.items()):
             if va <= address < va + size:
                 return f"{name}+{address - va:#x}"
         return f"{address:#x}"
 
     def address(self, normal):
         name, _, offset = normal.rpartition("+")
-        return self.blocks[name][0] + int(offset, 16) if name else int(normal, 16)
+        return {**self.blocks, **self.places}[name][0] + int(offset, 16) if name else int(normal, 16)
 
     def final(self, normal):
         """The byte at a place after the run (a page the run did not touch
