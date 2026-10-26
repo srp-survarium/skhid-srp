@@ -83,9 +83,11 @@ const SETTLE_MAX_MS: u32 = 5_000;
 const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
 const ARRIVED_M: f32 = 0.3;
-/// The radius the walk to a start asks the motor for ([`Intent::exact_arrive_m`]), m: inside [`ARRIVED_M`] with a margin,
-/// so the walk does not end where every walk ends (0.6 m: the J0 on Chemical Plant struck five ledges at 0.28-0.31 m).
-const START_ARRIVE_M: f32 = 0.25;
+/// The radius the walk to a start asks the motor for ([`Intent::exact_arrive_m`]), m: the motor's own is 0.6 m (the J0 on
+/// Chemical Plant struck five ledges at 0.30-0.35 m). A route ends a few cm off the start (0.055 m in the dry run), so
+/// a walk that ends within 0.25 m of its end stood at 0.30 m: just outside [`ARRIVED_M`], and 3 tries a minute in the
+/// dry run against 17.5; within 0.1 m it stands inside it.
+const START_ARRIVE_M: f32 = 0.1;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
