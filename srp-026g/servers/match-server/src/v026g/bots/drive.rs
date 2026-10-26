@@ -279,9 +279,22 @@ pub(super) fn drive_tick(
     if let Some(trap) = trap {
         bot.press |= trap.key;
     }
+    // [trap_react] A noticed trap, shot: the view at its centre, the aim
+    // held and the fire key pressed a tick per shot, the legs still.
+    let react = trap_react::drive(bot, me, view, time, calm, &tuning.traps.react);
+    let aim = match react.and_then(|react| react.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(react) = react {
+        bot.press |= react.keys;
+    }
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
+    if react.is_some() {
+        intent.go = Go::Stay;
+    }
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;

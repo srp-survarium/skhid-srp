@@ -698,6 +698,7 @@ impl Bots {
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
             world_traps: Arc::new(Vec::new()),
+            shooters: Vec::new(),
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
