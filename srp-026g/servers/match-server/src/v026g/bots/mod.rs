@@ -423,6 +423,21 @@ impl Bot {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
     }
 
+    /// The kind of its weapon 1: the one the match gave its place
+    /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
+    /// personality's name as a role (the tests' bots, whose place has none).
+    fn weapon(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+    ) -> Option<reflex::WeaponKind> {
+        weapons
+            .get(self.place)
+            .copied()
+            .flatten()
+            .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
+    }
+
     /// The commander gave it play `next`: the running play stops, and its
     /// cooldown counts from now. A switch to another target of the same
     /// play goes on with it, so the cooldown counts from the play's own end

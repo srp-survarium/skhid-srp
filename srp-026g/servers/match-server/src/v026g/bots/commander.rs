@@ -178,6 +178,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.weapons, &tuning),
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
@@ -262,6 +263,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.weapons, &tuning),
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,
