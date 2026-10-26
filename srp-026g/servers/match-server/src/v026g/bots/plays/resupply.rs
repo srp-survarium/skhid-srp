@@ -49,12 +49,17 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // The way to the box at most, metres (humans: p90 47 m in the 15 s
     // before a hold).
     ("zone_m", 45.0),
-    // ... for a nearly dry bot: a dry bot cannot fight, so the walk is worth
-    // more than a respawn (8 s in batteries, 6.4 s in TDM) while the
-    // detour is under 3.5 x 5 m/s plus how far it has come from its
-    // spawn (about 60 m): a GUESS of the cost model, no human cap (humans
-    // are never dry; `batteries-suicide-vs-resupply.md`).
-    ("zone_m_dry", 80.0),
+    // ... for a nearly dry bot. The cost model said more (a dry bot cannot
+    // fight, a respawn is 8 s in batteries and 6.4 s in TDM, so the walk
+    // pays up to 3.5 x 5 m/s plus how far it has come from its spawn, about
+    // 80 m: a GUESS, no human cap, humans are never dry;
+    // `batteries-suicide-vs-resupply.md`), but the bench did not bear it
+    // out: 600 s, 16 maps, tier 9-10, 3 seeds, 7,250 lives a variant: dry
+    // seconds 4155 off, 2993 at 45 m (-28 %), 4008 at 80 m (-4 %); deaths
+    // while dry 70, 62, 73. 80 sent more bots (140 runs against 118) and
+    // saved no dry time, so the default is `zone_m`; the number stays the
+    // knob.
+    ("zone_m_dry", 45.0),
     // No enemy known this near, metres (humans: 10 of 89 holds had one).
     ("calm_m", 30.0),
     // USE held this long once the view is on the box, ms: the client's 3000
@@ -407,7 +412,14 @@ mod tests {
         s.ammo = ammo(10);
         assert!(!offered(&s), "55 m from its box");
         s.ammo = ammo(5);
-        assert!(offered(&s), "a nearly dry bot reaches 80 m");
+        assert!(!offered(&s), "a nearly dry bot reaches no farther than zone_m by default");
+        s.tuning
+            .plays
+            .entry(PlayKind::Resupply)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Resupply))
+            .numbers
+            .insert("zone_m_dry".into(), 80.0);
+        assert!(offered(&s), "a nearly dry bot reaches 80 m when zone_m_dry says so");
         s.ammo = ammo(10);
         s.view.places[0].feet = Vec3::new(35.0, 0.0, 22.0);
         assert!(offered(&s));
