@@ -69,6 +69,10 @@ pub struct SlotItem {
     /// (`amount_in_storage`, the client's refill of the slot at each spawn:
     /// [`BOT_AMMO_LIVES`]); `count` unless set.
     pub stored: u32,
+    /// The modifications (upgrades) the item carries, by
+    /// [`modifications`](super::modifications) id: none for a player's
+    /// item here, the few of [`BOT_UPGRADES`] for a bot's.
+    pub mods: &'static [u32],
 }
 
 /// One loadout: its items by slot.
@@ -103,6 +107,7 @@ impl Loadout {
                     dict_id: item.dict_id,
                     count,
                     stored: count,
+                    mods: &[],
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -257,6 +262,8 @@ pub struct BotKitItem {
     pub count: u32,
     /// The bit of the input's `actions_mask` that uses it, if a key does.
     pub input_bit: Option<u8>,
+    /// The modifications it carries ([`SlotItem::mods`]).
+    pub mods: &'static [u32],
 }
 
 const fn kit_item(name: &'static str, slot: u8, count: u32, input_bit: Option<u8>) -> BotKitItem {
@@ -265,6 +272,7 @@ const fn kit_item(name: &'static str, slot: u8, count: u32, input_bit: Option<u8
         slot,
         count,
         input_bit,
+        mods: &[],
     }
 }
 
@@ -369,6 +377,72 @@ pub fn new_kit() -> bool {
 /// role's armour opens three pockets of two in every tier ([`pockets`]).
 /// [`bot_pockets`] is what they carry now.
 pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
+
+/// Whether the bots' armour carries [`BOT_UPGRADES`]: `SRP_BOT_UPGRADES`
+/// set to `1`, `on` or `true`; **off unless set**: the plain armour. Read
+/// once.
+pub fn upgrades_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        std::env::var("SRP_BOT_UPGRADES")
+            .map(|value| matches!(value.trim(), "1" | "on" | "true"))
+            .unwrap_or(false)
+    })
+}
+
+/// The upgrades on the pieces the bots wear: `(tier, role, profile slot,
+/// modification ids)`, the owner's SAFE SET of 2026-10-26: weight (type 18,
+/// `1060 + strength`), carry capacity (type 24, `1120 + s`: +1 to +5 kg),
+/// movement speed (type 23, `1110 + s`: +1 to +5 %) and stamina spent
+/// (type 28, `1160 + s`: -2 to -10 %), never an aim time, a range or a
+/// bolt's chamber time (a mod's strength `s` is 0 to 4). The bots of the
+/// match server read the speed and the carry from the profile
+/// ([`super::bot_skills::item_added`]); the clients apply every one.
+///
+/// **What a bot has follows what the players of its tier have** (402 live
+/// matches, mean strength of the upgrade where a piece has it): movement
+/// speed on 4 / 6 / 12 % of the pieces (strength 1.8 / 2.7 / 2.7), gear
+/// weight on 6 / 10 / 15 % (0.8 / 1.6 / 1.8), carry on 4 / 3 / 6 % (1.9 /
+/// 1.5 / 2.2), stamina spent on 2 / 4 / 6 %. One upgrade a bot at 4-5, two
+/// at 9-10 and 13-15; the lighter roles (flanker, rusher) take speed (the
+/// torso) and stamina (the boots), the heavier (support, camper) carry (the
+/// legs) and weight (the torso), which gives back some of what their kit
+/// weighs. The slots, not the pieces, so that a swap of a piece for
+/// another that takes them keeps the row (the test checks every one fits).
+pub const BOT_UPGRADES: [(BotTier, BotRole, u8, &[u32]); 20] = [
+    (BotTier::Low, BotRole::Flanker, 2, &[1112]),
+    (BotTier::Low, BotRole::Rusher, 2, &[1112]),
+    (BotTier::Low, BotRole::Support, 2, &[1061]),
+    (BotTier::Low, BotRole::Camper, 2, &[1061]),
+    (BotTier::Mid, BotRole::Flanker, 2, &[1113]),
+    (BotTier::Mid, BotRole::Flanker, 6, &[1162]),
+    (BotTier::Mid, BotRole::Rusher, 2, &[1113]),
+    (BotTier::Mid, BotRole::Rusher, 6, &[1162]),
+    (BotTier::Mid, BotRole::Support, 2, &[1062]),
+    (BotTier::Mid, BotRole::Support, 4, &[1121]),
+    (BotTier::Mid, BotRole::Camper, 2, &[1062]),
+    (BotTier::Mid, BotRole::Camper, 4, &[1121]),
+    (BotTier::High, BotRole::Flanker, 2, &[1113]),
+    (BotTier::High, BotRole::Flanker, 6, &[1162]),
+    (BotTier::High, BotRole::Rusher, 2, &[1113]),
+    (BotTier::High, BotRole::Rusher, 6, &[1162]),
+    (BotTier::High, BotRole::Support, 2, &[1062]),
+    (BotTier::High, BotRole::Support, 4, &[1122]),
+    (BotTier::High, BotRole::Camper, 2, &[1062]),
+    (BotTier::High, BotRole::Camper, 4, &[1122]),
+];
+
+/// The modifications a bot of `role` in `tier` wears on the piece in
+/// `slot` ([`BOT_UPGRADES`]) when they are `on`, else none.
+pub fn bot_upgrades_with(tier: BotTier, role: BotRole, slot: u8, on: bool) -> &'static [u32] {
+    if !on {
+        return &[];
+    }
+    BOT_UPGRADES
+        .iter()
+        .find(|&&(of_tier, of_role, of_slot, _)| (of_tier, of_role, of_slot) == (tier, role, slot))
+        .map_or(&[], |&(.., mods)| mods)
+}
 
 /// What a role wears in a tier besides [`BOT_POCKETS`]: weapon 1, the
 /// ammo it fires (as many rounds as the kit's ammo bags hold:
@@ -896,15 +970,27 @@ fn pockets_opened<'a>(armour: impl IntoIterator<Item = &'a str>) -> u32 {
 /// Every piece of the `k`-th kit (0 on) of a bot of `role` in `tier`
 /// ([`bot_kit_items_with`], the owner's kit only if [`new_kit`] is on).
 pub fn bot_kit_items(tier: BotTier, role: BotRole, k: usize) -> Vec<BotKitItem> {
-    bot_kit_items_with(tier, role, k, new_kit())
+    bot_kit_items_in(tier, role, k, new_kit(), upgrades_on())
+}
+
+/// [`bot_kit_items_in`] without upgrades.
+pub fn bot_kit_items_with(tier: BotTier, role: BotRole, k: usize, new: bool) -> Vec<BotKitItem> {
+    bot_kit_items_in(tier, role, k, new, false)
 }
 
 /// Every piece of the `k`-th kit (0 on) of a bot of `role` in `tier`:
 /// weapon 1 of [`BotRole::kit_roles`]`[k]` and its ammo, the most the
 /// kit's bags take, in [`BOT_AMMO_SLOTS`]; the role's own armour; then its
 /// pockets: [`bot_pockets`] with the owner's kit `new`, else
-/// [`BOT_POCKETS`] (and the armour and the bags it had).
-pub fn bot_kit_items_with(tier: BotTier, role: BotRole, k: usize, new: bool) -> Vec<BotKitItem> {
+/// [`BOT_POCKETS`] (and the armour and the bags it had); the armour wears
+/// [`BOT_UPGRADES`] if `upgrades`.
+pub fn bot_kit_items_in(
+    tier: BotTier,
+    role: BotRole,
+    k: usize,
+    new: bool,
+    upgrades: bool,
+) -> Vec<BotKitItem> {
     let arms = tier.gear().of(role.kit_roles()[k]);
     let armour = worn(tier, role, new);
     let names = || armour.iter().map(|&(_, name)| name);
@@ -915,11 +1001,10 @@ pub fn bot_kit_items_with(tier: BotTier, role: BotRole, k: usize, new: bool) -> 
             .iter()
             .map(|&slot| kit_item(arms.ammo, slot, rounds, None)),
     );
-    items.extend(
-        armour
-            .iter()
-            .map(|&(slot, name)| kit_item(name, slot, 1, None)),
-    );
+    items.extend(armour.iter().map(|&(slot, name)| BotKitItem {
+        mods: bot_upgrades_with(tier, role, slot, upgrades),
+        ..kit_item(name, slot, 1, None)
+    }));
     if new {
         items.extend(bot_pockets(role, pockets_opened(names())));
     } else {
@@ -947,6 +1032,7 @@ fn bot_loadout(items: &[BotKitItem]) -> Loadout {
     .expect("the bot kit's items exist and fit their slots");
     for (slot, item) in loadout.items.iter_mut().zip(items) {
         slot.count = item.count;
+        slot.mods = item.mods;
         // The ammo's storage: [`BOT_AMMO_LIVES`] lives of it.
         slot.stored = if BOT_AMMO_SLOTS.contains(&item.slot) {
             item.count * BOT_AMMO_LIVES
@@ -960,7 +1046,12 @@ fn bot_loadout(items: &[BotKitItem]) -> Loadout {
 /// A bot of `role` in `tier`'s kits as loadouts with the owner's kit `new`
 /// or without ([`bot_kit_items_with`]), built each time.
 pub fn bot_kits_with(tier: BotTier, role: BotRole, new: bool) -> [Loadout; 3] {
-    std::array::from_fn(|k| bot_loadout(&bot_kit_items_with(tier, role, k, new)))
+    bot_kits_in(tier, role, new, false)
+}
+
+/// [`bot_kits_with`], the armour wearing [`BOT_UPGRADES`] if `upgrades`.
+pub fn bot_kits_in(tier: BotTier, role: BotRole, new: bool, upgrades: bool) -> [Loadout; 3] {
+    std::array::from_fn(|k| bot_loadout(&bot_kit_items_in(tier, role, k, new, upgrades)))
 }
 
 /// A bot of `role` in `tier`'s kits as loadouts, one for each of its
@@ -971,7 +1062,7 @@ pub fn bot_kits(tier: BotTier, role: BotRole) -> [&'static Loadout; 3] {
         BotTier::ALL
             .into_iter()
             .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
-            .map(|(tier, role)| bot_kits_with(tier, role, new_kit()))
+            .map(|(tier, role)| bot_kits_in(tier, role, new_kit(), upgrades_on()))
             .collect()
     });
     let index = BotTier::ALL
@@ -1272,10 +1363,18 @@ mod tests {
     /// Every bot of every tier, role and kit, with the owner's kit `new`
     /// or without.
     fn every_kit_with(new: bool) -> Vec<(BotTier, BotRole, usize, Loadout)> {
+        every_kit_in(new, false)
+    }
+
+    /// [`every_kit_with`], the armour wearing the upgrades if `upgrades`.
+    fn every_kit_in(new: bool, upgrades: bool) -> Vec<(BotTier, BotRole, usize, Loadout)> {
         let mut all = Vec::new();
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
-                for (k, kit) in bot_kits_with(tier, role, new).into_iter().enumerate() {
+                for (k, kit) in bot_kits_in(tier, role, new, upgrades)
+                    .into_iter()
+                    .enumerate()
+                {
                     all.push((tier, role, k, kit));
                 }
             }
@@ -1738,6 +1837,104 @@ mod tests {
             worn(BotTier::Mid, BotRole::Flanker, false),
             worn(BotTier::Mid, BotRole::Flanker, true)
         );
+    }
+
+    /// The owner's SAFE SET (2026-10-26): weight, carry, movement speed and
+    /// stamina upgrades only, each one a bot's piece takes, one at 4-5 and
+    /// two at 9-10 and 13-15, in every kit and on the wire.
+    #[test]
+    fn the_bots_wear_only_the_safe_upgrades_their_pieces_take() {
+        use super::super::match_msgs::static_info::MatchProfile;
+        use super::super::modifications::{MAX_RANK, Modifications};
+        use super::super::skills::MODIFIERS;
+
+        let table = Modifications::shared();
+        // Modification types: 7 weapon weight, 18 gear weight, 22 stamina
+        // regeneration, 23 movement speed, 24 carry, 28 stamina spent.
+        let safe = [7, 18, 22, 23, 24, 28];
+        for (tier, role, slot, mods) in BOT_UPGRADES {
+            let at = format!("{tier} {role} slot {slot}");
+            assert!(!mods.is_empty() && mods.len() <= MAX_RANK, "{at}");
+            for &id in mods {
+                let row = table.modification(id).expect("a modification");
+                assert!(safe.contains(&row.kind), "{at}: {id} is type {}", row.kind);
+            }
+        }
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let upgrades: usize = BOT_UPGRADES
+                    .iter()
+                    .filter(|row| (row.0, row.1) == (tier, role))
+                    .map(|row| row.3.len())
+                    .sum();
+                assert_eq!(
+                    upgrades,
+                    if tier == BotTier::Low { 1 } else { 2 },
+                    "{tier} {role}"
+                );
+            }
+        }
+        let dictionary = Dictionary::shared();
+        // Without the switch the armour is plain, whichever kit.
+        for (tier, role, k, kit) in &every_kit() {
+            for item in &kit.items {
+                assert!(item.mods.is_empty(), "{tier} {role} kit {k}");
+            }
+        }
+        let mut with = every_kit_in(false, true);
+        with.extend(every_kit_in(true, true));
+        for (tier, role, k, kit) in &with {
+            let (tier, role, k) = (*tier, *role, *k);
+            let at = format!("{tier} {role} kit {k}");
+            for item in &kit.items {
+                let wanted = if item.slot <= 6 {
+                    bot_upgrades_with(tier, role, item.slot, true)
+                } else {
+                    &[]
+                };
+                assert_eq!(item.mods, wanted, "{at}: slot {}", item.slot);
+                // Each fits its piece beside what the piece holds.
+                let mut held = Vec::new();
+                for &id in item.mods {
+                    assert!(
+                        table.fits(item.dict_id, &held, id),
+                        "{at}: {id} on {}",
+                        dictionary.item(item.dict_id).unwrap().name
+                    );
+                    held.push(id);
+                }
+            }
+            // On the wire: the profile's item carries them.
+            let profile =
+                MatchProfile::from_loadouts("Bot-1", 0, &[kit], [0.0; MODIFIERS], dictionary, 1);
+            for item in &kit.items {
+                let (index, _) = profile.kits[0].slots[usize::from(item.slot)].unwrap();
+                let wire: Vec<(u32, bool)> = item.mods.iter().map(|&id| (id, false)).collect();
+                assert_eq!(
+                    profile.items[usize::from(index)].modifications,
+                    wire,
+                    "{at}"
+                );
+            }
+        }
+        // Off: the plain armour.
+        for (tier, role, slot, _) in BOT_UPGRADES {
+            assert!(bot_upgrades_with(tier, role, slot, false).is_empty());
+        }
+        // The reading back is the same with or without them.
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = MatchProfile::from_loadouts(
+                    "Bot-1",
+                    0,
+                    &bot_kits(tier, role),
+                    [0.0; MODIFIERS],
+                    dictionary,
+                    1,
+                );
+                assert_eq!(bot_of(&profile), Some((tier, role)));
+            }
+        }
     }
 
     #[test]
