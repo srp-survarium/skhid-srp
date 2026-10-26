@@ -55,7 +55,7 @@ pub(crate) const TUNING_NAMES: [&str; 14] = [
     "HOLDEXIT",
     "CROSSFIRE",
     "PAIRUP",
-    "RESUPPLY",
+    "RESUPPLY_PLAY",
     "COMBAT",
     "AIM",
     "SENSE",
