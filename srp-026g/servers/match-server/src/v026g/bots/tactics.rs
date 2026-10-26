@@ -1017,6 +1017,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.max_jump_rise(),
             iters,
         )
     }
@@ -1095,6 +1096,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }
@@ -2498,6 +2500,27 @@ pub(super) mod tests {
         );
     }
 
+    /// A route for a body that cannot sprint (a battery carrier) takes no jump
+    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// 1.0 m platform is a jump away for the walker and no way for the
+    /// carrier, a 0.9 m one is a way for both.
+    #[test]
+    fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
+        let route = |rise: f32, filter: &RouteFilter| {
+            let solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
+            let world = field_with_solids(&solids, |_| {});
+            let tactics = Tactics::new(world.clone(), 1.0);
+            let grid = &world.grid;
+            let from = grid.locate(Vec3::new(7.0, 0.0, 7.0), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
+            tactics.route_nodes(from, to, 0, Some(0), false, filter)
+        };
+        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
+        assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
+        assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
+    }
+
     /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it
     /// from the ground at x 10..20, and a roof 4 m up no walk gets to at
     /// x 50..60, z 28..38.
@@ -2689,24 +2712,23 @@ pub(super) mod tests {
 
     // The live zones (`live_zones.rs`): a world's anomaly fields next to the baked zones.
 
-    fn live_field(
-        id: u32,
-        at: Vec3,
-        radius: f32,
-        phase: survarium::v026g::match_msgs::anomaly_fields::FieldPhase,
-    ) -> survarium::v026g::match_msgs::anomaly_fields::WorldField {
-        use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldShape, WorldField};
+    fn live_field(id: u32, at: Vec3, radius: f32, phase: super::super::live_zones::FieldPhase) -> super::super::live_zones::WorldField {
+        use super::super::live_zones::{FieldId, FieldKind, WorldField};
+        use mapdata::{Rotation, Shape, ShapeKind};
         WorldField {
             id: FieldId(id),
             kind: FieldKind::Spring,
-            centre: [at.x, 1.0, at.z],
-            shape: FieldShape::Cylinder { radius, half_height: 2.0 },
+            shape: Shape {
+                kind: ShapeKind::Cylinder,
+                center: Vec3::new(at.x, 1.0, at.z),
+                rotation: Rotation::IDENTITY,
+                half: Vec3::new(radius, 2.0, radius),
+            },
             phase,
         }
     }
 
-    const LIVE_ON: survarium::v026g::match_msgs::anomaly_fields::FieldPhase =
-        survarium::v026g::match_msgs::anomaly_fields::FieldPhase::Damaging { until: None };
+    const LIVE_ON: super::super::live_zones::FieldPhase = super::super::live_zones::FieldPhase::Damaging { until: None };
 
     /// Floors only: a region is not shut because a live field lies on a few of its floors (its test is the baked
     /// zone's), while the floors' own test shuts them.

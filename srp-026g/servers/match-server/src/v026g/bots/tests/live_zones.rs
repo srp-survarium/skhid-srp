@@ -4,9 +4,9 @@
 use super::*;
 
 use mapdata::NodeId;
-use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldPhase, FieldShape, WorldField};
-
-use crate::v026g::bots::anomalies::tests::electric_map;
+use crate::v026g::bots::field_source;
+use crate::v026g::bots::live_zones::{FieldId, FieldKind, FieldPhase, WorldField};
+use crate::v026g::bots::anomalies::tests::{core_world, cylinder, electric_map, timed, zone};
 use crate::v026g::bots::anomalies::Anomalies;
 use crate::v026g::bots::hazards::{Activity, Hazards, ZoneSet, PASS_MS, SWITCH_MARGIN_MS};
 use crate::v026g::bots::stuck::Stuck;
@@ -17,8 +17,12 @@ fn field(id: u32, x: f32, z: f32, radius: f32, phase: FieldPhase) -> WorldField 
     WorldField {
         id: FieldId(id),
         kind: FieldKind::Lifebone,
-        centre: [x, 1.0, z],
-        shape: FieldShape::Cylinder { radius, half_height: 2.0 },
+        shape: mapdata::Shape {
+            kind: mapdata::ShapeKind::Cylinder,
+            center: Vec3::new(x, 1.0, z),
+            rotation: mapdata::Rotation::IDENTITY,
+            half: Vec3::new(radius, 2.0, radius),
+        },
         phase,
     }
 }
@@ -115,7 +119,7 @@ fn the_phases_and_a_field_that_goes() {
     assert!(!hazards.set_fields(&[field(1, 20.0, 20.0, 2.0, ending)], &world.grid, 26_000));
     assert_eq!(hazards.version(), v);
     // Holding: on, no end.
-    let holding = FieldPhase::Holding { since: 28_000 };
+    let holding = FieldPhase::Holding;
     assert!(hazards.set_fields(&[field(1, 20.0, 20.0, 2.0, holding)], &world.grid, 40_000));
     assert!(hazards.version() > v);
     assert!(!hazards.allowed_for(inside, 4_000_000, 0));
@@ -170,7 +174,7 @@ fn a_second_escape_from_the_same_field_is_counted_and_from_another_is_not() {
     assert_ne!(a, b);
     // Another phase of the same fields: the same sets.
     hazards.set_fields(
-        &[field(1, 20.0, 20.0, 2.0, FieldPhase::Holding { since: 5 }), field(2, 30.0, 20.0, 2.0, DAMAGING)],
+        &[field(1, 20.0, 20.0, 2.0, FieldPhase::Holding), field(2, 30.0, 20.0, 2.0, DAMAGING)],
         &world.grid,
         1_000,
     );
@@ -245,4 +249,93 @@ fn the_live_path_agrees_with_the_baked_one_on_an_electric_pair() {
         t += 500;
     }
     assert!(checked > 300);
+}
+
+/// A map with one timed core (charge and damage zones at (20, 20)) and the stock electric pair of level_03.
+fn timed_map() -> mapdata::MapData {
+    let mut map = electric_map();
+    map.zones.push(zone("charge", cylinder(20.0, 20.0, 3.0), 0.0));
+    map.zones.push(zone("damage", cylinder(20.0, 20.0, 3.0), 0.5));
+    map.anomalies.push(timed("timed", "charge", "damage"));
+    map
+}
+
+/// The pack builder's cores are timed; the stock ones (the electric pair, a cloud) are not.
+#[test]
+fn a_timed_core_is_known_by_its_state_chain() {
+    let map = timed_map();
+    assert!(field_source::timed(&map.anomalies[1]));
+    assert!(!field_source::timed(&map.anomalies[0]), "the electric pair");
+    let mut other = map.anomalies[1].clone();
+    other.artefacts.respawn_s = 60.0;
+    assert!(!field_source::timed(&other), "an artefact that respawns by itself");
+    let mut other = map.anomalies[1].clone();
+    other.states.retain(|s| s.threshold.round() as i32 != 2000);
+    assert!(!field_source::timed(&other), "no damage state");
+    assert!(field_source::live_only(&map, "damage") && field_source::live_only(&map, "charge"));
+    assert!(!field_source::live_only(&map, "a"), "a stock zone stays baked");
+}
+
+/// The zones of a timed core are not baked: the stock electric pair is, and the timed core's floors are no baked
+/// zone's (so no region is cut round the place).
+#[test]
+fn a_timed_cores_zones_are_not_baked() {
+    let world = field_with(|map| {
+        let timed = timed_map();
+        map.zones = timed.zones;
+        map.anomalies = timed.anomalies;
+    });
+    let hazards = Hazards::build(&world, 0.5);
+    let names: Vec<_> = hazards.zones.iter().map(|z| z.name.as_str()).collect();
+    assert_eq!(names, ["a", "b"], "{names:?}");
+    assert!(hazards.hazard_free(node_at(&world, 20.0, 20.0)));
+}
+
+/// A world shows the core charging, damaging, waiting and picked: the board follows, field by field.
+#[test]
+fn the_timed_core_of_a_world_is_a_field_that_follows_its_states() {
+    let world = field_with(|map| {
+        let timed = timed_map();
+        map.zones = timed.zones;
+        map.anomalies = timed.anomalies;
+    });
+    let mut hazards = Hazards::build(&world, 0.5);
+    hazards.attach(Anomalies::new(&world.map, 0x8000_0042));
+    let inside = node_at(&world, 20.0, 20.0);
+    let fields = |hazards: &Hazards| field_source::v1(hazards.anomalies().unwrap(), &world.map);
+    // No world has shown the core: no field.
+    assert!(fields(&hazards).is_empty());
+    // Charging at 40 s, its damage from 60 s (core 1 of the map: the electric pair is core 0).
+    let bytes = core_world(hazards.anomalies().unwrap(), 1, Some(0), 3000.0, 60_000);
+    let report = hazards.sync_from_world(&bytes, 40_000);
+    assert!(report.synced.iter().any(|s| s.core == 1), "{report:?}");
+    let charging = fields(&hazards);
+    assert_eq!(charging.len(), 1);
+    assert_eq!(charging[0].id, FieldId(1));
+    assert_eq!(charging[0].kind, FieldKind::Spring, "the zone's damage type");
+    assert_eq!(charging[0].phase, FieldPhase::Charging { damage_from: 60_000 });
+    assert!(hazards.set_fields(&charging, &world.grid, 40_000));
+    assert!(hazards.allowed(inside, 41_000) && !hazards.allowed(inside, 57_000));
+    // Run on to the first tick past 60 s: the simulation follows the state chain to the damage state.
+    hazards.advance(61_000);
+    let damaging = fields(&hazards);
+    assert!(
+        matches!(damaging[..], [WorldField { phase: FieldPhase::Damaging { until: Some(until) }, .. }] if until >= 63_000),
+        "{damaging:?}"
+    );
+    assert!(hazards.set_fields(&damaging, &world.grid, 61_000));
+    assert!(hazards.on_at(inside, 61_000) && !hazards.allowed(inside, 61_000));
+    // The artefact waits (a world at 70 s): holding.
+    let bytes = core_world(hazards.anomalies().unwrap(), 1, Some(2), 1000.0, 0);
+    hazards.sync_from_world(&bytes, 70_000);
+    let waiting = fields(&hazards);
+    assert_eq!(waiting.iter().map(|f| f.phase).collect::<Vec<_>>(), [FieldPhase::Holding]);
+    hazards.set_fields(&waiting, &world.grid, 70_000);
+    assert!(!hazards.allowed_for(inside, 1_000_000, 0), "on until a world drops it");
+    // Picked up (a world at 80 s, energy 50 on the way to idle): gone at once.
+    let bytes = core_world(hazards.anomalies().unwrap(), 1, Some(3), 50.0, 140_000);
+    hazards.sync_from_world(&bytes, 80_000);
+    assert!(fields(&hazards).is_empty());
+    assert!(hazards.set_fields(&fields(&hazards), &world.grid, 80_000));
+    assert!(hazards.allowed(inside, 80_000));
 }

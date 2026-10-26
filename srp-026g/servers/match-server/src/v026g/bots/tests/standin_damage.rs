@@ -28,13 +28,13 @@
 //! in 0.26g's data).
 
 use survarium::v026g::damage::{self, AmmoParams, ArmourParams, BodyParams};
-use survarium::v026g::loadouts::{BotTier, RoleGear, TierGear};
+use survarium::v026g::loadouts::{BotTier, RoleGear, RusherKit, TierGear};
 use survarium::v026g::weapons::{self, WeaponParams};
 
 use crate::v026g::bots::guns::Gun;
 use crate::v026g::bots::rng::Rng;
 
-use super::{Body, bench_settings, bench_tier};
+use super::{Body, bench_rusher_kits, bench_settings, bench_tier};
 
 /// The parts a hit lands on, as the live matches show it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -255,10 +255,12 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
     }
 }
 
-/// How the stand-in's hits are worked out: the bots' tier (their kits).
+/// How the stand-in's hits are worked out: the bots' tier (their kits) and
+/// the kit its rusher wears (the rusher's ammo and armour).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Model {
     pub(crate) tier: BotTier,
+    pub(crate) rusher: RusherKit,
     /// `SRP_BENCH_DAMAGE=flat`: every hit takes a fifth of the health.
     pub(crate) flat: bool,
     /// `SRP_BENCH_GRENADE_DAMAGE=off`: a grenade's blast hurts nobody (the
@@ -277,6 +279,7 @@ impl Default for Model {
     fn default() -> Self {
         Self {
             tier: bench_tier(),
+            rusher: bench_rusher_kits().worn(bench_tier()),
             flat: bench_settings().var("SRP_BENCH_DAMAGE").is_ok_and(|v| v == "flat"),
             grenades: !bench_settings().var("SRP_BENCH_GRENADE_DAMAGE").is_ok_and(|v| v == "off"),
         }
@@ -286,22 +289,23 @@ impl Default for Model {
 /// What the tiers' flat hit used to take, of the health.
 pub(crate) const FLAT_HIT: f32 = 0.2;
 
-/// The kit of `tier` that has `weapon` (every kit of a tier has another
-/// weapon), else of any tier: the stand-in's first gun is the lowest tier's
-/// support's until the bot's first input names its own.
-fn gear_with<'a>(tier: &'a TierGear, weapon: &str) -> Option<&'a RoleGear> {
+/// The kit of `tier` that has `weapon` when its rusher wears `rusher`
+/// (every kit of a tier has another weapon), else of any tier: the
+/// stand-in's first gun is the lowest tier's support's until the bot's first
+/// input names its own.
+fn gear_with<'a>(tier: &'a TierGear, rusher: RusherKit, weapon: &str) -> Option<&'a RoleGear> {
     use survarium::v026g::loadouts::BotRole;
     BotRole::ALL
         .into_iter()
-        .map(|role| tier.of(role))
+        .map(|role| tier.of_kit(role, rusher))
         .find(|gear| gear.weapon == weapon)
 }
 
-fn kit_of(tier: BotTier, weapon: &str) -> Option<&'static RoleGear> {
-    gear_with(tier.gear(), weapon).or_else(|| {
+fn kit_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> Option<&'static RoleGear> {
+    gear_with(tier.gear(), rusher, weapon).or_else(|| {
         BotTier::ALL
             .into_iter()
-            .find_map(|other| gear_with(other.gear(), weapon))
+            .find_map(|other| gear_with(other.gear(), rusher, weapon))
     })
 }
 
@@ -355,10 +359,10 @@ pub(crate) fn hit(
         target.health -= FLAT_HIT;
         return;
     };
-    let ammo = kit_of(model.tier, shooter_gun.item)
+    let ammo = kit_of(model.tier, model.rusher, shooter_gun.item)
         .and_then(|kit| damage::ammo_named(kit.ammo))
         .unwrap_or(&PLAIN_AMMO);
-    let worn = kit_of(model.tier, target.gun.item);
+    let worn = kit_of(model.tier, model.rusher, target.gun.item);
     let bullet = damage::bullet_at(weapon, ammo, distance);
     let class = Class::of(weapon);
     let body = damage::human();
@@ -407,6 +411,7 @@ mod tests {
 
     const MODEL: Model = Model {
         tier: BotTier::Low,
+        rusher: RusherKit::Control,
         flat: false,
         grenades: true,
     };
@@ -427,7 +432,7 @@ mod tests {
         let mut body = game_body();
         body.gun = gun(target_gun).expect("a weapon");
         let weapon = weapons::weapon_named(shooter).unwrap();
-        let ammo = kit_of(tier, shooter)
+        let ammo = kit_of(tier, RusherKit::Control, shooter)
             .and_then(|kit| damage::ammo_named(kit.ammo))
             .unwrap();
         let bullet = damage::bullet_at(weapon, ammo, distance);
@@ -436,7 +441,7 @@ mod tests {
             hit_box,
             bullet.damage,
             bullet.arp,
-            armour_on(kit_of(tier, target_gun), hit_box),
+            armour_on(kit_of(tier, RusherKit::Control, target_gun), hit_box),
         );
         body.health -= taken[0];
         body.pools.head -= taken[1];
@@ -488,7 +493,9 @@ mod tests {
         // Unarmoured (the starter pistol is in no tier's kit): the whole
         // bullet.
         let weapon = weapons::weapon_named("ak_74u").unwrap();
-        let ammo = kit_of(BotTier::Low, "ak_74u").and_then(|k| damage::ammo_named(k.ammo)).unwrap();
+        let ammo = kit_of(BotTier::Low, RusherKit::Control, "ak_74u")
+            .and_then(|k| damage::ammo_named(k.ammo))
+            .unwrap();
         let full = damage::bullet_at(weapon, ammo, 5.0).damage;
         let (health, pools) = shot_on(BotTier::Low, "ak_74u", "tt_33", "front", 5.0);
         assert!(near(1.0 - health, full), "{health} {full}");
@@ -528,7 +535,7 @@ mod tests {
         let weapon = weapons::weapon_named("ak_12").unwrap();
         let ammo = damage::ammo_named("ammo_6.5x39").unwrap();
         let bullet = damage::bullet_at(weapon, ammo, 10.0);
-        let torso = armour_on(kit_of(tier, "sr3m"), "front");
+        let torso = armour_on(kit_of(tier, RusherKit::Control, "sr3m"), "front");
         assert!(torso > 0.5, "the tier's torso {torso}");
         let (health, _) = shot_on(tier, "ak_12", "sr3m", "front", 10.0);
         let want = bullet.damage * (1.0 - (torso - bullet.arp).clamp(0.0, 1.0));
@@ -545,7 +552,9 @@ mod tests {
     #[test]
     fn a_kill_takes_as_many_hits_as_the_damage_says() {
         let weapon = weapons::weapon_named("ak_74u").unwrap();
-        let ammo = kit_of(BotTier::Low, "ak_74u").and_then(|k| damage::ammo_named(k.ammo)).unwrap();
+        let ammo = kit_of(BotTier::Low, RusherKit::Control, "ak_74u")
+            .and_then(|k| damage::ammo_named(k.ammo))
+            .unwrap();
         let delta = damage::bullet_at(weapon, ammo, 10.0).damage;
         let mut body = game_body();
         body.gun = gun("tt_33").unwrap();
@@ -614,7 +623,12 @@ mod tests {
     #[test]
     fn a_flat_hit_is_the_old_fifth() {
         let mut body = game_body();
-        let model = Model { tier: BotTier::Low, flat: true, grenades: true };
+        let model = Model {
+            tier: BotTier::Low,
+            rusher: RusherKit::Control,
+            flat: true,
+            grenades: true,
+        };
         let mut rng = Rng::new(1);
         hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
         assert!(near(body.health, 0.8));
@@ -627,9 +641,61 @@ mod tests {
         let mut body = game_body();
         body.pools.head = 0.0;
         body.health = 0.9;
-        let model = Model { tier: BotTier::Low, flat: false, grenades: true };
+        let model = Model {
+            tier: BotTier::Low,
+            rusher: RusherKit::Control,
+            flat: false,
+            grenades: true,
+        };
         let mut rng = Rng::new(1);
         hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
         assert!(body.health <= 1e-3);
+    }
+
+    /// The hits follow the kit the rusher wears: the stand-in finds its
+    /// ammo and its armour by the weapon in hand and the kit worn, so the
+    /// slug's and the SMG's ammo are theirs and the helmet kits' helmet
+    /// stops more than the old kit's (a helmet-only arm shows in the bench).
+    #[test]
+    fn the_rushers_ammo_and_armour_follow_its_kit() {
+        for tier in [BotTier::Mid, BotTier::High] {
+            for rusher in RusherKit::ALL {
+                if rusher.worn_in(tier) != rusher {
+                    continue;
+                }
+                let gear = tier.gear().rusher_gear(rusher);
+                let found = kit_of(tier, rusher, gear.weapon).unwrap();
+                assert_eq!(found, gear, "{tier} {}", rusher.name());
+            }
+            let head = |rusher| armour_on(kit_of(tier, rusher, "spas_12"), "brain");
+            assert!(head(RusherKit::Helmet) > head(RusherKit::Control), "{tier}");
+            assert_eq!(head(RusherKit::Slug), head(RusherKit::Helmet), "{tier}");
+            let ammo = |rusher| kit_of(tier, rusher, "spas_12").unwrap().ammo;
+            assert_eq!(ammo(RusherKit::Slug), "ammo_12mm_slug");
+            assert_eq!(ammo(RusherKit::Helmet), "ammo_12mm_buck");
+        }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`): the same for the P90 and the
+    /// Kriss, whose ammo and armour the test data lacks. Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib
+    /// -- --ignored on_the_live_data_the_rushers_ammo`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_the_rushers_ammo_and_armour_follow_its_kit() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        the_rushers_ammo_and_armour_follow_its_kit();
+        for (tier, rusher, ammo) in [
+            (BotTier::High, RusherKit::Smg, "ammo_5.7x28"),
+            (BotTier::High, RusherKit::Alt, "ammo_45acp"),
+            (BotTier::Mid, RusherKit::Smg, "ammo_9x21"),
+            (BotTier::Mid, RusherKit::Alt, "ammo_45acp"),
+        ] {
+            let weapon = tier.gear().rusher_gear(rusher).weapon;
+            let found = kit_of(tier, rusher, weapon).unwrap();
+            assert!(damage::ammo_named(found.ammo).is_some(), "{ammo}");
+            assert_eq!(found.ammo, ammo);
+            assert!(weapons::weapon_named(weapon).is_some(), "{weapon}");
+        }
     }
 }

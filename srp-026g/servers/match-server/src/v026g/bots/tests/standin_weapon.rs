@@ -47,7 +47,7 @@
 //! clip's end rather than its start (the shots wait for the clip either
 //! way).
 
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
 
 use crate::v026g::bots::guns::{Arms, Gun, Load, Reload};
 use crate::v026g::drive::key;
@@ -139,11 +139,13 @@ pub(crate) struct Stock {
     kit: u32,
 }
 
-/// The kit of `tier` whose weapon is `item`.
+/// The kit of `tier` whose weapon is `item` (the bots' default equipment:
+/// the rusher in its old table).
 fn arms_with(tier: BotTier, item: &str) -> Option<&'static Arms> {
+    let equipment = BotEquipment::of(tier, RusherKits::default());
     BotRole::ALL
         .into_iter()
-        .flat_map(|role| Arms::kits_of(tier, role))
+        .flat_map(|role| Arms::kits_of(equipment, role))
         .find(|arms| arms.primary.0.item == item)
 }
 

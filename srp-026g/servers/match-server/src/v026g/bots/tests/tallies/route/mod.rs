@@ -16,6 +16,7 @@ mod falls;
 mod fields;
 mod pockets;
 mod probe;
+mod reversal_roles;
 mod stuck;
 mod walking;
 mod zones;
@@ -103,8 +104,10 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),
         request_gaps(),
+        Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         foliage(),
+        self_kills(),
         asks(),
         route_ends(),
         Box::new(probe::Probe::new(bodies)),

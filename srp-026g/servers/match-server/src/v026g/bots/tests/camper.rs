@@ -63,12 +63,13 @@ impl CamperOptions {
 /// The long gun among the kits of `tier` (the camper's first): a bolt rifle,
 /// else a marksman rifle ([`Gun::class`]).
 pub(crate) fn long_kit(tier: survarium::v026g::loadouts::BotTier) -> Option<&'static Arms> {
-    use survarium::v026g::loadouts::BotRole;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, RusherKits};
+    let equipment = BotEquipment::of(tier, RusherKits::default());
     let roles = [BotRole::Camper, BotRole::Flanker, BotRole::Support, BotRole::Rusher];
     ["bolt", "marksman"].into_iter().find_map(|class| {
         roles
             .into_iter()
-            .flat_map(|role| Arms::kits_of(tier, role))
+            .flat_map(|role| Arms::kits_of(equipment, role))
             .find(|arms| arms.primary.0.class() == class)
     })
 }

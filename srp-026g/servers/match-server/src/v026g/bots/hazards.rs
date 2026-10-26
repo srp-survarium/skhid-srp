@@ -30,11 +30,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use mapdata::{Damage, NodeId, Shape, Vec3, WalkGrid, World, ZoneKind};
-use survarium::v026g::match_msgs::anomaly_fields::WorldField;
 
 use super::anomalies::{Anomalies, Control, Schedule, SyncReport};
 pub use super::live_zones::ZoneSet;
-use super::live_zones::FieldBoard;
+use super::live_zones::{FieldBoard, WorldField};
 
 /// A switching zone counts as on this long before it switches on and
 /// after it switches off, ms: the client's off-grid ticks (≤ 50 ms) and a
@@ -324,6 +323,10 @@ impl Hazards {
         let mut zones = Vec::new();
         for (index, zone) in map.zones.iter().enumerate() {
             if zone.kind != ZoneKind::Damage || zone.damage.as_ref().is_some_and(|d| !d.harmful()) {
+                continue;
+            }
+            // The zones of a timed core are the board's (`field_source`), not baked.
+            if super::field_source::live_only(map, &zone.name) {
                 continue;
             }
             let anomaly = map
