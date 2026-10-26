@@ -115,7 +115,8 @@ impl Bots {
                 .and_then(|test| test.drive(bot, time, view));
             #[cfg(not(feature = "jump-test"))]
             let scripted: Option<Decision> = None;
-            let decision = match (scripted, estimate, me, self.tactics.as_ref()) {
+            #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
+            let mut decision = match (scripted, estimate, me, self.tactics.as_ref()) {
                 (Some(scripted), ..) => {
                     bot.motor.rest();
                     scripted
@@ -136,6 +137,7 @@ impl Bots {
             };
             #[cfg(feature = "jump-test")]
             if let Some(test) = self.jump_test.as_mut() {
+                test.quiet(bot.place, &mut decision);
                 test.motor_seen(bot, time, decision.keys);
             }
             if let Some(line) = bot.reflex.take_friend_note() {
