@@ -137,3 +137,4 @@ survarium::weapon_core	need_to_auto_reload	0x5F5	u8	m_need_to_auto_reload (the c
 survarium::weapon_core	recoil	0x5FC	f32	the first of four floats +5FCh..+608h (the recoil; the constructor's 0.0)
 survarium::weapon_core	unnamed_60c	0x60C	u32	unnamed; the constructor's and the activation's -1
 survarium::image	weapon_core_bind	0x2E30F0	u32	weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else
+survarium::lobby_client	replay_link	0x1E6144	u8	the link the server's 9E sent for the lobby's video tutorial link, UTF-8 with its zero (0x271426..0x271444); video_tutorial_link_clicked 0x28CDA0 opened it (ShellExecuteA)

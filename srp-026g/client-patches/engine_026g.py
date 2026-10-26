@@ -316,6 +316,11 @@ def every_function(spec=None, abi=None, inputs=None):
     return out
 
 
+def functions_by_symbol(spec=None, abi=None, inputs=None):
+    """{symbol: row} of every function (the checks read a row's VA here)."""
+    return {f["symbol"]: f for f in every_function(spec, abi, inputs)}
+
+
 def functions(spec=None, abi=None, inputs=None):
     """The rows called through a thunk (what check_engine_026g.py proves)."""
     return [f for f in every_function(spec, abi, inputs) if f["call"] == "thunk"]
@@ -327,6 +332,15 @@ FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # renderer's resource manager pointer is at 0x226047C) up to 0xA425000, where
 # our first section, `.srp`, begins.
 IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA425000
+
+
+def field(kind, name, path=None):
+    """The offset (or an `::image` row's VA) of `kind`'s field `name`, for
+    the checks: the one place the fact is written is fields_026g.tsv."""
+    rows = [f for f in fields(path) if f["kind"] == kind and f["field"] == name]
+    if len(rows) != 1:
+        raise Refused(f"fields_026g.tsv: no {kind} {name}")
+    return rows[0]["offset"]
 
 
 def fields(path=None):
@@ -510,7 +524,7 @@ def rust_text(fs, fields_=()):
         this = f"{'r#' if f['params'][0][1] in RUST_KEYWORDS else ''}{f['params'][0][1]}"
         lines += ["", f"/// {describe(f)}", "///", "/// # Safety",
                   f"/// `{this}` is an object whose vtable's slot +{f['slot']:#x} is a function of the model's "
-                  "convention and arguments.", "#[allow(dead_code)]", "#[inline(always)]",
+                  "convention and arguments.", "#[allow(dead_code, clippy::too_many_arguments)]", "#[inline(always)]",
                   f"pub unsafe fn {f['symbol']}({params}){ret} {{",
                   "    unsafe {",
                   f"        let slot = (*({this} as *const *const u32)).byte_add({f['slot']:#x}).read() as usize;",
@@ -532,7 +546,7 @@ def rust_text(fs, fields_=()):
                   f"name: c\"{f['export']}\" }};",
                   "", f"/// {f['name']} at `proc_address`, stdcall.", "///", "/// # Safety",
                   f"/// `proc_address` is GetProcAddress's answer (not null) for {f['symbol'].upper()}.",
-                  "#[allow(dead_code)]", "#[inline(always)]",
+                  "#[allow(dead_code, clippy::too_many_arguments)]", "#[inline(always)]",
                   f"pub unsafe fn {f['symbol']}(proc_address: *const c_void"
                   + (", " + params if params else "") + f"){ret} {{",
                   "    unsafe {",

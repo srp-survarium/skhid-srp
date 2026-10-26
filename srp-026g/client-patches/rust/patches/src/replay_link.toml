@@ -1,0 +1,11 @@
+# Patch 29: "Watch replay", the lobby's link starts the updater. Only the
+# decisions: which site, and the handler. The site (its VA, span and exit)
+# is sites_026g.tsv's; the link and kernel32 are vostok's (vostok::lobby,
+# vostok::kernel32); the logic is replay_link.rs.
+name = "replay_link"
+patch = 29
+
+# the link clicked, the lobby client given: a replay link starts the updater
+[[hook]]
+site = "lobby.replay_link_clicked"
+handler = "on_clicked"

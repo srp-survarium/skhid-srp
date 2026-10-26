@@ -62,3 +62,5 @@ engine_add_message	0x208ad0	ESP+4:handler ESP+8:channel ESP+12:body ESP+16:name 
 engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
 engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import	
 engine_get_temp_path_a	kernel32.dll!GetTempPathA	-	unsigned int engine_get_temp_path_a(unsigned int size, char *buffer)	proc	
+engine_get_module_file_name_w	0x870074	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)	import	
+engine_create_process_w	kernel32.dll!CreateProcessW	-	unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *process)	proc	

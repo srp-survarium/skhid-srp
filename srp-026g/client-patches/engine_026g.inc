@@ -195,3 +195,7 @@ extern engine_get_module_handle_a
 ; the IAT slot 0x870084 (kernel32, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_proc_address
+; unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)
+; the IAT slot 0x870074 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_module_file_name_w

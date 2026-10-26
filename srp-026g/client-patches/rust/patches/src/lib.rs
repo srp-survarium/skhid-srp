@@ -31,6 +31,7 @@ mod raw {
 
 pub mod vostok;
 
+pub mod replay_link;
 pub mod replay_viewer;
 pub mod forward_scroll;
 pub mod kill_feed;

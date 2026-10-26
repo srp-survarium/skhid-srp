@@ -171,18 +171,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     compared it with the asm it replaces).
 29. the same build: "Watch replay" (patch 29, revision 14). The lobby's
     video_tutorial_link_clicked (0x28CDA0, entry 106 of the callback
-    names, its address in the file once, called by nothing) jumps at
-    0x28CDB6 to replay_link where the original pushes ShellExecuteA's
-    arguments; the original's body (the delay-loaded ShellExecuteA of the
-    link buffer, enable_element) and the link buffer's every use (emptied,
-    filled by 9E as UTF-8 with its zero, tested, opened) are read;
-    replay_link reaches GetModuleFileNameW, GetModuleHandleA,
-    GetProcAddress and CloseHandle through the game's own IAT slots,
-    leaves only by its return, and holds the link's pattern and the fixed
-    program name; nothing aims inside the hook and no relocation is under
-    it; its code sits at 0x220 of `.srp`, after the upload code and the
-    default server and before the patches' mount (check 15's layout).
-    check_replay_link_026g.py runs the handler on made-up links.
+    names, its address in the file once, called by nothing) is at 0x28CDB6
+    the Rust patch replay_link's lohook (replay_link.toml, the site
+    lobby.replay_link_clicked, its exit the function's own end 0x28CDDD)
+    where the original pushes ShellExecuteA's arguments; the original's body
+    (the delay-loaded ShellExecuteA of the link buffer, enable_element) and
+    the link buffer's every use (emptied, filled by 9E as UTF-8 with its
+    zero, tested, opened) are read; the IAT slots the patch names
+    (GetModuleFileNameW, GetModuleHandleA, GetProcAddress, CloseHandle) are
+    those functions'; nothing aims inside the hook and no relocation is
+    under it. check_replay_link_026g.py runs the handler on made-up links
+    (and port/equiv/replay_link.py compared it with replay_link_026g.asm).
 30. the same build with --revision=<n> (a release's, REVISION + 1 and 255):
     against the build without it, only the revision byte and the PE
     checksum differ, and the version field says <n> with the shell_32.dll
@@ -606,13 +605,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.death_camera_bin(), "rb").read(),
           f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.REPLAY_LINK_VA:#x}",
-                        os.path.join(HERE, "replay_link_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.replay_link_bin(), "rb").read(),
-          f"{os.path.basename(P.replay_link_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SHARED_UPGRADES_VA:#x}",
@@ -1488,7 +1480,7 @@ def late_join_sites():
          (P.REPLAY_REATTACH_THUNK[0], len(P.REPLAY_REATTACH_THUNK[1])),
          (P.SOUND_QUEUE_CAVE_SITE[0], len(P.SOUND_QUEUE_CAVE_SITE[1])),
          (P.SOUND_QUEUE_HOOK[0], len(P.SOUND_QUEUE_HOOK[1])),
-         (P.REPLAY_LINK_HOOK[0], len(P.REPLAY_LINK_HOOK[1]))] + \
+         ] + \
         [(va, len(old)) for va, old, _, _ in P.SHARED_UPGRADES_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
@@ -4923,19 +4915,16 @@ def test_tab_self(original, image, before):
 
 
 def test_replay_link(original, image, before):
-    """"Watch replay" (patch revision 14, REPLAY_LINK_HOOK): the lobby's
+    """"Watch replay" (patch revision 14): the lobby's
     video_tutorial_link_clicked opened its link buffer with ShellExecuteA;
-    the build jumps to replay_link instead, which starts updater_skhid.exe
-    beside the exe for a replay link alone. check_replay_link_026g.py runs
-    the handler on made-up links."""
+    in the build the Rust patch replay_link (a lohook at
+    lobby.replay_link_clicked) starts updater_skhid.exe beside the exe for a
+    replay link alone. check_replay_link_026g.py runs the handler on
+    made-up links."""
     stock = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
-    va, old, offset, _ = P.REPLAY_LINK_HOOK
-    cave = P.REPLAY_LINK_VA + offset
-    check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
-          and rows(image, va, 6) == [f"jmp {cave:#x}", "nop"],
-          f"{va:#x}: `push 1 / push 0 / push 0` in the original and the build without the late join, "
-          f"`jmp {cave:#x}` here")
+    rust_lohooks(original, image, before, "replay_link",
+                 {0x28CDB6: ["push byte +0x1", "push byte +0x0", "push byte +0x0"]}, exits={0x28CDDD})
     check(rows(stock, P.REPLAY_LINK_HANDLER, 0x43) ==
           ["push esi", "mov esi,ecx", "mov eax,[esi+0x9c]", "mov ecx,[eax+0x53ac]", "mov edx,[ecx]",
            "mov eax,[edx+0x3c]", "call eax", "push byte +0x1", "push byte +0x0", "push byte +0x0",
@@ -4976,33 +4965,20 @@ def test_replay_link(original, image, before):
           and rows(stock, 0x2768A1, 7) == ["cmp byte [eax+0x1e6144],0x0"],
           "the link buffer (lobby client+1E6144h): emptied at 0x26F34F, filled by 9E as UTF-8 (CP 65001) "
           "with its zero (0x271426..0x271444), tested for empty at 0x2768A1, opened by the handler alone")
-    hits = branches_into(original, va + 1, va + len(old))
-    check(not hits, "no branch bytes or pointer values aim inside the hook" + "".join(", " + h for h in hits))
-    under = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
-    check(not under, f"no base relocation under {va:#x}")
-    code = open(P.replay_link_bin(), "rb").read()
-    body = code[:code.index(b"replay ")]
-    listing = ndisasm(body, cave)
-    texts = [text for _, _, text in listing]
-    pc = cave + 6
-    slots = set()
-    for _, _, text in listing:
-        match = re.fullmatch(r"call \[ebp-0x([0-9a-f]+)\]", text)
-        if match:
-            slots.add((pc - int(match.group(1), 16)) & 0xFFFFFFFF)
-    branches = {branch_target(text) for text in texts if branch_target(text) is not None}
-    check(texts[:3] == ["pusha", f"call {pc:#x}", "pop ebp"] and texts[-4:] == ["popa", "mov al,0x1", "pop esi", "ret 0x4"]
-          and all(cave <= target < cave + len(body) for target in branches)
-          and {text for text in texts if text.startswith("call") and branch_target(text) is None}
-          == {f"call [ebp-{pc - slot:#x}]" for slot in (0x870074, 0x87003C, 0x870084, 0x870040)} | {"call edx"}
-          and {s: table.get(s) for s in slots} == {
-              0x870074: ("KERNEL32.dll", "GetModuleFileNameW"), 0x87003C: ("KERNEL32.dll", "GetModuleHandleA"),
-              0x870084: ("KERNEL32.dll", "GetProcAddress"), 0x870040: ("KERNEL32.dll", "CloseHandle")}
-          and code[len(body):] == (b"replay \x88 \xa0 \xc0 \0"
-                                   + "updater_skhid.exe\0".encode("utf-16-le") + b"kernel32.dll\0CreateProcessW\0"),
-          "replay_link: pushad, its own address in ebp, the game's GetModuleFileNameW, GetModuleHandleA, "
-          "GetProcAddress (for CreateProcessW) and CloseHandle through their IAT slots, no branch out but its "
-          "return (`popad / mov al,1 / pop esi / ret 4`); the link's pattern and the program's fixed name")
+    slots = {name: engine_026g.functions_by_symbol()[name]["va"] for name in
+             ("engine_get_module_file_name_w", "engine_get_module_handle_a", "engine_get_proc_address",
+              "engine_close_handle")}
+    check({name: table.get(va) for name, va in slots.items()} == {
+              "engine_get_module_file_name_w": ("KERNEL32.dll", "GetModuleFileNameW"),
+              "engine_get_module_handle_a": ("KERNEL32.dll", "GetModuleHandleA"),
+              "engine_get_proc_address": ("KERNEL32.dll", "GetProcAddress"),
+              "engine_close_handle": ("KERNEL32.dll", "CloseHandle")}
+          and not any(name == "CreateProcessW" for _, name in table.values()),
+          "the import slots replay_link calls through (engine_026g.tsv) are GetModuleFileNameW, "
+          "GetModuleHandleA, GetProcAddress and CloseHandle's; CreateProcessW is not imported (the patch asks "
+          "GetProcAddress for it)")
+    check(rows(stock, 0x28CDDD, 6) == ["mov al,0x1", "pop esi", "ret 0x4"],
+          "the hook's exit 0x28CDDD is the handler's own end: `mov al,1 / pop esi / ret 4`")
 
 
 def test_shared_upgrades(original, image, before):
@@ -6040,7 +6016,6 @@ def test_late_join(original, without, server, source):
     # the bytes of its .bin where patch_026g.py puts it, int3 between them.
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
-            (P.REPLAY_LINK_OFFSET, P.replay_link_bin, "the replay link code"),
             (P.MOUNT_PATCHES_OFFSET, P.mount_patches_bin, "the patches' mount"),
             (P.SHARED_UPGRADES_OFFSET, P.shared_upgrades_bin, "the shared upgrades' code"),
             (P.PICKUP_OFFSET, P.pickup_bin, "the pickup code"),

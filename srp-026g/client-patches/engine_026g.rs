@@ -126,7 +126,7 @@ unsafe extern "thiscall" {
 ///
 /// # Safety
 /// `spottable` is an object whose vtable's slot +0x4 is a function of the model's convention and arguments.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 #[inline(always)]
 pub unsafe fn engine_spottable_can_be_spotted_by(spottable: *mut c_void, spotter: *mut c_void) -> u8 {
     unsafe {
@@ -140,7 +140,7 @@ pub unsafe fn engine_spottable_can_be_spotted_by(spottable: *mut c_void, spotter
 ///
 /// # Safety
 /// `spottable` is an object whose vtable's slot +0x0 is a function of the model's convention and arguments.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 #[inline(always)]
 pub unsafe fn engine_spottable_set_spotted(spottable: *mut c_void, spotter: *mut c_void) {
     unsafe {
@@ -154,7 +154,7 @@ pub unsafe fn engine_spottable_set_spotted(spottable: *mut c_void, spotter: *mut
 ///
 /// # Safety
 /// `interface` is an object whose vtable's slot +0x14 is a function of the model's convention and arguments.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 #[inline(always)]
 pub unsafe fn engine_gfx_set_member(interface: *mut c_void, data: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8 {
     unsafe {
@@ -180,12 +180,29 @@ pub const ENGINE_GET_TEMP_PATH_A: Proc = Proc { module: c"kernel32.dll", name: c
 ///
 /// # Safety
 /// `proc_address` is GetProcAddress's answer (not null) for ENGINE_GET_TEMP_PATH_A.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 #[inline(always)]
 pub unsafe fn engine_get_temp_path_a(proc_address: *const c_void, size: u32, buffer: *mut u8) -> u32 {
     unsafe {
         let function: unsafe extern "stdcall" fn(u32, *mut u8) -> u32 = core::mem::transmute(proc_address);
         function(size, buffer)
+    }
+}
+
+/// kernel32.dll!CreateProcessW, not imported: its address from GetProcAddress at run time (stdcall): unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *process)
+#[allow(dead_code)]
+pub const ENGINE_CREATE_PROCESS_W: Proc = Proc { module: c"kernel32.dll", name: c"CreateProcessW" };
+
+/// kernel32.dll!CreateProcessW at `proc_address`, stdcall.
+///
+/// # Safety
+/// `proc_address` is GetProcAddress's answer (not null) for ENGINE_CREATE_PROCESS_W.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_create_process_w(proc_address: *const c_void, application: *const u16, command: *mut u16, process_security: *mut c_void, thread_security: *mut c_void, inherit: u32, flags: u32, environment: *mut c_void, folder: *const u16, startup: *mut c_void, process: *mut c_void) -> u32 {
+    unsafe {
+        let function: unsafe extern "stdcall" fn(*const u16, *mut u16, *mut c_void, *mut c_void, u32, u32, *mut c_void, *const u16, *mut c_void, *mut c_void) -> u32 = core::mem::transmute(proc_address);
+        function(application, command, process_security, thread_security, inherit, flags, environment, folder, startup, process)
     }
 }
 
@@ -207,6 +224,8 @@ unsafe extern "C" {
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x870084 (kernel32, stdcall): void *engine_get_proc_address(void *module, const char *name)
     pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
+    /// the IAT slot 0x870074 (kernel32, stdcall): unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)
+    pub static engine_get_module_file_name_w: unsafe extern "stdcall" fn(*mut c_void, *mut u16, u32) -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
@@ -1675,5 +1694,20 @@ pub mod weapon_core {
     #[inline(always)]
     pub unsafe fn unnamed_60c(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x60c).cast() }
+    }
+}
+
+/// survarium::lobby_client's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod lobby_client {
+    use core::ffi::c_void;
+
+    /// +0x1e6144 (u8): the link the server's 9E sent for the lobby's video tutorial link, UTF-8 with its zero (0x271426..0x271444); video_tutorial_link_clicked 0x28CDA0 opened it (ShellExecuteA)
+    ///
+    /// # Safety
+    /// `this` is a survarium::lobby_client.
+    #[inline(always)]
+    pub unsafe fn replay_link(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x1e6144).cast() }
     }
 }

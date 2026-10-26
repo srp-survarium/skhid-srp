@@ -54,9 +54,8 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
     (checked in; STATE is 0x800 of the late join's state page, checked).
     The forward effect's UV scrolling is the Rust patch forward_scroll, in
-    the arena's block patches.code. "Watch replay"'s link code comes from replay_link_026g.asm:
-        nasm -f bin -DCAVE=0xA425220 replay_link_026g.asm -o replay_link_026g.section.bin
-    (checked in). One upgrade on several items comes from shared_upgrades_026g.asm:
+    the arena's block patches.code, and so is "Watch replay"'s link, the
+    Rust patch replay_link. One upgrade on several items comes from shared_upgrades_026g.asm:
         nasm -f bin -DCAVE=0xA425700 shared_upgrades_026g.asm -o shared_upgrades_026g.section.bin
     (checked in). A kit chosen before the start comes from kit_change_026g.asm:
         nasm -f bin -DCAVE=0xA425EC0 kit_change_026g.asm -o kit_change_026g.section.bin
@@ -291,9 +290,9 @@ Patches:
 - "Watch replay" (patch revision 14, with the late join, client_patch.md
   section 3.27). The lobby's video_tutorial_link_clicked (0x28CDA0) opened
   whatever text the server's 9E put into the lobby client's link buffer with
-  ShellExecuteA. A jump at 0x28CDB6 goes to replay_link
-  (replay_link_026g.asm, .srp+220h, after the upload code and the default
-  server, before the patches' mount): only `replay <8 hex> <32 hex> <64 hex>
+  ShellExecuteA. 0x28CDB6 is the Rust patch replay_link's lohook (the block
+  patches.code; replay_link.toml, sites_026g.tsv lobby.replay_link_clicked):
+  only `replay <8 hex> <32 hex> <64 hex>
   <1..10 digits>` starts updater_skhid.exe of this exe's folder with the
   command line `updater_skhid.exe <link>`; anything else does nothing;
 - one upgrade (a camouflage, a decal) on several items at once (patch 30,
@@ -570,6 +569,7 @@ import re
 import struct
 import sys
 
+import engine_026g
 import hooks_026g
 import link_026g as linker
 
@@ -1375,21 +1375,17 @@ FALL_GRAVITY = (
 # enable_element("root.statusPanel.videoTutorial", 1) (0x22A660). The buffer
 # is what the server's 9E sent, UTF-8 with its zero (0x271426..0x271444):
 # any text the server sent was opened as a file, a program or a URL. `push 1`
-# / `push 0` / `push 0` at 0x28CDB6 becomes a jump to replay_link
-# (replay_link_026g.asm at REPLAY_LINK_VA: in the first page of `.srp`,
-# after the upload code, the default server's stub and its address, 0x21D
-# at the most, and before the patches' mount at MOUNT_PATCHES_OFFSET; the
-# page has no other room for it; build() checks that they do not overlap):
+# / `push 0` / `push 0` at 0x28CDB6 is the Rust patch replay_link's lohook
+# (rust/patches/src/replay_link.rs, the site lobby.replay_link_clicked, its
+# exit the function's own `mov al,1 / pop esi / ret 4` at 0x28CDDD; until
+# the Rust port replay_link_026g.asm at .srp+220h):
 # only a link `replay <8 hex> <32 hex> <64 hex> <1..10 digits>` (lower-case
 # hex) starts <this exe's folder>\updater_skhid.exe with the command line
 # `updater_skhid.exe <link>` (CreateProcessW); anything else does nothing,
 # and the element is not enabled. The rest of the original's body stays,
 # never reached. No base relocation is under the hook.
-REPLAY_LINK_OFFSET = 0x220
-REPLAY_LINK_VA = SECTION_VA + REPLAY_LINK_OFFSET
 REPLAY_LINK_HANDLER = 0x28CDA0
-REPLAY_LINK_HOOK = (0x28CDB6, bytes.fromhex("6a016a006a00"), 0, 0xE9)
-REPLAY_LINK_BUFFER = 0x1E6144                 # in the lobby client
+REPLAY_LINK_BUFFER = engine_026g.field("survarium::lobby_client", "replay_link")   # 0x1E6144
 
 # One upgrade on several items (patch 30, client_patch.md section 3.28):
 # shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
@@ -2230,7 +2226,6 @@ INSTALLS = {
     # patch 27/49, 28, 29, 30, 33
     0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
     0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
-    0x28CDB6: (JUMP, "video_tutorial_link_clicked: replay_link", None, None),
     0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
     0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
     0x275589: (CALLEE, "`83 46 01`'s detach: detach_first", None, None),
@@ -2987,7 +2982,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     its sign-in says whether %TEMP%\\shell_32.dll exists
     (the Rust patch stale_dll), and its transparent effects scroll as in
     0.29 (the Rust patch forward_scroll), and the lobby's link starts the
-    updater for a replay link alone (replay_link_026g.section.bin), and an
+    updater for a replay link alone (the Rust patch replay_link), and an
     upgrade taken off names the item it comes off
     (shared_upgrades_026g.section.bin).
     revision: what the build with the late join says instead of REVISION
@@ -3364,14 +3359,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the patches' mount keeps more state than the late join's page has")
-        replay_link = open(replay_link_bin(), "rb").read()
-        if len(cave) > REPLAY_LINK_OFFSET or REPLAY_LINK_OFFSET + len(replay_link) > MOUNT_PATCHES_OFFSET:
-            sys.exit("the upload code (and the default server), the replay link code and the patches' mount "
-                     "do not fit before the pickup code")
-        va, expected, offset, opcode = REPLAY_LINK_HOOK
-        patch(data, va, expected, hook_bytes(REPLAY_LINK_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the replay link's hook")
         shared_upgrades = open(shared_upgrades_bin(), "rb").read()
         if MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET \
                 or SHARED_UPGRADES_OFFSET + len(shared_upgrades) > PICKUP_OFFSET:
@@ -3490,7 +3477,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
 
     if mode == "section":
         if late_join is not None:
-            cave = cave + b"\xCC" * (REPLAY_LINK_OFFSET - len(cave)) + replay_link
             cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
@@ -3637,10 +3623,6 @@ def default_bin(mode):
 
 def default_server_bin(mode):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), f"default_server_026g.{mode}.bin")
-
-
-def replay_link_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay_link_026g.section.bin")
 
 
 def shared_upgrades_bin():

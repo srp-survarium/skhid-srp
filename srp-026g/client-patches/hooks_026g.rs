@@ -329,6 +329,26 @@ pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_link (patch 29) ----
+
+/// The named exits of replay_link::on_clicked (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayLinkOnClickedExit { Done }
+/// The entry `replay_link_on_clicked` (0x28cdb6, video_tutorial_link_clicked 0x28CDA0 after its owner gave the lobby client (EAX), push 1/0/0 before ShellExecuteA of client+1E6144h; done: the function's mov al,1 / pop esi / ret 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_link_on_clicked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_link_on_clicked` calls this, from the game's jump at 0x28cdb6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_link::on_clicked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- replay_viewer (patch 26) ----
 
 /// The entry `replay_viewer_on_seek` (0x1ee3a3, the replay's seek 0x1EE2E0 on a user seek alone, after the clock went to the target (lea eax,[edi-3E8h]; ESI the game, EDI the target time)) calls this with the saved machine.

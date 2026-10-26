@@ -82,7 +82,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
 | `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
 | `rust/patches/src/forward_scroll.rs`, `forward_scroll.toml`, `port/equiv/forward_scroll.py` | Patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0), the Rust patch: three lohooks (`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`, `renderer_context.scene_time_bound`) in the block `patches.code`, and its spec for the port-only equivalence gate. Until the Rust port, `forward_scroll_026g.asm` at 0xB00 of `.srp` |
-| `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
 | `shared_upgrades_026g.asm`, `shared_upgrades_026g.section.bin` | The source of patch 30's code (one upgrade on several items: taking it off names the item) and that code assembled for 0x700 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
@@ -1765,11 +1765,11 @@ the movie's "Download and watch" calls `video_tutorial_link_clicked`. The
 original callback (0x28CDA0) opened whatever text was in that buffer with
 ShellExecute: a file, a program or a URL of the server's choice.
 
-**The patch.** Only in the builds with the late join (revision 14): a jump at
-0x28CDB6 goes to `replay_link` (`replay_link_026g.asm`, 472 bytes at
-`.srp`+220h, after the upload code and the default server, 0x21D at the
-most, and ending at +3F8h before the patches' mount at +400h; the first page
-has no other gap that large). Exactly
+**The patch.** Only in the builds with the late join (revision 14): 0x28CDB6
+is the Rust patch `replay_link`'s lohook (`rust/patches/src/replay_link.rs`,
+the site `lobby.replay_link_clicked`; until the Rust port `replay_link_026g.asm`
+at `.srp`+220h, ported with no change of behaviour, proven by
+`port/equiv/replay_link.py`). Exactly
 `replay ` + 8 + ` ` + 32 + ` ` + 64 lower-case hex digits + ` ` + 1 to 10
 digits starts `updater_skhid.exe` from the game exe's own folder (a fixed name;
 the link is only its arguments: the command line `updater_skhid.exe <link>`)

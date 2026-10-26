@@ -42,6 +42,7 @@ mod keyboard;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod lobby;
 pub mod replay;
 pub mod render;
 pub mod player;

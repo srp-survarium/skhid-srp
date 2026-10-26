@@ -187,4 +187,7 @@ extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const
 /* the IAT slot 0x870084 (kernel32, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
 
+/* the IAT slot 0x870074 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_module_file_name_w)(void * module, unsigned short * name, unsigned int size);
+
 #endif

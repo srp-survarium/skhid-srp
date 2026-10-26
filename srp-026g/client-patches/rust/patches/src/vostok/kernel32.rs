@@ -49,3 +49,50 @@ pub fn file_exists(path: &CStr) -> bool {
     }
     true
 }
+
+/// GetModuleFileNameW of this exe into `buffer` (its length the size
+/// given): the path's length without its NUL, the size when it was cut
+/// short, or 0 when it failed, as GetModuleFileNameW answers.
+pub fn exe_path(buffer: &mut [u16]) -> u32 {
+    // SAFETY: GetModuleFileNameW through the exe's import slot; the module
+    // NULL (this exe); it writes at most `buffer.len()` units.
+    unsafe { (raw::engine_get_module_file_name_w)(null_mut(), buffer.as_mut_ptr(), buffer.len() as u32) }
+}
+
+/// A process started: its two handles, for [`close`].
+pub struct Started {
+    process: *mut c_void,
+    thread: *mut c_void,
+}
+
+/// CreateProcessW of `application` (no search) with the command line
+/// `command` in the folder `folder`, nothing inherited, no flags, this
+/// environment, a STARTUPINFOW with only its size; None when kernel32 has no
+/// CreateProcessW or the start failed. Each text is NUL-ended UTF-16.
+pub fn start_process(application: &[u16], command: &mut [u16], folder: &[u16]) -> Option<Started> {
+    /// STARTUPINFOW's size, its first dword (`cb`).
+    const STARTUP_SIZE: usize = 0x44;
+    let at = proc_address(&raw::ENGINE_CREATE_PROCESS_W)?;
+    let mut startup = [0u32; STARTUP_SIZE / 4];
+    startup[0] = STARTUP_SIZE as u32;
+    let mut started = [0usize; 4]; // PROCESS_INFORMATION: hProcess, hThread, the two ids
+    // SAFETY: CreateProcessW's address (GetProcAddress said so); NUL-ended
+    // texts (the callers' arrays), the startup info and the process
+    // information ours for the call.
+    let done = unsafe {
+        raw::engine_create_process_w(at.as_ptr(), application.as_ptr(), command.as_mut_ptr(), null_mut(),
+                                     null_mut(), 0, 0, null_mut(), folder.as_ptr(), startup.as_mut_ptr().cast(),
+                                     started.as_mut_ptr().cast())
+    };
+    (done != 0).then(|| Started { process: started[0] as *mut c_void, thread: started[1] as *mut c_void })
+}
+
+/// Closes a started process's handles: its thread's, then its own.
+pub fn close(started: Started) {
+    // SAFETY: CloseHandle through the exe's import slot, on the two handles
+    // CreateProcessW gave.
+    unsafe {
+        (raw::engine_close_handle)(started.thread);
+        (raw::engine_close_handle)(started.process);
+    }
+}
