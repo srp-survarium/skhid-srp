@@ -4526,3 +4526,8 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	ECX	the respawn rule (vtable 0xA16014 slot +44h; +138h + 4 x place: the place's respawn time, -1 none)	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+4	match_hud_state: +0 the hud's place (0FFh none); writes +08h the respawn seconds left, ceil((respawn time - now) x 0.001) (vostok::math::ceil 0x5D970; its body emulated: 0.3 -> 1, 8.65 -> 9, 9.0 -> 9), 0 for no place, no time or a time not after now	observed
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+8	now, the game's time in ms	observed
+0x00236c30	survarium::game_world_ui::set_local_respawn_time	EAX	the respawn seconds left (hud+2Ch, update_ui 0x23B3FC); returns at once when equal to the last (the global 0xACFC30)	observed
+0x00236c30	survarium::game_world_ui::set_local_respawn_time	entry ESP+4	the hud; root.set_respawn_time with "%s %02d:%02d" (st_respawn_time_pref, minutes, seconds), "" for 0	observed
