@@ -421,10 +421,10 @@ mod tests {
 
     use crate::v026g::bots::tactics::tests::field_with;
 
-    fn run(gen: &mut FieldGen, world: &World, to: u32) {
+    fn run(fg: &mut FieldGen, world: &World, to: u32) {
         let mut now = 0;
         while now <= to {
-            gen.tick(now, world);
+            fg.tick(now, world);
             now += TICK_MS;
         }
     }
@@ -434,88 +434,88 @@ mod tests {
     #[test]
     fn the_generator_follows_the_release_rule() {
         let world = field_with(|_| {});
-        let mut gen = FieldGen::new(&world, 7, 3, Taker::None, WORLD_MS, RADIUS_M);
-        run(&mut gen, &world, FIRST_TRY_MS - TICK_MS);
-        assert_eq!(gen.active(), 0, "nothing before the first try");
-        run(&mut gen, &world, 400_000);
-        assert!((1..=3).contains(&gen.active()), "{}", gen.active());
-        assert_eq!(gen.active(), 3.min(gen.stats.made as usize), "the cap holds, and fields stay with no taker");
-        for (i, a) in gen.active.iter().enumerate() {
+        let mut fg = FieldGen::new(&world, 7, 3, Taker::None, WORLD_MS, RADIUS_M);
+        run(&mut fg, &world, FIRST_TRY_MS - TICK_MS);
+        assert_eq!(fg.active(), 0, "nothing before the first try");
+        run(&mut fg, &world, 400_000);
+        assert!((1..=3).contains(&fg.active()), "{}", fg.active());
+        assert_eq!(fg.active(), 3.min(fg.stats.made as usize), "the cap holds, and fields stay with no taker");
+        for (i, a) in fg.active.iter().enumerate() {
             assert!(a.born >= FIRST_TRY_MS);
-            for b in &gen.active[i + 1..] {
+            for b in &fg.active[i + 1..] {
                 assert!(a.at.distance_xz(b.at) >= APART_M, "{:?} {:?}", a.at, b.at);
             }
         }
-        let f = &gen.active[0];
+        let f = &fg.active[0];
         assert_eq!(f.phase(f.born), FieldPhase::Charging { damage_from: f.born + CHARGE_MS });
         assert_eq!(f.phase(f.born + CHARGE_MS), FieldPhase::Damaging { until: Some(f.born + CHARGE_MS + DAMAGE_MS) });
         assert!(matches!(f.phase(f.born + CHARGE_MS + DAMAGE_MS), FieldPhase::Holding));
-        assert!(gen.stats.held_ms > 0);
+        assert!(fg.stats.held_ms > 0);
     }
 
     /// A scripted taker takes the artefact 30 s into the holding: the field goes and its place rests a minute.
     #[test]
     fn a_taken_field_goes_and_its_place_rests() {
         let world = field_with(|_| {});
-        let mut gen = FieldGen::new(&world, 7, 1, Taker::Scripted(TAKE_AFTER_MS), WORLD_MS, RADIUS_M);
+        let mut fg = FieldGen::new(&world, 7, 1, Taker::Scripted(TAKE_AFTER_MS), WORLD_MS, RADIUS_M);
         let mut now = 0;
         let mut born = None;
         while now < 200_000 {
-            gen.tick(now, &world);
-            if born.is_none() && gen.active() == 1 {
-                born = Some((now, gen.active[0].at));
+            fg.tick(now, &world);
+            if born.is_none() && fg.active() == 1 {
+                born = Some((now, fg.active[0].at));
             }
             now += TICK_MS;
         }
         let (at, place) = born.expect("a field was made");
         assert!(at >= FIRST_TRY_MS);
         // It was taken at born + 20 + 4 + 30 s, and the place rests 60 s after.
-        assert!(gen.stats.made >= 1);
+        assert!(fg.stats.made >= 1);
         let gone = at + CHARGE_MS + DAMAGE_MS + TAKE_AFTER_MS;
-        assert!(gen.resting.iter().any(|&(p, until)| p == place && until >= gone + REST_MS - TICK_MS) || gen.active.iter().all(|f| f.born > at));
+        assert!(fg.resting.iter().any(|&(p, until)| p == place && until >= gone + REST_MS - TICK_MS) || fg.active.iter().all(|f| f.born > at));
     }
 
     /// The world lists the fields every `world_ms`, and the lag is from the making to the first listing.
     #[test]
     fn worlds_list_the_fields_and_the_lag_is_counted() {
         let world = field_with(|_| {});
-        let mut gen = FieldGen::new(&world, 3, 4, Taker::None, 5_000, RADIUS_M);
+        let mut fg = FieldGen::new(&world, 3, 4, Taker::None, 5_000, RADIUS_M);
         let mut now = 0;
         let mut listings = 0;
         while now < 120_000 {
-            gen.tick(now, &world);
-            if let Some(listed) = gen.world_due(now) {
+            fg.tick(now, &world);
+            if let Some(listed) = fg.world_due(now) {
                 listings += 1;
-                assert_eq!(listed.len(), gen.active());
+                assert_eq!(listed.len(), fg.active());
             }
             now += TICK_MS;
         }
         assert_eq!(listings, 120_000 / 5_000 + 1);
-        assert!(!gen.stats.lag_ms.is_empty());
-        assert!(gen.stats.lag_ms.iter().all(|&lag| lag <= 5_000), "{:?}", gen.stats.lag_ms);
+        assert!(!fg.stats.lag_ms.is_empty());
+        assert!(fg.stats.lag_ms.iter().all(|&lag| lag <= 5_000), "{:?}", fg.stats.lag_ms);
     }
 
     /// A field hurts a floor under it only once it damages: the charging one is harmless.
     #[test]
     fn a_field_hurts_only_once_it_damages() {
         let world = field_with(|_| {});
-        let mut gen = FieldGen::new(&world, 11, 1, Taker::None, WORLD_MS, RADIUS_M);
+        let mut fg = FieldGen::new(&world, 11, 1, Taker::None, WORLD_MS, RADIUS_M);
         let mut now = 0;
-        while gen.active() == 0 {
-            gen.tick(now, &world);
+        while fg.active() == 0 {
+            fg.tick(now, &world);
             now += TICK_MS;
         }
-        let f = gen.active[0].clone();
+        let f = fg.active[0].clone();
         let node = world.grid.locate(f.at, 0.5).unwrap();
-        assert_eq!(gen.hit_per_s_at(node), 0.0, "charging");
-        assert_eq!(gen.here(node), Some((f.id, false)));
+        assert_eq!(fg.hit_per_s_at(node), 0.0, "charging");
+        assert_eq!(fg.here(node), Some((f.id, false)));
         while now < f.born + CHARGE_MS + TICK_MS {
-            gen.tick(now, &world);
+            fg.tick(now, &world);
             now += TICK_MS;
         }
-        assert_eq!(gen.hit_per_s_at(node), 0.5);
-        assert_eq!(gen.here(node), Some((f.id, true)));
-        gen.sample_shut(world.grid.len());
-        assert!(gen.stats.shut.0 > 0.0);
+        assert_eq!(fg.hit_per_s_at(node), 0.5);
+        assert_eq!(fg.here(node), Some((f.id, true)));
+        fg.sample_shut(world.grid.len());
+        assert!(fg.stats.shut.0 > 0.0);
     }
 }

@@ -60,7 +60,7 @@ pub(super) struct TickAt<'a> {
     pub(super) fall: Option<Fall>,
     pub(super) carry: Option<CarryEvent>,
     /// The anomaly field on the body's floor, and whether it hurts (`standin_fields`).
-    pub(super) field: Option<(survarium::v026g::match_msgs::anomaly_fields::FieldId, bool)>,
+    pub(super) field: Option<(crate::v026g::bots::live_zones::FieldId, bool)>,
 }
 
 /// The `routes:` line in its three places ([`RouteTally::line`]); a piece is `key value` pairs.

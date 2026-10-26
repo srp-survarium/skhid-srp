@@ -13,7 +13,7 @@
 
 use super::*;
 
-use survarium::v026g::match_msgs::anomaly_fields::FieldId;
+use crate::v026g::bots::live_zones::FieldId;
 
 use super::super::super::standin_fields::FieldStats;
 
