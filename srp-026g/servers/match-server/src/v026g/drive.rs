@@ -59,6 +59,9 @@ pub mod key {
     /// waited 3 s; client patch 38 has no cooldown.
     /// (0x2D877C).
     pub const SPOT: u32 = 0x1000_0000;
+    /// The suicide (bit 24): a hit on the player's own head. Only the jump test sends it
+    /// (`bots/jump_test.rs`, cargo feature `jump-test`); [`NEVER`] still holds it back.
+    pub const SUICIDE: u32 = 0x0100_0000;
     /// Bits a bot never sends: the suicide (24: a hit on the player's own
     /// head, 0x2D8BC1; client patch 34 sends it for the K key), the wheel's
     /// weapon switch (25, 26) and the unused 29, 30, 31.

@@ -24,7 +24,7 @@ impl Bots {
         #[cfg(feature = "jump-test")]
         if bot.entered.is_some()
             && let Some(test) = self.jump_test.as_mut()
-            && test.think(bot, view)
+            && test.think(bot, view, &tactics.world)
         {
             return;
         }

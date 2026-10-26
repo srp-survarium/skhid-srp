@@ -40,6 +40,14 @@
 //! fire, no plays) unless `SRP_JUMP_TEST_IDLE_OTHERS=0`; `SRP_JUMP_TEST_MAX_ACTIVE=<n>` caps the tries
 //! under way at once (the other bots rest). The log line of a try carries its `lane`.
 //!
+//! A bot that starts a try whose walk back to the start is longer than the respawn delay (8 s) plus
+//! the walk from a spawn of its team (the mean over up to three spawns, both walks at the steady
+//! speed along the grid route, a margin of 2 s) kills itself: the suicide bit (24) of the input mask,
+//! which hits the player's own head (`client_patch.md` 3.32, PROVEN in the code, not run in a game).
+//! The next world must show it dead; if it is alive 1.5 s later the log has `suicide_failed` and it
+//! walks, without a second try. A suicide is logged with `route_back_s`, `respawn_s` and `saved_s`.
+//! A team deathmatch charges a ticket; the test holds the end of the match.
+//!
 //! `speed` may also be `motor` or `motor_run` (the ordinary drive, walking or running): the bot is sent
 //! from the start to the top of the ledge by the ordinary route and motor, nothing is scripted, and the
 //! log line of the try carries a `motor` object: each press the motor made (`by`, the route press's
@@ -55,7 +63,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use mapdata::Vec3;
+use mapdata::{Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
@@ -66,6 +74,7 @@ use super::plays::{Go, Intent, Pace};
 use super::view::{MatchView, Place};
 use super::Bot;
 use super::motor::RoutePress;
+use super::path;
 use crate::v026g::drive::key;
 
 /// Worlds are asked for this often around a try, ms (`SRP_JUMP_TEST_BURST_MS`).
@@ -96,6 +105,17 @@ const OUTSTANDING_MS: u32 = 600;
 const MOTOR_MAX_MS: u32 = 25_000;
 /// How far past the face, along its normal, a motor-driven try's top point is, m.
 const TOP_BEYOND_M: f32 = 1.2;
+/// The respawn delay of every mode's config (`respawn_time`), s (`docs/notes/modes_maps.md`).
+const RESPAWN_S: f32 = 8.0;
+/// A suicide has to save this much over the estimate to be worth it, s (the estimate is a walk at
+/// the steady speed over the route's length: jumps and drops are not in it).
+const SUICIDE_MARGIN_S: f32 = 2.0;
+/// The suicide bit is sent this many ticks.
+const SUICIDE_TICKS: u32 = 3;
+/// A bot still alive this long after the suicide bit walks to the start instead, ms.
+const SUICIDE_WAIT_MS: u32 = 1_500;
+/// The steady walking speed of the estimates, m/s (the `Kinematics` default).
+const WALK_MPS: f32 = 3.5;
 
 /// One row of a world: what the owner's client says of one body at one tick.
 #[derive(Clone, Debug, PartialEq)]
@@ -587,8 +607,55 @@ impl Plan {
     }
 }
 
+/// The estimate that made a bot kill itself: the walk back to a try's start against the respawn
+/// and the walk from a spawn.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Suicide {
+    back_s: f32,
+    respawn_s: f32,
+}
+
+impl Suicide {
+    /// When the walk back (`back_s`) is longer than the respawn delay plus the walk from a spawn
+    /// (`spawn_s`) by the margin.
+    fn when(back_s: f32, spawn_s: f32) -> Option<Self> {
+        let respawn_s = RESPAWN_S + spawn_s;
+        (back_s > respawn_s + SUICIDE_MARGIN_S).then_some(Self { back_s, respawn_s })
+    }
+
+    fn json(self, def: &TryDef, place: Place, what: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": def.id, "bot": place, what: true, "route_back_s": self.back_s,
+            "respawn_s": self.respawn_s, "saved_s": self.back_s - self.respawn_s,
+        })
+    }
+}
+
+/// The walk time over the grid between two points, s.
+fn route_s(world: &World, from: Vec3, to: Vec3) -> Option<f32> {
+    let a = path::goal_floor(&world.grid, from)?;
+    let b = path::goal_floor(&world.grid, to)?;
+    path::plan(&world.grid, a, b).map(|route| route.length() / WALK_MPS)
+}
+
+/// Whether a bot at `from` does better to die and respawn than to walk to the start of `def`: the
+/// walk from up to three of its team's spawns stands for the respawn point (it is a random one).
+fn suicide_estimate(world: &World, team: u8, from: Vec3, def: &TryDef) -> Option<Suicide> {
+    let start = start_of(def);
+    let back_s = route_s(world, from, start)?;
+    let own: Vec<Vec3> = world.map.spawns.iter().filter(|s| s.team == i32::from(team)).map(|s| s.position).collect();
+    let spawns: Vec<Vec3> = if own.is_empty() { world.map.spawns.iter().map(|s| s.position).collect() } else { own };
+    let times: Vec<f32> = spawns.iter().step_by((spawns.len() / 3).max(1)).filter_map(|&at| route_s(world, at, start)).collect();
+    if times.is_empty() {
+        return None;
+    }
+    Suicide::when(back_s, times.iter().sum::<f32>() / times.len() as f32)
+}
+
 #[derive(Clone, Debug)]
 enum Phase {
+    /// The bit of the suicide is sent; the next world should show the body dead.
+    Suicide { since: u32, est: Suicide },
     /// Walking to the start by the ordinary route.
     Go { since: u32 },
     /// Standing still facing the heading.
@@ -832,7 +899,7 @@ impl JumpTest {
 
     /// The think of a bot in the mode: the intent (a walk to the start while going, else standing).
     /// Returns whether the bot is the test's.
-    pub fn think(&mut self, bot: &mut Bot, view: &MatchView) -> bool {
+    pub fn think(&mut self, bot: &mut Bot, view: &MatchView, world: &World) -> bool {
         self.reload();
         let now = view.clock;
         if !self.runners.contains_key(&bot.place) {
@@ -859,6 +926,9 @@ impl JumpTest {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             // Dead: the try is lost with the life; it is redone from the start.
             if let Some(active) = runner.active.take() {
+                if let Phase::Suicide { est, .. } = active.phase {
+                    Self::line(&mut self.tries_log, &est.json(&active.def, bot.place, "suicide"));
+                }
                 let def = TryDef { repeat: 1, ..active.def };
                 runner.pending.push_front(def);
             }
@@ -882,7 +952,11 @@ impl JumpTest {
                 *started
             };
             let sprints = matches!(def.speed, Speed::Sprint | Speed::MotorRun);
-            let rest = if sprints { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
+            let rest = match suicide_estimate(world, bot.team, me.feet, &def) {
+                Some(est) => Phase::Suicide { since: now, est },
+                None if sprints => Phase::Rest { until: now + REST_BEFORE_SPRINT_MS },
+                None => Phase::Go { since: now },
+            };
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None });
         }
         let Some(active) = runner.active.as_mut() else {
@@ -890,6 +964,13 @@ impl JumpTest {
         };
         let start = start_of(&active.def);
         match &mut active.phase {
+            Phase::Suicide { since, est } => {
+                if now > *since + SUICIDE_WAIT_MS {
+                    // Still alive (a helmet took the hit): no second try, the bot walks.
+                    Self::line(&mut self.tries_log, &est.json(&active.def, bot.place, "suicide_failed"));
+                    active.phase = Phase::Go { since: now };
+                }
+            }
             Phase::Rest { until } => {
                 if now >= *until {
                     active.phase = Phase::Go { since: now };
@@ -956,6 +1037,10 @@ impl JumpTest {
         let me = view.place(bot.place).filter(|p| p.alive)?;
         match &mut active.phase {
             Phase::Rest { .. } => Some(Decision::default()),
+            Phase::Suicide { since, .. } => Some(Decision {
+                keys: if time >= *since && time < *since + SUICIDE_TICKS * TICK_MS { key::SUICIDE } else { 0 },
+                turn: (0.0, 0.0),
+            }),
             Phase::Go { .. } | Phase::Motor { .. } => None,
             Phase::Settle { since, asked } => {
                 let heading = heading_of(&active.def);
@@ -1374,6 +1459,18 @@ mod tests {
     fn wide_def(angle: f32, runup: f32) -> TryDef {
         let site = named_site("chem125c", &HashMap::new()).expect("a site");
         TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3 }
+    }
+
+    #[test]
+    fn a_bot_kills_itself_only_when_the_walk_back_beats_the_respawn_by_the_margin() {
+        // 8 s of respawn and 5 s from a spawn: 13 s, and 2 s of margin.
+        assert_eq!(Suicide::when(30.0, 5.0), Some(Suicide { back_s: 30.0, respawn_s: 13.0 }));
+        assert_eq!(Suicide::when(15.1, 5.0), Some(Suicide { back_s: 15.1, respawn_s: 13.0 }));
+        assert_eq!(Suicide::when(14.9, 5.0), None);
+        assert_eq!(Suicide::when(9.0, 0.5), None);
+        let line = Suicide { back_s: 30.0, respawn_s: 13.0 }.json(&def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold), 3, "suicide");
+        assert_eq!(line["saved_s"], 17.0);
+        assert_eq!(line["suicide"], true);
     }
 
     #[test]
