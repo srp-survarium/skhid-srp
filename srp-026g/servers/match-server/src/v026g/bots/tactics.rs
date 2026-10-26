@@ -1487,7 +1487,15 @@ impl Tactics {
                 continue;
             }
             let d = at.distance_xz(probe);
-            if d > r || !self.walkable(node) || grid.in_pocket(node) {
+            // Not at an edge: a hold on a ledge strafes and turns in a fight and
+            // steps off it (the smoke of the search over every storey: falls off
+            // +16 % in all, +75 % on Cologne's decks).
+            if d > r
+                || !self.walkable(node)
+                || grid.in_pocket(node)
+                || grid.near_fall(node)
+                || grid.near_lip(node)
+            {
                 continue;
             }
             let band = ((at.y - low) / STOREY_BAND_M) as usize;
@@ -1962,6 +1970,7 @@ pub(super) mod tests {
             up_m,
             sight_to,
             side: Some(0),
+            samples: 600,
             ..SpotQuery::ring(anchor, 0.0, 14.0)
         };
         let ys = |q: &SpotQuery| -> Vec<f32> {
@@ -1983,6 +1992,13 @@ pub(super) mod tests {
         // The platform ranks with the best of the ground (its credit is
         // capped), so the ground spots are still offered.
         assert!(seen.iter().any(|&y| y < 1.0), "{seen:?}");
+        // And none of the spots up there is at the platform's edge.
+        let grid = &tactics.world.grid;
+        for spot in tactics.spots(&query(8.0, Some(anchor)), 0, 40, &mut Rng::new(3)) {
+            if spot.at.y > 3.5 {
+                assert!(!grid.near_fall(spot.node) && !grid.near_lip(spot.node), "{spot:?}");
+            }
+        }
         // The roof is no walk's, in or out of the window.
         let roof = SpotQuery {
             prefer_high: 1.0,
