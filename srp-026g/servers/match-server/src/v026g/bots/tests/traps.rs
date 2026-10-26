@@ -177,10 +177,42 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     assert!(!bots.teams[0].trap_field.is_empty());
     // The other team's list stays empty: it is not their trap.
     assert!(bots.teams[1].knowledge.traps.all().is_empty());
-    // Fired: spent, the floors are open again.
+    // Fired: spent, the floors are open again; the team's trap went off,
+    // and nobody with a broken leg is near it.
     bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
     assert!(bots.teams[0].trap_field.is_empty());
+    assert_eq!(bots.own_trap_counts().fired, 1);
+    assert_eq!(bots.own_trap_counts().own_team_caught, 0);
     // A world without it: gone.
     bots.traps_from_world(&[0u8; 20], 60_000);
     assert!(bots.teams[0].knowledge.traps.all().is_empty());
+}
+
+/// A trap of the team that goes off with a broken-legged body of the same
+/// team near it is an own-team catch; with the legs whole, or the body far,
+/// it is not.
+#[test]
+pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_team_catch() {
+    let (_, mut bots) = run(None, Tuning::default(), 4);
+    let clock = Clock {
+        clock: 5_000,
+        time_left_s: 0.0,
+        total_s: 0.0,
+        playing: true,
+    };
+    let world = bots.tactics.as_ref().map(|t| t.world.clone());
+    let view = bots.tracker.view(&clock, &bots.tuning.kin, world.as_deref());
+    let at = view.place(0).unwrap().feet + Vec3::new(1.0, 0.0, 0.0);
+    // Legs whole: a trap went off, nobody caught.
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (1, 0));
+    // A broken leg beside it: caught. The other team's trap is not ours.
+    bots.bots[0].as_mut().unwrap().hurt.leg_broken = true;
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (2, 1));
+    bots.count_own_traps(5_000, &[(1, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (3, 1));
+    // Far from it: not caught.
+    bots.count_own_traps(5_000, &[(0, at + Vec3::new(30.0, 0.0, 0.0))]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (4, 1));
 }
