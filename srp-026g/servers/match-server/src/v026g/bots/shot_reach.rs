@@ -6,10 +6,19 @@
 //! its cull. A layer is heard out to min(its `max_distance`, its preset's cull) and the shot
 //! reaches the largest over the weapon's enabled layers: 55 m (the suppressed: VSS, VAL, A9-91,
 //! VSK-94), 100 m (pistols, most shotguns, UZI), 150 m (the AK family, SKS, SVD, SMGs) and 200 m
-//! (the bolt rifles); and 19.3 m (FN P90 and MP7, whose layers all end there) and 240 m (the
-//! Neostead, Saiga-12 and Vepr-12: Rudnya's distant one-shot environment layer, which the other
-//! shotguns' composites do not have). All 83 weapons of the live archives have a chain that
-//! resolves to the end (`srp-shot-reach --check` says `partial` otherwise).
+//! (the bolt rifles); and 19.3 m (FN P90 and MP7: every layer of their composites is on the
+//! `main_3rd_view` curve, which reaches 0 at 19.293 m, and none is on an echo or distant curve as
+//! the other SMGs' are; PROVEN data, the intent is a GUESS). All 83 weapons of the live archives
+//! have a chain that resolves to the end (`srp-shot-reach --check` says `partial` otherwise).
+//!
+//! **Rudnya's environment layer.** The 0.29a3 weapons' composites (FN P90, HK416, M4A1, MP7, Neostead,
+//! PKP, Saiga-12, Vepr-12) carry a layer `weapons/environments/level_01/...` (no other level has
+//! one). For the Neostead, Saiga-12 and Vepr-12 it is a `core_distant_one_shot` echo that reaches
+//! 240 m; without it they reach 21 m (Neostead) or 19.3 m. Nothing in the executable (no string for
+//! `environments`) or the data picks an environment layer by level, so the client plays it on every
+//! map (LIKELY, not proven). The table keeps the reach without it in the second column, which the
+//! bots use, and the reach with it in a third where it differs (240); the owner decides whether the
+//! LIKELY reading is taken.
 //!
 //! The table is `shot_reach.tsv`, made by `srp-shot-reach` from the game's archives
 //! (`survarium::v026g::shot_reach` is the derivation, read from the files), keyed by the weapon's

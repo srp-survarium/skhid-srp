@@ -1,6 +1,7 @@
 # How far a shot is heard by weapon, metres: `srp-shot-reach --dir <game folder>` (survarium::v026g::shot_reach)
-# over the live archives (resources.db and patches 12-34). Regenerate, or check a release's archives
-# with `srp-shot-reach --dir <game folder> --check shot_reach.tsv`; sorted by name, tab between.
+# over the live archives (resources.db and patches 12-34). Columns: name, the reach on any map (what the bots
+# use), and where it differs the reach with Rudnya's environment layer (see shot_reach.rs). Regenerate, or check
+# a release's archives with `srp-shot-reach --dir <game folder> --check shot_reach.tsv`; sorted by name, tabs.
 wpn_a545	150
 wpn_a9_91	55
 wpn_aek_919k	100
@@ -36,8 +37,8 @@ wpn_mp7_silencer	55
 wpn_mp7_silencer_special	55
 wpn_mp_153	100
 wpn_msbs_carbine	150
-wpn_neostead	240
-wpn_neostead_2	240
+wpn_neostead	21	240
+wpn_neostead_2	21	240
 wpn_pkp_pecheneg	55
 wpn_pm	100
 wpn_pp2000	150
@@ -47,7 +48,7 @@ wpn_rem_700_premium	200
 wpn_rem_870	100
 wpn_rpd	150
 wpn_rpk	150
-wpn_saiga_12	240
+wpn_saiga_12	19.293	240
 wpn_saiga_12_premium	150
 wpn_sks	150
 wpn_sks_premium	150
@@ -71,8 +72,8 @@ wpn_uzi_premium_2	100
 wpn_val	55
 wpn_valmet	150
 wpn_vepr	150
-wpn_vepr_12	240
-wpn_vepr_12_premium	240
+wpn_vepr_12	19.293	240
+wpn_vepr_12_premium	19.293	240
 wpn_vepr_premium	150
 wpn_vityaz	150
 wpn_vityaz_premium	150
