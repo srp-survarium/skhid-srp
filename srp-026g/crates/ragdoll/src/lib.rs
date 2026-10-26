@@ -2,9 +2,10 @@
 //! a visual-only XPBD ragdoll that the simulation never sees.
 //!
 //! `no_std`, no allocation, no engine pointer: the same code is unit-tested
-//! here and runs in the client's arena (`client-patches/ragdoll_arena`,
-//! linked into `.srpx` by `link_026g.py`), which reads the game's memory
-//! into these types once and writes the drawn bones back.
+//! here and runs in the client's arena: the Rust patch `ragdoll`
+//! (`client-patches/rust/patches/src/ragdoll.rs`, over vostok; linked into
+//! `.srpx` by `link_026g.py`) reads the game's memory into these types once
+//! a frame and writes the drawn bones back.
 //!
 //! - [`ragdoll`]: one ragdoll, its bodies, joints and limits, the step and
 //!   the drawn skeleton;

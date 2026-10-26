@@ -443,6 +443,7 @@ import subprocess
 import sys
 import tempfile
 
+import engine_026g
 import patch_026g as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1549,8 +1550,7 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.RAGDOLL_HOOKS]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
 def pickup_sites():
@@ -3868,7 +3868,7 @@ def test_suicide_key(original, image, before):
     check(stock.read(0x2D8BC1, 7) == bytes.fromhex("f7470400000001") and quick == [0x2D8777],
           "base_player::process_quick_slots tests bit 24 of the input (0x2D8BC1 `test dword [edi+4],1000000h`) and "
           "is called from the input apply 0x2D86E0 alone (0x2D8777)")
-    va, old, symbol, opcode = P.RUST_HOOKS[0]
+    va, old, symbol, opcode = next(h for h in P.rust_hooks(original) if h[2].startswith("suicide_key_"))
     linked = P.arena()
     block = linked.blocks["patches.code"]
     entry = linked.symbols[symbol]
@@ -4600,14 +4600,14 @@ def test_bake_cache(original, image, before):
 
 
 def test_ragdoll(original, image, before):
-    """Check 76: the death ragdoll (patch 76, RAGDOLL_HOOKS; ../docs/notes/
-    ragdoll.md). Static, on the bytes: the five sites and what follows each
-    in the original, the calls into ragdoll.code in the build, no base
-    relocation under a site and no branch inside one, the block the link's,
-    its entries' shapes, the game's code it calls directly (the engine
-    library's ray_test, object release, material pair, play_particle and
-    play_sound, the arena's memcpy and memset) and its absolute stores (its
-    own data alone). What it does runs elsewhere: check_ragdoll_026g.py
+    """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
+    ../docs/notes/ragdoll.md). Static, on the bytes: the five sites and what
+    follows each in the original, the jmps to the generated lohook entries in
+    patches.code in the build, no base relocation under a site and no
+    branch inside one, the block the link's, the entries' shapes, the
+    game's code the crate branches to directly (the engine library's
+    functions, the arena's memcpy, memmove and memset, the hooks' ways back)
+    and its absolute stores (its own statics alone). What it does runs elsewhere: check_ragdoll_026g.py
     (Unicorn: the five hooks from their sites, a death, a rollback, the same
     death again, bullets through a corpse, a body on batteries) and `cargo
     test -p ragdoll` (the solver, the shots and the corpses' machine)."""
@@ -4647,71 +4647,63 @@ def test_ragdoll(original, image, before):
                                          "mov [esi+0x24],edx"]
           and rows(stock, 0x32BAAC, 0x0D)[:3] == ["movq xmm0,[eax]", "mov ecx,[esp+0x28]", "movq [esi+0x34],xmm0"],
           "the bullet's ctor writes its fire velocity (EAX) to +1Ch and +34h: the speed patch 76 reads for a push")
-    trace = P.arena().symbols["RAGDOLL_TRACE"]
-    check(image.read(trace, 4) == struct.pack("<I", 0x4F464600),
-          f"the build's ragdoll diagnostics are off (RAGDOLL_TRACE at {trace:#x} 0x4F464600: only --ragdoll-trace "
-          "makes it 1, a local build)")
+    trace = P.arena().symbols["SRP_DIAGNOSTICS"]
+    check(image.read(trace, 4) == P.DIAGNOSTICS_OFF,
+          f"the build's diagnostics are off (SRP_DIAGNOSTICS at {trace:#x} \"OFF\": only --ragdoll-trace makes it "
+          "1, a local build)")
     linked = P.arena()
-    block = linked.blocks["ragdoll.code"]
-    data = linked.blocks["ragdoll.data"]
-    for va, old, symbol, opcode in P.RAGDOLL_HOOKS:
-        target = linked.symbols[symbol]
+    block = linked.blocks["patches.code"]
+    data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
+    sym = linked.symbols
+    hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
+    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627],
+          "the Rust patch ragdoll's five lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    for va, old, symbol, opcode in hooks:
+        target = sym[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
+        check(opcode == 0xE9 and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(hook)) == hook and block.va <= target < block.va + block.size,
               f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`call {target:#x}` ({symbol}, an entry of ragdoll.code) and nops here")
-    sites = [(s, o) for s, o, _, _ in P.RAGDOLL_HOOKS]
+              f"`jmp {target:#x}` ({symbol}, a generated entry of patches.code) and nops here")
+    sites = [(s, o) for s, o, _, _ in hooks]
     under = [v for kind, v in stock.relocations().values() if kind == 3
              and any(s - 4 < v < s + len(o) for s, o in sites)]
     hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
             if not s <= h < s + len(o) and starts_instruction(stock, h)]
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "ragdoll.code")
-    check(image.read(block.va, len(code)) == code and data.size <= 0x30000,
-          f"the code at {block.va:#x} is the link's ragdoll.code ({len(code)} bytes: the entries and the Rust "
-          f"crate), its state ragdoll.data ({data.size} bytes)")
-    entry = lambda symbol, count: rows(image, linked.symbols[symbol], 0x40)[:count]
-    sym = linked.symbols
-    check(entry("rg_step", 10) == ["pusha", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0xc", "push ebx",
-                                   f"call {sym['ragdoll_step']:#x}", "mov esp,esi", "popa",
-                                   "cmp byte [esp+0x13],0x0", "ret"]
-          and entry("rg_cull", 14) == ["pusha", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0xc", "push ebx",
-                                       f"call {sym['ragdoll_draws']:#x}", "mov esp,esi", "test eax,eax", "popa",
-                                       f"jnz {sym['rg_cull'] + 0x1e:#x}", "cmp byte [ebx+0xf4e2],0x0", "ret",
-                                       "cmp eax,eax", "ret"]
-          and entry("rg_apply", 10) == ["mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0x4",
-                                        "push dword [ebp-0x1c]", "push dword [ebp-0x14]", "push ebx",
-                                        f"call {sym['ragdoll_apply']:#x}", "mov esp,esi", "mov ecx,[ebx+0xf290]", "ret"]
-          and entry("rg_eye", 13) == ["push edx", "push esi", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0x8",
-                                      "push eax", "push ebx", f"call {sym['ragdoll_eye']:#x}", "mov esp,esi", "pop esi",
-                                      "pop edx", "mov ecx,[ebx+0xf470]", "ret"]
-          and entry("rg_bullet", 18) == ["pusha", "mov esi,esp", "lea ecx,[esp+0xb4]", "lea edx,[esp+0x44]",
-                                         "mov ebx,[esp+0x38]", "and esp,byte -0x10", "sub esp,byte +0xc", "push eax",
-                                         "push ebx", "push edx", "push ecx", "push edi",
-                                         f"call {sym['ragdoll_bullet']:#x}", "mov esp,esi", "popa",
-                                         "movq xmm0,[eax]", "movq [esp+0x3c],xmm0", "ret"],
-          "the entries align the stack to 16 for Rust, keep the registers the game reads after each site, and "
-          "do the instruction they stand over (the step's and the cull's compares for their je)")
+    code = P.linker.block_bytes(linked, "patches.code")
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+          f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
+          f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
+    # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
+    # called, its Flow taken), its replay the site's own bytes, then back
+    for va, old, symbol, _ in hooks:
+        texts = [text for _, _, text in ndisasm(image.read(sym[symbol], 0x60), sym[symbol])]
+        shim = sym["hook_" + symbol]
+        check(texts[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
+              and f"call {shim:#x}" in texts,
+              f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
+              f"called, its Flow taken)")
     # the block's .text alone: its .rodata (constants, tables) is not code
-    text_size = sym.get(P.linker.rodata_symbol("ragdoll.code"), block.va + len(code)) - block.va
+    text_size = sym.get(P.linker.rodata_symbol("patches.code"), block.va + len(code)) - block.va
     texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    allowed = {sym["engine_ray_test"], sym["engine_release_object"], sym["engine_material_pair"],
-               sym["engine_play_particle"], sym["engine_play_sound"], sym["engine_user_data_directory"],
-               sym["memcpy"], sym["memset"]}
+    library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
+               if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
+    backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)}
+    allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
     check(outside and set(outside) <= allowed,
-          "its direct calls out of the block: the engine library's ray_test, object release, material pair, "
-          "play_particle, play_sound and the user data folder, the arena's memcpy and memset (the rest are the "
-          "network client's vtable and the imports, by pointer)"
+          "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
+          "memcpy, memmove and memset, and each hook's way back past its site (the imports go by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
-    check(all(data.va <= a < data.va + data.size for a in absolute),
-          f"its stores to absolute addresses ({len(absolute)}) are all in ragdoll.data: nothing of the game's "
-          "is written by address" + "".join(f"; {a:#x}" for a in absolute if not data.va <= a < data.va + data.size))
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data)
+    check(all(inside(a) for a in absolute),
+          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state: nothing of the "
+          "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):
@@ -6448,6 +6440,7 @@ def test_windows(path, original_path, mode):
 
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else ORIGINAL
+    os.environ["SRP_026G_EXE"] = os.path.abspath(source)     # the Rust span hooks' bytes (hooks_026g.py)
     original = open(source, "rb").read()
     os.makedirs(SCRATCH, exist_ok=True)
     game = os.path.abspath(os.path.dirname(source))

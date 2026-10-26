@@ -461,13 +461,43 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   slot (that corpse is drawn as the game draws it again); with none settled, the death
   keeps the game's clip (`Canned`).
 
-## 8. The game side (patch 76; to be rewired through the Rust framework)
+## 8. The game side (patch 76, the Rust patch `ragdoll`)
 
-Five hooks, each a `call` over the game's instructions, which the entry does itself (built first on
-#452's Rust tooling, checked in Unicorn). They move onto the Rust framework (#475) once it
-lands: one arena crate `patches` with a module per patch and generated hook entries, the
-solver staying its own library crate `ragdoll` that a `patches::ragdoll` module uses; the
-hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go.
+The Rust exe-patch framework's (`rust_patches.md`): the module `patches::ragdoll`
+(`client-patches/rust/patches/src/ragdoll.rs`, `#![forbid(unsafe_code)]`, vostok only) over the
+solver crate `ragdoll` (section 7, its own library crate, a path dependency of `patches`). Its
+five hooks are names only (`ragdoll.toml`: a site and a handler each); the sites are rows of
+`sites_026g.tsv`, all kind `lohook` (each span 5 bytes or more and branch-free, so the
+generated entry saves the machine, calls the handler and replays the span, or skips it):
+
+| site | VA, span | handler | registers (vostok) | flow |
+|---|---|---|---|---|
+| `game_world.after_move` | 0x1F7C3C, 5 | `on_step` | EBX the game world | replay (the compare) |
+| `player_draw.cull` | 0x24757C, 7 | `on_cull` | EBX the player | a corpse of ours: ZF set, skip (the `je` draws); else replay |
+| `player_draw.bones` | 0x247716, 6 | `on_bones` | EBX the player, EBP mt_draw's frame | replay |
+| `camera.eye` | 0x1F3643, 6 | `on_eye` | EBX the player, EAX the eye given | EAX our eye for our corpse, replay |
+| `bullet.ray_traced` | 0x32D627, 10 | `on_ray` | EDI the bullet, EAX its result, ESP its frame | replay (the two moves) |
+
+What the game is, is vostok's: `vostok::world` (the game world, the network client and its
+places, a player's fields, its skeleton's bones, its inventory's weights, the physics world's
+ray), `vostok::draw` (mt_draw's cull and bones), `vostok::camera` (the eye, kept in a matrix of
+vostok's), `vostok::bullet` (a bullet's ray, its round, the body-hit effects), `vostok::clock`
+(QueryPerformanceCounter), `vostok::trace` (the opt-in file). Every field is a row of
+`fields_026g.tsv` (an `::image` row for bt_animated_rigid_body's vtable; the frame locals by
+EBP and ESP as `mt_draw_frame` and `check_collision_frame`), every function one of
+`engine_026g.tsv` (ray_test, the object release, the material pair, play_particle as thunks;
+play_sound stdcall, match_options and get_active_player thiscall, called directly: the
+network client's vtable 0x9FFB14 is the only one that names them, so the step calls them as
+the vtable would; QueryPerformanceCounter/-Frequency and GetCurrentThreadId as imports).
+Which register a site holds is said once, in vostok's view of that site (the `what` of its
+row says the same).
+
+The state (the corpses' pool, the draws' table, the shots; about 150 KB, the block
+`patches.data`) is one `vostok::Lock` (a spin lock: the draws run one a place on mt_draw's
+threads and the bullets 256 a task, so `GameCell`'s one thread does not hold; a lock taken
+again on its own thread panics). The step, a draw, the eye and a bullet's trace each hold it
+for their own work; the bullets' check of "any body" is an atomic, so a frame with no ragdoll
+takes no lock.
 
 ```
   game_world::tick                       player::mt_draw (one a place, maybe on threads)
@@ -571,7 +601,7 @@ it only reads the ray and its result.
 
 **The hook (patch 76's fifth).** `check_collision` 0x32D627, right after the ray_test, over
 the two moves that copy its result (`movq xmm0,[eax]` / `movq [esp+38h],xmm0`, 10 bytes):
-`call rg_bullet` + 5 nops, the entry doing both moves. There EAX is the ray's result (+0 the
+a jmp to the generated lohook entry + 5 nops, the entry replaying both moves. There EAX is the ray's result (+0 the
 point, +1Ch the object), EDI the bullet, and check_collision's frame holds the ray: +90h the
 origin, +20h the unit direction, +14h the length. It is the one place where each bullet's
 segment of each tick is known, on every client (the same simulation), and it runs again for
@@ -818,7 +848,7 @@ cinematic". 464c's model stays; this is the proof of its push and small tuning.
 
 **The opt-in diagnostics** (`patch_026g.py ... --ragdoll-trace`; a local build only, never a
 release's: release/build-zip does not pass it, and the self-test checks the default build has
-it off). The data's `RAGDOLL_TRACE` is 0x4F464600 in every build and 1 in this one; then the
+it off). The crate's `SRP_DIAGNOSTICS` (`vostok::trace`) is "OFF" in every build and 1 in this one; then the
 step writes lines to `srp_ragdoll.csv` in the user data folder (Documents\survarium, the
 game's own `get_user_data_directory` 0x18BD0) through the game's CreateFileA and WriteFile:
 - `hit,time,place,mass kg,speed m/s,push N s`: each bullet in a living player, when the step

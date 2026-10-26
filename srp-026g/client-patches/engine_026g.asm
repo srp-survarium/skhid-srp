@@ -43,10 +43,27 @@ global engine_action_present
 global engine_create_file_a
 global engine_write_file
 global engine_close_handle
+global engine_ray_test
+global engine_release_object
+global engine_material_pair
+global engine_play_particle
+global engine_play_sound
+global engine_user_data_directory
+global engine_match_options
+global engine_active_player
+global engine_query_performance_counter
+global engine_query_performance_frequency
+global engine_get_current_thread_id
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (kernel32, stdcall)
+engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
+engine_match_options equ 0x219990   ; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
+engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
+engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
+engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -645,6 +662,96 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_test:
+    ; 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 52]   ; unflipped -> 32
+    push dword [esp + 52]   ; delegate -> 28
+    push dword [esp + 52]   ; mask -> 24
+    push dword [esp + 52]   ; group -> 20
+    push dword [esp + 52]   ; length -> 16
+    push dword [esp + 52]   ; direction -> 12
+    push dword [esp + 52]   ; origin -> 8
+    push dword [esp + 52]   ; result -> 4
+    mov ecx, [esp + 52]   ; world
+    call 0x75e20
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_object:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_material_pair:
+    ; 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; manager
+    mov edx, [esp + 24]   ; first
+    mov edi, [esp + 28]   ; second
+    call 0x306d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_play_particle:
+    ; 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; parameter -> 20
+    push dword [esp + 40]   ; normal -> 16
+    push dword [esp + 40]   ; direction -> 12
+    push dword [esp + 40]   ; particle -> 8
+    push dword [esp + 40]   ; manager -> 4
+    mov eax, [esp + 40]   ; position
+    call 0x3223e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_user_data_directory:
+    ; 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x18bd0
     pop edi
     pop esi
     pop ebx

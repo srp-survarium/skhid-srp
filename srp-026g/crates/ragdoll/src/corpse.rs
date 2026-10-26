@@ -393,17 +393,6 @@ impl Corpses {
         &mut self.pool[slot.index()]
     }
 
-    /// A slot of the corpses at `this`, as a pointer: the draws of several
-    /// places run at once on several threads, each with its own slot, so no
-    /// reference to the whole is made.
-    ///
-    /// # Safety
-    /// `this` points to a live `Corpses`; the caller is the slot's only user
-    /// while it holds the pointer.
-    pub unsafe fn slot_raw(this: *mut Corpses, slot: SlotId) -> *mut Slot {
-        unsafe { &raw mut (*this).pool[slot.index() % POOL] }
-    }
-
     /// The local player's camera this frame, if it follows a ragdoll.
     pub fn eye(&self) -> Option<Pose> {
         match self.eye {

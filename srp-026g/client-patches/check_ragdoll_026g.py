@@ -6,6 +6,10 @@ in the built exe, with Unicorn (2.1.4).
 
 The exe is built as patch_026g.py builds it (with the late join and the
 arena); the build without the late join keeps the original's five sites.
+The hooks are the Rust patch `ragdoll` (rust/patches/src/ragdoll.rs, its
+lohooks ragdoll.toml), each site a jmp to its generated entry
+(hook_entries_026g.asm), which saves the machine, calls the handler and
+replays the site's instructions (or skips them: the cull of a corpse).
 Each hook runs from its site in the build to the game's next instruction:
 game_world::tick 0x1F7C3C (the step), mt_draw 0x24757C (the cull) and
 0x247716 (the bones), update_camera 0x1F3643 (the eye), bullet::
@@ -19,13 +23,14 @@ their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
 a floor at y = 0; the filter checked: group 424h, mask 202h, no delegate:
 the level and the batteries), QueryPerformanceCounter / -Frequency (60
-frames a second), and the bullet manager's play_particle (0x3223E0) and
+frames a second), GetCurrentThreadId (the patches' lock: one thread),
+and the bullet manager's play_particle (0x3223E0) and
 play_sound (0x3222F0), which record their arguments. The material pair
 (0x306D50) is the game's own code on a made-up material manager.
 
 Checked:
-- the four sites: the original's bytes in the original and the build
-  without the late join, a call into ragdoll.code here;
+- the five sites: the original's bytes in the original and the build
+  without the late join, a jmp to the hook's entry in patches.code here;
 - every hook keeps the registers the game's code after it reads, and the
   flags of the two compares it stands in for (the step's `[esp+0Fh]`, the
   cull's `[ebx+0F4E2h]`): the original's answer whenever no corpse of ours
@@ -75,7 +80,7 @@ CULL_SITE, CULL_NEXT = 0x24757C, 0x247583
 APPLY_SITE, APPLY_NEXT = 0x247716, 0x24771C
 EYE_SITE, EYE_NEXT = 0x1F3643, 0x1F3649
 BULLET_SITE, BULLET_NEXT = 0x32D627, 0x32D631
-RAY_TEST, QPC_SLOT, QPF_SLOT = 0x75E20, 0x870158, 0x870150
+RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
 CHANGE_TRAJECTORY = 0x32EE20
 PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
@@ -173,6 +178,9 @@ class Game:
         emu.mem_write(STUBS + 0x10, b"\xC2\x04\x00")
         emu.hook_add(UC_HOOK_CODE, self.counter, begin=STUBS, end=STUBS)
         emu.hook_add(UC_HOOK_CODE, self.frequency, begin=STUBS + 0x10, end=STUBS + 0x10)
+        # GetCurrentThreadId (stdcall, none): one thread, id 1
+        emu.mem_write(THREAD_SLOT, struct.pack("<I", STUBS + 0x80))
+        emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         # the trace's file: CreateFileA, WriteFile (stdcall 7 and 5), the user data folder
         self.files, self.written = [], b""
         emu.mem_write(CREATE_FILE_SLOT, struct.pack("<I", STUBS + 0x20))
@@ -444,8 +452,8 @@ class Game:
         regs = {**self.MARKS, UC_X86_REG_EBX: WORLD}
         out = self.run(STEP_SITE, STEP_NEXT, regs, bytes(0xF) + bytes([flag]))
         for reg, value in regs.items():
-            assert out[reg] == value, f"rg_step changed register {reg}"
-        assert bool(out[UC_X86_REG_EFLAGS] & ZF) == (flag == 0), "rg_step's compare of [esp+0Fh]"
+            assert out[reg] == value, f"on_step changed register {reg}"
+        assert bool(out[UC_X86_REG_EFLAGS] & ZF) == (flag == 0), "on_step's compare of [esp+0Fh]"
 
     def cull(self, player, not_seen):
         """mt_draw's cull: True when the je draws."""
@@ -453,7 +461,7 @@ class Game:
         regs = {**self.MARKS, UC_X86_REG_EBX: player}
         out = self.run(CULL_SITE, CULL_NEXT, regs)
         for reg, value in regs.items():
-            assert out[reg] == value, f"rg_cull changed register {reg}"
+            assert out[reg] == value, f"on_cull changed register {reg}"
         return bool(out[UC_X86_REG_EFLAGS] & ZF)
 
     def draw(self, player, turn=0.0):
@@ -465,8 +473,8 @@ class Game:
         self.u32(FRAME - 0x1C, len(COOKED))
         regs = {UC_X86_REG_EBX: player, UC_X86_REG_EBP: FRAME}
         out = self.run(APPLY_SITE, APPLY_NEXT, regs)
-        assert out[UC_X86_REG_EBX] == player and out[UC_X86_REG_EBP] == FRAME, "rg_apply kept EBX and EBP"
-        assert out[UC_X86_REG_ECX] == self.u32(player + MODEL_FIELD), "rg_apply did the move of [ebx+0F290h]"
+        assert out[UC_X86_REG_EBX] == player and out[UC_X86_REG_EBP] == FRAME, "on_bones kept EBX and EBP"
+        assert out[UC_X86_REG_ECX] == self.u32(player + MODEL_FIELD), "on_bones did the move of [ebx+0F290h]"
         drawn = [list(self.floats(ARRAY + 64 * i, 16)) for i in range(len(COOKED))]
         return drawn, drawn != [[struct.unpack("<f", struct.pack("<f", v))[0] for v in m] for m in game]
 
@@ -476,9 +484,9 @@ class Game:
         regs = {UC_X86_REG_EAX: given, UC_X86_REG_EBX: player, UC_X86_REG_EDX: 0xD1, UC_X86_REG_ESI: 0x51,
                 UC_X86_REG_EDI: 0xD7, UC_X86_REG_EBP: 0xB9}
         out = self.run(EYE_SITE, EYE_NEXT, regs)
-        assert out[UC_X86_REG_ECX] == self.u32(player + INPUT), "rg_eye did the move of [ebx+0F470h]"
+        assert out[UC_X86_REG_ECX] == self.u32(player + INPUT), "on_eye did the move of [ebx+0F470h]"
         assert (out[UC_X86_REG_EDX], out[UC_X86_REG_ESI], out[UC_X86_REG_EDI], out[UC_X86_REG_EBP]) == \
-            (0xD1, 0x51, 0xD7, 0xB9), "rg_eye kept EDX, ESI, EDI and EBP"
+            (0xD1, 0x51, 0xD7, 0xB9), "on_eye kept EDX, ESI, EDI and EBP"
         return out[UC_X86_REG_EAX]
 
 
@@ -495,14 +503,17 @@ def main():
     built, _ = base.build(original, "section", code, None, late_join)
     before, _ = base.build(original, "section", code, None, None)
     linked = base.arena()
-    block = linked.blocks["ragdoll.code"]
-    for va, old, symbol, opcode in base.RAGDOLL_HOOKS:
+    block = linked.blocks["patches.code"]
+    hooks = [h for h in base.rust_hooks(original) if h[2].startswith("ragdoll_")]
+    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE],
+          "the Rust patch ragdoll's five lohooks (ragdoll.toml, sites_026g.tsv)")
+    for va, old, symbol, opcode in hooks:
         at = base.file_offset(va)
         target = linked.symbols[symbol]
         new = base.hook_bytes(target, va, old, 0, opcode)
-        check(original[at:at + len(old)] == old == before[at:at + len(old)] and built[at:at + len(new)] == new
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, `call {symbol}` here")
+        check(opcode == 0xE9 and original[at:at + len(old)] == old == before[at:at + len(old)]
+              and built[at:at + len(new)] == new and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, `jmp {symbol}` here")
 
     game = Game(built)
     stock = Game(original)
@@ -688,7 +699,7 @@ def main():
           "pierce's new velocity to +1Ch and +34h and counts the segment (+84h)")
 
     # the diagnostics build: a living hit's line, then its death's
-    traced = Game(base.with_ragdoll_trace(built))
+    traced = Game(base.with_diagnostics(built))
     runner = traced.add_player(0, 0.0, 0.0)
     traced.set_local(runner)
     traced.step()
