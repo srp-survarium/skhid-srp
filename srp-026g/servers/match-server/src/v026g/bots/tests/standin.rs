@@ -298,6 +298,9 @@ pub(crate) struct Game {
     /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
     pub(crate) zone_spells: Vec<[f32; 5]>,
     pub(crate) took_from: Vec<Vec3>,
+    /// For each take of a lying battery, how far along the use ray its
+    /// middle lay (m): the length of use the take needed.
+    pub(crate) take_alongs: Vec<f32>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
     pub(crate) carry_m: f32,
@@ -526,6 +529,7 @@ impl Game {
             zone_hp: 0.0,
             zone_spells: Vec::new(),
             took_from: Vec::new(),
+            take_alongs: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
             thieves: Vec::new(),
@@ -1200,6 +1204,14 @@ impl Game {
         (to - dir * along).length() <= radius
     }
 
+    /// How far along `body`'s view ray from the eye `point` lies (m).
+    pub(crate) fn ray_along(body: &Body, point: Vec3) -> f32 {
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        (point - eye).dot(Vec3::new(fx * c, s, fz * c))
+    }
+
     /// How far `body`'s use ray (from the eye, [`USE_REACH_M`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
@@ -1363,6 +1375,7 @@ impl Game {
                     if let Some(battery) = free {
                         if let Lying::Free(at, _) = self.batteries[battery] {
                             self.took_from.push(at);
+                            self.take_alongs.push(Self::ray_along(&body, at + BATTERY_MIDDLE));
                         }
                         self.batteries[battery] = Lying::Carried(place);
                         self.bodies[place].carrying = Some(battery);

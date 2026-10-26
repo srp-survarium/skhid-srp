@@ -36,6 +36,10 @@ pub(crate) struct CarryTally {
     /// of use they needed: to 1.5 m, to 1.8 m (the client's reach with
     /// startup.cfg), over 1.8 m (up to the stand-in's 2.0).
     pub(crate) put_reach: [u32; 3],
+    /// The takes of a lying battery by the length of use they needed, the
+    /// same buckets, and the takes counted so far.
+    pub(crate) take_reach: [u32; 3],
+    pub(crate) takes_seen: usize,
     /// The uses at the containers ([`Game::put_presses`]) counted so far;
     /// of them: all, those that missed the box (no put began, none going
     /// on), those whose ray passed it by over [`FAR_MISS_M`] (the bot
@@ -165,6 +169,10 @@ impl CarryTally {
         // The put-ins since, after the uses: a carry's first use and its
         // put-in may fall between the same two worlds.
         let log = &game.put_in_log;
+        for &along in &game.take_alongs[self.takes_seen.min(game.take_alongs.len())..] {
+            self.take_reach[usize::from(along > 1.5) + usize::from(along > 1.8)] += 1;
+        }
+        self.takes_seen = game.take_alongs.len();
         self.span_ms = self.span_ms.max(game.tick);
         for &(place, tick) in &log[self.put_ins_seen.min(log.len())..] {
             self.put_in_times.push((game.bodies[place].team, place, tick));
@@ -295,7 +303,7 @@ impl CarryTally {
         let pocket = self.pocket_counts();
         let pairs = put_in_pairs(&self.put_in_times, self.span_ms);
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}; put-ins {}, pairs of carriers within {} s {} (by chance {:.1}); put-ins by the use ray they needed: to 1.5 m {}, to 1.8 m {}, over 1.8 m {}",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}; put-ins {}, pairs of carriers within {} s {} (by chance {:.1}); put-ins by the use ray they needed: to 1.5 m {}, to 1.8 m {}, over 1.8 m {}; takes by the use ray they needed: to 1.5 m {}, to 1.8 m {}, over 1.8 m {}",
             self.right,
             self.wrong,
             self.unknown,
@@ -331,6 +339,9 @@ impl CarryTally {
             self.put_reach[0],
             self.put_reach[1],
             self.put_reach[2],
+            self.take_reach[0],
+            self.take_reach[1],
+            self.take_reach[2],
         )
     }
 }
