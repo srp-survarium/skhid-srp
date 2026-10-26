@@ -27,6 +27,11 @@ pub(crate) struct CarryTally {
     pub(crate) arrived: Vec<Option<u32>>,
     pub(crate) put_ins_seen: usize,
     pub(crate) put_in_waits: Vec<u32>,
+    /// Every put-in (the carrier's team, the carrier, the time, ms) and the
+    /// run's last world time: how often two carriers of a team put in
+    /// together ([`put_in_pairs`]).
+    pub(crate) put_in_times: Vec<(u8, usize, u32)>,
+    pub(crate) span_ms: u32,
     /// The uses at the containers ([`Game::put_presses`]) counted so far;
     /// of them: all, those that missed the box (no put began, none going
     /// on), those whose ray passed it by over [`FAR_MISS_M`] (the bot
@@ -66,6 +71,61 @@ pub(crate) const FAR_MISS_M: f32 = 1.0;
 pub(crate) const SAME_STAND_M: f32 = 0.3;
 
 pub(crate) const NEXT_PRESS_MS: u32 = 3_000;
+
+/// Two put-ins of a team by different carriers this close are a pair: the
+/// carriers put in together at the team's one container.
+pub(crate) const PAIR_WINDOW_MS: u32 = 6_000;
+
+/// The pairs of put-ins by two carriers of a team within [`PAIR_WINDOW_MS`],
+/// and how many pairs independent arrivals would make by chance: `n` put-ins
+/// of a team at uniform times over `span_ms` make `n (n - 1) / 2` pairs, each
+/// within the window with probability `2 w / T - (w / T)^2`. Humans: 2 of 51
+/// put-ins in a pair at about 0.15 put-ins a container-minute
+/// (`human_putin_pairs.py`).
+pub(crate) fn put_in_pairs(put_ins: &[(u8, usize, u32)], span_ms: u32) -> (u32, f64) {
+    let mut observed = 0;
+    let mut expected = 0.0;
+    for team in 0..2u8 {
+        let mut times: Vec<(usize, u32)> = put_ins
+            .iter()
+            .filter(|p| p.0 == team)
+            .map(|p| (p.1, p.2))
+            .collect();
+        times.sort_by_key(|&(_, tick)| tick);
+        for (i, &(place, tick)) in times.iter().enumerate() {
+            observed += times[i + 1..]
+                .iter()
+                .take_while(|&&(_, later)| later - tick <= PAIR_WINDOW_MS)
+                .filter(|&&(other, _)| other != place)
+                .count() as u32;
+        }
+        let n = times.len() as f64;
+        if span_ms > 0 && n > 1.0 {
+            let ratio = f64::from(PAIR_WINDOW_MS) / f64::from(span_ms);
+            expected += n * (n - 1.0) / 2.0 * (2.0 * ratio - ratio * ratio).clamp(0.0, 1.0);
+        }
+    }
+    (observed, expected)
+}
+
+#[cfg(test)]
+mod put_in_pairs_tests {
+    use super::*;
+
+    #[test]
+    fn two_carriers_of_a_team_within_the_window_are_a_pair_and_the_chance_follows_the_count() {
+        // Team 0: places 1 and 2 at 100 s and 104 s (a pair), place 1 again at 150 s; team 1: one put-in.
+        let put_ins = [(0, 1, 100_000), (0, 2, 104_000), (0, 1, 150_000), (1, 7, 101_000)];
+        let (observed, expected) = put_in_pairs(&put_ins, 180_000);
+        assert_eq!(observed, 1);
+        // Team 0: 3 put-ins make 3 pairs, each within 6 s with 2 x 6/180 - (6/180)^2.
+        let p = 2.0 * (6.0 / 180.0) - (6.0 / 180.0) * (6.0 / 180.0);
+        assert!((expected - 3.0 * p).abs() < 1e-9, "{expected}");
+        // The same carrier twice in the window is no pair.
+        assert_eq!(put_in_pairs(&[(0, 1, 100_000), (0, 1, 103_000)], 180_000).0, 0);
+        assert_eq!(put_in_pairs(&[], 0), (0, 0.0));
+    }
+}
 
 impl CarryTally {
     pub(crate) fn new(run: String) -> Self {
@@ -114,7 +174,9 @@ impl CarryTally {
         // The put-ins since, after the uses: a carry's first use and its
         // put-in may fall between the same two worlds.
         let log = &game.put_in_log;
+        self.span_ms = self.span_ms.max(game.tick);
         for &(place, tick) in &log[self.put_ins_seen.min(log.len())..] {
+            self.put_in_times.push((game.bodies[place].team, place, tick));
             if let Some(at) = self.arrived[place].take() {
                 self.put_in_waits.push(tick.saturating_sub(at));
             }
@@ -240,8 +302,9 @@ impl CarryTally {
 
     pub(crate) fn line(&self, taken: u32) -> String {
         let pocket = self.pocket_counts();
+        let pairs = put_in_pairs(&self.put_in_times, self.span_ms);
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}; put-ins {}, pairs of carriers within {} s {} (by chance {:.1})",
             self.right,
             self.wrong,
             self.unknown,
@@ -270,6 +333,10 @@ impl CarryTally {
             pocket.0,
             pocket.1,
             self.ambush_takes,
+            self.put_in_times.len(),
+            PAIR_WINDOW_MS / 1_000,
+            pairs.0,
+            pairs.1,
         )
     }
 }
