@@ -167,40 +167,42 @@ impl Default for TrapTuning {
     }
 }
 
-pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
-    check(
-        t.reach_m > 0.0 && t.reach_m <= 1.2 && t.lateral_m >= 0.0 && t.route_ahead_m >= 0.0,
-        "traps.reach_m",
-    )?;
-    check(
-        t.friend_m >= 0.0 && t.near_own_m >= 0.0 && t.jump_ahead_m >= 0.0,
-        "traps.*_m",
-    )?;
-    check(
-        t.presence_scale > 0.0 && t.w_friend >= 0.0,
-        "traps.presence_scale",
-    )?;
-    check(
-        (0.0..=1.0).contains(&t.chance) && (0.0..=1.0).contains(&t.min_health),
-        "traps.chance",
-    )?;
-    check(t.tolerance_rad > 0.0 && t.look_ms > 0, "traps.look")?;
-    let r = &t.react;
-    check(
-        (0.0..=1.0).contains(&r.p0)
-            && r.near_m >= 0.0
-            && r.far_m > r.near_m
-            && r.cone_deg > 0.0
-            && r.cone_deg <= 360.0
-            && r.roll_s >= 0.0
-            && r.fight_div >= 1.0
-            && r.shoot_m > 0.0
-            && r.aim_ok_rad > 0.0
-            && r.max_shots >= 1
-            && r.max_shoot_s > 0.0
-            && r.claim_m >= 0.0
-            && r.claim_yaw_deg > 0.0,
-        "traps.react",
-    )?;
-    Ok(())
+impl Check for TrapTuning {
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.reach_m > 0.0 && self.reach_m <= 1.2 && self.lateral_m >= 0.0 && self.route_ahead_m >= 0.0,
+            "traps.reach_m",
+        )?;
+        check(
+            self.friend_m >= 0.0 && self.near_own_m >= 0.0 && self.jump_ahead_m >= 0.0,
+            "traps.*_m",
+        )?;
+        check(
+            self.presence_scale > 0.0 && self.w_friend >= 0.0,
+            "traps.presence_scale",
+        )?;
+        check(
+            (0.0..=1.0).contains(&self.chance) && (0.0..=1.0).contains(&self.min_health),
+            "traps.chance",
+        )?;
+        check(self.tolerance_rad > 0.0 && self.look_ms > 0, "traps.look")?;
+        let r = &self.react;
+        check(
+            (0.0..=1.0).contains(&r.p0)
+                && r.near_m >= 0.0
+                && r.far_m > r.near_m
+                && r.cone_deg > 0.0
+                && r.cone_deg <= 360.0
+                && r.roll_s >= 0.0
+                && r.fight_div >= 1.0
+                && r.shoot_m > 0.0
+                && r.aim_ok_rad > 0.0
+                && r.max_shots >= 1
+                && r.max_shoot_s > 0.0
+                && r.claim_m >= 0.0
+                && r.claim_yaw_deg > 0.0,
+            "traps.react",
+        )?;
+        Ok(())
+    }
 }
