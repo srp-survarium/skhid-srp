@@ -48,6 +48,10 @@ pub(crate) struct RouteTally {
     /// The route requests of a poll found / failed by the floors' storey gap
     /// (`path::request_gap`), at the start.
     pub(crate) request_gap: [u64; 6],
+    /// The shots bots heard (`sense::shot_heard`), at the start: by the
+    /// weapon's reach, at the fallback of an unknown weapon, from over the
+    /// flat range.
+    pub(crate) shots_heard: [u64; 3],
     /// Each body's feet at the last tick, and its falls of a metre or more
     /// in a tick: off its route (no drop of it there), and taken by it.
     pub(crate) feet: Vec<Option<Vec3>>,
@@ -117,6 +121,7 @@ impl RouteTally {
             teams: vec![None; bodies],
             no_route: super::path::no_routes(),
             request_gap: super::path::request_gaps(),
+            shots_heard: super::sense::shots_heard(),
             zone_in: vec![0; bodies],
             zone_left: vec![None; bodies],
             escapes: super::tactics::escapes::counts(),
@@ -577,6 +582,8 @@ impl RouteTally {
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
         let gaps = super::path::request_gaps();
         let gap: Vec<u64> = (0..6).map(|k| gaps[k] - self.request_gap[k]).collect();
+        let shots = super::sense::shots_heard();
+        let shots: Vec<u64> = (0..3).map(|k| shots[k] - self.shots_heard[k]).collect();
         let escapes = super::tactics::escapes::counts();
         let escaped: Vec<u64> = (0..5).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
@@ -622,7 +629,7 @@ impl RouteTally {
         }
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} reversals_avoid {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {} gap_found_same {} gap_found_above {} gap_found_below {} gap_failed_same {} gap_failed_above {} gap_failed_below {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} reversals_avoid {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {} gap_found_same {} gap_found_above {} gap_found_below {} gap_failed_same {} gap_failed_above {} gap_failed_below {} shots_heard_table {} shots_heard_unknown {} shots_heard_far {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -676,6 +683,9 @@ impl RouteTally {
             gap[3],
             gap[4],
             gap[5],
+            shots[0],
+            shots[1],
+            shots[2],
         ) + &route_ends
             + &format!(
                 " reversals_after_grenade {} reversals_throwing {}",

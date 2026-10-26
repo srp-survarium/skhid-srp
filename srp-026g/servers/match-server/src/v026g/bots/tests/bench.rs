@@ -506,6 +506,18 @@ pub(crate) fn real_bot_cost() {
                     .collect();
                 bots.set_weapons(weapons);
             }
+            // Every bot's weapon 1 shot reach (H1c, `shot_reach`; read only
+            // when `SenseTuning::shots` is by weapon).
+            let reach = bots
+                .bots
+                .iter()
+                .map(|bot| {
+                    let bot = bot.as_ref()?;
+                    let gun = bot.kits.get(bot.kit)?.0.primary.0;
+                    super::shot_reach::reach_of(&format!("wpn_{}", gun.item))
+                })
+                .collect();
+            bots.set_shot_reach(reach);
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;

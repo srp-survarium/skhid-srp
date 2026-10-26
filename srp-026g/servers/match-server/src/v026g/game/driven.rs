@@ -142,6 +142,7 @@ impl Walkers {
         );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
         let pockets = formed.profiles.iter().map(pockets_of).collect();
+        let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -173,6 +174,7 @@ impl Walkers {
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
             walkers.bots.set_pockets(pockets);
+            walkers.bots.set_shot_reach(reach);
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
@@ -334,6 +336,18 @@ fn pockets_of(
         Some((held, units))
     });
     Some(Pockets::new(slots))
+}
+
+/// How far a shot of a place's weapon 1 (the item in slot 7 of its first
+/// kit) is heard, metres: the game's sound data per weapon config
+/// ([`crate::v026g::bots::shot_reach`]); None where the item is not in the
+/// table.
+fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Option<f32> {
+    let kit = profile.kits.first()?;
+    let (index, _) = kit.slots[7]?;
+    let item = profile.items.get(usize::from(index))?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {
