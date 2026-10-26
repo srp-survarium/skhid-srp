@@ -6,7 +6,7 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
-; 0x242196 the input builder's last action query (spot): `call engine_action_present` (0x242460) -> suicide_key_on_spot
+; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12

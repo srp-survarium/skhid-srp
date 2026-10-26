@@ -108,23 +108,14 @@ def engine_row(symbol, functions):
     raise Bad(f"{symbol}: no such row in engine_026g.tsv")
 
 
-def call_hook(patch, row, functions):
-    """A checked `[[call]]`: a dict the writers use."""
-    name = patch["name"]
-    for key in ("at", "original", "function", "handler", "args", "returns", "original_name", "what"):
+def _typed(name, kind, patch, row, functions):
+    """The part common to `call`, `splice`, `pointer`, `vtable`, `callback`:
+    the game function the hook wraps (`function`, a raw row) and the typed
+    arguments and result the handler and its `Original` take."""
+    for key in ("at", "function", "handler", "args", "returns", "original_name", "what"):
         if key not in row:
-            raise Bad(f"{name}: a [[call]] needs `{key}`")
-    site = row["at"]
-    original = bytes.fromhex(row["original"])
-    if len(original) != 5 or original[0] != 0xE8:
-        raise Bad(f"{name} at {site:#x}: `original` is a `call rel32` (five bytes, E8)")
+            raise Bad(f"{name}: a [[{kind}]] needs `{key}`")
     f = engine_row(row["function"], functions)
-    target = (site + 5 + struct.unpack("<i", original[1:])[0]) & 0xFFFFFFFF
-    if target != f["va"]:
-        raise Bad(f"{name} at {site:#x}: the call goes to {target:#x}, not {row['function']}'s {f['va']:#x}")
-    if f["call"] not in ("stdcall", "cdecl"):
-        raise Bad(f"{name}: {row['function']} is {f['call']}; a `call` hook needs stdcall or cdecl (a register "
-                  "convention would need a reverse thunk, not built yet)")
     if len(row["args"]) != len(f["params"]):
         raise Bad(f"{name}: {len(f['params'])} arguments of {row['function']}, {len(row['args'])} in `args`")
     args = []
@@ -141,11 +132,52 @@ def call_hook(patch, row, functions):
         raise Bad(f"{name}: no result {row['returns']!r} (have {', '.join(RESULTS)})")
     if f["result"] not in RESULTS[row["returns"]]["raw"]:
         raise Bad(f"{name}: the handler returns {row['returns']}, but {row['function']}'s result is {f['result']}")
-    pops = f["cleanup"]
-    return {"patch": name, "patch_no": patch["patch"], "site": site, "original": original, "target": target,
-            "function": row["function"], "handler": row["handler"], "args": args, "returns": row["returns"],
-            "orig": row["original_name"], "what": row["what"], "pops": pops, "entry": f"{name}_{row['handler']}",
-            "shim": f"hook_{name}_{row['handler']}", "params": f["params"]}
+    return f, args, {"patch": name, "patch_no": patch["patch"], "kind": kind, "site": row["at"],
+                     "function": row["function"], "handler": row["handler"], "args": args,
+                     "returns": row["returns"], "orig": row["original_name"], "what": row["what"],
+                     "target": f["va"], "pops": f["cleanup"], "params": f["params"],
+                     "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
+
+
+def call_hook(patch, row, functions):
+    """A checked `[[call]]`: the game's `call F` becomes a call of the entry
+    (RUST_CALL), which hands the shim F's arguments."""
+    name = patch["name"]
+    if "original" not in row:
+        raise Bad(f"{name}: a [[call]] needs `original`")
+    site = row["at"]
+    original = bytes.fromhex(row["original"])
+    if len(original) != 5 or original[0] != 0xE8:
+        raise Bad(f"{name} at {site:#x}: `original` is a `call rel32` (five bytes, E8)")
+    f, args, h = _typed(name, "call", patch, row, functions)
+    target = (site + 5 + struct.unpack("<i", original[1:])[0]) & 0xFFFFFFFF
+    if target != f["va"]:
+        raise Bad(f"{name} at {site:#x}: the call goes to {target:#x}, not {row['function']}'s {f['va']:#x}")
+    if f["call"] not in ("stdcall", "cdecl"):
+        raise Bad(f"{name}: {row['function']} is {f['call']}; a `call` hook needs stdcall or cdecl (a register "
+                  "convention would need a reverse thunk, not built yet)")
+    h.update(original=original, entry_macro=("RUST_CALL", len(args), f["cleanup"]), install=("call", 0xE8),
+             orig_kind="direct")
+    return h
+
+
+def convention_hook(patch, row, functions, kind):
+    """A `[[pointer]]`, `[[vtable]]` or `[[callback]]`: the game calls our
+    entry in `convention` (thiscall or cdecl); the entry hands the shim its
+    arguments, and the `Original` is the function the slot or callback used
+    to name (`function`, whose VA is the old pointer `original`)."""
+    name = patch["name"]
+    convention = row.get("convention")
+    if convention not in ("thiscall", "cdecl"):
+        raise Bad(f"{name}: a [[{kind}]] needs `convention` thiscall or cdecl")
+    f, args, h = _typed(name, kind, patch, row, functions)
+    nargs = len(args) - (1 if convention == "thiscall" else 0)
+    if nargs < 0:
+        raise Bad(f"{name}: a thiscall [[{kind}]] takes `this` as its first argument")
+    macro = "RUST_THISCALL" if convention == "thiscall" else "RUST_CDECL"
+    h.update(original=bytes.fromhex(row["original"]) if "original" in row else None, convention=convention,
+             entry_macro=(macro, nargs), install=(kind, None), orig_kind="direct", this=convention == "thiscall")
+    return h
 
 
 def hooks(tomls=None, functions=None):
@@ -155,7 +187,10 @@ def hooks(tomls=None, functions=None):
     for patch in tomls:
         for row in patch.get("call", ()):
             out.append(call_hook(patch, row, functions))
-        for kind in ("splice", "lohook", "pointer", "vtable", "callback", "code"):
+        for kind in ("pointer", "vtable", "callback"):
+            for row in patch.get(kind, ()):
+                out.append(convention_hook(patch, row, functions, kind))
+        for kind in ("splice", "lohook", "code"):
             if patch.get(kind):
                 raise Bad(f"{patch['name']}: `{kind}` hooks are the design's but not generated yet "
                           "(rust_patches.md); the first patch that needs one adds it")
@@ -189,7 +224,7 @@ def rs_text(hs):
             "",
             f"// ---- {h['patch']} (patch {h['patch_no']}) ----",
             "",
-            f"/// {h['function']} ({h['target']:#x}), as the `call` hook at {h['site']:#x} wraps it.",
+            f"/// {h['function']} ({h['target']:#x}), as the {h['kind']} hook at {h['site']:#x} wraps it.",
             f"pub struct {h['orig']};",
             "",
             f"impl {h['orig']} {{",
@@ -242,13 +277,13 @@ def asm_text(hs):
              "section .text",
              '%include "rust_hook_026g.inc"']
     for h in hs:
-        lines += [
-            "",
-            f"; {h['site']:#x} {h['what']}: `call {h['function']}` ({h['target']:#x}) -> {h['entry']}",
-            f"global {h['entry']}",
-            f"{h['entry']}:",
-            f"    RUST_CALL {h['shim']}, {len(h['args'])}, {h['pops']}",
-        ]
+        macro = h["entry_macro"]
+        lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
+                  f"{h['target']:#x})"]
+        if macro[0] == "RUST_CALL":
+            lines += [f"global {h['entry']}", f"{h['entry']}:", f"    RUST_CALL {h['shim']}, {macro[1]}, {macro[2]}"]
+        else:                                          # RUST_THISCALL / RUST_CDECL define the label themselves
+            lines.append(f"    {macro[0]} {h['entry']}, {h['shim']}, {macro[1]}")
     return "\n".join(lines) + "\n"
 
 
@@ -258,9 +293,18 @@ def outputs(tomls=None, functions=None):
 
 
 def installs(tomls=None, functions=None):
-    """(site, original bytes, entry symbol, opcode, owner) per hook, for
-    patch_026g.py."""
-    return [(h["site"], h["original"], h["entry"], 0xE8, h["patch"]) for h in hooks(tomls, functions)]
+    """(site, original bytes, entry symbol, opcode, owner) for each hook
+    installed by rewriting a call or jump site, for patch_026g.py. A pointer,
+    vtable or callback hook is installed by a pointer write or at run time,
+    not here; it is refused until patch_026g.py integrates its install."""
+    out = []
+    for h in hooks(tomls, functions):
+        how, opcode = h["install"]
+        if opcode is None:
+            raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
+                      "integrate its install before it can ship")
+        out.append((h["site"], h["original"], h["entry"], opcode, h["patch"]))
+    return out
 
 
 def arena_sources():

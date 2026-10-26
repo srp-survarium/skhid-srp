@@ -5935,6 +5935,22 @@ def test_engine(original):
         check(failed, f"the library's check rejects {what}")
 
 
+def test_hook_kinds(original):
+    """The generated hook-entry kinds (hooks_026g.py; rust_patches.md): each
+    kind's entry template, assembled and run beside the original exe, is
+    transparent (check_hooks_026g.py). Needs Python `unicorn` and NASM/ld."""
+    print("  the hook-entry kinds: each template transparent against the exe")
+    try:
+        import check_hooks_026g as hook_check
+    except ImportError as error:
+        check(False, f"check_hooks_026g.py needs Python unicorn ({error})")
+        return
+    results = hook_check.run_checks(original)
+    for ok, text in results:
+        check(ok, text)
+    check(bool(results), f"check_hooks_026g.py: {len(results)} entry-kind checks")
+
+
 def test_late_join(original, without, server, source):
     """The default build with the late join against `without`, the build
     of the same server without it (checked by everything above)."""
@@ -6324,6 +6340,7 @@ def main():
     print("variant section, the arena and the call shapes")
     test_arena(original)
     test_engine(original)
+    test_hook_kinds(original)
     test_apply(original)
     test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]

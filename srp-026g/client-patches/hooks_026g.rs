@@ -8,7 +8,7 @@
 
 // ---- suicide_key (patch 34) ----
 
-/// engine_action_present (0x242460), as the `call` hook at 0x242196 wraps it.
+/// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
 pub struct OrigActionPresent;
 
 impl OrigActionPresent {

@@ -119,12 +119,16 @@ what = "the input builder's last action query (spot)"
 args = ["handler: InputHandler", "action: Action", "state: Out<u32>"]
 ```
 
-Only the kinds a ported patch needs are generated today: `call` (the
-example) and `write`. `splice`, `lohook`, `pointer`, `vtable`, `callback`
-and `code` are the design above and the `Context`/`Flow`/`Exit` API in
-`vostok`; hooks_026g.py refuses them until their first patch, which adds the
-entry (the register save/restore `lohook` needs, the reverse thunk a
-register-ABI `call` needs).
+Generated and tested (check_hooks_026g.py runs each kind's entry template
+beside the original exe and checks it is transparent -- the arguments and
+ECX delivered in order, the result passed back, the callee-saved registers
+kept, the right bytes cleaned): `call` (the example), and `pointer`,
+`vtable` and `callback` (the convention entries, `RUST_THISCALL` /
+`RUST_CDECL`). `splice`, `lohook` and `code`, and `write`, are the design
+above and the `Context`/`Flow`/`Exit` API in `vostok`; hooks_026g.py refuses
+the three hook kinds until their first patch adds the entry (the trampoline
+`splice` needs, the register/FPU save-restore `lohook` needs). A register-ABI
+`call` still needs its reverse thunk.
 
 ## 4. Writing a patch, by the example
 
