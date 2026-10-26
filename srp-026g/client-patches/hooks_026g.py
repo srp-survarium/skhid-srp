@@ -90,6 +90,9 @@ TYPES = {
 RESULTS = {
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
+    # void (the vostok column names no result): the handler returns (), the
+    # shim leaves 0 in EAX, which a void function's callers do not read.
+    None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
 }
 
 
@@ -255,7 +258,7 @@ def _typed(patch_name, patch_no, kind, site, handler, f):
         args.append((label, vtype))
     returns = v["result"]
     if returns not in RESULTS:
-        raise Bad(f"{patch_name}: {f['symbol']}'s vostok result {returns!r} is unknown (have {', '.join(RESULTS)})")
+        raise Bad(f"{patch_name}: {f['symbol']}'s vostok result {returns!r} is unknown (have {', '.join(map(str, RESULTS))})")
     if f["result"] not in RESULTS[returns]["raw"]:
         raise Bad(f"{patch_name}: the vostok result is {returns}, but {f['symbol']}'s is {f['result']}")
     return args, {"patch": patch_name, "patch_no": patch_no, "kind": kind, "site": site["va"],
@@ -546,7 +549,8 @@ def rs_text(hs):
                 "",
                 f"impl {h['orig']} {{",
                 "    /// The game's own function, with these typed arguments.",
-                f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
+                f"    pub fn call(&self, {orig_params})" + ("" if result["type"] == "()" else f" -> {result['type']}")
+                + " {",
                 f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
                 "        // typed by the row (engine_026g.tsv).",
                 f"        unsafe {{ {orig_body} }}",
