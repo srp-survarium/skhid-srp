@@ -194,12 +194,32 @@ struct Sim {
     tick: u32,
     /// Counts zone switches and state changes.
     changes: u64,
+    /// A timed core (`field_source::timed`): its chain of states runs on its timers as the client does (a state's
+    /// end is taken on the first tick past it, and the tick after an `energy_on_exit` chooses the next state, even
+    /// where nothing else would change). Stock cores keep the rules they were checked against real worlds with.
+    timed: bool,
 }
 
 impl Sim {
     /// Whether no tick can change anything until [`Self::next_event`].
     fn idle(&self) -> bool {
-        self.current.is_some() && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+        self.current.is_some()
+            && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+            // A timed core: not when a state's end has set an energy another state is chosen by.
+            && (!self.timed || self.finish != 0 || self.current == self.pick())
+    }
+
+    /// The state `select_state` (0x31BA90) takes when none holds it.
+    fn pick(&self) -> Option<usize> {
+        if self.states.is_empty() {
+            return None;
+        }
+        Some(
+            self.states
+                .iter()
+                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
+                .unwrap_or(0),
+        )
     }
 
     fn next_event(&self) -> u32 {
@@ -271,38 +291,34 @@ impl Sim {
             self.energy = (self.energy - self.decrease * TICK_MS as f32 / 1000.0).max(0.0);
         }
         // `select_state` 0x31BA90: a state with a finish time stays.
-        if !(self.current.is_some() && self.finish != 0) && !self.states.is_empty() {
-            let pick = self
-                .states
-                .iter()
-                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
-                .unwrap_or(0);
-            if self.current != Some(pick) {
-                if let Some(old) = self.current {
-                    for group in &mut self.states[old].groups {
-                        group.on.iter_mut().for_each(|on| *on = false);
-                        group.next = 0;
-                    }
+        if !(self.current.is_some() && self.finish != 0)
+            && let Some(pick) = self.pick()
+            && self.current != Some(pick)
+        {
+            if let Some(old) = self.current {
+                for group in &mut self.states[old].groups {
+                    group.on.iter_mut().for_each(|on| *on = false);
+                    group.next = 0;
                 }
-                self.current = Some(pick);
-                self.changes += 1;
-                // `anomaly_state::initialize` 0x31BC10.
-                for g in 0..self.states[pick].groups.len() {
-                    let group = &mut self.states[pick].groups[g];
-                    if !group.enabled {
-                        continue;
-                    }
-                    if group.keep_all {
-                        group.on.iter_mut().for_each(|on| *on = true);
-                        group.next = 0;
-                    } else {
-                        // Time 0, not now (0x31BC61).
-                        self.recharge(pick, g, 0);
-                    }
-                }
-                let active_ms = self.states[pick].active_ms;
-                self.finish = if active_ms > 0 { t + active_ms } else { 0 };
             }
+            self.current = Some(pick);
+            self.changes += 1;
+            // `anomaly_state::initialize` 0x31BC10.
+            for g in 0..self.states[pick].groups.len() {
+                let group = &mut self.states[pick].groups[g];
+                if !group.enabled {
+                    continue;
+                }
+                if group.keep_all {
+                    group.on.iter_mut().for_each(|on| *on = true);
+                    group.next = 0;
+                } else {
+                    // Time 0, not now (0x31BC61).
+                    self.recharge(pick, g, 0);
+                }
+            }
+            let active_ms = self.states[pick].active_ms;
+            self.finish = if active_ms > 0 { t + active_ms } else { 0 };
         }
         // `anomaly_state::execute` 0x31BCB0.
         if let Some(current) = self.current {
@@ -312,7 +328,9 @@ impl Sim {
                     self.recharge(current, g, t);
                 }
             }
-            if self.finish != 0 && t >= self.finish {
+            // The first tick past the end for a timed core (`now > end`, 0x31BD16).
+            let ended = if self.timed { t > self.finish } else { t >= self.finish };
+            if self.finish != 0 && ended {
                 self.energy = self.states[current].energy_on_exit;
                 self.finish = 0;
             }
@@ -433,6 +451,11 @@ impl Core {
     /// The current state's energy threshold.
     pub fn threshold(&self) -> Option<f32> {
         self.sim.current.map(|c| self.sim.states[c].threshold)
+    }
+
+    /// When the current state ends (match ms; 0: it lasts while the energy holds).
+    pub fn finish(&self) -> u32 {
+        self.sim.finish
     }
 
     /// The random value now.
@@ -564,6 +587,7 @@ impl Anomalies {
             }
             let a = &anomaly.artefacts;
             let mut sim = Sim {
+                timed: super::field_source::timed(anomaly),
                 rng: core_seed(static_seed, &anomaly.name),
                 energy_enabled: anomaly.energy.enabled,
                 decrease: anomaly.energy.decrease_speed,
@@ -1353,6 +1377,75 @@ pub(super) mod tests {
         out.extend(sim.rng.to_le_bytes());
         out.extend([0x00, 0x00, 0x07]);
         (out, at)
+    }
+
+    /// A timed core as the pack builder makes it (`field_source`): states 3000 / 2000 / 1000 / 50 / 0, the charge
+    /// zone `charge` (hurts nobody) and the damage zone `damage`.
+    pub fn timed(name: &str, charge: &str, damage: &str) -> Anomaly {
+        let state = |threshold: f32, active: u32, exit: f32, zones: &[&str]| AnomalyState {
+            enabled: true,
+            threshold,
+            active_time_s: active,
+            energy_on_exit: exit,
+            groups: vec![ZoneGroup {
+                enabled: true,
+                keep_all: true,
+                max_charged: 255,
+                recharge_s: 20,
+                zones: zones.iter().map(|z| (*z).into()).collect(),
+                ..ZoneGroup::default()
+            }],
+            ..AnomalyState::default()
+        };
+        Anomaly {
+            name: name.into(),
+            position: Vec3::ZERO,
+            zones: vec![charge.into(), damage.into()],
+            energy: AnomalyEnergy {
+                enabled: true,
+                on_af_container_use: 50.0,
+                ..AnomalyEnergy::default()
+            },
+            artefacts: AnomalyArtefacts {
+                enabled: true,
+                first_spawn_s: 100_000.0,
+                respawn_s: 100_000.0,
+                chance: 1.0,
+                max_count: 1,
+                containers: 1,
+                ..AnomalyArtefacts::default()
+            },
+            states: vec![
+                state(3000.0, 20, 2000.0, &[charge]),
+                state(2000.0, 4, 1000.0, &[damage, charge]),
+                state(1000.0, 0, 0.0, &[damage]),
+                state(50.0, 60, 0.0, &[]),
+                state(0.0, 0, 0.0, &[]),
+            ],
+        }
+    }
+
+    /// The objects section of a world at which core `core` is in state `state` (as the worlds number them, highest
+    /// threshold first) with `energy` and its state ending at `finish`; `None`: before its first tick.
+    pub fn core_world(
+        anomalies: &Anomalies,
+        core: usize,
+        state: Option<usize>,
+        energy: f32,
+        finish: u32,
+    ) -> Vec<u8> {
+        let mut sim = anomalies.cores[core].base.clone();
+        sim.current = state;
+        sim.energy = energy;
+        sim.finish = finish;
+        sim.art.pending = false;
+        if let Some(s) = state {
+            for group in &mut sim.states[s].groups {
+                group.on = vec![true; group.on.len()];
+                group.next = 0;
+            }
+        }
+        world_bytes(&[1, 2, 3], &sim, 0).0
     }
 
     #[test]

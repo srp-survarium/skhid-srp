@@ -101,6 +101,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_THREAT_FLOORS", "the tuning's (3000)", "ThreatTuning::search_floors: floors of a poll's budget one search round a shooter's lane may take"),
     s("SRP_BENCH_THREAT_SPRINT", "the tuning's (on)", "ThreatTuning::sprint: `0` off (a bot in a shooter's lane keeps the pace its play chose), else on"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::hazard.escape: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
+    s("SRP_BENCH_LIVE_ZONES", "off", "Tuning::hazard.live_zones: the anomaly fields of the worlds are the bots' live zones (kept off while a field hurts, got out of); `0` off"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),

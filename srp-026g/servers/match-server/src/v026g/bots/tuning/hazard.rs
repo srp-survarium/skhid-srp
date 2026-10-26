@@ -15,11 +15,21 @@ pub struct HazardTuning {
     /// checked world, whether a core has an artefact due or lying. Knowledge only: nothing
     /// decides by it (picking and using artefacts are later work). Off: none of it is built.
     pub artefact_know: bool,
+    /// Whether the bots read the anomaly fields a world holds (`Bots::fields_from_world`, `live_zones.rs`): the
+    /// floors they cover are kept off while a field hurts, and a bot caught in one is got out. Off (the default:
+    /// merged switched off): the worlds' fields are not read, today's decisions (the bench's switch,
+    /// `SRP_BENCH_LIVE_ZONES=1` on).
+    pub live_zones: bool,
 }
 
 impl Default for HazardTuning {
     fn default() -> Self {
-        Self { margin_m: Metres::of(1.0), escape: EscapeRule::UnderStartZone, artefact_know: false }
+        Self {
+            margin_m: Metres::of(1.0),
+            escape: EscapeRule::UnderStartZone,
+            artefact_know: false,
+            live_zones: false,
+        }
     }
 }
 

@@ -250,6 +250,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
         set(&mut tuning, "/hazard/escape", (v != "0").into());
     }
+    // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
+    if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
+        set(&mut tuning, "/hazard/live_zones", (v != "0").into());
+    }
     if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
         let floors = if floors == "max" {
             u32::MAX

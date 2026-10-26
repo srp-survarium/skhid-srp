@@ -37,6 +37,7 @@ pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
+pub mod field_source;
 pub mod foliage;
 pub mod friends;
 pub mod grenade_threat;
@@ -47,6 +48,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod live_grenades;
+pub mod live_zones;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -1209,6 +1211,8 @@ impl Bots {
         ) {
             know.observe(&predicted, anomalies, &synced, time);
         }
+        // The same world, as the live zones (the timed cores' states).
+        self.fields_from_world(time);
         read
     }
 
@@ -1216,6 +1220,24 @@ impl Bots {
     /// (`tuning.hazard.artefact_know`; none while it is off or before the map is ready).
     pub fn artefact_know(&self) -> Option<&artefact_know::ArtefactKnow> {
         self.features.artefacts.as_ref()
+    }
+
+    /// The anomaly fields the cores show after a trusted world (`field_source::v1`) at match time `time`: the live
+    /// zones of this match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the
+    /// board holds.
+    pub fn fields_from_world(&mut self, time: u32) -> usize {
+        if !self.tuning.hazard.live_zones {
+            return 0;
+        }
+        self.tactics.as_mut().map_or(0, |tactics| {
+            let fields = tactics
+                .hazards
+                .anomalies()
+                .map(|anomalies| field_source::v1(anomalies, &tactics.world.map))
+                .unwrap_or_default();
+            tactics.hazards.set_fields(&fields, &tactics.world.grid, time);
+            tactics.hazards.live.fields().len()
+        })
     }
 
     /// A trusted world's objects section: the bear traps the teams' bots
