@@ -27,6 +27,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
+use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState};
 use survarium::v026g::loadouts::BotRole;
@@ -136,20 +137,40 @@ fn server_bot_name(n: usize) -> String {
     format!("Bot-{n}")
 }
 
-/// The match server's own bot of `role` on `team`, number `n` of its match
-/// (1 on): a place with no account, its player with the role's two kits
-/// (`loadouts::bot_kits`): the role's weapon in slot 7 with the most ammo
-/// players carry, the role's armour, a backpack and trousers that open
-/// three pockets (four for a support), and in them medkits, the radio and
-/// two RGD-5 grenades; the second the same with another weapon and its
-/// ammo (`BotRole::backup`), for when the first kit's ammo is spent. The match server reads the
-/// role back from the profile (`loadouts::bot_role_of`).
-pub fn server_bot(n: usize, team: u8, role: BotRole) -> MatchPlayer {
+/// How often the lobby gathers the bots' kits from the accounts again
+/// (`session::v026g::bot_kits`): a gathering reads every account's kits
+/// and presets (37 ms in a release build for the 473 accounts of
+/// 2026-10-26), and a new kit of a top player is worn by the bots within
+/// this.
+const BOT_KITS_EVERY: Duration = Duration::from_secs(5 * 60);
+
+/// The equipment level of the server's bots of a match whose players'
+/// equipment levels (`matchmaking::gear_level`) are `levels`: their mean,
+/// rounded (one player's own against bots); 0 with none.
+fn bots_gear_level(levels: &[u8]) -> u8 {
+    if levels.is_empty() {
+        return 0;
+    }
+    let sum: usize = levels.iter().map(|&level| usize::from(level)).sum();
+    ((2 * sum + levels.len()) / (2 * levels.len())).min(usize::from(u8::MAX)) as u8
+}
+
+/// The match server's own bot on `team`, number `n` of its match (1 on): a
+/// place with no account, its player with the kits `kit` of its role and
+/// the match's equipment level (`session::v026g::bot_kits`): weapon 1 of
+/// its role's category with its ammo in three ammo slots, armour, and in
+/// the pockets the armour opens a medkit, the radio and frag grenades; the
+/// second kit the same with the backup role's weapon and ammo, for when the
+/// first kit's ammo is spent. Its kits carry 10 kg more
+/// (`loadouts::bot_gear::bot_modifiers`). The match server reads the role
+/// back from the profile (`loadouts::bot_role_of`), and each kit's weapon
+/// and rounds.
+pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
-        &survarium::v026g::loadouts::bot_kits(role),
-        [0.0; survarium::v026g::skills::MODIFIERS],
+        &kit.kits(),
+        survarium::v026g::loadouts::bot_gear::bot_modifiers(),
         survarium::v026g::dictionary::Dictionary::shared(),
         1,
     );
@@ -176,6 +197,22 @@ fn server_bot_roles(teams: &[u8]) -> Vec<BotRole> {
             let role = BotRole::nth(*k);
             *k += 1;
             role
+        })
+        .collect()
+}
+
+/// For each bot of `roles`, its place among the match's bots of its role
+/// (0 on, both teams together): the pick of its role's kits it takes
+/// (`BotKits::bot_kit`), so a match's bots of a role wear the top players'
+/// kits in turn.
+fn server_bot_picks(roles: &[BotRole]) -> Vec<usize> {
+    let mut seen: Vec<BotRole> = Vec::with_capacity(roles.len());
+    roles
+        .iter()
+        .map(|&role| {
+            let k = seen.iter().filter(|&&each| each == role).count();
+            seen.push(role);
+            k
         })
         .collect()
 }
@@ -593,6 +630,28 @@ impl Core<'_> {
         );
     }
 
+    /// The bots' kits of every level (`session::v026g::bot_kits`), gathered
+    /// from the accounts again when the last gathering is
+    /// [`BOT_KITS_EVERY`] old. Locks each account in turn: call it with
+    /// none locked.
+    pub(super) fn bot_kits(&mut self, now: Instant, unix: u64) -> std::sync::Arc<BotKits> {
+        if let Some((at, table)) = &self.bot_kits
+            && now.saturating_duration_since(*at) < BOT_KITS_EVERY
+        {
+            return table.clone();
+        }
+        let started = Instant::now();
+        let table = std::sync::Arc::new(self.accounts.bot_kits(unix));
+        log::info!(
+            "The bots' kits gathered from the accounts in {} ms; the players whose kits each \
+             level's bots take, by role: {}",
+            started.elapsed().as_millis(),
+            table.summary()
+        );
+        self.bot_kits = Some((now, table.clone()));
+        table
+    }
+
     /// The account's level (its gear's, `matchmaking::level`); the lowest
     /// for an account the lobby does not have.
     pub(super) fn level_of(&self, account_id: u32, unix: u64) -> Level {
@@ -875,8 +934,9 @@ impl Core<'_> {
     /// A room's match (`rooms`) is on the map its vote chose. A match
     /// against bots (`pvb`, [`Core::pvb_launching`]) has the map chosen and
     /// 2N − 1 of the server's bots for its one player ([`server_bot_teams`]
-    /// puts N − 1 of them on the player's side), and counts towards no
-    /// player's map rotation. A clan match is on a map of the pool drawn at
+    /// puts N − 1 of them on the player's side), in kits of its equipment
+    /// level ([`bots_gear_level`], `session::v026g::bot_kits`), and counts
+    /// towards no player's map rotation. A clan match is on a map of the pool drawn at
     /// random.
     pub(super) fn launch(&mut self, match_id: u32) -> bool {
         let Some(formed) = self.store.matchmaking().formed_match(match_id) else {
@@ -888,8 +948,9 @@ impl Core<'_> {
         let room = self.room_launching.get(&match_id).copied();
         let room_map = room.map(|(map_id, ..)| map_id);
         let unix = quests::now();
-        // Its players' levels.
+        // Its players' levels, and their equipment levels (the bots').
         let mut levels = Vec::with_capacity(formed.seats.len());
+        let mut gear_levels = Vec::with_capacity(formed.seats.len());
         // Why the sides are as they are, for the log.
         let weights = self.settings.balance;
         let mut sides: [(f64, Vec<String>); 2] = Default::default();
@@ -904,6 +965,7 @@ impl Core<'_> {
                 account.settle_active_kit(unix);
                 let level = matchmaking::level(&account, unix).min;
                 levels.push(level);
+                gear_levels.push(matchmaking::gear_level(&account, unix));
                 let scale = f64::from(session::STRENGTH_SCALE);
                 let strength = weights.strength(level, account.level(), account.balance);
                 strengths.push(strength);
@@ -929,13 +991,25 @@ impl Core<'_> {
         });
         let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
         let bot_roles = server_bot_roles(&bot_teams);
+        // Their kits: of the players' equipment level, the top players'.
+        let bot_level = bots_gear_level(&gear_levels);
+        let bot_kits: Vec<BotKit> = if bot_roles.is_empty() {
+            Vec::new()
+        } else {
+            let table = self.bot_kits(Instant::now(), unix);
+            server_bot_picks(&bot_roles)
+                .into_iter()
+                .zip(&bot_roles)
+                .map(|(k, &role)| table.bot_kit(bot_level, role, k))
+                .collect()
+        };
         let players = players.map(|mut players| {
             players.extend(
                 bot_teams
                     .iter()
-                    .zip(&bot_roles)
+                    .zip(&bot_kits)
                     .enumerate()
-                    .map(|(n, (&team, &role))| server_bot(n + 1, team, role)),
+                    .map(|(n, (&team, kit))| server_bot(n + 1, team, kit)),
             );
             players
         });
@@ -1005,6 +1079,24 @@ impl Core<'_> {
                         self.settings.pvb.max_matches
                     );
                 }
+                // What each bot wears, and whose kits those are (items
+                // only): the owner's check of the bots' kits.
+                for (n, ((kit, &role), &team)) in
+                    bot_kits.iter().zip(&bot_roles).zip(&bot_teams).enumerate()
+                {
+                    log::info!(
+                        "Match {:#x} {} ({role}, team {team}) for equipment level {bot_level} \
+                         wears level {}, {}: {}; second kit: {}",
+                        ticket.match_id,
+                        server_bot_name(n + 1),
+                        kit.level(),
+                        kit.source,
+                        bot_kits::describe(&kit.first),
+                        kit.second
+                            .as_ref()
+                            .map_or_else(|| "none".to_owned(), bot_kits::describe_weapon)
+                    );
+                }
                 // The map is one more that each of them has played; a
                 // match against bots counts towards no map rotation.
                 for seat in formed.seats.iter().filter(|_| pvb.is_none()) {
@@ -1027,9 +1119,17 @@ impl Core<'_> {
                             .map(|seat| (seat.player.session_id, seat.team))
                             .chain(bot_teams.iter().map(|&team| (0, team)))
                             .collect(),
+                        // A bot counts for the level of its gear, as a
+                        // player of level 0 with no rating.
                         strengths: strengths
                             .into_iter()
-                            .chain(bot_teams.iter().map(|_| 0))
+                            .chain(bot_kits.iter().map(|kit| {
+                                weights.strength(
+                                    matchmaking::level_of(kit.level(), 0).min,
+                                    0,
+                                    Default::default(),
+                                )
+                            }))
                             .collect(),
                         names: names
                             .into_iter()
@@ -1288,16 +1388,21 @@ mod tests {
         };
 
         let dictionary = Dictionary::shared();
+        // No player's kits: each role's fixed kits.
+        let table = BotKits::default();
         let bots: Vec<MatchPlayer> = BotRole::ALL
             .iter()
             .enumerate()
-            .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, role))
+            .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n)))
             .collect();
         for (bot, role) in bots.iter().zip(BotRole::ALL) {
             let profile = &bot.profile;
             // Its role's kit, then the second (its backup's weapon and
-            // ammo), no item in both.
+            // ammo), no item in both; 10 kg more to carry.
             assert_eq!(profile.kits.len(), 2);
+            for kit in &profile.kits {
+                assert_eq!(kit.modifiers, loadouts::bot_gear::bot_modifiers());
+            }
             let used: Vec<u16> = profile
                 .kits
                 .iter()
@@ -1440,5 +1545,20 @@ mod tests {
         );
         assert_eq!(server_bot_roles(&[1, 1, 1]), [Flanker, Rusher, Support]);
         assert!(server_bot_roles(&[]).is_empty());
+    }
+
+    /// The bots' equipment level is their players' (the mean, rounded), and
+    /// a match's bots of a role take its kits in turn, both teams together.
+    #[test]
+    fn the_bots_wear_their_players_level_and_their_roles_kits_in_turn() {
+        use BotRole::*;
+        assert_eq!(bots_gear_level(&[15]), 15);
+        assert_eq!(bots_gear_level(&[0]), 0);
+        assert_eq!(bots_gear_level(&[4, 7]), 6);
+        assert_eq!(bots_gear_level(&[]), 0);
+        assert_eq!(
+            server_bot_picks(&[Flanker, Flanker, Rusher, Flanker, Camper, Rusher]),
+            [0, 1, 0, 2, 0, 1]
+        );
     }
 }

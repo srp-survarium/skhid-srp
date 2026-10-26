@@ -685,7 +685,7 @@ pub struct Reflex {
     /// What it carries (its role's; `None`: [`Arms::fallback`]), kept
     /// from life to life; and this life's rounds, from the first tick or
     /// think of the life.
-    arms: Option<&'static Arms>,
+    arms: Option<Arms>,
     /// The rounds of weapon 1 at this life's spawn: what the kit has left
     /// (a place's ammo lasts the match, a spawn does not refill it);
     /// `None`: the arms' whole count.
@@ -803,7 +803,7 @@ fn along(from: Vec3, bearing: f32, m: f32) -> Vec3 {
 
 impl Reflex {
     /// A reflex for a bot carrying `arms` (`None`: [`Arms::fallback`]).
-    pub fn armed(arms: Option<&'static Arms>) -> Self {
+    pub fn armed(arms: Option<Arms>) -> Self {
         Self {
             arms,
             ..Self::default()
@@ -812,14 +812,14 @@ impl Reflex {
 
     /// A reflex for a bot carrying `arms` with `carried` rounds of weapon
     /// 1 left in its kit.
-    pub fn armed_carrying(arms: Option<&'static Arms>, carried: u32) -> Self {
+    pub fn armed_carrying(arms: Option<Arms>, carried: u32) -> Self {
         Self {
             carried: Some(carried),
             ..Self::armed(arms)
         }
     }
 
-    pub fn arms(&self) -> Option<&'static Arms> {
+    pub fn arms(&self) -> Option<Arms> {
         self.arms
     }
 
@@ -829,7 +829,7 @@ impl Reflex {
             Some(hands) => hands.primary.rounds + hands.primary.spare,
             None => self
                 .carried
-                .unwrap_or(self.arms.unwrap_or_else(Arms::fallback).primary.1),
+                .unwrap_or(self.arms.unwrap_or_else(|| *Arms::fallback()).primary.1),
         }
     }
 
@@ -843,7 +843,7 @@ impl Reflex {
                 self.left() == 0
                     && self
                         .arms
-                        .unwrap_or_else(Arms::fallback)
+                        .unwrap_or_else(|| *Arms::fallback())
                         .pistol
                         .is_none_or(|(_, rounds)| rounds == 0)
             }
@@ -854,18 +854,18 @@ impl Reflex {
     pub fn held_gun(&self) -> &'static Gun {
         match &self.hands {
             Some(hands) => hands.held().gun,
-            None => self.arms.unwrap_or_else(Arms::fallback).primary.0,
+            None => self.arms.unwrap_or_else(|| *Arms::fallback()).primary.0,
         }
     }
 
     /// This life's weapons, from its arms at the first use.
     pub fn hands(&mut self) -> &mut Hands {
-        let arms = self.arms.unwrap_or_else(Arms::fallback);
+        let arms = self.arms.unwrap_or_else(|| *Arms::fallback());
         let carried = self.carried.unwrap_or(arms.primary.1);
         self.hands.get_or_insert_with(|| {
             Hands::of(&Arms {
                 primary: (arms.primary.0, carried),
-                ..*arms
+                ..arms
             })
         })
     }
@@ -1711,7 +1711,9 @@ impl Reflex {
     ) {
         if self.throw.is_some()
             || self.target.is_some()
-            || self.thrown >= c.grenades
+            || self.thrown
+                >= c.grenades
+                    .min(self.arms.unwrap_or_else(|| *Arms::fallback()).grenades)
             || now < self.next_grenade_roll
         {
             return;
@@ -2575,7 +2577,7 @@ mod tests {
         facing(&mut me, enemy.chest());
         let view = view_of(vec![me.clone(), enemy]);
         let mut memory = Memory::default();
-        let mut reflex = Reflex::armed(Arms::of_role(role));
+        let mut reflex = Reflex::armed(Arms::of_role(role).copied());
         let mut rng = Rng::new(11);
         let mut out = Vec::new();
         for k in 0..ticks {
@@ -2689,7 +2691,7 @@ mod tests {
         let chest = me.pitch;
         let view = view_of(vec![me.clone(), enemy]);
         let mut memory = Memory::default();
-        let mut reflex = Reflex::armed(Arms::of_role(role));
+        let mut reflex = Reflex::armed(Arms::of_role(role).copied());
         // The client's side: the base pitch and the weapon's kick.
         let mut base = me.pitch;
         let mut client = Recoil::new(kick_of(reflex.hands().held().gun.item));
@@ -3313,10 +3315,11 @@ mod tests {
             };
             // And the TT-33 as weapon 2, for the switch (the bots carry
             // none; a kit with one switches when weapon 1 is dry).
-            &*Box::leak(Box::new(Arms {
+            Arms {
                 primary: (arms.primary.0, spare),
                 pistol: crate::v026g::bots::guns::gun("tt_33").map(|gun| (gun, 50)),
-            }))
+                ..*arms
+            }
         });
         let mut reflex = Reflex::armed(arms);
         let mut rng = Rng::new(21);
@@ -4059,10 +4062,11 @@ mod tests {
             ..AimTuning::default()
         };
         for rounds in [0, 30] {
-            let arms: &'static Arms = Box::leak(Box::new(Arms {
+            let arms = Arms {
                 primary: (fallback.primary.0, rounds),
                 pistol: None,
-            }));
+                ..*fallback
+            };
             let mut me = body(0, 0, Vec3::new(20.0, 0.0, 32.0), 0.0);
             let enemy_at = Vec3::new(50.0, 0.0, 32.0);
             let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);

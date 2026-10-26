@@ -111,13 +111,26 @@ impl Walkers {
         let project = formed.map.project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
+        // A bot's role by its weapon 1's category; a player's weapon may
+        // be of one too, and is no bot's.
         let roles: Vec<Option<&str>> = formed
             .profiles
             .iter()
-            .map(|profile| survarium::v026g::loadouts::bot_role_of(profile).map(|role| role.name()))
+            .zip(&driven)
+            .map(|(profile, &driven)| {
+                driven
+                    .then(|| survarium::v026g::loadouts::bot_role_of(profile))
+                    .flatten()
+                    .map(|role| role.name())
+            })
             .collect();
         log::info!("Match {id:#x}: the bots' roles by place {roles:?}");
-        let weapons = formed.profiles.iter().map(weapon_of).collect();
+        let weapons = formed
+            .profiles
+            .iter()
+            .zip(&driven)
+            .map(|(profile, &driven)| weapon_of(profile, driven))
+            .collect();
         Some(Self {
             bots: Bots::new(
                 id,
@@ -140,6 +153,13 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            // Each bot's kits as its profile has them (its match's
+            // equipment level, `session::v026g::bot_kits`).
+            for (place, profile) in formed.profiles.iter().enumerate() {
+                if driven.get(place).copied().unwrap_or(false) {
+                    walkers.bots.wear(place, kits_of(profile));
+                }
+            }
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {
@@ -252,12 +272,44 @@ impl Walkers {
     }
 }
 
-/// A place's weapon 1 kind from its profile: a bot's by its role, a
-/// player's by the item in slot 7 (its dictionary category and kind).
+/// A bot's kits from its profile, as its arms: each kit's weapon 1, its
+/// rounds and its pockets' medkits and grenades (`bots::guns::Arms::of_kit`);
+/// a kit whose weapon the bots do not know is left out.
+fn kits_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Vec<crate::v026g::bots::guns::Arms> {
+    use survarium::v026g::loadouts::{Loadout, SlotItem};
+    profile
+        .kits
+        .iter()
+        .filter_map(|kit| {
+            let items = kit
+                .slots
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, held)| {
+                    let (index, count) = (*held)?;
+                    let item = profile.items.get(usize::from(index))?;
+                    Some(SlotItem {
+                        slot: slot as u8,
+                        dict_id: item.dict_id,
+                        count: u32::from(count),
+                    })
+                })
+                .collect();
+            crate::v026g::bots::guns::Arms::of_kit(&Loadout { items })
+        })
+        .collect()
+}
+
+/// A place's weapon 1 kind from its profile: a bot's (`driven`) by its
+/// role, a player's by the item in slot 7 (its dictionary category and
+/// kind).
 fn weapon_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    driven: bool,
 ) -> Option<WeaponKind> {
-    if let Some(role) = survarium::v026g::loadouts::bot_role_of(profile) {
+    if let Some(role) = survarium::v026g::loadouts::bot_role_of(profile).filter(|_| driven) {
         return WeaponKind::of_role(role.name());
     }
     let kit = profile.kits.first()?;
