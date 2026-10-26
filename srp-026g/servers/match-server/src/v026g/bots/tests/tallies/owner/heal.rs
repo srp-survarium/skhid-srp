@@ -53,6 +53,8 @@ pub(super) struct HealRec {
 
 /// An enemy this near with a clear line is "in an enemy's line", m (the situations).
 const LINE_M: f32 = 40.0;
+/// A heal note made this many ticks before the stand-in's log of the press belongs to it (the ping).
+const NOTE_BEFORE_TICKS: usize = 4;
 /// A heal cover walk begun this many ticks after a press (0.8 s) belongs to it.
 const WALK_AFTER_TICKS: usize = 16;
 /// A hurt body: under this (the record's 0.995).
@@ -327,7 +329,8 @@ impl OwnerTally {
                 .any(|i| i > 0 && recs[i].alive && recs[i - 1].alive && recs[i].body < recs[i - 1].body);
             // The walk is begun at the think after the press, so a walk counts when it is on at the
             // press or begins within `WALK_AFTER_TICKS` after it.
-            let walk = rec.walking || recs[(k + WALK_AFTER_TICKS).min(recs.len() - 1)].walks > rec.walks;
+            let from = &recs[k.saturating_sub(NOTE_BEFORE_TICKS)];
+            let walk = rec.walking || recs[(k + WALK_AFTER_TICKS).min(recs.len() - 1)].walks > from.walks;
             let bits = u32::from(rec.target)
                 | u32::from(lost) << 1
                 | u32::from(rec.line) << 2
@@ -350,7 +353,9 @@ impl OwnerTally {
             let k = self.index(p.0);
             let recs = &self.heal.recs[p.1];
             let Some(rec) = recs.get(k) else { continue };
-            let note = (k..=(k + 20).min(recs.len() - 1)).find_map(|i| recs[i].note);
+            // The note is made at the first think after the bot's press; the stand-in logs the press up to the
+            // ping later (150 ms), so a think in between comes first: the window starts 4 ticks before the log.
+            let note = (k.saturating_sub(NOTE_BEFORE_TICKS)..=(k + 20).min(recs.len() - 1)).find_map(|i| recs[i].note);
             let why = note.map_or("NoThink".to_owned(), |n| format!("{:?}", n.why));
             let died = deaths
                 .iter()
