@@ -852,6 +852,28 @@ impl Bots {
         }
     }
 
+    /// The bodies of the jump test's last asked world as the reckoning's worlds: the game passes an asked world on to
+    /// nobody, and with the test asking all the time the bots would get none.
+    #[cfg(feature = "jump-test")]
+    pub fn fix_from_burst(&mut self) -> Vec<Note> {
+        let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
+        let mut notes = Vec::new();
+        for row in rows {
+            let fix = Fix {
+                time: row.time,
+                alive: row.alive,
+                inserted: row.inserted,
+                feet: row.alive.then_some(row.feet),
+                yaw: row.yaw,
+                pitch: row.pitch,
+                keys: row.keys,
+                speed: Some(row.speed),
+            };
+            notes.extend(self.fixed(row.place, fix, None));
+        }
+        notes
+    }
+
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
         let mut notes = Vec::new();
