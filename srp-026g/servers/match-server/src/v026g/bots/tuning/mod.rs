@@ -33,6 +33,10 @@ pub struct Tuning {
     pub think: ThinkTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// `Ctx::path_dist` is the regions' walk between floors when a target
+    /// is a storey off; off, the straight ground distance whatever the
+    /// floor (the bench's switch, `SRP_BENCH_FLOOR_PATHS=0`).
+    pub floor_paths: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -52,6 +56,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
+            floor_paths: true,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))

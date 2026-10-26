@@ -127,6 +127,11 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         bench_settings().var(&format!("{prefix}{name}"))
     };
     let mut tuning = Tuning::default();
+    // The floor-aware path distance off: the straight ground distance for
+    // every play (`Tuning::floor_paths`).
+    if let Ok(v) = bench_settings().var("SRP_BENCH_FLOOR_PATHS") {
+        tuning.floor_paths = v != "0";
+    }
     // The battery cheat instead of the fair battery knowledge.
     if bench_settings().flag("SRP_BENCH_CHEAT") {
         tuning.cheats.batteries = true;

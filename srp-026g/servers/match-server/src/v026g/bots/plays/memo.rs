@@ -494,6 +494,10 @@ mod tests {
         assert!(walk > 40.0, "the way up is the ramp's: {walk}");
         assert!(cx.straight_dist(battery) < 10.0);
         assert_eq!(cx.path_dist(battery), walk, "path_dist is the floor-aware walk");
+        // The bench's switch off: the straight ground distance.
+        s.tuning.floor_paths = false;
+        assert_eq!(s.cx(0).path_dist(battery), s.cx(0).straight_dist(battery));
+        s.tuning.floor_paths = true;
         // On the platform, one level: the straight guess stands.
         s.view.places[0].feet = Vec3::new(45.0, 3.4, 30.0);
         assert_eq!(s.cx(0).storey_walk_dist(battery), None);
