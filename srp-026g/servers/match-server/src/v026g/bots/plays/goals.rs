@@ -28,7 +28,7 @@ use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent, Look, PlayKind};
 use crate::v026g::bots::rng::Rng;
-use crate::v026g::bots::view::{EYE_STANDING, PlaceView};
+use crate::v026g::bots::view::{PlaceView, still_eye};
 
 /// How near another bot's claim on a spot (`know::Claim`) a spot may be,
 /// metres: two capsule widths (2 x 0.76 m, `default.player`). Players do
@@ -238,7 +238,6 @@ impl Ctx<'_> {
         if to.y <= anchor.y + STOREY_OVER_M {
             return false;
         }
-        let eye = Vec3::new(0.0, crate::v026g::bots::view::EYE_STANDING, 0.0);
         let mut seen: Vec<Vec3> = self
             .memory
             .tracks()
@@ -256,7 +255,7 @@ impl Ctx<'_> {
         seen.iter().any(|&enemy| {
             (1..=steps).any(|k| {
                 let p = self.me.feet + (to - self.me.feet) * (k as f32 / steps as f32);
-                self.tactics.sees(enemy + eye, p + eye)
+                self.tactics.sees(still_eye(enemy, false), still_eye(p, false))
             })
         })
     }
@@ -305,7 +304,6 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     };
     perch_count(1);
     let grid = &cx.tactics.world.grid;
-    let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
     let target = anchor + Vec3::new(0.0, 1.0, 0.0);
     let in_range: Vec<&crate::v026g::bots::routes::Perch> = cx
         .tactics
@@ -339,7 +337,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
             }
             Some(_) => {}
         }
-        if !cx.tactics.sees(p.at + eye, target) {
+        if !cx.tactics.sees(still_eye(p.at, false), target) {
             perch_count(4);
             continue;
         }

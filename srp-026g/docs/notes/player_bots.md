@@ -516,7 +516,7 @@ web research with its sources: `player_bots_research.md`.
 The first use of the server's bots outside tests: one player against them,
 chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
 `lobby.md` §2.16.2, the lobby's rule `matchmaking.md` §9.8, the settings
-`servers/lobby-server/src/v026g/pvb.rs`). Off unless `SRP_PVB=on`.
+`servers/lobby-server/src/v026g/pvb.rs`). On unless `SRP_PVB=off`.
 
 - **The match.** The player alone on team 0 and 2N − 1 of the server's
   bots (stage 1's places, `play::server_bot`), N − 1 on its side: 6, 8 or
