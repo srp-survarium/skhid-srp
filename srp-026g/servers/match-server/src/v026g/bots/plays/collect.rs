@@ -23,6 +23,7 @@
 //! (`LookSpot`, `TargetRef::Point`).
 
 use super::*;
+use super::goals::APART_M;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::view;
 use mapdata::{UsePose, UseStand};
@@ -1536,6 +1537,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     intent = intent.looking(Look::Use(aim));
                 } else {
                     *arrived = None;
+                    // Two carriers that picked the one stand in one pass:
+                    // the higher place takes another before it is there.
+                    if cx.tuning.stand_claim
+                        && let Some(at) = *stand
+                        && cx.me.feet.distance_xz(at.feet) > STAND_AT_M
+                        && cx.spot_yielded(at.feet, APART_M)
+                    {
+                        *stand = None;
+                    }
                     if stand.is_none() {
                         *stand = cx.nearest_use_stand(container, UsePose::Standing, passed);
                     }
@@ -3681,6 +3691,128 @@ mod tests {
             panic!("{state:?}");
         };
         assert_eq!(passed, &vec![far]);
+    }
+
+    /// The second carrier at a container takes a stand clear of the first
+    /// one's claim (two carriers on one spot are one grenade's two kills);
+    /// with every stand claimed it keeps the nearest, and with the switch
+    /// off it takes the nearest whoever stands there.
+    #[test]
+    fn a_second_carrier_takes_a_stand_clear_of_the_firsts_claim() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.bot(0, 0, home + Vec3::new(3.0, 0.0, 0.0));
+        s.bot(1, 0, home + Vec3::new(3.0, 0.0, 0.0));
+        let now = s.view.clock;
+        let first = s
+            .cx(1)
+            .nearest_use_stand(0, UsePose::Standing, &[])
+            .expect("a stand");
+        // Place 0 claims it: place 1 takes another, a body apart.
+        s.team.claim(0, first.feet, now);
+        let second = s
+            .cx(1)
+            .nearest_use_stand(0, UsePose::Standing, &[])
+            .expect("another stand");
+        assert!(second.feet.distance_xz(first.feet) >= APART_M, "{second:?}");
+        // Its own claim does not count: place 0 keeps its own.
+        assert_eq!(
+            s.cx(0).nearest_use_stand(0, UsePose::Standing, &[]),
+            Some(first)
+        );
+        // Every stand claimed: the nearest, as before.
+        for (k, stand) in s.cx(1).use_stands(0).to_vec().iter().enumerate() {
+            s.team.claim(10 + k, stand.feet, now);
+        }
+        assert_eq!(
+            s.cx(1).nearest_use_stand(0, UsePose::Standing, &[]),
+            Some(first)
+        );
+        // The switch off: the nearest whoever stands there.
+        let mut s = s;
+        s.tuning.stand_claim = false;
+        s.team.claim(0, first.feet, now);
+        assert_eq!(
+            s.cx(1).nearest_use_stand(0, UsePose::Standing, &[]),
+            Some(first)
+        );
+    }
+
+    /// Two carriers that chose one stand in one pass: the higher place takes
+    /// another before it is there; the lower keeps its stand.
+    #[test]
+    fn of_two_carriers_on_one_stand_the_higher_place_walks_to_another() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.battery(BatteryState::Carried(Some(1)));
+        let out = home + Vec3::new(5.0, 0.0, 0.0);
+        s.bot(0, 0, out).carrying = Some(0);
+        s.bot(1, 0, out).carrying = Some(1);
+        let now = s.view.clock;
+        let stand = s
+            .cx(1)
+            .nearest_use_stand(0, UsePose::Standing, &[])
+            .expect("a stand");
+        let put_in = |stand: UseStand| State::PutIn {
+            tries: 0,
+            last_use: 0,
+            arrived: None,
+            missed: false,
+            stand: Some(stand),
+            still_since: None,
+            passed: Vec::new(),
+        };
+        let chosen = |state: &State| match state {
+            State::PutIn { stand, .. } => stand.map(|st| st.feet),
+            other => panic!("{other:?}"),
+        };
+        for (place, expect_same) in [(0, true), (1, false)] {
+            // The other bot's claim lies on the stand the bot walks to.
+            s.team.claim(1 - place, stand.feet, now);
+            s.current = Some((PlayKind::Collect, TargetRef::Battery(place), now));
+            let mut state = put_in(stand);
+            step(
+                &mut state,
+                TargetRef::Battery(place),
+                &s.cx(place),
+                &mut Rng::new(1),
+            );
+            let same = chosen(&state) == Some(stand.feet);
+            assert_eq!(same, expect_same, "place {place}: {state:?}");
+        }
     }
 
     /// A battery a storey up whose only way up is a far ramp scores below

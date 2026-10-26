@@ -266,6 +266,14 @@ impl Ctx<'_> {
             .any(|c| c.at.distance_xz(at) < apart_m)
     }
 
+    /// Whether a teammate the bot gives way to ([`yields_to`]: one of a
+    /// lower place) claims a spot within `apart_m` of `at`.
+    pub fn spot_yielded(&self, at: Vec3, apart_m: f32) -> bool {
+        self.team
+            .claims_of_others(self.me.place, self.now)
+            .any(|c| yields_to(self.me.place, c.who) && c.at.distance_xz(at) < apart_m)
+    }
+
     /// Whether the bot can go to `at`: a way may be open there
     /// ([`Ctx::reachable`], not for the objective) and no search of its own
     /// proved none lately ([`Ctx::no_way_lately`]).

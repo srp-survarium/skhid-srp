@@ -33,6 +33,10 @@ pub struct Tuning {
     pub think: ThinkTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// A carrier's put-in stand is one clear of a teammate's claim when
+    /// one is (`Ctx::nearest_use_stand`; the bench's switch,
+    /// `SRP_BENCH_STAND_CLAIM=0` turns it off).
+    pub stand_claim: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -52,6 +56,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
+            stand_claim: true,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))

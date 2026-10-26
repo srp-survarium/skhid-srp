@@ -18,6 +18,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
+use super::goals::APART_M;
 use super::collect::{Crossing, crossing_to};
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
@@ -156,23 +157,38 @@ impl Ctx<'_> {
 
     /// The stand of `container` in `pose` the bot reaches soonest
     /// (`path_dist`), if there is one, leaving out the floors in `passed`
-    /// (stands it stood on and could not press from).
+    /// (stands it stood on and could not press from). Of the stands, one
+    /// clear of a teammate's claim ([`Ctx::spot_taken`]) is taken before
+    /// any claimed one, so two carriers do not stand on one spot; when all
+    /// are claimed the nearest is kept, so a put-in never waits longer.
+    ///
+    /// Root cause (`batteries-record.md`, stand-claim trace): the list
+    /// gives every carrier the same nearest stand (85 % of the standing
+    /// pairs at a container were two carriers putting in).
     pub fn nearest_use_stand(
         &self,
         container: u8,
         pose: UsePose,
         passed: &[Vec3],
     ) -> Option<UseStand> {
-        self.use_stands(container)
-            .iter()
-            .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
-            .min_by(|a, b| {
-                self.path_dist(a.feet)
-                    .total_cmp(&self.path_dist(b.feet))
-                    .then(a.feet.x.total_cmp(&b.feet.x))
-                    .then(a.feet.z.total_cmp(&b.feet.z))
-            })
-            .copied()
+        let nearest = |clear: bool| {
+            self.use_stands(container)
+                .iter()
+                .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
+                .filter(|stand| !clear || !self.spot_taken(stand.feet, APART_M))
+                .min_by(|a, b| {
+                    self.path_dist(a.feet)
+                        .total_cmp(&self.path_dist(b.feet))
+                        .then(a.feet.x.total_cmp(&b.feet.x))
+                        .then(a.feet.z.total_cmp(&b.feet.z))
+                })
+                .copied()
+        };
+        if self.tuning.stand_claim {
+            nearest(true).or_else(|| nearest(false))
+        } else {
+            nearest(false)
+        }
     }
 
     /// Where on the box of `container` a use ray from `eye` can meet it by

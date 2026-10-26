@@ -127,6 +127,10 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         bench_settings().var(&format!("{prefix}{name}"))
     };
     let mut tuning = Tuning::default();
+    // A put-in stand clear of a teammate's claim off (`Tuning::stand_claim`).
+    if let Ok(v) = bench_settings().var("SRP_BENCH_STAND_CLAIM") {
+        tuning.stand_claim = v != "0";
+    }
     // The battery cheat instead of the fair battery knowledge.
     if bench_settings().flag("SRP_BENCH_CHEAT") {
         tuning.cheats.batteries = true;
