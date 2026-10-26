@@ -658,6 +658,15 @@ impl Ctx<'_> {
         if start == Some(goal) {
             return true;
         }
+        // Given up in its pocket (every exit tried): nothing outside it is
+        // reachable, whatever the grid's links say of the floors round it
+        // (`drive`'s search would end at once, `shut_in_gate`).
+        if self.tuning.think.shut_in_gate
+            && self.trapped().is_some_and(|t| t.gave_up)
+            && start.and_then(|s| grid.pocket_of(s)) != grid.pocket_of(goal)
+        {
+            return false;
+        }
         let past = |b| self.tactics.past_fixed_zones(b);
         (past(goal) || grid.entered_from(goal, past))
             && grid.entered_from(goal, |b| {
