@@ -178,6 +178,9 @@ pub struct Site {
     /// How deep the flat top is past the face, m, if known (`sites.tsv`'s tenth column, from the walker mesh): a try
     /// whose jump travels past it ([`Site::kind`]) goes over the ledge instead of onto it.
     pub depth: Option<f32>,
+    /// A gap site (`sites.tsv`'s trailing word `gap`): its top (the landing across a gap) is a floor the walk grid does not
+    /// reach from the spawns until a link exists, so only the start is checked ([`ReachSets::refuse`]).
+    pub gap: bool,
 }
 
 /// What a try on a site is: a jump onto a top, or over a thin obstacle.
@@ -187,6 +190,8 @@ pub enum Kind {
     Climb,
     /// The jump travels past the top: it clears the obstacle and lands behind it at the deck's height.
     Over,
+    /// A jump across a gap (the site is flagged `gap`).
+    Gap,
     /// The site's depth is not known.
     Unknown,
 }
@@ -201,6 +206,9 @@ impl Site {
     /// enough for the jump to land on it (`depth >= edge + travel`).
     pub fn kind(&self, edge: f32, speed: Speed) -> Kind {
         let travel = if speed == Speed::Sprint { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        if self.gap {
+            return Kind::Gap;
+        }
         match self.depth {
             Some(depth) if depth >= edge.max(0.0) + travel => Kind::Climb,
             Some(_) => Kind::Over,
@@ -365,6 +373,7 @@ fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
             face,
             half,
             depth: None,
+            gap: false,
         })
 }
 
@@ -391,6 +400,7 @@ fn parse_site(text: &str, extra: &HashMap<String, Site>) -> Result<Site, String>
         face: v[6],
         half: 0.0,
         depth: None,
+        gap: false,
     })
 }
 
@@ -489,7 +499,8 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         let f: Vec<&str> = line.split_whitespace().collect();
-        if !(8..=10).contains(&f.len()) {
+        let gap = f.last() == Some(&"gap");
+        if !(8..=10 + usize::from(gap)).contains(&f.len()) {
             continue;
         }
         let v: Vec<f32> = f[1..].iter().filter_map(|s| s.parse().ok()).collect();
@@ -510,6 +521,7 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
                 face: v[6],
                 half: v.get(7).copied().unwrap_or(0.0),
                 depth: v.get(8).copied(),
+                gap,
             },
         );
     }
@@ -1742,14 +1754,16 @@ impl ReachSets {
         let (Some(start), Some(top)) = (floor(start_of(def)), floor(top_of(def))) else {
             return Some("the start or the top is on no floor".to_owned());
         };
+        // A gap's far side is not reached until a link joins it: its start is the only floor the bots walk to.
+        let top = (!def.site.gap).then_some(top);
         for team in 0..2usize {
             let checks = [
-                ("start reached from", self.forward[team][start as usize]),
-                ("top reached from", self.forward[team][top as usize]),
-                ("start has a way back to", self.back[team][start as usize]),
-                ("top has a way back to", self.back[team][top as usize]),
+                ("start reached from", Some(self.forward[team][start as usize])),
+                ("top reached from", top.map(|top| self.forward[team][top as usize])),
+                ("start has a way back to", Some(self.back[team][start as usize])),
+                ("top has a way back to", top.map(|top| self.back[team][top as usize])),
             ];
-            if let Some((what, _)) = checks.iter().find(|c| !c.1) {
+            if let Some((what, _)) = checks.iter().find(|c| c.1 == Some(false)) {
                 return Some(format!("{what} the spawns of team {team}: no"));
             }
         }
@@ -2432,6 +2446,18 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(plan.press.is_none());
         assert_eq!(plan.at(plan.first + TICK_MS).keys, key::FORWARD);
         assert_eq!(plan.at(plan.end - TICK_MS).keys, 0);
+    }
+
+    #[test]
+    fn a_gap_site_is_flagged_by_its_trailing_word() {
+        let sites = parse_sites("rg1 55.88 8.58 66.88 -0.4472 0.8944 0.890 0.868 0.30 gap  # a gap
+rc 11.4 10.17 66 1 0 1.03 0.4 0.3
+d1 1 2 3 1 0 0.6 0.25 0.6 1.01 gap
+");
+        assert!(sites["rg1"].gap && sites["rg1"].depth.is_none());
+        assert_eq!(sites["rg1"].kind(1.2, Speed::Walk), Kind::Gap);
+        assert!(!sites["rc"].gap);
+        assert!(sites["d1"].gap && sites["d1"].depth == Some(1.01));
     }
 
     #[test]
