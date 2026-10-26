@@ -61,6 +61,8 @@ pub(super) struct ResupplyCounts {
     open: Vec<Option<Event>>,
     holds: u32,
     events: Vec<Event>,
+    /// Every kill, as the match ran (the bench drains the game's log).
+    pub(super) kills: Vec<(u32, Place, Place)>,
 }
 
 impl ResupplyCounts {
@@ -161,7 +163,8 @@ impl OwnerTally {
             lives_v.push(Life { end, ..open });
         }
         let kills_in = |l: &Life| {
-            game.kill_log
+            self.resupply
+                .kills
                 .iter()
                 .filter(|&&(t, shooter, victim)| {
                     shooter == l.place
@@ -230,7 +233,8 @@ impl OwnerTally {
             left[3],
         );
         let kills_of = |e: &Event| {
-            game.kill_log
+            self.resupply
+                .kills
                 .iter()
                 .filter(|&&(t, shooter, victim)| {
                     shooter == e.place
