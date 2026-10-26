@@ -301,6 +301,8 @@ mod tests {
     fn under_fire_and_badly_hurt_it_falls_back_to_its_resupply_and_holds_use() {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         with_zones(&mut s);
+        // The Heal play (the habit off): with the habit the press is the reflex's and the play is not a candidate.
+        s.tuning.heal.interrupt = false;
         s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
         s.enemy(1, 1, Vec3::new(65.0, 0.0, 33.0), Some(Source::Seen));
         // With a medkit it heals first, in the alarm band, under fire too.
