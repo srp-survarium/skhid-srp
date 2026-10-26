@@ -282,6 +282,14 @@ pub struct CombatTuning {
     /// blasts), which `grenade_friend_m` around the P80 end does not reach;
     /// GUESS: a body's width and the grenade's.
     pub grenade_lane_m: f32,
+    /// How many places a roll weighs, nearest first, before it gives the
+    /// throw up: the first that passes every check is thrown at, none that
+    /// fails is loosened. One arc trace a weighing. GUESS: the places are
+    /// few (a held angle and a camp or two) and the nearest is often
+    /// behind a wall or a ceiling near the thrower (18 of 31 in a smoke);
+    /// YaPB tries up to 12 predicted places for the same reason. 1: the
+    /// nearest only.
+    pub grenade_places: u32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -818,6 +826,7 @@ impl Default for CombatTuning {
             grenade_wall_m: 18.0,
             grenade_off_m: 8.0,
             grenade_lane_m: 2.0,
+            grenade_places: 3,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1298,6 +1307,31 @@ fn weigh_throw(
         Some(mate) => Err(Refuse::Mate(mate)),
         None => Ok(()),
     }
+}
+
+/// [play 20] The place to throw at: the first of `places` (nearest first,
+/// at most `grenade_places` of them) that [`weigh_throw`] lets through, every
+/// check as for one place. When none does, the nearest place and why it was
+/// refused. One ground for all the places: the mesh; for a reflex never told
+/// a map, a level plane at the nearest place's height.
+fn pick_place(
+    me: &PlaceView,
+    view: &MatchView,
+    places: &[Vec3],
+    error: (f32, f32),
+    c: &CombatTuning,
+    ground: &dyn arc::Ground,
+) -> Result<Vec3, (Vec3, Refuse)> {
+    let mut first = None;
+    for &at in places.iter().take(c.grenade_places.max(1) as usize) {
+        match weigh_throw(me, view, at, error, c, true, ground) {
+            Ok(()) => return Ok(at),
+            Err(why) => {
+                first.get_or_insert((at, why));
+            }
+        }
+    }
+    Err(first.expect("a place was weighed"))
 }
 
 /// An enemy sensed staying at one place.
@@ -2818,8 +2852,9 @@ impl Reflex {
 
     /// Play 20: now and then, with nothing seen, a grenade at the nearest
     /// place an enemy was seen holding an angle or sensed staying at. The
-    /// throw is weighed ([`weigh_throw`]) once the chance has said yes, and
-    /// one that fails is not made: nothing else is picked for it.
+    /// throw is weighed ([`weigh_throw`]) once the chance has said yes; one
+    /// that fails is not made, and the next place is weighed
+    /// ([`pick_place`]), up to `grenade_places` of them, nearest first.
     fn grenade_roll(
         &mut self,
         me: &PlaceView,
@@ -2852,16 +2887,17 @@ impl Reflex {
             view.team(me.team)
                 .any(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
         };
-        let at = held
+        let mut places: Vec<Vec3> = held
             .chain(camps)
             .filter(|at| {
                 (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
                     && !friend_near(*at)
             })
-            .min_by(|a, b| a.distance_xz(me.feet).total_cmp(&b.distance_xz(me.feet)));
-        let Some(at) = at else {
+            .collect();
+        if places.is_empty() {
             return;
-        };
+        }
+        places.sort_by(|a, b| a.distance_xz(me.feet).total_cmp(&b.distance_xz(me.feet)));
         self.next_grenade_roll = now + c.grenade_roll_ms;
         if rng.unit() >= c.grenade_chance {
             return;
@@ -2870,10 +2906,10 @@ impl Reflex {
         let floor = mix(aim.error_deg, skill).to_radians();
         let error = (floor * (rng.unit() - 0.5), floor * 0.5 * (rng.unit() - 0.5));
         let mesh = self.sight.ground();
-        match over_ground(mesh.as_deref(), at.y, |ground| {
-            weigh_throw(me, view, at, error, c, true, ground)
+        match over_ground(mesh.as_deref(), places[0].y, |ground| {
+            pick_place(me, view, &places, error, c, ground)
         }) {
-            Ok(()) => {
+            Ok(at) => {
                 self.throw = Some(Throw {
                     at,
                     started: now,
@@ -2883,7 +2919,7 @@ impl Reflex {
                     released: false,
                 });
             }
-            Err(why) => self.hold_back(at, why),
+            Err((at, why)) => self.hold_back(at, why),
         }
     }
 
@@ -5654,10 +5690,27 @@ mod tests {
         world: Option<&Arc<mapdata::World>>,
         until: u32,
     ) -> ThrowRun {
+        throw_run_at(&[Vec3::new(0.0, 0.0, distance)], mates, combat, world, until)
+    }
+
+    /// The same with an enemy holding an angle at each of `campers`.
+    fn throw_run_at(
+        campers: &[Vec3],
+        mates: &[PlaceView],
+        combat: CombatTuning,
+        world: Option<&Arc<mapdata::World>>,
+        until: u32,
+    ) -> ThrowRun {
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
-        let camper_at = Vec3::new(0.0, 0.0, distance);
-        let mut camper = body(1, 1, camper_at, 0.0);
-        camper.keys = key::CROUCH | key::AIM;
+        let campers: Vec<PlaceView> = campers
+            .iter()
+            .enumerate()
+            .map(|(i, at)| {
+                let mut camper = body(i as Place + 1, 1, *at, 0.0);
+                camper.keys = key::CROUCH | key::AIM;
+                camper
+            })
+            .collect();
         let aim = AimTuning {
             combat: CombatTuning {
                 grenade_chance: 1.0,
@@ -5667,7 +5720,8 @@ mod tests {
             ..AimTuning::default()
         };
         let view = |me: &PlaceView| {
-            let mut places = vec![me.clone(), camper.clone()];
+            let mut places = vec![me.clone()];
+            places.extend(campers.iter().cloned());
             places.extend_from_slice(mates);
             view_of(places)
         };
@@ -5675,7 +5729,12 @@ mod tests {
         let mut reflex = Reflex::default();
         let mut rng = Rng::new(10);
         for now in [1_000, 1_300] {
-            sense(&mut memory, &[percept(1, camper_at, now, Source::Seen)], now);
+            let seen: Vec<_> = campers
+                .iter()
+                .enumerate()
+                .map(|(i, c)| percept(i as Place + 1, c.feet, now, Source::Seen))
+                .collect();
+            sense(&mut memory, &seen, now);
             reflex.think_with(&me, &Situation::of(&view(&me)), &memory, now, &aim, 0.5, &mut rng);
         }
         let mut run = ThrowRun {
@@ -5941,6 +6000,142 @@ mod tests {
         let far = floor_and(&wall_at(23.0));
         let run = throw_run(25.0, &[], c.clone(), Some(&far), 6_000);
         assert!(!run.thrown.is_empty(), "{:?}", run.notes);
+    }
+
+    /// A wall across the throws at x within 5 m of the thrower's line, 15 m
+    /// out: a place straight ahead is behind it, one 30 degrees aside is not.
+    fn narrow_wall() -> [[Vec3; 3]; 2] {
+        let (a, b) = (Vec3::new(-5.0, 0.0, 15.0), Vec3::new(5.0, 0.0, 15.0));
+        let (c, d) = (Vec3::new(5.0, 10.0, 15.0), Vec3::new(-5.0, 10.0, 15.0));
+        [[a, b, c], [a, c, d]]
+    }
+
+    /// The nearest place is behind a wall, the next is clear: it is thrown at
+    /// the next, whatever the first was refused for; with one place weighed
+    /// (`grenade_places` 1) nothing is thrown, as before.
+    #[test]
+    fn the_next_place_is_thrown_at_when_the_nearest_is_behind_a_wall() {
+        let walled = floor_and(&narrow_wall());
+        let ahead = Vec3::new(0.0, 0.0, 25.0);
+        let aside = Vec3::new(13.0, 0.0, 22.0);
+        assert!(ahead.distance_xz(Vec3::ZERO) < aside.distance_xz(Vec3::ZERO));
+        let one = CombatTuning {
+            grenade_places: 1,
+            ..CombatTuning::default()
+        };
+        let run = throw_run_at(&[ahead, aside], &[], one, Some(&walled), 6_000);
+        assert!(run.thrown.is_empty(), "{:?}", run.notes);
+        assert!(
+            run.notes
+                .iter()
+                .any(|n| n.contains("(0.0, 0.0, 25.0)")
+                    && n.ends_with("hits a wall near the thrower")),
+            "{:?}",
+            run.notes
+        );
+        let run = throw_run_at(
+            &[ahead, aside],
+            &[],
+            CombatTuning::default(),
+            Some(&walled),
+            6_000,
+        );
+        assert!(!run.thrown.is_empty(), "{:?}", run.notes);
+        assert!(
+            run.notes
+                .iter()
+                .all(|n| !n.contains("holds a grenade back")),
+            "{:?}",
+            run.notes
+        );
+        let (_, press) = pressed_at(&run).unwrap();
+        let landing = landing_of(
+            press.look_at.unwrap(),
+            (0.0, 0.0),
+            &arc::Mesh(&walled.sight),
+        );
+        let miss = landing.contact.point.distance_xz(aside);
+        assert!(miss < 1.0, "{:?}", landing.contact);
+        // The same run is the same.
+        let again = throw_run_at(
+            &[ahead, aside],
+            &[],
+            CombatTuning::default(),
+            Some(&walled),
+            6_000,
+        );
+        assert_eq!(again.thrown, run.thrown);
+        assert_eq!(again.notes, run.notes);
+        assert_eq!(again.ticks, run.ticks);
+    }
+
+    /// The places weighed, on grounds made for it: the first that passes
+    /// every check, at most `grenade_places` of them, nearest first.
+    #[test]
+    fn the_places_are_weighed_in_order_up_to_the_cap() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        // A wall across the whole line to the north: every place straight
+        // ahead (x within 8 m) meets it 15 m out; the ones aside do not.
+        let wall = |from: Vec3, dir: Vec3, max_t: f32| {
+            if dir.z > 0.0 && from.z < 15.0 {
+                let t = (15.0 - from.z) / dir.z;
+                if t <= max_t && (from.x + dir.x * t).abs() < 8.0 {
+                    return Some(arc::Hit {
+                        t,
+                        normal: Vec3::new(0.0, 0.0, -1.0),
+                    });
+                }
+            }
+            arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t)
+        };
+        let blocked = [
+            Vec3::new(0.0, 0.0, 14.0 + 3.0),
+            Vec3::new(1.0, 0.0, 20.0),
+            Vec3::new(-2.0, 0.0, 25.0),
+        ];
+        let clear = Vec3::new(20.0, 0.0, 14.0);
+        let c = CombatTuning::default();
+        assert_eq!(c.grenade_places, 3);
+        let pick = |places: &[Vec3], c: &CombatTuning| {
+            pick_place(&me, &view, places, (0.0, 0.0), c, &wall)
+        };
+        // The second passes when the first is a wall.
+        let mut places = vec![blocked[0], clear];
+        assert_eq!(pick(&places, &c), Ok(clear));
+        // None passes: no throw, and the nearest is named with its reason.
+        places = blocked.to_vec();
+        assert_eq!(pick(&places, &c), Err((blocked[0], Refuse::Wall)));
+        // The cap: the clear place is the fourth, the cap is three.
+        places = vec![blocked[0], blocked[1], blocked[2], clear];
+        assert_eq!(pick(&places, &c), Err((blocked[0], Refuse::Wall)));
+        let four = CombatTuning {
+            grenade_places: 4,
+            ..c.clone()
+        };
+        assert_eq!(pick(&places, &four), Ok(clear));
+        // The third is the last weighed.
+        places = vec![blocked[0], blocked[1], clear, blocked[2]];
+        assert_eq!(pick(&places, &c), Ok(clear));
+        // 1 is the nearest only, and 0 is no less than 1.
+        for cap in [0, 1] {
+            let one = CombatTuning {
+                grenade_places: cap,
+                ..c.clone()
+            };
+            assert_eq!(pick(&[clear, blocked[0]], &one), Ok(clear));
+            assert_eq!(
+                pick(&[blocked[0], clear], &one),
+                Err((blocked[0], Refuse::Wall))
+            );
+        }
+        // A place that fails a check other than the wall's is not let through
+        // either: out of reach.
+        let far = Vec3::new(0.0, 0.0, 35.0);
+        assert_eq!(pick(&[far], &c), Err((far, Refuse::Reach)));
+        assert_eq!(pick(&[far, clear], &c), Ok(clear));
+        // Determinism.
+        assert_eq!(pick(&places, &c), pick(&places, &c));
     }
 
     /// The weighing, on grounds made for it.
