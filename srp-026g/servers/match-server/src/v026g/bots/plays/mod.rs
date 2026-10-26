@@ -314,6 +314,9 @@ pub struct Intent {
     /// top-up this step (`resupply`): the bot's kit gives the rounds to its
     /// stack.
     pub resupplied: Option<usize>,
+    /// How near an exact spot (a goal within 0) the walk goes on to, metres: `None` ends it where every walk ends
+    /// ([`Feel::arrive_m`]). The jump test's walk to a start asks for a body within 0.3 m of it.
+    pub exact_arrive_m: Option<f32>,
 }
 
 impl Intent {
@@ -332,6 +335,7 @@ impl Intent {
             zone_ok: false,
             failed_stand: None,
             resupplied: None,
+            exact_arrive_m: None,
         }
     }
 

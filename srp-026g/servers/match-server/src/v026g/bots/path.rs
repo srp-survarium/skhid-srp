@@ -30,6 +30,16 @@ const MAX_STRAIGHT_M: f32 = 40.0;
 /// (`docs/notes/player_bots_stuck.md` §8).
 pub const OFF_ROUTE_HEIGHT_M: f32 = 1.5;
 
+/// A body this far under the floor a walked leg passes over where it is
+/// along it is not on that leg, metres: a walk goes up and down no more than
+/// a step (0.6 m, [`mapdata::grid`]'s `STEP_UP_M`), so a body further under
+/// the leg's floor than a step and its slack has fallen off it, into a hole
+/// beside it (Mamayev Kurgan's pit at (96.6, 26.9, 136.2): 1.1 m under the
+/// route, kept on it by [`OFF_ROUTE_HEIGHT_M`], pushed 4-5 s at a waypoint
+/// 1.1 m up it had no link to). A leg that is a jump keeps
+/// [`OFF_ROUTE_HEIGHT_M`]: its floor rises by the jump's height along it.
+pub const OFF_WALK_BELOW_M: f32 = 0.9;
+
 /// A body above its route's floor by more than [`OFF_ROUTE_HEIGHT_M`] is
 /// still on it if the route was that high within this far back along it
 /// (it is falling down the route's own drop), metres. GUESS: a body that
@@ -72,6 +82,9 @@ pub struct Route {
     floors: Vec<(f32, f32)>,
     /// The segment the body was last found on.
     segment: usize,
+    /// How far under a walked leg's floor a body is still on it
+    /// ([`OFF_WALK_BELOW_M`]; the motor sets it from `Feel::off_walk_below_m`).
+    below_walk_m: f32,
 }
 
 /// The searches of this thread so far, for the tests' counts.
@@ -415,6 +428,23 @@ fn count(found: &Search, stage: Stage, us: f64, expanded: u64, slices: u64) {
 #[cfg(test)]
 pub const EXPANDED_BUCKETS: [u64; 7] = [1_000, 5_000, 10_000, 20_000, 50_000, 100_000, 500_000];
 
+/// The bench's count of the ticks a body was off its route only by the
+/// walked-leg rule ([`OFF_WALK_BELOW_M`]): under the old rule it was on.
+#[cfg(test)]
+pub mod below_walk {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn count() {
+        COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> u64 {
+        COUNT.load(Ordering::Relaxed)
+    }
+}
+
 /// A grid path pulled straight: only the real corners left (module
 /// documentation).
 fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -> Route {
@@ -641,6 +671,51 @@ impl Route {
         Self::with_floors(points, floors)
     }
 
+    /// This route with its stretch from `s0` to `s1` metres along it
+    /// replaced by `mid`, a route from the point at `s0` to the point at
+    /// `s1` (a local detour round a lane, `threat.rs`). The corners before
+    /// `s0` and after `s1` and the floors' heights along them are kept.
+    pub fn spliced(&self, s0: f32, s1: f32, mid: &Route) -> Self {
+        const EPS: f32 = 0.05;
+        let (s0, s1) = (s0.max(0.0), s1.max(s0));
+        let before = self.along.partition_point(|&a| a < s0 - EPS);
+        let after = self.along.partition_point(|&a| a <= s1 + EPS);
+        let mut points: Vec<Waypoint> = self.points[..before].to_vec();
+        let first_mid = points.len();
+        points.extend(mid.points.iter().copied());
+        let first_after = points.len();
+        points.extend(self.points[after..].iter().copied());
+        let mut route = Self::with_floors(points, Vec::new());
+        let mut floors: Vec<(f32, f32)> = self
+            .floors
+            .iter()
+            .copied()
+            .filter(|&(a, _)| a < s0 - EPS)
+            .collect();
+        if let Some(&start) = route.along.get(first_mid) {
+            floors.extend(mid.floors.iter().map(|&(a, y)| (start + a, y)));
+        }
+        if let (Some(&now), Some(&was)) = (route.along.get(first_after), self.along.get(after)) {
+            floors.extend(
+                self.floors
+                    .iter()
+                    .filter(|&&(a, _)| a >= self.along[after])
+                    .map(|&(a, y)| (a - was + now, y)),
+            );
+        }
+        route.floors = floors;
+        route
+    }
+
+    /// Whether a corner reached by a jump lies between `s0` and `s1` metres
+    /// along the route.
+    pub fn jumps_between(&self, s0: f32, s1: f32) -> bool {
+        self.points
+            .iter()
+            .zip(&self.along)
+            .any(|(point, &a)| point.jump && a >= s0 && a <= s1)
+    }
+
     /// A route by its corners and the floors' heights along it
     /// ([`Route::floors`]).
     fn with_floors(points: Vec<Waypoint>, floors: Vec<(f32, f32)>) -> Self {
@@ -657,7 +732,13 @@ impl Route {
             along,
             floors,
             segment: 0,
+            below_walk_m: OFF_WALK_BELOW_M,
         }
+    }
+
+    /// This route's rule for a body under a walked leg ([`OFF_WALK_BELOW_M`]).
+    pub fn set_below_walk(&mut self, metres: f32) {
+        self.below_walk_m = metres;
     }
 
     /// The highest floor from `s0` to `s1` metres along the route.
@@ -693,7 +774,7 @@ impl Route {
                     (((feet.x - a.x) * dx + (feet.z - a.z) * dz) / length2).clamp(0.0, 1.0)
                 };
                 let at = self.floor_point(self.along[segment] + t * length2.sqrt());
-                (at.y - feet.y > OFF_ROUTE_HEIGHT_M && at.distance_xz(feet) <= FELL_FROM_M)
+                (at.y - feet.y > self.below_m(segment) && at.distance_xz(feet) <= FELL_FROM_M)
                     .then_some(at)
             })
             .min_by(|p, q| p.distance_xz(feet).total_cmp(&q.distance_xz(feet)))
@@ -707,6 +788,16 @@ impl Route {
             (Some(&(a, ya)), Some(&(b, yb))) if b - a > 1e-6 => ya + (yb - ya) * (s - a) / (b - a),
             (Some(&(_, y)), _) | (None, Some(&(_, y))) => y,
             (None, None) => 0.0,
+        }
+    }
+
+    /// How far under the floor of leg `segment` a body is still on it:
+    /// [`Self::below_walk_m`] on a walked leg, [`OFF_ROUTE_HEIGHT_M`] on a jump.
+    fn below_m(&self, segment: usize) -> f32 {
+        if self.points[segment + 1].jump {
+            OFF_ROUTE_HEIGHT_M
+        } else {
+            self.below_walk_m
         }
     }
 
@@ -738,6 +829,8 @@ impl Route {
         }
         let last = self.points.len() - 2;
         let mut best = (f32::INFINITY, self.segment, 0.0);
+        #[cfg(test)]
+        let mut only_new_rule = false;
         for segment in self.segment..=(self.segment + 3).min(last) {
             let (a, b) = (self.points[segment].at, self.points[segment + 1].at);
             let (dx, dz) = (b.x - a.x, b.z - a.z);
@@ -748,9 +841,15 @@ impl Route {
                 (((feet.x - a.x) * dx + (feet.z - a.z) * dz) / length2).clamp(0.0, 1.0)
             };
             let s = self.along[segment] + t * length2.sqrt();
-            if feet.y < self.floor_at(s) - OFF_ROUTE_HEIGHT_M
+            if feet.y < self.floor_at(s) - self.below_m(segment)
                 || feet.y > self.highest_floor(s - FALL_BACK_M, s) + OFF_ROUTE_HEIGHT_M
             {
+                #[cfg(test)]
+                if feet.y >= self.floor_at(s) - OFF_ROUTE_HEIGHT_M
+                    && feet.y <= self.highest_floor(s - FALL_BACK_M, s) + OFF_ROUTE_HEIGHT_M
+                {
+                    only_new_rule = true;
+                }
                 continue;
             }
             let (px, pz) = (a.x + dx * t, a.z + dz * t);
@@ -758,6 +857,10 @@ impl Route {
             if off < best.0 - 1e-3 {
                 best = (off, segment, t * length2.sqrt());
             }
+        }
+        #[cfg(test)]
+        if best.0.is_infinite() && only_new_rule {
+            below_walk::count();
         }
         self.segment = best.1;
         (self.along[best.1] + best.2, best.0)
@@ -848,6 +951,26 @@ impl Route {
 mod tests {
     use super::*;
     use crate::v026g::bots::body::tests::walled;
+
+    #[test]
+    fn a_stretch_of_a_route_is_replaced_by_a_detour_and_the_rest_is_kept() {
+        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let plain = Route::new(vec![wp(0.0, 0.0), wp(30.0, 0.0), wp(60.0, 0.0), wp(90.0, 0.0)]);
+        // The stretch 20-70 m goes round by z = 10.
+        let mid = Route::new(vec![wp(20.0, 0.0), wp(30.0, 10.0), wp(60.0, 10.0), wp(70.0, 0.0)]);
+        let round = plain.spliced(20.0, 70.0, &mid);
+        let xs: Vec<(f32, f32)> = round.points().iter().map(|p| (p.at.x, p.at.z)).collect();
+        assert_eq!(
+            xs,
+            vec![(0.0, 0.0), (20.0, 0.0), (30.0, 10.0), (60.0, 10.0), (70.0, 0.0), (90.0, 0.0)]
+        );
+        // 20 m, the detour's own length, 20 m.
+        assert!((round.length() - (20.0 + mid.length() + 20.0)).abs() < 0.01, "{}", round.length());
+        assert!(round.floors.windows(2).all(|w| w[0].0 <= w[1].0), "{:?}", round.floors);
+        // No corner at the cut: the first corner after it is kept.
+        let whole = plain.spliced(0.0, 90.0, &Route::new(vec![wp(0.0, 0.0), wp(90.0, 5.0)]));
+        assert_eq!(whole.points().len(), 2);
+    }
 
     #[test]
     fn a_path_round_a_wall_is_pulled_to_a_few_corners() {
@@ -1001,7 +1124,7 @@ mod tests {
 
     /// A body that fell off a walkway its route goes on along is off the
     /// route, though the walkway is right over it on the ground plane; one
-    /// a step or a jump off the walkway's height is on it.
+    /// a step under it or a jump's rise over it is on it.
     #[test]
     fn a_body_on_the_floor_under_its_route_is_off_it() {
         let p = |x, y, z| Waypoint {
@@ -1017,13 +1140,16 @@ mod tests {
         on_walkway.progress(Vec3::new(10.0, 3.0, 0.0));
         let (_, off) = on_walkway.clone().progress(fell);
         assert!(off.is_infinite(), "{off}");
-        for y in [1.6, 3.0, 4.4] {
+        for y in [2.4, 3.0, 4.4] {
             let (s, off) = on_walkway.clone().progress(Vec3::new(8.0, y, 0.7));
             assert!(
                 (s - 12.0).abs() < 1e-3 && (off - 0.7).abs() < 1e-3,
                 "{y}: {s} {off}"
             );
         }
+        // 1.4 m under the walked walkway is a fall off it, though a jump's rise is less.
+        let (_, off) = on_walkway.clone().progress(Vec3::new(8.0, 1.6, 0.7));
+        assert!(off.is_infinite(), "{off}");
         // On the ramp's foot the ramp is the leg it is on.
         let (s, off) = route.clone().progress(Vec3::new(18.0, 0.2, 0.5));
         assert!(
@@ -1075,6 +1201,29 @@ mod tests {
         );
         assert_eq!(walking.fell_from(Vec3::new(6.0, 0.0, 4.0)), None);
         assert_eq!(further.fell_from(Vec3::new(16.0, 0.0, 1.0)), None);
+    }
+
+    /// A body 1.1 m under a walked leg's floor (fallen into a hole beside
+    /// it) is off the route at once; the same under a jump leg is still on
+    /// it (the jump's floor rises along it), and one a step under a walked
+    /// leg (on the lower of two stairs) is on it.
+    #[test]
+    fn a_body_a_step_and_more_under_a_walked_leg_is_off_it() {
+        let p = |x, y, z, jump| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let walked = Route::new(vec![p(0.0, 1.1, 0.0, false), p(10.0, 1.1, 0.0, false)]);
+        let (_, off) = walked.clone().progress(Vec3::new(5.0, 0.0, 0.3));
+        assert!(off.is_infinite(), "1.1 m under a walked leg: {off}");
+        let (_, off) = walked.clone().progress(Vec3::new(5.0, 0.4, 0.3));
+        assert!((off - 0.3).abs() < 1e-3, "0.7 m under: {off}");
+        assert!(walked.clone().fell_from(Vec3::new(5.0, 0.0, 0.3)).is_some());
+        let jumped = Route::new(vec![p(0.0, 0.0, 0.0, false), p(1.0, 1.05, 0.0, true)]);
+        let (_, off) = jumped.clone().progress(Vec3::new(0.9, 0.0, 0.0));
+        assert!(off.abs() < 1e-3, "short of a jump's landing: {off}");
     }
 
     /// A pulled leg keeps the heights of the floors it passes over, not
