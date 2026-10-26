@@ -1527,7 +1527,26 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 // `STAND_STILL_MS` (its eye is not where the list put it),
                 // the next.
                 aim = cx.use_press(cx.me.eye(), container);
-                if let Some(aim) = aim {
+                // Pressing from a spot a teammate of a lower place stands
+                // on (both came in by the one way and were in reach at
+                // one point): the higher place walks to a stand clear of
+                // every claim and presses from there; the lower stays.
+                let yielding = cx.tuning.stand_claim
+                    && aim.is_some()
+                    && cx.spot_yielded(cx.me.feet, APART_M);
+                if yielding && stand.is_none() {
+                    *stand = cx.clear_use_stand(container, UsePose::Standing, passed);
+                }
+                let off_to = stand
+                    .filter(|at| yielding && cx.me.feet.distance_xz(at.feet) > STAND_AT_M);
+                if let Some(at) = off_to {
+                    *arrived = None;
+                    intent = Intent::to(at.feet, Pace::Walk)
+                        .within(0.4)
+                        .hold_fire()
+                        .looking(Look::Use(at.aim));
+                    aimed = false;
+                } else if let Some(aim) = aim {
                     // Pressed once the view is on the box, as a take's
                     // (or after a while there anyway): a use pressed while
                     // still turning to it missed it.
@@ -3813,6 +3832,75 @@ mod tests {
             let same = chosen(&state) == Some(stand.feet);
             assert_eq!(same, expect_same, "place {place}: {state:?}");
         }
+    }
+
+    /// Two carriers that came in by one way and press from one spot: the
+    /// higher place walks to a stand clear of every claim; the lower stays
+    /// and presses.
+    #[test]
+    fn of_two_carriers_pressing_from_one_spot_the_higher_place_moves_off() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.battery(BatteryState::Carried(Some(1)));
+        let spot = home + Vec3::new(1.0, 0.0, 0.0);
+        s.bot(0, 0, spot).carrying = Some(0);
+        s.bot(1, 0, spot).carrying = Some(1);
+        assert!(
+            s.cx(1).use_press_ok(s.cx(1).me.eye(), 0),
+            "the spot presses: the test is of a press that is possible"
+        );
+        let now = s.view.clock;
+        for (place, moves) in [(0, false), (1, true)] {
+            s.team.claim(1 - place, spot, now);
+            let target = TargetRef::Battery(place);
+            s.current = Some((PlayKind::Collect, target, now));
+            let mut state = State::PutIn {
+                tries: 0,
+                last_use: 0,
+                arrived: None,
+                missed: false,
+                stand: None,
+                still_since: None,
+                passed: Vec::new(),
+            };
+            let step = step(&mut state, target, &s.cx(place), &mut Rng::new(1));
+            let off = matches!(
+                &step,
+                Step::Continue(i) if matches!(i.go, Go::To { at, .. } if at.distance_xz(spot) >= APART_M)
+            );
+            assert_eq!(off, moves, "place {place}: {step:?}");
+        }
+        // The switch off: both stay.
+        s.tuning.stand_claim = false;
+        let target = TargetRef::Battery(1);
+        let mut state = State::PutIn {
+            tries: 0,
+            last_use: 0,
+            arrived: None,
+            missed: false,
+            stand: None,
+            still_since: None,
+            passed: Vec::new(),
+        };
+        let step = step(&mut state, target, &s.cx(1), &mut Rng::new(1));
+        assert!(matches!(&step, Step::Continue(i) if i.go == Go::Stay), "{step:?}");
     }
 
     /// A battery a storey up whose only way up is a far ramp scores below

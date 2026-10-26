@@ -171,24 +171,44 @@ impl Ctx<'_> {
         pose: UsePose,
         passed: &[Vec3],
     ) -> Option<UseStand> {
-        let nearest = |clear: bool| {
-            self.use_stands(container)
-                .iter()
-                .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
-                .filter(|stand| !clear || !self.spot_taken(stand.feet, APART_M))
-                .min_by(|a, b| {
-                    self.path_dist(a.feet)
-                        .total_cmp(&self.path_dist(b.feet))
-                        .then(a.feet.x.total_cmp(&b.feet.x))
-                        .then(a.feet.z.total_cmp(&b.feet.z))
-                })
-                .copied()
-        };
         if self.tuning.stand_claim {
-            nearest(true).or_else(|| nearest(false))
+            self.nearest_stand(container, pose, passed, true)
+                .or_else(|| self.nearest_stand(container, pose, passed, false))
         } else {
-            nearest(false)
+            self.nearest_stand(container, pose, passed, false)
         }
+    }
+
+    /// [`Ctx::nearest_use_stand`] among the stands clear of a teammate's
+    /// claim only: for a bot that stands pressing on a spot a teammate it
+    /// gives way to claims, and moves off it only to a free one.
+    pub fn clear_use_stand(
+        &self,
+        container: u8,
+        pose: UsePose,
+        passed: &[Vec3],
+    ) -> Option<UseStand> {
+        self.nearest_stand(container, pose, passed, true)
+    }
+
+    fn nearest_stand(
+        &self,
+        container: u8,
+        pose: UsePose,
+        passed: &[Vec3],
+        clear: bool,
+    ) -> Option<UseStand> {
+        self.use_stands(container)
+            .iter()
+            .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
+            .filter(|stand| !clear || !self.spot_taken(stand.feet, APART_M))
+            .min_by(|a, b| {
+                self.path_dist(a.feet)
+                    .total_cmp(&self.path_dist(b.feet))
+                    .then(a.feet.x.total_cmp(&b.feet.x))
+                    .then(a.feet.z.total_cmp(&b.feet.z))
+            })
+            .copied()
     }
 
     /// Where on the box of `container` a use ray from `eye` can meet it by
