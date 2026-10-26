@@ -10,6 +10,11 @@ patch_026g.py puts into the exe, late_join_026g.section.bin.
     python late_join_026g.py --check-bin [--nasm /path/to/nasm]
         builds the same in memory and says whether the two files are what
         the sources give here
+    python late_join_026g.py --write-prefix [--nasm /path/to/nasm]
+        assembles late_join_026g.asm again into the .bin's first 4096
+        bytes and keeps its C code as it is (the .json's symbols): for a
+        change of the assembly alone, while the ports to Rust take its
+        entries out (another compiler's C would be other bytes)
     python late_join_026g.py ORIGINAL OUTPUT [--server=host:port] [--test-session N]
         a client from the sources as they are now, not from the .bin: for
         work on the code. --test-session is for tests only: such an exe
@@ -165,10 +170,20 @@ def main():
     parser.add_argument("--nasm", default="nasm")
     parser.add_argument("--write-bin", action="store_true")
     parser.add_argument("--check-bin", action="store_true")
+    parser.add_argument("--write-prefix", action="store_true")
     parser.add_argument("--server", help="an embedded default login server, as patch_026g.py --server")
     parser.add_argument("--test-session", type=lambda value: int(value, 0),
                         help="test only: bypass login and connect directly to -server with this session")
     args = parser.parse_args()
+    if args.write_prefix:
+        kept = json.loads(SYMBOLS.read_text())
+        c_code = BIN.read_bytes()[ASM_SIZE:]
+        code = assemble_prefix(args.nasm, kept["symbols"], len(c_code)) + c_code
+        BIN.write_bytes(code)
+        kept.update(size=len(code), sha256=hashlib.sha256(code).hexdigest())
+        SYMBOLS.write_text(json.dumps(kept, indent=2) + "\n", newline="\n")
+        print(f"{BIN.name}: {len(code)} bytes (the assembly again, the C kept), SHA-256 {kept['sha256']}")
+        return
     if args.write_bin or args.check_bin:
         if args.original or args.test_session is not None:
             parser.error("--write-bin and --check-bin take no exe and no test session")
