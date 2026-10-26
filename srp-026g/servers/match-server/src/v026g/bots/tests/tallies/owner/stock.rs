@@ -4,13 +4,27 @@
 use super::*;
 use crate::v026g::bots::tests::standin_weapon;
 
-impl OwnerTally {
+/// The stand-in's weapons: it counts nothing as the match runs (the stock keeps its own counts), only
+/// sums them at the end.
+pub(super) struct StockCounts;
+
+impl Topic for StockCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale) -> Vec<(&'static str, Part)> {
+        vec![("stock", self.part(run, game))]
+    }
+}
+
+impl StockCounts {
     /// The world's counts: reloads begun, round by round loops the fire or aim key cut, the ticks a living body
     /// was out of rounds and of ammo, and the ticks the fire key was down on a weapon that could not fire (all
     /// of them, and those empty or reloading).
-    pub(super) fn stock_part(&self, game: &Game) -> Part {
+    fn part(&self, run: &Run, game: &Game) -> Part {
         let c = standin_weapon::counts_of(game.bodies.iter().map(|b| &b.stock));
-        let bot_min = self.recs.iter().enumerate().filter(|(p, _)| self.is_bot[*p]).map(|(_, r)| r.iter().filter(|r| r.alive).count()).sum::<usize>() as f64 * f64::from(TICK_S) / 60.0;
+        let bot_min = run.bot_min();
         let secs = |ticks: u32| (10.0 * f64::from(ticks) * f64::from(TICK_S)).round() / 10.0;
         let json = serde_json::json!({
             "world_reloads": c.reloads,

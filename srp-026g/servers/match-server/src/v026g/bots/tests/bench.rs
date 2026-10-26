@@ -669,7 +669,7 @@ pub(crate) fn real_bot_cost() {
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
-            owner.camper = bots.bench_camper.map(|(place, _)| place);
+            owner.set_camper(bots.bench_camper.map(|(place, _)| place));
             if let Some((place, _)) = bots.bench_camper
                 && camper::CamperOptions::from_env().long_gun
             {

@@ -87,14 +87,54 @@ pub(crate) struct Entry {
     pub(crate) lane: bool,
 }
 
-impl OwnerTally {
+impl Topic for CamperCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    /// A Trade take (the trader, its team, when), and a Flank or Crossfire take on a shooter holding his
+    /// kill spot against this bot's side (a counter run).
+    fn note(&mut self, _run: &Run, note: &Note, kind: &NoteKind<'_>, game: &Game) {
+        let NoteKind::Takes { play, target } = *kind else {
+            return;
+        };
+        let team = game.bodies.get(note.place).map(|b| b.team);
+        if play == "Trade"
+            && let Some(team) = team
+        {
+            self.trades.push((note.place, team, note.time));
+        }
+        let on = target
+            .strip_prefix("Place(")
+            .and_then(|t| t.strip_suffix(')'))
+            .and_then(|t| t.parse::<Place>().ok());
+        if matches!(play, "Flank" | "Crossfire")
+            && let (Some(who), Some(team)) = (on, team)
+            && self.spots.iter().any(|h| h.shooter == who && h.team == team)
+        {
+            self.counter_runs[0] += 1;
+            self.counter_runs[1] += u32::from(play == "Flank");
+        }
+    }
+
+    fn end(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64) {
+        let tick = game.tick;
+        self.kills_tick(run, game, sight, rays, tick);
+    }
+
+    fn parts(&mut self, run: &Run, _game: &Game, _scale: &Scale) -> Vec<(&'static str, Part)> {
+        vec![("campers", self.part(run))]
+    }
+}
+
+impl CamperCounts {
     /// A kill: the shooter's held spot goes on (within [`SPOT_HOLD_M`] of
     /// it and [`RUN_APART_MS`] of his last kill there), or a new one starts
     /// with who of the victims' team is in his line now.
     pub(crate) fn kill_spot(&mut self, game: &Game, kill: &Kill, sight: &mapdata::RayTree, rays: &mut u64) {
         let bearing = yaw_of([kill.at.x - kill.spot.x, kill.at.z - kill.spot.z]);
         let reach = ((kill.at - kill.spot).length() + REACH_PLUS_M).max(REACH_LEAST_M);
-        if let Some(held) = self.campers.spots.iter_mut().find(|s| s.shooter == kill.shooter)
+        if let Some(held) = self.spots.iter_mut().find(|s| s.shooter == kill.shooter)
             && held.spot.distance_xz(kill.spot) <= SPOT_HOLD_M
             && kill.t <= held.last + RUN_APART_MS
             && held.team == kill.team
@@ -104,14 +144,14 @@ impl OwnerTally {
             held.bearings.push(bearing);
             return;
         }
-        self.campers.spots.retain(|s| s.shooter != kill.shooter);
+        self.spots.retain(|s| s.shooter != kill.shooter);
         let me = &game.bodies[kill.shooter];
         let in_line = game
             .bodies
             .iter()
             .map(|b| b.alive && b.team == kill.team && in_sight(sight, me, b, reach, rays))
             .collect();
-        self.campers.spots.push(KillSpot {
+        self.spots.push(KillSpot {
             shooter: kill.shooter,
             spot: kill.spot,
             team: kill.team,
@@ -126,7 +166,7 @@ impl OwnerTally {
     /// bots coming into their lines.
     pub(crate) fn held_lines(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64) {
         let tick = game.tick;
-        let mut spots = std::mem::take(&mut self.campers.spots);
+        let mut spots = std::mem::take(&mut self.spots);
         spots.retain_mut(|held| {
             let me = &game.bodies[held.shooter];
             if !me.alive || me.feet.distance_xz(held.spot) > SPOT_HOLD_M || tick > held.last + RUN_APART_MS {
@@ -143,7 +183,7 @@ impl OwnerTally {
                         .bearings
                         .iter()
                         .any(|&w| wrap(w - bearing).abs().to_degrees() <= LANE_DEG);
-                    self.campers.entries.push(Entry {
+                    self.entries.push(Entry {
                         t: tick,
                         shooter: held.shooter,
                         place,
@@ -154,7 +194,7 @@ impl OwnerTally {
             }
             true
         });
-        self.campers.spots = spots;
+        self.spots = spots;
     }
 }
 
@@ -224,7 +264,7 @@ pub(crate) fn kills_and_notes(
             }
         }
         let nows = vec![bot_now(); spots.len()];
-        tally.step(game, &nows);
+        tally.step_with(game, &nows);
         game.hit_log.clear();
         for &(at, place, text) in notes {
             if k == at {
@@ -267,7 +307,7 @@ pub(crate) fn a_counter_run_on_a_holder_and_a_holder_killed_off_his_lane_are_cou
     // and kills him from that lane (the near miss). Near misses: Flank on
     // shooter 1 before he held, Crossfire on an exit.
     let (mut game, mut tally) = made_up(&[0, 1, 0, 0, 0, 1, 0]);
-    tally.camper = Some(1);
+    tally.run.camper = Some(1);
     let spots = [(20.0, 35.0), (30.0, 30.0), (21.0, 35.0), (30.0, 45.0), (50.0, 60.0), (60.0, 60.0), (49.0, 61.0)];
     let kills = [(20, 1, 0), (40, 1, 2), (50, 5, 4), (80, 3, 1), (90, 6, 5)];
     let notes = [
@@ -289,16 +329,16 @@ pub(crate) fn a_counter_run_on_a_holder_and_a_holder_killed_off_his_lane_are_cou
     assert_eq!(camper["killed_off_lane"], 1);
 }
 
-impl OwnerTally {
+impl CamperCounts {
     /// The kills this tick, the shooters' held spots, and (once a second) the held lines.
-    pub(super) fn campers_kills(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+    fn kills_tick(&mut self, run: &Run, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         // Kills of enemies, and the lines they make held.
-        if self.campers.kills_seen > 0 && game.kill_log.get(self.campers.kills_seen - 1) != self.campers.last_kill.as_ref() {
-            self.campers.kills_seen = 0;
+        if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
+            self.kills_seen = 0;
         }
-        let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
-        self.campers.kills_seen = game.kill_log.len();
-        self.campers.last_kill = game.kill_log.last().copied();
+        let new_kills = game.kill_log[self.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.kills_seen = game.kill_log.len();
+        self.last_kill = game.kill_log.last().copied();
         for (t, shooter, victim) in new_kills {
             let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
                 continue;
@@ -316,7 +356,7 @@ impl OwnerTally {
             };
             // A shooter killed holding his spot by one of his victims'
             // side: from off his killed lanes or not.
-            if let Some(held) = self.campers.spots.iter().find(|h| {
+            if let Some(held) = self.spots.iter().find(|h| {
                 h.shooter == victim
                     && h.team == s.team
                     && v.feet.distance_xz(h.spot) <= SPOT_HOLD_M
@@ -327,18 +367,18 @@ impl OwnerTally {
                     .bearings
                     .iter()
                     .all(|&w| wrap(w - bearing).abs().to_degrees() >= OFF_LANE_DEG);
-                self.campers.held_kills.push((victim, off));
+                self.held_kills.push((victim, off));
             }
-            self.campers.kills.push(kill);
+            self.kills.push(kill);
             self.kill_spot(game, &kill, sight, rays);
         }
-        if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
+        if (((tick - run.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
             self.held_lines(game, sight, rays);
         }
     }
 
     /// The campers counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    pub(super) fn campers_part(&self) -> Part {
+    fn part(&self, run: &Run) -> Part {
         // Campers: runs of kills from one spot, a team's deaths in a row to
         // one shooter from one spot, entries into held lines.
         // `only`: the runs of that shooter alone are counted.
@@ -378,28 +418,28 @@ impl OwnerTally {
         };
         let mut by_shooter: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
         let mut by_team: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
-        for k in &self.campers.kills {
+        for k in &self.kills {
             by_shooter.entry(k.shooter).or_default().push(*k);
             by_team.entry(usize::from(k.team)).or_default().push(*k);
         }
         let (camp_runs, camp_run_kills, camp_longest) = in_runs(&by_shooter, None);
         let (in_row, _, in_row_longest) = in_runs(&by_team, None);
         let fatal = |e: &Entry| {
-            self.campers.kills
+            self.kills
                 .iter()
                 .any(|k| k.shooter == e.shooter && k.victim == e.place && k.t >= e.t && k.t <= e.t + FATAL_MS)
         };
-        let entries = self.campers.entries.len() as u32;
-        let entries_fatal = self.campers.entries.iter().filter(|e| fatal(e)).count() as u32;
-        let entries_lane = self.campers.entries.iter().filter(|e| e.lane).count() as u32;
-        let entries_lane_fatal = self.campers.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
+        let entries = self.entries.len() as u32;
+        let entries_fatal = self.entries.iter().filter(|e| fatal(e)).count() as u32;
+        let entries_lane = self.entries.iter().filter(|e| e.lane).count() as u32;
+        let entries_lane_fatal = self.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
         // Trades into the killer: of each Trade take, the partner's killer
         // (the last kill of a teammate from 4 s before to 0.5 s after);
         // the trader killed by him, or killing him, within 15 s.
-        let mut trades = [self.campers.trades.len() as u32, 0, 0];
-        for &(place, team, t) in &self.campers.trades {
+        let mut trades = [self.trades.len() as u32, 0, 0];
+        for &(place, team, t) in &self.trades {
             let killer = self
-                .campers.kills
+                .kills
                 .iter()
                 .rfind(|k| {
                     k.team == team && k.victim != place && k.t + TRADE_BEFORE_MS >= t && k.t <= t + TRADE_AFTER_MS
@@ -409,24 +449,24 @@ impl OwnerTally {
                 continue;
             };
             let within = |k: &Kill| k.t >= t && k.t <= t + FATAL_MS;
-            trades[1] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.victim == place && k.shooter == killer));
-            trades[2] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.shooter == place && k.victim == killer));
+            trades[1] += u32::from(self.kills.iter().any(|k| within(k) && k.victim == place && k.shooter == killer));
+            trades[2] += u32::from(self.kills.iter().any(|k| within(k) && k.shooter == place && k.victim == killer));
         }
         let held_killed = |who: Option<Place>| {
-            let mine = self.campers.held_kills.iter().filter(|(p, _)| who.is_none_or(|w| w == *p));
+            let mine = self.held_kills.iter().filter(|(p, _)| who.is_none_or(|w| w == *p));
             [mine.clone().count() as u32, mine.filter(|(_, off)| *off).count() as u32]
         };
         let held_all = held_killed(None);
         // The stand-in camper's part of the counts (the rest is the bots').
-        let camper = self.camper.map(|c| {
+        let camper = run.camper.map(|c| {
             let (runs, run_kills, longest) = in_runs(&by_shooter, Some(c));
             let (row, _, row_longest) = in_runs(&by_team, Some(c));
-            let into: Vec<&Entry> = self.campers.entries.iter().filter(|e| e.shooter == c).collect();
+            let into: Vec<&Entry> = self.entries.iter().filter(|e| e.shooter == c).collect();
             let killed = held_killed(Some(c));
             serde_json::json!({
                 "place": c,
-                "kills": self.campers.kills.iter().filter(|k| k.shooter == c).count(),
-                "deaths": self.campers.kills.iter().filter(|k| k.victim == c).count(),
+                "kills": self.kills.iter().filter(|k| k.shooter == c).count(),
+                "deaths": self.kills.iter().filter(|k| k.victim == c).count(),
                 "runs_3": runs,
                 "run_kills": run_kills,
                 "run_longest": longest,
@@ -453,8 +493,8 @@ impl OwnerTally {
             "trades": trades[0],
             "trades_died_to_killer": trades[1],
             "trade_kills": trades[2],
-            "counter_runs": self.campers.counter_runs[0],
-            "counter_runs_flank": self.campers.counter_runs[1],
+            "counter_runs": self.counter_runs[0],
+            "counter_runs_flank": self.counter_runs[1],
             "camper_kills": held_all[0],
             "camper_kills_off_lane": held_all[1],
             "stand_in_camper": camper,
@@ -473,8 +513,8 @@ impl OwnerTally {
             trades[0],
             trades[1],
             trades[2],
-            self.campers.counter_runs[0],
-            self.campers.counter_runs[1],
+            self.counter_runs[0],
+            self.counter_runs[1],
             held_all[0],
             held_all[1],
             json["stand_in_camper"],
