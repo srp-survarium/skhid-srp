@@ -1209,7 +1209,7 @@ impl Bots {
     /// As [`Self::fields_from_world`], off with `Tuning::live_zones`.
     #[cfg(test)]
     pub fn fields_given(&mut self, fields: &[live_zones::WorldField], time: u32) -> usize {
-        if !self.tuning.live_zones {
+        if !self.tuning.hazard.live_zones {
             return 0;
         }
         self.tactics.as_mut().map_or(0, |tactics| {
