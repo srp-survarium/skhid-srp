@@ -131,12 +131,17 @@ NH3API's HiHook/LoHook applied at build time:
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
-(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
-frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
-the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
-hook's named exits, so a continuation is never return-address arithmetic in
-Rust. An exit is a jump inside the host function or a `host_return { pop,
-value }`.
+(`xmm_f32`/`set_xmm_f32`, f64), an x87 result pushed as an `fld` would
+(`push_st`, exact in 80 bits), the site's stack by its ESP offsets
+(`stack`/`set_stack`, `stack_u8`/`set_stack_u8`; `site_esp`) and typed frame
+locals (fields_026g.tsv rows with a negative offset). **`Flow`**:
+`Continue` (apply the context's writes, then replay the overwritten bytes),
+`Skip`, or `Exit(E)` -- a generated enum of the hook's named exits, so a
+continuation is never return-address arithmetic in Rust. An exit is a site
+row's `name@0xVA`, a jump inside the host function with the stack as at the
+site, or `name@ret` / `name@ret:N`, a return from the host function popping
+N bytes after the return address (the site is the function's start), EAX
+what the handler left.
 
 Every `lohook`/`splice` entry saves and restores the full register, flag and
 FPU/SSE state (`fxsave`/`fxrstor`); the result register the row declares is
@@ -183,9 +188,20 @@ same typed signature.
 
 Direct hooks of the same function share one generated `Original` type. A
 splice has its own `Orig<Function>For<Patch>_<Handler>` type because its
-`call` must enter that hook's trampoline. Replayable spans are decoded into
-complete instructions with ndisasm; relative branches and truncated
-instructions are refused, while opcode-looking bytes in operands are safe.
+`call` must enter that hook's trampoline. Replayable spans (a lohook's
+replay, a splice's trampoline) are decoded into complete instructions with
+ndisasm; a relative `call`, `jmp` or `jcc` among them is made again to the
+same absolute target (hooks_026g.py `relocated()`: NASM and the link give
+the new displacement; a replayed `call` returns into the replay), so a
+lohook can sit on a call or a branch. Refused: a branch into the span
+itself, `loop`/`jecxz` (no rel32 form) and a truncated instruction;
+opcode-looking bytes in operands are safe.
+
+**A game function reached through a vtable** (the game's `call [eax+N]`)
+is a row of engine_026g.tsv whose `call` is `virtual+0xN`: its `va` is a
+function some vtable holds in that slot (the model whose re-kit rows give
+the thiscall convention, checked as a direct thiscall's), and the raw layer
+calls whatever the object's own vtable names there, as the game does.
 
 Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
@@ -212,9 +228,11 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. Only `call` ships today (the suicide-key example); the other kinds'
-generators are proven by check_hooks_026g.py and wait for their first patch
-to wire the install into patch_026g.py.
+thunk (a lohook over the call, its replay the relocated call, covers those
+sites). `call` (the suicide-key example) and `lohook` (the ports, from
+patch 38's spot on) ship; the other kinds' generators are proven by
+check_hooks_026g.py and wait for their first patch to wire the install into
+patch_026g.py.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not
