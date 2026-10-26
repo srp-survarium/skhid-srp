@@ -426,7 +426,10 @@ pub(crate) fn real_bot_cost() {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
-        let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+        // The grid with the gap links when this run's tuning has them
+        // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
+        let links = bench_tuning().off_mesh_links();
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.

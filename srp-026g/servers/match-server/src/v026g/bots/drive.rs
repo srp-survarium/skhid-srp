@@ -837,7 +837,7 @@ pub(super) fn drive_tick(
                                 .enumerate()
                                 .find(|&(k, point)| {
                                     k >= 1
-                                        && point.jump
+                                        && point.jump.is_some()
                                         && route.points()[k - 1].at.distance_xz(take_off) < 0.3
                                 })
                                 .map(|(_, point)| point.at);

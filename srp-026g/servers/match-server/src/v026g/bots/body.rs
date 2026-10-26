@@ -572,7 +572,7 @@ pub fn jumped_to(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<
     let from = grid.position(node);
     let (sx, sz) = (to.x - feet.x, to.z - feet.z);
     grid.links(node)
-        .filter(|(_, kind)| *kind == LinkKind::Jump)
+        .filter(|(_, kind)| kind.is_leap())
         .map(|(next, _)| next)
         .filter(|&next| {
             let at = grid.position(next);
@@ -604,7 +604,7 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         return Some(node);
     }
     grid.links(node)
-        .filter(|(_, kind)| *kind != LinkKind::Jump)
+        .filter(|(_, kind)| !kind.is_leap())
         .map(|(next, _)| next)
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
