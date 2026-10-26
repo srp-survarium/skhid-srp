@@ -87,7 +87,7 @@ const ARRIVED_M: f32 = 0.6;
 /// The radius the walk to a start asks the motor for ([`Intent::exact_arrive_m`]), m: the motor's own is 0.6 m (the J0 on
 /// Chemical Plant struck five ledges at 0.30-0.35 m short of the start), 0.1 m overshot on the live client (rests 0.45-0.53 m
 /// past the start, five of nine tries void in session 3): the keys are let go where the coast lands the body on the start.
-const START_ARRIVE_M: f32 = 0.3;
+const START_ARRIVE_M: f32 = 0.45;
 /// The walk to a start goes at a walk for its last stretch (m): at a run the live body coasts 1.1-1.3 m past the point the keys are
 /// let go (the sprint rows of session 3's calibration rested that far off), at a walk 0.4-0.6 m.
 const GO_WALK_WITHIN_M: f32 = 6.0;
@@ -129,7 +129,7 @@ const SUICIDE_WAIT_MS: u32 = 1_500;
 /// A rest position fits its start within this along the approach and across it (xz), m, this in height (y), and this facing (rad, 10 degrees); two worlds
 /// of the rest agree within [`STILL_M`].
 const REST_FIT_ALONG_M: f32 = 0.6;
-const REST_FIT_ACROSS_M: f32 = 0.4;
+const REST_FIT_ACROSS_M: f32 = 0.5;
 const REST_FIT_Y_M: f32 = 0.3;
 const REST_FIT_YAW: f32 = 0.1745;
 const STILL_M: f32 = 0.05;
@@ -1417,7 +1417,7 @@ impl JumpTest {
                     && elapsed >= if active.def.speed.sprints() { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
-                    let plan = rest_fits(row.feet, row.yaw, start, heading, approach(&active.def))
+                    let plan = rest_fits(row.feet, row.yaw, start, heading, approach(&active.def), across_m(&active.def.site))
                         .then(|| plan_from(&active.def, row.feet, row.yaw, first, &self.table))
                         .flatten();
                     match plan {
@@ -1606,12 +1606,13 @@ impl JumpTest {
     }
 }
 
-/// How far to aim the walk off the start after a rest that did not fit: the last aim moved by the miss (`start` against the
+/// How far to aim the walk off the start after a rest that did not fit: the last aim moved by half the miss (`start` against the
 /// body's `rest`), so the next walk ends where the coast puts the body on the start. It is measured on the body, so it
 /// holds whatever the reckoning thought; kept within [`SHIFT_MAX_M`] of the start (further, the miss is not a coast: the
 /// body is somewhere else, and the next ordinary world puts the reckoning right).
 fn redo_shift(shift: [f32; 2], start: Vec3, rest: Vec3) -> [f32; 2] {
-    let next = [shift[0] + start.x - rest.x, shift[1] + start.z - rest.z];
+    // Half of the miss each time: the coast flips sign with the direction of the walk, a full step would swing the aim about.
+    let next = [shift[0] + 0.5 * (start.x - rest.x), shift[1] + 0.5 * (start.z - rest.z)];
     let length = next[0].hypot(next[1]);
     if length <= SHIFT_MAX_M { next } else { [next[0] / length * SHIFT_MAX_M, next[1] / length * SHIFT_MAX_M] }
 }
@@ -1636,15 +1637,21 @@ fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3
     pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
 }
 
+/// How far across the approach a rest may be from the start (m): [`REST_FIT_ACROSS_M`], more on a long face (a rail: the half
+/// width of the site less 0.3 m, at most 3 m), where the place along the face changes nothing.
+fn across_m(site: &Site) -> f32 {
+    (site.half - 0.3).clamp(REST_FIT_ACROSS_M, 3.0)
+}
+
 /// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_ALONG_M`] of the start along the
 /// approach `axis` (the plan is made from the actual rest, so the run-up is that much shorter or longer; the log carries
 /// `rest_off`) and [`REST_FIT_ACROSS_M`] across it, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
-pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32, axis: [f32; 2]) -> bool {
+pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32, axis: [f32; 2], across_m: f32) -> bool {
     let (dx, dz) = (rest.x - start.x, rest.z - start.z);
     let along = dx * axis[0] + dz * axis[1];
     let across = -dx * axis[1] + dz * axis[0];
     along.abs() <= REST_FIT_ALONG_M
-        && across.abs() <= REST_FIT_ACROSS_M
+        && across.abs() <= across_m
         && (rest.y - start.y).abs() <= REST_FIT_Y_M
         && wrap(yaw - heading).abs() <= REST_FIT_YAW
 }
@@ -2194,22 +2201,25 @@ mod tests {
     fn a_rest_fits_within_six_tenths_along_the_approach_four_across_a_third_up_and_ten_degrees_of_the_heading() {
         let start = Vec3::new(-6.0, 1.72, 93.9);
         let axis = [1.0, 0.0];
-        assert!(rest_fits(start, 0.0, start, 0.0, axis));
-        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0, axis));
+        assert!(rest_fits(start, 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0, axis, 0.5));
         // The coast past the start (0.5 m along the approach) fits; 0.2 m more, 0.5 m sideways, another ledge's start 9 m off,
         // the top deck, facing 20 degrees off do not.
-        assert!(rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, axis));
-        assert!(!rest_fits(Vec3::new(-5.2, 1.72, 93.9), 0.0, start, 0.0, axis));
-        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.25), 0.0, start, 0.0, axis));
-        assert!(!rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, axis));
-        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0, axis));
-        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0, axis));
-        assert!(!rest_fits(start, 0.35, start, 0.0, axis));
+        assert!(rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-5.2, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.25), 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-6.0, 1.72, 94.6), 0.0, start, 0.0, axis, 0.5));
+        // On a long face (a rail) the place along it changes nothing: a wider band across.
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 95.9), 0.0, start, 0.0, axis, 2.0));
+        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(start, 0.35, start, 0.0, axis, 0.5));
         // The axis turns with the approach: along z the same 0.5 m is along, 0.5 m in x is across.
-        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, [0.0, 1.0]));
-        assert!(!rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0]));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, [0.0, 1.0], 0.5));
+        assert!(!rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0], 0.5));
         // The heading wraps.
-        assert!(rest_fits(start, 3.1, start, -3.1, axis));
+        assert!(rest_fits(start, 3.1, start, -3.1, axis, 0.5));
     }
 
     #[test]
@@ -2322,18 +2332,16 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     }
 
     #[test]
-    fn after_a_misfit_the_walk_is_aimed_off_the_start_by_the_miss_of_the_body() {
+    fn after_a_misfit_the_walk_is_aimed_off_the_start_by_half_the_miss_of_the_body() {
         let start = Vec3::new(10.0, 2.0, 20.0);
-        // The body came to rest 0.5 m past the start (x) and 0.2 m to the side: aim 0.5 m short and 0.2 m back.
+        // The body came to rest 0.5 m past the start (x) and 0.2 m to the side: aim 0.25 m short and 0.1 m back.
         let shift = redo_shift([0.0, 0.0], start, Vec3::new(10.5, 2.0, 20.2));
-        assert!((shift[0] + 0.5).abs() < 1e-4 && (shift[1] + 0.2).abs() < 1e-4, "{shift:?}");
-        // Aimed there it still came to rest 0.1 m past the start (x), on the line: the shift adds up (an integrator),
-        // 0.6 short of the start now.
+        assert!((shift[0] + 0.25).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
+        // Still 0.1 m past the start (x) on the line: the shift adds up (an integrator of gain a half).
         let again = redo_shift(shift, start, Vec3::new(start.x + 0.1, 2.0, start.z));
-        assert!((again[0] + 0.6).abs() < 1e-4 && (again[1] + 0.2).abs() < 1e-4, "{again:?}");
+        assert!((again[0] + 0.30).abs() < 1e-4 && (again[1] + 0.1).abs() < 1e-4, "{again:?}");
         // On the start: the shift stays.
-        let kept = redo_shift(again, start, start);
-        assert_eq!(kept, again);
+        assert_eq!(redo_shift(again, start, start), again);
         // A rest 15 m off is no coast: the shift stays within the cap.
         let far = redo_shift([0.0, 0.0], start, Vec3::new(25.0, 2.0, 20.0));
         assert!((far[0].hypot(far[1]) - SHIFT_MAX_M).abs() < 1e-4, "{far:?}");
