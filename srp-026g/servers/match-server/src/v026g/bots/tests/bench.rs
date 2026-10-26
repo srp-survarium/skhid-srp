@@ -603,6 +603,11 @@ pub(crate) fn real_bot_cost() {
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
             owner.camper = bots.bench_camper.map(|(place, _)| place);
+            if let Some((place, _)) = bots.bench_camper
+                && camper::CamperOptions::from_env().long_gun
+            {
+                bots.arm_camper_long(place, bench_tier());
+            }
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
