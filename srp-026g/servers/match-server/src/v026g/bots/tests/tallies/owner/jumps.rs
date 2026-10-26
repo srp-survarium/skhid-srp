@@ -361,6 +361,12 @@ impl OwnerTally {
     /// One place's stalls at a ledge (§9.4): [missed jumps, stalls at a
     /// step, stalls]. From a sample a second.
     pub(crate) fn stalls(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> [u32; 3] {
+        self.stall_scan(place, grid, presses).0
+    }
+
+    /// [`Self::stalls`] and the record indices at which the missed jumps
+    /// start.
+    pub(crate) fn stall_scan(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> ([u32; 3], Vec<usize>) {
         let recs = &self.recs[place];
         let samples: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
         let ok = |k: usize| {
@@ -372,6 +378,7 @@ impl OwnerTally {
                 && r.speed < STALL_MPS
         };
         let mut out = [0u32; 3];
+        let mut missed = Vec::new();
         let mut i = 0;
         while i < samples.len() {
             if !ok(samples[i]) {
@@ -401,12 +408,15 @@ impl OwnerTally {
                         .position(|&(lo, hi)| ledge_ahead(grid, r.feet, r.yaw, lo, hi))
                     {
                         out[c] += 1;
+                        if c == 0 {
+                            missed.push(k0);
+                        }
                     }
                 }
             }
             i = j + 1;
         }
-        out
+        (out, missed)
     }
 }
 
@@ -583,10 +593,14 @@ impl OwnerTally {
         let (mut wrong, mut failed) = (0u32, 0u32);
         let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
         let mut route_landed = [0u32; 2];
+        let (mut missed_pre, mut not_freed_pre) = (PreCounts::default(), PreCounts::default());
         for (i, p) in presses.iter().enumerate() {
             let flags = self.press_flags(presses, i);
             for &f in &flags {
                 *flag_n.entry(f).or_default() += 1;
+            }
+            if flags.contains(&"NOT_FREED") {
+                not_freed_pre.add(self, p.by, p.place, self.index(p.t));
             }
             let is_wrong = flags.iter().any(|f| !SECOND_NUMBERS.contains(f));
             wrong += u32::from(is_wrong);
@@ -604,8 +618,12 @@ impl OwnerTally {
         let sprint_jumps = self.jumps.landings.iter().filter(|l| l.sprint).count() as u32;
         let mut stalls = [0u32; 3];
         for place in (0..n).filter(|&p| self.is_bot[p]) {
-            for (c, s) in stalls.iter_mut().zip(self.stalls(place, &game.world.grid, presses)) {
+            let (counts, missed) = self.stall_scan(place, &game.world.grid, presses);
+            for (c, s) in stalls.iter_mut().zip(counts) {
                 *c += s;
+            }
+            for k0 in missed {
+                missed_pre.add(self, "missed", place, k0);
             }
         }
 
@@ -616,6 +634,10 @@ impl OwnerTally {
             "jumps_wrong": wrong,
             "jumps_failed": failed,
             "missed_jump": stalls[0],
+            "missed_jump_pre_5s": missed_pre.by_json(),
+            "missed_jump_play": missed_pre.plays,
+            "not_freed_pre_5s": not_freed_pre.by_json(),
+            "not_freed_play": not_freed_pre.plays,
             "stall_at_step": stalls[1],
             "stalls": stalls[2],
             "route_landed_up": route_landed[0],
@@ -628,7 +650,7 @@ impl OwnerTally {
             .map(|(f, c)| format!("{f} {c}"))
             .collect();
         let text = format!(
-            "owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}",
+            "owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}; the 5 s before a missed jump: {}; before a press that freed nothing: {}",
             presses.len(),
             json["presses_by"],
             wrong,
@@ -640,6 +662,8 @@ impl OwnerTally {
             route_landed[0],
             route_landed[1],
             sprint_jumps,
+            missed_pre.text(),
+            not_freed_pre.text(),
         );
         Part::new(json, text)
     }

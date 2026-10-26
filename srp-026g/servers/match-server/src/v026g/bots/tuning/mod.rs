@@ -37,6 +37,10 @@ pub struct Tuning {
     /// is a storey off; off, the straight ground distance whatever the
     /// floor (the bench's switch, `SRP_BENCH_FLOOR_PATHS=0`).
     pub floor_paths: bool,
+    /// Whether a bot's way out of a zone stays under the strength of the
+    /// zone it starts in (`Tactics::escape`); off: the nearest way over any
+    /// zone, as it was.
+    pub escape_ceiling: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -57,6 +61,7 @@ impl Default for Tuning {
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
             floor_paths: true,
+            escape_ceiling: true,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))

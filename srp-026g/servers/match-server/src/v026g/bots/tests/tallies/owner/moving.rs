@@ -204,6 +204,8 @@ pub(crate) const SPOT_M: [f32; 2] = [4.0, 2.0];
 /// [`STUCK_ORDER`] first); its cause; where.
 #[derive(Clone, Debug)]
 pub(crate) struct Episode {
+    /// The record index of its start.
+    pub(crate) k0: usize,
     pub(crate) t0: f32,
     pub(crate) t1: f32,
     pub(crate) kinds: Vec<&'static str>,
@@ -521,6 +523,7 @@ impl OwnerTally {
             };
             let at = pts.iter().fold(Vec3::ZERO, |a, &k| a + recs[k].feet) * (1.0 / pts.len() as f32);
             eps.push(Episode {
+                k0,
                 t0,
                 t1,
                 kinds,
@@ -754,11 +757,13 @@ impl OwnerTally {
         let mut stuck: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
         let mut stuck_cause: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
         let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
+        let mut pre = PreCounts::default();
         let mut blips = 0u32;
         for place in (0..n).filter(|&p| self.is_bot[p]) {
             let (eps, b) = self.stuck_episodes(place, &teams, presses);
             blips += b;
             for e in eps {
+                pre.add(self, e.cause, place, e.k0);
                 for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
                     let c = map.entry(name).or_default();
                     c.0 += 1;
@@ -784,6 +789,8 @@ impl OwnerTally {
             "stuck_s": stuck_s.round(),
             "stuck_by": round(stuck),
             "stuck_by_cause": round(stuck_cause),
+            "stuck_pre_5s": pre.by_json(),
+            "stuck_play": pre.plays,
             "stuck_per_bot_min": per_min(stuck_n.into()),
             "stuck_s_per_bot_min": per_min(stuck_s.into()),
             "stuck_blips": blips,
@@ -809,7 +816,7 @@ impl OwnerTally {
             "one_body_still_plays_s": (f64::from(moved_ticks) * tick_s).round(),
         });
         let text = format!(
-            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)",
+            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s); the 5 s before a stuck episode: {}",
             stuck_n,
             stuck_s,
             json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
@@ -831,6 +838,7 @@ impl OwnerTally {
             close_s,
             one_eps,
             f64::from(one_ticks) * tick_s,
+            pre.text(),
         );
         Part::new(json, text)
     }
