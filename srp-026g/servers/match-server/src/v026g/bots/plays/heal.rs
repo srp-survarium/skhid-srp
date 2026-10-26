@@ -1007,17 +1007,21 @@ mod tests {
     }
 
     #[test]
-    fn a_hurt_body_with_a_low_pain_pool_uses_the_medkit_and_the_bandages_once_each() {
+    fn a_hurt_body_with_a_low_pain_pool_uses_the_medkit_and_the_bandages_and_is_not_answered_twice() {
         let mut pantry = kit_with_bandages();
         let heal = bandage_habit(true);
-        // The world shows the same pools throughout (the bot's own presses are projected): two presses, then none.
+        // The world shows the same pools throughout (the bot's own presses are projected): the medkit and the bandages go
+        // out in the first two asks, 100 ms apart, and nothing a third time: one hurt is not answered twice.
         let mut keys = Vec::new();
-        for step in 0..8 {
-            let now = 10_000 + step * 6_000;
-            if let Some(w) = wish(Some(pools(0.4, 0.4)), 0.4, now, false, &pantry, &heal, now) {
+        for step in 0..3 {
+            let now = 10_000 + step * 100;
+            let got = wish(Some(pools(0.4, 0.4)), 0.4, 10_000, false, &pantry, &heal, now);
+            if let Some(w) = got {
                 let quick = key::QUICK.iter().position(|&k| k == w.key).expect("a quick key");
                 assert!(pantry.pressed(quick, now));
                 keys.push(w.key);
+            } else {
+                assert_eq!(step, 2, "the third ask is the empty one");
             }
         }
         keys.sort_unstable();
