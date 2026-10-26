@@ -26,11 +26,26 @@
 //!   `min(count, storage)` again: `fact-b-resupply.md` §5), so a body that
 //!   fires it all goes on without.
 //!
+//! - the resupply box (`fact-b-resupply.md`, PROVEN; `use_update` 0x2F8120,
+//!   `inventory::resupply` 0x2FDC10): a use starts on a USE edge, alive, with
+//!   none running, when the one ray from the eye along the view meets the
+//!   box of the body's own team within 2 m ([`Stock::resupply`]) and
+//!   something is missing and the storage has it; each tick after, the ray
+//!   must still meet the box and USE be held, or the use ends with nothing
+//!   applied; at [`RESUPPLY_MS`] after the edge the ammo stack is topped up
+//!   from the storage to the kit's count, once ([`Stock::top_up`]); the key
+//!   is let go and pressed again for another. The magazine is not written (a
+//!   reload loads it), health never. The storage is what the match's
+//!   unfired rounds are, less those in the weapon and the stack, so the
+//!   kit's total for the match is the same.
+//!
 //! Not modelled: a reload refused while jumping or sprinting (0x2E4140,
 //! 0x2E4170: not decoded), a grenade cutting a reload (0x2E4090), a weapon
-//! switch (the bots carry one weapon), the resupply box ([`super::standin`]
-//! has none yet), and a reload's rounds moving at the clip's end rather than
-//! its start (the shots wait for the clip either way).
+//! switch (the bots carry one weapon), the pocket stacks the box also fills
+//! (grenades), a carrier's use going to his battery rather than the box
+//! (a carrier does not resupply here), and a reload's rounds moving at the
+//! clip's end rather than its start (the shots wait for the clip either
+//! way).
 
 use survarium::v026g::loadouts::{BotRole, BotTier};
 
@@ -43,6 +58,24 @@ use super::bench_settings;
 /// bodies fire whenever the fire key is down); it still counts.
 fn gates() -> bool {
     !bench_settings().var("SRP_BENCH_STOCK").is_ok_and(|v| v == "off")
+}
+
+/// `SRP_BENCH_RESUPPLY=off`: the box does nothing (the stand-in before
+/// `Stock::resupply`).
+fn boxes() -> bool {
+    !bench_settings().var("SRP_BENCH_RESUPPLY").is_ok_and(|v| v == "off")
+}
+
+/// How long a use of the box takes, ms: the edge tick and 60 ticks of 50 ms
+/// (`now - start >= 3000`, `fact-b-resupply.md`).
+pub(crate) const RESUPPLY_MS: u32 = 3_000;
+
+/// A use of the resupply box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Using {
+    Idle,
+    /// Begun at this time, ms.
+    Box { began: u32 },
 }
 
 /// What the weapon is doing.
@@ -62,6 +95,13 @@ enum Busy {
 pub(crate) struct Counts {
     /// Reloads begun.
     pub(crate) reloads: u32,
+    /// Uses of the box begun, those that topped up, those that ended with
+    /// nothing (the key let go or the ray off the box), and the rounds the
+    /// tops-up put in the stack.
+    pub(crate) box_uses: u32,
+    pub(crate) box_topped: u32,
+    pub(crate) box_cut: u32,
+    pub(crate) box_rounds: u32,
     /// Round by round reloads the fire or aim key ended before the
     /// magazine was full or the ammo out.
     pub(crate) cut_loops: u32,
@@ -91,6 +131,12 @@ pub(crate) struct Stock {
     pub(crate) counts: Counts,
     /// It gates the shots ([`gates`]).
     gating: bool,
+    /// The box works ([`boxes`]).
+    boxed: bool,
+    using: Using,
+    /// The kit's count of the weapon: rounds in it and in the stack at a
+    /// spawn, and what the box tops up to.
+    kit: u32,
 }
 
 /// The kit of `tier` whose weapon is `item`.
@@ -111,6 +157,9 @@ impl Stock {
             ready_at: 0.0,
             counts: Counts::default(),
             gating: gates(),
+            boxed: boxes(),
+            using: Using::Idle,
+            kit: 0,
         };
         stock.spawn(tier, gun);
         stock
@@ -137,6 +186,8 @@ impl Stock {
         let (count, entry) = self.left_of(tier, gun);
         let left = self.left[entry as usize].1;
         self.load = Load::of(gun, count.min(left));
+        self.kit = count;
+        self.using = Using::Idle;
         self.busy = Busy::Free;
         self.ready_at = 0.0;
     }
@@ -157,6 +208,51 @@ impl Stock {
             .find(|(each, _)| *each == item)
             .expect("the weapon's kit is counted")
             .1
+    }
+
+    /// Rounds of the weapon's kit in the storage: the match's unfired ones
+    /// not in the weapon or the stack.
+    fn stored(&self) -> u32 {
+        let item = self.load.gun.item;
+        let left = self.left.iter().find(|(each, _)| *each == item).map_or(0, |e| e.1);
+        left.saturating_sub(self.load.rounds + self.load.spare)
+    }
+
+    /// What the box would put in the stack now: the kit's count less what
+    /// the weapon and the stack hold, as far as the storage has it.
+    fn missing(&self) -> u32 {
+        self.kit
+            .saturating_sub(self.load.rounds + self.load.spare)
+            .min(self.stored())
+    }
+
+    /// One tick of the box at `now` ms: `edge` is the USE key pressed this
+    /// tick, `held` it down, `meets` the view's ray meeting the body's own
+    /// box (`false` when it has none), `free` the body able to use it
+    /// (alive, not carrying a battery).
+    pub(crate) fn resupply(&mut self, now: u32, edge: bool, held: bool, meets: bool, free: bool) {
+        if !self.boxed || !self.gating {
+            return;
+        }
+        self.using = match self.using {
+            Using::Idle if edge && free && meets && self.missing() > 0 => {
+                self.counts.box_uses += 1;
+                Using::Box { began: now }
+            }
+            Using::Idle => Using::Idle,
+            Using::Box { .. } if !(free && held && meets) => {
+                self.counts.box_cut += 1;
+                Using::Idle
+            }
+            Using::Box { began } if now - began >= RESUPPLY_MS => {
+                let put = self.missing();
+                self.load.spare += put;
+                self.counts.box_topped += 1;
+                self.counts.box_rounds += put;
+                Using::Idle
+            }
+            running => running,
+        };
     }
 
     /// The weapon can fire at `now` ms: nothing under way, a round in it,
@@ -241,6 +337,10 @@ impl Stock {
 pub(crate) fn counts_of<'a>(stocks: impl Iterator<Item = &'a Stock>) -> Counts {
     stocks.fold(Counts::default(), |mut sum, stock| {
         sum.reloads += stock.counts.reloads;
+        sum.box_uses += stock.counts.box_uses;
+        sum.box_topped += stock.counts.box_topped;
+        sum.box_cut += stock.counts.box_cut;
+        sum.box_rounds += stock.counts.box_rounds;
         sum.cut_loops += stock.counts.cut_loops;
         sum.dry_ticks += stock.counts.dry_ticks;
         sum.held_no_shot += stock.counts.held_no_shot;
@@ -383,6 +483,88 @@ mod tests {
         assert_eq!((s.load.rounds, s.load.spare), (0, 0));
         s.tick(10, key::FIRE, true);
         assert!(s.counts.dry_ticks > 0 && !s.may_fire(10));
+    }
+
+    /// The box: a use needs the edge and a ray on the box, takes
+    /// `RESUPPLY_MS`, tops the stack up from the storage once and never
+    /// writes the magazine; the key let go before the end applies nothing.
+    #[test]
+    fn the_box_tops_the_stack_up_after_its_time() {
+        let mut s = stock("ak_74u");
+        let kit = s.kit;
+        let reserve = s.left[0].1;
+        // Nothing missing: a use does not begin.
+        s.resupply(0, true, true, true, true);
+        assert_eq!(s.counts.box_uses, 0);
+        // 20 rounds fired: the magazine holds 10, the stack the rest.
+        for i in 0..20 {
+            assert!(s.fired(i as f32 * 100.0));
+        }
+        let (rounds, spare) = (s.load.rounds, s.load.spare);
+        assert_eq!(s.missing(), 20);
+        assert_eq!(s.stored(), reserve - kit);
+        // No edge: no use.
+        s.resupply(5_000, false, true, true, true);
+        assert_eq!(s.counts.box_uses, 0);
+        s.resupply(5_000, true, true, true, true);
+        assert_eq!(s.counts.box_uses, 1);
+        s.resupply(5_000 + RESUPPLY_MS - 50, false, true, true, true);
+        assert_eq!(s.load.spare, spare);
+        s.resupply(5_000 + RESUPPLY_MS, false, true, true, true);
+        assert_eq!((s.load.rounds, s.load.spare), (rounds, spare + 20));
+        assert_eq!(s.counts.box_rounds, 20);
+        assert_eq!(s.load.rounds + s.load.spare, kit);
+        // Held on: another needs a new edge.
+        assert!(s.fired(10_000.0));
+        s.resupply(10_050, false, true, true, true);
+        assert_eq!(s.counts.box_uses, 1);
+        // The key let go, or the ray off the box, ends a use with nothing.
+        for (held, meets) in [(false, true), (true, false)] {
+            let mut s = stock("ak_74u");
+            assert!(s.fired(0.0));
+            s.resupply(100, true, true, true, true);
+            s.resupply(150, false, held, meets, true);
+            s.resupply(100 + RESUPPLY_MS, false, true, true, true);
+            assert_eq!((s.counts.box_cut, s.counts.box_topped), (1, 0));
+            assert_eq!(s.load.rounds + s.load.spare, kit - 1);
+        }
+    }
+
+    /// The storage bounds the top-up, and a spawn takes the kit's count
+    /// again from the same unfired total.
+    #[test]
+    fn the_box_gives_no_more_than_the_storage_has() {
+        let mut s = stock("ak_74u");
+        let kit = s.kit;
+        // Leave only 5 rounds in the storage.
+        let reserve = s.left[0].1;
+        s.left[0].1 = kit + 5;
+        for i in 0..kit {
+            if s.load.rounds == 0 {
+                s.load = Load::of(s.load.gun, s.load.spare);
+            }
+            s.ready_at = 0.0;
+            assert!(s.fired(i as f32 * 100.0), "{i} of {reserve}");
+        }
+        assert_eq!(s.load.rounds + s.load.spare, 0);
+        assert_eq!(s.stored(), 5);
+        s.resupply(0, true, true, true, true);
+        s.resupply(RESUPPLY_MS, false, true, true, true);
+        assert_eq!(s.load.spare, 5);
+        assert_eq!(s.stored(), 0);
+        assert_eq!(s.left[0].1, 5, "the match's unfired total is the same");
+    }
+
+    /// `SRP_BENCH_RESUPPLY=off` and a carrier: the box does nothing.
+    #[test]
+    fn a_carrier_or_an_off_box_gets_nothing() {
+        let mut s = stock("ak_74u");
+        assert!(s.fired(0.0));
+        s.resupply(100, true, true, true, false);
+        assert_eq!(s.counts.box_uses, 0);
+        s.boxed = false;
+        s.resupply(100, true, true, true, true);
+        assert_eq!(s.counts.box_uses, 0);
     }
 
     /// Another weapon taken is another kit; the same one leaves the stock.
