@@ -118,49 +118,54 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
     Some((0..places).map(|_| rng.range(lo, hi.max(lo)) as u32).collect())
 }
 
-/// [`bench_tuning`]; for `side1`, the plays', the reflex's and the senses'
-/// numbers from `SRP_BENCH_SIDE1_<name>` instead of `SRP_BENCH_<name>`
-/// (the one-sided runs, `SRP_BENCH_ONE_SIDE`: team 1 plays by it).
+/// [`tuning_from`] of the environment.
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
-    let var = |name: &str| {
-        let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
-        bench_settings().var(&format!("{prefix}{name}"))
-    };
-    let mut tuning = Tuning::default();
+    tuning_from(bench_settings(), side1)
+}
+
+/// The tuning a bench run goes by: the defaults, changed by the run's settings, parsed into the typed
+/// [`Tuning`] once at the end (an unknown name or a value of the wrong kind refuses the run).
+///
+/// - `SRP_BENCH_TUNING` (for team 1 of a one-sided run, `SRP_BENCH_SIDE1_TUNING`) is a JSON merge patch
+///   (RFC 7386) over the defaults' JSON, the form of the `SRP_BOT_TUNING` file: objects merge key by key,
+///   anything else (a number, a list) replaces, `null` takes a key out (it falls back to its default).
+///   A new tuning switch needs no setting of its own: the run names it by its path, `{"aim": {"combat":
+///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
+/// - The settings below it are older names for the same changes, kept so that the bench scripts and
+///   BENCH-GUIDE go on working (`SRP_BENCH_CHEAT`, `_BATTERY_SIGHT_M`, `_FRIEND_NEAR_M`, `_FF_*`,
+///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_AIM`,
+///   `_SENSE`). They are applied first, in the order they always were, and the patch last, so it wins.
+///   For `side1` only the lists (`SRP_BENCH_SIDE1_<name>`) and the patch read team 1's names.
+pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
+    let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
+    let var = |name: &str| settings.var(&format!("{prefix}{name}"));
+    let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
     // The battery cheat instead of the fair battery knowledge.
-    if bench_settings().flag("SRP_BENCH_CHEAT") {
-        tuning.cheats.batteries = true;
+    if settings.flag("SRP_BENCH_CHEAT") {
+        set(&mut tuning, "/cheats/batteries", true.into());
     }
-    if let Some(m) = bench_settings().number("SRP_BENCH_BATTERY_SIGHT_M")
-    {
-        tuning.sense.battery_sight_m = m;
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_BATTERY_SIGHT_M") {
+        set(&mut tuning, "/sense/battery_sight_m", m.into());
     }
-    if let Some(m) = bench_settings().number("SRP_BENCH_FRIEND_NEAR_M")
-    {
-        tuning.aim.friends.near_m = m;
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FRIEND_NEAR_M") {
+        set(&mut tuning, "/aim/friends/near_m", m.into());
     }
-    // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
-    // 0 off, 1 on; and the lead's extra, ms.
-    if let Ok(v) = bench_settings().var("SRP_BENCH_FF_LEAD") {
-        tuning.aim.friends.lead = v != "0";
+    // The teammates led to the tick decided (`FriendlyFireTuning::lead`): 0 off, 1 on; and the lead's extra, ms.
+    if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
+        set(&mut tuning, "/aim/friends/lead", (v != "0").into());
     }
-    // Teammates this far past the target count
-    // (`FriendlyFireTuning::past_target_m`).
-    if let Some(m) = bench_settings().number("SRP_BENCH_FF_PAST_M")
-    {
-        tuning.aim.friends.past_target_m = m;
+    // Teammates this far past the target count (`FriendlyFireTuning::past_target_m`).
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FF_PAST_M") {
+        set(&mut tuning, "/aim/friends/past_target_m", m.into());
     }
-    // A teammate this near in front blocks whatever his angle
-    // (`FriendlyFireTuning::touch_m`; 0 off).
-    if let Some(m) = bench_settings().number("SRP_BENCH_FF_TOUCH_M")
-    {
-        tuning.aim.friends.touch_m = m;
+    // A teammate this near in front blocks whatever his angle (`FriendlyFireTuning::touch_m`; 0 off).
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FF_TOUCH_M") {
+        set(&mut tuning, "/aim/friends/touch_m", m.into());
     }
-    if let Some(ms) = bench_settings().number("SRP_BENCH_FF_LEAD_MS")
-    {
-        tuning.aim.friends.lead_extra_ms = ms;
+    if let Some(ms) = settings.number::<u32>("SRP_BENCH_FF_LEAD_MS") {
+        set(&mut tuning, "/aim/friends/lead_extra_ms", ms.into());
     }
-    // Collect's and Intercept's numbers: `name=value,...`.
+    // The plays' numbers: `name=value,...`.
     for (name, kind) in [
         ("COLLECT", super::plays::PlayKind::Collect),
         ("INTERCEPT", super::plays::PlayKind::Intercept),
@@ -176,68 +181,101 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         let Ok(numbers) = var(name) else {
             continue;
         };
-        let play = tuning
-            .plays
-            .entry(kind)
-            .or_insert_with(|| super::plays::default_tuning(kind));
+        let play = serde_json::to_value(kind).expect("a play's name");
+        let play = play.as_str().expect("a play's name is a string");
         for pair in numbers.split(',').filter(|p| !p.is_empty()) {
-            let (name, value) = pair
+            let (number, value) = pair
                 .split_once('=')
                 .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
-            play.numbers
-                .insert(name.to_owned(), value.parse().expect("a number"));
+            let value: f32 = value.parse().expect("a number");
+            set(&mut tuning, &format!("/plays/{play}/numbers/{number}"), value.into());
         }
     }
-    // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between
-    // them when a value has a comma).
-    if let Ok(numbers) = var("COMBAT") {
-        let mut combat = serde_json::to_value(&tuning.aim.combat).unwrap();
-        let sep = if numbers.contains(';') { ';' } else { ',' };
+    // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between them when a value has a comma); the
+    // aim's own (`AimTuning`: `range_m`, `fire_within_deg`, `pause_ms`, ...) and the senses' (`SenseTuning`) likewise.
+    for (name, section, comma_or_semicolon) in [
+        ("COMBAT", "/aim/combat", true),
+        ("AIM", "/aim", true),
+        ("SENSE", "/sense", false),
+    ] {
+        let Ok(numbers) = var(name) else {
+            continue;
+        };
+        let sep = if comma_or_semicolon && numbers.contains(';') { ';' } else { ',' };
         for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_COMBAT: name=value");
-            combat[name] = serde_json::from_str(value).expect("SRP_BENCH_COMBAT: a JSON value");
+            let (key, value) = pair
+                .split_once('=')
+                .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
+            let value = serde_json::from_str(value)
+                .unwrap_or_else(|_| panic!("SRP_BENCH_{name}: a JSON value"));
+            tuning
+                .pointer_mut(section)
+                .expect("a section of the tuning")
+                .as_object_mut()
+                .expect("a section is an object")
+                .insert(key.to_owned(), value);
         }
-        tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
-    // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
-    // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
-    if let Ok(numbers) = var("AIM") {
-        let mut aim = serde_json::to_value(&tuning.aim).unwrap();
-        let sep = if numbers.contains(';') { ';' } else { ',' };
-        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
-            aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
-        }
-        tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+    // A way out of a zone stays under its start's strength (`Tuning::escape_ceiling`): `0` off.
+    if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
+        set(&mut tuning, "/escape_ceiling", (v != "0").into());
     }
-    // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
-    if let Ok(numbers) = var("SENSE") {
-        let mut sense = serde_json::to_value(&tuning.sense).unwrap();
-        for pair in numbers.split(',').filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
-            sense[name] = serde_json::from_str(value).expect("SRP_BENCH_SENSE: a JSON value");
-        }
-        tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
-    }
-    // A way out of a zone stays under its start's strength
-    // (`Tuning::escape_ceiling`): `0` off.
-    // The last resort of a bot with nothing left to try (`Tuning::unstick`): `0` never, as it was.
-    if let Some(ms) = bench_settings().number("SRP_BENCH_SUICIDE_AFTER_MS") {
-        tuning.unstick.suicide_after_ms = ms;
-    }
-    if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
-        tuning.escape_ceiling = v != "0";
-    }
-    if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
-        tuning.think.search_floors_per_poll = if floors == "max" {
+    if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
+        let floors = if floors == "max" {
             u32::MAX
         } else {
             floors
                 .parse()
                 .expect("SRP_BENCH_SEARCH_FLOORS: a number or max")
         };
+        set(&mut tuning, "/think/search_floors_per_poll", floors.into());
+    }
+    let patch = var("TUNING").ok().filter(|text| !text.trim().is_empty());
+    if let Some(text) = &patch {
+        let patch: serde_json::Value = serde_json::from_str(text)
+            .unwrap_or_else(|cause| panic!("{prefix}TUNING is not JSON: {cause}"));
+        merge_patch(&mut tuning, patch);
+    }
+    let tuning: Tuning = serde_json::from_value(tuning)
+        .unwrap_or_else(|cause| panic!("the bench's tuning: {cause}"));
+    if patch.is_some() {
+        tuning
+            .validate()
+            .unwrap_or_else(|wrong| panic!("{prefix}TUNING: {wrong}"));
     }
     tuning
+}
+
+/// `value` is put at the JSON pointer `path` of the tuning: its parent must be there (a section the tuning
+/// does not have is a typo and refuses the run); a name the section does not have is refused when the
+/// whole is parsed, except a play's number, which may be any.
+fn set(tuning: &mut serde_json::Value, path: &str, value: serde_json::Value) {
+    let (parent, name) = path.rsplit_once('/').expect("a pointer has a name");
+    tuning
+        .pointer_mut(parent)
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap_or_else(|| panic!("the bench's tuning has no {parent}"))
+        .insert(name.to_owned(), value);
+}
+
+/// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything
+/// else replaces what is there.
+pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Value) {
+    let serde_json::Value::Object(patch) = patch else {
+        *target = patch;
+        return;
+    };
+    if !target.is_object() {
+        *target = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let target = target.as_object_mut().expect("made an object above");
+    for (key, value) in patch {
+        if value.is_null() {
+            target.remove(&key);
+        } else {
+            merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
+        }
+    }
 }
 
 /// [`Bots::poll`] with each part timed; the same steps in the same order.
@@ -1518,6 +1556,253 @@ fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
                     .dict_id;
                 assert_eq!(profile.items[usize::from(slot.0)].dict_id, weapon, "{tier} {role}");
             }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tuning_tests {
+    use super::*;
+
+    /// The bench's tuning before it was parsed once from JSON: the same switches, each set on the typed
+    /// tuning. Kept to show that the one parse gives what it gave.
+    fn reference(settings: &BenchSettings, side1: bool) -> Tuning {
+        let var = |name: &str| {
+            let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
+            settings.var(&format!("{prefix}{name}"))
+        };
+        let mut tuning = Tuning::default();
+        // The battery cheat instead of the fair battery knowledge.
+        if settings.flag("SRP_BENCH_CHEAT") {
+            tuning.cheats.batteries = true;
+        }
+        if let Some(m) = settings.number("SRP_BENCH_BATTERY_SIGHT_M")
+        {
+            tuning.sense.battery_sight_m = m;
+        }
+        if let Some(m) = settings.number("SRP_BENCH_FRIEND_NEAR_M")
+        {
+            tuning.aim.friends.near_m = m;
+        }
+        // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
+        // 0 off, 1 on; and the lead's extra, ms.
+        if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
+            tuning.aim.friends.lead = v != "0";
+        }
+        // Teammates this far past the target count
+        // (`FriendlyFireTuning::past_target_m`).
+        if let Some(m) = settings.number("SRP_BENCH_FF_PAST_M")
+        {
+            tuning.aim.friends.past_target_m = m;
+        }
+        // A teammate this near in front blocks whatever his angle
+        // (`FriendlyFireTuning::touch_m`; 0 off).
+        if let Some(m) = settings.number("SRP_BENCH_FF_TOUCH_M")
+        {
+            tuning.aim.friends.touch_m = m;
+        }
+        if let Some(ms) = settings.number("SRP_BENCH_FF_LEAD_MS")
+        {
+            tuning.aim.friends.lead_extra_ms = ms;
+        }
+        // Collect's and Intercept's numbers: `name=value,...`.
+        for (name, kind) in [
+            ("COLLECT", super::plays::PlayKind::Collect),
+            ("INTERCEPT", super::plays::PlayKind::Intercept),
+            ("RAID", super::plays::PlayKind::Raid),
+            ("BUDDY", super::plays::PlayKind::Buddy),
+            ("TRADE", super::plays::PlayKind::Trade),
+            ("ROAM", super::plays::PlayKind::Roam),
+            ("CUT", super::plays::PlayKind::Cut),
+            ("HOLDEXIT", super::plays::PlayKind::HoldExit),
+            ("CROSSFIRE", super::plays::PlayKind::Crossfire),
+            ("PAIRUP", super::plays::PlayKind::PairUp),
+        ] {
+            let Ok(numbers) = var(name) else {
+                continue;
+            };
+            let play = tuning
+                .plays
+                .entry(kind)
+                .or_insert_with(|| super::plays::default_tuning(kind));
+            for pair in numbers.split(',').filter(|p| !p.is_empty()) {
+                let (name, value) = pair
+                    .split_once('=')
+                    .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
+                play.numbers
+                    .insert(name.to_owned(), value.parse().expect("a number"));
+            }
+        }
+        // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between
+        // them when a value has a comma).
+        if let Ok(numbers) = var("COMBAT") {
+            let mut combat = serde_json::to_value(&tuning.aim.combat).unwrap();
+            let sep = if numbers.contains(';') { ';' } else { ',' };
+            for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_COMBAT: name=value");
+                combat[name] = serde_json::from_str(value).expect("SRP_BENCH_COMBAT: a JSON value");
+            }
+            tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
+        }
+        // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
+        // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
+        if let Ok(numbers) = var("AIM") {
+            let mut aim = serde_json::to_value(&tuning.aim).unwrap();
+            let sep = if numbers.contains(';') { ';' } else { ',' };
+            for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
+                aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
+            }
+            tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+        }
+        // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
+        if let Ok(numbers) = var("SENSE") {
+            let mut sense = serde_json::to_value(&tuning.sense).unwrap();
+            for pair in numbers.split(',').filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
+                sense[name] = serde_json::from_str(value).expect("SRP_BENCH_SENSE: a JSON value");
+            }
+            tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
+        }
+        // A way out of a zone stays under its start's strength
+        // (`Tuning::escape_ceiling`): `0` off.
+        if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
+            tuning.escape_ceiling = v != "0";
+        }
+        if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
+            tuning.think.search_floors_per_poll = if floors == "max" {
+                u32::MAX
+            } else {
+                floors
+                    .parse()
+                    .expect("SRP_BENCH_SEARCH_FLOORS: a number or max")
+            };
+        }
+        tuning
+    }
+
+    fn settings(pairs: &[(&str, &str)]) -> BenchSettings {
+        BenchSettings::from_pairs(pairs)
+    }
+
+    /// Every older switch gives the tuning it gave, for team 0 and for team 1.
+    #[test]
+    fn every_older_switch_gives_the_tuning_it_gave() {
+        let cases: Vec<Vec<(&str, &str)>> = vec![
+            vec![],
+            vec![("SRP_BENCH_CHEAT", "")],
+            vec![("SRP_BENCH_BATTERY_SIGHT_M", "12.5"), ("SRP_BENCH_FRIEND_NEAR_M", "0.8")],
+            vec![
+                ("SRP_BENCH_FF_LEAD", "0"),
+                ("SRP_BENCH_FF_PAST_M", "3"),
+                ("SRP_BENCH_FF_TOUCH_M", "0"),
+                ("SRP_BENCH_FF_LEAD_MS", "40"),
+            ],
+            vec![("SRP_BENCH_COLLECT", "look_weight=0.5,search_weight=0.3"), ("SRP_BENCH_CUT", "weight_tdm=0.4")],
+            vec![("SRP_BENCH_COMBAT", "band_legs=false,range_floor_rifle_m=70")],
+            vec![("SRP_BENCH_COMBAT", "hide_m=[1,2];band_legs=false")],
+            vec![("SRP_BENCH_AIM", "wander_s=3;burst_ms=[10,20]")],
+            vec![("SRP_BENCH_SENSE", "touch_m=1.5")],
+            vec![("SRP_BENCH_ESCAPE_CEILING", "0"), ("SRP_BENCH_SEARCH_FLOORS", "max")],
+            vec![("SRP_BENCH_SEARCH_FLOORS", "100")],
+            vec![
+                ("SRP_BENCH_SIDE1_COMBAT", "band_legs=false"),
+                ("SRP_BENCH_SIDE1_CUT", "weight_tdm=0.4"),
+                ("SRP_BENCH_COMBAT", "range_floor_rifle_m=70"),
+            ],
+        ];
+        for pairs in &cases {
+            let s = settings(pairs);
+            for side1 in [false, true] {
+                assert_eq!(tuning_from(&s, side1), reference(&s, side1), "{pairs:?} side1 {side1}");
+            }
+        }
+        // And the defaults come back from their JSON as they are.
+        assert_eq!(tuning_from(&settings(&[]), false), Tuning::default());
+    }
+
+    /// The patch does what the older switches do, for team 0 and (by its own name) for team 1, and wins
+    /// over them when both name a thing.
+    #[test]
+    fn the_patch_is_the_older_switches_in_one_setting() {
+        let patch = r#"{"escape_ceiling": false, "aim": {"combat": {"band_legs": false}},
+                        "plays": {"cut": {"numbers": {"weight_tdm": 0.5}}}}"#;
+        let by_patch = tuning_from(&settings(&[("SRP_BENCH_TUNING", patch)]), false);
+        let by_switches = tuning_from(
+            &settings(&[
+                ("SRP_BENCH_ESCAPE_CEILING", "0"),
+                ("SRP_BENCH_COMBAT", "band_legs=false"),
+                ("SRP_BENCH_CUT", "weight_tdm=0.5"),
+            ]),
+            false,
+        );
+        assert_eq!(by_patch, by_switches);
+        assert_ne!(by_patch, Tuning::default());
+        // Team 1 reads its own patch only.
+        let side1 = tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), true);
+        assert_eq!(side1, by_patch);
+        assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), false), Tuning::default());
+        // The patch wins over an older switch naming the same thing.
+        let both = tuning_from(
+            &settings(&[("SRP_BENCH_COMBAT", "band_legs=true"), ("SRP_BENCH_TUNING", patch)]),
+            false,
+        );
+        assert!(!both.aim.combat.band_legs);
+        // A patch changes only what it names, and keeps what an older switch set elsewhere.
+        let kept = tuning_from(
+            &settings(&[
+                ("SRP_BENCH_COMBAT", "range_floor_rifle_m=70"),
+                ("SRP_BENCH_TUNING", r#"{"aim":{"combat":{"band_legs":false}}}"#),
+            ]),
+            false,
+        );
+        assert_eq!(kept.aim.combat.range_floor_rifle_m, 70.0);
+        assert!(!kept.aim.combat.band_legs);
+    }
+
+    /// A name the tuning does not have, a value of the wrong kind, a value its limits refuse, and text
+    /// that is not JSON each refuse the run.
+    #[test]
+    fn a_patch_that_is_wrong_refuses_the_run() {
+        for bad in [
+            r#"{"aim": {"combat": {"no_such_switch": true}}}"#,
+            r#"{"escape_ceiling": "yes"}"#,
+            r#"{"sense": {"view_deg": 0}}"#,
+            "{not json",
+        ] {
+            let refused = std::panic::catch_unwind(|| tuning_from(&settings(&[("SRP_BENCH_TUNING", bad)]), false));
+            assert!(refused.is_err(), "{bad}");
+        }
+        // An older switch with a name the tuning lacks is refused too.
+        let refused = std::panic::catch_unwind(|| tuning_from(&settings(&[("SRP_BENCH_SENSE", "no_such=1")]), false));
+        assert!(refused.is_err());
+    }
+
+    /// RFC 7386's examples of the merge.
+    #[test]
+    fn the_merge_is_rfc_7386() {
+        let cases = [
+            (r#"{"a":"b"}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"b":"c"}"#, r#"{"a":"b","b":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"a":null}"#, "{}"),
+            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"b":"c"}"#),
+            (r#"{"a":["b"]}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"c"}"#, r#"{"a":["b"]}"#, r#"{"a":["b"]}"#),
+            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d"}}"#),
+            (r#"{"a":[{"b":"c"}]}"#, r#"{"a":[1]}"#, r#"{"a":[1]}"#),
+            (r#"["a","b"]"#, r#"["c","d"]"#, r#"["c","d"]"#),
+            (r#"{"a":"b"}"#, r#"["c"]"#, r#"["c"]"#),
+            (r#"{"a":"foo"}"#, "null", "null"),
+            (r#"{"a":"foo"}"#, r#""bar""#, r#""bar""#),
+            (r#"{"e":null}"#, r#"{"a":1}"#, r#"{"e":null,"a":1}"#),
+            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b"}"#),
+            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{}}}"#),
+        ];
+        for (target, patch, want) in cases {
+            let mut value: serde_json::Value = serde_json::from_str(target).unwrap();
+            merge_patch(&mut value, serde_json::from_str(patch).unwrap());
+            assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
         }
     }
 }
