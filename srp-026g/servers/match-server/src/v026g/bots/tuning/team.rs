@@ -78,6 +78,56 @@ impl Default for ThreatTuning {
 /// 3-10 ms.
 pub const SEARCH_FLOORS_PER_POLL: u32 = 10_000;
 
+/// Stepping out of a live grenade (`grenade_threat.rs`, `grenades-record/avoid-design.md`).
+///
+/// Every number but the switch is a GUESS and a sweep arm: the live matches show no human reaction to a
+/// landed grenade at all (mates and enemies leave the radius as often as they do 20 s earlier or later,
+/// `docs/notes/grenade_visibility.md`), so no delay can be copied from them; the defaults are the
+/// published reaction times (Rabin, Game AI Pro 2 ch. 5: 0.16-0.22 s simple, 0.38 s recognition).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AvoidTuning {
+    /// A bot steps out of the blast of every grenade it knows of (below). Off: no bot knows of one, the
+    /// list is not read.
+    pub grenade_avoid: bool,
+    /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
+    /// human team can call it, few do); they step out after this long, ms, drawn.
+    pub told_ms: (u32, u32),
+    /// The other team's bots know of a grenade once it lies on the ground and they hear or see it; they
+    /// step out after this long, ms, drawn.
+    pub notice_ms: (u32, u32),
+    /// An enemy sees a grenade on the ground within this, metres, in its view cone, with a line to it.
+    /// The client's draw distance for the 0.05 x 0.10 m model is not known.
+    pub see_m: f32,
+    /// The view cone of that, degrees (the whole angle).
+    pub cone_deg: f32,
+    /// An enemy within this of a landing hears the first bounce, metres (the live bounce sound is silent
+    /// from 20 m; at 8 m it is 0.07 of full).
+    pub hear_m: f32,
+    /// A bot is out of the blast this far past its radius, metres.
+    pub margin_m: f32,
+    /// A bot whose walk would take it into the blast within this, ms, counts as in it.
+    pub ahead_ms: u32,
+    /// How often a bot that is not stepping looks again at the grenades, ms.
+    pub look_ms: u32,
+}
+
+impl Default for AvoidTuning {
+    fn default() -> Self {
+        Self {
+            grenade_avoid: false,
+            told_ms: (200, 400),
+            notice_ms: (400, 900),
+            see_m: 30.0,
+            cone_deg: 100.0,
+            hear_m: 8.0,
+            margin_m: 0.5,
+            ahead_ms: 1_000,
+            look_ms: 200,
+        }
+    }
+}
+
 /// How often what runs (research B5).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -168,12 +218,63 @@ impl Personality {
     }
 }
 
-/// The think rates' ranges in order.
-pub(super) fn validate_think(think: &ThinkTuning) -> Result<(), String> {
-    check(
-        think.think_ms.0 > 0 && think.think_ms.0 <= think.think_ms.1,
-        "think.think_ms",
-    )?;
-    check(think.commander_ms >= 50, "think.commander_ms")?;
-    Ok(())
+/// The personalities and their share of the bots (play 14). In a file, a list of them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Personalities(pub Vec<Personality>);
+
+impl Default for Personalities {
+    fn default() -> Self {
+        Self(Personality::defaults())
+    }
+}
+
+impl std::ops::Deref for Personalities {
+    type Target = Vec<Personality>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Personalities {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Check for Personalities {
+    /// At least one, their shares summing to about 1.
+    fn check(&self) -> Result<(), String> {
+        let shares: f32 = self.0.iter().map(|p| p.share).sum();
+        check(
+            !self.0.is_empty() && (shares - 1.0).abs() < 0.05,
+            "personalities: shares must sum to 1",
+        )
+    }
+}
+
+impl Check for AvoidTuning {
+    /// The avoidance's ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(self.told_ms.0 <= self.told_ms.1, "avoid.told_ms")?;
+        check(self.notice_ms.0 <= self.notice_ms.1, "avoid.notice_ms")?;
+        check(self.see_m >= 0.0 && self.hear_m >= 0.0, "avoid.see_m, hear_m")?;
+        check((0.0..=360.0).contains(&self.cone_deg), "avoid.cone_deg")?;
+        check(self.margin_m >= 0.0, "avoid.margin_m")?;
+        check(self.look_ms >= 20, "avoid.look_ms")?;
+        Ok(())
+    }
+}
+
+impl Check for ThinkTuning {
+    /// The think rates' ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.think_ms.0 > 0 && self.think_ms.0 <= self.think_ms.1,
+            "think.think_ms",
+        )?;
+        check(self.commander_ms >= 50, "think.commander_ms")?;
+        Ok(())
+    }
 }

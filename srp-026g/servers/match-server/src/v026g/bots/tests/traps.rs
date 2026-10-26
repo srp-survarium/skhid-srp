@@ -177,10 +177,67 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     assert!(!bots.teams[0].trap_field.is_empty());
     // The other team's list stays empty: it is not their trap.
     assert!(bots.teams[1].knowledge.traps.all().is_empty());
-    // Fired: spent, the floors are open again.
+    // Fired: spent, the floors are open again; the team's trap went off,
+    // and nobody with a broken leg is near it.
     bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
     assert!(bots.teams[0].trap_field.is_empty());
+    assert_eq!(bots.own_trap_counts().fired, 1);
+    assert_eq!(bots.own_trap_counts().own_team_caught, 0);
     // A world without it: gone.
     bots.traps_from_world(&[0u8; 20], 60_000);
     assert!(bots.teams[0].knowledge.traps.all().is_empty());
+}
+
+/// A trap of the team that goes off with a broken-legged body of the same
+/// team near it is an own-team catch; with the legs whole, or the body far,
+/// it is not.
+#[test]
+pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_team_catch() {
+    let (_, mut bots) = run(None, Tuning::default(), 4);
+    let clock = Clock {
+        clock: 5_000,
+        time_left_s: 0.0,
+        total_s: 0.0,
+        playing: true,
+    };
+    let world = bots.tactics.as_ref().map(|t| t.world.clone());
+    let view = bots.tracker.view(&clock, &bots.tuning.kin, world.as_deref());
+    let at = view.place(0).unwrap().feet + Vec3::new(1.0, 0.0, 0.0);
+    // Legs whole: a trap went off, nobody caught.
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (1, 0));
+    // A broken leg beside it: caught. The other team's trap is not ours.
+    bots.bots[0].as_mut().unwrap().hurt.leg_broken = true;
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (2, 1));
+    bots.count_own_traps(5_000, &[(1, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (3, 1));
+    // Far from it: not caught.
+    bots.count_own_traps(5_000, &[(0, at + Vec3::new(30.0, 0.0, 0.0))]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (4, 1));
+}
+
+/// A trap lands where the head ray of the release frame meets the floor, not
+/// where the habit planned it: the bot goes on walking while it looks down.
+#[test]
+pub(crate) fn a_trap_lands_where_the_head_ray_meets_the_floor() {
+    use crate::v026g::bots::traps::{PLACE_RAY_M, landing};
+    let eye = Vec3::new(10.0, 1.6, 4.0);
+    let yaw = crate::v026g::bots::kin::yaw_of([1.0, 0.0]);
+    // At the press pitch the ray meets the floor 1.12 m out along the yaw.
+    let at = landing(eye, yaw, -0.96, 0.0).expect("lands");
+    assert!((at.x - (eye.x + 1.6 / 0.96_f32.tan())).abs() < 1e-3, "{at:?}");
+    assert!((at.z - eye.z).abs() < 1e-3 && at.y == 0.0);
+    assert!((at - Vec3::new(eye.x, 0.0, eye.z)).length() < PLACE_RAY_M);
+    // Walking on 1.8 m before the release moves it 1.8 m: the planned spot
+    // (1 m from where the bot stood) is no longer the place.
+    let walked = landing(eye + Vec3::new(1.8, 0.0, 0.0), yaw, -0.96, 0.0).unwrap();
+    assert!((walked.x - at.x - 1.8).abs() < 1e-3);
+    // Too shallow a look: the ray ends in the air (the pitch of 1.6 / sin
+    // = 2.0 m is the limit), a look up or level, a floor above the eye.
+    assert!(landing(eye, yaw, -0.80, 0.0).is_none());
+    assert!(landing(eye, yaw, 0.2, 0.0).is_none());
+    assert!(landing(eye, yaw, 0.0, 0.0).is_none());
+    assert!(landing(eye, yaw, -1.0, 1.7).is_none());
+    assert!(landing(eye, yaw, -1.0, 0.0).is_some());
 }

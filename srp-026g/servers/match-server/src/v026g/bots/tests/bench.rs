@@ -140,15 +140,20 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
     let var = |name: &str| settings.var(&format!("{prefix}{name}"));
     let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
-    // The floor-aware path distance on (`1`) or off (`0`, the default): `Tuning::floor_paths`.
+    // The floor-aware path distance on (`1`) or off (`0`, the default): `GridTuning::floor_paths`.
     if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
-        set(&mut tuning, "/floor_paths", (v != "0").into());
+        set(&mut tuning, "/grid/floor_paths", (v != "0").into());
     }
     // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
     // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
     if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
         set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
+    }
+    // Routes of a carrier over the jump links up to the standing jump only (`Feel::carrier_jump_m`; off by default:
+    // every jump link of the grid).
+    if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
     }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
@@ -241,9 +246,9 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Some(n) = settings.number::<u32>("SRP_BENCH_THREAT_FLOORS") {
         set(&mut tuning, "/threat/search_floors", n.into());
     }
-    // A way out of a zone stays under its start's strength (`Tuning::escape_ceiling`): `0` off.
+    // A way out of a zone stays under its start's strength (`HazardTuning::escape`; the flag reads as the old key did): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
-        set(&mut tuning, "/escape_ceiling", (v != "0").into());
+        set(&mut tuning, "/hazard/escape", (v != "0").into());
     }
     if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
         let floors = if floors == "max" {
@@ -257,8 +262,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     }
     let patch = var("TUNING").ok().filter(|text| !text.trim().is_empty());
     if let Some(text) = &patch {
-        let patch: serde_json::Value = serde_json::from_str(text)
+        let mut patch: serde_json::Value = serde_json::from_str(text)
             .unwrap_or_else(|cause| panic!("{prefix}TUNING is not JSON: {cause}"));
+        // The keys of a field that moved into a section still work in a patch.
+        Tuning::upgrade_keys(&mut patch).unwrap_or_else(|cause| panic!("{prefix}TUNING: {cause}"));
         merge_patch(&mut tuning, patch);
     }
     let tuning: Tuning = serde_json::from_value(tuning)
@@ -311,6 +318,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
@@ -406,6 +414,7 @@ pub(crate) fn real_bot_cost() {
             false
         }
     };
+    say_the_rusher_kit();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
@@ -438,7 +447,7 @@ pub(crate) fn real_bot_cost() {
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
         // The grid with the gap links when this run's tuning has them
-        // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
+        // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
         let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
@@ -452,7 +461,7 @@ pub(crate) fn real_bot_cost() {
             // The bots as the lobby gives them (`bench_roster`): each its
             // role and the tier's kits, read back from its profile as the
             // match server does.
-            let roster = bench_roster(&teams, bench_tier());
+            let roster = bench_roster(&teams, bench_equipment());
             let roles = &roster.roles;
             let mut bots = Bots::new(
                 0xBE7C + per_team as u32 + seed * 1000,
@@ -466,7 +475,7 @@ pub(crate) fn real_bot_cost() {
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            bots = bots.with_tiers(&roster.tiers);
+            bots = bots.with_tiers(&roster.equipments);
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
@@ -684,7 +693,7 @@ pub(crate) fn real_bot_cost() {
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
-            owner.camper = bots.bench_camper.map(|(place, _)| place);
+            owner.set_camper(bots.bench_camper.map(|(place, _)| place));
             if let Some((place, _)) = bots.bench_camper
                 && camper::CamperOptions::from_env().long_gun
             {
@@ -1375,6 +1384,15 @@ pub(crate) fn real_bot_cost() {
                 side[0] += stat.0;
                 side[1] += stat.1;
             }
+            // The same by role (kills, deaths of both teams' bots of each):
+            // the rusher's kit (`SRP_BENCH_RUSHER`) against the other three's.
+            let mut kd_by_role: std::collections::BTreeMap<&str, [u32; 2]> = Default::default();
+            for (place, stat) in game.stats.iter().enumerate() {
+                let role = roster.roles.get(place).copied().flatten().unwrap_or("none");
+                let row = kd_by_role.entry(role).or_default();
+                row[0] += stat.0;
+                row[1] += stat.1;
+            }
             let secs = |ticks: u64| (ticks as f64 * f64::from(TICK_MS) / 100.0).round() / 10.0;
             let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
                 .iter()
@@ -1435,6 +1453,7 @@ pub(crate) fn real_bot_cost() {
                     "seed": seed,
                     "kills": [kd[0][0], kd[1][0]],
                     "deaths": [kd[0][1], kd[1][1]],
+                    "kd_by_role": kd_by_role,
                     "delivered": game.delivered,
                     "points": game.points,
                     "taken": game.taken,
@@ -1551,30 +1570,79 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
     }
 }
 
+/// The bots' rusher kit as the run has it, in a line (like the game data's):
+/// the setting and what the data lets the tier's rusher wear.
+fn say_the_rusher_kit() {
+    let tier = bench_tier();
+    let asked = bench_rusher_kits().of(tier);
+    let worn = bench_equipment().rusher;
+    if tier == survarium::v026g::loadouts::BotTier::Low {
+        eprintln!("rusher kit: tier {tier} has the one kit (mp_153)");
+    } else if asked == worn {
+        eprintln!("rusher kit: tier {tier} `{}`", worn.name());
+    } else {
+        eprintln!(
+            "rusher kit: tier {tier} asked `{}`, THE GAME DATA LACKS ITS ITEMS: the old kit `{}`",
+            asked.name(),
+            worn.name()
+        );
+    }
+}
+
+/// The kit the rusher bots of the bench wear (`SRP_BENCH_RUSHER`, as the
+/// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the old table
+/// when unset).
+pub(crate) fn bench_rusher_kits() -> survarium::v026g::loadouts::RusherKits {
+    use survarium::v026g::loadouts::RusherKits;
+    match bench_settings().var("SRP_BENCH_RUSHER") {
+        Ok(text) if !text.is_empty() => {
+            RusherKits::parse(&text).unwrap_or_else(|why| panic!("SRP_BENCH_RUSHER: {why}"))
+        }
+        _ => RusherKits::default(),
+    }
+}
+
+/// The equipment of the bench's bots: their tier (`SRP_BENCH_TIER`) and the
+/// kit that tier's rusher wears (`SRP_BENCH_RUSHER`) in the game data the
+/// run is on.
+pub(crate) fn bench_equipment() -> survarium::v026g::loadouts::BotEquipment {
+    survarium::v026g::loadouts::BotEquipment::of(bench_tier(), bench_rusher_kits())
+}
+
 /// The bench's bots on `teams` as the lobby and the match server have them:
 /// the lobby's roles for the roster (`loadouts::bot_roles`, each team's k-th
 /// bot `BotRole::nth(k)`), each bot's profile as the lobby builds it
-/// (`loadouts::bot_profile`, the role's three kits of `tier`), and the role
-/// and tier read back from the profile with `loadouts::bot_of`, as
-/// `game/driven.rs` does for a match's `Bots::new` and `with_tiers`. One
-/// home each, so the bench and a live match cannot drift: a bot carries what
-/// the lobby gives it, not a lowest-tier kit in every tier.
+/// (`loadouts::bot_profile`, the role's three kits of `equipment`), and the
+/// role and equipment read back from the profile with
+/// `loadouts::bot_equipment_of`, as `game/driven.rs` does for a match's
+/// `Bots::new` and `with_tiers`. One home each, so the bench and a live
+/// match cannot drift: a bot carries what the lobby gives it, not a
+/// lowest-tier kit in every tier.
 pub(crate) struct BenchRoster {
     pub(crate) roles: Vec<Option<&'static str>>,
-    pub(crate) tiers: Vec<Option<survarium::v026g::loadouts::BotTier>>,
+    pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
 }
 
-pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTier) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_of, bot_profile, bot_roles};
+pub(crate) fn bench_roster(
+    teams: &[u8],
+    equipment: survarium::v026g::loadouts::BotEquipment,
+) -> BenchRoster {
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
     let bots: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_of(&bot_profile(n + 1, team, role, tier)))
+        .map(|(n, (&team, role))| bot_equipment_of(&bot_profile(n + 1, team, role, equipment)))
         .collect();
     BenchRoster {
-        roles: bots.iter().map(|bot| bot.map(|(_, role)| role.name())).collect(),
-        tiers: bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect(),
+        roles: bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect(),
+        equipments: bots
+            .iter()
+            .map(|bot| bot.map(|(equipment, _)| equipment))
+            .collect(),
     }
 }
 
@@ -1584,12 +1652,13 @@ pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTi
 /// gave no roles), the very `Arms` the match server's bots of that role and
 /// tier carry.
 #[test]
-fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+pub(crate) fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     for per_team in [1usize, 4, 8, 10] {
         let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
         for tier in BotTier::ALL {
-            let roster = bench_roster(&teams, tier);
+            let equipment = BotEquipment::of(tier, RusherKits::default());
+            let roster = bench_roster(&teams, equipment);
             let mut bots = Bots::new(
                 0xBE7C,
                 survarium::v026g::maps::mode::BATTERIES,
@@ -1600,22 +1669,33 @@ fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
                 Arc::new(Tuning::default()),
                 Trace::none(0),
             )
-            .with_tiers(&roster.tiers);
+            .with_tiers(&roster.equipments);
             let mut on_team = [0usize; 2];
             for (place, &team) in teams.iter().enumerate() {
                 let role = BotRole::nth(on_team[usize::from(team)]);
                 on_team[usize::from(team)] += 1;
                 assert_eq!(roster.roles[place], Some(role.name()), "{per_team} {tier} place {place}");
-                assert_eq!(roster.tiers[place], Some(tier), "{per_team} {tier} place {place}");
-                // The bot carries the tier's kits of its role: the very Arms.
-                let want = Arms::kits_of(tier, role);
+                assert_eq!(
+                    roster.equipments[place].map(|equipment| equipment.tier),
+                    Some(tier),
+                    "{per_team} {tier} place {place}"
+                );
+                // The bot carries the tier's kits of its role: the very Arms
+                // (the rusher's kit is read back as the lobby gave it; the
+                // flanker's, where another kit makes the same bot, may not
+                // be).
+                let read = roster.equipments[place].expect("a bot of an equipment");
+                if role == BotRole::Rusher {
+                    assert_eq!(read, equipment, "{per_team} {tier} place {place}");
+                }
+                let want = Arms::kits_of(read, role);
                 let bot = bots.bots[place].as_mut().expect("a bot");
                 assert_eq!(bot.kits.len(), want.len(), "{tier} {role}");
                 for ((arms, _), want) in bot.kits.iter().zip(&want) {
                     assert!(std::ptr::eq(*arms, *want), "{tier} {role}");
                 }
                 // Its first kit's weapon is the lobby profile's weapon in slot 7.
-                let profile = bot_profile(place + 1, team, role, tier);
+                let profile = bot_profile(place + 1, team, role, equipment);
                 let slot = profile.kits[0].slots[7].expect("a weapon in slot 7");
                 let weapon = survarium::v026g::dictionary::Dictionary::shared()
                     .item_named(bot.reflex.held_gun().item)
@@ -1733,9 +1813,10 @@ mod tuning_tests {
             tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
         }
         // A way out of a zone stays under its start's strength
-        // (`Tuning::escape_ceiling`): `0` off.
+        // (`HazardTuning::escape`): `0` off.
         if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
-            tuning.escape_ceiling = v != "0";
+            tuning.hazard.escape =
+                if v != "0" { super::tuning::EscapeRule::UnderStartZone } else { super::tuning::EscapeRule::Nearest };
         }
         if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
             tuning.think.search_floors_per_poll = if floors == "max" {
@@ -1806,6 +1887,21 @@ mod tuning_tests {
         );
         assert_eq!(by_patch, by_switches);
         assert_ne!(by_patch, Tuning::default());
+        // The keys of the fields that moved into a section (`tuning/legacy.rs`) still work in a patch, and are the new ones.
+        let old = tuning_from(
+            &settings(&[("SRP_BENCH_TUNING", r#"{"hazard_margin": 2.5, "escape_ceiling": false, "gap_links": true}"#)]),
+            false,
+        );
+        let new = tuning_from(
+            &settings(&[(
+                "SRP_BENCH_TUNING",
+                r#"{"hazard": {"margin_m": 2.5, "escape": "nearest"}, "grid": {"gap_links": true}}"#,
+            )]),
+            false,
+        );
+        assert_eq!(old, new);
+        assert_eq!(old.hazard.margin_m.get(), 2.5);
+        assert!(old.grid.gap_links);
         // Team 1 reads its own patch only.
         let side1 = tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), true);
         assert_eq!(side1, by_patch);

@@ -269,6 +269,8 @@ pub(crate) struct Game {
     /// killed so.
     pub(crate) team_hits: u32,
     pub(crate) team_kills: u32,
+    /// By team hit: the victim's pain pool before it, and whether it killed (the bandage habit's counts).
+    pub(crate) team_hit_pains: Vec<(f32, bool)>,
     /// Jumps pressed, and of them those a broken leg refused.
     pub(crate) jumps_pressed: u32,
     pub(crate) jumps_refused: u32,
@@ -513,6 +515,7 @@ impl Game {
             jumps_pressed: 0,
             jumps_refused: 0,
             team_kills: 0,
+            team_hit_pains: Vec::new(),
             walled: 0,
             walled_by: [0; 2],
             hidden_by: [0; 2],
@@ -658,6 +661,7 @@ impl Game {
             body.recoil.update(tick);
         }
         let tier = self.damage.tier;
+        let mut suicides = Vec::new();
         for (place, queue) in self.inputs.iter_mut().enumerate() {
             while let Some(&(at, keys, turn, target, gun)) = queue.front() {
                 if at > tick {
@@ -682,6 +686,10 @@ impl Game {
                     }
                 }
                 released[place] = body.keys & !keys;
+                // The suicide bit (24): the game's own hit on the player's own head, the first input that has it.
+                if pressed[place] & key::SUICIDE != 0 && body.alive {
+                    suicides.push(place);
+                }
                 body.keys = keys;
                 body.target = target;
                 // Another weapon taken, or a reload: no kick.
@@ -723,6 +731,10 @@ impl Game {
                     });
                 }
             }
+        }
+        // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
+        for place in suicides {
+            self.kill(place, place, Kill::Own, tick);
         }
         if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
             let walker = self.world.map.walker_triangles();
@@ -1043,6 +1055,7 @@ impl Game {
             self.shots_hits[shooter].1 += 1;
             self.hit_log.push((tick, shooter, target));
         }
+        let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
@@ -1052,7 +1065,11 @@ impl Game {
                 other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
             }
         }
-        if other.health <= 1e-3 {
+        let lethal = other.health <= 1e-3;
+        if team_hit {
+            self.team_hit_pains.push((pain_before, lethal));
+        }
+        if lethal {
             let kind = if team_hit { Kill::Mate } else { Kill::Enemy };
             self.kill(target, shooter, kind, tick);
         }

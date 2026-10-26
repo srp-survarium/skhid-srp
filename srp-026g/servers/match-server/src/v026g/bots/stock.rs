@@ -21,7 +21,9 @@
 //! count).
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::{BOT_POCKETS, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER};
+use survarium::v026g::loadouts::{
+    BOT_BANDAGES, BOT_MEDKIT, BOT_POCKETS, BotKitItem, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER, new_kit,
+};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 
@@ -165,6 +167,17 @@ impl Default for Pantry {
     }
 }
 
+/// The pockets of a bot's kit before a world says what it holds: the owner's kit's drugs (the medkits, then the
+/// bandages: [`BOT_BANDAGES`], quick use 2) when the bots carry it (`SRP_BOT_KIT`, [`new_kit`]), else the
+/// tip's [`BOT_POCKETS`]. The bench's stand-in builds its bodies' kits from the same list.
+pub(crate) fn standard_pockets() -> Vec<BotKitItem> {
+    if new_kit() {
+        vec![BOT_MEDKIT, BOT_BANDAGES]
+    } else {
+        BOT_POCKETS.to_vec()
+    }
+}
+
 impl Pantry {
     /// What every server bot's kit holds ([`BOT_POCKETS`]: two medkits),
     /// until a world says what its kits hold.
@@ -176,7 +189,7 @@ impl Pantry {
     }
 
     fn standard_kit() -> Vec<Held> {
-        BOT_POCKETS
+        standard_pockets()
             .iter()
             .filter_map(|item| {
                 let drug = Drug::of_name(item.name)?;
@@ -384,7 +397,7 @@ pub(crate) mod live_kit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     use survarium::v026g::match_msgs::players::ItemLeft;
 
     /// A bot's block as the game shows it: each item of the profile in
@@ -419,7 +432,12 @@ mod tests {
     }
 
     fn profile() -> MatchProfile {
-        bot_profile(1, 0, BotRole::ALL[0], BotTier::Low)
+        bot_profile(
+            1,
+            0,
+            BotRole::ALL[0],
+            BotEquipment::of(BotTier::Low, RusherKits::default()),
+        )
     }
 
     #[test]

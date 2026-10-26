@@ -1,4 +1,5 @@
 use super::super::standin_heal::{DrugPress, Pressed};
+use crate::v026g::bots::stock::Drug;
 use crate::v026g::bots::reflex::HealNote;
 use super::*;
 
@@ -19,6 +20,8 @@ pub(super) struct HealCounts {
     pub(super) recs: Vec<Vec<HealRec>>,
     /// The `at` of the last heal note recorded for each place (a note is kept once).
     noted: Vec<Option<u32>>,
+    /// By place: what the bot's reflex says at this tick's reading (none: not a bot).
+    now: Vec<Option<HealNow>>,
 }
 
 impl HealCounts {
@@ -26,7 +29,51 @@ impl HealCounts {
         Self {
             recs: vec![Vec::new(); n],
             noted: vec![None; n],
+            now: vec![None; n],
         }
+    }
+}
+
+/// What the heal counts read of a bot at a tick: a target, a heal cover walk, the walks so far, and the note of
+/// the last press's walk.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct HealNow {
+    target: bool,
+    heal_walking: bool,
+    heal_walks: u32,
+    heal_note: Option<HealNote>,
+}
+
+impl Topic for HealCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        self.now[place] = bot.map(|bot| HealNow {
+            target: bot.reflex.target().is_some(),
+            heal_walking: bot.reflex.heal_walking(),
+            heal_walks: bot.reflex.heal_walks,
+            heal_note: bot.reflex.heal_note(),
+        });
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.now[place] = now.map(|n| HealNow {
+            target: n.target,
+            heal_walking: n.heal_walking,
+            heal_walks: n.heal_walks,
+            heal_note: n.heal_note,
+        });
+    }
+
+    fn end(&mut self, _run: &Run, game: &mut Game, sight: &mapdata::RayTree, _rays: &mut u64) {
+        self.heal_tick(game, sight);
+    }
+
+    fn parts(&mut self, run: &Run, game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("heal", self.heal_part(run, game, scale))]
     }
 }
 
@@ -39,6 +86,8 @@ pub(super) struct HealRec {
     /// Medkits in the slot of the kit in use.
     hand: u16,
     infection: f32,
+    /// The pain pool.
+    pain: f32,
     /// The bot has a target (the reflex's).
     target: bool,
     /// An enemy within 40 m has a clear line to the body, or the body to him.
@@ -57,6 +106,8 @@ const LINE_M: f32 = 40.0;
 const NOTE_BEFORE_TICKS: usize = 4;
 /// A heal cover walk begun this many ticks after a press (0.8 s) belongs to it.
 const WALK_AFTER_TICKS: usize = 16;
+/// A pain pool under this is low (the owner's line for the bandages).
+const PAIN_LOW: f32 = 0.6;
 /// A hurt body: under this (the record's 0.995).
 const HURT: f32 = 0.995;
 /// Healed: from this (the record's 0.99).
@@ -86,12 +137,12 @@ struct Episode {
     pressed: Option<u32>,
 }
 
-impl OwnerTally {
+impl HealCounts {
     /// One tick: every bot's body pool and medkits, as the game has them.
-    pub(super) fn heal_tick(&mut self, game: &Game, nows: &[Option<BotNow>], sight: &mapdata::RayTree) {
+    pub(super) fn heal_tick(&mut self, game: &Game, sight: &mapdata::RayTree) {
         for (place, body) in game.bodies.iter().enumerate() {
             let (hand, _) = body.heal.medkits();
-            let now = nows.get(place).and_then(Option::as_ref);
+            let now = self.now.get(place).copied().flatten();
             // The rays only for a hurt bot: the line is asked of the presses on a hurt body.
             let line = body.alive
                 && now.is_some()
@@ -105,15 +156,16 @@ impl OwnerTally {
                 });
             let note = now
                 .and_then(|n| n.heal_note)
-                .filter(|n| self.heal.noted[place] != Some(n.at));
+                .filter(|n| self.noted[place] != Some(n.at));
             if let Some(n) = note {
-                self.heal.noted[place] = Some(n.at);
+                self.noted[place] = Some(n.at);
             }
-            self.heal.recs[place].push(HealRec {
+            self.recs[place].push(HealRec {
                 alive: body.alive,
                 body: body.health,
                 hand,
                 infection: body.rest.infection,
+                pain: body.pools.pain,
                 target: now.is_some_and(|n| n.target),
                 line,
                 walking: now.is_some_and(|n| n.heal_walking),
@@ -124,7 +176,7 @@ impl OwnerTally {
     }
 
     /// The consumable counts at the end: their keys of the `owner` object and their line of the owner-test text.
-    pub(super) fn heal_part(&self, game: &Game, scale: &Scale) -> Part {
+    pub(super) fn heal_part(&self, run: &Run, game: &Game, scale: &Scale) -> Part {
         let tick_ms = TICK_MS;
         let ticks_of = |ms: u32| (ms / tick_ms) as usize;
         let mut episodes: Vec<Episode> = Vec::new();
@@ -134,9 +186,11 @@ impl OwnerTally {
         let (mut alive_stock, mut alive_none, mut hurt_stock) = (0u64, 0u64, 0u64);
         let (mut deaths_stock, mut deaths_unused, mut deaths_no_press) = (0u32, 0u32, 0u32);
         let mut infection_deaths = 0u32;
+        // Deaths with the pain pool at zero after the fatal hit (it kills), and with it under 0.6 before.
+        let (mut deaths_pain_zero, mut deaths_pain_low) = (0u32, 0u32);
         let mut deaths: Vec<(Place, usize)> = Vec::new();
-        for place in (0..self.recs.len()).filter(|&p| self.is_bot[p]) {
-            let recs = &self.heal.recs[place];
+        for place in (0..run.recs.len()).filter(|&p| run.is_bot[p]) {
+            let recs = &self.recs[place];
             let presses: Vec<u32> = game
                 .drug_log
                 .iter()
@@ -146,7 +200,7 @@ impl OwnerTally {
             let mut life: Option<(bool, usize)> = None;
             let mut episode: Option<Episode> = None;
             for (k, rec) in recs.iter().enumerate() {
-                let tick = self.time_of(k);
+                let tick = run.time_of(k);
                 let prev_alive = k > 0 && recs[k - 1].alive;
                 if rec.alive && !prev_alive {
                     life = Some((rec.hand > 0, k));
@@ -176,7 +230,7 @@ impl OwnerTally {
                     if let Some(e) = &mut episode
                         && e.pressed.is_none()
                     {
-                        let from = self.time_of(e.start);
+                        let from = run.time_of(e.start);
                         e.pressed = presses.iter().copied().find(|&t| t >= from && t <= tick);
                     }
                 }
@@ -186,12 +240,14 @@ impl OwnerTally {
                     episodes.extend(episode.take());
                     deaths.push((place, k));
                     infection_deaths += u32::from(rec.infection <= 0.1);
+                    deaths_pain_zero += u32::from(recs.get(k + 1).is_some_and(|r| r.pain <= 1e-3));
+                    deaths_pain_low += u32::from(rec.pain < PAIN_LOW);
                     if let Some((stock, began)) = life
                         && stock
                     {
                         deaths_stock += 1;
                         deaths_unused += u32::from(rec.hand > 0);
-                        let from = self.time_of(began);
+                        let from = run.time_of(began);
                         deaths_no_press +=
                             u32::from(!presses.iter().any(|&t| t >= from && t <= tick));
                     }
@@ -217,7 +273,7 @@ impl OwnerTally {
             .iter()
             .filter_map(|e| {
                 e.pressed
-                    .map(|t| f64::from(t - self.time_of(e.start)) / 1000.0)
+                    .map(|t| f64::from(t - run.time_of(e.start)) / 1000.0)
             })
             .collect();
         delays.sort_by(f64::total_cmp);
@@ -226,23 +282,23 @@ impl OwnerTally {
         let used: Vec<&DrugPress> = game
             .drug_log
             .iter()
-            .filter(|p| matches!(p.2, Pressed::Used(_)) && self.is_bot[p.1])
+            .filter(|p| matches!(p.2, Pressed::Used(_)) && run.is_bot[p.1])
             .collect();
         let hurt_used = used.iter().filter(|p| p.3 < HURT).count();
         let empty = game
             .drug_log
             .iter()
-            .filter(|p| p.2 == Pressed::Empty && self.is_bot[p.1])
+            .filter(|p| p.2 == Pressed::Empty && run.is_bot[p.1])
             .count();
         let active = game
             .drug_log
             .iter()
-            .filter(|p| matches!(p.2, Pressed::Active(_)) && self.is_bot[p.1])
+            .filter(|p| matches!(p.2, Pressed::Active(_)) && run.is_bot[p.1])
             .count();
         let (mut full_of, mut full_ok) = (0u32, 0u32);
         for p in used.iter().filter(|p| p.3 < HURT) {
-            let k = self.index(p.0);
-            let recs = &self.heal.recs[p.1];
+            let k = run.index(p.0);
+            let recs = &self.recs[p.1];
             let (from, to) = (
                 k + ticks_of(AFTER_FROM_S * 1000),
                 k + ticks_of(AFTER_TO_S * 1000),
@@ -260,7 +316,7 @@ impl OwnerTally {
         let dead_soon = deaths
             .iter()
             .filter(|&&(place, k)| {
-                let tick = self.time_of(k);
+                let tick = run.time_of(k);
                 used.iter()
                     .any(|p| p.1 == place && p.0 <= tick && tick - p.0 <= DEAD_AFTER_MS)
             })
@@ -268,10 +324,8 @@ impl OwnerTally {
         // The fatal fights: hurt at the start of the killer's last burst.
         let (mut fights, mut hurt_start, mut hurt_old) = (0u32, 0u32, 0u32);
         for &(place, k) in &deaths {
-            let tick = self.time_of(k);
-            let hits: Vec<(u32, Place)> = self
-                .fight
-                .hits
+            let tick = run.time_of(k);
+            let hits: Vec<(u32, Place)> = run.hits
                 .iter()
                 .filter(|&&(t, _, victim)| victim == place && t <= tick)
                 .map(|&(t, shooter, _)| (t, shooter))
@@ -289,8 +343,8 @@ impl OwnerTally {
                 }
             }
             fights += 1;
-            let before = self.index(start).saturating_sub(1);
-            let recs = &self.heal.recs[place];
+            let before = run.index(start).saturating_sub(1);
+            let recs = &self.recs[place];
             let hurt = recs.get(before).is_some_and(|r| r.body < HURT);
             hurt_start += u32::from(hurt);
             if hurt {
@@ -300,7 +354,7 @@ impl OwnerTally {
                     .find(|&i| {
                         recs[i].alive && recs[i - 1].alive && recs[i].body < recs[i - 1].body
                     })
-                    .map_or(0, |i| self.time_of(i));
+                    .map_or(0, |i| run.time_of(i));
                 hurt_old += u32::from(start.saturating_sub(lost) > OLD_MS);
             }
         }
@@ -322,8 +376,8 @@ impl OwnerTally {
         // on at the press or begun within 0.8 s after it 8; each key [presses, of them dead within 5 s].
         let mut situations: BTreeMap<u32, [u32; 2]> = BTreeMap::new();
         for p in used.iter().filter(|p| p.3 < HURT) {
-            let k = self.index(p.0);
-            let recs = &self.heal.recs[p.1];
+            let k = run.index(p.0);
+            let recs = &self.recs[p.1];
             let Some(rec) = recs.get(k) else { continue };
             let lost = (k.saturating_sub(40) + 1..=k.min(recs.len() - 1))
                 .any(|i| i > 0 && recs[i].alive && recs[i - 1].alive && recs[i].body < recs[i - 1].body);
@@ -337,7 +391,7 @@ impl OwnerTally {
                 | u32::from(walk) << 3;
             let died = deaths
                 .iter()
-                .any(|&(place, dk)| place == p.1 && dk >= k && self.time_of(dk) - p.0 <= DEAD_AFTER_MS);
+                .any(|&(place, dk)| place == p.1 && dk >= k && run.time_of(dk) - p.0 <= DEAD_AFTER_MS);
             let e = situations.entry(bits).or_default();
             e[0] += 1;
             e[1] += u32::from(died);
@@ -350,8 +404,8 @@ impl OwnerTally {
         let mut enemy_line: BTreeMap<&'static str, [u32; 2]> = BTreeMap::new();
         let (mut covers, mut cover_sum) = (0u32, 0.0f64);
         for p in used.iter().filter(|p| p.3 < HURT) {
-            let k = self.index(p.0);
-            let recs = &self.heal.recs[p.1];
+            let k = run.index(p.0);
+            let recs = &self.recs[p.1];
             let Some(rec) = recs.get(k) else { continue };
             // The note is made at the first think after the bot's press; the stand-in logs the press up to the
             // ping later (150 ms), so a think in between comes first: the window starts 4 ticks before the log.
@@ -359,7 +413,7 @@ impl OwnerTally {
             let why = note.map_or("NoThink".to_owned(), |n| format!("{:?}", n.why));
             let died = deaths
                 .iter()
-                .any(|&(place, dk)| place == p.1 && dk >= k && self.time_of(dk) - p.0 <= DEAD_AFTER_MS);
+                .any(|&(place, dk)| place == p.1 && dk >= k && run.time_of(dk) - p.0 <= DEAD_AFTER_MS);
             let add = |m: &mut BTreeMap<String, [u32; 2]>| {
                 let e = m.entry(why.clone()).or_default();
                 e[0] += 1;
@@ -387,9 +441,9 @@ impl OwnerTally {
         }
         // The cover walks begun (the last record of each bot), and the heal plays taken: with the
         // habit on, none (a take of a Heal play displaces the running play).
-        let walks: u32 = self.heal.recs.iter().filter_map(|r| r.last()).map(|r| r.walks).sum();
-        let heal_index = self.play_index.get("Heal").copied();
-        let displaced: u32 = self
+        let walks: u32 = self.recs.iter().filter_map(|r| r.last()).map(|r| r.walks).sum();
+        let heal_index = run.play_index.get("Heal").copied();
+        let displaced: u32 = run
             .recs
             .iter()
             .map(|recs| {
@@ -398,6 +452,24 @@ impl OwnerTally {
                     .count() as u32
             })
             .sum();
+        let count_of = |drug: Drug| {
+            used.iter()
+                .filter(|p| p.2 == Pressed::Used(drug))
+                .count()
+        };
+        // The team hits by the victim's pain pool before them (the bandage habit's target): how many were on a low
+        // pain pool, how many lethal ones were, and the mean pain pool.
+        let hits = &game.team_hit_pains;
+        let team_low = (
+            hits.iter().filter(|h| h.0 < PAIN_LOW).count(),
+            hits.iter().filter(|h| h.1 && h.0 < PAIN_LOW).count(),
+        );
+        let team_pain_kills = (hits.iter().filter(|h| h.1).count(),);
+        let team_mean = if hits.is_empty() {
+            0.0
+        } else {
+            (100.0 * f64::from(hits.iter().map(|h| h.0).sum::<f32>()) / hits.len() as f64).round() / 100.0
+        };
         let by_depth: Vec<f64> = bands.iter().map(|&(a, b)| Scale::pct(a, b)).collect();
         let json = serde_json::json!({
             "heal_fatal_fights": fights,
@@ -419,6 +491,16 @@ impl OwnerTally {
             "heal_dead_no_press_pct": pct(deaths_no_press, deaths_stock),
             "heal_full_3_9s_after_pct": pct(full_ok, full_of),
             "heal_infection_deaths": infection_deaths,
+            "heal_deaths_pain_zero": deaths_pain_zero,
+            "heal_deaths_pain_low": deaths_pain_low,
+            "heal_presses_medkit": count_of(Drug::Medkit),
+            "heal_presses_bandages": count_of(Drug::Bandages),
+            "heal_presses_antitoxin": count_of(Drug::Antitoxin),
+            "heal_team_hits": game.team_hit_pains.len(),
+            "heal_team_hits_pain_low": team_low.0,
+            "heal_team_kills": team_pain_kills.0,
+            "heal_team_kills_pain_low": team_low.1,
+            "heal_team_hit_pain_mean": team_mean,
             "heal_cover_walks": walks,
             "heal_plays_displaced": displaced,
             "heal_situations": situations,
@@ -503,7 +585,7 @@ mod tests {
             if ms >= 21_000 {
                 game.bodies[0].alive = false;
             }
-            tally.step(&mut game, &[bot_now(), bot_now()]);
+            tally.step_with(&mut game, &[bot_now(), bot_now()]);
         }
         game.drug_log.push((21_500, 1, Pressed::Empty, 1.0));
         let (text, json) = tally.finish(&game);
@@ -561,7 +643,7 @@ mod tests {
                 }),
                 ..BotNow::default()
             });
-            tally.step(&mut game, &[now, bot_now()]);
+            tally.step_with(&mut game, &[now, bot_now()]);
         }
         let (_, json) = tally.finish(&game);
         let situations = json["heal_situations"].as_object().expect("situations");
