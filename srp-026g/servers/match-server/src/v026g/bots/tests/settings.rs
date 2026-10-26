@@ -125,6 +125,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
+    s("SRP_BENCH_BODY_BLOCK_M", "off", "**model** enemy bodies block each other on the ground within this distance, m (0.76 in the game; friends never block)"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
     s("SRP_BENCH_TRAPS_MODEL", "on", "**model** `on`/`off`: the stand-in has the bear traps (placing, the sensor, a shot or a use that disarms) or not (standin_traps.rs); with no body carrying a trap it changes nothing"),

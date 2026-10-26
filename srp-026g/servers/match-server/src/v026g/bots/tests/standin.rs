@@ -18,6 +18,7 @@
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
 //! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
+//! | `SRP_BENCH_BODY_BLOCK_M` | off: bodies pass through each other; `0.76`: enemy bodies block (friends never) |
 //! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
 //! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
@@ -355,6 +356,9 @@ pub(crate) struct Game {
     /// while one is under way does nothing (GUESS); the put ends unmade if
     /// the body died or no longer carries that battery.
     pub(crate) put_ms: u32,
+    /// Enemy bodies block each other on the ground (`SRP_BENCH_BODY_BLOCK_M=<m>`, the two radii: 0.76 m in the game, PROVEN
+    /// from the J0 matches' bodies files); none: bodies pass through each other, friends always do.
+    pub(crate) body_block_m: Option<f32>,
     pub(crate) putting: Vec<Option<(usize, usize, u32)>>,
     /// Each use a carrier pressed within [`ARRIVED_M`] of his container.
     pub(crate) put_presses: Vec<PutPress>,
@@ -554,6 +558,7 @@ impl Game {
             untakeable: 0,
             put_ms: bench_settings().number("SRP_BENCH_PUT_MS")
                 .unwrap_or(PUT_MS),
+            body_block_m: bench_settings().number("SRP_BENCH_BODY_BLOCK_M").filter(|&m: &f32| m > 0.0),
             putting: vec![None; teams.len()],
             put_presses: Vec::new(),
             put_in_log: Vec::new(),
@@ -669,6 +674,12 @@ impl Game {
             body.recoil.update(tick);
         }
         let tier = self.damage.tier;
+        // Where the bodies stood at the start of the tick, for the enemy block (`body_block_m`).
+        let standing: Vec<(Vec3, u8, bool)> = if self.body_block_m.is_some() {
+            self.bodies.iter().map(|b| (b.feet, b.team, b.alive)).collect()
+        } else {
+            Vec::new()
+        };
         let mut suicides = Vec::new();
         for (place, queue) in self.inputs.iter_mut().enumerate() {
             while let Some(&(at, keys, turn, target, gun)) = queue.front() {
@@ -843,8 +854,21 @@ impl Game {
                     }
                 } else {
                     let (node, feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
-                    body.node = Some(node);
-                    body.feet = feet;
+                    // An enemy body in the way: the move that closes on it within the two radii is not made.
+                    let blocked = self.body_block_m.is_some_and(|m| {
+                        standing.iter().enumerate().any(|(other, &(at, team, alive))| {
+                            other != place
+                                && alive
+                                && team != body.team
+                                && (at.y - body.feet.y).abs() < 1.5
+                                && feet.distance_xz(at) < m
+                                && feet.distance_xz(at) < body.feet.distance_xz(at)
+                        })
+                    });
+                    if !blocked {
+                        body.node = Some(node);
+                        body.feet = feet;
+                    }
                 }
                 body.step_m = body.feet.distance_xz(before);
                 body.moved += body.step_m;
