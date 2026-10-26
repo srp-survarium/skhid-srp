@@ -140,6 +140,12 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            // Each bot's kits of its gear level, read from its profile.
+            for (place, profile) in formed.profiles.iter().enumerate() {
+                if roles.get(place).copied().flatten().is_some() {
+                    walkers.bots.wear(place, kits_of(profile));
+                }
+            }
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {
@@ -250,6 +256,31 @@ impl Walkers {
         }
         self.world.clone()
     }
+}
+
+/// A bot's kits from its profile: each kit's weapon 1 and the rounds of
+/// its ammo slots (`loadouts::BOT_AMMO_SLOTS`), as the bots' arms
+/// (`bots::guns::Arms::of_kit`); a kit of no bot's weapon is left out.
+fn kits_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Vec<(&'static crate::v026g::bots::guns::Arms, u32)> {
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    profile
+        .kits
+        .iter()
+        .filter_map(|kit| {
+            let (index, _) = kit.slots[7]?;
+            let item = profile.items.get(usize::from(index))?;
+            let name = &dictionary.item(item.dict_id)?.name;
+            let rounds: u32 = survarium::v026g::loadouts::BOT_AMMO_SLOTS
+                .iter()
+                .filter_map(|&slot| kit.slots[usize::from(slot)])
+                .map(|(_, count)| u32::from(count))
+                .sum();
+            let arms = crate::v026g::bots::guns::Arms::of_kit(name, rounds)?;
+            Some((arms, rounds))
+        })
+        .collect()
 }
 
 /// A place's weapon 1 kind from its profile: a bot's by its role, a

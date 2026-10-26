@@ -332,6 +332,36 @@ impl Web {
         message
     }
 
+    /// Demo (branch `demo/bot-gear-levels`, no form of its own: `tab=levels`
+    /// and `item_user`): the bots' 15 gear-level kits as the account's
+    /// five presets, three kits each, with the items they name
+    /// (`presets::demo_gear_presets`).
+    pub(crate) fn admin_gear_levels_026g(&self, request: &Request, peer: &str) -> String {
+        let Some(game) = &self.game else {
+            return String::new();
+        };
+        let user = request.field("item_user");
+        let (account_id, account) = match self.find_026g(game, request.lang, user) {
+            Ok(found) => found,
+            Err(message) => return message,
+        };
+        let result = session::v026g::presets::demo_gear_presets(&mut account.locked(), unix_now());
+        match result {
+            Ok((pieces, units)) => {
+                self.changed_026g(game, account_id);
+                log::info!(
+                    "Admin from {peer}: {user:?} given the 15 gear-level presets ({pieces} \
+                     pieces, {units} units)"
+                );
+                format!(
+                    "{user}: the 15 gear-level kits are presets 1 to 5 (preset n, kit k: level \
+                     3(n-1)+k); given {pieces} pieces and {units} units."
+                )
+            }
+            Err(why) => format!("{user}: the gear-level presets were refused: {why}."),
+        }
+    }
+
     /// An item of the 0.26g dictionary, by its id or its name: new and
     /// whole, into the inventory.
     pub(crate) fn admin_item_026g(&self, request: &Request, peer: &str) -> String {

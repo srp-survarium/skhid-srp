@@ -563,6 +563,22 @@ impl Bots {
         self.weapons = weapons;
     }
 
+    /// A bot's kits as its profile has them (its gear level's weapons,
+    /// `survarium::v026g::loadouts::bot_kits`), in place of its role's
+    /// of level 1: each kit's weapon 1 and its rounds. Nothing for a
+    /// place that is no bot or kits none of which is known.
+    pub fn wear(&mut self, place: usize, kits: Vec<(&'static guns::Arms, u32)>) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if let Some(&(arms, rounds)) = kits.first() {
+            bot.reflex = Reflex::armed_carrying(Some(arms), rounds);
+            bot.kits = kits;
+            bot.kit = 0;
+            bot.kit_chosen = 0;
+        }
+    }
+
     /// A lying battery's position from a world, in the map's frame: its
     /// frame is settled by which reading lies nearer the map's battery
     /// places (the worlds' frame is LIKELY the physics', z mirrored).
@@ -1715,7 +1731,11 @@ impl Bots {
                             "took no battery {} from a stand {:.1} m off it ({})",
                             failed.battery,
                             failed.feet.distance_xz(failed.at),
-                            if failed.crouch { "crouched" } else { "standing" }
+                            if failed.crouch {
+                                "crouched"
+                            } else {
+                                "standing"
+                            }
                         ),
                     );
                 }
@@ -1892,8 +1912,8 @@ fn drive_tick(
     let running = tuning.aim.combat.glance_run_yields
         && intent.pace == Pace::Run
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
-    let glance_yields = over.glance
-        && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
+    let glance_yields =
+        over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
     let aim = over
         .look_at
         .filter(|_| !glance_yields)

@@ -209,6 +209,16 @@ the archive's index: a loader must follow them.
      | rusher | `toz_34` double-barrel shotgun (1), `ammo_12mm_buck` | `scav_torso_1`, `scav_boots_1` (level 1, light) |
      | camper | `mosin_nagant` (0, free, the sniper category), `ammo_7.62x54r_old` | `scav_torso_2` (3, 6 kg), `bm_helmet_1` (3) |
 
+     **Demo branch `demo/bot-gear-levels` (not for main):** the table
+     above is replaced by 15 gear-level kits (`loadouts::GEAR_KITS`):
+     bot `n` wears level `1 + (n - 1) mod 15`, each role the level's
+     weapon of its kind, the level's armour and the pockets it opens;
+     its kits carry +10 kg (`max_carried_weight`, skill 209 at five
+     ranks). The match server reads each kit's weapon and rounds from the
+     profile (`Bots::wear`). `SRP_PVB_MAX_GEAR` defaults to 15 there, and
+     the admin form's `tab=levels` puts the 15 kits on an account's
+     presets (`scripts/demo-gear-levels/give-presets.sh`).
+
      The lobby gives each team's `k`-th bot `BotRole::nth(k)` (smooth
      weighted round robin: flanker, rusher, support, camper, ...) and
      logs "bots' roles". The match server reads a bot's role back from

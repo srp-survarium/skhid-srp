@@ -319,6 +319,24 @@ fn a_level_under_the_spent_skill_points_is_refused() {
     assert!(done.contains("level 4"), "{done}");
 }
 
+/// Demo: `tab=levels` puts the 15 gear-level kits on the presets.
+#[test]
+fn the_admin_gives_the_gear_level_presets() {
+    let world = world();
+    let id = world.player("tester", "secret");
+    let done = world.admin(&[("tab", "levels"), ("item_user", "tester")]);
+    assert!(done.contains("are presets 1 to 5"), "{done}");
+    {
+        let account = world.accounts.get(id).unwrap();
+        let account = account.locked();
+        assert_eq!(account.active_preset, 1);
+        assert!(account.presets[1..].iter().all(Option::is_some));
+        assert!(account.kits.iter().all(|kit| kit.slots[7].is_some()));
+    }
+    let unknown = world.admin(&[("tab", "levels"), ("item_user", "nobody_here")]);
+    assert!(!unknown.contains("are presets"), "{unknown}");
+}
+
 #[test]
 fn the_admin_gives_items_of_the_dictionary_only() {
     let world = world();

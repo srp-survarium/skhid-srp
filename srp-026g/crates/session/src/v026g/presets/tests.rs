@@ -756,3 +756,42 @@ fn the_items_the_presets_use_are_listed_for_the_sale_question() {
     choose(&mut account, 2, NOW).unwrap();
     assert!(uses(&account).iter().all(|(_, presets)| presets & 2 == 0));
 }
+
+/// Demo: the 15 gear-level kits as the five presets, three kits each;
+/// every kit plays, at the level it was made for (its level as the lobby
+/// counts it: the highest piece's), and a second run gives nothing more.
+#[test]
+fn the_demo_puts_the_fifteen_gear_levels_on_the_presets() {
+    use survarium::v026g::loadouts::player_gear_kit_items;
+
+    let mut account = alice();
+    let (pieces, units) = demo_gear_presets(&mut account, NOW).unwrap();
+    assert!(pieces > 20 && units > 0, "{pieces} {units}");
+    assert_eq!(account.active_preset, 1);
+    for number in 1..=PRESETS as u8 {
+        choose(&mut account, number, NOW).unwrap();
+        for (k, kit) in account.kits.iter().enumerate() {
+            let level = (number - 1) * 3 + k as u8 + 1;
+            rules::check_play(&account, kit.id, NOW)
+                .unwrap_or_else(|why| panic!("preset {number} kit {k}: {why:?}"));
+            let wanted = player_gear_kit_items(level).unwrap();
+            assert_eq!(
+                kit.slots.iter().flatten().count(),
+                wanted.len(),
+                "level {level}"
+            );
+            let highest = wanted
+                .iter()
+                .map(|item| item_params(dict(item.name)).unwrap().match_making_level)
+                .max()
+                .unwrap();
+            assert_eq!(
+                matchmaking::kit_level(&account, kit),
+                highest,
+                "level {level}"
+            );
+        }
+    }
+    assert_eq!(demo_gear_presets(&mut account, NOW).unwrap(), (0, 0));
+    assert!(!account.repair());
+}
