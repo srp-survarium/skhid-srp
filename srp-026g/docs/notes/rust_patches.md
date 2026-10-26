@@ -11,6 +11,55 @@ layers `raw` -> `vostok` -> `patches`; the hook system modelled on NH3API /
 patcher_x86 but applied when the build writes the exe; equivalence is
 port-only tooling.
 
+## 0. The design principle
+
+Each thing is written once, in the layer that owns it, and everything else is
+generated and checked:
+
+- **Hand-written is only what was found out or decided.** A fact about the
+  exe -- a function's VA and convention, its argument locations, a field's
+  offset, a named site's VA and kind -- is written once, in a raw table
+  (`engine_026g.tsv`, `fields_026g.tsv`, `sites_026g.tsv`), with its evidence
+  in the re-kit (`tools/re-kit/v026g`). A patch's decisions are names only:
+  which site, which handler, the chain order. What a value *means* -- the
+  Vostok types (`Action`, `Out<u32>`), what is safe -- is written once in
+  `vostok`.
+- **Everything that follows is generated at build time:** the entries, the
+  shims, the `Original` types, the expected bytes, the trampolines, the
+  install writes, the overlap audit, the sizes.
+- **Everything that can drift is checked against the original exe at every
+  build:** a site's bytes, a call really going to the named function, a
+  prologue's shape. A mismatch fails the build. Nothing is looked up at run
+  time -- there is one exe and it is never rebased, so no pattern scanning.
+
+Two consequences:
+
+- **(a) The hook kind follows from the site.** A call-instruction site is a
+  `call` hook; a function start is a `splice`; and so on, from
+  `sites_026g.tsv`. A patch names a kind only where there is a real choice at
+  that place (wrapping a `call` vs splicing its callee), never to repeat what
+  the site already says.
+- **(b) The raw tables do not duplicate the re-kit.** `engine_026g.tsv`
+  selects which functions are exposed and gives their Rust types; the VA and
+  convention come from the re-kit rows (`functions.tsv` / `abi.tsv`), checked,
+  so no fact is stored twice. The same holds for a site: its VA and kind come
+  from, or are checked against, the exe and the re-kit.
+
+So a patch's whole declaration is, for the example:
+
+```toml
+# rust/patches/src/suicide_key.toml
+name = "suicide_key"
+patch = 34
+
+[[hook]]
+site = "input_builder.spot_query"   # sites_026g.tsv: VA 0x242196, kind call, callee engine_action_present
+handler = "on_spot"                 # patches::suicide_key::on_spot
+```
+
+No address, no bytes, no signature, no `Original` name -- all derived from
+the site and its callee (section 3), and checked against the exe.
+
 ## 1. The three layers
 
 A patch never touches a raw address or an `unsafe` block. Everything is in
@@ -60,12 +109,14 @@ crate of its own -- pure Rust, no game bindings, so it needs no `cfg` -- that
 
 ## 3. The hook system
 
-A hook is declared in a patch's `rust/patches/src/<patch>.toml` (TOML, read
-by hooks_026g.py). The build generates the NASM entry
-(`hook_entries_026g.asm`, block `patches.code`) and the `extern "C"` shim
-(`hooks_026g.rs`, inside `vostok`), installs the site, and audits the
-overlap. The kinds, modelled on NH3API's HiHook/LoHook applied at build
-time:
+A hook is declared in a patch's `rust/patches/src/<patch>.toml` as a
+`[[hook]]` naming a `site` (a row of `sites_026g.tsv`) and a `handler` (and,
+for a `code` hook, the author's `source`/`symbol`/`limit`). The kind, the VA,
+the callee and the typed signature come from the site and its callee row;
+hooks_026g.py generates the NASM entry (`hook_entries_026g.asm`, block
+`patches.code`), the `extern "C"` shim and `Original` (`hooks_026g.rs`, inside
+`vostok`), and the install, and audits the overlap. The kinds, modelled on
+NH3API's HiHook/LoHook applied at build time:
 
 | Kind | What | The handler gets |
 |---|---|---|
@@ -101,23 +152,34 @@ is the next; in a `lohook` chain the first non-`Continue` flow ends it.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
 
-The TOML schema (a `call` row shown; the other kinds' keys are in
-hooks_026g.py):
+The declaration is names only; the facts are in the tables:
 
 ```toml
-name = "suicide_key"       # = the module
+# rust/patches/src/suicide_key.toml   -- the whole thing
+name = "suicide_key"
 patch = 34
 
-[[call]]
-at = 0x242196              # the site
-original = "e8c5020000"    # the replaced `call rel32`; at + 5 + rel32 must be F's VA
-function = "engine_action_present"   # F, a row of engine_026g.tsv (stdcall or cdecl)
-handler = "on_spot"        # patches::suicide_key::on_spot
-returns = "bool"           # mapped from F's result
-original_name = "OrigActionPresent"  # the generated Original<F> type
-what = "the input builder's last action query (spot)"
-args = ["handler: InputHandler", "action: Action", "state: Out<u32>"]
+[[hook]]
+site = "input_builder.spot_query"
+handler = "on_spot"
 ```
+
+```
+# sites_026g.tsv   -- site, va, kind, callee, span, exits, what
+input_builder.spot_query   0x242196   call   engine_action_present   -   -   the input builder's last action query (spot)
+
+# engine_026g.tsv   -- the callee's row carries the typed signature
+engine_action_present   0x242460   ...   stdcall   handler: InputHandler, action: Action, state: Out<u32> -> bool
+```
+
+From these the generator derives the replaced bytes (a `call` to the callee,
+checked against the exe), the shim's typed arguments and result, and the
+`Original` type's name (`OrigActionPresent`, from the function). A `code`
+hook's `[[hook]]` also carries the author's `source`, `symbol` and `limit`
+(its own NASM); a `lohook`'s exits are the site's. The Vostok types
+(`InputHandler`, `Action`, `Out<u32>`, the `bool` from `AL`) are `vostok`'s,
+named once in the callee's `vostok` column so every patch hooking it gets the
+same typed signature.
 
 Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
@@ -164,11 +226,13 @@ the input's suicide bit, which the simulation still reads, is never set. The
 patch wraps the builder's last action query (spot) and, before it, sets the
 bit when the key went down.
 
-1. **The `vostok` types** the patch needs, added to `vostok` once:
-   `InputHandler` (a handle), `Action` (a newtype, so the game's unmodelled
-   actions pass through), `ActionState` (an enum; an unknown value is a typed
-   refusal, not a panic), `ActionMask::SUICIDE`. New game functions and
-   fields are rows of `engine_026g.tsv` / `fields_026g.tsv`.
+1. **The facts, once in the tables.** The site is a row of `sites_026g.tsv`
+   (`input_builder.spot_query`, VA and kind and callee); the callee is a row
+   of `engine_026g.tsv` with a `vostok` typed-signature column; any new field
+   is a row of `fields_026g.tsv`. The **`vostok` types** the signature names
+   are added to `vostok` once: `InputHandler` (a handle), `Action` (a newtype,
+   so the game's unmodelled actions pass through), `ActionState` (an enum; an
+   unknown value is a typed refusal, not a panic), `ActionMask::SUICIDE`.
 2. **The module**, `rust/patches/src/suicide_key.rs`, `#![forbid(unsafe_code)]`:
 
    ```rust
@@ -183,8 +247,10 @@ bit when the key went down.
 
    No `Regs`, no pointer, no address, no `cfg`: it reads the handler, sets a
    bit, and asks the game's own function for the spot the site wanted.
-3. **The TOML** (section 3), declaring the `call` hook; `pub mod suicide_key`
-   in `lib.rs`, `"suicide_key"` in `RUST_PATCHES` (patch_026g.py).
+3. **The declaration** (names only): `rust/patches/src/suicide_key.toml` with
+   `[[hook]] site = "input_builder.spot_query"`, `handler = "on_spot"`;
+   `pub mod suicide_key` in `lib.rs`, `"suicide_key"` in `RUST_PATCHES`
+   (patch_026g.py).
 4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
    `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
 5. **Check** (section 5).

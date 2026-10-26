@@ -207,21 +207,25 @@ def test_splice():
     check(ok, f"splice: the entry and trampoline run the function whole (eax {through['eax']:#x}), callee-saved "
           "kept, caller cleans (cdecl)")
     # the generator relocates a real branch-free prologue (network_client's
-    # destructor 0x219E60: push ebp / mov ebp,esp / and esp,-8 / sub esp,0x28)
+    # destructor 0x219E60: push ebp / mov ebp,esp / and esp,-8 / sub esp,0x28),
+    # read from the exe by the site's span; a branchy span is refused.
     import hooks_026g
-    row = {"at": 0x219E60, "original": "8bec83e4f883ec28", "function": "engine_dtor", "handler": "h",
-           "original_name": "O", "args": [], "returns": "u32", "what": "x"}
+    patch = {"name": "fix", "patch": 0}
+    row = {"site": "dtor.start", "handler": "h"}
     fns = [{"symbol": "engine_dtor", "va": 0x219E60, "args": [], "params": [], "ret": "unsigned int",
-            "cleanup": 0, "result": "EAX", "name": "dtor", "prototype": "", "call": "cdecl"}]
+            "cleanup": 0, "result": "EAX", "name": "dtor", "prototype": "", "call": "cdecl",
+            "vostok": {"args": [], "result": "u32"}}]
+    sites = {"dtor.start": {"site": "dtor.start", "va": 0x219E60, "kind": "splice", "callee": "engine_dtor",
+                            "span": 9, "exits": [], "what": "the destructor's start"}}
+    good = lambda va, n: bytes.fromhex("558bec83e4f883ec28")[:n]
+    branchy = lambda va, n: bytes.fromhex("eb0090909090")[:n]
     try:
-        hooks_026g.splice_hook({"name": "fix", "patch": 0}, row, fns)
-        check(True, "splice: a real branch-free prologue (0x219E60's) is accepted and relocated")
+        hooks_026g.splice_hook(patch, row, sites, fns, good)
+        check(True, "splice: a real branch-free prologue (0x219E60's) is read from the exe and relocated")
     except hooks_026g.Bad as e:
         check(False, f"splice prologue rejected: {e}")
-    # a prologue with a relative branch is refused
-    bad = dict(row, original="eb00" + "90" * 4)
     try:
-        hooks_026g.splice_hook({"name": "fix", "patch": 0}, bad, fns)
+        hooks_026g.splice_hook(patch, row, sites, fns, branchy)
         check(False, "splice must refuse a prologue with a branch")
     except hooks_026g.Bad:
         check(True, "splice refuses a prologue with a relative branch (cannot relocate)")
@@ -255,14 +259,17 @@ def test_code():
     base_run = direct.run(labels["orig_site"])
     check(through["eax"] == base_run["eax"] and all(through[r] == SENTINELS[r] for r in SAVED),
           f"code: the cave the site jumps to runs and returns as the replaced bytes would (eax {through['eax']:#x})")
-    # the generator includes the source and installs a jump; an over-limit
-    # body is for the link to catch (limit carried on the hook).
+    # the generator installs a jump to the cave and links its .asm source;
+    # the site gives the VA and the span (read from the exe), the patch the
+    # author's source/symbol.
     import hooks_026g
-    hs = hooks_026g.hooks([{"name": "fix", "patch": 0, "code": [{"at": 0x100000, "original": "9090909090",
-                           "source": "x.asm", "symbol": "cave", "what": "x", "limit": 0x40}]}], [])
-    ok = (hs[0]["install"] == ("code", 0xE9) and "x.asm" in hooks_026g.arena_sources(
-        [{"name": "fix", "patch": 0, "code": [{"at": 0x100000, "original": "9090909090", "source": "x.asm",
-         "symbol": "cave", "what": "x"}]}], []))
+    toml = [{"name": "fix", "patch": 0, "hook": [{"site": "x.site", "source": "x.asm", "symbol": "cave"}]}]
+    sites = {"x.site": {"site": "x.site", "va": 0x100000, "kind": "code", "callee": "-", "span": 5,
+                        "exits": [], "what": "a cave"}}
+    exe = lambda va, n: b"\x90" * n
+    hs = hooks_026g.hooks(toml, [], sites, exe)
+    ok = (hs[0]["install"] == ("code", 0xE9)
+          and "x.asm" in hooks_026g.arena_sources(toml, [], sites, exe))
     check(ok, "code: the generator installs a jump to the cave and links its .asm source")
 
 

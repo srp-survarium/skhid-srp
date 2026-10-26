@@ -172,11 +172,34 @@ def return_kind(ret):
     return "word"
 
 
+def parse_vostok(text, name, params):
+    """The row's optional `vostok` column, the typed signature a Rust hook of
+    this function takes: "arg: Type, .. -> Result" (Result left out for void).
+    Returns {"args": [(arg, Type)], "result": Result or None}, or None when the
+    column is empty (the function has no Rust typing yet). One arg per C
+    parameter, each `arg: Type` with an identifier and a Vostok type name."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    body, _, result = text.partition("->")
+    args = [a.strip() for a in body.split(",") if a.strip()]
+    if len(args) != len(params):
+        raise Refused(f"{name}: the vostok signature has {len(args)} arguments, the prototype {len(params)}")
+    out = []
+    for a in args:
+        label, _, vtype = a.partition(":")
+        if not re.fullmatch(r"[a-z_][a-z0-9_]*", label.strip()) or not re.fullmatch(r"[A-Za-z][\w<>]*", vtype.strip()):
+            raise Refused(f"{name}: a vostok argument is `name: Type` (got {a!r})")
+        out.append((label.strip(), vtype.strip()))
+    return {"args": out, "result": result.strip() or None}
+
+
 def function(row, abi=None, inputs=None):
     """A spec row checked against the re-kit: {symbol, va, args: [location],
-    params, ret, cleanup, result, name, call}."""
+    params, ret, cleanup, result, name, call, vostok}."""
     va = number(row["va"])
     ret, name, params = parse_prototype(row["prototype"])
+    vostok = parse_vostok(row.get("vostok"), name, params)
     call = (row.get("call") or "thunk").strip()
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
@@ -187,7 +210,8 @@ def function(row, abi=None, inputs=None):
             raise Refused(f"{name}: an import's arguments are \"-\" (stdcall, its prototype's)")
         return {"symbol": name, "va": va, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params,
                 "ret": ret, "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
-                "name": "kernel32 (the IAT slot)", "prototype": row["prototype"].strip(), "call": call}
+                "name": "kernel32 (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
+                "vostok": vostok}
     tokens = [] if row["arguments"].strip() == "-" else [a.partition(":") for a in row["arguments"].split()]
     if any(not word for _, _, word in tokens):
         raise Refused(f"{name}: each argument is LOCATION:word (a word of the re-kit's role there)")
@@ -236,7 +260,7 @@ def function(row, abi=None, inputs=None):
             raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
     return {"symbol": name, "va": va, "args": args, "params": params, "ret": ret, "cleanup": cleanup,
             "result": result, "name": sorted(rows["names"])[0] if rows["names"] else "",
-            "prototype": row["prototype"].strip(), "call": call}
+            "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
 
 
 def describe_args(params, args):

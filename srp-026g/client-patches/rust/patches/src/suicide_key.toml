@@ -1,20 +1,10 @@
-# Patch 34: the commit_suicide key (K) kills one's own player. The hook
-# declaration link_026g.py reads (rust_patches.md); the logic is
-# suicide_key.rs. The build generates the NASM entry and the shim, installs
-# the site, and checks this against engine_026g.tsv and the original exe.
+# Patch 34: the commit_suicide key (K) kills one's own player. Only the
+# decisions: which site, and the handler. The site (its VA and kind), the
+# function it calls and the typed signature are the raw layer's
+# (sites_026g.tsv, engine_026g.tsv); the logic is suicide_key.rs.
 name = "suicide_key"
 patch = 34
 
-# A `call` hook: the game's `call action_present` for spot becomes a call of
-# the shim, which gets the call's typed arguments and an `Original` of
-# action_present to call for the spot the site wanted.
-[[call]]
-at = 0x242196
-original = "e8c5020000"              # the replaced `call 0x242460`
-function = "engine_action_present"   # its row in engine_026g.tsv (stdcall)
-handler = "on_spot"                  # suicide_key::on_spot
-returns = "bool"                     # mapped from action_present's AL
-original_name = "OrigActionPresent"  # the generated Original type
-what = "the input builder's last action query (spot)"
-# each of action_present's arguments, as the shim hands them to the handler:
-args = ["handler: InputHandler", "action: Action", "state: Out<u32>"]
+[[hook]]
+site = "input_builder.spot_query"
+handler = "on_spot"
