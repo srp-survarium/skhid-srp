@@ -48,6 +48,7 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         remember(&due, bot, &percepts);
         react(&due, bot, state, &self.weapons, notes);
+        self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
             bot.intent = Intent::stay();
             return;
@@ -476,6 +477,73 @@ pub(super) fn bench_camper(
         }
     }
     false
+}
+
+/// The last resort ([`stuck::SelfKill`]): a bot with nothing left to try, 60 s on, in no fight and carrying nothing, kills itself
+/// (`Encoder::self_kill`), as the owner decided; the facts are read here once, the rules are `stuck::self_kill_step`'s.
+pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: &mut Vec<Note>) {
+    let Due {
+        now,
+        view,
+        me,
+        tuning,
+        ..
+    } = *due;
+    if tuning.unstick.suicide_after_ms.is_none() && bot.self_kill == stuck::SelfKill::default() {
+        return;
+    }
+    state.self_kills.retain(|&at| now < at.saturating_add(60_000));
+    // The last time an enemy was sensed by the bot's own senses (a cheat's place does not count), or a bullet hit it.
+    let sensed = bot
+        .memory
+        .tracks()
+        .iter()
+        .filter_map(|track| track.own.map(|(_, at)| at))
+        .chain(bot.hurt.last_hit_ms)
+        .max();
+    let facts = stuck::Facts {
+        now,
+        hopeless: bot.stuck.hopeless(now, me.spawned),
+        quiet_ms: sensed.map_or(u32::MAX, |at| now.saturating_sub(at)),
+        life_ms: now.saturating_sub(me.spawned),
+        match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
+        carrying: me.carrying.is_some(),
+        tickets: view.mode.is_deathmatch().then(|| view.points[usize::from(bot.team & 1)]),
+        since_last_ms: bot.self_killed_at.map(|at| now.saturating_sub(at)),
+        team_last_minute: state.self_kills.len() as u32,
+    };
+    let (next, act) = stuck::self_kill_step(bot.self_kill, &facts, &tuning.unstick);
+    #[cfg(test)]
+    {
+        if matches!((bot.self_kill, next), (stuck::SelfKill::Sent { .. }, stuck::SelfKill::Barred)) {
+            stuck::self_kills::count(2);
+        }
+    }
+    bot.self_kill = next;
+    let Some(stuck::SelfKillAct::Send { again }) = act else {
+        return;
+    };
+    bot.encoder.self_kill(tuning.unstick.suicide_ticks);
+    if !again {
+        bot.self_killed_at = Some(now);
+        state.self_kills.push(now);
+    }
+    #[cfg(test)]
+    stuck::self_kills::count(usize::from(again));
+    let (since, why) = facts.hopeless.map_or((now, String::new()), |h| (h.since, format!("{:?}", h.why)));
+    bot.note(
+        notes,
+        now,
+        format!(
+            "self_kill{}: nothing left to try for {} s ({why}) at {:?}, life {} s, match {} s, no enemy or hit for {}",
+            if again { " again" } else { "" },
+            now.saturating_sub(since) / 1_000,
+            me.feet.to_array(),
+            facts.life_ms / 1_000,
+            facts.match_ms / 1_000,
+            if facts.quiet_ms == u32::MAX { "the life".to_owned() } else { format!("{} s", facts.quiet_ms / 1_000) },
+        ),
+    );
 }
 
 /// The play's step: its intent, or the end of the play (a goal its own search proved no way to, done, failed) for the commander to

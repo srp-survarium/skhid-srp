@@ -97,6 +97,20 @@ pub(super) fn foliage() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Bots that killed themselves with nothing left to try, the second tries, and those barred after two
+/// (`stuck::self_kills`).
+pub(super) fn self_kills() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::self_kills::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "self_kills {} self_kills_again {} self_kills_barred {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`).
 pub(super) fn asks() -> Box<dyn RouteTopic> {

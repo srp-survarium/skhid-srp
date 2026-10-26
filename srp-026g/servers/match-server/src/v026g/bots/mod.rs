@@ -138,6 +138,10 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
+    /// when it last used it (any life).
+    self_kill: stuck::SelfKill,
+    self_killed_at: Option<u32>,
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
@@ -344,6 +348,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            self_kill: stuck::SelfKill::default(),
+            self_killed_at: None,
             threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -580,6 +586,7 @@ impl Bot {
         self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
@@ -695,6 +702,7 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            self_kills: Vec::new(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
             world_traps: Arc::new(Vec::new()),

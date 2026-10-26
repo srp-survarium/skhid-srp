@@ -99,6 +99,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         request_gaps(),
         below_walk(),
         foliage(),
+        self_kills(),
         asks(),
         route_ends(),
         Box::new(probe::Probe::new(bodies)),
