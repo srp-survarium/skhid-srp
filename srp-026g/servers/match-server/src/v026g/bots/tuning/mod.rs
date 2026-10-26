@@ -38,6 +38,13 @@ pub struct Tuning {
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
     pub escape_ceiling: bool,
+    /// Whether the maps' walk grids have the gap links (a walking jump
+    /// across a gap, up or down: `mapdata::grid::gap`), which bots then
+    /// route over and jump. A grid is the map's, built once for every
+    /// match on it: the server's grids take this default (`maps.rs`), the
+    /// bench's this run's tuning (`SRP_BENCH_TUNING`); a tuning file of one
+    /// match does not rebuild them.
+    pub gap_links: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -59,6 +66,7 @@ impl Default for Tuning {
             threat: ThreatTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
+            gap_links: false,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))
@@ -89,6 +97,15 @@ fn check(ok: bool, what: &str) -> Result<(), String> {
 }
 
 impl Tuning {
+    /// The off-mesh links of the maps' grids ([`Self::gap_links`]).
+    pub fn off_mesh_links(&self) -> mapdata::OffMeshLinks {
+        if self.gap_links {
+            mapdata::OffMeshLinks::Gaps
+        } else {
+            mapdata::OffMeshLinks::None
+        }
+    }
+
     /// The defaults with the file's changes.
     pub fn load(path: &Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
