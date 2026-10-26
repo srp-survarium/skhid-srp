@@ -153,8 +153,6 @@ const PUT_MISS_M: f32 = 1.0;
 const STAND_AT_M: f32 = 0.6;
 /// At a stand this long with no press possible, it tries the next stand.
 const STAND_STILL_MS: u32 = 3_000;
-/// The client's use ray, metres (`base_player::detect_usable_object`).
-const USE_RAY_M: f32 = 2.0;
 
 /// How far the bot's use ray, from its eye along its view, passes `point`.
 fn use_ray_miss(cx: &Ctx, point: Vec3) -> f32 {
@@ -162,7 +160,7 @@ fn use_ray_miss(cx: &Ctx, point: Vec3) -> f32 {
     let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
     let (sin, cos) = cx.me.pitch.sin_cos();
     let dir = Vec3::new(fx * cos, sin, fz * cos);
-    let along = (point - eye).dot(dir).clamp(0.0, USE_RAY_M);
+    let along = (point - eye).dot(dir).clamp(0.0, crate::v026g::bots::view::use_ray_m());
     (eye + dir * along - point).length()
 }
 

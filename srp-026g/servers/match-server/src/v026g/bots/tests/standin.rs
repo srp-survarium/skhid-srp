@@ -23,12 +23,10 @@
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
 //!
 //! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`, `DRAW_MS`,
-//! `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
+//! `PUT_MS`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
 
 use super::*;
 
-/// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
-pub(crate) const USE_REACH_M: f32 = 2.0;
 /// The patched client's take of a battery under the feet: its ray and the
 /// distance across (patch 11, `client_patch.md`).
 const PATCHED_REACH_M: f32 = 4.0;
@@ -1188,7 +1186,7 @@ impl Game {
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
     /// within `radius` of `point` no farther than the use's 2 m.
     pub(crate) fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
-        Self::uses_reach(body, point, radius, USE_REACH_M)
+        Self::uses_reach(body, point, radius, super::view::use_ray_m())
     }
 
     /// [`Self::uses`] with a ray of `reach` m.
@@ -1205,14 +1203,14 @@ impl Game {
         (to - dir * along).length() <= radius
     }
 
-    /// How far `body`'s use ray (from the eye, [`USE_REACH_M`] long)
+    /// How far `body`'s use ray (from the eye, [`super::view::use_ray_m`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
-        let along = (point - eye).dot(dir).clamp(0.0, USE_REACH_M);
+        let along = (point - eye).dot(dir).clamp(0.0, super::view::use_ray_m());
         (eye + dir * along - point).length()
     }
 
@@ -1241,7 +1239,7 @@ impl Game {
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
-        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape)
+        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape, super::view::use_ray_m())
     }
 
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up
