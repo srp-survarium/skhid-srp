@@ -81,6 +81,9 @@ features! {
 features! {
     /// The match's states, by feature.
     pub(super) struct MatchFeatures {
+        /// The artefact places of the map and how well the cores' artefacts are known (`artefact_know`;
+        /// `tuning.hazard.artefact_know`, built with the tactics, none while it is off).
+        artefacts: Option<artefact_know::ArtefactKnow>,
         /// Kit choices made since they were last taken (`Bots::take_kit_choices`): the place and the kit's index.
         kit_choices: Vec<(Place, u8)>,
         /// How the teams' own traps went off (`trap_know`).

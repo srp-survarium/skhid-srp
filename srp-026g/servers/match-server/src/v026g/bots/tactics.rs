@@ -89,6 +89,9 @@ const ESCAPE_WALK_MPS: f32 = 3.0;
 /// ways out are compared by it ([`Tactics::escape`]): a zone the map file
 /// gives no hit for is infinite (`Hazard::hit_per_s`).
 const ESCAPE_HIT_CAP: f32 = 1.0;
+/// The floors [`Tactics::live_exit_of`] looks over for the way out of a live field: most of a big map's, for a field
+/// wider than [`ESCAPE_FLOORS`] reaches (it runs only when the escape search found nothing).
+const LIVE_EXIT_FLOORS: usize = 100_000;
 /// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
 /// as `BodyView::health` and the zones' hits), may be walked on through to a
 /// way out further on while on. GUESS: under a tenth of a body's health in a
@@ -161,6 +164,9 @@ pub struct Tactics {
     walks: std::sync::Mutex<WalkCache>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
+    /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
+    /// on the map alone and the point asked.
+    walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
     /// [`Self::exit_of`]'s field, once made.
     exit_field: std::sync::Mutex<Option<ExitField>>,
     /// The teams' escapes from pockets that worked, and their trapped bots
@@ -178,6 +184,38 @@ type ExitField = Arc<std::collections::HashMap<NodeId, NodeId>>;
 
 /// A list of [`Tactics::spots_kept`]: (key, kept until, the spots).
 type KeptSpots = (u64, u32, Arc<Vec<Vec3>>);
+
+/// How many of [`Tactics::walk_up_set`]'s sets are kept (each is a bit a floor of the
+/// grid, a few hundred KB on the biggest map).
+const WALK_UP_KEPT: usize = 32;
+
+/// The point and radius a [`WalkUp`] was made for, as bits.
+type WalkUpKey = [u32; 4];
+
+/// The floors a walk up from a point gets to ([`Tactics::walk_up_from`]): a bit
+/// a floor of the grid, in place of a hash set (the profile of the spot
+/// lists: 92 % of a build was this search, 6 ms of 5.2-5.7).
+pub(super) struct WalkUp(Vec<u64>);
+
+impl WalkUp {
+    fn new(floors: usize) -> Self {
+        Self(vec![0; floors.div_ceil(64)])
+    }
+
+    /// Adds `node`; whether it was not in.
+    fn insert(&mut self, node: NodeId) -> bool {
+        let (word, bit) = (node as usize >> 6, 1u64 << (node & 63));
+        let was = self.0[word] & bit != 0;
+        self.0[word] |= bit;
+        !was
+    }
+
+    pub(super) fn contains(&self, node: NodeId) -> bool {
+        self.0
+            .get(node as usize >> 6)
+            .is_some_and(|word| word >> (node & 63) & 1 == 1)
+    }
+}
 
 /// The label's bits for the sides' spawn areas.
 const SPAWN_BITS: u32 = 8;
@@ -324,7 +362,7 @@ impl TacticsBase {
         let grid = &world.grid;
         // The zones' set in the high bits, the sides' spawn areas in the low.
         let mut labels: Vec<u32> = (0..grid.len() as NodeId)
-            .map(|node| u32::from(hazards.set_of(node)) << SPAWN_BITS)
+            .map(|node| u32::from(hazards.set_of(node).baked()) << SPAWN_BITS)
             .collect();
         for spawn in &world.map.spawns {
             let bit = 1u32 << (spawn.team.clamp(0, SPAWN_BITS as i32 - 1));
@@ -624,6 +662,7 @@ impl Tactics {
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
+            walk_ups: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
@@ -851,7 +890,7 @@ impl Tactics {
         objective: bool,
         from: Vec3,
     ) -> bool {
-        let zoned = self.hazards.zone_of(node).is_some();
+        let zoned = self.hazards.marked_at(node);
         (!zoned || {
             let d = self.world.grid.position(node).distance_xz(from);
             self.hazards.allowed_arriving(node, time, d)
@@ -1229,7 +1268,7 @@ impl Tactics {
         // Floors open to the search under a ceiling on a zone's hit.
         let open_under = |ceiling: f32| {
             move |n: NodeId| {
-                self.hazards.set_of(n) == 0
+                self.hazards.set_of(n).is_none()
                     || self.hazards.set_of(n) == start_set
                     || ok(n)
                     || self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) <= ceiling
@@ -1279,7 +1318,7 @@ impl Tactics {
         }
         let nearest = outs.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1));
         // Out of a spawn area (no zone there): the nearest way, as ever.
-        let goal = goal.filter(|_| self.hazards.zone_of(from).is_some());
+        let goal = goal.filter(|_| self.hazards.marked_at(from));
         let out = match (goal, nearest) {
             (Some(goal), Some(nearest)) => {
                 let mild = mild(self.hazards.hit_per_s(from));
@@ -1387,7 +1426,7 @@ impl Tactics {
         let grid = &self.world.grid;
         let start_hit = self.hazards.hit_per_s(from).min(ESCAPE_HIT_CAP);
         let bad = |n: NodeId| {
-            self.hazards.set_of(n) != 0
+            !self.hazards.set_of(n).is_none()
                 && !self.allowed(n, time, side, objective)
                 && self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) > start_hit + 1e-6
         };
@@ -1412,6 +1451,10 @@ impl Tactics {
     /// [`Self::escape`]'s search reaches (the Cologne bench's run 5: 25 m
     /// into a big zone, 73 escapes found nothing and it stood 37 s).
     pub fn exit_of(&self, from: NodeId) -> Option<NodeId> {
+        // The field is made of the baked marks alone; a floor only a live field marks has its own way out.
+        if self.hazards.set_of(from).baked() == 0 {
+            return self.live_exit_of(from);
+        }
         let field = {
             let mut cache = self
                 .exit_field
@@ -1424,10 +1467,36 @@ impl Tactics {
         field.get(&from).copied()
     }
 
+    /// The floor no zone marks that a breadth-first walk from `from`, a floor only live fields mark (`Hazards::live`),
+    /// first comes to over the marked floors, within [`LIVE_EXIT_FLOORS`] (the live fields come and go, so there is
+    /// no field kept as for the baked zones). None when no live field lies on `from`.
+    fn live_exit_of(&self, from: NodeId) -> Option<NodeId> {
+        if self.hazards.live.set_of(from) == 0 {
+            return None;
+        }
+        let grid = &self.world.grid;
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = std::collections::VecDeque::from([from]);
+        while let Some(a) = queue.pop_front() {
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) || !seen.insert(b) {
+                    continue;
+                }
+                if self.hazards.set_of(b).is_none() {
+                    return Some(b);
+                }
+                if seen.len() < LIVE_EXIT_FLOORS {
+                    queue.push_back(b);
+                }
+            }
+        }
+        None
+    }
+
     /// [`Self::exit_of`]'s field: each marked floor's way out.
     fn exit_field(&self) -> std::collections::HashMap<NodeId, NodeId> {
         let grid = &self.world.grid;
-        let marked = |n: NodeId| self.hazards.set_of(n) != 0;
+        let marked = |n: NodeId| self.hazards.set_of(n).baked() != 0;
         let mut field = std::collections::HashMap::new();
         // The marked floors each marked floor is a link from.
         let mut into: std::collections::HashMap<NodeId, Vec<NodeId>> =
@@ -1494,7 +1563,7 @@ impl Tactics {
         (0..=steps).any(|k| {
             let point = route.floor_point((from + k as f32 * HELD_STEP_M).min(to));
             grid.locate(point, 0.6).is_some_and(|node| {
-                self.hazards.zone_of(node).is_some()
+                self.hazards.marked_at(node)
                     && !(crossing && self.hazards.only_fixed_at(node))
                     && !self
                         .hazards
@@ -1744,7 +1813,7 @@ impl Tactics {
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         // Rays lazily, from the best down.
         let mut out = Vec::new();
-        let mut by_walk: Option<std::collections::HashSet<NodeId>> = None;
+        let mut by_walk: Option<Arc<WalkUp>> = None;
         for spot in found {
             if out.len() >= n {
                 break;
@@ -1753,8 +1822,8 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
-                    .contains(&spot.node)
+                    .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .contains(spot.node)
             {
                 continue;
             }
@@ -1791,7 +1860,61 @@ impl Tactics {
     /// stand-turn +31 % in the smoke of the search without this rule). The
     /// jumps are the grid's and the motor's to mend; until they are, the
     /// storeys over the ring are the ones a walk reaches.
-    fn walk_up_from(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
+    ///
+    /// The search is a breadth-first one in the order of the links, and its cap
+    /// ([`WALK_UP_MAX_FLOORS`]) cuts it at the same floor whatever holds the
+    /// set; the set is kept for the same point and radius (the grid does
+    /// not change), so a list made again 15 s later does not search again.
+    fn walk_up_set(&self, around: Vec3, radius: f32) -> Arc<WalkUp> {
+        let key = [around.x.to_bits(), around.y.to_bits(), around.z.to_bits(), radius.to_bits()];
+        let mut kept = self.walk_ups.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, set)) = kept.iter().find(|(k, _)| *k == key) {
+            return set.clone();
+        }
+        let set = Arc::new(self.walk_up_from(around, radius));
+        if kept.len() >= WALK_UP_KEPT {
+            kept.remove(0);
+        }
+        kept.push((key, set.clone()));
+        set
+    }
+
+    /// The search [`Self::walk_up_set`] keeps.
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> WalkUp {
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = WalkUp::new(grid.len());
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return seen;
+        };
+        let mut queue = vec![start];
+        let mut count = 1usize;
+        seen.insert(start);
+        let mut head = 0;
+        while head < queue.len() {
+            let u = queue[head];
+            head += 1;
+            if count >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk
+                    && !seen.contains(v)
+                    && grid.position(v).distance_xz(around) <= radius
+                {
+                    seen.insert(v);
+                    count += 1;
+                    queue.push(v);
+                }
+            }
+        }
+        seen
+    }
+
+    /// The set [`Self::walk_up_from`] was before the bit set and the kept
+    /// sets: the reference the test holds the new one to.
+    #[cfg(test)]
+    pub(super) fn walk_up_reference(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
         use mapdata::LinkKind;
         let grid = &self.world.grid;
         let mut seen = std::collections::HashSet::new();
@@ -2059,6 +2182,80 @@ pub(super) mod tests {
         }
         assert!(2.0 * per_s(0.02) <= 0.1);
         assert!(mild(per_s(0.02)));
+    }
+
+    /// The set of floors a walk up gets to is the hash set's, floor for
+    /// floor, for points across the grid and radii (the spot lists made
+    /// from it are then the same), and the kept set is the one made.
+    #[test]
+    fn the_walk_up_set_is_the_reference_set_floor_for_floor() {
+        let t = Tactics::new(tests::platform_world(), 1.0);
+        let grid = &t.world.grid;
+        let mut rng = Rng::new(7);
+        let mut nonempty = 0;
+        for i in 0..300 {
+            let around = Vec3::new(rng.range(0.0, 70.0), rng.range(-1.0, 6.0), rng.range(0.0, 45.0));
+            let radius = [4.0, 12.0, 30.0, 80.0][i % 4];
+            let reference = t.walk_up_reference(around, radius);
+            let set = t.walk_up_set(around, radius);
+            nonempty += usize::from(!reference.is_empty());
+            for node in 0..grid.len() as NodeId {
+                assert_eq!(set.contains(node), reference.contains(&node), "{around:?} {radius} {node}");
+            }
+            assert!(Arc::ptr_eq(&set, &t.walk_up_set(around, radius)));
+        }
+        assert!(nonempty > 20, "{nonempty}");
+    }
+
+    /// The same on the real maps, where the search is cut by its cap too.
+    /// Run with `SRP_MAPDATA_DIR` set, in release.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn the_walk_up_set_is_the_reference_set_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+            panic!("set SRP_MAPDATA_DIR");
+        };
+        let (mut cut, mut checked) = (0, 0);
+        let (mut old_t, mut new_t, mut kept_t) = (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+        for level in 1..=8u8 {
+            for mode in [2u8, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+                let t = Tactics::new(world, 1.0);
+                let grid = &t.world.grid;
+                let mut rng = Rng::new(u64::from(level) * 10 + u64::from(mode));
+                for i in 0..25 {
+                    let Some(spawn) = t.world.map.spawns.get(i % t.world.map.spawns.len().max(1)) else {
+                        break;
+                    };
+                    let around = spawn.position
+                        + Vec3::new(rng.range(-60.0, 60.0), 0.0, rng.range(-60.0, 60.0));
+                    let radius = [30.0, 45.0, 65.0][i % 3];
+                    let start = std::time::Instant::now();
+                    let reference = t.walk_up_reference(around, radius);
+                    old_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let set = t.walk_up_set(around, radius);
+                    new_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let _ = t.walk_up_set(around, radius);
+                    kept_t += start.elapsed();
+                    cut += usize::from(reference.len() >= WALK_UP_MAX_FLOORS);
+                    checked += 1;
+                    let in_set = (0..grid.len() as NodeId).filter(|&n| set.contains(n)).count();
+                    assert_eq!(in_set, reference.len(), "{level} {mode} {around:?} {radius}");
+                    assert!(reference.iter().all(|&n| set.contains(n)));
+                }
+            }
+        }
+        eprintln!("walk-up sets checked {checked}, cut by the cap {cut}");
+        eprintln!(
+            "per set: old {:?}, new (made) {:?}, kept {:?}",
+            old_t / checked as u32,
+            new_t / checked as u32,
+            kept_t / checked as u32
+        );
     }
 
     /// F4: a stuck body finds the ledge it can jump up (more than the
@@ -2678,6 +2875,121 @@ pub(super) mod tests {
         assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
         cache.keep(4, Arc::new(vec![0.0; 10]), 3);
         assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
+    // The live zones (`live_zones.rs`): a world's anomaly fields next to the baked zones.
+
+    fn live_field(id: u32, at: Vec3, radius: f32, phase: super::super::live_zones::FieldPhase) -> super::super::live_zones::WorldField {
+        use super::super::live_zones::{FieldId, FieldKind, WorldField};
+        use mapdata::{Rotation, Shape, ShapeKind};
+        WorldField {
+            id: FieldId(id),
+            kind: FieldKind::Spring,
+            shape: Shape {
+                kind: ShapeKind::Cylinder,
+                center: Vec3::new(at.x, 1.0, at.z),
+                rotation: Rotation::IDENTITY,
+                half: Vec3::new(radius, 2.0, radius),
+            },
+            phase,
+        }
+    }
+
+    const LIVE_ON: super::super::live_zones::FieldPhase = super::super::live_zones::FieldPhase::Damaging { until: None };
+
+    /// Floors only: a region is not shut because a live field lies on a few of its floors (its test is the baked
+    /// zone's), while the floors' own test shuts them.
+    #[test]
+    fn a_live_field_shuts_floors_and_not_regions() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let from = Vec3::new(5.0, 0.0, 20.0);
+        let region = tactics.base.regions.of(inside);
+        assert!(tactics.allowed(inside, 0, Some(0), false));
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON)], &c.grid, 0);
+        assert!(!tactics.allowed(inside, 0, Some(0), false), "the floor is shut");
+        assert!(!tactics.allowed_from(inside, 0, Some(0), false, from), "and by the arrival test");
+        assert!(tactics.region_allowed_from(region, 0, Some(0), false, from), "the region is open");
+        assert!(tactics.hazards.zone_of(tactics.base.regions.middle(region)).is_none());
+    }
+
+    /// A body inside a live field gets out to the nearest floor that is open, and the route to it does not cross a
+    /// second field.
+    #[test]
+    fn a_body_in_a_live_field_walks_out_and_not_through_a_second() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(
+            &[
+                live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON),
+                live_field(2, Vec3::new(28.0, 0.0, 20.0), 3.0, LIVE_ON),
+            ],
+            &c.grid,
+            0,
+        );
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let second = grid.locate(Vec3::new(28.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(!tactics.hazards.set_of(inside).is_none());
+        assert_ne!(tactics.hazards.set_of(inside), tactics.hazards.set_of(second));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end = out.point_at(out.length());
+        let end_node = grid.locate(end, 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false), "out onto an open floor: {end:?}");
+        let mut s = 0.0;
+        while s <= out.length() {
+            let node = grid.locate(out.point_at(s), 1.0).unwrap();
+            assert!(tactics.hazards.live.at(node).all(|f| f.id.0 != 2), "not over the second field");
+            s += 0.5;
+        }
+    }
+
+    /// A body deeper in a live field than the breadth-first search reaches ([`ESCAPE_FLOORS`]) still gets out: the
+    /// board has its own way out, since the exit field is the baked zones'.
+    #[test]
+    fn a_body_deep_in_a_wide_live_field_still_gets_out() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        // 25 m round, on a floor 40 m across: the nearest open floor is 26 m off, past the 20,000 floors the escape
+        // search expands before it gives up, so the way out is the board's own (`Tactics::live_exit_of`).
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(30.0, 0.0, 20.0), 25.0, LIVE_ON)], &c.grid, 0);
+        let inside = grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(tactics.exit_of(inside).is_some_and(|n| tactics.hazards.set_of(n).is_none()));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end_node = grid.locate(out.point_at(out.length()), 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false));
+    }
+
+    /// A step out of a blast does not end on a live field's floor: the nearest floor outside the radius that is
+    /// open, round the field.
+    #[test]
+    fn a_step_out_of_a_blast_avoids_a_live_field() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let open = RouteFilter::open();
+        let plain = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let c = tactics.world.clone();
+        // A field right on where the step would end.
+        tactics.hazards.set_fields(&[live_field(1, plain, 2.5, LIVE_ON)], &c.grid, 0);
+        let plain_node = grid.locate(plain, 0.5).unwrap();
+        assert!(!tactics.allowed(plain_node, 0, Some(0), false), "the plain step now ends on the field");
+        let out = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let node = grid.locate(out, 0.5).unwrap();
+        assert!(tactics.allowed(node, 0, Some(0), false), "not onto the field: {out:?}");
+        assert!(out.distance_xz(plain) > 2.0, "{out:?} against {plain:?}");
     }
 
 }

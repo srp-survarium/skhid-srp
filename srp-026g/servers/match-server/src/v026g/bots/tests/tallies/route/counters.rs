@@ -77,11 +77,52 @@ pub(super) fn request_gaps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The shots bots heard (`sense::shot_heard`): by the weapon's reach, at the fallback of an unknown weapon, from
+/// over the flat range.
+pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::sense::shots_heard().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "shots_heard_table {} shots_heard_unknown {} shots_heard_far {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::below_walk::counts()],
         |d, line| line.ends.push(format!("off_below_walk {}", d[0])),
+    )
+}
+
+/// The rest points moved off a lip (`path::rests`).
+pub(super) fn rests() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::rests::counts()],
+        |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
+    )
+}
+
+/// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
+pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_jumps::counts().iter().flatten().copied().collect(),
+        |d, line| {
+            let band = |k: usize| d[k * 6..k * 6 + 6].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("sprint_jumps_pressed {} sprint_jumps_up {} sprint_jumps_gave_up {}", band(0), band(1), band(2)));
+        },
+    )
+}
+
+/// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
+pub(super) fn stranded() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::stranded::counts()],
+        |d, line| line.ends.push(format!("plans_from_stranded_stand {}", d[0])),
     )
 }
 

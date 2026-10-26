@@ -33,7 +33,7 @@ impl RouteTopic for Zones {
                 .alive
                 .then(|| tactics.world.grid.locate(body.feet, 1.0))
                 .flatten();
-            let set = node.map_or(0, |node| hazards.set_of(node));
+            let set = node.map_or(0, |node| hazards.set_of(node).baked());
             let on = node
                 .and_then(|node| hazards.zone_of(node))
                 .is_some_and(|zone| zone.activity.active(time));
