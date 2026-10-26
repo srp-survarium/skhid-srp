@@ -1687,6 +1687,8 @@ impl Core<'_> {
             return;
         };
         let key = room.key;
+        // A private room's member goes back to the team its owner put it on.
+        let arranged = room.arranged_side(account_id);
         let size = usize::from(room.spec.size);
         let Some(running) = self.matches.get(&match_id) else {
             return;
@@ -1723,7 +1725,11 @@ impl Core<'_> {
                     .find(|seat| seat.player.account_id == account_id)
                     .map(|seat| seat.team)
             });
-        let Some(placement) = policy::place_joiner(sides, worth, previous, &rule) else {
+        let placement = match arranged {
+            Some(side) => policy::place_joiner_on(sides, worth, side, &rule),
+            None => policy::place_joiner(sides, worth, previous, &rule),
+        };
+        let Some(placement) = placement else {
             return;
         };
         let team = placement.assignments.first().map_or(0, |(_, team)| *team);

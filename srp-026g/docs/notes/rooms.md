@@ -148,9 +148,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     and 1280x720: `scripts/rooms-start/shots.sh`.
   - Start plays the arrangement exactly: no sides drawn, no balance. A squad split by it
     plays as a squad on each team where two or more of it are.
-  - The arrangement stays from match to match; a member who leaves is out of it. A late
-    joiner during a match goes to the side with fewer players, as in any room, and is on
-    that team in the arrangement after.
+  - The arrangement stays from match to match; a member who leaves is out of it.
+  - A member who missed the Start (its game away or started anew, a late join that failed)
+    goes in late on the team its owner put it on while that team has fewer than 10 in the
+    match, else on the other; its team in the arrangement stays (the review of #527: a 1 v 3
+    whose member came 15 s late had become 2 v 2). A newcomer who joins with the PIN during
+    the match goes to the side with fewer players, as in any room, and is on that team in
+    the arrangement after, while it has fewer than 10 there. No team ever has more than 10.
   - The server refuses (does nothing) a move of anyone but the owner, in an open room, while
     the room plays its match, onto a team of 10, or from an older list (`2 060 020 000`,
     `lobby.md`). The state tells the teams in its `A;<sides>` row.

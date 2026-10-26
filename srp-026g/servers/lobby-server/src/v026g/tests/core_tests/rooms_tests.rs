@@ -1953,9 +1953,11 @@ fn private_room(world: &mut World, count: usize) -> (u32, Vec<usize>) {
     let names = [
         "Alice", "Bob", "Carol", "Dave", "Erin", "Frank", "Grace", "Heidi", "Ivan", "Judy", "Kim",
     ];
-    let members: Vec<usize> = names[..count]
-        .iter()
-        .map(|name| world.connect(name))
+    let members: Vec<usize> = (0..count)
+        .map(|i| match names.get(i) {
+            Some(name) => world.connect(name),
+            None => world.connect(&format!("Member{i}")),
+        })
         .collect();
     let key = create(world, members[0], spec(6), Some(1234));
     for &member in &members[1..] {
@@ -2158,6 +2160,119 @@ fn a_private_rooms_owner_arranges_the_teams_and_start_plays_them() {
     assert_eq!(move_member(&mut world, owner, 0), "01111111111");
     assert!(sent_to_match(&press_start(&mut world, owner)).is_some());
     assert_eq!(teams(&world), [1, 10], "1 v 10");
+}
+
+/// The member's game started anew (it misses the next start: `room_unseen`):
+/// its new game, unseen until told the room.
+fn restart_game(world: &mut World, member: usize) -> usize {
+    world.silent_for(member, Duration::from_secs(10));
+    let (account_id, _) = world.ids[member];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    again
+}
+
+/// The members' games told their room go into its match late, one at a
+/// time, the match taking players: each one's team in it.
+fn late_teams(world: &mut World, ticket: u32, id: u32, games: &[usize]) -> Vec<u8> {
+    let mut teams = Vec::new();
+    for &game in games {
+        state(world, game);
+    }
+    let mut left: Vec<usize> = games.to_vec();
+    for _ in 0..60 {
+        world.host.admitting.locked().insert(ticket);
+        world.advance(Duration::from_secs(1));
+        left.retain(|&game| {
+            let Some((sent, _)) = sent_to_match(&world.take(game)) else {
+                return true;
+            };
+            assert_eq!(sent, ticket);
+            let session = world.ids[game].1;
+            let seats = &world.core.matches[&id].seats;
+            teams.push(seats.iter().rev().find(|(s, _)| *s == session).unwrap().1);
+            false
+        });
+        if left.is_empty() {
+            return teams;
+        }
+    }
+    panic!("not all went in: {left:?}");
+}
+
+/// The review of #527: a member who misses its owner's Start (its game
+/// started anew) goes in late on the team its owner put it on, not the side
+/// with fewer, and the arrangement stays: 1 v 3 stays 1 v 3 (`A;0111`).
+#[test]
+fn a_member_who_missed_the_start_goes_in_on_its_arranged_team() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 4);
+    let owner = members[0];
+    assert_eq!(move_member(&mut world, owner, 2), "0111");
+    let dave = restart_game(&mut world, members[3]);
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    assert_eq!(setup.players.len(), 3, "Dave not told the room");
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    // 1 v 2 in the match: Dave goes back to team 2, not to the side of one.
+    assert_eq!(late_teams(&mut world, ticket, id, &[dave]), [1]);
+    assert_eq!(arrangement(&mut world, owner), "0111");
+}
+
+/// No team ever goes past 10 in the arrangement: 10 v 9 with five of team 1
+/// away at the start plays 5 v 9; a newcomer with the PIN during the match
+/// goes to the side with fewer (team 1), its team in the arrangement stays
+/// team 2 (team 1 has its 10); the five come back on team 1 while it has
+/// places in the match, the last on team 2, and keep team 1 in the
+/// arrangement.
+#[test]
+fn late_joiners_never_push_a_team_past_ten() {
+    let mut world = World::new();
+    let (key, members) = private_room(&mut world, 19);
+    let owner = members[0];
+    let arranged = "0101010101010101010";
+    assert_eq!(arrangement(&mut world, owner), arranged);
+    let away: Vec<usize> = [2, 4, 6, 8, 10]
+        .iter()
+        .map(|&place| restart_game(&mut world, members[place]))
+        .collect();
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    let on = |side| {
+        setup
+            .players
+            .iter()
+            .filter(|player| player.profile.team == side)
+            .count()
+    };
+    assert_eq!([on(0), on(1)], [5, 9]);
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    let newcomer = world.connect("Newcomer");
+    rows(&mut world, newcomer, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, newcomer, ROOM_JOIN_BASE + key, 1);
+    world.take(newcomer);
+    assert_eq!(late_teams(&mut world, ticket, id, &[newcomer]), [0]);
+    assert_eq!(arrangement(&mut world, owner), format!("{arranged}1"));
+    let teams = late_teams(&mut world, ticket, id, &away);
+    assert_eq!(teams, [0, 0, 0, 0, 1], "team 1 has 10 in the match");
+    let after = arrangement(&mut world, owner);
+    assert_eq!(after, format!("{arranged}1"), "10 v 10 in the arrangement");
+    for side in ['0', '1'] {
+        assert!(after.chars().filter(|&c| c == side).count() <= 10);
+    }
 }
 
 /// A move is the owner's alone, never while the match is played; the

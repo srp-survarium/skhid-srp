@@ -155,6 +155,10 @@ pub struct Room {
     /// plays them as they are. Empty in an open room (its sides are drawn
     /// at the start, [`sides`]).
     pub sides: HashMap<u32, u8>,
+    /// The members who came while its match is played: a private room's
+    /// newcomers, whose late join goes to the side with fewer (their team in
+    /// the arrangement is not the owner's choice yet). Cleared with the match.
+    pub came_in_match: HashSet<u32>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -210,6 +214,22 @@ impl Room {
             let side = u8::from(self.side_count(1) < self.side_count(0));
             self.sides.insert(account_id, side);
         }
+        if matches!(self.stage, Stage::InMatch { .. }) {
+            self.came_in_match.insert(account_id);
+        }
+    }
+
+    /// The team a private room's member goes into its match on when it
+    /// goes in late (it missed the start: its game away or started anew, a
+    /// late join that failed): the one its owner put it on (the owner's of
+    /// 2026-10-26: "Start plays exactly that"). None in an open room, and
+    /// for one who came while the match is played (it goes to the side with
+    /// fewer, as in any room).
+    pub fn arranged_side(&self, account_id: u32) -> Option<u8> {
+        if self.is_open() || self.came_in_match.contains(&account_id) {
+            return None;
+        }
+        self.sides.get(&account_id).copied()
     }
 
     pub fn is_full(&self) -> bool {
@@ -489,6 +509,7 @@ impl Rooms {
             chat: VecDeque::new(),
             by_play: HashSet::new(),
             sides: HashMap::new(),
+            came_in_match: HashSet::new(),
         };
         room.add_member(owner);
         self.rooms.insert(key, room);
@@ -577,6 +598,7 @@ impl Rooms {
         room.in_match.remove(&account_id);
         room.by_play.remove(&account_id);
         room.sides.remove(&account_id);
+        room.came_in_match.remove(&account_id);
         room.serial = serial;
         if room.members.is_empty() {
             self.rooms.remove(&key);
@@ -902,12 +924,19 @@ impl Rooms {
 
     /// A member went into the room's running match late, on side `team`:
     /// in a private room its side in the arrangement from now on, as it
-    /// plays.
+    /// plays, while that team has a place (never more than
+    /// [`PRIVATE_SIZE`]); one on its own team keeps it.
     pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
-            if room.sides.contains_key(&account_id) {
-                room.sides.insert(account_id, team.min(1));
+            let team = team.min(1);
+            if room
+                .sides
+                .get(&account_id)
+                .is_some_and(|&side| side != team)
+                && room.side_count(team) < usize::from(PRIVATE_SIZE)
+            {
+                room.sides.insert(account_id, team);
             }
         }
     }
@@ -967,6 +996,7 @@ impl Rooms {
         // while this one was played.
         room.stage = Stage::Waiting;
         room.in_match.clear();
+        room.came_in_match.clear();
         room.after_match = true;
         for &member in &leaving {
             self.leave(member);
@@ -984,6 +1014,7 @@ impl Rooms {
         )?;
         room.stage = Stage::Waiting;
         room.in_match.clear();
+        room.came_in_match.clear();
         room.after_match = false;
         Some(room.key)
     }
