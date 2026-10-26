@@ -1130,6 +1130,11 @@ impl JumpTest {
                     bot.intent = Intent::stay();
                     bot.intent.fire = false;
                     *since = (*since).max(now.saturating_sub(GO_MAX_MS - 5_000));
+                    // Already on the ground of that try (it was not live yet when the bot came): walk off it.
+                    let enemy: Vec<Zone> = zones.iter().filter(|z| z.live && z.team != bot.team).copied().collect();
+                    if enemy.iter().any(|z| z.nearest(me.feet).1 < INSIDE_M) {
+                        keep_clear(&enemy, world, bot, me.feet);
+                    }
                 } else if active.def.suicides == 0
                     && self.suicides[usize::from(bot.team & 1)] < SUICIDE_CAP
                     && now - *since > 8_000
@@ -1471,6 +1476,8 @@ impl Zone {
 const YIELD_M: f32 = 4.0;
 /// A bot waits this long at most for enemy tries on its way, ms, from the first wait.
 const YIELD_MAX_MS: u32 = 60_000;
+/// Within this of an enemy's live try a waiting bot walks off instead of standing.
+const INSIDE_M: f32 = 3.0;
 
 fn yield_to(zones: &[Zone], team: u8, feet: Vec3) -> bool {
     zones.iter().any(|z| z.live && z.team != team && z.nearest(feet).1 < YIELD_M)
