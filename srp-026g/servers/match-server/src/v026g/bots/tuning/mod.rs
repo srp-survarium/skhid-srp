@@ -45,6 +45,7 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    pub commit: CommitTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
     pub grid: GridTuning,
@@ -88,6 +89,7 @@ pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use team::AvoidTuning;
+pub use team::CommitTuning;
 pub use team::ModTuning;
 pub use team::Personalities;
 pub use team::Personality;
@@ -114,6 +116,11 @@ impl Tuning {
     /// The off-mesh links of the maps' grids ([`GridTuning::gap_links`]).
     pub fn off_mesh_links(&self) -> mapdata::OffMeshLinks {
         self.grid.off_mesh_links()
+    }
+
+    /// The body of the maps' grids ([`GridTuning::client_numbers`]).
+    pub fn grid_body(&self) -> mapdata::Body {
+        self.grid.body()
     }
 
     /// The defaults with the file's changes.
