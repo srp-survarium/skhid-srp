@@ -538,6 +538,7 @@ pub(super) fn decide(
         Step::Continue(mut intent) => {
             bot.press |= intent.press;
             if let Some(zone) = intent.resupplied.take() {
+                bot.resupplies += 1;
                 let rounds = bot.top_up();
                 bot.note(notes, now, format!("resupplied at zone {zone}: +{rounds} rounds"));
             }

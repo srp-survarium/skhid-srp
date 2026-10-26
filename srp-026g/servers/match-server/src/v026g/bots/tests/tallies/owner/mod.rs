@@ -46,12 +46,14 @@ mod golden;
 mod grenades;
 mod jumps;
 mod moving;
+mod resupply;
 
 use campers::*;
 use fight::*;
 use grenades::*;
 use jumps::*;
 use moving::*;
+use resupply::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
@@ -90,6 +92,10 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// The resupply holds it has made (`Bot::resupplies`), and how near dry
+    /// it is ([`Nearly`]).
+    resupplies: u32,
+    nearly: Nearly,
 }
 
 #[derive(Default)]
@@ -116,6 +122,8 @@ pub(crate) struct OwnerTally {
     grenades: GrenadeCounts,
     /// The campers counts ([`CamperCounts`], `campers.rs`).
     campers: CamperCounts,
+    /// The resupply counts ([`ResupplyCounts`], `resupply.rs`).
+    resupply: ResupplyCounts,
 }
 
 impl OwnerTally {
@@ -129,6 +137,7 @@ impl OwnerTally {
             moving: MoveCounts::new(n),
             grenades: GrenadeCounts::default(),
             campers: CamperCounts::default(),
+            resupply: ResupplyCounts::new(n),
             ..Self::default()
         }
     }
@@ -178,6 +187,8 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    resupplies: bot.resupplies,
+                    nearly: nearly_dry(bots, bot, game.bodies[place].feet),
                 })
             })
             .collect();
@@ -210,6 +221,9 @@ impl OwnerTally {
                 }
             }
             self.fight_death(place, tick, &prev, body);
+            if let Some(now) = now {
+                self.resupply_step(place, tick, &prev, body, now);
+            }
             let enemy_near = game.bodies.iter().any(|b| {
                 b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
             });
@@ -280,6 +294,7 @@ impl OwnerTally {
             self.vertical_part(game),
             self.grenades_part(game),
             self.campers_part(),
+            self.resupply_part(game, &scale),
         ];
         let mut json = serde_json::Map::new();
         json.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
@@ -291,6 +306,44 @@ impl OwnerTally {
         }
         (text.join("\n  "), serde_json::Value::Object(json))
     }
+}
+
+/// How near dry the bot is: its rounds at or under the resupply play's
+/// `dry_share` of the kit's count with something to refill, and then
+/// whether it is bound for an objective (its play's rank) and how much
+/// farther its goal is by its team's box.
+fn nearly_dry(bots: &Bots, bot: &super::super::Bot, feet: Vec3) -> Nearly {
+    use crate::v026g::bots::plays::{PlayKind, Rank};
+    let ammo = bot.ammo();
+    if ammo.missing() == 0 || ammo.share() > bots.tuning.number(PlayKind::Resupply, "dry_share") {
+        return Nearly::Fine;
+    }
+    let bound = bot
+        .assignment
+        .as_ref()
+        .and_then(|a| bots.tuning.plays.get(&a.kind))
+        .is_some_and(|play| play.rank == Rank::Objective);
+    if !bound {
+        return Nearly::Other;
+    }
+    let goal = match bot.intent.go {
+        Go::To { at, .. } => at,
+        Go::Stay => feet,
+    };
+    let extra_m = bot.side.and_then(|side| {
+        let world = &bots.tactics.as_ref()?.world;
+        world
+            .map
+            .zones
+            .iter()
+            .filter(|z| z.kind == mapdata::ZoneKind::Resupply && z.team == side)
+            .filter_map(|z| z.shapes.first())
+            .map(|shape| {
+                feet.distance_xz(shape.center) + shape.center.distance_xz(goal) - feet.distance_xz(goal)
+            })
+            .min_by(f32::total_cmp)
+    });
+    Nearly::Objective { extra_m }
 }
 
 /// What the counts share of the whole run: its length in the bots' minutes, and how rates and shares are rounded.

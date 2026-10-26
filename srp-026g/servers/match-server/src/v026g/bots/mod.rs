@@ -240,6 +240,8 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// The resupply holds it finished this match (`Intent::resupplied`).
+    resupplies: u32,
 }
 
 impl Bot {
@@ -340,6 +342,7 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            resupplies: 0,
         }
     }
 
