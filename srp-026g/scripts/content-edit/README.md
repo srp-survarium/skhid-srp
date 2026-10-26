@@ -446,6 +446,42 @@ Text only: no server data, no simulation change.
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
 
+## socom-nerf-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
+| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
+
+Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
+edited, 0 unexpected differences. The simulation changes (the `next` row of
+`simulation_changes.tsv`).
+
+## network-texts-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_error_connection` "Connection error." -> "Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt)." (Der Skhid-Server ist nicht erreichbar. ..., Brak połączenia z serwerem Skhid. ..., Нет связи с сервером Skhid. ..., Немає зв'язку з сервером Skhid. ...), in the six localization tables | players in Russia, whose providers block the server, read only "Connection error." (the owner, 2026-10-25). It is the login screen's status 0 (`set_status` table 0x21F2A4): a sign-in that gets no answer, and the login screen the game goes back to after its fifth failed try to reach the lobby again (`../../docs/notes/transport.md` 6.1, LIKELY). `st_disconnected_from_lobby` is left as it is: neither the exe nor a movie names it. The two files are beside `Skhid.bat` in the players' archive |
+
+Applied to the live tables (stock 0.26g with patches 12..=33): 6 files edited, 0 unexpected
+differences. Each text uses only characters its table already has. The login screen's status field
+(`login_menu`, 269 by 167 px at 1080 lines, 18 px, word wrap) holds the longest, German, in about
+six lines. Text only: no server data, no simulation change.
+## svd-level-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
+
+Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
+differences. Not a simulation change.
+
+## kill-feed-weapons-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
+
 ## london-1.json (2026-10-25)
 
 | change | why |

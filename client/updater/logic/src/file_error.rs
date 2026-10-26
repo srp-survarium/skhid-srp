@@ -76,9 +76,24 @@ impl Stop {
     }
 }
 
+/// The folder Windows Security is to leave alone for a blocked `file` (its
+/// name, or its archive name or path): `programs` (`game\binaries\x86`,
+/// where the programs it flags are), or `game` (the game folder) for a patch
+/// of resources.db, which is kept there. Never the folder above the game,
+/// which may be the player's Downloads (`Skhid-network-setup.cmd` excludes
+/// `game\binaries\x86` alone too).
+pub fn exclusion_folder<'a>(file: &str, programs: &'a str, game: &'a str) -> &'a str {
+    let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
+    if name.starts_with(crate::patches::FILE_PREFIX) {
+        game
+    } else {
+        programs
+    }
+}
+
 /// The words of the updater's box for a stop, in the launcher's language
 /// (`crate::replay::LANGUAGES` order; English for an unknown one). `file`:
-/// the file's name alone; `folder`: the game's folder, the one to exclude.
+/// the file's name alone; `folder`: the one to exclude ([`exclusion_folder`]).
 /// The box's buttons are Windows' own Retry and Cancel, in Windows' language,
 /// which may not be the launcher's: the words do not name them.
 pub fn message(language: Option<u32>, stop: Stop, file: &str, folder: &str) -> String {
@@ -87,35 +102,35 @@ pub fn message(language: Option<u32>, stop: Stop, file: &str, folder: &str) -> S
         (1, Stop::Virus) => format!(
             "Безопасность Windows заблокировала {file}: это ложное срабатывание.\n\
              1. Безопасность Windows > Журнал защиты > этот элемент > Разрешить на устройстве (или Восстановить).\n\
-             2. Добавьте папку игры в исключения (Защита от вирусов и угроз > Управление настройками > Исключения):\n\
+             2. Добавьте эту папку в исключения (Защита от вирусов и угроз > Управление настройками > Исключения):\n\
              {folder}\n\
              Затем попробуйте снова. До этого игра не запустится."
         ),
         (2, Stop::Virus) => format!(
             "Безпека Windows заблокувала {file}: це хибне спрацювання.\n\
              1. Безпека Windows > Журнал захисту > цей елемент > Дозволити на пристрої (або Відновити).\n\
-             2. Додайте теку гри до винятків (Захист від вірусів і загроз > Керування параметрами > Винятки):\n\
+             2. Додайте цю теку до винятків (Захист від вірусів і загроз > Керування параметрами > Винятки):\n\
              {folder}\n\
              Потім спробуйте знову. Доти гра не запуститься."
         ),
         (3, Stop::Virus) => format!(
             "Windows-Sicherheit hat {file} blockiert: ein Fehlalarm.\n\
              1. Windows-Sicherheit > Schutzverlauf > dieser Eintrag > Auf Gerät zulassen (oder Wiederherstellen).\n\
-             2. Füge den Spielordner als Ausschluss hinzu (Viren- & Bedrohungsschutz > Einstellungen verwalten > Ausschlüsse):\n\
+             2. Füge diesen Ordner als Ausschluss hinzu (Viren- & Bedrohungsschutz > Einstellungen verwalten > Ausschlüsse):\n\
              {folder}\n\
              Versuche es dann erneut. Bis dahin startet das Spiel nicht."
         ),
         (4, Stop::Virus) => format!(
             "Zabezpieczenia Windows zablokowały {file}: to fałszywy alarm.\n\
              1. Zabezpieczenia Windows > Historia ochrony > ten element > Zezwalaj na urządzeniu (lub Przywróć).\n\
-             2. Dodaj folder gry do wykluczeń (Ochrona przed wirusami i zagrożeniami > Zarządzaj ustawieniami > Wykluczenia):\n\
+             2. Dodaj ten folder do wykluczeń (Ochrona przed wirusami i zagrożeniami > Zarządzaj ustawieniami > Wykluczenia):\n\
              {folder}\n\
              Następnie spróbuj ponownie. Do tego czasu gra się nie uruchomi."
         ),
         (_, Stop::Virus) => format!(
             "Windows Security blocked {file}: a false positive.\n\
              1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
-             2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
+             2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
              {folder}\n\
              Then try again. PLAY stays off until then."
         ),
@@ -161,15 +176,33 @@ mod tests {
     }
 
     #[test]
+    fn the_folder_excluded_is_the_programs_or_for_a_patch_the_games() {
+        let (programs, game) = ("E:\\S\\game\\binaries\\x86", "E:\\S\\game");
+        for file in [
+            "survarium_skhid.exe",
+            "game/binaries/x86/bugtrap.dll",
+            "E:\\S\\game\\binaries\\x86\\launcher_skhid.exe",
+        ] {
+            assert_eq!(exclusion_folder(file, programs, game), programs, "{file}");
+        }
+        for file in [
+            "resources.db.patch_14",
+            "E:\\S\\game\\resources.db.patch_33",
+        ] {
+            assert_eq!(exclusion_folder(file, programs, game), game, "{file}");
+        }
+    }
+
+    #[test]
     fn every_language_names_the_file_the_folder_and_the_way_out() {
-        let folder = "E:\\Survarium_SkhidSRP_0_26";
+        let folder = "E:\\Survarium_SkhidSRP_0_26\\game\\binaries\\x86";
         let english = message(None, Stop::Virus, "survarium_skhid.exe", folder);
         assert_eq!(
             english,
             "Windows Security blocked survarium_skhid.exe: a false positive.\n\
              1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
-             2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
-             E:\\Survarium_SkhidSRP_0_26\n\
+             2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
+             E:\\Survarium_SkhidSRP_0_26\\game\\binaries\\x86\n\
              Then try again. PLAY stays off until then."
         );
         assert_eq!(

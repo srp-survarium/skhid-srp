@@ -7,13 +7,16 @@ use core::{
 };
 use windows_sys::Win32::{
     Foundation::*,
+    Globalization::{CP_UTF8, MB_ERR_INVALID_CHARS, MultiByteToWideChar, WideCharToMultiByte},
     Storage::FileSystem::*,
-    System::{LibraryLoader::GetModuleFileNameW, SystemInformation::*},
+    System::{
+        Environment::GetCommandLineW, LibraryLoader::GetModuleFileNameW, SystemInformation::*,
+    },
     UI::Shell::*,
 };
 
 pub const COUNT: usize = 32;
-pub const MAX_MEMBERS: usize = COUNT + 2; // whole sources, dump, summary
+pub const MAX_MEMBERS: usize = COUNT + 3; // whole sources, dump, crash.txt, summary
 pub const PACKED_BYTES: u64 = 16 * 1024 * 1024; // log local headers + data + central records
 pub const INPUT_BYTES: u64 = 256 * 1024 * 1024; // source bytes read, including failed attempts
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;
@@ -249,4 +252,92 @@ pub unsafe fn recent(
         recent.saturating_sub(COUNT)
     );
     selected
+}
+
+/// The code page the game writes its log in, and where that came from. The
+/// engine's `core::preinitialize` (0.26g 0xE3C10) sets the C locale from its
+/// `-localization`: original and russian `.1251`, english `.1252`, polish
+/// `.1250`; any other leaves the "C" locale, whose wide-to-narrow conversion
+/// (the log's `%S`, e.g. the audio device names) writes Latin-1 bytes. With
+/// no `-localization` the option keeps its default, "original" (its static
+/// initializer 0x84E3E0 sets the string at 0x21E75E0; the parser 0xDDEB0 only
+/// overwrites it when the option is given): cp1251. So the transcoder only
+/// ever sees single-byte code pages, where no lead byte can swallow an ASCII
+/// byte of a credential label.
+pub unsafe fn code_page() -> (u32, &'static str) {
+    const KEY: &[u8] = b"-localization=";
+    let line = GetCommandLineW();
+    let mut n = 0;
+    while !line.is_null() && *line.add(n) != 0 {
+        n += 1;
+    }
+    let line = if line.is_null() {
+        &[][..]
+    } else {
+        core::slice::from_raw_parts(line, n)
+    };
+    let Some(at) = line.windows(KEY.len()).position(|w| same(w, KEY)) else {
+        return (1251, "the game's default -localization (original)");
+    };
+    let value = &line[at + KEY.len()..];
+    let end = value
+        .iter()
+        .position(|&c| c == b' ' as u16 || c == b'\t' as u16 || c == b'"' as u16)
+        .unwrap_or(value.len());
+    let value = &value[..end];
+    let exact = |name: &[u8]| {
+        value.len() == name.len() && value.iter().zip(name).all(|(&c, &b)| c == b as u16)
+    };
+    if exact(b"original") || exact(b"russian") {
+        (1251, "the game's -localization")
+    } else if exact(b"english") {
+        (1252, "the game's -localization")
+    } else if exact(b"polish") {
+        (1250, "the game's -localization")
+    } else {
+        (28591, "the game's -localization (C locale)")
+    }
+}
+
+/// The UTF-16 between the two conversions: a line has at most LINE units.
+/// Captures are serialized (dump.rs), so one buffer serves every filter.
+struct Units(core::cell::UnsafeCell<[u16; crate::sanitize::LINE]>);
+unsafe impl Sync for Units {}
+static UNITS: Units = Units(core::cell::UnsafeCell::new([0; crate::sanitize::LINE]));
+
+/// sanitize::Transcode: `line[..len]` of `code_page` to UTF-8 in place.
+pub fn transcode(code_page: u32, line: &mut [u8], len: usize) -> Result<usize, u32> {
+    let len = len.min(line.len());
+    unsafe {
+        let units = &mut *UNITS.0.get();
+        let wide = MultiByteToWideChar(
+            code_page,
+            MB_ERR_INVALID_CHARS,
+            line.as_ptr(),
+            len as i32,
+            units.as_mut_ptr(),
+            units.len() as i32,
+        );
+        if wide <= 0 {
+            return Err(crate::sanitize::ERROR_UNSAFE_TEXT);
+        }
+        let n = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            units.as_ptr(),
+            wide,
+            line.as_mut_ptr(),
+            line.len() as i32,
+            core::ptr::null(),
+            null_mut(),
+        );
+        if n <= 0 {
+            return Err(if GetLastError() == ERROR_INSUFFICIENT_BUFFER {
+                crate::sanitize::ERROR_LONG_LINE
+            } else {
+                crate::sanitize::ERROR_UNSAFE_TEXT
+            });
+        }
+        Ok(n as usize)
+    }
 }

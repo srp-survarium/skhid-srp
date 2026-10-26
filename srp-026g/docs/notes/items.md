@@ -16,7 +16,7 @@ The code: `crates/survarium/src/v026g/modifications.rs` (data),
 |---|---|---|
 | `gameplay/items/modifications/modifications.options` | 158 `modifications`, 20 `defects`, 3 `defect_slots` | client: `id`, `modifiers`, `ui_desc`, `lobby_info`, a defect's `fix_cost_general` / `fix_cost_gold` / `fix_time_general` (loader 0x2C9E31.., strings at 0xA02264..). **Server only:** `drop_weight`, `type_mask`, `type_requirements_mask`, `required_modifications`, `defect_slots` (none of these strings is in the exe) |
 | `gameplay/items/craft/craft.options` | `craft_price_general[16]`, `craft_price_premium[16]`, `craft_probabilities_general[3][2]`, `craft_probabilities_premium[3][2]` | server only; the lobby gets them in 0x9B |
-| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
+| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 (not used: [flat-reroll.md](flat-reroll.md)) | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
 | every item config | `available_modifications_mask` (40 characters), `available_defects_mask` (20), `default_modifications[]`, `camo_available`, `decal_available` | client: the last three (0x2C97B7, 0x287703, 0x28777D). The two masks are server only |
 
 PROVEN by the data:
@@ -178,7 +178,7 @@ srp's reading of what only the server knew:
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
-| each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
+| every change of an item costs the same: the level's price, `reroll_modificator_multiplicator` (1.1) not used (until then each change made the next 1.1 times dearer, a GUESS) | the owner's rule of 2026-10-25 ([flat-reroll.md](flat-reroll.md)) |
 | the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's | [srp] |

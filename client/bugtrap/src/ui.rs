@@ -1,10 +1,14 @@
-use crate::{crash_text, notice_text::language, text::Wide};
+use crate::{crash_text, details, notice_text::language, report::Report, text::Wide};
 use core::{fmt::Write, ptr::null_mut};
 use windows_sys::Win32::{
     Foundation::*,
     Globalization::GetUserDefaultUILanguage,
     Graphics::Gdi::*,
-    System::SystemServices::*,
+    System::{
+        DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
+        Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock},
+        SystemServices::*,
+    },
     UI::{Controls::*, Shell::ShellExecuteW, WindowsAndMessaging::*},
 };
 
@@ -51,7 +55,7 @@ unsafe fn bug_icon(small: bool) -> HICON {
 
 #[repr(C, align(4))]
 struct Template {
-    data: [u16; 1024],
+    data: [u16; 2048],
     n: usize,
 }
 struct DialogData {
@@ -63,6 +67,11 @@ struct DialogData {
     filename: *const u16,
     have_dump: bool,
     text: &'static crash_text::Text,
+    /// The short details the dialog shows, and what "Copy" copies.
+    details: *const u16,
+    clip: *const [u16],
+    /// The non-ASCII folder warning, or empty.
+    warning: *const u16,
 }
 
 impl Template {
@@ -118,12 +127,25 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 font.lfQuality = ANTIALIASED_QUALITY;
                 data.font = CreateFontIndirectW(&font);
                 if !data.font.is_null() {
-                    for id in [1030, 1031, 1034, 1035, 1036, 1037, 1038, 1013, IDCANCEL] {
+                    for id in [
+                        1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1041, 1042, 1013, IDCANCEL,
+                    ] {
                         SendDlgItemMessageW(window, id, WM_SETFONT, data.font as usize, 1);
                     }
                 }
             }
             SetDlgItemTextW(window, 1031, data.message);
+            SetDlgItemTextW(window, 1040, data.details);
+            SetDlgItemTextW(window, 1042, data.warning);
+            // Aligned with the static text above and below it.
+            SendDlgItemMessageW(
+                window,
+                1040,
+                EM_SETMARGINS,
+                (EC_LEFTMARGIN | EC_RIGHTMARGIN) as usize,
+                0,
+            );
+            tighten(window);
             if data.have_dump {
                 SetDlgItemTextW(window, 1034, data.filename);
                 SetDlgItemTextW(window, 1035, data.folder);
@@ -131,6 +153,9 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 for id in [1034, 1035, 1037, 1038] {
                     ShowWindow(GetDlgItem(window, id), SW_HIDE);
                 }
+                // No file: the instructions take the File and Folder rows' place.
+                let slack = place(window, 1036).top - place(window, 1037).top;
+                lift(window, &[1039, 1036, 1033, 1013, 1041, IDCANCEL], slack);
             }
             data.icon = bug_icon(false);
             data.small_icon = bug_icon(true);
@@ -148,7 +173,8 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             }
             1
         }
-        WM_CTLCOLORSTATIC if matches!(GetDlgCtrlID(lp as HWND), 1030..=1032 | 1034..=1039) => {
+        WM_CTLCOLORSTATIC if matches!(GetDlgCtrlID(lp as HWND), 1030..=1032 | 1034..=1040 | 1042) =>
+        {
             SetTextColor(wp as HDC, GetSysColor(COLOR_WINDOWTEXT));
             SetBkColor(wp as HDC, GetSysColor(COLOR_WINDOW));
             GetSysColorBrush(COLOR_WINDOW) as isize
@@ -251,6 +277,20 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             }
             1
         }
+        WM_COMMAND if wp as u16 == 1041 => {
+            let data = &*(GetWindowLongW(window, DWL_USER as i32) as *const DialogData);
+            if copy(window, &*data.clip) {
+                let mut label = Wide::<64>::new();
+                let _ = write!(label, "{}", data.text.copied);
+                SetDlgItemTextW(window, 1041, label.ptr());
+            } else {
+                // No clipboard: select the details for Ctrl+C.
+                let details = GetDlgItem(window, 1040);
+                SendMessageW(window, WM_NEXTDLGCTL, details as usize, 1);
+                SendMessageW(details, EM_SETSEL, 0, -1);
+            }
+            1
+        }
         WM_COMMAND if wp as u16 == IDCANCEL as u16 || wp as u16 == IDOK as u16 => {
             EndDialog(window, 0);
             1
@@ -262,7 +302,148 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
         _ => 0,
     }
 }
-pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
+/// The status line has room for four lines; with fewer, everything below it
+/// moves up by what is left over and the dialog is that much shorter.
+unsafe fn tighten(window: HWND) {
+    let message = GetDlgItem(window, 1031);
+    let mut bounds: RECT = core::mem::zeroed();
+    GetWindowRect(message, &mut bounds);
+    MapWindowPoints(null_mut(), window, (&mut bounds as *mut RECT).cast(), 2);
+    let mut text = [0u16; 1024];
+    let n = GetWindowTextW(message, text.as_mut_ptr(), text.len() as i32);
+    let mut needed = RECT {
+        left: 0,
+        top: 0,
+        right: bounds.right - bounds.left,
+        bottom: 0,
+    };
+    let dc = GetDC(message);
+    let old = SelectObject(dc, SendMessageW(message, WM_GETFONT, 0, 0) as HGDIOBJ);
+    DrawTextW(
+        dc,
+        text.as_ptr(),
+        n,
+        &mut needed,
+        DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX,
+    );
+    SelectObject(dc, old);
+    ReleaseDC(message, dc);
+    // A gap of 4 dialog units stays between the status and the details.
+    let mut gap = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 4,
+    };
+    MapDialogRect(window, &mut gap);
+    let slack = bounds.bottom - bounds.top - needed.bottom - gap.bottom;
+    if n == 0 || slack <= 0 {
+        return;
+    }
+    let width = bounds.right - bounds.left;
+    SetWindowPos(
+        message,
+        null_mut(),
+        0,
+        0,
+        width,
+        needed.bottom + gap.bottom,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+    lift(
+        window,
+        &[
+            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
+        ],
+        slack,
+    );
+}
+
+/// Where a control is, in the dialog's client coordinates.
+unsafe fn place(window: HWND, id: i32) -> RECT {
+    let mut r: RECT = core::mem::zeroed();
+    GetWindowRect(GetDlgItem(window, id), &mut r);
+    MapWindowPoints(null_mut(), window, (&mut r as *mut RECT).cast(), 2);
+    r
+}
+
+/// Moves the controls `ids` up by `slack` pixels (the white panel, 1039, gets
+/// that much shorter instead) and makes the dialog that much shorter.
+unsafe fn lift(window: HWND, ids: &[i32], slack: i32) {
+    if slack <= 0 {
+        return;
+    }
+    for &id in ids {
+        let control = GetDlgItem(window, id);
+        if control.is_null() {
+            continue;
+        }
+        let r = place(window, id);
+        // The white panel behind the text gets shorter; the rest moves up.
+        let (top, height) = if id == 1039 {
+            (r.top, r.bottom - r.top - slack)
+        } else {
+            (r.top - slack, r.bottom - r.top)
+        };
+        SetWindowPos(
+            control,
+            null_mut(),
+            r.left,
+            top,
+            r.right - r.left,
+            height,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+    let mut frame: RECT = core::mem::zeroed();
+    GetWindowRect(window, &mut frame);
+    SetWindowPos(
+        window,
+        null_mut(),
+        frame.left,
+        frame.top + slack / 2,
+        frame.right - frame.left,
+        frame.bottom - frame.top - slack,
+        SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+}
+
+/// Puts `text` on the clipboard as Unicode text.
+unsafe fn copy(window: HWND, text: &[u16]) -> bool {
+    const CF_UNICODETEXT: u32 = 13;
+    if OpenClipboard(window) == 0 {
+        return false;
+    }
+    let mut ok = false;
+    if EmptyClipboard() != 0 {
+        let memory = GlobalAlloc(GMEM_MOVEABLE, (text.len() + 1) * 2);
+        if !memory.is_null() {
+            let p = GlobalLock(memory).cast::<u16>();
+            if !p.is_null() {
+                core::ptr::copy_nonoverlapping(text.as_ptr(), p, text.len());
+                *p.add(text.len()) = 0;
+                GlobalUnlock(memory);
+                ok = !SetClipboardData(CF_UNICODETEXT, memory).is_null();
+            }
+            if !ok {
+                GlobalFree(memory);
+            }
+        }
+    }
+    CloseClipboard();
+    ok
+}
+
+/// `path`: the kept dump (ZIP or `.dmp`), or with none the text report, or
+/// empty. `capture`: the last dump error came from the capture itself.
+pub unsafe fn show(
+    path: &Wide<32768>,
+    saved: bool,
+    partial: bool,
+    error: u32,
+    capture: bool,
+    report: &Report,
+) {
     let text = crash_text::text(language(GetUserDefaultUILanguage()));
     let mut title = Wide::<128>::new();
     let _ = write!(title, "{}", text.title);
@@ -273,27 +454,40 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
         .map_or(0, |i| i + 1);
     let mut folder = Wide::<32768>::new();
     let _ = folder.wide(&path.buf[..split]);
+    let failure = details::failure(capture, error);
     let _ = write!(
         message,
         "{}",
-        if saved {
-            text.saved
-        } else if partial {
-            text.partial
-        } else {
-            text.failed
-        }
+        crash_text::status(text, saved, partial, failure)
     );
     if !saved {
-        let _ = write!(message, "\r\n({} {error})", text.error);
+        let _ = write!(message, "\r\n({} ", text.error);
+        let _ = details::write_code(&mut message, error);
+        let _ = write!(message, ")");
     }
-    let instructions = if saved || partial {
+    let have_file = path.len > 0;
+    let instructions = if have_file {
         text.instructions
     } else {
         text.no_file
     };
+    // The details: shown in short, copied for Discord as a code block.
+    let mut short = Wide::<512>::new();
+    let _ = write!(short, "{}", report.short.as_str());
+    let mut clip = Wide::<17000>::new();
+    let head = core::str::from_utf8(&report.text.buf[..report.head]).unwrap_or("");
+    let _ = write!(clip, "```\r\n{head}```");
+    // A game folder with non-ASCII letters: one more line, below the details.
+    let game = crate::dump::folder();
+    let mut warning = Wide::<512>::new();
+    if details::needs_simple_path(&game.buf[..game.len]) {
+        let _ = write!(warning, "{}", text.simple_path[0]);
+        let _ = details::write_short_path(&mut warning, &game.buf[..game.len], 60);
+        let _ = write!(warning, "{}", text.simple_path[1]);
+    }
+    let extra: u16 = if warning.len > 0 { 30 } else { 0 };
     let mut t = Template {
-        data: [0; 1024],
+        data: [0; 2048],
         n: 0,
     };
     t.dword(
@@ -306,21 +500,23 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
             | DS_CENTER as u32,
     );
     t.dword(0);
-    t.word(12);
+    // The number of controls below.
+    t.word(if extra != 0 { 15 } else { 14 });
     t.word(0);
     t.word(0);
     t.word(380);
-    t.word(166);
+    t.word(200 + extra);
     t.word(0);
     t.word(0);
     t.text(text.title);
     // Match IDD_SIMPLE_DLG in the original BugTrap.rc. The white panel is
-    // taller to fit our persistent dump location and local-reporting text.
+    // taller to fit our persistent dump location, the crash details and the
+    // local-reporting text.
     t.word(8);
     t.text("Tahoma");
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        [0, 0, 380, 132],
+        [0, 0, 380, 166 + extra],
         1039,
         0x82,
         "",
@@ -341,66 +537,90 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX,
-        [35, 27, 338, 26],
+        [35, 27, 338, 34],
         1031,
         0x82,
         "",
     );
+    // The details, selectable: the exception and where it happened.
+    t.control(
+        WS_CHILD | WS_VISIBLE | (ES_LEFT | ES_MULTILINE | ES_READONLY) as u32,
+        [35, 63, 338, 26],
+        1040,
+        0x81,
+        "",
+    );
+    if extra != 0 {
+        t.control(
+            WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX,
+            [35, 93, 338, 26],
+            1042,
+            0x82,
+            "",
+        );
+    }
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        [35, 58, 38, 8],
+        [35, 93 + extra, 38, 8],
         1037,
         0x82,
         text.file,
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP | SS_NOPREFIX | SS_ENDELLIPSIS,
-        [75, 58, 298, 8],
+        [75, 93 + extra, 298, 8],
         1034,
         0x82,
         "",
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        [35, 70, 38, 8],
+        [35, 105 + extra, 38, 8],
         1038,
         0x82,
         text.folder,
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP | SS_NOPREFIX | SS_PATHELLIPSIS,
-        [75, 70, 298, 8],
+        [75, 105 + extra, 298, 8],
         1035,
         0x82,
         "",
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX,
-        [35, 86, 338, 38],
+        [35, 119 + extra, 338, 42],
         1036,
         0x82,
         instructions,
     );
     t.control(
         WS_CHILD | WS_VISIBLE | SS_ETCHEDHORZ,
-        [0, 131, 380, 1],
+        [0, 165 + extra, 380, 1],
         1033,
         0x82,
         "",
     );
     t.control(
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | (BS_DEFPUSHBUTTON | BS_CENTER | BS_VCENTER) as u32,
-        [303, 143, 70, 16],
+        [303, 177 + extra, 70, 16],
         IDCANCEL as u16,
         0x80,
         text.close,
     );
     t.control(
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW as u32,
-        [7, 143, 86, 16],
+        [7, 177 + extra, 86, 16],
         1013,
         0x80,
         text.discord,
+    );
+    t.control(
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | (BS_PUSHBUTTON | BS_CENTER | BS_VCENTER) as u32,
+        [99, 177 + extra, 70, 16],
+        1041,
+        0x80,
+        text.copy,
     );
     let mut data = DialogData {
         message: message.ptr(),
@@ -409,8 +629,11 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
         small_icon: null_mut(),
         folder: folder.ptr(),
         filename: path.buf.as_ptr().add(split),
-        have_dump: saved || partial,
+        have_dump: have_file,
         text,
+        details: short.ptr(),
+        clip: &clip.buf[..clip.len],
+        warning: warning.ptr(),
     };
     let result = DialogBoxIndirectParamW(
         null_mut(),
@@ -428,9 +651,17 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
         }
     }
     if result == -1 {
-        if saved || partial {
+        if have_file {
             let _ = write!(message, "\r\n");
             let _ = message.wide(&path.buf[..path.len]);
+        }
+        if short.len > 0 {
+            let _ = write!(message, "\r\n\r\n");
+            let _ = message.wide(&short.buf[..short.len]);
+        }
+        if warning.len > 0 {
+            let _ = write!(message, "\r\n\r\n");
+            let _ = message.wide(&warning.buf[..warning.len]);
         }
         let _ = write!(message, "\r\n\r\n{}", text.manual);
         MessageBoxW(

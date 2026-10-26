@@ -45,6 +45,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 31 | Released 2026-10-23 13:10 UTC (tag `026g-rev31`, `main` c106d42). Shipped: #334 Modification window: hovering the item shows its stats tip; #332 Shop: a kit item's menu acts on that item (Modification refused on rev 30); #336 T16: Regeneration modification works, it is just small (findings + re-kit rows); #333 Research HUD: units under the timer from the first frame, below the respawn line; #339 Crouched steps fire: the moving crouch clips get the step event channel (T27); #340 Larkspur (Lifebone): active cooldown 15 s -> 45 s; #338 Lobby: Autorepair box gone, Autobuy on by default, larger loadout switcher, inventory loadout badges; #337 Protective mask (1816) is just a mask: worn with a helmet (T28); #341 Master set: its camouflage net drawn as a normal alpha-tested material, not a glass-like forward one (T31); #225 Patch 42: dynamic anomalies as the release had them, on London and Cologne (exe, data, bots); #342 Match HUD: keys 1/2/3 pick a kit and Hide chat in match (patch 58, T29); #345 Take the dynamic anomalies (#225, patch 42) out of revision 31; #349 Lobby: Esc closes the topmost modal only, from one modal stack; #350 Esc follow-up to #349: box over results, invite Esc hides, craft search, loading, dropdown order; #352 Research: count captures in the player's own kit cell; #353 Research HUD: units back at rev 30's height. Without a server sha256 `cd3a02919d3da190b7f5aaad0fdfe237fa1f73e2759e8a54cd2ad49e1971220a`, with `--server=skhid.link:1234` `0c302c8c409fb7f061d63219d65e8ff730c4cb1d5f9aeea59d546d90ae514283`. The ZIP: 7101346 bytes, sha256 `e261c267733ee2794ddb47edc8c97b095cfa32addbb74314aed01b71845bdd36`; the server data: sha256 `f0c992ad35bb698d006891ac383af800e97204bffe99f250d56066557933e435`. Its content: `resources.db.patch_31` (54639459 bytes, sha256 `ba1428be44e4c161681780b9eff0e52755f370fd49fb8b0c929db6e0813fa6b2`) |
 | Revision 32 | Released 2026-10-25 12:14 UTC (tag `026g-rev32`, `main` 93726bd). Shipped: #356 Upgrade window: loadout badges on the item and donor slots; #368 Patch 62: F11 hides the whole interface (match and lobby); no-UI battery mode spec; #397 Bandages: hands and legs full, pain, body and head 35 %; #400 New accounts start with a starter kit; #408 Onyx nerf: -60 % for 3 s, +1 s for each other Onyx; #414 Artefacts: the carrier sees his own glow in first person; #423 Onyx: -75 % when active; #422 Rooms: the create window opens with its saved settings, preloaded; #424 Lobby card: stats over their scale show their real value; #418 Kill feed: wall, ricochet and pain-shock icons after the weapon (patch 67). Without a server sha256 `a74d42e802ca8fd71217d1872ce9b9ab9666ecbb0f549f2c462b2f1ce4ba158b`, with `--server=skhid.link:1234` `2cdc466b6c4ab576115a9b12b5340996db4d82a51a2e3c81976c3fe0a669ba5a`. The ZIP: 7103036 bytes, sha256 `b2c9e19dde9b851e1ab6028cf64f6100dbb051f26b8cb26ff5b286481c50b8e8`; the server data: sha256 `db598bc52d34ea95552f8d26bd55c78892d976c55c6d4ea6115caca23ae48c5b`. Its content: `resources.db.patch_32` (53353663 bytes, sha256 `1c65af3eea6a4edd65d61f278405b061d3e98fd78e4bb990880461c3874779ba`) |
 | Revision 33 | Released 2026-10-25 13:52 UTC (tag `026g-rev33`, `main` d4c60d1). Shipped: #436 Kill feed: a suicide row with the pain icon no longer empties the feed. Without a server sha256 `1f9caa52a72ab26ece2604f12f6a04982ab7c88ebc51670a6dc07d708dbeba2d`, with `--server=skhid.link:1234` `8de3a2cbfc966343a430344fa1b71c13f7300775f4ffe7cbacff969d36c1a501`. The ZIP: 7103036 bytes, sha256 `f3d43dbf94727d018997af5c778b922294e971416cf6eb358f40564108fdad01`; the server data: sha256 `38a5499906f7e74bcdd2689fab94e211b459d57c12c8efe6266e3cce6753bc68`. Its content: `resources.db.patch_33` (7634659 bytes, sha256 `e689f159a0a98528297f03a8f320b3d8af6803725811edd49e63cd498a16ef2e`) |
+| Revision 34 | Released 2026-10-25 18:43 UTC (tag `026g-rev34`, `main` ce26883). Shipped: #443 SOCOM 16 nerf: damage 70 -> 60, armour piercing 45 -> 40, equipment level 15; #444 Patch 72: falls gain speed for the time they fell, not per step of a split tick; #367 Research: capture timers and the units' markers on the screen; #450 Reroll: every modification change costs the same; #440 Patch 70: baked camouflage textures kept across games, made once, held for the game; #453 Network help: clearer "no connection" errors in every language, VPN.txt, firewall script; #456 SVD at equipment level 15; #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate); #458 Revert Research HUD markers (#367) for rev 34. Without a server sha256 `a9832c0c19a00eec6ddb1943451778088524eee250b9c5ce95a5f20c410fc0aa`, with `--server=skhid.link:1234` `e7d680c9fd72c439d66a833f5824fb87e417d89dc960aab335ab40a83a6d4061`. The ZIP: 7115226 bytes, sha256 `45ca6b342c7dd558723a571e05f03603a75fb95aa63d3683f442f20b100e8a37`; the server data: sha256 `228c7d34bcaf358636eab09c9ff6cb98b5abfeecfe720ab815f1bac5f9e92e95`. Its content: `resources.db.patch_34` (2072159 bytes, sha256 `4e791036d7aac333c4ecc9ea2104acc944d1e9d015fbc6b9e0216a8c7033190c`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -92,7 +93,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
-| `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
+| `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
+| `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
@@ -105,11 +108,13 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
+| `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
+| `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -160,14 +165,43 @@ self-test's, the release's: `release/build-zip` builds in the dev shell)
 links from source and stops if the bytes are not the lock's. After changing
 an arena source: `python link_026g.py --write` and commit the lock with it.
 
+**A Rust crate as a source** (the framework: `../docs/notes/rust_patches.md`):
+a block may name a crate's `Cargo.toml` (its name, its `[lib]` path and the
+crates it names by `path`; nothing else of it is read). The link builds it
+with the dev shell's nightly **rustc alone, offline** (no cargo:
+`-Zbuild-std` resolves the standard library's whole workspace and needs
+crates.io): `core` from the toolchain's rust-src and an empty
+`compiler_builtins`, once a toolchain, into `srp-026g/target-arena/
+sysroot-<key>`; then the path crates as rlibs and the crate as a staticlib,
+all for `i686-unknown-linux-gnu` with `-C relocation-model=static -C
+target-cpu=pentium4 -C opt-level=s -C panic=abort -C codegen-units=1`, fat
+LTO, no debug information, paths remapped. It takes the crate's one object
+out of the archive (a symbol it would need from `compiler_builtins` is an
+undefined symbol, which the link refuses) and checks it as any other
+object. Its build's files (the crate, the crates it names by path, what it
+`include!`s) are the source's digest. The rustc version is in the lock's
+`built_with`.
+
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
-`INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
-asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62) and the kill feed's flags (patch 67) are the arena's blocks today. The older fixed sections stay as they are
-(client_patch.md 0.3 says what moving one would take).
+`INSTALLS` (below); `python link_026g.py --write`. A Rust patch:
+`../docs/notes/rust_patches.md`. The arena's blocks today (`python
+link_026g.py --sizes` prints their bytes, pages and languages):
+
+| Block | Patch | Language |
+|---|---|---|
+| `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
+| `artefacts.code` | 54, the artefacts | NASM |
+| `engine.code` | the engine-function library | NASM (generated) |
+| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
+| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
+| `kill_feed.code` | 67, the kill feed's flags | NASM |
+| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
+| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
+
+The older fixed sections stay as they are (client_patch.md 0.3 says what
+moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -2094,13 +2128,16 @@ player's own head bone "brain", the attacker the player). The input builder
 (`process_first_person_mode`, 0x241250) never asks for action 1Fh, so no
 input ever had bit 24.
 
-**The patch.** Only in the builds with the late join; `suicide_key_026g.asm`,
-40 bytes at `.srp`+980h (after the pickup code, before the seek code), one
-site: the builder's last action call (spot, `call 0x242460` at 0x242196)
-calls it first. It asks `action_present` for action 1Fh with the same
-arguments and sets bit 24 when the key went down (one input, as spot), then
-goes on to the original call. K while alive in a match: the player dies at
-the input's tick, in every game.
+**The patch.** Only in the builds with the late join; the Rust patch
+`suicide_key` (the framework's example, `../docs/notes/rust_patches.md`), a
+`call` hook in the arena's block `patches.code` (until the framework, 40
+bytes of NASM at `.srp`+980h). One site: the builder's last action call
+(spot, `call 0x242460` at 0x242196) becomes a call of the generated entry,
+which hands `suicide_key::on_spot` the call's typed arguments and an
+`Original` of `action_present`. The handler asks `action_present` for action
+1Fh and sets bit 24 when the key went down (one input, as spot), then does
+the spot query the site wanted (`orig.call`) and returns its answer. K while
+alive in a match: the player dies at the input's tick, in every game.
 
 **Why the games agree.** Bit 24 is an ordinary input bit: the player's game
 applies it at once, the server relays it as it relays every input, every
@@ -2117,7 +2154,8 @@ time is a death's. No server rule is added. `../docs/notes/client_patch.md`
 section 3.32 has the proof.
 
 Checked: `selftest_026g.py` check 35 (and check 15's layout of `.srp`'s
-first page); `check_suicide_key_026g.py` runs the original's and the
+first page); `cargo test` and `cargo clippy --all-targets` in `rust/` (i686);
+`check_suicide_key_026g.py` runs the original's and the
 build's last action call with the game's own event buffer code on made-up
 handlers: K down sets bit 24 and nothing else, K repeated, released or held
 from before does not, spot answers as in the original, nothing else of the
@@ -3402,6 +3440,83 @@ the parts in another order, no head pool) with the game's own part lookup: the n
 original's but +5; the handler's five arguments; the row's members (penetration_icon,
 ricochet_icon, pain_icon, then mastery_icon) against the original's mastery_icon alone, with the
 registers and the frame as the original's. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
+
+### 70. The baked camouflage and decal textures are kept, and baked or loaded once while asked for again (the next release's revision)
+
+Players' short freezes in matches at a steady frame rate (2026-10-25, revision 33). The rules:
+`../docs/notes/baked-textures.md`; the evidence: `client_patch.md` 3.57.
+
+**Why.** The camouflage/decal baker draws an item's camouflage and decals into textures and
+saves them as `user_data/streamed_textures/<name>.dds`; its list of what it saved lets a later
+query load the file. Stock, the game deletes the folder at its start and its exit (`game::game`
+0x1E9455 and `game::exit` 0x1EC832, SHFileOperationA FO_DELETE), and the list lives in memory
+only. So every game bakes every item it sees, in a match when a player with an unseen kit comes
+in: 5 to 30 ms each (bake, compress, CRC, save), a burst of 6 to 50 back to back. A texture goes
+into the list only when its bake is done, so the player objects of one player (one for each of
+three kits, often wearing the same items) bake the same textures 2 or 3 times: the owner's first
+match baked 115 textures into 62 files. Revision 32's starter kit (#400: three kits wearing the
+same items for every new account) makes each newcomer cost three times the same bakes.
+
+**The patch** (with the late join; bake_cache_026g.asm and .c in the arena's blocks
+bake_cache.code and .state):
+- `game::game`'s delete (`call 0x1E8DA0` at 0x1E9455) calls `bake_cache_start`. The folder is
+  deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
+  it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
+  its header says) goes back into the baker's list with CRC 0, at most 512 files and 512 MB; the
+  rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
+- check_loaded_baked_texture's CRC compare (0x131C90) calls `bake_cache_adopt`: a record of CRC 0
+  takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
+- translate_query's look-up (`call 0x131ED0` at 0x12D4CD) calls `bake_cache_lookup`. The first
+  query of a path owns it. A later query of the path while it is under way waits: it leaves
+  translate_query by its own end (0x12D42D), with no look-up, no bake and no load, and holds a
+  reference to its model instance.
+- When the owner's texture is made, process_compression (0x12F18F, a bake) and
+  on_baked_texture_loaded (0x12DDB4, a load) call `bake_cache_baked` / `bake_cache_loaded` in place
+  of `call 0x420789` (`lea eax,[ecx+8]`, which they then do). Each waiting query gets the texture in
+  its surface's slot, a resource as on_baked_texture_loaded makes one, and finish_query with
+  success. This happens only if the texture is in the owner's slot.
+- finish_query's entry (0xF0D00) jumps to `bake_cache_finish`. An owner that ends any other way
+  (an error, a requery, a texture not in its slot) has its waiting queries made again
+  (translate_query) after its own finish. Any other query goes straight to the function. An owner
+  still listed after 10 s (GetTickCount) is taken over by the next query of its path, its waiting
+  queries with it.
+- A texture loaded from the folder is held for the game (one reference more; at most 256 of them and
+  256 MB of their files, the least used let go). A later query of its path (a respawn rebuilds the
+  player's model: the owner's log read one player's armour again at every respawn) gets it at once in
+  `bake_cache_lookup`, with no file read, no CRC and no new texture, and leaves translate_query
+  finished.
+- The game's CRC-32 step (0x42050: a byte a step through the table 0x1C210 makes, polynomial
+  04C11DB7h reflected), which every bake runs over its whole DDS (process_compression 0x12F340) and
+  every load over the file read (0x3C0FF0), 1.4 to 5.6 MB each, jumps to `bake_cache_crc32`: the same
+  value eight bytes a step (slice by 8, tables made once from EDB88320h), the registers as the
+  original leaves them. Measured on the owner's game, the CRC was most of a bake burst's stall
+  (16:37:47, 0.4 s); here 3.25 instructions a byte against 11.
+- The stamp is written only when no `.dds` is left after the delete (one held open by another game
+  is not deleted): otherwise the next start deletes the folder again.
+
+Textures only; games with and without it play together. Sites: 0x1E9455 (CALLEE), 0x131C90
+(INLINE), 0x12D4CD, 0x12F18F, 0x12DDB4 (CALLEE), 0xF0D00 (ENTRY); no base relocation under them,
+no branch into them.
+
+**Checked:** `selftest_026g.py` check 70 (the sites' original code, the hooks, the nop, no
+relocation or branch inside, the link's code). `check_bake_cache_026g.py` (Unicorn) runs every
+site from the game's code on the game's own static baker:
+- the folder: kept and back in the list, a file cut short and the files past 512 deleted;
+  deleted and stamped for another revision, no stamp, or no folder; the original deletes it every
+  time;
+- the game's own check_loaded: a kept file's first load is used and takes the CRC read;
+- the look-up: the original bakes twice; the build makes a second and third query wait, and lets
+  another path, another type and a 17th query go on;
+- the texture made by a bake and by a load: given to the waiting queries;
+- an owner's error, and a texture not in its slot: the waiting queries made again;
+- an owner listed for over 10 s: taken over by the next query, which serves the waiting one;
+- a held texture: a respawn's query gets it at once with no look-up; past 256 MB the least used
+  goes;
+- a folder whose delete leaves a file: not stamped;
+- the CRC-32 step against the original on 24 buffers of 0 to 10 MB from unaligned starts with
+  random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
+- any other query's finish goes straight through.
+**Not run:** a game.
 
 ## Not ported, not done
 

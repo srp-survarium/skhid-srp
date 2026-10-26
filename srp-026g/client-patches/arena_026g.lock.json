@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 45500,
-  "sha256": "077dcc007fc181d30b29d910677ebf7e65bde17ec9b63e2910962b072c27bd80",
+  "size": 397313,
+  "sha256": "bb4d33a0e51275e018f06dba2fbb7ea3b407b8a26cea149682d746bb538b205d",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1230
+      "size": 1458
     },
     "match_keys.code": {
       "kind": "code",
@@ -48,9 +48,41 @@
       "kind": "code",
       "va": "0xa438000",
       "size": 444
+    },
+    "bake_cache.code": {
+      "kind": "code",
+      "va": "0xa439000",
+      "size": 4437
+    },
+    "bake_cache.state": {
+      "kind": "state",
+      "va": "0xa43b000",
+      "size": 99616
+    },
+    "patches.code": {
+      "kind": "code",
+      "va": "0xa454000",
+      "size": 78508
+    },
+    "patches.data": {
+      "kind": "data",
+      "va": "0xa468000",
+      "size": 153764
+    },
+    "patches.state": {
+      "kind": "state",
+      "va": "0xa48e000",
+      "size": 1
     }
   },
   "symbols": {
+    "SRP_DIAGNOSTICS": "0xa466418",
+    "__rodata_bake_cache_code": "0xa43a0e9",
+    "__rodata_hide_ui_code": "0xa4351e2",
+    "__rodata_kill_feed_code": "0xa438178",
+    "__rodata_match_keys_code": "0xa4330f1",
+    "__rodata_patches_code": "0xa465ff3",
+    "__rodata_research_code": "0xa42f2f9",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
@@ -59,6 +91,22 @@
     "artefacts_popup": "0xa431023",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
+    "bake_cache_adopt": "0xa43902a",
+    "bake_cache_baked": "0xa43909f",
+    "bake_cache_crc32": "0xa4391d6",
+    "bake_cache_finish": "0xa439304",
+    "bake_cache_loaded": "0xa4390c8",
+    "bake_cache_lookup": "0xa439040",
+    "bake_cache_start": "0xa439000",
+    "bc_crc_build": "0xa43a072",
+    "bc_crc_ready": "0xa43b000",
+    "bc_crc_tables": "0xa43b020",
+    "bc_lookup": "0xa439a84",
+    "bc_open": "0xa4394f1",
+    "bc_owners": "0xa43d020",
+    "bc_release_texture": "0xa4392b4",
+    "bc_stamp": "0xa4398cd",
+    "bc_take": "0xa439cf6",
     "chat_variable": "0xa434000",
     "controls": "0xa436000",
     "engine_accept_decal_edit": "0xa432460",
@@ -81,18 +129,24 @@
     "engine_log_passes": "0xa432300",
     "engine_malloc": "0xa432040",
     "engine_match_rule_base": "0xa432060",
+    "engine_material_pair": "0xa432530",
     "engine_model_instance_release": "0xa4323d0",
     "engine_mouse_ray": "0xa432440",
     "engine_movie_invoke": "0xa432150",
+    "engine_play_particle": "0xa432550",
     "engine_profile_assign": "0xa4322a0",
     "engine_profile_construct": "0xa4322c0",
     "engine_query_resources": "0xa4323a0",
+    "engine_ray_test": "0xa4324d0",
     "engine_register_cook": "0xa432130",
+    "engine_release_object": "0xa432510",
     "engine_setup_profile": "0xa432240",
     "engine_show_message": "0xa432180",
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
     "engine_unpack_decal_value": "0xa432400",
+    "engine_update_skeleton": "0xa432590",
+    "engine_user_data_directory": "0xa432580",
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
@@ -100,6 +154,13 @@
     "hide_ui_lobby": "0xa43511c",
     "hide_ui_match": "0xa435000",
     "hide_ui_reset": "0xa4350f0",
+    "hook_ragdoll_on_bones": "0xa4589da",
+    "hook_ragdoll_on_cull": "0xa458cc3",
+    "hook_ragdoll_on_eye": "0xa458d40",
+    "hook_ragdoll_on_held_item": "0xa458dff",
+    "hook_ragdoll_on_ray": "0xa4590de",
+    "hook_ragdoll_on_step": "0xa45a30a",
+    "hook_suicide_key_on_spot": "0xa4615f4",
     "kill_feed_event": "0xa438000",
     "kill_feed_row": "0xa43809f",
     "match_keys_chat": "0xa4330c3",
@@ -107,6 +168,12 @@
     "match_keys_keyboard": "0xa433000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
+    "ragdoll_on_bones": "0xa465e58",
+    "ragdoll_on_cull": "0xa465dfb",
+    "ragdoll_on_eye": "0xa465eb4",
+    "ragdoll_on_held_item": "0xa465f70",
+    "ragdoll_on_ray": "0xa465f10",
+    "ragdoll_on_step": "0xa465da0",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",
@@ -144,11 +211,13 @@
     "rr_reset": "0xa42d470",
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
-    "rr_write": "0xa42da9c"
+    "rr_write": "0xa42da9c",
+    "suicide_key_on_spot": "0xa465fd6"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
-    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024",
+    "rustc": "rustc 1.98.0-nightly (6368fd52c 2026-05-29)"
   }
 }
