@@ -794,6 +794,67 @@ adds: a bullet in a living player's hit model (the hook as the original exe's co
 ray again, the death knocked along it (the hip 0.8 m along the shot, an unshot death's none);
 its players have an inventory read for the kit's weight.
 
+## 13. 464d: the push proven, the opt-in trace, a little more cinematic (2026-10-26)
+
+The owner on 464c (PvB, bots): "it is almost perfect, maybe tiny changes to make it a bit more
+cinematic". 464c's model stays; this is the proof of its push and small tuning.
+
+**The killing shot's push applies (PROVEN, static and Unicorn).**
+- **The speed it reads:** `[bullet+1Ch]` is the bullet's velocity, its segment's start. The
+  bullet's ctor 0x32BA60 writes the fire velocity (EAX) to +1Ch and +34h (0x32BA8E, 0x32BAAC;
+  the self-test's check 76). change_trajectory 0x32EE20 writes a pierce's or a ricochet's new
+  velocity to both and counts the segment; `check_ragdoll_026g.py` runs it from the original
+  exe and reads them back. compute_parabolic_velocity 0x32C950 reads +34h and takes the air's
+  drag off it (+6Ch, the ammo's `air_resistance`): over a tick the drag is small, so the push is
+  the segment's start speed (464c's "LIKELY" is settled).
+- **The mass:** `[bullet+40h]` is the ammo's data. The ctor checks it against the weapon's
+  +53Ch at 0x32BB53, and it has the ammo's `combat_log_icon` at +50h, the kill feed's weapon
+  icon (patch 67, client_patch.md). `[[bullet+40h]+14h]` is the ammo's `mass`.
+- **Bots:** a bot is a place of the match like a player, driven by the server's inputs
+  (`player_bots.md` section 1). Its player object, hit model and `[[player+498h]+12Ch]` are a
+  player's, so its hits are matched the same way.
+- **The trace says it in game:** the opt-in build below writes each living hit's mass, speed
+  and push, and each death's.
+
+**The opt-in diagnostics** (`patch_026g.py ... --ragdoll-trace`; a local build only, never a
+release's: release/build-zip does not pass it, and the self-test checks the default build has
+it off). The data's `RAGDOLL_TRACE` is 0x4F464600 in every build and 1 in this one; then the
+step writes lines to `srp_ragdoll.csv` in the user data folder (Documents\survarium, the
+game's own `get_user_data_directory` 0x18BD0) through the game's CreateFileA and WriteFile:
+- `hit,time,place,mass kg,speed m/s,push N s`: each bullet in a living player, when the step
+  gives it to its place;
+- `death,time,place,cause (0 none, 1 body, 2 head, 3 blast),hits,push N s,knock m/s,mass kg,
+  speed m/s,legs,waist,neck,arms`: each ragdoll's start, its muscles' strength then.
+- The Unicorn check runs the build with it on: the hit (place 0, 0.02 kg, 800 m/s, 12.8 N s)
+  and its death (a body shot, one hit, 12.8 N s, 0.34 m/s, 79.6 kg with the test kit, the
+  muscles at 0.91); with it off nothing is opened.
+
+**The tuning** (`crates/ragdoll/src/tuning.rs`):
+
+| constant | 464c | 464d | what |
+|---|---|---|---|
+| `NECK_DECAY` | 0.25 s | 0.30 s | the head follows the clip a little longer |
+| `DEATH_KNOCK` | 3.0 | 3.5 | the killing hit's push on the part hit |
+| `BODY_KNOCK_MAX` | 1.2 m/s | 1.6 m/s | the whole body's knock-back from it |
+| `DEATH_VELOCITY_SHARE` | (none) | 0.7 | the body's speed at the death carried into the ragdoll |
+| `DEATH_VELOCITY_MAX` | (none) | 7 m/s | at most |
+
+- **The speed at the death:** the step now keeps each place's motion while alive (its
+  transform's place, the velocity smoothed over two frames, a jump of 2 m a frame is a
+  teleport); a death carries 0.7 of it. In 464c a running body lost its speed at the death (the
+  simulation moves a dead player only by its clip's root motion), so it dropped where it died.
+- **Not changed:** `WAIST_DECAY` (0.25). Already at 0.28 a body shook on the battery in the
+  rest test, and a violent fall pulled joints 7 cm apart.
+
+**Renders:** 464c left, 464d right: the front, side and head shots, a sniper's round in the
+chest, and a rifle round from the front into a body running forward at 5 m/s, the body
+carrying its speed. Files `ragdoll464d-vs-464c.mp4`, `.slow4x.mp4`, `.gif` (`render_dump5`).
+
+**Tests:** `cargo test -p ragdoll` 32 (7 opt-in): 464c's (the 60 s rest on five surfaces, no
+stilts, the fall's direction, the kit, the rounds), and a running body carrying its momentum,
+the start report. The Unicorn check adds +1Ch from change_trajectory, the trace, a running
+player's death (the hip 1.8 m on, a standing one's 0.15 m).
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
@@ -816,6 +877,7 @@ its players have an inventory read for the kit's weight.
 | 0x301CB0 | `victory_item_core::activate_physics`: group 0A18h, mask 418h | abi, inferred |
 | 0x332440 | `ammo_data::load`: the ammo config's `data` (+14h mass, +3Ch muzzle_speed) | abi, abi_inputs, inferred |
 | 0x2FC6E0 | `inventory::update_weight`: the slots, an item's weight and count | abi, abi_inputs |
+| 0x18BD0 | `engine_world::get_user_data_directory` (the trace's folder) | abi, inferred |
 
 Already in the kit and used above: 0x338330 dead state activate, 0x3383E0 / 0x338430 /
 0x3384E0 its serialize / deserialize / end, 0x2474A0 mt_draw, 0x1F77E0 game_world::tick,
