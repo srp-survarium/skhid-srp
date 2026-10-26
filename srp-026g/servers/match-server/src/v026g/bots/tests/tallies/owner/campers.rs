@@ -333,6 +333,7 @@ impl OwnerTally {
             self.campers.kills_seen = 0;
         }
         let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.resupply.kills.extend(new_kills.iter().copied());
         self.campers.kills_seen = game.kill_log.len();
         self.campers.last_kill = game.kill_log.last().copied();
         for (t, shooter, victim) in new_kills {

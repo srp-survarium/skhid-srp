@@ -6,6 +6,16 @@ use crate::v026g::bots::traps::{Habit, TrapKit};
 /// for `seconds`. `kit`: the traps it carries. Returns the bot's tick-by-tick
 /// actions, the pitch its body had at each, and the bots.
 fn run(kit: Option<TrapKit>, tuning: Tuning, seconds: u32) -> (Vec<(u32, u32, f32)>, Bots) {
+    run_with(kit, tuning, seconds, None)
+}
+
+/// [`run`], with an armed trap at `armed` in every world's objects section.
+pub(super) fn run_with(
+    kit: Option<TrapKit>,
+    tuning: Tuning,
+    seconds: u32,
+    armed: Option<Vec3>,
+) -> (Vec<(u32, u32, f32)>, Bots) {
     let world = soak_world();
     let teams = [0u8, 1];
     let mut bots = Bots::new(
@@ -61,6 +71,9 @@ fn run(kit: Option<TrapKit>, tuning: Tuning, seconds: u32) -> (Vec<(u32, u32, f3
                     bots.fixed(place, fix, Some(health));
                 }
                 bots.facts(facts);
+            }
+            if let Some(at) = armed {
+                bots.traps_from_world(&objects_with(at, 1, 1_000), clock);
             }
         }
         let (made, _) = bots.poll(Clock {
@@ -123,7 +136,7 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
 
 /// A world's objects section with one placed trap in it (the record
 /// `survarium::v026g::match_msgs::traps` reads) among other bytes.
-fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {
+pub(super) fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {
     let mut b = vec![0u8; 12];
     b.push(state);
     b.extend_from_slice(&u32::MAX.to_le_bytes());
@@ -164,10 +177,42 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     assert!(!bots.teams[0].trap_field.is_empty());
     // The other team's list stays empty: it is not their trap.
     assert!(bots.teams[1].knowledge.traps.all().is_empty());
-    // Fired: spent, the floors are open again.
+    // Fired: spent, the floors are open again; the team's trap went off,
+    // and nobody with a broken leg is near it.
     bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
     assert!(bots.teams[0].trap_field.is_empty());
+    assert_eq!(bots.own_trap_counts().fired, 1);
+    assert_eq!(bots.own_trap_counts().own_team_caught, 0);
     // A world without it: gone.
     bots.traps_from_world(&[0u8; 20], 60_000);
     assert!(bots.teams[0].knowledge.traps.all().is_empty());
+}
+
+/// A trap of the team that goes off with a broken-legged body of the same
+/// team near it is an own-team catch; with the legs whole, or the body far,
+/// it is not.
+#[test]
+pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_team_catch() {
+    let (_, mut bots) = run(None, Tuning::default(), 4);
+    let clock = Clock {
+        clock: 5_000,
+        time_left_s: 0.0,
+        total_s: 0.0,
+        playing: true,
+    };
+    let world = bots.tactics.as_ref().map(|t| t.world.clone());
+    let view = bots.tracker.view(&clock, &bots.tuning.kin, world.as_deref());
+    let at = view.place(0).unwrap().feet + Vec3::new(1.0, 0.0, 0.0);
+    // Legs whole: a trap went off, nobody caught.
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (1, 0));
+    // A broken leg beside it: caught. The other team's trap is not ours.
+    bots.bots[0].as_mut().unwrap().hurt.leg_broken = true;
+    bots.count_own_traps(5_000, &[(0, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (2, 1));
+    bots.count_own_traps(5_000, &[(1, at)]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (3, 1));
+    // Far from it: not caught.
+    bots.count_own_traps(5_000, &[(0, at + Vec3::new(30.0, 0.0, 0.0))]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (4, 1));
 }

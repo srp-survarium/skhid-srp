@@ -34,6 +34,45 @@ pub(super) const JUMP_WATCH_MS: u32 = 3_000;
 /// turns the view while the bot walks in.
 pub(super) const USE_LOOK_M: f32 = 2.5;
 
+/// A bot stepping out of a grenade's blast has arrived this near its floor, metres.
+const AVOID_ARRIVE_M: f32 = 0.8;
+
+/// What `grenade_threat::step` asks of the map: a line, and the floor out of a blast
+/// ([`Tactics::step_out`], over the floors the body may walk, the landings it gave up shut).
+struct BlastAround<'a> {
+    tactics: &'a Tactics,
+    stuck: &'a Stuck,
+    side: Option<i32>,
+    time: u32,
+    objective: bool,
+}
+
+impl grenade_threat::Surroundings for BlastAround<'_> {
+    fn sees(&self, from: Vec3, to: Vec3) -> bool {
+        self.tactics.world.sight.visible(from, to)
+    }
+
+    fn way_out(
+        &self,
+        me: &PlaceView,
+        blast: &grenade_threat::Blast,
+        reach_m: f32,
+    ) -> Option<Vec3> {
+        let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
+        let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
+        self.tactics.step_out(
+            from,
+            blast.rest,
+            blast.radius,
+            reach_m,
+            self.time,
+            self.side,
+            self.objective,
+            &hard,
+        )
+    }
+}
+
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
 /// and trigger, the play's legs and stance, the presses.
 /// Where a bot at `feet` with no goal of its own walks out of the zone it
@@ -262,6 +301,39 @@ pub(super) fn drive_tick(
         intent.pace = if legs.run { Pace::Run } else { Pace::Walk };
         intent.objective = false;
         intent.straight = false;
+    }
+    // [grenade_avoid] A grenade it knows of that lands or lies within its
+    // reach: out of the blast first, whatever the play wants (the reflex
+    // still aims and fires); `grenade_threat.rs`. The state is read while a
+    // grenade is listed or it is not unaware of the last one.
+    if tuning.avoid.grenade_avoid
+        && (!view.grenades.is_empty()
+            || !matches!(bot.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
+    {
+        let around = BlastAround {
+            tactics,
+            stuck: &bot.stuck,
+            side: bot.side,
+            time,
+            objective: intent.objective,
+        };
+        let tick = grenade_threat::Tick {
+            now: time,
+            me,
+            grenades: &view.grenades,
+        };
+        if let grenade_threat::Action::Go(to) =
+            bot.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
+        {
+            intent.go = Go::To {
+                at: to,
+                within_m: AVOID_ARRIVE_M,
+            };
+            intent.crouch = false;
+            intent.pace = Pace::Run;
+            intent.objective = false;
+            intent.straight = false;
+        }
     }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
