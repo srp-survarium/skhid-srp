@@ -1517,7 +1517,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
@@ -3779,7 +3778,8 @@ def rust_lohooks(original, image, before, patch, sites, exits=()):
     linked = P.arena()
     block = linked.blocks["patches.code"]
     sym = linked.symbols
-    hooks = [h for h in P.rust_hooks(original) if h[2].startswith(patch + "_")]
+    # its lohooks (a jump to the entry; a `call` hook of the patch is its own check's)
+    hooks = [h for h in P.rust_hooks(original) if h[2].startswith(patch + "_") and h[3] == 0xE9]
     check(sorted(h[0] for h in hooks) == sorted(sites),
           f"the Rust patch {patch}'s lohooks are at {', '.join(f'{va:#x}' for va in sorted(sites))} "
           f"(rust/patches/src/{patch}.toml, sites_026g.tsv)")
@@ -4122,8 +4122,8 @@ def test_artefacts(original, image, before):
 
 
 def test_match_keys(original, image, before):
-    """Check 58: the kit keys and the match chat option (patch 58,
-    MATCH_KEYS_HOOKS). check_match_keys_026g.py runs the three entries from
+    """Check 58: the kit keys and the match chat option (patch 58, the Rust
+    patch match_keys). check_match_keys_026g.py runs the three hooks from
     the game's sites on made-up objects."""
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
@@ -4147,6 +4147,9 @@ def test_match_keys(original, image, before):
           and popped(stock, 0x233810, 0x233BE0) == 4,
           "0x1F6845 is the game world's (0x1F67B0, made by game::game at 0x1E90A3, before query_base_resources "
           "0x1EC170 queries the configs) call of the hud's constructor, eax the game world, the hud pushed")
+    check(rows(stock, 0x1F684A, 6) == ["mov [ebp+0x1d88],ebx"],
+          "0x1F684A, right after it, is `mov [ebp+0x1d88],ebx`: the lohook there registers the variable once the "
+          "hud is made, as the asm did after its call")
     check(stock.read(0x262454, 10) == bytes.fromhex("6a00" "6a04" "53" "b8fc64a000") and cstr(0xA064FC) == b"g_private_messages_in_game"
           and stock.read(0x26245E, 5) == b"\xE8" + struct.pack("<i", 0x260E90 - 0x262463)
           and [m.start() for m in re.finditer(re.escape(struct.pack("<I", 0xA064FC)), original)] == [P.file_offset(0x26245A)]
@@ -4159,37 +4162,37 @@ def test_match_keys(original, image, before):
                                           "call 0x208ad0", "mov edx,[ebx+0x8]"]
           and popped(stock, 0x208AD0, 0x209224) == 0x14,
           "0x26B916 is process_incoming_text_message's call of add_message (0x208AD0, five arguments, `ret 14h`)")
+    rust_lohooks(original, image, before, "match_keys",
+                 {0x25CD41: ["cmp dword [ebp+0x10],byte +0x1", "jnz near 0x25cf0d"],
+                  0x1F684A: ["mov [ebp+0x1d88],ebx"]})
+    va, old, symbol, opcode = next(h for h in P.rust_hooks(original) if h[2] == "match_keys_on_add_message")
     linked = P.arena()
-    block = linked.blocks["match_keys.code"]
-    for va, old, symbol, opcode in P.MATCH_KEYS_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of match_keys.code) here")
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.MATCH_KEYS_HOOKS)]
-    hits = [h for va, old, _, _ in P.MATCH_KEYS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+    block = linked.blocks["patches.code"]
+    entry = linked.symbols[symbol]
+    new = P.hook_bytes(entry, va, old, 0, opcode)
+    check(va == 0x26B916 and old == bytes.fromhex("e8b5d1f9ff") and stock.read(va, len(old)) == old
+          == before.read(va, len(old)) and image.read(va, len(new)) == new and block.va <= entry < block.va + block.size,
+          f"{va:#x}: `call 0x208ad0` (add_message) in the original and the build without the late join, "
+          f"`call {entry:#x}` here ({symbol}, in patches.code)")
+    texts = [text for _, _, text in ndisasm(image.read(entry, 64), entry)]
+    shim = linked.symbols["hook_match_keys_on_add_message"]
+    check(texts[:13] == ["push ebp", "mov ebp,esp", "and esp,byte -0x10", "sub esp,byte +0xc",
+                         "push dword [ebp+0x18]", "push dword [ebp+0x14]", "push dword [ebp+0x10]",
+                         "push dword [ebp+0xc]", "push dword [ebp+0x8]",
+                         f"call 0x{shim:x}", "mov esp,ebp", "pop ebp", "ret 0x14"],
+          f"the entry {symbol} is RUST_CALL: add_message's five arguments to the shim ({shim:#x}), `ret 0x14` "
+          "as add_message pops")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82)
             if not va <= h < va + len(old) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+    check(not under and not hits, f"{va:#x}: no base relocation under it, and no branch aims inside it"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "match_keys.code")
-    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's match_keys.code ({len(code)} bytes)")
-    names = code.index(b"root.select_kit_key\0")
-    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
-    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
-                      and not block.va <= branch_target(t) < block.va + len(code)})
-    state = linked.blocks["match_keys.state"]
-    library = {linked.symbols["engine_movie_invoke"], linked.symbols["engine_cc_bool"]}
-    check(outside == sorted({*P.MATCH_KEYS_BACKS, 0x233810, 0x208AD0} | library)
-          and f"push dword {block.va + names:#x}" in texts and "push dword 0xa064fc" in texts
-          and "mov eax,0x9e7c4c" in texts and f"mov [{linked.symbols['chat_variable']:#x}],eax" in texts
-          and state.va <= linked.symbols["chat_variable"] < linked.symbols["hide_chat"] < state.va + state.size,
-          "it goes on in on_keyboard_action (0x25CD4B, 0x25CF0D), calls the hud's constructor (0x233810), the library's "
-          "Invoke and cc_value<bool> and nothing else, jumps to add_message (0x208AD0); it invokes "
-          "root.select_kit_key, names its variable \"g_private_messages_in_game\" as a cc_bool, both in "
-          "match_keys.state")
+    state = linked.blocks["patches.state"]
+    variable = [va for name, va, _, _ in linked.every if name.endswith("10match_keys9HIDE_CHAT")]
+    check("match_keys.code" not in linked.blocks and "match_keys.state" not in linked.blocks
+          and len(variable) == 1 and state.va <= variable[0] and variable[0] + 0x4A <= state.va + state.size,
+          "the asm's blocks match_keys.code and .state are gone; the option's variable is the patch's static "
+          "HIDE_CHAT (its command, its byte at +48h) in patches.state")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")
           and "public function pickByKey(index:uint)" in here("flash", "hud", "src", "survarium", "player",

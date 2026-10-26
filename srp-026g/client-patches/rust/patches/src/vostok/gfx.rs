@@ -1,11 +1,16 @@
 //! Scaleform GFx as the game's interface code uses it: a GFx value (24
 //! bytes: its object interface, its type, its data), and an object's member
 //! set through its interface, as the game's own `call [eax+14h]` does
-//! (Value::ObjectInterface::SetMember, engine row engine_gfx_set_member).
+//! (Value::ObjectInterface::SetMember, engine row engine_gfx_set_member); a
+//! movie's ActionScript method invoked (Movie::Invoke 0x511600, engine row
+//! engine_movie_invoke), the movie found through its owner as the game's
+//! interfaces find theirs ([[owner+108h]+4]).
 
 use core::ffi::CStr;
+use core::marker::PhantomData;
 
-use super::object::{read, write};
+use super::hook::Thread;
+use super::object::{Object, pointer, read, write};
 use crate::raw;
 
 /// A GFx value (Scaleform's `GFx::Value`, 18h bytes): the object interface
@@ -24,8 +29,12 @@ pub(in crate::vostok) struct Value {
 const _: () = assert!(size_of::<Value>() == 0x18);
 
 impl Value {
-    /// A value's type: an int (VT_Int).
+    /// A value's type: a bool (VT_Boolean; its value at +8, 0x2384E2).
+    pub const BOOL: u32 = 2;
+    /// An int (VT_Int).
     pub const INT: u32 = 3;
+    /// An unsigned int (VT_UInt).
+    pub const UINT: u32 = 4;
     /// The type's bits that say what it is (VTC_TypeMask: the convert bit
     /// and the low four; the managed bit 40h left out).
     const TYPE_MASK: u32 = 0x8F;
@@ -67,5 +76,61 @@ pub(in crate::vostok) unsafe fn set_int(value: *mut Value, int: u32) {
     unsafe {
         write(&raw mut (*value).kind, Value::INT);
         write(&raw mut (*value).data, int);
+    }
+}
+
+/// A movie of the game's interface (the hud's, the player icons', the
+/// lobby's): what Movie::Invoke takes in ECX.
+#[derive(Clone, Copy)]
+pub struct Movie<'t> {
+    movie: Object,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Movie<'t> {
+    /// Which movie this is (a new game world's is another), to tell it once.
+    pub fn id(&self) -> usize {
+        self.movie.ptr() as usize
+    }
+
+    /// Invokes the movie's `method` with one bool (Movie::Invoke 0x511600, no
+    /// result); whether the movie took it (it has that method: its root is
+    /// made).
+    pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
+        let argument = Value { interface: 0, kind: Value::BOOL, data: u32::from(value), rest: [0; 3] };
+        // SAFETY: a live movie on the hook's thread; the name is a C string and
+        // the one argument a GFx bool, as the game's own Invokes pass them.
+        let taken = unsafe {
+            raw::engine_movie_invoke(self.movie.ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
+                                     (&raw const argument).cast(), 1)
+        };
+        taken & 0xFF != 0
+    }
+
+    /// The movie of `owner` (a movie's owner: [[owner+108h]+4]), or none.
+    ///
+    /// # Safety
+    /// `owner` is a live movie owner (the hud's +8 or +10h, the lobby
+    /// menu's +690h), its slot 0 or a live slot.
+    pub(in crate::vostok) unsafe fn of_owner(owner: Object) -> Option<Movie<'t>> {
+        // SAFETY: the caller's.
+        let slot = unsafe { pointer(raw::movie_holder::view(owner.ptr())) }?;
+        // SAFETY: a live slot; its +4 is its movie or 0.
+        unsafe { pointer(raw::movie_view::movie(slot.ptr())) }.map(|movie| Movie { movie, thread: PhantomData })
+    }
+
+    fn invoke(&self, method: &CStr, result: *mut Value, args: &[Value]) {
+        // SAFETY: a live movie (of_owner's); Invoke reads the method's name
+        // and the arguments and writes the answer, all ours for the call.
+        unsafe {
+            raw::engine_movie_invoke(self.movie.ptr(), method.as_ptr().cast(), result.cast(), args.as_ptr().cast(),
+                                     args.len() as u32);
+        }
+    }
+
+    /// `method(value)`, an unsigned int, no answer.
+    pub fn invoke_uint(&self, method: &CStr, value: u32) {
+        let arg = Value { interface: 0, kind: Value::UINT, data: value, rest: [0; 3] };
+        self.invoke(method, core::ptr::null_mut(), core::slice::from_ref(&arg));
     }
 }

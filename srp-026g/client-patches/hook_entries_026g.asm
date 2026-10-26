@@ -410,6 +410,90 @@ kill_feed_on_mastery_icon_replay:
     db 0x8b, 0x4c, 0x24, 0x2c
     jmp 0x238157
 
+; 0x25cd41 game_world's on_keyboard_action (0x25CD00, thiscall, ebp its frame) after its Tab test, the key's kind (cmp dword [ebp+10h],1; jnz near 0x25CF0D): EDI the game world's input handler, [ebp+0Ch] the DirectInput key, [ebp+10h] the kind: lohook -> match_keys_on_kind_test
+global match_keys_on_kind_test
+extern hook_match_keys_on_kind_test
+match_keys_on_kind_test:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_match_keys_on_kind_test
+    mov edx, match_keys_on_kind_test_replay
+    cmp eax, 0
+    je match_keys_on_kind_test_go
+    mov edx, 0x25cd4b
+    cmp eax, 1
+    je match_keys_on_kind_test_go
+    ud2
+match_keys_on_kind_test_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+match_keys_on_kind_test_replay:
+    db 0x83, 0x7d, 0x10, 0x01
+    jnz near 0x25cf0d
+    jmp 0x25cd4b
+
+; 0x1f684a game_world::game_world right after its hud's constructor (call 0x233810 at 0x1F6845, before the configs run): mov [ebp+1D88h],ebx: lohook -> match_keys_on_hud_made
+global match_keys_on_hud_made
+extern hook_match_keys_on_hud_made
+match_keys_on_hud_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_match_keys_on_hud_made
+    mov edx, match_keys_on_hud_made_replay
+    cmp eax, 0
+    je match_keys_on_hud_made_go
+    mov edx, 0x1f6850
+    cmp eax, 1
+    je match_keys_on_hud_made_go
+    ud2
+match_keys_on_hud_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+match_keys_on_hud_made_replay:
+    db 0x89, 0x9d, 0x88, 0x1d, 0x00, 0x00
+    jmp 0x1f6850
+
+; 0x26b916 process_incoming_text_message's call of chat_handler::add_message: a line received: call -> match_keys_on_add_message (wraps engine_add_message 0x208ad0)
+global match_keys_on_add_message
+match_keys_on_add_message:
+    RUST_CALL hook_match_keys_on_add_message, 5, 20
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

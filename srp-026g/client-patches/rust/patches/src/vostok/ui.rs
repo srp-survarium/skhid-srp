@@ -3,12 +3,14 @@
 //! `player_icons.update_start` (update_player_icons' start, 0x23AA10: the ui
 //! its argument, by the site's ESP).
 
-use core::ffi::{CStr, c_void};
+use core::ffi::c_void;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
 use super::context::{Context, Reg};
+use super::gfx::Movie;
 use super::hook::Thread;
+use super::object::Object;
 use crate::raw;
 
 /// The hud, survarium::game_world_ui, as a hook's site has it.
@@ -44,48 +46,6 @@ impl<'t> GameWorldUi<'t> {
 /// # Safety
 /// `holder` is a movie holder or 0, alive on the hook's thread.
 unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
-    let holder = NonNull::new(holder as usize as *mut c_void)?;
-    // SAFETY: a holder's view is a movie view or 0, and a view's movie a GFx movie or 0.
-    let view = NonNull::new(unsafe { *raw::movie_holder::view(holder.as_ptr()) } as usize as *mut c_void)?;
-    let movie = NonNull::new(unsafe { *raw::movie_view::movie(view.as_ptr()) } as usize as *mut c_void)?;
-    Some(Movie { this: movie, thread: PhantomData })
-}
-
-/// A Scaleform movie the hud holds.
-pub struct Movie<'t> {
-    this: NonNull<c_void>,
-    thread: PhantomData<&'t Thread>,
-}
-
-/// A GFx value (Scaleform::GFx::Value, 24 bytes): its type at +4, a bool's
-/// value at +8 (0x2384E2).
-#[repr(C)]
-struct GfxValue {
-    object: u32,
-    kind: u32,
-    value: u32,
-    rest: [u32; 3],
-}
-
-const GFX_BOOL: u32 = 2;
-
-impl Movie<'_> {
-    /// Which movie this is (a new game world's is another), to tell it once.
-    pub fn id(&self) -> usize {
-        self.this.as_ptr() as usize
-    }
-
-    /// Invokes the movie's `method` with one bool (Movie::Invoke 0x511600, no
-    /// result); whether the movie took it (it has that method: its root is
-    /// made).
-    pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
-        let argument = GfxValue { object: 0, kind: GFX_BOOL, value: u32::from(value), rest: [0; 3] };
-        // SAFETY: a live movie on the hook's thread; the name is a C string and
-        // the one argument a GFx bool, as the game's own Invokes pass them.
-        let taken = unsafe {
-            raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
-                                     (&raw const argument).cast(), 1)
-        };
-        taken & 0xFF != 0
-    }
+    // SAFETY: the caller's: a live movie holder, its view a movie view or 0.
+    unsafe { Movie::of_owner(Object::at(holder)?) }
 }

@@ -183,3 +183,7 @@ extern engine_shared_string_destroy
 ; void engine_register_constant_binding(const void *binding, void *manager)
 ; 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4
 extern engine_register_constant_binding
+; void engine_add_message(void *handler, unsigned int channel, const void *body, const void *name, const void *tag)
+; 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_add_message

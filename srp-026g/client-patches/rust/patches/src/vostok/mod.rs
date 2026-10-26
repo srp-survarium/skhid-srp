@@ -27,6 +27,8 @@ pub mod camera;
 mod cell;
 pub mod clock;
 pub mod config;
+mod chat;
+pub mod console;
 mod context;
 pub mod draw;
 mod damage;
@@ -48,6 +50,7 @@ pub mod trace;
 pub mod types;
 pub mod world;
 mod ui;
+pub mod world_input;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches
@@ -60,6 +63,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::hook::{Handle, Out, Thread};
     #[allow(unused_imports)]
+    use super::chat::{Channel, ChatHandler, ChatText};
+    #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
     use crate::raw;
@@ -69,11 +74,13 @@ mod generated {
 pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
+pub use chat::{Channel, ChatHandler, ChatText};
 pub use damage::{BodyPart, PartName};
+pub use gfx::Movie;
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
 pub use keyboard::TabTest;
 pub use options::OptionsRead;
 pub use rt::c_u32;
-pub use ui::{GameWorldUi, Movie};
+pub use ui::GameWorldUi;

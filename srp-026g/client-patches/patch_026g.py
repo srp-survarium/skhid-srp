@@ -480,12 +480,13 @@ Patches:
   activation hint (0x25F9DD) shows once a press, for the active's time;
 - the keys 1, 2 and 3 pick kit 1, 2 and 3 while the kits are shown, and an
   option hides the other players' chat lines in a match (patch 58, with the
-  late join; docs/notes/match-hud-options.md). match_keys_026g.asm (the
-  arena's blocks match_keys.code and .state): the game world's
-  on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
-  movie's root.select_kit_key for a key 1 to 3 going down while the hud
-  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
-  registers a cc_bool named as the gameplay options' dead option 4
+  late join; docs/notes/match-hud-options.md). The Rust patch match_keys
+  (the arena's block patches.code; match_keys.toml, sites_026g.tsv
+  world_keyboard.kind_test, world.hud_made and chat.add_message): the game
+  world's on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes
+  the hud movie's root.select_kit_key for a key 1 to 3 going down while the
+  hud shows the cursor, and goes on as before; right after the hud's
+  constructor call (0x1F6845, at 0x1F684A) it registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
   player's line in a match while it is on (channels 3 and 5 to 9);
@@ -2019,30 +2020,23 @@ ARTEFACTS_SIZES = (
 )
 
 # The kit keys and the match chat option (patch 58, README; client_patch.md
-# section 3.53; the rules: ../docs/notes/match-hud-options.md):
-# match_keys_026g.asm in the arena's blocks match_keys.code and
-# match_keys.state (ARENA below), three entries:
+# section 3.53; the rules: ../docs/notes/match-hud-options.md): the Rust
+# patch match_keys (rust/patches/src/match_keys.toml), three hooks:
 # - the game world's on_keyboard_action 0x25CD00 at its kind's test,
-#   `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` at 0x25CD41 (after the Tab
-#   test; edi = its input handler): a key 1, 2 or 3 going down while the hud
-#   shows the cursor (the kits) invokes the hud movie's
-#   root.select_kit_key(kit), then the function goes on as before at
-#   0x25CD4B or 0x25CF0D (the key is not taken);
-# - the game world's constructor's `call 0x233810` (the hud's constructor)
-#   at 0x1F6845: the hud made, then a cc_bool named as the gameplay options'
-#   dead option 4 ("g_private_messages_in_game" 0xA064FC) registered on the
-#   option's byte, saved in user.cfg, before the configs run and the options
-#   look their variables up;
+#   `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` at 0x25CD41
+#   (world_keyboard.kind_test, a lohook that replays it; edi = its input
+#   handler): a key 1, 2 or 3 going down while the hud shows the cursor (the
+#   kits) invokes the hud movie's root.select_kit_key(kit), then the function
+#   goes on as before at 0x25CD4B or 0x25CF0D (the key is not taken);
+# - the game world's constructor right after its `call 0x233810` (the hud's
+#   constructor, 0x1F6845), at 0x1F684A (world.hud_made, a lohook): a cc_bool
+#   named as the gameplay options' dead option 4 ("g_private_messages_in_game"
+#   0xA064FC) registered on the option's byte, saved in user.cfg, before the
+#   configs run and the options look their variables up;
 # - process_incoming_text_message's `call 0x208AD0` (add_message) at
-#   0x26B916: with the option on, in a match, a player's line on a channel
-#   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
+#   0x26B916 (chat.add_message, a call hook): with the option on, in a match,
+#   a player's line on a channel the hud shows (3, 5..9) is dropped.
 # No base relocation is under a site and no branch aims inside one.
-MATCH_KEYS_HOOKS = (
-    (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
-    (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
-    (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
-)
-MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
@@ -2298,13 +2292,11 @@ INSTALLS = {
     0x312C03: (JUMP, "Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour piercing; `ret 0Ch`), "
                      "`cmp dword [ecx+280h],3` after its hit type test: onyx_hit, back at 0x312C0A with the "
                      "flags of that test, or `ret 0Ch`", None, None),
-    # the kit keys and the match chat option, patch 58 (in `.srpx`)
-    0x25CD41: (JUMP, "the game world's on_keyboard_action 0x25CD00, `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` "
-                     "(edi = its input handler): keyboard", None, None),
-    0x1F6845: (CALLEE, "the game world's constructor's call of the hud's (eax the game world, the hud): hud, "
-                       "which calls it and registers the chat option's variable", None, None),
+    # the kit keys and the match chat option, patch 58: the Rust patch match_keys
+    # (its lohooks 0x25CD41 and 0x1F684A are declared from its TOML, below)
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
-                       "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+                       "body, the name, the tag): match_keys (Rust `call` hook), which drops the line or "
+                       "gives it to add_message", None, None),
     # the key that hides the interface, patch 62 (in `.srpx`)
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
@@ -2525,8 +2517,6 @@ ARENA = (
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
-    ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
-    ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
@@ -3540,7 +3530,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + HIDE_UI_HOOKS \
                         + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):

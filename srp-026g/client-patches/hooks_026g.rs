@@ -156,6 +156,69 @@ pub extern "C" fn hook_kill_feed_on_mastery_icon(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- match_keys (patch 58) ----
+
+/// The entry `match_keys_on_kind_test` (0x25cd41, game_world's on_keyboard_action (0x25CD00, thiscall, ebp its frame) after its Tab test, the key's kind (cmp dword [ebp+10h],1; jnz near 0x25CF0D): EDI the game world's input handler, [ebp+0Ch] the DirectInput key, [ebp+10h] the kind) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_match_keys_on_kind_test(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `match_keys_on_kind_test` calls this, from the game's jump at 0x25cd41,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::match_keys::on_kind_test(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- match_keys (patch 58) ----
+
+/// The entry `match_keys_on_hud_made` (0x1f684a, game_world::game_world right after its hud's constructor (call 0x233810 at 0x1F6845, before the configs run): mov [ebp+1D88h],ebx) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_match_keys_on_hud_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `match_keys_on_hud_made` calls this, from the game's jump at 0x1f684a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::match_keys::on_hud_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- match_keys (patch 58) ----
+
+/// engine_add_message (0x208ad0), as the call hook at 0x26b916 wraps it.
+pub struct OrigAddMessage;
+
+impl OrigAddMessage {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, handler: &mut ChatHandler, channel: Channel, body: ChatText, name: ChatText, tag: ChatText) {
+        // SAFETY: engine_add_message at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_add_message(handler.ptr(), channel.0, body.ptr(), name.ptr(), tag.ptr()) }
+    }
+}
+
+/// The entry `match_keys_on_add_message` (0x26b916, process_incoming_text_message's call of chat_handler::add_message: a line received) calls this with
+/// engine_add_message's 5 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_match_keys_on_add_message(a0: u32, a1: u32, a2: u32, a3: u32, a4: u32) -> u32 {
+    // SAFETY: only the entry `match_keys_on_add_message` calls this, from the game's call at
+    // 0x26b916, on the game's thread; a0.. are engine_add_message's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut handler) = (unsafe { ChatHandler::from_raw(&thread, a0) }) else {
+        // a null ChatHandler never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_add_message(a0 as usize as *mut _, a1, a2 as usize as *const _, a3 as usize as *const _, a4 as usize as *const _) }; 0 };
+    };
+    let channel = Channel(a1);
+    let body = ChatText(a2);
+    let name = ChatText(a3);
+    let tag = ChatText(a4);
+    let orig = OrigAddMessage;
+    { crate::match_keys::on_add_message(&orig, &mut handler, channel, body, name, tag); 0 }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.

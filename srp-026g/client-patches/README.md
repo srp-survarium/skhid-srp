@@ -110,7 +110,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `rust/patches/src/match_keys.rs`, `match_keys.toml`, `check_match_keys_026g.py`, `port/equiv/match_keys.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the Rust patch `match_keys`: lohooks at `world_keyboard.kind_test` and `world.hud_made`, a call hook at `chat.add_message`, its variable the static `HIDE_CHAT` in `patches.state`; until the port, NASM in the blocks `match_keys.code` and `match_keys.state`); its check runs the three hooks from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `rust/patches/src/kill_feed.rs`, `kill_feed.toml`, `check_kill_feed_026g.py`, `port/equiv/kill_feed.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the Rust patch `kill_feed`, lohooks at the sites `killed_event.cause_icon` and `player_killed.mastery_icon`, in the block `patches.code`; until the port, NASM in the block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -194,10 +194,9 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
 | `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
-| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
 | `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
 | `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
-| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 67) | Rust, generated hook entries |
+| `patches.code`, `patches.state` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 58, 67), its zeroed statics | Rust, generated hook entries |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
 moving one would take).
@@ -3238,11 +3237,11 @@ handler hands keys to it, while the chat is typed in), so the movie cannot see 1
 itself. The kits are shown by the hud (`root.show_profiles_selector`, 0x2383B0) together with
 the cursor (`show_cursor` 0x23A930, the hud's +2DCh, the handler's +2E0h): on the death screen
 and before the start (patch 31). After its Tab test the function asks the kind at 0x25CD41
-(`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch jumps there to
-`match_keys_keyboard`, which for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
+(`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch's lohook there
+(`world_keyboard.kind_test`, which then replays the test), for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
 shown invokes the hud movie's `root.select_kit_key(0, 1 or 2)` (an unsigned int, as the hud's
-other calls on `[[[hud+8]+108h]+4]`), then goes on at 0x25CD4B (or 0x25CF0D for any other
-kind) as the original: the key is not taken, the player's handler gets it as before (a dead
+other calls on `[[[hud+8]+108h]+4]`), then the function goes on at 0x25CD4B (or 0x25CF0D for
+any other kind) as the original: the key is not taken, the player's handler gets it as before (a dead
 player sends no input, 0x1F7883). The movie (`HUD.select_kit_key`) does what a click on that
 kit's tab does (`ProfileSelector.pickByKey`: `tabPage.selectedIndex`, whose change calls
 `profile_changed` as a click's does), and nothing when the kits are not shown, the chat is
@@ -3254,8 +3253,8 @@ labelled "Disable private messages at the time of battle") names no console vari
 options' constructor finds no command of that name (0x260E90), the timeline greys the checkbox,
 and nothing reads it. The game world's constructor calls the hud's at 0x1F6845 (`game::game`
 makes the game world before it queries the configs, so before `startup.cfg` and `user.cfg` are
-run and before the options look their variables up); the patch calls `match_keys_hud` there,
-which calls the hud's constructor and then registers, once, a `cc_bool` of that name on a byte
+run and before the options look their variables up); right after that call (0x1F684A,
+`world.hud_made`, a lohook replaying `mov [ebp+1D88h],ebx`) the patch registers, once, a `cc_bool` of that name on a byte
 of its own, saved in `user.cfg` (`cc_value<bool>` 0x1DDB0 through the engine library, then the
 cc_bool vtable 0x9E7C4C, as the hud registers its own `show_quests_progress` at 0x2339C9). So
 the option is live and kept. The main menu enables its checkbox (where its timeline makes it,
@@ -3264,25 +3263,27 @@ the option is live and kept. The main menu enables its checkbox (where its timel
 ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою).
 A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the handler, the
 channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
-0x26B916; the patch calls `match_keys_chat` there, which with the option on, in a match (the
+0x26B916; the patch's call hook there (`chat.add_message`), with the option on, in a match (the
 handler's +0Dh, `set_mode`'s flag) and on a channel the hud shows (3 clan, 5 match, 6 and 7 the
-teams, 8 squad, 9) returns as add_message does without it; any other line goes to add_message.
+teams, 8 squad, 9) returns without calling it; any other line goes to add_message.
 Kept: the server's lines (0, 2), the general and private channels (1, 4: in a match
 add_message gives them to the lobby's movie), the player's own lines (the local echo, another
 call), and every line in the lobby.
 
-All three in the arena's blocks `match_keys.code` and `match_keys.state`
-(`match_keys_026g.asm`), with the late join. No address and no base relocation under the sites
-(0x25CD41 ten bytes, 0x1F6845 and 0x26B916 a `call` each); nothing aims inside them.
+All three are the Rust patch `match_keys` (`rust/patches/src/match_keys.rs`; the variable its
+static `HIDE_CHAT`, a `vostok::console::ConsoleBool`, in the block `patches.state`), with the late
+join; ported from `match_keys_026g.asm` with no change of behaviour, proven by
+`port/equiv/match_keys.py`. No address and no base relocation under the sites (0x25CD41 ten
+bytes, 0x1F684A six, 0x26B916 a `call`); nothing aims inside them.
 
 Rendering and input only: a kit choice goes as a click's; no row in
 `../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section
 3.53.
 
 Checked: `selftest_026g.py` check 58 (the three sites before and after, the code around them,
-the option's name used once, the block's code, exits, calls and data, the movies' and the
-manifest's parts) and the call shapes (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as
-their models; 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
+the option's name used once, the Rust hooks (the lohooks' entries and replays, the call
+hook's RUST_CALL entry, `ret 14h` as add_message), the variable in patches.state, the movies'
+and the manifest's parts) and the call shapes; `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
 the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie: Invoke with
 `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down with the cursor and the
 movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers, frame and

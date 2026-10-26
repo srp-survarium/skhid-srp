@@ -108,6 +108,8 @@ unsafe extern "stdcall" {
     pub fn engine_shared_string(text: *const u8) -> *mut c_void;
     /// 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly
     pub fn engine_shared_string_destroy(string: *mut c_void);
+    /// 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
+    pub fn engine_add_message(handler: *mut c_void, channel: u32, body: *const c_void, name: *const c_void, tag: *const c_void);
 }
 
 #[allow(dead_code)]
@@ -259,6 +261,12 @@ pub mod image {
 
     /// 0x9f9778 (u8): "uv_scrolling_parameters1" (g_stage's compile 0x1E0824)
     pub const UV_SCROLLING_PARAMETERS1_NAME: u32 = 0x9f9778;
+
+    /// 0x9e7c4c (u32): cc_bool's vtable, which the callers of cc_value<bool>'s constructor (0x1DDB0) write over its own (the hud's show_quests_progress, 0x2339E8)
+    pub const CC_BOOL_VTABLE: u32 = 0x9e7c4c;
+
+    /// 0xa064fc (u8): "g_private_messages_in_game", the gameplay options' option 4 (main_menu.swf's _no_in_batle), which names no console command in the original (options_item_base 0x260E90)
+    pub const PRIVATE_MESSAGES_OPTION: u32 = 0xa064fc;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -1401,5 +1409,68 @@ pub mod player_killed_frame {
     #[inline(always)]
     pub unsafe fn icons(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x105).cast() }
+    }
+}
+
+/// survarium::world_input_handler's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod world_input_handler {
+    use core::ffi::c_void;
+
+    /// +0x2e0 (u8): the game world's input handler's +2E0h, the hud's +2DCh: set while the hud shows the cursor (show_cursor 0x23A930), as it does with the kits (0x2383B0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn cursor(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x2e0).cast() }
+    }
+
+    /// +0xc (u32): the hud's +8 (the handler's hud at +4): its movie's owner, [[+8]+108h]+4 the movie the hud invokes
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn hud_movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::world_keyboard_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod world_keyboard_frame {
+    use core::ffi::c_void;
+
+    /// +0xc (u32): on_keyboard_action's [ebp+0Ch] (0x25CD00, ebp its frame): the DirectInput key
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_keyboard_frame.
+    #[inline(always)]
+    pub unsafe fn key(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x10 (u32): on_keyboard_action's [ebp+10h]: the key's kind, 1 down, 2 held, 3 up
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_keyboard_frame.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+}
+
+/// survarium::chat_handler's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod chat_handler {
+    use core::ffi::c_void;
+
+    /// +0xd (u8): set_mode's flag: in a match, its movie the hud (add_message 0x208AD0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::chat_handler.
+    #[inline(always)]
+    pub unsafe fn in_match(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xd).cast() }
     }
 }
