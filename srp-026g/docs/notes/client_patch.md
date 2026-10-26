@@ -590,16 +590,20 @@ is here at all before deciding whether to worry about it. Only the one file
 is checked, because the cheat leaves it behind and never removes it, so it
 also catches a PC where the cheat ran in an earlier session.
 
-- **The site** (`STALE_DLL`, full builds only, `stale_dll_026g.asm` at
-  `.srp`+E00h): `sign_in_on_connected` finishes the 12-byte version field
+- **The site** (full builds only; since the Rust port the Rust patch
+  `stale_dll`, `rust/patches/src/stale_dll.rs`, a lohook at the site
+  `sign_in.version_tail`, ported with no change of behaviour, proven by
+  `port/equiv/stale_dll.py`; once `stale_dll_026g.asm` at `.srp`+E00h):
+  `sign_in_on_connected` finishes the 12-byte version field
   with `mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889 (bytes 8..11 are 0,
-  eax being 0; byte 12 is the EULA flag). These two become `call` the cave
-  and a `nop`. The cave saves every register (`pushad`), asks Windows whether
+  eax being 0; byte 12 is the EULA flag). These two become a jump to the
+  generated entry and a `nop` (the asm: `call` the cave). The entry saves
+  every register, the Rust patch asks Windows whether
   `%TEMP%\shell_32.dll` exists (`GetTempPathA` through `GetProcAddress`,
   then `CreateFileA` with `OPEN_EXISTING` and no access, then `CloseHandle`;
   `kernel32.dll` and the two imports `CreateFileA`/`CloseHandle` are the
-  exe's own), restores them (`popad`), and does the two writes it replaced
-  with the flags in byte 8: `0x80` the check ran, `0x80 | 0x01` it ran and
+  exe's own), the entry restores them and replays the two writes with the
+  flags in EAX, so in byte 8: `0x80` the check ran, `0x80 | 0x01` it ran and
   the file exists. Every register but eax is as the game had it; the image
   may be rebased (call/pop-relative addressing, like the other caves).
 - **The field**: the text still ends at byte 6, so a server that reads only
@@ -622,13 +626,11 @@ also catches a PC where the cheat ran in an earlier session.
   too long for the name gives `0x80`. Every register but eax is kept, the
   stack is restored, and every handle opened is closed.
 - **Checked** (`selftest_026g.py` check 26, `test_stale_dll`): the two
-  instructions become the call and a nop (the build without the late join
-  keeps them); no relocation under them and no branch into them; the cave is
-  `stale_dll_026g.section.bin`, sits after the seek code and before the
-  late join without overlap, saves and restores every register, calls only
-  itself, the four imports and `GetTempPathA`, branches only inside itself,
-  and names only `kernel32.dll`, `GetTempPathA` and `shell_32.dll`. Check 11
-  works out byte 8 as the check's.
+  instructions become the jump to the generated lohook entry and a nop (the
+  build without the late join keeps them); no relocation under them and no
+  branch into them; the entry is the generated one, its replay the two
+  writes; the four import slots name those kernel32 functions and
+  `GetTempPathA` is not imported. Check 11 works out byte 8 as the check's.
 - **What it is not**: proof, and not a defence. A ported cheat that skips the
   `%TEMP%` DLL, or a player who deletes the file, leaves nothing to count.
 

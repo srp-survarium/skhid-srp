@@ -1,0 +1,11 @@
+# Patch 25: the sign-in reports a stale shell_32.dll in the temporary
+# folder. Only the decisions: which site, and the handler. The site (its VA
+# and span) is sites_026g.tsv's; kernel32 and the version field are
+# vostok's (vostok::kernel32, vostok::sign_in); the logic is stale_dll.rs.
+name = "stale_dll"
+patch = 25
+
+# the version field's last two writes: byte 8 the flags
+[[hook]]
+site = "sign_in.version_tail"
+handler = "on_version_tail"

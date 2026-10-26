@@ -164,6 +164,31 @@ pub unsafe fn engine_gfx_set_member(interface: *mut c_void, data: *mut c_void, n
     }
 }
 
+/// A kernel32 export the exe does not import: the module and the export's name, for
+/// GetModuleHandleA and GetProcAddress (vostok asks them at run time).
+#[allow(dead_code)]
+pub struct Proc {
+    pub module: &'static core::ffi::CStr,
+    pub name: &'static core::ffi::CStr,
+}
+
+/// kernel32.dll!GetTempPathA, not imported: its address from GetProcAddress at run time (stdcall): unsigned int engine_get_temp_path_a(unsigned int size, char *buffer)
+#[allow(dead_code)]
+pub const ENGINE_GET_TEMP_PATH_A: Proc = Proc { module: c"kernel32.dll", name: c"GetTempPathA" };
+
+/// kernel32.dll!GetTempPathA at `proc_address`, stdcall.
+///
+/// # Safety
+/// `proc_address` is GetProcAddress's answer (not null) for ENGINE_GET_TEMP_PATH_A.
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_temp_path_a(proc_address: *const c_void, size: u32, buffer: *mut u8) -> u32 {
+    unsafe {
+        let function: unsafe extern "stdcall" fn(u32, *mut u8) -> u32 = core::mem::transmute(proc_address);
+        function(size, buffer)
+    }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (kernel32, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -178,6 +203,10 @@ unsafe extern "C" {
     pub static engine_query_performance_frequency: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870118 (kernel32, stdcall): unsigned int engine_get_current_thread_id(void)
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87003c (kernel32, stdcall): void *engine_get_module_handle_a(const char *name)
+    pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (kernel32, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).

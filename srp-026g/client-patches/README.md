@@ -77,7 +77,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README |
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
-| `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
+| `rust/patches/src/stale_dll.rs`, `stale_dll.toml`, `port/equiv/stale_dll.py` | Patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`) as the Rust patch `stale_dll` (a lohook at `sign_in.version_tail`), and its equivalence spec against the asm it replaced |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
 | `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
@@ -1598,9 +1598,11 @@ to learn whether the cheat is here at all. The file is a good signal because
 the cheat never removes it, so it also marks a PC where the cheat ran before.
 
 Patch 25 sends `sign_in_on_connected`'s last two writes of the version field
-(`mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889) to `stale_dll_026g.asm`
-at 0xE00 of `.srp`, which asks Windows whether `%TEMP%\shell_32.dll` exists
-and does the two writes with the answer in byte 8: `0x80` the check ran,
+(`mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889) to the Rust patch
+`stale_dll` (`rust/patches/src/stale_dll.rs`, a lohook at the site
+`sign_in.version_tail`; ported from `stale_dll_026g.asm` with no change of
+behaviour, proven by `port/equiv/stale_dll.py`), which asks Windows whether
+`%TEMP%\shell_32.dll` exists and does the two writes with the answer in byte 8: `0x80` the check ran,
 `0x81` it ran and the file is there. The text still ends at byte 6 and the
 revision stays in byte 7, so older servers read the exe unchanged. The login
 server logs byte 8 as `cheat_flags` and warns on `0x01`. How it works and

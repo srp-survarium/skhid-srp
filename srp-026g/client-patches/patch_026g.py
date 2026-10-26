@@ -48,9 +48,8 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425000 snapshot_upload_026g.asm -o snapshot_upload_026g.section.bin
         nasm -f bin -DCAVE=0x325A60  snapshot_upload_026g.asm -o snapshot_upload_026g.hash-mismatch.bin
     (both .bin files are checked in; --bin=<file> names another one).
-    The stale shell_32.dll check comes from stale_dll_026g.asm:
-        nasm -f bin -DCAVE=0xA425E00 stale_dll_026g.asm -o stale_dll_026g.section.bin
-    (checked in). The mount of resources.db's patches comes from
+    The stale shell_32.dll check is the Rust patch stale_dll (the arena's
+    block patches.code). The mount of resources.db's patches comes from
     mount_patches_026g.asm:
         nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
     (checked in; STATE is 0x800 of the late join's state page, checked).
@@ -285,9 +284,10 @@ Patches:
   (shaders/masks lists no such macro for forward_base);
 - the sign-in reports a stale shell_32.dll in the temporary folder (patch
   revision 12, written as revision 13, client_patch.md section 3.25): sign_in_on_connected's
-  `mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889 become a call of
-  stale_dll_026g.asm at 0xE00 of `.srp`, which writes both, with byte 8 of
-  the version field 80h, or 81h when %TEMP%\\shell_32.dll exists;
+  `mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889 are the Rust patch
+  stale_dll's lohook (stale_dll.toml, sites_026g.tsv sign_in.version_tail),
+  which replays both, with byte 8 of the version field 80h, or 81h when
+  %TEMP%\\shell_32.dll exists;
 - "Watch replay" (patch revision 14, with the late join, client_patch.md
   section 3.27). The lobby's video_tutorial_link_clicked (0x28CDA0) opened
   whatever text the server's 9E put into the lobby client's link buffer with
@@ -678,7 +678,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # 12: the resources.db signature is not checked at all (DB_SIGNATURE below):
 # a retail archive and one with new files both start the game; the game
 # mounts resources.db.patch_<n> over resources.db (MOUNT_PATCHES below); and
-# the sign-in reports whether %TEMP%\shell_32.dll exists (STALE_DLL below),
+# the sign-in reports whether %TEMP%\shell_32.dll exists (the Rust patch stale_dll below),
 # in byte 8 of the version field. Nothing a match computes: 11 and 12 play
 # together. (Owner, 2026-10-16: this build is revision 12. The numbers 12
 # to 14 were used while it was written, never released: a 12 that started
@@ -929,18 +929,12 @@ MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
 
 # sign_in_on_connected 0x380800, where it finishes the 12-byte version field
 # (section 6 of client_patch.md): `mov [edi+8],eax` (bytes 8..11, eax 0) /
-# `mov [edi+0Ch],dl` (the EULA byte). Both become a call of
-# stale_dll_026g.asm and a nop; the code there does both after its check,
-# with the result in byte 8. It sits at STALE_DLL_OFFSET in the first page
-# of `.srp`, after the forward effect's scrolling (0xC00 to
-# 0xE00 held the never-released first revision 12's signature code); build() checks that they do not
-# overlap. The two instructions hold no address: no base relocation is
-# under them.
-STALE_DLL_VA = 0x380889
-STALE_DLL_OFFSET = 0xE00
-STALE_DLL_ENTRY = SECTION_VA + STALE_DLL_OFFSET
-STALE_DLL = (STALE_DLL_VA, bytes.fromhex("894708" "88570c"),
-             b"\xE8" + struct.pack("<i", STALE_DLL_ENTRY - STALE_DLL_VA - 5) + b"\x90")
+# `mov [edi+0Ch],dl` (the EULA byte). Both are the Rust patch stale_dll's
+# lohook (rust/patches/src/stale_dll.toml, sites_026g.tsv
+# sign_in.version_tail; until its port stale_dll_026g.asm at .srp+E00h):
+# its check sets EAX to the flags and the two writes are replayed, the
+# result in byte 8. The two instructions hold no address: no base
+# relocation is under them.
 
 # A kit chosen before the match starts is played at once (patch 31, README;
 # client_patch.md section 3.29; the rules: docs/notes/kit-change-before-start.md):
@@ -2217,7 +2211,6 @@ INSTALLS = {
     0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
     0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
     0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
-    0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
     0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
     0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
     0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
@@ -2992,7 +2985,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     REVISION_WITHOUT_LATE_JOIN; with it the game also checks no resources.db
     signature, mounts resources.db's patches (mount_patches_026g.section.bin),
     its sign-in says whether %TEMP%\\shell_32.dll exists
-    (stale_dll_026g.section.bin), and its transparent effects scroll as in
+    (the Rust patch stale_dll), and its transparent effects scroll as in
     0.29 (the Rust patch forward_scroll), and the lobby's link starts the
     updater for a replay link alone (replay_link_026g.section.bin), and an
     upgrade taken off names the item it comes off
@@ -3038,7 +3031,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     elif revision is None:
         revision = REVISION
     if late_join is not None:
-        stale_dll = open(stale_dll_bin(), "rb").read()
         mount_patches = open(mount_patches_bin(), "rb").read()
         state = late_join_state_va(late_join) + MOUNT_STATE_OFFSET
         if mount_patches[-4:] != struct.pack("<I", state):
@@ -3214,13 +3206,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, *DB_SIGNATURE)
         if neutralize_relocs(data, [(DB_SIGNATURE_VA, DB_SIGNATURE_VA + len(DB_SIGNATURE[1]))]):
             sys.exit("a base relocation under verify_sign's call")
-        patch(data, *STALE_DLL)
-        if neutralize_relocs(data, [(STALE_DLL_VA, STALE_DLL_VA + len(STALE_DLL[1]))]):
-            sys.exit("a base relocation under the version field's last two writes")
         kit_change = open(kit_change_bin(), "rb").read()
-        if STALE_DLL_OFFSET + len(stale_dll) > KIT_CHANGE_OFFSET \
-                or KIT_CHANGE_OFFSET + len(kit_change) > LATE_JOIN_OFFSET:
-            sys.exit("the shell_32.dll check and the kit change do not fit before the late join")
+        if KIT_CHANGE_OFFSET + len(kit_change) > LATE_JOIN_OFFSET:
+            sys.exit("the kit change does not fit before the late join")
         # The first instruction of each entry: `pushad`, `cmp dword
         # [esi+1F1C60h],3`, `call 0x23A1A0`, `cmp byte [ebp+33Ch],0`.
         view, alive, update = (offset for _, _, offset, _ in KIT_CHANGE_HOOKS[1:])
@@ -3336,9 +3324,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         weapon_draw = open(weapon_draw_bin(), "rb").read()
         if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET \
                 or WEAPON_DRAW_OFFSET + len(weapon_draw) > WARMUP_LOOK_OFFSET \
-                or WARMUP_LOOK_OFFSET + len(warmup_look) > STALE_DLL_OFFSET:
+                or WARMUP_LOOK_OFFSET + len(warmup_look) > KIT_CHANGE_OFFSET:
             sys.exit("the weapon preview's draw and the warmup look do not fit between the warmup camera's "
-                     "limits and the shell_32.dll check")
+                     "limits and the kit change")
         if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
@@ -3370,9 +3358,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             patch(data, *site)
             if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
                 sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
-        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > STALE_DLL_OFFSET \
-                or STALE_DLL_OFFSET + len(stale_dll) > LATE_JOIN_OFFSET:
-            sys.exit("the warmup camera's limits and the shell_32.dll check do not fit before the late join")
+        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
+            sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
         if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > PICKUP_OFFSET:
             sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
@@ -3511,7 +3498,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
             cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
-            cave = cave + b"\xCC" * (STALE_DLL_OFFSET - len(cave)) + stale_dll
             cave = cave + b"\xCC" * (KIT_CHANGE_OFFSET - len(cave)) + kit_change
             cave = cave + b"\xCC" * (LATE_JOIN_OFFSET - len(cave)) + late_join
             cave = cave + b"\xCC" * (WEAPON_PREVIEW_OFFSET - len(cave)) + weapon_preview
@@ -3659,10 +3645,6 @@ def replay_link_bin():
 
 def shared_upgrades_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared_upgrades_026g.section.bin")
-
-
-def stale_dll_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "stale_dll_026g.section.bin")
 
 
 def mount_patches_bin():

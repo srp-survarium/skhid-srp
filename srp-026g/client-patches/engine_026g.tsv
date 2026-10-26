@@ -59,3 +59,6 @@ engine_shared_string_destroy	0x0e0ae0	ESP+4:string	void engine_shared_string_des
 engine_register_constant_binding	0x3bccc0	EAX:binding ESP+4:manager	void engine_register_constant_binding(const void *binding, void *manager)	thunk	
 engine_gfx_set_member	0x677000	ECX:interface ESP+4:data ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(void *interface, void *data, const char *name, const void *value, unsigned int display)	virtual+0x14	
 engine_add_message	0x208ad0	ESP+4:handler ESP+8:channel ESP+12:body ESP+16:name ESP+20:tag	void engine_add_message(void *handler, unsigned int channel, const void *body, const void *name, const void *tag)	stdcall	handler: ChatHandler, channel: Channel, body: ChatText, name: ChatText, tag: ChatText
+engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
+engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import	
+engine_get_temp_path_a	kernel32.dll!GetTempPathA	-	unsigned int engine_get_temp_path_a(unsigned int size, char *buffer)	proc	

@@ -181,4 +181,10 @@ void engine_register_constant_binding(const void *binding, void *manager);
 /* 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly */
 void __attribute__((stdcall)) engine_add_message(void *handler, unsigned int channel, const void *body, const void *name, const void *tag);
 
+/* the IAT slot 0x87003c (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
+
+/* the IAT slot 0x870084 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
+
 #endif

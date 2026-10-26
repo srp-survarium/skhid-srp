@@ -364,6 +364,21 @@ pub extern "C" fn hook_spot_on_hit_owner(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- stale_dll (patch 25) ----
+
+/// The entry `stale_dll_on_version_tail` (0x380889, sign_in_on_connected 0x380800, the 12-byte version field's last writes (mov [edi+8],eax; mov [edi+0Ch],dl; EDI the field, EAX 0 for its bytes 8..11, DL the EULA byte; 0x38088F loads EAX again)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_stale_dll_on_version_tail(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `stale_dll_on_version_tail` calls this, from the game's jump at 0x380889,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::stale_dll::on_version_tail(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

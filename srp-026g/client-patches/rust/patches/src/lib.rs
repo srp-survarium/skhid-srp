@@ -39,5 +39,6 @@ pub mod kit_state;
 pub mod spot;
 pub mod ragdoll;
 pub mod blackout;
+pub mod stale_dll;
 pub mod suicide_key;
 pub mod weapon_random;

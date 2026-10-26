@@ -61,6 +61,8 @@ global engine_shared_string
 global engine_shared_string_destroy
 global engine_register_constant_binding
 global engine_add_message
+global engine_get_module_handle_a
+global engine_get_proc_address
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -75,6 +77,8 @@ engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 (unnamed): value ECX, compi
 engine_shared_string equ 0xe0b50   ; 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly
 engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly
 engine_add_message equ 0x208ad0   ; 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
+engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (kernel32, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (kernel32, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

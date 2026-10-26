@@ -857,6 +857,46 @@ spot_on_hit_owner_replay:
     db 0x8b, 0x49, 0x0c
     jmp 0x2d8a14
 
+; 0x380889 sign_in_on_connected 0x380800, the 12-byte version field's last writes (mov [edi+8],eax; mov [edi+0Ch],dl; EDI the field, EAX 0 for its bytes 8..11, DL the EULA byte; 0x38088F loads EAX again): lohook -> stale_dll_on_version_tail
+global stale_dll_on_version_tail
+extern hook_stale_dll_on_version_tail
+stale_dll_on_version_tail:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_stale_dll_on_version_tail
+    mov edx, stale_dll_on_version_tail_replay
+    cmp eax, 0
+    je stale_dll_on_version_tail_go
+    mov edx, 0x38088f
+    cmp eax, 1
+    je stale_dll_on_version_tail_go
+    ud2
+stale_dll_on_version_tail_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+stale_dll_on_version_tail_replay:
+    db 0x89, 0x47, 0x08
+    db 0x88, 0x57, 0x0c
+    jmp 0x38088f
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

@@ -187,3 +187,11 @@ extern engine_register_constant_binding
 ; 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_add_message
+; void *engine_get_module_handle_a(const char *name)
+; the IAT slot 0x87003c (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_module_handle_a
+; void *engine_get_proc_address(void *module, const char *name)
+; the IAT slot 0x870084 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_proc_address

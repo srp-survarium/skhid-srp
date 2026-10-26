@@ -137,17 +137,15 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     branch aims inside it): no resources.db signature is checked; the build
     without the late join keeps the original call.
 26. the same build: sign_in_on_connected's `mov [edi+8],eax` /
-    `mov [edi+0Ch],dl` (0x380889) are `call` stale_dll at 0xE00 of `.srp`
-    and a nop (no relocation under them, no branch aims inside them);
-    stale_dll_026g.section.bin is what nasm makes and sits there, after the
-    forward effect's scrolling and before the late join; it saves every
-    register (pushad / popad), calls itself once for its address, then
-    GetModuleHandleA, GetProcAddress, CreateFileA, CloseHandle through the
-    import table and GetTempPathA, branches only inside itself, does the two
-    writes it replaced and ends with `ret`; it names kernel32.dll,
-    GetTempPathA and shell_32.dll and nothing else. Check 11 works out its
-    field: byte 8 the check's. The build without the late join keeps the
-    original instructions.
+    `mov [edi+0Ch],dl` (0x380889) are the Rust patch stale_dll's lohook
+    (stale_dll.toml, the site sign_in.version_tail; no relocation under
+    them, no branch aims inside them): the generated entry, its replay of
+    the two writes and its way back; kernel32's import slots it uses
+    (GetModuleHandleA, GetProcAddress, CreateFileA, CloseHandle) name those
+    functions in the exe's import table, and GetTempPathA is not imported.
+    Check 11 works out its field: byte 8 the check's. The build without the
+    late join keeps the original instructions. check_stale_dll_026g.py runs
+    it (and port/equiv/stale_dll.py compared it with stale_dll_026g.asm).
 27. the same build: the mount of resources.db's patches (test_mount_patches).
 28. the same build: the transparent effects scroll as in 0.29 (patch 28,
     the Rust patch forward_scroll). The three sites (0x1D90DC and 0x1D94CB
@@ -568,13 +566,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.pickup_bin(), "rb").read(),
           f"{os.path.basename(P.pickup_bin())} is current ({len(fresh)} bytes)")
-    path = P.stale_dll_bin()
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.STALE_DLL_ENTRY:#x}",
-                        os.path.join(HERE, "stale_dll_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
     path = P.mount_patches_bin()
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.MOUNT_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
@@ -1318,6 +1309,7 @@ def test_server_options(original):
 # the byte after the field (client_patch.md section 6).
 VERSION_FIELD = (0x380847, 0x38088F)
 SIGN_IN_ON_CONNECTED = (0x3807D0, 0x380940)   # to `sign_in`
+STALE_DLL_SITE = 0x380889                      # sites_026g.tsv sign_in.version_tail (patch 25)
 REGISTERS = {"eax": ("eax", 4), "ax": ("eax", 2), "al": ("eax", 1),
              "ecx": ("ecx", 4), "cx": ("ecx", 2), "cl": ("ecx", 1),
              "edx": ("edx", 4), "dx": ("edx", 2), "dl": ("edx", 1)}
@@ -1373,9 +1365,9 @@ def version_field(image):
         elif m := to_field.match(text):
             for i, value in enumerate(get(m.group(2))):
                 out[int(m.group(1), 16) + i] = value
-        elif text == f"call {P.STALE_DLL_ENTRY:#x}":
-            # stale_dll_026g.asm: what `mov [edi+8],eax` / `mov [edi+0Ch],dl`
-            # did, with its flags in byte 8 (check 26).
+        elif address == STALE_DLL_SITE and branch_target(text) == stale_dll_entry():
+            # the Rust patch stale_dll's lohook: `mov [edi+8],eax` / `mov
+            # [edi+0Ch],dl` replayed, its flags in byte 8 (check 26).
             out[8:13] = ["stale_dll", 0, 0, 0] + get("dl")
         elif text not in ("nop", "add edi,esi"):
             check(False, f"{address:#x}: `{text}` is not an instruction of the version field's code")
@@ -2750,45 +2742,31 @@ def test_db_signature(original, image, before):
           "no base relocation under the call, no branch or address aims inside it" + "".join(f"\n          {a:#x}" for a in found))
 
 
+def stale_dll_entry():
+    """The generated entry of the Rust patch stale_dll's lohook."""
+    return P.arena().symbols["stale_dll_on_version_tail"]
+
+
 def test_stale_dll(original, image, before):
     r"""Check 26: the sign-in says whether %TEMP%\shell_32.dll exists."""
-    va, old, new = P.STALE_DLL
-    entry = P.STALE_DLL_ENTRY
-    check(image.read(va, len(new)) == new and before.read(va, len(old)) == old
-          and [text for _, _, text in ndisasm(image.read(va, 6), va)] == [f"call {entry:#x}", "nop"]
-          and [text for _, _, text in ndisasm(Image(original).read(va, 6), va)]
-          == ["mov [edi+0x8],eax", "mov [edi+0xc],dl"],
-          f"{va:#x}: `mov [edi+0x8],eax` / `mov [edi+0xc],dl` are `call {entry:#x}` / `nop`; "
-          "the build without the late join keeps them")
-    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    va = STALE_DLL_SITE
+    rust_lohooks(original, image, before, "stale_dll", {va: ["mov [edi+0x8],eax", "mov [edi+0xc],dl"]})
     start, end = SIGN_IN_ON_CONNECTED
-    found = aimed_inside(original, va, len(old), 0)
-    found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
-              if (target := branch_target(text)) is not None and va < target < va + len(old)]
-    check(not under and not found,
-          "no base relocation under the two instructions, no branch or address aims inside them"
+    found = [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
+             if (target := branch_target(text)) is not None and va < target < va + 6]
+    check(not found, "no branch of sign_in_on_connected aims inside the two instructions"
           + "".join(f"\n          {a:#x}" for a in found))
-    code = open(P.stale_dll_bin(), "rb").read()
-    check(image.read(entry, len(code)) == code, f"stale_dll at {entry:#x} is stale_dll_026g.section.bin")
-    strings = code[code.index(b"kernel32.dll\0"):]
-    listing = ndisasm(code[:len(code) - len(strings)], entry)
-    texts = [text for _, _, text in listing]
-    here = listing[2][0]
-    slots = {0x87003C, 0x870040, 0x870048, 0x870084}
-    calls = [text for text in texts if text.startswith("call")]
-    indirect = {int(m.group(1), 16) for text in calls
-                if (m := re.match(r"^call (?:dword (?:near )?)?\[ebp\+0x([0-9a-f]+)\]$", text))}
-    other = [text for text in calls if not re.match(r"^call (?:dword (?:near )?)?\[ebp\+0x", text)]
-    jumps = [branch_target(text) for text in texts if text.startswith("j")]
-    check(texts[:2] == ["pusha", f"call {here:#x}"]
-          and texts[-4:] == ["popa", "mov [edi+0x8],eax", "mov [edi+0xc],dl", "ret"]
-          and indirect == slots and other == [f"call {here:#x}", "call eax"]
-          and all(entry <= target < entry + len(code) for target in jumps),
-          "it saves every register (pushad / popad), calls itself once for its address, GetModuleHandleA, "
-          "GetProcAddress, CreateFileA and CloseHandle through the import table and GetTempPathA, "
-          "branches only inside itself, then does the two writes it replaced and returns")
-    check(strings == b"kernel32.dll\0GetTempPathA\0shell_32.dll\0",
-          "the names it holds are kernel32.dll, GetTempPathA and shell_32.dll, and nothing else")
+    table = imports(Image(original))
+    slots = {0x87003C: "GetModuleHandleA", 0x870040: "CloseHandle", 0x870048: "CreateFileA",
+             0x870084: "GetProcAddress"}
+    rows = {f["symbol"]: f for f in engine_026g.every_function()}
+    used = {rows[s]["va"] for s in ("engine_get_module_handle_a", "engine_close_handle", "engine_create_file_a",
+                                    "engine_get_proc_address")}
+    check(used == set(slots) and all(table.get(slot) == ("KERNEL32.dll", name) for slot, name in slots.items())
+          and "GetTempPathA" not in {function for _, function in table.values()}
+          and rows["engine_get_temp_path_a"]["name"] == "kernel32.dll!GetTempPathA",
+          "the import slots it uses are kernel32's GetModuleHandleA, CloseHandle, CreateFileA and GetProcAddress "
+          "(engine_026g.tsv), GetTempPathA is not imported (a proc row: GetProcAddress at run time)")
 
 
 # query_db and on_mounted_resources, for the branches of their own that
@@ -6070,7 +6048,6 @@ def test_late_join(original, without, server, source):
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
             (P.WARMUP_LOOK_OFFSET, P.warmup_look_bin, "the warmup look"),
-            (P.STALE_DLL_OFFSET, P.stale_dll_bin, "the shell_32.dll check"),
             (P.KIT_CHANGE_OFFSET, P.kit_change_bin, "the kit change"))] + [
         (P.LATE_JOIN_OFFSET, code, "the late-join code"),
         (P.WEAPON_PREVIEW_OFFSET, weapon_preview, "the weapon preview")]
@@ -6149,7 +6126,7 @@ def test_late_join(original, without, server, source):
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
-               (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
+               (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
