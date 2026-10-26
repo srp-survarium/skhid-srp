@@ -3433,6 +3433,7 @@ mod tests {
                 place: 0,
                 candidates: found.clone(),
                 current: None,
+                committed: false,
             }],
             s.view.clock,
         );

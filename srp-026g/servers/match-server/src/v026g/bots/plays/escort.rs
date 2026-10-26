@@ -279,6 +279,7 @@ mod tests {
                 place,
                 candidates: escorts(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         let out = assign(asking, s.view.clock);

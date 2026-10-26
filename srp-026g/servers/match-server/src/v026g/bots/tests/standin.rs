@@ -297,6 +297,8 @@ pub(crate) struct Game {
     /// run's loop counts those lying in zones on all match).
     pub(crate) zone_deaths: u32,
     pub(crate) zone_hp: f32,
+    /// The anomaly fields of the redesign, made by the bench ([`standin_fields`]); off unless `SRP_BENCH_LIVE_FIELDS`.
+    pub(crate) fields: standin_fields::FieldGen,
     /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
     /// the body's health at the end (enemy fire counts; a death, 0) and at
     /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
@@ -537,6 +539,7 @@ impl Game {
             drops: [0, 0],
             zone_deaths: 0,
             zone_hp: 0.0,
+            fields: standin_fields::FieldGen::from_env(&world, seed),
             zone_spells: Vec::new(),
             took_from: Vec::new(),
             take_alongs: Vec::new(),
@@ -1168,7 +1171,10 @@ impl Game {
     /// ([`Hazard::hit_per_s`], full intensity, before armour) over the tick
     /// while the zone is on (`on`: the bots' zones, their timing); at no
     /// health it dies where it stands and its battery falls there.
-    pub(crate) fn zone_tick(&mut self, inside: &Hazards, on: &Hazards) {
+    ///
+    /// `baked`: the map's zones hurt (`SRP_BENCH_ZONE_DAMAGE=1`); the anomaly fields of the generator
+    /// ([`Game::fields`]) hurt whenever it runs, whatever the bots know of them.
+    pub(crate) fn zone_tick(&mut self, inside: &Hazards, on: &Hazards, baked: bool) {
         let tick = self.tick;
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
@@ -1181,18 +1187,23 @@ impl Game {
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
                 continue;
             };
-            let per_s: f32 = inside
-                .zones_at(node)
-                .filter(|zone| {
-                    on.zones
-                        .iter()
-                        .find(|o| o.zone == zone.zone)
-                        .is_some_and(|o| o.activity.active(tick))
-                })
-                .map(Hazard::hit_per_s)
-                .sum();
+            let per_baked: f32 = if baked {
+                inside
+                    .zones_at(node)
+                    .filter(|zone| {
+                        on.zones
+                            .iter()
+                            .find(|o| o.zone == zone.zone)
+                            .is_some_and(|o| o.activity.active(tick))
+                    })
+                    .map(Hazard::hit_per_s)
+                    .sum()
+            } else {
+                0.0
+            };
+            let per_live = self.fields.hit_per_s_at(node);
             let body = &mut self.bodies[place];
-            let per_s = per_s * body.heal.toxic_factor(tick);
+            let per_s = (per_baked + per_live) * body.heal.toxic_factor(tick);
             if per_s <= 0.0 {
                 if let Some(spell) = body.zone_spell
                     && tick >= spell.last + SPELL_GAP_MS
@@ -1203,6 +1214,9 @@ impl Game {
                 continue;
             }
             let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            if per_live > 0.0 {
+                self.fields.stats.hp += hit * per_live / (per_baked + per_live);
+            }
             let spell = body.zone_spell.get_or_insert(ZoneSpell {
                 start: tick,
                 health: body.health,
@@ -1242,6 +1256,7 @@ impl Game {
             }
             let team = usize::from(body.team);
             self.zone_deaths += 1;
+            self.fields.stats.deaths += u32::from(per_live >= per_baked);
             self.stats[place].1 += 1;
             self.stats[place].2 = 0;
             if let Some(tickets) = self.tickets.as_mut() {
