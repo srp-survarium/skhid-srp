@@ -423,7 +423,7 @@ pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
     }
     for (place, body) in game.bodies.iter_mut().enumerate() {
         if let Some(Some(bot)) = bots.bots.get(place)
-            && let Some(kit) = bot.traps.kit()
+            && let Some(kit) = bot.features.traps.habit.kit()
         {
             body.trap.learn(kit, body.spawned);
         }
@@ -734,7 +734,7 @@ mod tests {
             game.bodies[place].feet = at;
         }
         bots.entered(0, true, 0);
-        bots.bots[0].as_mut().unwrap().traps = Habit::carry(TrapKit { count: 2, key: KEY });
+        bots.bots[0].as_mut().unwrap().features.traps.habit = Habit::carry(TrapKit { count: 2, key: KEY });
         // The team has known enemy humans all over this half of the field for a while.
         let mut who = 100;
         for x in (6..=42).step_by(6) {
@@ -773,7 +773,7 @@ mod tests {
                 // The body stands still once the habit has begun: it plans its spot from where the bot stands, and a
                 // walk of 2 m during the look (3 m/s for 0.6 s) puts the trap past the 1.5 m the team's list takes
                 // as the same (`trap_know::MATCH_M`): a finding for the habit, not for this model.
-                let placing = !matches!(bots.bots[0].as_ref().unwrap().traps.state(), crate::v026g::bots::traps::State::Idle);
+                let placing = !matches!(bots.bots[0].as_ref().unwrap().features.traps.habit.state(), crate::v026g::bots::traps::State::Idle);
                 let walk = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
                 let actions = if placing && made.place == 0 { made.input.actions & !walk } else { made.input.actions };
                 game.inputs[made.place].push_back((made.time, actions, turn, None, gun));
