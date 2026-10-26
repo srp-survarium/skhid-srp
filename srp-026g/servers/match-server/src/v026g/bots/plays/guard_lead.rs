@@ -242,6 +242,7 @@ impl Ctx<'_> {
             .into_iter()
             .map(|spot| spot.at)
             .filter(|&at| self.friends_near(at, num("apart_m")) == 0)
+            .filter(|&at| !self.spot_taken(at, super::goals::APART_M))
             .filter(|&at| last.is_none_or(|last| last.distance_xz(at) >= num("move_apart_m")))
             .collect();
         // The holder's: those facing the way a thief comes. None facing: any

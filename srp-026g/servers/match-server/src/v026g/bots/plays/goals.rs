@@ -12,6 +12,9 @@
 //!   (`know::Claim`, one a bot, made at every think): a spot choice drops a
 //!   spot within [`APART_M`] of a teammate's claim, and of two bots on one
 //!   spot the higher place gives way.
+//! - [`keep_apart`]: the one place a hold's intent is moved off a spot a
+//!   teammate of a lower place has claimed (two bots on one spot: the higher
+//!   place gives way, held [`YIELD_HOLD_MS`]).
 //! - [`repick_if_shut`]: a play holding a spot swaps it for another pick
 //!   only on that proof, and asks for the pick only then (a pick draws
 //!   from the bot's random stream, so asking it earlier would change every
@@ -21,7 +24,7 @@
 
 use mapdata::Vec3;
 
-use super::{Ctx, Go, Intent};
+use super::{Ctx, Go, Intent, Look, PlayKind};
 use crate::v026g::bots::view::PlaceView;
 
 /// How near another bot's claim on a spot (`know::Claim`) a spot may be,
@@ -36,6 +39,152 @@ pub const APART_M: f32 = 1.5;
 /// (the caller decides that: this is the bot-against-bot rule).
 pub fn yields_to(mine: usize, theirs: usize) -> bool {
     mine > theirs
+}
+
+/// A conflict (a claim of a lower place within [`APART_M`] of the point)
+/// must hold this long before the bot gives way, ms: a bot passing by is no
+/// conflict.
+pub const YIELD_PROOF_MS: u32 = 1_000;
+/// A point given way to is kept this long at least, ms (no flapping between
+/// two spots: Johnson, "Taming Spatial Queries").
+pub const YIELD_HOLD_MS: u32 = 5_000;
+/// The first seconds of a life are exempt, ms: the bots come out of a few
+/// spawn points.
+pub const SETTLE_MS: u32 = 8_000;
+
+/// The plays whose spots [`keep_apart`] moves: the holds, whose spot choices
+/// read the claims too.
+fn keeps_apart(kind: PlayKind) -> bool {
+    matches!(
+        kind,
+        PlayKind::Crossfire | PlayKind::Cut | PlayKind::HoldExit | PlayKind::GuardLead
+    )
+}
+
+/// What a bot remembers of giving way: since when a claim of a lower place
+/// has lain on its point, and the point it gave way to (with the point it
+/// gave up and until when it is kept at least).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Apart {
+    conflict_since: Option<u32>,
+    held: Option<Held>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Held {
+    gave_up: Vec3,
+    at: Vec3,
+    until: u32,
+}
+
+impl Apart {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+/// `intent` with its goal moved to `at`; a bot that was to stay walks to
+/// within `0.6` m of it.
+fn moved(intent: Intent, at: Vec3) -> Intent {
+    let within_m = match intent.go {
+        Go::To { within_m, .. } => within_m,
+        Go::Stay => 0.6,
+    };
+    Intent {
+        go: Go::To { at, within_m },
+        ..intent
+    }
+}
+
+/// The step's intent for a hold, moved off a spot a teammate of a lower place
+/// claims, and the point this bot claims now (its goal, or its feet when it
+/// stays). Exempt: other plays, a carrier, the first [`SETTLE_MS`] of a life,
+/// a point in a spawn area, an objective or a use, a straight walk.
+///
+/// Root cause (`push-record.md` S1, PROVEN from worlds): two teammates stood
+/// on one spot for seconds (188 of 621 both-still pairs within 0.5 m in
+/// nine matches): both chose in one pass, each seeing only the other's
+/// feet, and a standing body is not steered off another. The higher place
+/// gives way ([`yields_to`]) after [`YIELD_PROOF_MS`] of conflict, to the
+/// nearest free point 1.75-3 m off; the point is kept [`YIELD_HOLD_MS`] and
+/// longer while the claim still lies on the spot it gave up.
+pub fn keep_apart(cx: &Ctx, apart: &mut Apart, kind: PlayKind, intent: Intent) -> (Intent, Vec3) {
+    let point = match intent.go {
+        Go::To { at, .. } => at,
+        Go::Stay => cx.me.feet,
+    };
+    let exempt = !keeps_apart(kind)
+        || cx.me.carrying.is_some()
+        || cx.now.saturating_sub(cx.me.spawned) < SETTLE_MS
+        || intent.objective
+        || intent.straight
+        || intent.press != 0
+        || matches!(intent.look, Look::Use(_))
+        || cx.tactics.in_spawn_area(point, None)
+        || cx.tactics.in_spawn_area(cx.me.feet, None);
+    if exempt {
+        apart.reset();
+        return (intent, point);
+    }
+    // The claim of a lower place on a spot.
+    let lying_on = |spot: Vec3| {
+        cx.team
+            .claims_of_others(cx.me.place, cx.now)
+            .any(|c| yields_to(cx.me.place, c.who) && c.at.distance_xz(spot) < APART_M)
+    };
+    if let Some(held) = apart.held {
+        if cx.now < held.until || lying_on(held.gave_up) {
+            let until = held.until.max(cx.now + 1);
+            apart.held = Some(Held { until, ..held });
+            return (moved(intent, held.at), held.at);
+        }
+        apart.held = None;
+    }
+    if !lying_on(point) {
+        apart.conflict_since = None;
+        return (intent, point);
+    }
+    let since = *apart.conflict_since.get_or_insert(cx.now);
+    if cx.now < since + YIELD_PROOF_MS {
+        return (intent, point);
+    }
+    let Some(free) = free_point(cx, point) else {
+        return (intent, point);
+    };
+    apart.conflict_since = None;
+    apart.held = Some(Held {
+        gave_up: point,
+        at: free,
+        until: cx.now + YIELD_HOLD_MS,
+    });
+    (moved(intent, free), free)
+}
+
+/// The nearest to the bot of the points 1.75-3 m round `point`, on a floor a
+/// goal may be on, with a way, out of the spawn areas and clear of every
+/// claim of a teammate.
+fn free_point(cx: &Ctx, point: Vec3) -> Option<Vec3> {
+    let grid = &cx.tactics.world.grid;
+    [APART_M + 0.25, 2.25, 3.0]
+        .iter()
+        .flat_map(|&m| {
+            (0..8).map(move |k| {
+                let yaw = k as f32 * std::f32::consts::FRAC_PI_4;
+                Vec3::new(point.x + m * yaw.cos(), point.y, point.z + m * yaw.sin())
+            })
+        })
+        .filter_map(|p| grid.locate(p, 1.5).map(|n| grid.position(n)))
+        .filter(|p| (p.y - point.y).abs() < 1.0)
+        .filter(|&p| {
+            cx.tactics.fine_goal(p, cx.now, cx.bot.side)
+                && cx.can_go(p)
+                && !cx.tactics.in_spawn_area(p, None)
+                && !cx.spot_taken(p, APART_M)
+        })
+        .min_by(|a, b| {
+            a.distance_xz(cx.me.feet)
+                .total_cmp(&b.distance_xz(cx.me.feet))
+        })
 }
 
 /// Whether `list` (goals no way was found to, each with the time it is
@@ -223,6 +372,88 @@ mod tests {
         s.team.claim(3, spot, now);
         s.team.forget(3);
         assert!(!s.cx(0).spot_taken(spot, APART_M), "left the match");
+    }
+
+    /// Two holds on one spot: the higher place gives way after a second of
+    /// it, to a point clear of the claim, kept; the lower place keeps its spot.
+    #[test]
+    fn the_higher_place_gives_way_off_a_claimed_spot_after_a_second_and_keeps_to_it() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let spot = Vec3::new(30.0, 0.0, 30.0);
+        s.bot(1, 0, spot);
+        s.bot(2, 0, Vec3::new(30.5, 0.0, 30.0));
+        let mut apart = Apart::default();
+        let mut now = s.view.clock;
+        s.team.claim(1, spot, now);
+        let stay = Intent::stay();
+        // The first moment of the conflict: no move yet.
+        let (intent, claim) = keep_apart(&s.cx(2), &mut apart, PlayKind::HoldExit, stay);
+        assert_eq!(intent.go, Go::Stay);
+        assert!(claim.distance_xz(Vec3::new(30.5, 0.0, 30.0)) < 0.01);
+        // A second on, it gives way: to a point clear of the claim.
+        now += YIELD_PROOF_MS;
+        s.view.clock = now;
+        s.team.claim(1, spot, now);
+        let (intent, claim) = keep_apart(&s.cx(2), &mut apart, PlayKind::HoldExit, stay);
+        let Go::To { at, .. } = intent.go else {
+            panic!("did not give way: {intent:?}");
+        };
+        assert!(at.distance_xz(spot) >= APART_M, "{at:?}");
+        assert_eq!(claim, at);
+        // Kept while the claim lies on the spot it gave up, past the hold.
+        now += YIELD_HOLD_MS + 2_000;
+        s.view.clock = now;
+        s.team.claim(1, spot, now);
+        let (intent, _) = keep_apart(&s.cx(2), &mut apart, PlayKind::HoldExit, stay);
+        assert_eq!(intent.go, Go::To { at, within_m: 0.6 });
+        // The claim gone: after the hold it is its own again.
+        now += 3_000;
+        s.view.clock = now;
+        let (intent, _) = keep_apart(&s.cx(2), &mut apart, PlayKind::HoldExit, stay);
+        assert_eq!(intent.go, Go::Stay);
+        // The lower place never gives way.
+        let mut other = Apart::default();
+        s.team.claim(2, Vec3::new(30.5, 0.0, 30.0), now);
+        for _ in 0..3 {
+            now += YIELD_PROOF_MS;
+            s.view.clock = now;
+            s.team.claim(2, Vec3::new(30.5, 0.0, 30.0), now);
+            let (intent, _) = keep_apart(&s.cx(1), &mut other, PlayKind::HoldExit, stay);
+            assert_eq!(intent.go, Go::Stay);
+        }
+    }
+
+    /// Other plays, a carrier, a bot new to its life and a spawn area are not
+    /// moved.
+    #[test]
+    fn a_bot_is_not_moved_off_a_claim_in_the_exempt_cases() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let spot = Vec3::new(30.0, 0.0, 30.0);
+        s.bot(1, 0, spot);
+        s.bot(2, 0, spot);
+        let now = s.view.clock;
+        let stay = Intent::stay();
+        // A conflict that lasts: the clock moves with each call.
+        let moves = |s: &mut Scenario, kind: PlayKind| {
+            let mut apart = Apart::default();
+            for k in 0..4 {
+                s.view.clock = now + k * YIELD_PROOF_MS;
+                s.team.claim(1, spot, s.view.clock);
+                let (intent, _) = keep_apart(&s.cx(2), &mut apart, kind, stay);
+                if intent.go != Go::Stay {
+                    return true;
+                }
+            }
+            false
+        };
+        assert!(moves(&mut s, PlayKind::Crossfire));
+        assert!(!moves(&mut s, PlayKind::Roam), "other plays");
+        let carrier = s.view.places.iter().position(|p| p.place == 2).unwrap();
+        s.view.places[carrier].carrying = Some(0);
+        assert!(!moves(&mut s, PlayKind::Crossfire), "a carrier");
+        s.view.places[carrier].carrying = None;
+        s.view.places[carrier].spawned = now;
+        assert!(!moves(&mut s, PlayKind::Crossfire), "a new life");
     }
 
     #[test]
