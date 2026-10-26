@@ -563,7 +563,7 @@ pub(crate) fn a_noticed_trap_on_the_route_is_gone_round_or_jumped() {
         (1, 0, 0),
         "{c:?}"
     );
-    assert!(plain.bots[0].as_ref().unwrap().react.private().is_empty());
+    assert!(plain.bots[0].as_ref().unwrap().features.traps.react.private().is_empty());
 
     let round = run(true, false);
     let c = counts(&round);
@@ -573,8 +573,8 @@ pub(crate) fn a_noticed_trap_on_the_route_is_gone_round_or_jumped() {
         "{c:?}"
     );
     let bot = round.bots[0].as_ref().unwrap();
-    assert_eq!(bot.react.private().len(), 1);
-    assert!(!bot.react.field().is_empty());
+    assert_eq!(bot.features.traps.react.private().len(), 1);
+    assert!(!bot.features.traps.react.field().is_empty());
 
     let hop = run(false, true);
     let c = counts(&hop);

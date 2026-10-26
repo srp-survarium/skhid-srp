@@ -40,6 +40,7 @@ pub mod hunt;
 pub mod intercept;
 pub mod late_denial;
 pub mod memo;
+pub mod memory;
 pub mod pair_up;
 pub mod raid;
 pub mod resupply;
