@@ -2,6 +2,7 @@
 
 Six STALKER multiplayer maps as one content pack, `stalker-maps@4`, the owner's
 pick of 2026-10-24 on the map spot planner. Team deathmatch only (mode 4).
+Where the work stands and how to continue: `stalker-maps-handoff.md`.
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
 | ---: | ---: | --- | --- | --- | ---: |
