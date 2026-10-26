@@ -52,12 +52,19 @@ pub const YIELD_HOLD_MS: u32 = 5_000;
 /// spawn points.
 pub const SETTLE_MS: u32 = 8_000;
 
-/// The plays whose spots [`keep_apart`] moves: the holds, whose spot choices
-/// read the claims too.
+/// The plays [`keep_apart`] moves: the holds, whose spot choices read the
+/// claims too, and the two that walk to a mate (PairUp, Buddy), whose goals
+/// are the mate's place: two of them on one mate stood on one spot (12 of 24
+/// standing pairs of nine live matches were PairUp and PairUp).
 fn keeps_apart(kind: PlayKind) -> bool {
     matches!(
         kind,
-        PlayKind::Crossfire | PlayKind::Cut | PlayKind::HoldExit | PlayKind::GuardLead
+        PlayKind::Crossfire
+            | PlayKind::Cut
+            | PlayKind::HoldExit
+            | PlayKind::GuardLead
+            | PlayKind::PairUp
+            | PlayKind::Buddy
     )
 }
 
@@ -126,11 +133,16 @@ pub fn keep_apart(cx: &Ctx, apart: &mut Apart, kind: PlayKind, intent: Intent) -
         apart.reset();
         return (intent, point);
     }
-    // The claim of a lower place on a spot.
+    // The claim of a lower place on a spot, or a human mate's feet there (a
+    // bot always gives way to a human, whatever the places).
     let lying_on = |spot: Vec3| {
         cx.team
             .claims_of_others(cx.me.place, cx.now)
             .any(|c| yields_to(cx.me.place, c.who) && c.at.distance_xz(spot) < APART_M)
+            || cx
+                .view
+                .team(cx.me.team)
+                .any(|p| p.place != cx.me.place && !p.bot && p.feet.distance_xz(spot) < APART_M)
     };
     if let Some(held) = apart.held {
         if cx.now < held.until || lying_on(held.gave_up) {
@@ -420,6 +432,38 @@ mod tests {
             s.team.claim(2, Vec3::new(30.5, 0.0, 30.0), now);
             let (intent, _) = keep_apart(&s.cx(1), &mut other, PlayKind::HoldExit, stay);
             assert_eq!(intent.go, Go::Stay);
+        }
+    }
+
+    /// A bot walking to a mate (PairUp, Buddy) gives way off a human mate's
+    /// feet whatever the places, and off a bot of a lower place.
+    #[test]
+    fn a_bot_pairing_up_stands_beside_a_human_mate_not_on_him() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let spot = Vec3::new(30.0, 0.0, 30.0);
+        s.human(5, 0, spot);
+        s.bot(2, 0, Vec3::new(30.4, 0.0, 30.0));
+        let mut apart = Apart::default();
+        let to_him = Intent::to(spot, super::super::Pace::Walk);
+        let now = s.view.clock;
+        let mut moved_to = None;
+        for k in 0..3 {
+            s.view.clock = now + k * YIELD_PROOF_MS;
+            let (intent, _) = keep_apart(&s.cx(2), &mut apart, PlayKind::PairUp, to_him);
+            if let Go::To { at, .. } = intent.go
+                && at.distance_xz(spot) > APART_M
+            {
+                moved_to = Some(at);
+            }
+        }
+        let at = moved_to.expect("did not give way to the human");
+        assert!(at.distance_xz(spot) >= APART_M && at.distance_xz(spot) <= 3.1, "{at:?}");
+        // Another play that stays by a human on purpose is left alone.
+        let mut apart = Apart::default();
+        for k in 0..3 {
+            s.view.clock = now + k * YIELD_PROOF_MS;
+            let (intent, _) = keep_apart(&s.cx(2), &mut apart, PlayKind::CoverHuman, to_him);
+            assert_eq!(intent.go, to_him.go);
         }
     }
 
