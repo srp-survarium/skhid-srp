@@ -15,10 +15,13 @@
 //! floor within a step in the next cell, the body is flown along the
 //! client's short jump clip ([`SHORT_JUMP_AHEAD`], [`SHORT_JUMP_RISE`]),
 //! pressed at each of a range of points behind the take-off's centre, as
-//! the bench's stand-in flies it: held back by no face
-//! (a solid between [`AIR_FEET_M`] and [`AIR_HEAD_M`] over the feet ends
-//! the try), landing on the highest floor it comes down to once past the
-//! apex, or after the clip falling straight down. A link is made for each
+//! the bench's stand-in flies it (`air_move`): the body goes to the clip's
+//! root unless a face stands across its front edge (a solid between
+//! [`AIR_FEET_M`] and [`AIR_HEAD_M`] over the feet), and then stays where
+//! it is while the clip lifts it, going on once over the face (so a jump
+//! from against a riser is made, as players make it); it lands on the
+//! highest floor it comes down to once past the apex, or after the clip
+//! falls straight down. A link is made for each
 //! window of presses that all land on one level, at least
 //! [`GAP_PRESS_SPREAD_M`] either side of its middle (where the motor
 //! presses it: [`OffLink::press`]), when the landing has room on along the
@@ -214,10 +217,28 @@ impl WalkGrid {
         })
     }
 
+    /// Whether a face stands across the body's front edge at `front`
+    /// (its centre; `u` the way it moves), between [`AIR_FEET_M`] and
+    /// [`AIR_HEAD_M`] over its feet at `y`: the stand-in's rays ahead
+    /// (`air_move`), taken across the body's width so a gap narrower than
+    /// the body holds it.
+    fn face_ahead(&self, solids: &Solids, front: (f32, f32), u: (f32, f32), y: f32) -> bool {
+        let r = self.body.radius;
+        let across = (-u.1, u.0);
+        let steps = (2.0 * r / (0.5 * self.cell)).ceil() as i32;
+        (0..=steps).any(|i| {
+            let o = -r + 2.0 * r * i as f32 / steps as f32;
+            self.solid_within(solids, front.0 + across.0 * o, front.1 + across.1 * o, 0.0, y + AIR_FEET_M, y + AIR_HEAD_M)
+        })
+    }
+
     /// Where a short jump from floor `a` along direction `d`, pressed
     /// `lead` metres before `a`'s centre, comes down: the floor and how far
-    /// from `a`'s centre (module documentation). `None` when a face holds
-    /// it, or nothing is under it within the harmless drop.
+    /// from `a`'s centre (module documentation). As the bench's stand-in
+    /// flies it (`air_move`): the body goes to the clip's root each sample
+    /// unless a face across its width is in the way, and then stays where
+    /// it is while the clip lifts it, to go on once it is over the face.
+    /// `None` when nothing is under it within the harmless drop.
     fn fly(&self, a: usize, d: usize, lead: f32, solids: &Solids) -> Option<(u32, f32)> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
@@ -227,39 +248,56 @@ impl WalkGrid {
         let ds = 0.5 * self.cell;
         let end = SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1] - lead;
         let floors = |cell: usize| self.start[cell]..self.start[cell + 1];
+        let at = |s: f32| (from.x + ux * s, from.z + uz * s);
+        // The highest floor in the cell at `s` between `y` and `top`.
+        let landing = |s: f32, y: f32, top: f32| {
+            let (px, pz) = at(s);
+            let cell = self.cell_at(px, pz)?;
+            floors(cell)
+                .filter(|&f| {
+                    let fy = self.height[f as usize];
+                    fy <= top + 0.05 && fy >= y - 1e-4
+                })
+                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+        };
         let mut last = h;
+        // Where the body is along the way (held behind the root by faces).
+        let mut body = 0.0f32;
         let mut x = ds;
         loop {
             if x > end {
-                // After the clip: straight down where it ended.
-                let cell = self.cell_at(from.x + ux * end, from.z + uz * end)?;
-                let f = floors(cell)
-                    .filter(|&f| {
-                        let y = self.height[f as usize];
-                        y <= last + 0.05 && y >= h - self.body.max_drop
-                    })
-                    .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))?;
-                return Some((f, end));
+                // After the clip: straight down where the body is.
+                let f = landing(body, h - self.body.max_drop, last)?;
+                return Some((f, body));
             }
-            let (px, pz) = (from.x + ux * x, from.z + uz * x);
-            let cell = self.cell_at(px, pz)?;
             let ahead = x + lead;
             let y = h + short_jump_rise(ahead).unwrap_or(0.0);
-            // Coming down onto a floor between the last sample and this
-            // one: landed (before the faces: its own top is under the feet).
+            // Coming down onto a floor at the root: landed (before the
+            // faces: its own top is under the feet).
             if ahead >= APEX_AHEAD_M
-                && let Some(f) = floors(cell)
-                    .filter(|&f| {
-                        let fy = self.height[f as usize];
-                        fy <= last + 0.05 && fy >= y - 1e-4
-                    })
-                    .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+                && let Some(f) = landing(x, y, last)
             {
                 return Some((f, x));
             }
-            // A face anywhere across the body's width holds it.
-            if self.solid_within(solids, px, pz, self.body.radius, y + AIR_FEET_M, y + AIR_HEAD_M) {
-                return None;
+            // To the root, unless a face anywhere across the body's width
+            // is in the way.
+            let mut s = body + ds;
+            let held = loop {
+                if s > x + 1e-4 {
+                    break false;
+                }
+                if self.face_ahead(solids, at(s + self.body.radius), (ux, uz), y) {
+                    break true;
+                }
+                s += ds;
+            };
+            if !held {
+                body = x;
+            } else if ahead >= APEX_AHEAD_M
+                && let Some(f) = landing(body, y, last)
+            {
+                // Held, coming down where it is.
+                return Some((f, body));
             }
             last = y;
             x += ds;
@@ -604,6 +642,33 @@ mod tests {
         let post = face_x(6.5, 0.0, 10.0, 0.0, 6.0);
         let grid = world(2.0, 2.0, 1.0, 0.0, &post);
         assert!(way_across(&grid, 2.0, 2.0).is_none());
+    }
+
+    /// A wall over the gap with a door narrower than the body (0.5 m):
+    /// no way through it; 1.5 m wide (the body and a cell of the solids'
+    /// rounding each side): jumped through.
+    #[test]
+    fn a_door_narrower_than_the_body_holds_the_jump() {
+        let door = |w: f32| {
+            let mut t = face_x(6.5, 0.0, 5.0 - 0.5 * w, 0.0, 6.0).to_vec();
+            t.extend(face_x(6.5, 5.0 + 0.5 * w, 10.0, 0.0, 6.0));
+            t
+        };
+        let grid = world(2.0, 2.0, 1.0, 0.0, &door(0.5));
+        assert!(way_across(&grid, 2.0, 2.0).is_none());
+        let grid = world(2.0, 2.0, 1.0, 0.0, &door(1.5));
+        let kinds = way_across(&grid, 2.0, 2.0).expect("a way through the door");
+        assert!(kinds.contains(&LinkKind::GapJump), "{kinds:?}");
+    }
+
+    /// A riser 0.8 m high, 0.5 m on from the edge it is jumped from: the
+    /// body stands against it while the clip lifts it, then goes on over
+    /// it, as the stand-in flies it (and as players jump it).
+    #[test]
+    fn a_riser_next_to_the_take_off_is_jumped_onto() {
+        let grid = world(2.0, 2.8, 0.5, 0.0, &[]);
+        let kinds = way_across(&grid, 2.0, 2.8).expect("a way up");
+        assert!(kinds.contains(&LinkKind::GapJump), "{kinds:?}");
     }
 
     /// A lower block across a gap of 1.5 m, 1.5 m down: a gap drop (the
