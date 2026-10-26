@@ -38,6 +38,7 @@ pub mod encode;
 pub mod escape;
 pub mod foliage;
 pub mod friends;
+pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
@@ -249,6 +250,9 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// Its state towards the live grenades it knows of, and what it did
+    /// ([`grenade_threat`]).
+    avoid: grenade_threat::Avoid,
 }
 
 impl Bot {
@@ -352,6 +356,7 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            avoid: grenade_threat::Avoid::default(),
         }
     }
 
@@ -485,6 +490,7 @@ impl Bot {
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
+        self.avoid.died();
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).

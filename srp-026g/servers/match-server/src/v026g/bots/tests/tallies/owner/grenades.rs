@@ -1,4 +1,5 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::grenade_threat::AvoidStats;
 use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
 use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
@@ -85,6 +86,8 @@ pub(super) struct GrenadeCounts {
     pub(super) live: Vec<LiveGrenade>,
     pub(super) listed: Option<ThrowCounts>,
     pub(super) live_blasts: LiveBlasts,
+    /// By bot: what its avoidance of live grenades has counted this match (the last reading).
+    pub(super) avoid: BTreeMap<Place, AvoidStats>,
 }
 
 /// The tally's blasts against the list's entries for the same throw: found with a landing, found still in the
@@ -633,6 +636,21 @@ impl OwnerTally {
                 "blasts_unlisted": live.missing,
                 "rest_error_m": live.err,
             });
+            let mut avoid = AvoidStats::default();
+            for stats in self.grenades.avoid.values() {
+                avoid.add(stats);
+            }
+            json["grenade_avoid"] = serde_json::json!({
+                "noticed": avoid.noticed,
+                "stepped": avoid.stepped,
+                "held": avoid.held,
+                "out_at_act": avoid.out_at_act,
+                "no_way": avoid.no_way,
+                "retried": avoid.retried,
+                "escaped": avoid.escaped,
+                "caught": avoid.caught,
+                "react_ms": avoid.react,
+            });
         }
         let mut text = format!(
             "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
@@ -674,6 +692,22 @@ impl OwnerTally {
                 live.pending,
                 live.missing,
                 live.err,
+            ));
+            let mut avoid = AvoidStats::default();
+            for stats in self.grenades.avoid.values() {
+                avoid.add(stats);
+            }
+            text.push_str(&format!(
+                "; avoiding live grenades by [told, saw, heard]: noticed {:?}, stepped out {:?}, held at the edge {:?}, already out at the act {:?}, no floor in reach {:?}, started again {:?}, at the blast out {:?} caught {:?}, reaction to the step (<=0.5, 1, 1.5, 2 s, more) {:?}",
+                avoid.noticed,
+                avoid.stepped,
+                avoid.held,
+                avoid.out_at_act,
+                avoid.no_way,
+                avoid.retried,
+                avoid.escaped,
+                avoid.caught,
+                avoid.react,
             ));
         }
         Part::new(json, text)

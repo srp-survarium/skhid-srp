@@ -102,6 +102,8 @@ struct BotNow {
     range_held: Option<u32>,
     /// What its reflex's grenade logic has counted this life.
     grenades: GrenadeStats,
+    /// What its avoidance of live grenades has counted this match (`grenade_threat::AvoidStats`).
+    avoid: crate::v026g::bots::grenade_threat::AvoidStats,
 }
 
 #[derive(Default)]
@@ -195,6 +197,7 @@ impl OwnerTally {
                     // gate tally on, the wall test too was made).
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                     grenades: bot.reflex.grenade_stats(),
+                    avoid: bot.avoid.stats,
                 })
             })
             .collect();
@@ -255,6 +258,7 @@ impl OwnerTally {
             };
             self.grenades_keys(place, tick, body, &prev);
             self.grenades_logic(place, &now.grenades);
+            self.grenades.avoid.insert(place, now.avoid);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);

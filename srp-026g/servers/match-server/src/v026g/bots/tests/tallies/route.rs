@@ -1,5 +1,9 @@
 use super::*;
 
+/// A move this soon after a step out of a grenade's blast counts as part of it, ms: the walk back to the
+/// play's goal after the blast is a turn the step caused.
+const AVOID_TAIL_MS: u32 = 3_000;
+
 /// The bench's count of how the bots got about (`player_bots_stuck.md` §8),
 /// as the audit's `wallpush.py` and `movement.py` count it from a match's
 /// worlds: sampled once a world (1 s), and the carriers each tick.
@@ -12,6 +16,9 @@ pub(crate) struct RouteTally {
     pub(crate) push_run: Vec<u32>,
     pub(crate) idle_run: Vec<(u32, u32)>,
     pub(crate) last_move: Vec<Option<(f32, f32)>>,
+    /// Until when (ms) a body's moves count as after a step out of a grenade's blast: the step and
+    /// [`AVOID_TAIL_MS`] after it.
+    pub(crate) avoid_until: Vec<u32>,
     /// Runs of 5 worlds or more holding a walk key moving under 0.3 m a
     /// world, and their worlds.
     pub(crate) pushes: (u32, u32),
@@ -22,6 +29,8 @@ pub(crate) struct RouteTally {
     /// Moves of 1.5 m or more turning back over 135° from the one before,
     /// with no target.
     pub(crate) reversals: u32,
+    /// ... of them while the bot was stepping out of a grenade's blast or within [`AVOID_TAIL_MS`] of it.
+    pub(crate) reversals_avoid: u32,
     /// Living bot-worlds.
     pub(crate) worlds: u32,
     /// Each body's pickup time, and the carries delivered (ms each) and
@@ -83,6 +92,7 @@ impl RouteTally {
             push_run: vec![0; bodies],
             idle_run: vec![(0, 0); bodies],
             last_move: vec![None; bodies],
+            avoid_until: vec![0; bodies],
             carry_from: vec![None; bodies],
             feet: vec![None; bodies],
             teams: vec![None; bodies],
@@ -168,6 +178,14 @@ impl RouteTally {
             if bots.bots[place].is_some() {
                 self.zones(place, body, bots, game.tick);
             }
+            if bots.bots[place].as_ref().is_some_and(|bot| {
+                matches!(
+                    bot.avoid.state,
+                    crate::v026g::bots::grenade_threat::GrenadeThreat::Stepping { .. }
+                )
+            }) {
+                self.avoid_until[place] = game.tick + AVOID_TAIL_MS;
+            }
             let now = (body.feet, body.alive);
             let before = self.last[place].replace(now);
             let Some((from, true)) = before.filter(|_| body.alive) else {
@@ -194,7 +212,9 @@ impl RouteTally {
             if moved >= 1.5 && !fight {
                 if let Some(back) = self.last_move[place] {
                     let cos = (step.0 * back.0 + step.1 * back.1) / (moved * back.0.hypot(back.1));
-                    self.reversals += u32::from(cos < (135f32).to_radians().cos());
+                    let back = cos < (135f32).to_radians().cos();
+                    self.reversals += u32::from(back);
+                    self.reversals_avoid += u32::from(back && game.tick <= self.avoid_until[place]);
                 }
                 self.last_move[place] = Some(step);
             } else if moved >= 1.5 {
@@ -339,7 +359,7 @@ impl RouteTally {
         }
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} reversals_avoid {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -347,6 +367,7 @@ impl RouteTally {
             self.idle.1,
             self.idle_fighting,
             self.reversals,
+            self.reversals_avoid,
             self.stuck.0,
             self.stuck.1,
             self.carried.len(),

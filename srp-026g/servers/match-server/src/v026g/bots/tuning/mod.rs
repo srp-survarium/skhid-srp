@@ -32,6 +32,8 @@ pub struct Tuning {
     pub mods: ModTuning,
     pub think: ThinkTuning,
     pub threat: ThreatTuning,
+    /// Stepping out of live grenades (`grenade_threat.rs`).
+    pub avoid: AvoidTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// Whether a bot's way out of a zone stays under the strength of the
@@ -57,6 +59,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             threat: ThreatTuning::default(),
+            avoid: AvoidTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
             plays: PlayKind::ALL
@@ -81,7 +84,9 @@ mod team;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use team::{
+    AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
+};
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -107,6 +112,7 @@ impl Tuning {
     pub fn validate(&self) -> Result<(), String> {
         sense::validate(&self.sense)?;
         team::validate_think(&self.think)?;
+        team::validate_avoid(&self.avoid)?;
         motion::validate_feel(&self.feel)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
