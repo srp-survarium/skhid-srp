@@ -1,5 +1,9 @@
 use super::*;
 
+/// A bot's reversal counts as near a rusher's when it came within this many
+/// ms after a reversal of a rusher of its own team.
+pub(crate) const REVERSAL_NEAR_MS: u32 = 5_000;
+
 /// The bench's count of how the bots got about (`player_bots_stuck.md` §8),
 /// as the audit's `wallpush.py` and `movement.py` count it from a match's
 /// worlds: sampled once a world (1 s), and the carriers each tick.
@@ -22,6 +26,14 @@ pub(crate) struct RouteTally {
     /// Moves of 1.5 m or more turning back over 135° from the one before,
     /// with no target.
     pub(crate) reversals: u32,
+    /// The same reversals by the bot's role: the rusher's, the other roles',
+    /// and of the others' those that came within [`REVERSAL_NEAR_MS`] after a
+    /// reversal of a rusher of their own team (a teammate reacting, or the
+    /// same cause). Counts only: they steer nothing.
+    pub(crate) reversals_by_role: [u32; 2],
+    pub(crate) reversals_near_rusher: u32,
+    /// When a rusher of each team last reversed.
+    pub(crate) rusher_reversed: [Option<u32>; 2],
     /// Living bot-worlds.
     pub(crate) worlds: u32,
     /// Each body's pickup time, and the carries delivered (ms each) and
@@ -394,6 +406,8 @@ impl RouteTally {
     /// bots on zones' floors.
     pub(crate) fn world(&mut self, game: &Game, bots: &Bots) {
         const WALK: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+        // The reversals of this world: (team, whether the bot is a rusher).
+        let mut reversed: Vec<(usize, bool)> = Vec::new();
         for (place, body) in game.bodies.iter().enumerate() {
             if bots.bots[place].is_some() {
                 self.zones(place, body, bots, game.tick);
@@ -424,11 +438,33 @@ impl RouteTally {
             if moved >= 1.5 && !fight {
                 if let Some(back) = self.last_move[place] {
                     let cos = (step.0 * back.0 + step.1 * back.1) / (moved * back.0.hypot(back.1));
-                    self.reversals += u32::from(cos < (135f32).to_radians().cos());
+                    if cos < (135f32).to_radians().cos() {
+                        self.reversals += 1;
+                        let rusher = bots.bots[place]
+                            .as_ref()
+                            .is_some_and(|bot| bot.role == Some(survarium::v026g::loadouts::BotRole::Rusher));
+                        reversed.push((usize::from(body.team.min(1)), rusher));
+                    }
                 }
                 self.last_move[place] = Some(step);
             } else if moved >= 1.5 {
                 self.last_move[place] = None;
+            }
+        }
+        // By role: a rusher's reversals mark its team's time first, so the
+        // others' of the same world count whatever their places.
+        for &(team, rusher) in &reversed {
+            self.reversals_by_role[usize::from(!rusher)] += 1;
+            if rusher {
+                self.rusher_reversed[team] = Some(game.tick);
+            }
+        }
+        for &(team, rusher) in &reversed {
+            if !rusher
+                && self.rusher_reversed[team]
+                    .is_some_and(|at| game.tick.wrapping_sub(at) <= REVERSAL_NEAR_MS)
+            {
+                self.reversals_near_rusher += 1;
             }
         }
     }
@@ -588,7 +624,7 @@ impl RouteTally {
         }
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {} reversals_rusher {} reversals_others {} reversals_others_near_rusher {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -635,6 +671,9 @@ impl RouteTally {
             moved[5],
             moved[6],
             moved[7],
+            self.reversals_by_role[0],
+            self.reversals_by_role[1],
+            self.reversals_near_rusher,
         ) + &route_ends
     }
 }
