@@ -817,8 +817,10 @@ pub(super) fn drive_tick(
     if bot.motor.lining_up() {
         decision.keys &= !(key::CROUCH | key::SPRINT);
     }
-    if decision.keys & key::QUICK[0] != 0 {
-        bot.medkits_used = bot.medkits_used.saturating_add(1);
+    for (quick, bit) in key::QUICK.into_iter().enumerate() {
+        if decision.keys & bit != 0 {
+            bot.pantry.pressed(quick, time);
+        }
     }
     let by = bot.motor.jumped().map(|by| match by {
         JumpBy::Route => "route",

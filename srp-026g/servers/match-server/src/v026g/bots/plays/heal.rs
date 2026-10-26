@@ -4,27 +4,26 @@
 //!
 //! - **When:** health under `below`; no enemy seen now; no enemy it knows
 //!   of (by any sense, a callout or the radar) with a clear line to where
-//!   its crouched eyes are (`Tactics::sees`); a medkit left this life.
-//! - **How:** quick use 1 (`key::QUICK[0]`: the kit's medkit,
-//!   `survarium::v026g::loadouts::BOT_MEDKIT`, is the first filled slot)
-//!   pressed once, then still and crouched for `wait_min_s` to
-//!   `wait_max_s`, fire held; an enemy seen meanwhile ends it.
-//! - **Medkits per life:** the kit has `medkits` (two). What the bot's
-//!   facts keep of past plays is only the last end of each
-//!   (`BotFacts::last_ran`), so a heal ended since the spawn
-//!   (`PlaceView::spawned`) is all that can be told: [`medkits_used`]
-//!   says 1 then, and no second heal is offered in that life, so an empty
-//!   slot is never pressed. A count of its own in `BotFacts` would let it
-//!   use the second.
+//!   its crouched eyes are (`Tactics::sees`); a medkit in its kit's slot.
+//! - **How:** the quick-use key of the kit's medkit (its slot's place in
+//!   the client's order, `stock::Held::quick`: the first filled slot of
+//!   the bots' kits, `survarium::v026g::loadouts::BOT_MEDKIT`) pressed
+//!   once, then still and crouched for `wait_min_s` to `wait_max_s`, fire
+//!   held; an enemy seen meanwhile ends it.
+//! - **Medkits per kit:** the kit's medkits are the match's, not a life's
+//!   (the game takes a used one out of the kit's storage and gives none
+//!   back at a spawn): `BotFacts::pantry` counts them, corrected by the
+//!   worlds (`stock.rs`), and a press is only offered with one in the
+//!   slot, so an empty slot is never pressed.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::stock::Drug;
 use crate::v026g::bots::view::EYE_CROUCHED;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     ("below", 0.6),
-    ("medkits", 2.0),
     ("wait_min_s", 1.5),
     ("wait_max_s", 3.0),
 ];
@@ -48,14 +47,9 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
-/// Medkits used this life (the drive counts each quick use 1 it sends).
-pub fn medkits_used(cx: &Ctx) -> u32 {
-    u32::from(cx.bot.medkits_used)
-}
-
-/// Medkits it may still use this life.
+/// Medkits in the slots of its kit now.
 pub fn medkits_left(cx: &Ctx) -> u32 {
-    (cx.num(PlayKind::Heal, "medkits").max(0.0) as u32).saturating_sub(medkits_used(cx))
+    u32::from(cx.bot.pantry.in_hand(Drug::Medkit))
 }
 
 /// Whether an enemy it knows of has a clear line to it (crouched), or is
@@ -106,9 +100,9 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
     let still = Intent::stay().crouched().hold_fire();
     match state {
         State::Use => {
-            if medkits_left(cx) == 0 {
+            let Some(held) = cx.bot.pantry.first(Drug::Medkit) else {
                 return Step::Failed("no medkit left");
-            }
+            };
             let wait = rng.range(
                 cx.num(PlayKind::Heal, "wait_min_s"),
                 cx.num(PlayKind::Heal, "wait_max_s"),
@@ -116,7 +110,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             *state = State::Wait {
                 until: cx.now + (wait * 1000.0) as u32,
             };
-            Step::Continue(still.pressing(key::QUICK[0]))
+            Step::Continue(still.pressing(key::QUICK[held.quick]))
         }
         State::Wait { until } => {
             if cx.now >= *until {
@@ -162,14 +156,21 @@ mod tests {
         assert_eq!(steps.last(), Some(&Step::Done("healed")));
         // 1.5 to 3 s of waiting.
         assert!((6..=12).contains(&steps.len()), "{}", steps.len());
-        // Healed once this life: not again; a new life: again.
+        // The cooldown holds it back for a while, then the kit's second
+        // medkit is offered; with both gone it never is, in any life.
         s.last_ran.push((PlayKind::Heal, s.view.clock));
         s.current = None;
+        s.pantry.pressed(0, s.view.clock);
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
-        s.view.places[0].spawned = s.view.clock + 1;
         s.view.clock += 6_000;
         s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Heard));
         assert!(s.candidates(0).iter().any(|c| c.kind == PlayKind::Heal));
+        s.pantry.pressed(0, s.view.clock);
+        s.view.clock += 6_000;
+        s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Heard));
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
+        s.pantry.new_life(0);
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
     }
 
     #[test]

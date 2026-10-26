@@ -508,6 +508,28 @@ impl Game {
         }
     }
 
+    /// A trusted world's word on what the server's bots hold of drugs:
+    /// each bot's block as `players::Supplies` read it (`Observed`), the
+    /// quick-use stacks of its kits. Called once `observe` has them.
+    pub(super) fn observe_stock(&mut self, time: u32) {
+        let Some(walkers) = self.walkers.as_mut() else {
+            return;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        for (place, supplies) in state.supplies.iter().enumerate() {
+            let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
+            if let (true, Some(supplies), Some(profile)) =
+                (driven, supplies, self.formed.profiles.get(place))
+            {
+                let readings = crate::v026g::bots::stock::readings(supplies, profile, dictionary);
+                walkers.bots.stock(place, time, &readings);
+            }
+        }
+    }
+
     /// The match's clock as the bots need it: the time left in play.
     fn bots_clock(&self, clock: u32) -> Clock {
         let total_ms = self.rule.params.match_ms;

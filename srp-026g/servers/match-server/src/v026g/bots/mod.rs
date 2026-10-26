@@ -55,6 +55,7 @@ pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
+pub mod stock;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
@@ -200,8 +201,8 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
-    /// Medkits used this life.
-    medkits_used: u8,
+    /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
+    pantry: stock::Pantry,
     /// The answer of its route search that went on over several polls
     /// ([`Pending`]): the goal, the route or none, and whether the route is
     /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
@@ -324,7 +325,7 @@ impl Bot {
             last_trace: 0,
             partner: None,
             paired: false,
-            medkits_used: 0,
+            pantry: stock::Pantry::standard(),
             found: None,
             crossing: None,
             long_kept: None,
@@ -486,7 +487,7 @@ impl Bot {
         };
         self.memory = Memory::default();
         self.skill = skill;
-        self.medkits_used = 0;
+        self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -834,6 +835,15 @@ impl Bots {
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
+        }
+    }
+
+    /// A trusted world's word on what one place's kits hold of drugs
+    /// ([`stock::readings`], from `players::Supplies`): the bot's own count
+    /// follows it.
+    pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pantry.read(time, readings);
         }
     }
 

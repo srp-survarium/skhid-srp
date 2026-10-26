@@ -55,6 +55,7 @@ use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::rng::Rng;
 use super::signals::{MatchSignals, Mods};
+use super::stock::Pantry;
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
@@ -424,8 +425,8 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
-    /// Medkits it used this life (quick use 1 pressed).
-    pub medkits_used: u8,
+    /// The drugs of its kits (`stock.rs`).
+    pub pantry: &'a Pantry,
     /// Goals its searches proved no way to lately, and until when.
     pub no_way_to: &'a [(Vec3, u32)],
     /// Plays that failed at once at a target, and until when they are
