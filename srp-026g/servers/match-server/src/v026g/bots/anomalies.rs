@@ -1565,7 +1565,7 @@ pub(super) mod tests {
                 }
             }
             matches += 1;
-            let mut know = super::artefact_know::ArtefactKnow::of(&map);
+            let mut know = crate::v026g::bots::artefact_know::ArtefactKnow::of(&map);
             let mut pure = anomalies.clone();
             for (&ms, path) in times {
                 let body = std::fs::read(path).unwrap();
@@ -1573,7 +1573,7 @@ pub(super) mod tests {
                     continue;
                 };
                 anomalies.advance(ms + 3_000);
-                let predicted = super::artefact_know::ArtefactKnow::predicted(&anomalies);
+                let predicted = crate::v026g::bots::artefact_know::ArtefactKnow::predicted(&anomalies);
                 let report = anomalies.sync_from_world(sections.objects, ms);
                 let synced: Vec<usize> = report.synced.iter().map(|s| s.core).collect();
                 know.observe(&predicted, &anomalies, &synced, ms + 3_000);
