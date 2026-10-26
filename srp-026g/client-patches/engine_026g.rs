@@ -80,12 +80,34 @@ unsafe extern "C" {
     pub fn engine_cc_bool(object: *mut c_void, name: *const u8, value: *mut u8, saved: u32, kind: u32);
     /// 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
     pub fn engine_binded_action(binder: *const c_void, kinds: u32, key: u32, toggle: *mut u32) -> u32;
+    /// 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
+    pub fn engine_ray_test(world: *mut c_void, result: *mut c_void, origin: *const f32, direction: *const f32, length: f32, group: u32, mask: u32, delegate: *const c_void, unflipped: u32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_object(object: *mut c_void, count: *mut u32);
+    /// 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+    pub fn engine_material_pair(manager: *const c_void, first: u32, second: u32) -> *const c_void;
+    /// 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+    pub fn engine_play_particle(position: *const f32, manager: *mut c_void, particle: *const c_void, direction: *const f32, normal: *const f32, parameter: u32);
+    /// 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
+    pub fn engine_user_data_directory() -> *const u8;
+    /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
+    pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
 }
 
 #[allow(dead_code)]
 unsafe extern "stdcall" {
     /// 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
     pub fn engine_action_present(handler: *mut c_void, action: u32, state: *mut u32) -> u8;
+    /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
+    pub fn engine_play_sound(manager: *mut c_void, sound: *const c_void, position: *const f32);
+}
+
+#[allow(dead_code)]
+unsafe extern "thiscall" {
+    /// 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
+    /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_active_player(client: *mut c_void, out: *mut u32, place: u32) -> *mut u32;
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -96,6 +118,12 @@ unsafe extern "C" {
     pub static engine_write_file: unsafe extern "stdcall" fn(*mut c_void, *const c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870040 (kernel32, stdcall): unsigned int engine_close_handle(void *handle)
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x870158 (kernel32, stdcall): unsigned int engine_query_performance_counter(unsigned int *count)
+    pub static engine_query_performance_counter: unsafe extern "stdcall" fn(*mut u32) -> u32;
+    /// the IAT slot 0x870150 (kernel32, stdcall): unsigned int engine_query_performance_frequency(unsigned int *frequency)
+    pub static engine_query_performance_frequency: unsafe extern "stdcall" fn(*mut u32) -> u32;
+    /// the IAT slot 0x870118 (kernel32, stdcall): unsigned int engine_get_current_thread_id(void)
+    pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
@@ -110,5 +138,712 @@ pub mod player_input_handler {
     #[inline(always)]
     pub unsafe fn actions(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x33c).cast() }
+    }
+}
+
+/// survarium::game_world's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_world {
+    use core::ffi::c_void;
+
+    /// +0x9c (u32): the game (game_world::tick 0x1F77E0; ragdoll.md section 8)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn game(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x9c).cast() }
+    }
+}
+
+/// survarium::game's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game {
+    use core::ffi::c_void;
+
+    /// +0x53ac (u32): the network client (its vtable 0x9FFB14; ragdoll.md section 8)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn network_client(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x53ac).cast() }
+    }
+
+    /// +0x5360 (u32): the game's vostok::render::game::renderer (mt_draw 0x2477FE)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn renderer(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5360).cast() }
+    }
+}
+
+/// survarium::network_client's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod network_client {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): the local player (patch 46's LOCAL; death-camera.md)
+    ///
+    /// # Safety
+    /// `this` is a survarium::network_client.
+    #[inline(always)]
+    pub unsafe fn local_player(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// survarium::match_options's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod match_options {
+    use core::ffi::c_void;
+
+    /// +0x577b5 (u8): the match's places' count (match_options 0x219990, abi.tsv)
+    ///
+    /// # Safety
+    /// `this` is a survarium::match_options.
+    #[inline(always)]
+    pub unsafe fn places(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x577b5).cast() }
+    }
+}
+
+/// survarium::player's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player {
+    use core::ffi::c_void;
+
+    /// +0xd0 (u32): its reference count (get_active_player 0x27A9C0 adds one; released by 0x0E0210 at 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xd0).cast() }
+    }
+
+    /// +0x10c (u32): its inventory (inventory::serialize from base_player 0x2DB1E0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn inventory(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10c).cast() }
+    }
+
+    /// +0x114 (u8): its place in the match
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn place(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x114).cast() }
+    }
+
+    /// +0x128 (u32): the held item (mt_draw's [+128h]; 0 none)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn held_item(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x128).cast() }
+    }
+
+    /// +0x328 (u32): m_inserted_time_in_ms, the life's spawn time (set 0x2DAC43, serialized 0x2DB2FE): a death's key
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn spawned(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x328).cast() }
+    }
+
+    /// +0x33c (u8): m_is_alive (serialized 0x2DAFA1)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn alive(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x33c).cast() }
+    }
+
+    /// +0x33f (u8): m_has_been_inserted
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn inserted(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x33f).cast() }
+    }
+
+    /// +0x350 (u32): the physics world (ray_test's ECX)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn physics_world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x350).cast() }
+    }
+
+    /// +0x40c (f32): the simulated transform, a row-vector 4x4 (16 f32)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn transform(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x40c).cast() }
+    }
+
+    /// +0x44c (f32): the camera's transform, bone Item x +40Ch (computed_head_transform 0x2DA4B0; update_camera gives &it at 0x1F356E)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn eye(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x44c).cast() }
+    }
+
+    /// +0x498 (u32): the hit model (activate_physics 0x2D9930 adds its +12Ch to the world)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn hit_model(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x498).cast() }
+    }
+
+    /// +0xf290 (u32): its model (mt_draw 0x247716)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn model(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xf290).cast() }
+    }
+
+    /// +0xf474 (u32): its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn game_world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xf474).cast() }
+    }
+}
+
+/// survarium::player_model's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player_model {
+    use core::ffi::c_void;
+
+    /// +0x10c (u32): the model's skeleton (mt_draw 0x24771C)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_model.
+    #[inline(always)]
+    pub unsafe fn skeleton(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10c).cast() }
+    }
+
+    /// +0x108 (u32): its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_model.
+    #[inline(always)]
+    pub unsafe fn render_instance(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x108).cast() }
+    }
+}
+
+/// vostok::animation::skeleton's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod skeleton {
+    use core::ffi::c_void;
+
+    /// +0x108 (u32): the bones' count, object_movement first (add_bone 0x3ACDA0; 70 for scavengers_01)
+    ///
+    /// # Safety
+    /// `this` is a vostok::animation::skeleton.
+    #[inline(always)]
+    pub unsafe fn bone_count(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x108).cast() }
+    }
+
+    /// +0x110 (u32): the bones' array, 1Ch a bone (add_bone 0x3ACDA0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::animation::skeleton.
+    #[inline(always)]
+    pub unsafe fn bones(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x110).cast() }
+    }
+}
+
+/// vostok::animation::skeleton_bone's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod skeleton_bone {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the bone's name (a C string)
+    ///
+    /// # Safety
+    /// `this` is a vostok::animation::skeleton_bone.
+    #[inline(always)]
+    pub unsafe fn name(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the parent bone's record (the array's first for the root's children)
+    ///
+    /// # Safety
+    /// `this` is a vostok::animation::skeleton_bone.
+    #[inline(always)]
+    pub unsafe fn parent(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x1c (u32): the next bone's record: a bone is 1Ch bytes (add_bone 0x3ACDA0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::animation::skeleton_bone.
+    #[inline(always)]
+    pub unsafe fn next_bone(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+}
+
+/// survarium::hit_model's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod hit_model {
+    use core::ffi::c_void;
+
+    /// +0x12c (u32): the hit model's body in the physics world (a bt_animated_rigid_body; activate_physics 0x2D9930)
+    ///
+    /// # Safety
+    /// `this` is a survarium::hit_model.
+    #[inline(always)]
+    pub unsafe fn body(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x12c).cast() }
+    }
+}
+
+/// vostok::physics::bt_animated_rigid_body's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod bt_animated_rigid_body {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): its vtable (ANIMATED_BODY_VTABLE, the ctor 0x70E70)
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::bt_animated_rigid_body.
+    #[inline(always)]
+    pub unsafe fn vtable(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x38 (u16): its game material (10, actor, for a hit model: the ctor 0x70E70)
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::bt_animated_rigid_body.
+    #[inline(always)]
+    pub unsafe fn material(this: *mut c_void) -> *mut u16 {
+        unsafe { this.byte_add(0x38).cast() }
+    }
+}
+
+/// survarium::inventory's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod inventory {
+    use core::ffi::c_void;
+
+    /// +0x10c (u32): its 23 slots' items (inventory::update_weight 0x2FC6E0; profile slots 0..6 helmet, mask, torso, back, legs, gloves, boots)
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory.
+    #[inline(always)]
+    pub unsafe fn slots(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10c).cast() }
+    }
+
+    /// +0x168 (u32): the slots' end: 23 slots (inventory::update_weight's loop, 0x2FC6FF mov ebx,17h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory.
+    #[inline(always)]
+    pub unsafe fn slots_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x168).cast() }
+    }
+}
+
+/// survarium::item's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod item {
+    use core::ffi::c_void;
+
+    /// +0x218 (f32): its weight a piece, kg (update_weight 0x2FC740)
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn weight(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x218).cast() }
+    }
+
+    /// +0x25c (u32): its dictionary entry (update_weight 0x2FC71C)
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn entry(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x25c).cast() }
+    }
+
+    /// +0x260 (u16): a stack's count (update_weight 0x2FC72B)
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn count(this: *mut c_void) -> *mut u16 {
+        unsafe { this.byte_add(0x260).cast() }
+    }
+}
+
+/// survarium::item_entry's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod item_entry {
+    use core::ffi::c_void;
+
+    /// +0x22a (u8): set: the item is a stack (update_weight 0x2FC722)
+    ///
+    /// # Safety
+    /// `this` is a survarium::item_entry.
+    #[inline(always)]
+    pub unsafe fn stack(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x22a).cast() }
+    }
+}
+
+/// survarium::bullet's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod bullet {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): its id (add_shootmark's key; the ctor 0x32BA6F)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn id(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): its shooter (0: none; +4 the place; process_front_face_piercing 0x32E547)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn shooter(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0x1c (f32): its segment's velocity, a float3 (the ctor 0x32BA8E, change_trajectory 0x32EE55)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn velocity(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+
+    /// +0x40 (u32): its ammo's data (ammo_data::load 0x332440; the weapon's +53Ch, the ctor 0x32BB53)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn ammo(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x40).cast() }
+    }
+
+    /// +0x44 (u32): the bullet manager
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn manager(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x44).cast() }
+    }
+
+    /// +0x48 (u32): its game material
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn material(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x48).cast() }
+    }
+
+    /// +0x80 (u8): set: no hit sound (process_front_face_piercing 0x32E6CC)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn quiet(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x80).cast() }
+    }
+
+    /// +0x84 (u32): its segments past the first (pierces and ricochets; change_trajectory 0x32EE20)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn segment(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x84).cast() }
+    }
+}
+
+/// survarium::bullet_owner's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod bullet_owner {
+    use core::ffi::c_void;
+
+    /// +0x4 (u8): the shooter's place (add_shootmark's table index, 0x32E562)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet_owner.
+    #[inline(always)]
+    pub unsafe fn place(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// survarium::ammo_data's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod ammo_data {
+    use core::ffi::c_void;
+
+    /// +0x14 (f32): the ammo config's data.mass (ammo_data::load 0x33251F)
+    ///
+    /// # Safety
+    /// `this` is a survarium::ammo_data.
+    #[inline(always)]
+    pub unsafe fn mass(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+
+    /// +0x3c (f32): the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+    ///
+    /// # Safety
+    /// `this` is a survarium::ammo_data.
+    #[inline(always)]
+    pub unsafe fn muzzle_speed(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x3c).cast() }
+    }
+}
+
+/// survarium::bullet_manager's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod bullet_manager {
+    use core::ffi::c_void;
+
+    /// +0x90 (u32): the renderer (0: no effects; play_particle 0x3223EB)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet_manager.
+    #[inline(always)]
+    pub unsafe fn renderer(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x90).cast() }
+    }
+
+    /// +0x94 (u32): the game material manager (check_collision 0x32D845)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet_manager.
+    #[inline(always)]
+    pub unsafe fn materials(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x94).cast() }
+    }
+}
+
+/// survarium::game_material's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_material {
+    use core::ffi::c_void;
+
+    /// +0x64 (u16): its id (the material pair's index, 0x306D50)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_material.
+    #[inline(always)]
+    pub unsafe fn id(this: *mut c_void) -> *mut u16 {
+        unsafe { this.byte_add(0x64).cast() }
+    }
+}
+
+/// survarium::material_pair's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod material_pair {
+    use core::ffi::c_void;
+
+    /// +0x18 (u32): its sound's resource slot (process_front_face_piercing 0x32E6BA)
+    ///
+    /// # Safety
+    /// `this` is a survarium::material_pair.
+    #[inline(always)]
+    pub unsafe fn sound(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18).cast() }
+    }
+
+    /// +0x24 (u32): its particles' slots, begin (0x32E6E9)
+    ///
+    /// # Safety
+    /// `this` is a survarium::material_pair.
+    #[inline(always)]
+    pub unsafe fn particles(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x24).cast() }
+    }
+
+    /// +0x28 (u32): their end (0x32E6EC)
+    ///
+    /// # Safety
+    /// `this` is a survarium::material_pair.
+    #[inline(always)]
+    pub unsafe fn particles_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x28).cast() }
+    }
+
+    /// +0x74 (u32): the particles' parameter (0x32E708)
+    ///
+    /// # Safety
+    /// `this` is a survarium::material_pair.
+    #[inline(always)]
+    pub unsafe fn parameter(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x74).cast() }
+    }
+}
+
+/// vostok::physics::ray_result's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod ray_result {
+    use core::ffi::c_void;
+
+    /// +0x0 (f32): the hit point, a float3 (ray_test 0x75E20, abi.tsv)
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::ray_result.
+    #[inline(always)]
+    pub unsafe fn point(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x10 (f32): the hit normal, a float3, toward the ray's start
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::ray_result.
+    #[inline(always)]
+    pub unsafe fn normal(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+
+    /// +0x1c (u32): the object hit (the collision object's +0F8h; 0: none)
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::ray_result.
+    #[inline(always)]
+    pub unsafe fn object(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+
+    /// +0x28 (u32): the result's end: 28h bytes
+    ///
+    /// # Safety
+    /// `this` is a vostok::physics::ray_result.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x28).cast() }
+    }
+}
+
+/// survarium::mt_draw_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mt_draw_frame {
+    use core::ffi::c_void;
+
+    /// -0x14 (u32): mt_draw's bones' matrices (ebp-14h; the array of 0x2476AB)
+    ///
+    /// # Safety
+    /// `this` is a survarium::mt_draw_frame.
+    #[inline(always)]
+    pub unsafe fn bones(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x14).cast() }
+    }
+
+    /// -0x1c (u32): their count (ebp-1Ch)
+    ///
+    /// # Safety
+    /// `this` is a survarium::mt_draw_frame.
+    #[inline(always)]
+    pub unsafe fn bone_count(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x1c).cast() }
+    }
+}
+
+/// survarium::check_collision_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod check_collision_frame {
+    use core::ffi::c_void;
+
+    /// +0x14 (f32): the ray's length (esp+14h at 0x32D627; check_collision 0x32D56C)
+    ///
+    /// # Safety
+    /// `this` is a survarium::check_collision_frame.
+    #[inline(always)]
+    pub unsafe fn length(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+
+    /// +0x20 (f32): the ray's unit direction, a float3 (esp+20h; 0x32D5A2)
+    ///
+    /// # Safety
+    /// `this` is a survarium::check_collision_frame.
+    #[inline(always)]
+    pub unsafe fn direction(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x20).cast() }
+    }
+
+    /// +0x90 (f32): the ray's origin, a float3 (esp+90h: the by-value argument; 0x32D5FE)
+    ///
+    /// # Safety
+    /// `this` is a survarium::check_collision_frame.
+    #[inline(always)]
+    pub unsafe fn origin(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x90).cast() }
+    }
+}
+
+/// survarium::image: VAs of the game's data (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod image {
+
+    /// 0x9e2af4 (u32): bt_animated_rigid_body's vtable (RTTI; its ctor 0x70E70 writes it)
+    pub const ANIMATED_BODY_VTABLE: u32 = 0x9e2af4;
+
+    /// 0xa042ac (u32): victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
+    pub const VICTORY_ITEM_VTABLE: u32 = 0xa042ac;
+}
+
+/// vostok::render::game::renderer's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod renderer {
+    use core::ffi::c_void;
+
+    /// +0x200064 (u32): its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::game::renderer.
+    #[inline(always)]
+    pub unsafe fn scene_renderer(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x200064).cast() }
     }
 }

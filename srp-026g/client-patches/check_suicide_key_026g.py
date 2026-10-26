@@ -25,9 +25,14 @@ from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
     UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI
 
+import os
+
+if len(sys.argv) > 1:
+    os.environ.setdefault("SRP_026G_EXE", sys.argv[1])    # a span hook's bytes (patch_026g.RUST_HOOKS)
 import patch_026g as base
 
-SITE, RETURN = base.RUST_HOOKS[0][0], base.RUST_HOOKS[0][0] + 5
+SUICIDE_HOOK = next(h for h in base.RUST_HOOKS if h[2].startswith("suicide_key_"))
+SITE, RETURN = SUICIDE_HOOK[0], SUICIDE_HOOK[0] + 5
 PUSH_BACK = 0x242580                    # circular_buffer<pair<action, state>, 64>::push_back
 HANDLER, STACK, SENTINEL = 0x20000000, 0x21000000, 0x22000000
 BUFFER, HELD, MASK = 0x98, 0x2A8, 0x33C

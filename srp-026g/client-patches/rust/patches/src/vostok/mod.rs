@@ -14,16 +14,29 @@
 //!   to call the game's own function; a `lohook` handler gets a [`Context`]
 //!   and returns a [`Flow`]; state shared between hooks is a [`GameCell`].
 //!
+//! - state shared between hooks on several of the game's threads (the
+//!   draws, the bullets) is a [`Lock`]; the ragdoll's world ([`world`]), the
+//!   draw's sites ([`draw`]), the camera's ([`camera`]), a bullet's ray
+//!   ([`bullet`]), the machine's clock ([`clock`]) and the opt-in
+//!   diagnostics ([`trace`]) are patch 76's.
+//!
 //! It grows with what the patches need, and no further.
 
+pub mod bullet;
+pub mod camera;
 mod cell;
+pub mod clock;
 mod context;
+pub mod draw;
 mod hook;
 mod input;
 pub mod log;
 pub mod parse;
 mod rt;
+mod sync;
+pub mod trace;
 pub mod types;
+pub mod world;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches
@@ -43,6 +56,7 @@ mod generated {
 }
 
 pub use cell::GameCell;
+pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};

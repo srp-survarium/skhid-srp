@@ -29,6 +29,10 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
 
     python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
+
+A span hook (lohook, splice, code) needs the original exe for its bytes: the
+caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
+checked); patch_026g.py passes the exe it builds from.
 """
 import argparse
 import os
@@ -283,12 +287,33 @@ def splice_hook(patch, row, sites, functions, exe=None):
     return h
 
 
+_DEFAULT_EXE = []
+
+
+def default_exe():
+    """A reader of the original exe the environment names (SRP_026G_EXE, or
+    `--exe`), its sha256 checked; None without one."""
+    if not _DEFAULT_EXE:
+        path = os.environ.get("SRP_026G_EXE")
+        reader = None
+        if path and os.path.isfile(path):
+            import hashlib
+            import patch_026g
+            data = open(path, "rb").read()
+            if hashlib.sha256(data).hexdigest() != patch_026g.EXE_SHA256:
+                raise Bad(f"{path}: not the original 0.26g exe (sha256)")
+            reader = lambda va, n: data[patch_026g.file_offset(va):patch_026g.file_offset(va) + n]
+        _DEFAULT_EXE.append(reader)
+    return _DEFAULT_EXE[0]
+
+
 def span_bytes(patch_name, site, exe):
     """The site's replaced bytes, read from the original exe (the span length
     is the site's). The exe is where arbitrary game bytes come from; a call or
     pointer derives its bytes instead and does not need it."""
     if site["span"] is None:
         raise Bad(f"{patch_name}: site {site['site']} needs a `span` (its length) in sites_026g.tsv")
+    exe = exe or default_exe()
     if exe is None:
         raise Bad(f"{patch_name}: site {site['site']} ({site['kind']}) needs the original exe to read its "
                   f"{site['span']} bytes")
@@ -557,9 +582,32 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
 
 def arena_sources(tomls=None, functions=None, sites=None, exe=None):
     """The sources of the arena's block patches.code: the crate, the
-    generated entries, and each code hook's hand-written .asm."""
-    code = [h["source"] for h in hooks(tomls, functions, sites, exe) if h["kind"] == "code"]
+    generated entries, and each code hook's hand-written .asm (read from the
+    TOML and the sites alone: no exe needed)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    code = [row["source"] for patch in tomls for row in patch.get("hook", ())
+            if row.get("site") in sites and sites[row["site"]]["kind"] == "code" and "source" in row]
     return ("rust/patches/Cargo.toml", ASM.name, *dict.fromkeys(code))
+
+
+def lohook_sites(tomls=None, sites=None):
+    """(site VA, owner patch, what) of every lohook, from the TOML and the
+    sites alone: a jmp to its generated entry, which goes on past the span
+    (patch_026g.py's INSTALLS declares them JUMP from this)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+
+
+def install_sites(tomls=None, sites=None):
+    """(site VA, owner patch) of every hook, from the TOML and the sites alone
+    (patch_026g.py's write index; no exe needed)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
+            if row.get("site") in sites]
 
 
 def stale():
@@ -609,7 +657,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--exe", help="the original survarium.exe (a span hook's bytes)")
     args = parser.parse_args()
+    if args.exe:
+        os.environ["SRP_026G_EXE"] = args.exe
     if args.write == args.check:
         parser.error("--write or --check")
     try:

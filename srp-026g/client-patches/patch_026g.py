@@ -30,6 +30,12 @@ USAGE (this script never touches the source exe):
         Only the bitmap at the end of the patches' mount and the PE
         checksum differ; each <n> is 1 to 255. Not with --no-late-join,
         --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --ragdoll-trace
+        the default build with patch 76's diagnostics on: every living hit
+        and every death's ragdoll start as a line of srp_ragdoll.csv in the
+        user data folder. A local build for us (never a release's:
+        release/build-zip does not pass it); only the Rust crate's
+        SRP_DIAGNOSTICS and the PE checksum differ
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -346,6 +352,31 @@ Patches:
   simulation still reads as a hit on one's own head (0x2D8BC1). Its last
   action call (0x242196) calls the Rust patch suicide_key (the block
   patches.code) first, which sets bit 24 on the key going down;
+- a killed player falls as a ragdoll (patch 76, with the late join;
+  docs/notes/ragdoll.md): the Rust patch ragdoll (the blocks patches.code
+  and .data, over the solver crate srp-026g/crates/ragdoll), six lohooks
+  (ragdoll.toml, sites_026g.tsv): game_world::tick after the simulation's
+  move (0x1F7C3C) steps every place's corpse (alive, or dead with its
+  life's spawn time +328h as the death's key: a rollback that undoes the
+  death drops the ragdoll, the same death simulated again keeps it) and
+  the ragdolls (eleven capsules, XPBD, the level read by ray_test);
+  mt_draw's cull (0x24757C) draws a corpse of ours; mt_draw after the bones
+  (0x247716) captures the death clip and writes the ragdoll's bones over
+  its stack array; mt_draw's read of the held item (0x24754F) poses a
+  corpse holding nothing (a battery carrier's once the battery drops,
+  when mt_draw updates no bone) from its ragdoll through update_skeleton;
+  update_camera (0x1F3643) gives the local player's view its ragdoll's
+  eye; bullet::check_collision after its ray (0x32D627) tests the bullet's
+  segment against the ragdolls: the part hit is pushed (once a bullet a
+  victim: the bullet's shooter and id and the corpse's death, so neither
+  a re-simulated tick nor the bullet's next segment pushes again), a
+  settled body wakes, and the game's body-hit particle and sound play
+  there; a bullet in a living player's hit model is kept (once a bullet)
+  and its death starts with its push (the round's momentum: the ammo's
+  mass, at most 0.04 kg, times the bullet's speed; a battery drops no gun),
+  the body a powered ragdoll (muscles that weaken from the death, the
+  kit's weight from the inventory on its parts). Drawn only: nothing a
+  match computes, keeps or hashes changes, the bullet goes on as before;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -1147,9 +1178,25 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key",)
-RUST_HOOKS = tuple((va, original, symbol, opcode)
-                   for va, original, symbol, opcode, _owner in hooks_026g.installs())
+RUST_PATCHES = ("suicide_key", "ragdoll")
+
+
+def rust_hooks(original):
+    """The Rust hooks' installs (site VA, the bytes replaced, the entry's
+    arena symbol, the opcode): a span hook's bytes read from `original`, the
+    exe being built from."""
+    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n])
+    return tuple((va, old, symbol, opcode) for va, old, symbol, opcode, _owner in hooks_026g.installs(exe=read))
+
+
+def __getattr__(name):
+    """RUST_HOOKS, for the checks: rust_hooks() of the exe SRP_026G_EXE names."""
+    if name == "RUST_HOOKS":
+        path = os.environ.get("SRP_026G_EXE")
+        if not path:
+            raise AttributeError("RUST_HOOKS needs the original exe: SRP_026G_EXE")
+        return rust_hooks(open(path, "rb").read())
+    raise AttributeError(name)
 
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
@@ -2450,6 +2497,12 @@ def audit_installs(data, writes, installs=None):
             sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
 
 
+# The Rust lohooks (hooks_026g.py): each a jmp to its generated entry,
+# which goes on past the span or replays it.
+for _va, _owner, _what in hooks_026g.lohook_sites():
+    INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+
+
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
 # README "The arena"). The exe's section table has room for twelve entries
 # (it is at 210h and the headers end at 400h, where the first section's
@@ -2501,6 +2554,10 @@ ARENA = (
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
     ArenaBlock("patches.code", "code", 0x1000, hooks_026g.arena_sources()),
+    # the crate's statics: patch 76's corpses and pool, shots and trace
+    # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
+    ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
+    ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
 )
 
 
@@ -2681,7 +2738,7 @@ def instance_of(va):
             if name.isupper() and name not in ("WRITES", "APPLIED"):
                 for row in _install_rows(value):
                     _INSTANCE_INDEX.setdefault(row[0], set()).add(name)
-        for site, _, _, _, owner in hooks_026g.installs():
+        for site, owner in hooks_026g.install_sites():
             _INSTANCE_INDEX[site] = {f"rust:{owner}"}
     names = _INSTANCE_INDEX.get(va, set())
     names = (names & set(INSTANCE_AGGREGATES)) or names
@@ -3542,7 +3599,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + RUST_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3593,6 +3650,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
+                     "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
@@ -3861,11 +3919,36 @@ def late_join_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "late_join_026g.section.bin")
 
 
+# vostok::trace's switch (rust/patches/src/vostok/trace.rs): "OFF\0" in
+# every build, 1 in a diagnostics build.
+DIAGNOSTICS_OFF = struct.pack("<I", int.from_bytes(b"OFF\0", "big"))
+
+
+def with_diagnostics(data):
+    """The build with the Rust patches' opt-in diagnostics on (patch 76's
+    srp_ragdoll.csv): the crate's SRP_DIAGNOSTICS, DIAGNOSTICS_OFF in every
+    build, made 1. A local build only: release/build-zip never passes
+    --ragdoll-trace."""
+    va = arena().symbols["SRP_DIAGNOSTICS"]
+    data = bytearray(data)
+    at = next((raw + va - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
+               if IMAGE_BASE + rva <= va < IMAGE_BASE + rva + min(vsize, rsize)), None)
+    if at is None:
+        raise SystemExit(f"SRP_DIAGNOSTICS at {va:#x} is in no section of the build")
+    if bytes(data[at:at + 4]) != DIAGNOSTICS_OFF:
+        raise SystemExit(f"SRP_DIAGNOSTICS at {va:#x} is not the build's off value")
+    data[at:at + 4] = struct.pack("<I", 1)
+    headers = Headers(data)
+    struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
+    return bytes(data)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server, list_installs = "section", None, None, False
     late_join, late_join_path, revision, required = True, None, None, None
+    diagnostics = False
     for option in options:
         if option == "--installs":
             list_installs = True
@@ -3885,6 +3968,8 @@ def main():
             revision = parse_revision(option[11:])
         elif option.startswith("--required-patches="):
             required = parse_required_patches(option[len("--required-patches="):])
+        elif option == "--ragdoll-trace":
+            diagnostics = True
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -3907,6 +3992,11 @@ def main():
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
     data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
                               required_patches=required)
+    if diagnostics:
+        if late_join_code is None:
+            sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
+        data = with_diagnostics(data)
+        description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)
