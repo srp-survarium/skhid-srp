@@ -671,6 +671,51 @@ impl Route {
         Self::with_floors(points, floors)
     }
 
+    /// This route with its stretch from `s0` to `s1` metres along it
+    /// replaced by `mid`, a route from the point at `s0` to the point at
+    /// `s1` (a local detour round a lane, `threat.rs`). The corners before
+    /// `s0` and after `s1` and the floors' heights along them are kept.
+    pub fn spliced(&self, s0: f32, s1: f32, mid: &Route) -> Self {
+        const EPS: f32 = 0.05;
+        let (s0, s1) = (s0.max(0.0), s1.max(s0));
+        let before = self.along.partition_point(|&a| a < s0 - EPS);
+        let after = self.along.partition_point(|&a| a <= s1 + EPS);
+        let mut points: Vec<Waypoint> = self.points[..before].to_vec();
+        let first_mid = points.len();
+        points.extend(mid.points.iter().copied());
+        let first_after = points.len();
+        points.extend(self.points[after..].iter().copied());
+        let mut route = Self::with_floors(points, Vec::new());
+        let mut floors: Vec<(f32, f32)> = self
+            .floors
+            .iter()
+            .copied()
+            .filter(|&(a, _)| a < s0 - EPS)
+            .collect();
+        if let Some(&start) = route.along.get(first_mid) {
+            floors.extend(mid.floors.iter().map(|&(a, y)| (start + a, y)));
+        }
+        if let (Some(&now), Some(&was)) = (route.along.get(first_after), self.along.get(after)) {
+            floors.extend(
+                self.floors
+                    .iter()
+                    .filter(|&&(a, _)| a >= self.along[after])
+                    .map(|&(a, y)| (a - was + now, y)),
+            );
+        }
+        route.floors = floors;
+        route
+    }
+
+    /// Whether a corner reached by a jump lies between `s0` and `s1` metres
+    /// along the route.
+    pub fn jumps_between(&self, s0: f32, s1: f32) -> bool {
+        self.points
+            .iter()
+            .zip(&self.along)
+            .any(|(point, &a)| point.jump && a >= s0 && a <= s1)
+    }
+
     /// A route by its corners and the floors' heights along it
     /// ([`Route::floors`]).
     fn with_floors(points: Vec<Waypoint>, floors: Vec<(f32, f32)>) -> Self {
@@ -906,6 +951,26 @@ impl Route {
 mod tests {
     use super::*;
     use crate::v026g::bots::body::tests::walled;
+
+    #[test]
+    fn a_stretch_of_a_route_is_replaced_by_a_detour_and_the_rest_is_kept() {
+        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let plain = Route::new(vec![wp(0.0, 0.0), wp(30.0, 0.0), wp(60.0, 0.0), wp(90.0, 0.0)]);
+        // The stretch 20-70 m goes round by z = 10.
+        let mid = Route::new(vec![wp(20.0, 0.0), wp(30.0, 10.0), wp(60.0, 10.0), wp(70.0, 0.0)]);
+        let round = plain.spliced(20.0, 70.0, &mid);
+        let xs: Vec<(f32, f32)> = round.points().iter().map(|p| (p.at.x, p.at.z)).collect();
+        assert_eq!(
+            xs,
+            vec![(0.0, 0.0), (20.0, 0.0), (30.0, 10.0), (60.0, 10.0), (70.0, 0.0), (90.0, 0.0)]
+        );
+        // 20 m, the detour's own length, 20 m.
+        assert!((round.length() - (20.0 + mid.length() + 20.0)).abs() < 0.01, "{}", round.length());
+        assert!(round.floors.windows(2).all(|w| w[0].0 <= w[1].0), "{:?}", round.floors);
+        // No corner at the cut: the first corner after it is kept.
+        let whole = plain.spliced(0.0, 90.0, &Route::new(vec![wp(0.0, 0.0), wp(90.0, 5.0)]));
+        assert_eq!(whole.points().len(), 2);
+    }
 
     #[test]
     fn a_path_round_a_wall_is_pulled_to_a_few_corners() {

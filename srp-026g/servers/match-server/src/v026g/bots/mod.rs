@@ -59,6 +59,7 @@ pub mod signals;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
+pub mod threat;
 pub mod trace;
 pub mod trap_know;
 pub mod traps;
@@ -131,6 +132,9 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// The regions the team's held threat spots see ([`threat`]), told at
+    /// the commander's ticks; its routes keep out of them where they can.
+    threat: Arc<threat::Covered>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -296,6 +300,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -595,6 +600,8 @@ impl Bots {
             spots: TeamSpots::default(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
+            threat: threat::ThreatSpots::default(),
+            covered: None,
         };
         let bots = teams
             .iter()
