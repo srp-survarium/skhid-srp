@@ -2300,7 +2300,6 @@ pub(super) mod tests {
     fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
         let route = |rise: f32, filter: &RouteFilter| {
             let mut solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
-            solids.extend(wall_x(10.0, 5.0, 9.0, rise));
             let world = field_with_solids(&solids, |_| {});
             let tactics = Tactics::new(world.clone(), 1.0);
             let grid = &world.grid;
