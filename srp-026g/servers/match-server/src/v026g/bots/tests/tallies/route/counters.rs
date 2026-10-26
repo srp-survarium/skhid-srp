@@ -50,7 +50,7 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
     )
 }
 
-/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard.
+/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::counts::counts().to_vec(),
@@ -59,6 +59,7 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
                 "jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {}",
                 d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
             ));
+            line.tail.push(format!("look_unclear {} look_unclear_back {} look_unclear_off {}", d[8], d[9], d[10]));
         },
     )
 }
@@ -71,6 +72,20 @@ pub(super) fn request_gaps() -> Box<dyn RouteTopic> {
             line.main.push(format!(
                 "gap_found_same {} gap_found_above {} gap_found_below {} gap_failed_same {} gap_failed_above {} gap_failed_below {}",
                 d[0], d[1], d[2], d[3], d[4], d[5]
+            ));
+        },
+    )
+}
+
+/// The shots bots heard (`sense::shot_heard`): by the weapon's reach, at the fallback of an unknown weapon, from
+/// over the flat range.
+pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::sense::shots_heard().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "shots_heard_table {} shots_heard_unknown {} shots_heard_far {}",
+                d[0], d[1], d[2]
             ));
         },
     )
@@ -98,6 +113,17 @@ pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::rest::stops::counts().to_vec(),
         |d, line| line.ends.push(format!("rests_on_lip {} rest_seconds_on_lip {:.1}", d[0], d[1] as f32 / 1000.0)),
+    )
+}
+
+/// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
+pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_jumps::counts().iter().flatten().copied().collect(),
+        |d, line| {
+            let band = |k: usize| d[k * 6..k * 6 + 6].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("sprint_jumps_pressed {} sprint_jumps_up {} sprint_jumps_gave_up {}", band(0), band(1), band(2)));
+        },
     )
 }
 

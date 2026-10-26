@@ -151,6 +151,13 @@ impl Body {
         }
     }
 
+    /// The highest rise a Jump link is made for: [`Self::max_jump`], and with the clients' numbers the sprint
+    /// jump's [`SPRINT_JUMP_LOW_M`] (a link above `max_jump` is a sprint jump: a run-up with sprint held, not for a
+    /// body that cannot sprint, `with_max_jump_rise`).
+    pub fn jump_cap(&self) -> f32 {
+        if self.client_slope() { SPRINT_JUMP_LOW_M.max(self.max_jump) } else { self.max_jump }
+    }
+
     /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
     /// on steep ground, which the client slides off ([`WalkGrid::cut_steep_climbs`]).
     fn client_slope(&self) -> bool {
@@ -298,6 +305,16 @@ pub const POCKET_EXIT_FLOORS: usize = 2_000;
 /// clips' root, PROVEN, the jump study), metres.
 pub const STEP_UP_M: f32 = 0.6;
 pub const STANDING_JUMP_M: f32 = 0.998;
+/// The lowest top of the client's sprint jump (1.282-1.350 m by clip, PROVEN, the jump study): the highest rise a
+/// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
+/// (1.26-1.35, F+J+S at 4.8 m/s) and the 8f rows (+1.36 mounted 4 of 6, at the limit) bound it.
+pub const SPRINT_JUMP_LOW_M: f32 = 1.28;
+/// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
+/// sprint from rest is at full speed by 2 m, and 1.5 m is the least tried; bot-side the motor wants 2 m).
+pub const SPRINT_RUN_UP_M: f32 = 1.5;
+/// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
+/// GUESS, benched.
+pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
 
 /// [`WalkGrid`]'s `flags`: a walk from a spawn's floor gets here.
 const REACHED: u8 = 1;
@@ -687,6 +704,7 @@ impl WalkGrid {
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
+        grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         grid.erode(&mut wide, &cut, &solids);
         wide.off = match links {
@@ -771,7 +789,7 @@ impl WalkGrid {
             let kind = if rise < 0.0 && -rise <= body.max_drop && cb - ha >= body.crouch_height {
                 LinkKind::Drop
             } else if rise > 0.0
-                && rise <= body.max_jump
+                && rise <= body.jump_cap()
                 // A jump lands a standing body: room to stand over the
                 // floor it lands on, under both ceilings (no crouch-jump
                 // into a window or under a low roof: the client's is not
@@ -813,6 +831,42 @@ impl WalkGrid {
                     && wide.kinds[a][d] == LinkKind::Jump
                     && !Self::lands(wide, b as usize, d)
                 {
+                    wide.links[a][d] = NONE;
+                }
+            }
+        }
+    }
+
+    /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
+    /// [`SPRINT_RUN_UP_M`] behind their take-off: the floors walked back from it in the opposite direction, each a
+    /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e).
+    fn drop_short_run_ups(&self, wide: &mut Wide) {
+        // Erosion takes the floors within the body's radius of the face off the take-off's side: the run is counted from
+        // before it.
+        let cells = ((SPRINT_RUN_UP_M + self.body.radius) / self.cell).ceil() as usize;
+        for a in 0..self.height.len() {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b == NONE
+                    || wide.kinds[a][d] != LinkKind::Jump
+                    || self.height[b as usize] - self.height[a] <= self.body.max_jump
+                {
+                    continue;
+                }
+                let mut at = a;
+                let mut ok = true;
+                for _ in 0..cells {
+                    let back = wide.links[at][d ^ 1];
+                    if back == NONE
+                        || wide.kinds[at][d ^ 1] != LinkKind::Walk
+                        || (self.height[back as usize] - self.height[at]).abs() > self.body.step
+                    {
+                        ok = false;
+                        break;
+                    }
+                    at = back as usize;
+                }
+                if !ok {
                     wide.links[a][d] = NONE;
                 }
             }
@@ -1460,7 +1514,7 @@ impl WalkGrid {
                             from: word(0),
                             to: word(4),
                             kind,
-                            press: gap::PressLead::from_centimetres(half(10)),
+                            press: gap::Takeoff::from_centimetres(half(10)),
                         }
                     })?
                     },
@@ -2283,7 +2337,8 @@ impl WalkGrid {
         } else {
             0.0
         };
-        (q - p).length() + kind.penalty() + lip + marginal + fall + descent
+        let sprint = if kind == LinkKind::Jump && q.y - p.y > self.body.max_jump { SPRINT_JUMP_PENALTY } else { 0.0 };
+        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
@@ -4200,6 +4255,25 @@ pub(crate) mod tests {
         assert_eq!(way(&steep, Body::default()), (false, false));
         // The default body's grid is what it was: Body::default() is the exe's numbers.
         assert_eq!((Body::default().step, Body::default().min_ground_normal_y), (0.6, 0.642_787_6));
+    }
+
+    /// With the clients' numbers a face of 1.2 m (over the standing jump, under the sprint jump's 1.28) is a Jump
+    /// link, but only where a straight run of [`SPRINT_RUN_UP_M`] lies behind its take-off; the exe's body makes none.
+    #[test]
+    fn a_sprint_jump_link_needs_a_run_up_and_the_clients_body() {
+        let way = |behind: f32, body: Body| {
+            let mut tris = floor(5.0 - behind, 0.0, 5.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 12.0, 10.0, 1.2));
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body);
+            let a = grid.locate(Vec3::new(5.0 - behind + 0.5, 0.0, 5.0), 0.5).unwrap();
+            let b = grid.locate(Vec3::new(9.0, 1.2, 5.0), 0.5).unwrap();
+            grid.path(a, b).is_some_and(|p| p.nodes.windows(2).any(|w| grid.links(w[0]).any(|l| l == (w[1], LinkKind::Jump))))
+        };
+        assert!(way(4.0, Body::client()), "a run-up of 3.5 m: the sprint jump up 1.2 m");
+        assert!(!way(4.0, Body::default()), "the exe's body jumps 1.05 m at most");
+        assert!(!way(1.2, Body::client()), "no run of 1.5 m behind the take-off");
+        assert_eq!(Body::default().jump_cap(), 1.05);
+        assert_eq!(Body::client().jump_cap(), SPRINT_JUMP_LOW_M);
     }
 
     #[test]

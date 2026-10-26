@@ -173,7 +173,35 @@ fn made_up_match() -> Vec<(&'static str, String)> {
             };
             tally.note(&note, &game);
         }
+        // The shots the stand-in would have fired at a target this tick: lines at made-up offsets (from `k` alone,
+        // so that no draw above moves), all bands, classes and stances, some hits, some with no line.
+        if k % 7 == 0 {
+            use crate::v026g::bots::tests::tallies::fight_tally::ShotFact;
+            use crate::v026g::bots::tests::tallies::shot_offset::{DistBand, Offset, ShotClass, ShotOffset, Stance};
+            let n = (k / 7) as u32;
+            let distance = 4.0 + (n * 13 % 95) as f32;
+            let (lateral, vertical) = ((n * 7 % 31) as f32 / 10.0 - 1.55, (n * 11 % 29) as f32 / 10.0 - 1.45);
+            let line = (!n.is_multiple_of(23)).then(|| Offset { miss: lateral.hypot(vertical), lateral, vertical });
+            game.shot_facts.push(ShotFact {
+                shooter: n as usize % 3,
+                tick,
+                hit: (n.is_multiple_of(3)).then_some(3),
+                target: Some((3, distance, 0.0)),
+                moving: false,
+                aimed: true,
+                crouched: false,
+                aim_state: Default::default(),
+                cone: 0.0,
+                offset: Some(ShotOffset {
+                    band: DistBand::of(distance),
+                    class: ShotClass::ALL[n as usize % 7],
+                    stance: if n.is_multiple_of(5) { Stance::Crouched } else { Stance::Standing },
+                    line,
+                }),
+            });
+        }
         tally.step_with(&mut game, &nows);
+        game.shot_facts.clear();
     }
     tally.run.camper = Some(3);
     let Topics { core, parts } = tally.finish_topics(&game);

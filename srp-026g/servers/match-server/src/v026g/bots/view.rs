@@ -184,6 +184,9 @@ pub enum SoundKind {
     Switch,
     Use,
     Jump,
+    /// A bear trap went off under a body (`Tracker::snap`): the sound is the
+    /// body's, heard at the loudness of its steps.
+    Trap,
 }
 
 /// A sound a player made.
@@ -193,6 +196,9 @@ pub struct Sound {
     pub kind: SoundKind,
     pub at: Vec3,
     pub time: u32,
+    /// A shot's reach by the weapon that fired it, metres
+    /// ([`super::shot_reach`]), where the shooter's weapon 1 is known.
+    pub reach_m: Option<f32>,
 }
 
 /// A death seen in a world's statistics: who, where last reckoned, when.
@@ -530,6 +536,9 @@ pub struct Tracker {
     grenades: Vec<LiveGrenade>,
     throws: ThrowCounts,
     sounds: VecDeque<Sound>,
+    /// By place, the reach of a shot of its weapon 1 ([`super::shot_reach`]),
+    /// where known.
+    shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
     /// The bench only: by place, a bot seen as a human is, its body known
@@ -569,6 +578,7 @@ impl Tracker {
             grenades: Vec::new(),
             throws: ThrowCounts::default(),
             sounds: VecDeque::new(),
+            shot_reach: Vec::new(),
             deaths: VecDeque::new(),
             world_time: 0,
             #[cfg(test)]
@@ -599,6 +609,11 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// Every place's shot reach, metres ([`super::shot_reach`]), by place.
+    pub fn set_shot_reach(&mut self, reach: Vec<Option<f32>>) {
+        self.shot_reach = reach;
     }
 
     /// The speed level each place's profile gives (by place), taken for a
@@ -659,12 +674,14 @@ impl Tracker {
             return;
         };
         let at = estimate.feet;
+        let reach_m = self.shot_reach.get(place).copied().flatten();
         let mut heard = |kind| {
             self.sounds.push_back(Sound {
                 from: place,
                 kind,
                 at,
                 time,
+                reach_m: (kind == SoundKind::Shot).then_some(reach_m).flatten(),
             });
         };
         if pressed & key::FIRE != 0 {
@@ -819,6 +836,35 @@ impl Tracker {
     /// sprint_body_mps`): `None`, SPRINT and FORWARD held make the sprint
     /// sound; `Some(v)`, only a body that also sprints by the client's key
     /// rule ([`Kinematics::sprints`]) and moves at `v` m/s or more.
+    /// The alive body nearest `at` within `within` metres, if any: whose
+    /// foot a trap that went off there was under.
+    pub fn nearest_body(&self, at: Vec3, within: f32) -> Option<Place> {
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|(_, state)| state.present && state.alive)
+            .filter_map(|(place, state)| {
+                let feet = state.body.estimate()?.feet;
+                let d = feet.distance_xz(at);
+                (d <= within && (feet.y - at.y).abs() < 2.0).then_some((place, d))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(place, _)| place)
+    }
+
+    /// A trap went off under body `victim` at `at`: a sound of its own, heard
+    /// by the enemies of the body like its steps.
+    pub fn snap(&mut self, victim: Place, at: Vec3, time: u32) {
+        self.sounds.push_back(Sound {
+            from: victim,
+            kind: SoundKind::Trap,
+            at,
+            time,
+            // A trap's snap has no weapon reach.
+            reach_m: None,
+        });
+    }
+
     pub fn held_sounds(&mut self, clock: u32, sprint_body_mps: Option<f32>) {
         for (place, state) in self.places.iter_mut().enumerate() {
             let Some(at) = state.body.estimate().map(|e| e.feet) else {
@@ -832,6 +878,7 @@ impl Tracker {
                     kind: SoundKind::Shot,
                     at,
                     time: clock,
+                    reach_m: self.shot_reach.get(place).copied().flatten(),
                 });
             }
             let sprinting = match sprint_body_mps {
@@ -853,6 +900,7 @@ impl Tracker {
                     kind: SoundKind::Sprint,
                     at,
                     time: clock,
+                    reach_m: None,
                 });
             }
         }
