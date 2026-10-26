@@ -127,14 +127,14 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
 }
 
 /// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
-/// came with one, and the stuck checks a tuned gap ended (`stuck::fix_gaps`).
+/// came with one, the stuck checks a tuned gap ended, and the stuck notes with a body within 1.2 m (`stuck::fix_gaps`).
 pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::fix_gaps::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "fix_gaps {} fix_gap_stuck_notes {} fix_gap_off_notes {} fix_gap_checks_ended {}",
-                d[0], d[1], d[2], d[3]
+                "fix_gaps {} fix_gap_stuck_notes {} fix_gap_off_notes {} fix_gap_checks_ended {} stuck_beside_body {}",
+                d[0], d[1], d[2], d[3], d[4]
             ));
         },
     )

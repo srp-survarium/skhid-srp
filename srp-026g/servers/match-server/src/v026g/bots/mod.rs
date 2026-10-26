@@ -1091,11 +1091,16 @@ impl Bots {
                 stuck::fix_gaps::count(1);
             }
             let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
+            let beside = self.tracker.nearest_body(place, feet);
+            #[cfg(test)]
+            if beside.is_some_and(|(_, d)| d <= stuck::BESIDE_M) {
+                stuck::fix_gaps::count(4);
+            }
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
@@ -1103,7 +1108,8 @@ impl Bots {
                         ""
                     },
                     meant_text,
-                    stuck::gap_note(gap)
+                    stuck::gap_note(gap),
+                    stuck::beside_note(beside)
                 ),
             );
             let (side, other) = if bot.rng.unit() < 0.5 {

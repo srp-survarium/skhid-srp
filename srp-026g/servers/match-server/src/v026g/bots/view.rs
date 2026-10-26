@@ -39,6 +39,9 @@ use super::live_grenades::{
 };
 use crate::v026g::drive::key;
 
+/// A body this far over or under another is not beside it, metres.
+const NEAR_FLOOR_M: f32 = 1.5;
+
 /// A roster place.
 pub type Place = usize;
 
@@ -606,6 +609,20 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// The other place whose last world shows it alive nearest to `feet` on the same floor (within a storey's
+    /// step), and how far in the plane, metres.
+    pub fn nearest_body(&self, place: Place, feet: Vec3) -> Option<(Place, f32)> {
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|&(other, _)| other != place)
+            .filter_map(|(other, state)| {
+                let at = state.body.fix().filter(|fix| fix.alive).and_then(|fix| fix.feet)?;
+                ((at.y - feet.y).abs() < NEAR_FLOOR_M).then(|| (other, at.distance_xz(feet)))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
     }
 
     /// Every place's shot reach, metres ([`super::shot_reach`]), by place.
