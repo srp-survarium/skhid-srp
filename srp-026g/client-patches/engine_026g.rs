@@ -208,6 +208,15 @@ pub mod match_options {
     pub unsafe fn places(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x577b5).cast() }
     }
+
+    /// +0x57870 (u32): patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
+    ///
+    /// # Safety
+    /// `this` is a survarium::match_options.
+    #[inline(always)]
+    pub unsafe fn srp_blackout(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x57870).cast() }
+    }
 }
 
 /// survarium::player's fields (fields_026g.tsv).
@@ -845,5 +854,146 @@ pub mod renderer {
     #[inline(always)]
     pub unsafe fn scene_renderer(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x200064).cast() }
+    }
+}
+
+/// vostok::buffer_reader's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod buffer_reader {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
+    ///
+    /// # Safety
+    /// `this` is a vostok::buffer_reader.
+    #[inline(always)]
+    pub unsafe fn begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the next byte to read
+    ///
+    /// # Safety
+    /// `this` is a vostok::buffer_reader.
+    #[inline(always)]
+    pub unsafe fn cursor(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): the bytes from begin
+    ///
+    /// # Safety
+    /// `this` is a vostok::buffer_reader.
+    #[inline(always)]
+    pub unsafe fn size(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// survarium::game_world_ui's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_world_ui {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world_ui.
+    #[inline(always)]
+    pub unsafe fn hud_movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0x10 (u32): the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world_ui.
+    #[inline(always)]
+    pub unsafe fn icons_movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+}
+
+/// vostok::ui::movie_holder's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod movie_holder {
+    use core::ffi::c_void;
+
+    /// +0x108 (u32): the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
+    ///
+    /// # Safety
+    /// `this` is a vostok::ui::movie_holder.
+    #[inline(always)]
+    pub unsafe fn view(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x108).cast() }
+    }
+}
+
+/// vostok::ui::movie_view's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod movie_view {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
+    ///
+    /// # Safety
+    /// `this` is a vostok::ui::movie_view.
+    #[inline(always)]
+    pub unsafe fn movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// survarium::static_info_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod static_info_frame {
+    use core::ffi::c_void;
+
+    /// -0x2c (u32): process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
+    ///
+    /// # Safety
+    /// `this` is a survarium::static_info_frame.
+    #[inline(always)]
+    pub unsafe fn reader(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x2c).cast() }
+    }
+}
+
+/// survarium::replay_options_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod replay_options_frame {
+    use core::ffi::c_void;
+
+    /// +0x40 (u32): a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
+    ///
+    /// # Safety
+    /// `this` is a survarium::replay_options_frame.
+    #[inline(always)]
+    pub unsafe fn options(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x40).cast() }
+    }
+
+    /// +0x14 (u32): its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
+    ///
+    /// # Safety
+    /// `this` is a survarium::replay_options_frame.
+    #[inline(always)]
+    pub unsafe fn reader(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+}
+
+/// survarium::update_player_icons_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod update_player_icons_frame {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+    ///
+    /// # Safety
+    /// `this` is a survarium::update_player_icons_frame.
+    #[inline(always)]
+    pub unsafe fn ui(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
     }
 }

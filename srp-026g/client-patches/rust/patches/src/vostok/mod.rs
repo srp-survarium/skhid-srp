@@ -30,13 +30,16 @@ mod context;
 pub mod draw;
 mod hook;
 mod input;
+mod keyboard;
 pub mod log;
+mod options;
 pub mod parse;
 mod rt;
 mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches
@@ -61,4 +64,7 @@ pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
+pub use keyboard::TabTest;
+pub use options::OptionsRead;
 pub use rt::c_u32;
+pub use ui::{GameWorldUi, Movie};

@@ -6,6 +6,201 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
+global blackout_on_static_info
+extern hook_blackout_on_static_info
+blackout_on_static_info:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_static_info
+    mov edx, blackout_on_static_info_replay
+    cmp eax, 0
+    je blackout_on_static_info_go
+    mov edx, 0x27b932
+    cmp eax, 1
+    je blackout_on_static_info_go
+    ud2
+blackout_on_static_info_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_static_info_replay:
+    db 0x8b, 0x17, 0x8b, 0x42, 0x40
+    jmp 0x27b932
+
+; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> blackout_on_replay_options
+global blackout_on_replay_options
+extern hook_blackout_on_replay_options
+blackout_on_replay_options:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_replay_options
+    mov edx, blackout_on_replay_options_replay
+    cmp eax, 0
+    je blackout_on_replay_options_go
+    mov edx, 0x1f0976
+    cmp eax, 1
+    je blackout_on_replay_options_go
+    ud2
+blackout_on_replay_options_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_replay_options_replay:
+    db 0x5e, 0x5b, 0x83, 0xc4, 0x34
+    jmp 0x1f0976
+
+; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
+global blackout_on_update_icons
+extern hook_blackout_on_update_icons
+blackout_on_update_icons:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_update_icons
+    mov edx, blackout_on_update_icons_replay
+    cmp eax, 0
+    je blackout_on_update_icons_go
+    mov edx, 0x23aa16
+    cmp eax, 1
+    je blackout_on_update_icons_go
+    ud2
+blackout_on_update_icons_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_update_icons_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x23aa16
+
+; 0x25cd2c game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39): lohook -> blackout_on_tab
+global blackout_on_tab
+extern hook_blackout_on_tab
+blackout_on_tab:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_tab
+    mov edx, blackout_on_tab_replay
+    cmp eax, 0
+    je blackout_on_tab_go
+    mov edx, 0x25cd33
+    cmp eax, 1
+    je blackout_on_tab_go
+    ud2
+blackout_on_tab_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_tab_replay:
+    db 0x8b, 0x4c, 0x24, 0x14, 0x8d, 0x77, 0x04
+    jmp 0x25cd33
+
+; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> blackout_on_input_end
+global blackout_on_input_end
+extern hook_blackout_on_input_end
+blackout_on_input_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_input_end
+    mov edx, blackout_on_input_end_replay
+    cmp eax, 0
+    je blackout_on_input_end_go
+    mov edx, 0x2421b5
+    cmp eax, 1
+    je blackout_on_input_end_go
+    ud2
+blackout_on_input_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_input_end_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x2421b5
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step
