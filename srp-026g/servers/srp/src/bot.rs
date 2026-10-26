@@ -53,7 +53,9 @@ use match_server::v026g::scripted::Client as MatchClient;
 use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
 use survarium::v026g::lobby::requests::id as lobby_id;
-use survarium::v026g::lobby::rooms::ROOM_STATE;
+use survarium::v026g::lobby::rooms::{
+    PIN_MAX, ROOM_JOIN_BASE, ROOM_KEY_MAX, ROOM_PIN_BASE, ROOM_STATE,
+};
 use survarium::v026g::maps;
 use survarium::v026g::match_msgs::ServerMessage;
 
@@ -91,6 +93,20 @@ const PASS: Duration = Duration::from_millis(5);
 /// Where a bot's lines go.
 pub type Print = Arc<dyn Fn(&str) + Send + Sync>;
 
+/// An existing room, optionally protected by a PIN. Used by local spawn inspection.
+#[derive(Clone, Copy, Debug)]
+pub struct RoomTarget {
+    key: u32,
+    pin: Option<u16>,
+}
+
+impl RoomTarget {
+    pub fn new(key: u32, pin: Option<u16>) -> Option<Self> {
+        ((1..=ROOM_KEY_MAX).contains(&key) && pin.is_none_or(|pin| pin <= PIN_MAX))
+            .then_some(Self { key, pin })
+    }
+}
+
 /// One bot.
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -109,6 +125,8 @@ pub struct Config {
     /// The patch revision its sign-in says: one that speaks the late join
     /// (5 and later; only such a game plays in rooms).
     pub revision: u8,
+    /// Join this room instead of pressing Play.
+    pub room: Option<RoomTarget>,
 }
 
 /// SHA-1 as the client prints it: 40 lower-case hex characters.
@@ -545,12 +563,29 @@ impl Bot {
                 if now >= *at && may_play {
                     let kit = self.config.kit.or(kit).unwrap_or(1);
                     if let Some(lobby) = &mut self.lobby {
-                        let (id, body) = request::play(kit);
-                        lobby.client.send(id, &body);
+                        if let Some(room) = self.config.room {
+                            if let Some(pin) = room.pin {
+                                let (id, body) =
+                                    request::ranking(ROOM_PIN_BASE + u32::from(pin), 1);
+                                lobby.client.send(id, &body);
+                            }
+                            let (id, body) = request::ranking(ROOM_JOIN_BASE + room.key, 1);
+                            lobby.client.send(id, &body);
+                        } else {
+                            let (id, body) = request::play(kit);
+                            lobby.client.send(id, &body);
+                        }
                         lobby.room = None;
                         lobby.room_asked = None;
                     }
-                    self.say(&format!("pressed Play with kit {kit}"));
+                    if let Some(room) = self.config.room {
+                        self.say(&format!(
+                            "joining room {} (stationary unless --drive)",
+                            room.key
+                        ));
+                    } else {
+                        self.say(&format!("pressed Play with kit {kit}"));
+                    }
                     self.stage = Stage::Waiting;
                 }
             }
@@ -652,12 +687,13 @@ impl Bot {
                     let ip = host.parse::<IpAddr>().ok().or(lobby_ip);
                     let drive = self.config.drive;
                     let link = ip.zip(socket().ok()).map(|(ip, socket)| {
-                        let mut client =
-                            if survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision) {
-                                MatchClient::idle_growing(session)
-                            } else {
-                                MatchClient::idle(session)
-                            };
+                        let mut client = if survarium::v026g::match_msgs::late_join::spoken_by(
+                            self.config.revision,
+                        ) {
+                            MatchClient::idle_growing(session)
+                        } else {
+                            MatchClient::idle(session)
+                        };
                         client.connect();
                         MatchLink {
                             addr: SocketAddr::new(ip, *port),
@@ -925,7 +961,7 @@ pub fn run(configs: Vec<Config>, print: Print, stop: &AtomicBool) {
         // The first bot that is not done leads.
         let leader = bots.iter().position(|bot| !bot.is_done());
         for (index, bot) in bots.iter_mut().enumerate() {
-            bot.step(Some(index) == leader || somebody_waits);
+            bot.step(bot.config.room.is_some() || Some(index) == leader || somebody_waits);
         }
         std::thread::sleep(PASS);
     }
@@ -952,6 +988,15 @@ pub fn names(first: &str, count: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn room_targets_require_valid_keys_and_pins() {
+        assert!(RoomTarget::new(1, Some(0)).is_some());
+        assert!(RoomTarget::new(99_999, Some(9999)).is_some());
+        assert!(RoomTarget::new(0, None).is_none());
+        assert!(RoomTarget::new(100_000, None).is_none());
+        assert!(RoomTarget::new(1, Some(10_000)).is_none());
+    }
 
     #[test]
     fn the_bots_of_a_run_are_numbered_on() {
