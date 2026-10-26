@@ -166,6 +166,7 @@ pub(super) fn drive_tick(
         yaw: me.yaw,
         pitch: me.pitch,
         speed: me.speed(),
+        velocity: me.velocity,
         no_jump: !bot.hurt.may_jump(time),
     };
     if bot
