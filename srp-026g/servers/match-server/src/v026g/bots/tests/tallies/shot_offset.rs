@@ -163,8 +163,6 @@ pub(crate) enum Stance {
 }
 
 impl Stance {
-    pub(crate) const ALL: [Self; 2] = [Self::Standing, Self::Crouched];
-
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Standing => "stand",

@@ -197,11 +197,11 @@ mod tests {
 
     #[test]
     fn a_standin_shot_at_the_target_is_counted_in_the_cell_of_its_line() {
-        // Shooter 0 faces +Z level, its target 20 m ahead and 0.25 m to the right of the line: the line passes
+        // Shooter 0 faces +Z level, its target 19 m ahead and 0.25 m to the right of the line: the line passes
         // 0.25 m left of his chest, and (the chest 1.30 m up, the eye higher) above it.
         let mut game = Game::new(crate::v026g::bots::tests::soak_world(), &[0, 1], 1, None, None);
         put(&mut game, 0, 10.0, 10.0, 0);
-        put(&mut game, 1, 10.25, 30.0, 0);
+        put(&mut game, 1, 10.25, 29.0, 0);
         game.bodies[0].yaw = 0.0;
         game.bodies[0].pitch = 0.0;
         game.bodies[0].target = Some(1);
