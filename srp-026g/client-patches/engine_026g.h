@@ -238,4 +238,13 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void
 /* 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly */
 void __attribute__((stdcall)) engine_view_update(void *handler, const float *transform);
 
+/* 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0 */
+void engine_switch_to_warmup_camera(void *world);
+
+/* 0x23a1a0 survarium::game_world_ui::show_stamina: shown EAX, ui EDX; pops 0 */
+void engine_show_stamina(unsigned int shown, void *ui);
+
+/* 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4 */
+void engine_show_profiles_selector(void *hud, unsigned int shown);
+
 #endif

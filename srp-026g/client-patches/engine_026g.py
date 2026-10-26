@@ -151,8 +151,9 @@ def rows_of(va, abi=None, inputs=None):
     for row in inputs:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
-            out["locations"].add(location(row["location"]))
-            out["roles"].setdefault(location(row["location"]), []).append(row["role"])
+            for part in row["location"].split(","):     # a row of several locations ("EAX, entry ESP+4")
+                out["locations"].add(location(part))
+                out["roles"].setdefault(location(part), []).append(row["role"])
     out["names"].discard("")
     return out
 

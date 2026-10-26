@@ -2001,3 +2001,7 @@ va	name	source	ret_cleanup	result
 0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	manual	0	
 0x00113580	vostok::debug::terminate	manual	0	never returns; cdecl, printf-like: the caller would take the arguments (on_mounted_resources 0x147F8 pushes one)
 0x00018d60	vostok::engine::engine_world::get_render_output_window_size	manual	4	EAX: the size's address; the window's client width and height (GetClientRect through [0xAEFED0]), 1.0 both when it fails (0xA2D75C)
+0x001f1790	survarium::base_player::get_damage_model_ptr	manual	0	EAX: the damage model's pointer's address, this+1D8h (the player's +2E0h)
+0x002da790	survarium::base_player::remove_from_world	manual	4	
+0x00316da0	survarium::player_respawn_rule_base::spawn	manual	12	
+0x0023a1a0	survarium::game_world_ui::show_stamina	manual	0	

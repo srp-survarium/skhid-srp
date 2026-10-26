@@ -969,11 +969,17 @@ def main():
     # drag in any mode, one that drags at the first move of a click, one
     # with no nearest distance, one that never marks a button, and one that
     # gives a marked button's release on (the player's handler fires at it).
-    for old, new, check in ((bytes.fromhex("837c8afc00"), bytes.fromhex("39c0909090"), check_tick),
-                            (bytes.fromhex("48d1e8750d"), bytes.fromhex("48d1e8eb00"), check_boundary),
-                            (bytes.fromhex("3b865c84010073ee"), bytes.fromhex("3b865c8401009090"), check_tick),
-                            (bytes.fromhex("29e8770489e8f7d0"), bytes.fromhex("29e8770431c09090"), check_tick),
-                            (bytes.fromhex("83be601c1f000375"), bytes.fromhex("83be601c1f0003eb"), check_view),
+    # Each broken build mutates the Rust patches' code in the arena (`.srpx`,
+    # as the lock links it; a pattern there once): kit_change's statistics
+    # test always equal, its state's `ja` gone, its places' end's `jnc`
+    # gone, its "no protection left" (-1 - time) made 0, its view's `jz` to
+    # the player camera gone; then the cameras' and the keys'.
+    for old, new, check in ((bytes.fromhex("83bc889801000000"), bytes.fromhex("39c0909090909090"), check_tick),
+                            (bytes.fromhex("4883f8010f874e010000"), bytes.fromhex("4883f801909090909090"),
+                             check_boundary),
+                            (bytes.fromhex("01d0741b39c87317"), bytes.fromhex("01d0741b39c89090"), check_tick),
+                            (bytes.fromhex("8b882c0300008b542414"), bytes.fromhex("8b882c03000031d29090"), check_tick),
+                            (bytes.fromhex("83fa03740b"), bytes.fromhex("83fa039090"), check_view),
                             # the warmup camera, the Rust patch warmup_camera in the
                             # arena (its code as the lock links it): the warmup mode's
                             # test gone (a drag in any mode); a left press's click test

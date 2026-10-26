@@ -209,18 +209,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     on inventories with an upgrade on several items (and
     port/equiv/shared_upgrades.py compared it with the asm it replaces).
 32. the same build: a kit chosen before the match starts is played at
-    once (patch 31, kit_change_026g.asm at KIT_CHANGE_OFFSET of `.srp`).
-    The respawn rule's tick (0x316820, slot +50h of the respawn rules'
-    vtables) is a jump to kit_change and a nop where the original and the
-    build without the late join have `push ebp` / `mov ebp,esp` /
-    `sub esp,34h`; the client's view of a spawn into another kit (0x2678E0,
-    the client rule's +60h) calls kit_view where it pushed 1 and called the
-    player camera; the hud's update of the local player's state has
-    `jmp ui_alive` and two nops where it called 0x23A1A0 and pushed 0 for
-    the call that hides the kits (0x2383B0, which alone calls
-    root.show_profiles_selector, and which only the profile_changed callback
-    and this update call), and `call ui_start` and a nop where it begins to
-    let go of the player; the profile_changed callback has nine nops where
+    once (patch 31, the Rust patch kit_change: four lohooks). The respawn
+    rule's tick (0x316820, slot +50h of the respawn rules' vtables) where
+    the original and the build without the late join have `push ebp` /
+    `mov ebp,esp` / `sub esp,34h`; the client's view of a spawn into
+    another kit (0x2678E0, the client rule's +60h) where it pushed 1 and
+    called the player camera; the hud's update of the local player's state
+    where it called 0x23A1A0 and pushed 0 for the call that hides the kits
+    (0x2383B0, which alone calls root.show_profiles_selector, and which only
+    the profile_changed callback and this update call; its exit past that
+    call), and where it begins to let go of the player; the profile_changed
+    callback has nine nops where
     it pushed 0 and called 0x2383B0. In the original: the tick, the
     spawn and its point,
     the view's registers; the time rule's states at core+18FE4h; the order
@@ -562,13 +561,6 @@ def test_bins():
                                check=True, timeout=60)
                 fresh = open(out, "rb").read()
             check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.KIT_CHANGE_VA:#x}",
-                        os.path.join(HERE, "kit_change_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.kit_change_bin(), "rb").read(),
-          f"{os.path.basename(P.kit_change_bin())} is current ({len(fresh)} bytes)")
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
@@ -1430,7 +1422,7 @@ def late_join_sites():
          (P.SOUND_QUEUE_HOOK_VA, 5),
          ] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
-        [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
+        [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
         [(P.READ_ORDER_VA, 6)] + \
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
@@ -3084,20 +3076,12 @@ def test_kit_change(original, image, before):
     """Check 32: a kit chosen before the match starts is played at once."""
     stock = Image(original)
     texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
-    names = ("kit_change", "kit_view", "ui_alive", "ui_start")
-    wanted = (["push ebp", "mov ebp,esp", "sub esp,byte +0x34"],
-              ["push byte +0x1", "call 0x1f8200"],
-              ["call 0x23a1a0", "push byte +0x0"],
-              ["lea eax,[ebp+0xd0]"])
-    for (va, old, offset, opcode), name, original_texts in zip(P.KIT_CHANGE_HOOKS, names, wanted):
-        rows = ndisasm(image.read(va, len(old)), va)
-        word = "call" if opcode == 0xE8 else "jmp"
-        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and texts(stock, va, len(old)) == original_texts
-              and rows[0][2].startswith(word) and branch_target(rows[0][2]) == P.KIT_CHANGE_VA + offset
-              and all(text == "nop" for _, _, text in rows[1:]) and len(rows) == len(old) - 4,
-              f"{va:#x}: `{' / '.join(original_texts)}` is `{rows[0][2]}` + {len(rows) - 1} nop ({name}); "
-              "the build without the late join keeps it")
+    wanted = {P.KIT_CHANGE_TICK_VA: ["push ebp", "mov ebp,esp", "sub esp,byte +0x34"],
+              0x26794D: ["push byte +0x1", "call 0x1f8200"],
+              0x23B7DA: ["call 0x23a1a0", "push byte +0x0"],
+              0x23B7FC: ["lea eax,[ebp+0xd0]"]}
+    rust_lohooks(original, image, before, "kit_change", wanted, exits={0x23B7FC})
+    kit_sites = [(va, stock.read(va, {0x316820: 6, 0x26794D: 7, 0x23B7DA: 7, 0x23B7FC: 6}[va])) for va in wanted]
     # The tick: every respawn rule's +50h, the spawn their +5Ch; the tick
     # reads the respawn times, takes a player in the world out with 1, and
     # spawns through +5Ch with (place, point, time). The view of a spawn
@@ -3165,30 +3149,12 @@ def test_kit_change(original, image, before):
           "the kits are shown or hidden by 0x2383B0 alone (root.show_profiles_selector, at 0x238451), which the "
           "profile_changed callback (0x233F2C, to hide them after it queued the pick, 0x1F8070) and this update "
           "(0x23B7F7) call, nothing else")
-    code = open(P.kit_change_bin(), "rb").read()
-    check(image.read(P.KIT_CHANGE_VA, len(code)) == code,
-          f"the code at {P.KIT_CHANGE_VA:#x} is kit_change_026g.section.bin ({len(code)} bytes)")
-    rows = [row for row in ndisasm(code, P.KIT_CHANGE_VA) if row[2] != "int3"]
-    inside = lambda target: P.KIT_CHANGE_VA <= target < P.KIT_CHANGE_VA + len(code)
-    calls = sorted({text for _, _, text in rows if text.startswith("call")
-                    and not ((target := branch_target(text)) is not None and inside(target))})
-    leaves = sorted({target for _, _, text in rows if (target := branch_target(text)) is not None
-                     and not inside(target)})
-    stores = sorted({text for _, _, text in rows if re.match(r"^mov \[", text)})
-    check(calls == sorted({"call 0x1f8200", "call 0x23a1a0", "call 0x2383b0", "call [edx+0x8]",
-                           "call [eax+0x24]", "call [eax+0x5c]"})
-          and leaves == [0x1F8190, 0x1F8200, 0x2383B0, 0x23A1A0, 0x23B7FC, 0x316826] and stores == [],
-          "outside itself it calls only the damage model's holder (+108h vtable+8), the player's way out of the "
-          "world (vtable+24h), the rule's spawn (vtable+5Ch), the player camera, 0x23A1A0 and the kits' show or "
-          "hide (0x2383B0); it leaves only to 0x316826, 0x23B7FC and the warmup camera and by its returns; it "
-          "stores nothing but on its stack"
-          + "".join(f"\n          {text}" for text in calls + [hex(t) for t in leaves] + stores))
     # Nothing aims inside the four sites; no relocation is under them. A
     # pointer of the image has a base relocation: the four bytes of the
     # file that happen to spell an address inside a site (0x23B800 and
     # 0x23B801 are in .text's code) are not pointers unless one is there.
     found = []
-    sites = [(va, old) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [P.KIT_PICK[:2]]
+    sites = kit_sites + [P.KIT_PICK[:2]]
     pointers = {}
     for kind, at in stock.relocations().values():
         if kind == 3:
@@ -3196,7 +3162,7 @@ def test_kit_change(original, image, before):
                 pointers[at] = struct.unpack("<I", stock.read(at, 4))[0]
             except ValueError:                     # past a section's file data: zero
                 pass
-    for va, old in [(va, old) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [P.KIT_PICK[:2]]:
+    for va, old in kit_sites + [P.KIT_PICK[:2]]:
         hits = aimed_inside(original, va, len(old), 0)
         spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
         found += hits[:len(hits) - len(spelled)]
@@ -5738,8 +5704,7 @@ def test_late_join(original, without, server, source):
     # the bytes of its .bin where patch_026g.py puts it, int3 between them.
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
-            (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
-            (P.KIT_CHANGE_OFFSET, P.kit_change_bin, "the kit change"))] + [
+            (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),)] + [
         (P.LATE_JOIN_OFFSET, code, "the late-join code"),
         (P.WEAPON_PREVIEW_OFFSET, weapon_preview, "the weapon preview")]
     ends = pieces[1:] + [(len(body), b"", "the section's end")]

@@ -114,6 +114,12 @@ unsafe extern "C" {
     pub fn engine_format_path(path: *mut c_void, format: *const u8, name: *const u8, number: u32) -> *mut c_void;
     /// 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0
     pub fn engine_unmount(mount: *mut c_void);
+    /// 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    pub fn engine_switch_to_warmup_camera(world: *mut c_void);
+    /// 0x23a1a0 survarium::game_world_ui::show_stamina: shown EAX, ui EDX; pops 0
+    pub fn engine_show_stamina(shown: u32, ui: *mut c_void);
+    /// 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4
+    pub fn engine_show_profiles_selector(hud: *mut c_void, shown: u32);
 }
 
 #[allow(dead_code)]
@@ -251,6 +257,48 @@ pub unsafe fn engine_window_size(window: *mut c_void, size: *mut f32) -> *mut c_
         let slot = (*(window as *const *const u32)).byte_add(0x1c).read() as usize;
         let function: unsafe extern "thiscall" fn(*mut c_void, *mut f32) -> *mut c_void = core::mem::transmute(slot);
         function(window, size)
+    }
+}
+
+/// 0x1f1790 survarium::base_player::get_damage_model_ptr: holder ECX; pops 0; EAX; through its vtable's slot +0x8 (thiscall; this the model)
+///
+/// # Safety
+/// `holder` is an object whose vtable's slot +0x8 is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_damage_model_ptr(holder: *mut c_void) -> *mut c_void {
+    unsafe {
+        let slot = (*(holder as *const *const u32)).byte_add(0x8).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void = core::mem::transmute(slot);
+        function(holder)
+    }
+}
+
+/// 0x2da790 survarium::base_player::remove_from_world: player ECX, flag ESP+4; pops 4; through its vtable's slot +0x24 (thiscall; this the model)
+///
+/// # Safety
+/// `player` is an object whose vtable's slot +0x24 is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_remove_from_world(player: *mut c_void, flag: u32) {
+    unsafe {
+        let slot = (*(player as *const *const u32)).byte_add(0x24).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, u32) = core::mem::transmute(slot);
+        function(player, flag)
+    }
+}
+
+/// 0x316da0 survarium::player_respawn_rule_base::spawn: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; through its vtable's slot +0x5c (thiscall; this the model)
+///
+/// # Safety
+/// `rule` is an object whose vtable's slot +0x5c is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_respawn_spawn(rule: *mut c_void, place: u32, point: *const c_void, time: u32) {
+    unsafe {
+        let slot = (*(rule as *const *const u32)).byte_add(0x5c).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, u32, *const c_void, u32) = core::mem::transmute(slot);
+        function(rule, place, point, time)
     }
 }
 
@@ -575,6 +623,15 @@ pub mod network_client {
     pub unsafe fn local_player(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
     }
+
+    /// +0x1f1c60 (u32): the time rule's state the camera was last set for (the time rule's change 0x27B1A0, a tick first played)
+    ///
+    /// # Safety
+    /// `this` is a survarium::network_client.
+    #[inline(always)]
+    pub unsafe fn shown_state(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1f1c60).cast() }
+    }
 }
 
 /// survarium::match_options's fields (fields_026g.tsv).
@@ -721,6 +778,33 @@ pub mod player {
     #[inline(always)]
     pub unsafe fn game_world(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0xf474).cast() }
+    }
+
+    /// +0x108 (u32): its damage model's holder (vtable+8: &the damage model)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn damage_holder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x108).cast() }
+    }
+
+    /// +0x43c (f32): the feet, float3 (the respawn rule makes a point of them)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn feet(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x43c).cast() }
+    }
+
+    /// +0x490 (f32): m_rotation_y
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn yaw(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x490).cast() }
     }
 }
 
@@ -1301,6 +1385,15 @@ pub mod game_world_ui {
     pub unsafe fn icons_movie(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x10).cast() }
     }
+
+    /// +0x18 (u32): the game world (0x23B74F)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world_ui.
+    #[inline(always)]
+    pub unsafe fn world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18).cast() }
+    }
 }
 
 /// vostok::ui::movie_holder's fields (fields_026g.tsv).
@@ -1399,6 +1492,33 @@ pub mod place {
     #[inline(always)]
     pub unsafe fn players(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0xc (u8): the kit in use
+    ///
+    /// # Safety
+    /// `this` is a survarium::place.
+    #[inline(always)]
+    pub unsafe fn kit(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0xd (u8): the next kit (the relayed kit choice as the place's tick 0x321790 took it)
+    ///
+    /// # Safety
+    /// `this` is a survarium::place.
+    #[inline(always)]
+    pub unsafe fn next_kit(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xd).cast() }
+    }
+
+    /// +0x30 (u8): the next place: a place is 30h bytes
+    ///
+    /// # Safety
+    /// `this` is a survarium::place.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x30).cast() }
     }
 }
 
@@ -1594,6 +1714,15 @@ pub mod damage_model {
     #[inline(always)]
     pub unsafe fn parts(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x108).cast() }
+    }
+
+    /// +0x32c (u32): invulnerable until (a time); -1 not (0x2E5550)
+    ///
+    /// # Safety
+    /// `this` is a survarium::damage_model.
+    #[inline(always)]
+    pub unsafe fn invulnerable_until(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x32c).cast() }
     }
 }
 
@@ -2455,5 +2584,110 @@ pub mod view_update_frame {
     #[inline(always)]
     pub unsafe fn transform(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// survarium::player_respawn_rule's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player_respawn_rule {
+    use core::ffi::c_void;
+
+    /// +0x134 (u32): the core (the respawn rule's tick, 0x316826 on)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_respawn_rule.
+    #[inline(always)]
+    pub unsafe fn core(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x134).cast() }
+    }
+}
+
+/// survarium::game_core's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_core {
+    use core::ffi::c_void;
+
+    /// +0x18458 (u32): the places, 30h each (the buffer holds 20, 0x2CFF50)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_core.
+    #[inline(always)]
+    pub unsafe fn places(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18458).cast() }
+    }
+
+    /// +0x1845c (u32): the end of the match's places
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_core.
+    #[inline(always)]
+    pub unsafe fn places_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1845c).cast() }
+    }
+
+    /// +0x18fa8 (u32): the statistics handler (its shared statistics at +8)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_core.
+    #[inline(always)]
+    pub unsafe fn statistics(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18fa8).cast() }
+    }
+
+    /// +0x18fe4 (u32): the time rule's state: 1 waiting, 2 countdown, 3 in process
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_core.
+    #[inline(always)]
+    pub unsafe fn time_state(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18fe4).cast() }
+    }
+}
+
+/// survarium::statistics_handler's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod statistics_handler {
+    use core::ffi::c_void;
+
+    /// +0x8 (u8): the shared statistics: a record a place, 1F8h each
+    ///
+    /// # Safety
+    /// `this` is a survarium::statistics_handler.
+    #[inline(always)]
+    pub unsafe fn records(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// survarium::statistics_record's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod statistics_record {
+    use core::ffi::c_void;
+
+    /// +0x0 (u16): a place's events [28][3]
+    ///
+    /// # Safety
+    /// `this` is a survarium::statistics_record.
+    #[inline(always)]
+    pub unsafe fn events(this: *mut c_void) -> *mut u16 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x198 (u8): the end of its events and its damage received from players ([20][3] f32 at +0A8h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::statistics_record.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x198).cast() }
+    }
+
+    /// +0x1f8 (u8): the next place's record
+    ///
+    /// # Safety
+    /// `this` is a survarium::statistics_record.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x1f8).cast() }
     }
 }

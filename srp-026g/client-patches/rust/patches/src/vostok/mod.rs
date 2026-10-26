@@ -36,6 +36,7 @@ mod gfx;
 mod hook;
 mod input;
 pub mod kill_feed;
+pub mod kit_choice;
 pub mod kernel32;
 mod object;
 mod keyboard;

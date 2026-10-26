@@ -54,9 +54,8 @@ USAGE (this script never touches the source exe):
     The forward effect's UV scrolling is the Rust patch forward_scroll, in
     the arena's block patches.code, and so is "Watch replay"'s link, the
     Rust patch replay_link, and so is one upgrade on several items, the Rust
-    patch shared_upgrades. A kit chosen before the start comes from kit_change_026g.asm:
-        nasm -f bin -DCAVE=0xA425EC0 kit_change_026g.asm -o kit_change_026g.section.bin
-    (checked in). The archive reads' order is the Rust patch read_order.
+    patch shared_upgrades. A kit chosen before the start is the Rust patch
+    kit_change. The archive reads' order is the Rust patch read_order.
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
         nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
@@ -308,8 +307,8 @@ Patches:
   past a click's few moves, or the lobby's buttons) turns the warmup camera
   and the wheel moves it nearer or further, as the lobby's character view
   (0x25D0E0, the game world's input handler's mouse move), within the
-  lobby's limits (0x24225E). The code is kit_change_026g.asm at 0xEC0 of
-  `.srp` and the Rust patch warmup_camera (until the Rust port
+  lobby's limits (0x24225E). The code is the Rust patches kit_change and
+  warmup_camera (until the Rust port kit_change_026g.asm at 0xEC0 of `.srp`,
   warmup_look_026g.asm at 0xD40 and warmup_limits_026g.asm at 0xA98);
 - a weapon's upgrade window ("Optika", the scope slot) shows the weapon
   (patch 32, with the late join, client_patch.md section 3.30): the lobby's
@@ -913,11 +912,12 @@ MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
 
 # A kit chosen before the match starts is played at once (patch 31, README;
 # client_patch.md section 3.29; the rules: docs/notes/kit-change-before-start.md):
-# kit_change_026g.asm at KIT_CHANGE_OFFSET of `.srp`, after the shell_32.dll
-# check and before the late join, four entries, and nops at one site.
+# the Rust patch kit_change (rust/patches/src/kit_change.toml, four lohooks;
+# until the Rust port kit_change_026g.asm at 0xEC0 of `.srp`), and nops at
+# one site.
 # - The respawn rule's tick (0x316820, slot +50h of every respawn rule's
-#   vtable; `push ebp` / `mov ebp,esp` / `sub esp,34h`) jumps first to
-#   kit_change: while the time rule's state (core+18FE4h) is 1 or 2, a place
+#   vtable; `push ebp` / `mov ebp,esp` / `sub esp,34h`; respawn_rule.tick)
+#   first: while the time rule's state (core+18FE4h) is 1 or 2, a place
 #   whose next kit (place+0Dh, the relayed kit choice as the place's tick
 #   0x321790 took it) is another than the kit in use (place+0Ch), whose
 #   player is alive and in the world, and whose statistics record is all
@@ -954,16 +954,8 @@ MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
 #   is, for another pick, before the start and on the death screen; they
 #   are hidden when the player becomes alive in play, as before.
 # No site holds an address: no base relocation under them.
-KIT_CHANGE_OFFSET = 0xEC0
-KIT_CHANGE_VA = SECTION_VA + KIT_CHANGE_OFFSET
 KIT_CHANGE_TICK_VA = 0x316820                 # player_respawn_rule's tick
 KIT_CHANGE_SHOWN_STATE = 0x1F1C60             # network client: the state the camera is set for
-KIT_CHANGE_HOOKS = (
-    (KIT_CHANGE_TICK_VA, bytes.fromhex("558bec83ec34"), 0, 0xE9),   # the respawn rule's tick: kit_change
-    (0x26794D, bytes.fromhex("6a01e8ac08f9ff"), 0xE1, 0xE8),        # the view of a kit change: kit_view
-    (0x23B7DA, bytes.fromhex("e8c1e9ffff6a00"), 0xF9, 0xE9),        # the local player alive: ui_alive
-    (0x23B7FC, bytes.fromhex("8d85d0000000"), 0x108, 0xE8),         # every update: ui_start
-)
 KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pick: the kits stay
 # The same patch's camera before the start: the Rust patch warmup_camera
 # (rust/patches/src/warmup_camera.toml; its mouse moves at patch 46's hook,
@@ -2142,10 +2134,6 @@ INSTALLS = {
                "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
     0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
     # patch 23, 26, 25, 31, 34, 32, 46
-    0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
-    0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
-    0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
-    0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
@@ -3115,23 +3103,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, *DB_SIGNATURE)
         if neutralize_relocs(data, [(DB_SIGNATURE_VA, DB_SIGNATURE_VA + len(DB_SIGNATURE[1]))]):
             sys.exit("a base relocation under verify_sign's call")
-        kit_change = open(kit_change_bin(), "rb").read()
-        if KIT_CHANGE_OFFSET + len(kit_change) > LATE_JOIN_OFFSET:
-            sys.exit("the kit change does not fit before the late join")
-        # The first instruction of each entry: `pushad`, `cmp dword
-        # [esi+1F1C60h],3`, `call 0x23A1A0`, `cmp byte [ebp+33Ch],0`.
-        view, alive, update = (offset for _, _, offset, _ in KIT_CHANGE_HOOKS[1:])
-        to_ui = b"\xE8" + struct.pack("<i", 0x23A1A0 - (KIT_CHANGE_VA + alive) - 5)
-        if kit_change[0] != 0x60 \
-                or kit_change[view:view + 7] != bytes.fromhex("83be601c1f0003") \
-                or kit_change[alive:alive + 5] != to_ui \
-                or kit_change[update:update + 7] != bytes.fromhex("80bd3c03000000"):
-            sys.exit(f"kit_change_026g.section.bin: its entries are not where patch_026g.py jumps to them "
-                     f"(assembled with -DCAVE={KIT_CHANGE_VA:#x}?)")
-        for va, expected, offset, opcode in KIT_CHANGE_HOOKS:
-            patch(data, va, expected, hook_bytes(KIT_CHANGE_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the kit change")
         patch(data, *KIT_PICK)
         if neutralize_relocs(data, [(KIT_PICK[0], KIT_PICK[0] + len(KIT_PICK[1]))]):
             sys.exit("a base relocation under the hiding of the kits after a pick")
@@ -3163,8 +3134,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
         weapon_draw = open(weapon_draw_bin(), "rb").read()
-        if WEAPON_DRAW_OFFSET + len(weapon_draw) > KIT_CHANGE_OFFSET:
-            sys.exit("the weapon preview's draw does not fit before the kit change")
+        if WEAPON_DRAW_OFFSET + len(weapon_draw) > LATE_JOIN_OFFSET:
+            sys.exit("the weapon preview's draw does not fit before the late join")
         if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
@@ -3299,7 +3270,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     if mode == "section":
         if late_join is not None:
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
-            cave = cave + b"\xCC" * (KIT_CHANGE_OFFSET - len(cave)) + kit_change
             cave = cave + b"\xCC" * (LATE_JOIN_OFFSET - len(cave)) + late_join
             cave = cave + b"\xCC" * (WEAPON_PREVIEW_OFFSET - len(cave)) + weapon_preview
         data = add_section(data, cave)
@@ -3452,8 +3422,6 @@ def weapon_camo_bin():
 
 
 
-def kit_change_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "kit_change_026g.section.bin")
 
 
 def weapon_stash_bin():

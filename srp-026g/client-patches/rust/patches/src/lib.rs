@@ -39,6 +39,7 @@ pub mod kill_feed;
 pub mod match_keys;
 pub mod mount_patches;
 pub mod kit_state;
+pub mod kit_change;
 pub mod shared_upgrades;
 pub mod spot;
 pub mod pickup_below;

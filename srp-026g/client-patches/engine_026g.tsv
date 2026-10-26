@@ -84,3 +84,9 @@ engine_world_set_pointer	0x25d160	ECX:world ESP+4:x ESP+8:y ESP+12:wheel	void en
 engine_world_set_cursor	0x25d130	ECX:world ESP+4:x ESP+8:y	void engine_world_set_cursor(void *world, unsigned int x, unsigned int y)	virtual+0x3c	
 engine_window_size	0x018d60	ECX:window ESP+4:size	void *engine_window_size(void *window, float *size)	virtual+0x1c	
 engine_view_update	0x2422b0	ESP+4:handler ESP+8:transform	void engine_view_update(void *handler, const float *transform)	stdcall	
+engine_damage_model_ptr	0x1f1790	ECX:holder	void *engine_damage_model_ptr(void *holder)	virtual+0x8	
+engine_remove_from_world	0x2da790	ECX:player ESP+4:flag	void engine_remove_from_world(void *player, unsigned int flag)	virtual+0x24	
+engine_respawn_spawn	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_respawn_spawn(void *rule, unsigned int place, const void *point, unsigned int time)	virtual+0x5c	
+engine_switch_to_warmup_camera	0x1f8190	EDX:receiver	void engine_switch_to_warmup_camera(void *world)	thunk	
+engine_show_stamina	0x23a1a0	EAX:shown EDX:ui	void engine_show_stamina(unsigned int shown, void *ui)	thunk	
+engine_show_profiles_selector	0x2383b0	EAX:hud ESP+4:shown	void engine_show_profiles_selector(void *hud, unsigned int shown)	thunk	

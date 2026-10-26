@@ -80,6 +80,9 @@ global engine_terminate
 global engine_on_mounted_resources
 global engine_get_last_error
 global engine_view_update
+global engine_switch_to_warmup_camera
+global engine_show_stamina
+global engine_show_profiles_selector
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -995,6 +998,53 @@ engine_unmount:
     push edi
     mov eax, [esp + 20]   ; mount
     call 0xdfe30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_warmup_camera:
+    ; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8190
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_stamina:
+    ; 0x23a1a0 survarium::game_world_ui::show_stamina: shown EAX, ui EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; shown
+    mov edx, [esp + 24]   ; ui
+    call 0x23a1a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_profiles_selector:
+    ; 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov eax, [esp + 24]   ; hud
+    call 0x2383b0
     pop edi
     pop esi
     pop ebx

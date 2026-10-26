@@ -88,7 +88,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_replay_reattach_026g.py` | Calls replay_network_client's "is this place mine" slot of the original and the build on made-up clients: the build says yes for the camera player's place alone (needs Unicorn) |
 | `check_sound_queue_026g.py` | Runs the original's and the build's delayed sounds' add after its drain on queues up to and past their capacity: the build drops the new sound at it (needs Unicorn) |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
-| `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/kit_change.rs`, `kit_change.toml`, `rust/patches/src/vostok/kit_choice.rs`, `port/equiv/kit_change.py` | Patch 31 (a kit chosen before the match starts is played at once) as the Rust patch `kit_change` (four lohooks: `respawn_rule.tick`, `kit_view.camera`, `hud.alive`, `hud.update`), and its equivalence spec against the asm it replaced. Until the Rust port, `kit_change_026g.asm` at 0xEC0 of `.srp` |
 | `rust/patches/src/warmup_camera.rs`, `warmup_camera.toml` | Patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view; the end of a drag; the lobby camera's limits: distance 1.5 to 4.6, pitch within 60 degrees) as the Rust patch `warmup_camera` (a lohook, `warmup_camera.pitch_store`; its mouse moves at `death_camera`'s). Until the Rust port, `warmup_look_026g.asm` at 0xD40 of `.srp` (its state at 0xE20 of `.srpd`) and `warmup_limits_026g.asm` at 0xA98 |
 | `rust/patches/src/death_camera.rs`, `death_camera.toml`, `rust/patches/src/vostok/world_mouse.rs`, `port/equiv/cameras.py` | Patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) as the Rust patch `death_camera` (two lohooks, `world_mouse.move` and `camera.view_update`), and the equivalence spec of both cameras against the asm they replaced. Until the Rust port, `death_camera_026g.asm` in `.srpc` (0xA429000; a page of int3 since, so that `.srpw` keeps its place), its state at 0xE60 of `.srpd` |
 | `rust/patches/src/warmup_keys.rs`, `warmup_keys.toml`, `port/equiv/warmup_keys.py`, `check_warmup_keys_026g.py` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, as the Rust patch `warmup_keys` (a lohook, `sites_026g.tsv` `warmup_keys.mouse_key`), its equivalence spec against the asm it replaced, and a check that runs it on made-up mouse events (needs Unicorn). Until the Rust port, `warmup_keys_026g.asm` at 0x9A8 of `.srp`, its state at 0xE30 of `.srpd` |
@@ -1852,8 +1852,11 @@ the next spawn (`../docs/notes/match.md` section 23). Every game runs the
 whole simulation, so a server alone cannot put a player into another kit:
 each game must do it, at the same tick.
 
-**The patch.** Only in the builds with the late join; `kit_change_026g.asm`,
-319 bytes at `.srp`+EC0h (after the shell_32.dll check, before the late
+**The patch.** Only in the builds with the late join; the Rust patch
+`kit_change` (four lohooks at the four sites below; proven against the asm
+by `port/equiv/kit_change.py`, 2000 cases, 0 differences, and by
+`check_kit_change_026g.py`; until the Rust port `kit_change_026g.asm`,
+319 bytes at `.srp`+EC0h, after the shell_32.dll check, before the late
 join), four sites, nine nops at a fifth, and the Rust patch `warmup_camera`
 at a sixth and a seventh (the camera before the start, below; until the
 Rust port `warmup_look_026g.asm` and `warmup_limits_026g.asm`):

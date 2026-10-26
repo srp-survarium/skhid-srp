@@ -196,6 +196,71 @@ pub extern "C" fn hook_kill_feed_on_mastery_icon(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- kit_change (patch 31) ----
+
+/// The entry `kit_change_on_tick` (0x316820, player_respawn_rule_base::tick 0x316820's start (push ebp; mov ebp,esp; sub esp,34h; ECX the rule, [esp+8] the tick's time; thiscall, ret 0Ch)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_change_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_change_on_tick` calls this, from the game's jump at 0x316820,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_change::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- kit_change (patch 31) ----
+
+/// The entry `kit_change_on_kit_view` (0x26794d, the client's view of a spawn into another kit (0x2678E0): push 1; call 1F8200h, the player camera (ESI the network client, EAX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_change_on_kit_view(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_change_on_kit_view` calls this, from the game's jump at 0x26794d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_change::on_kit_view(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- kit_change (patch 31) ----
+
+/// The named exits of kit_change::on_alive (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KitChangeOnAliveExit { Shown }
+/// The entry `kit_change_on_alive` (0x23b7da, game_world_ui's state of the local player when it has just become alive: call 23A1A0h; push 0 (AL 1, EDX the ui; then 0x2383B0 hides the kits); shown: past the kits' hiding, the update's next step) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_change_on_alive(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_change_on_alive` calls this, from the game's jump at 0x23b7da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_change::on_alive(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- kit_change (patch 31) ----
+
+/// The entry `kit_change_on_update` (0x23b7fc, game_world_ui's state of the local player at every update: lea eax,[ebp+0D0h] (ESI the ui, EBP the local player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_change_on_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_change_on_update` calls this, from the game's jump at 0x23b7fc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_change::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- kit_state (patch 20) ----
 
 /// The entry `kit_state_on_spawn` (0x316e57, the respawn rule's spawn 0x316DA0, the load of the call that initialises the new kit's player (mov edx,[esi]; mov edx,[edx+1Ch]; ESI the player, [esp+10h] the kit before and [esp+18h] the new one as 0x316E02/0x316E06 put them; an fldz is live on the x87 stack)) calls this with the saved machine.

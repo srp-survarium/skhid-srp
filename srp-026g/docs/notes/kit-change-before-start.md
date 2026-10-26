@@ -1,6 +1,7 @@
 # A kit chosen before the match starts (patch 31)
 
-The rules the code and the tests follow. Code: `client-patches/kit_change_026g.asm`,
+The rules the code and the tests follow. Code: the Rust patch `kit_change`
+(`client-patches/rust/patches/src/kit_change.rs`; `kit_change_026g.asm` until the Rust port),
 README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::before_play`,
 `PlayerResult::kit_changes`, `autobuy::used`, the bots' `pick_kit`.
 

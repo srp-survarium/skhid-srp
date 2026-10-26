@@ -502,6 +502,169 @@ kill_feed_on_mastery_icon_replay:
     db 0x8b, 0x4c, 0x24, 0x2c
     jmp 0x238157
 
+; 0x316820 player_respawn_rule_base::tick 0x316820's start (push ebp; mov ebp,esp; sub esp,34h; ECX the rule, [esp+8] the tick's time; thiscall, ret 0Ch): lohook -> kit_change_on_tick
+global kit_change_on_tick
+extern hook_kit_change_on_tick
+kit_change_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kit_change_on_tick
+    mov edx, kit_change_on_tick_replay
+    cmp eax, 0
+    je kit_change_on_tick_go
+    mov edx, 0x316826
+    cmp eax, 1
+    je kit_change_on_tick_go
+    ud2
+kit_change_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kit_change_on_tick_replay:
+    db 0x55
+    db 0x8b, 0xec
+    db 0x83, 0xec, 0x34
+    jmp 0x316826
+
+; 0x26794d the client's view of a spawn into another kit (0x2678E0): push 1; call 1F8200h, the player camera (ESI the network client, EAX the game world): lohook -> kit_change_on_kit_view
+global kit_change_on_kit_view
+extern hook_kit_change_on_kit_view
+kit_change_on_kit_view:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kit_change_on_kit_view
+    mov edx, kit_change_on_kit_view_replay
+    cmp eax, 0
+    je kit_change_on_kit_view_go
+    mov edx, 0x267954
+    cmp eax, 1
+    je kit_change_on_kit_view_go
+    ud2
+kit_change_on_kit_view_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kit_change_on_kit_view_replay:
+    db 0x6a, 0x01
+    call 0x1f8200
+    jmp 0x267954
+
+; 0x23b7da game_world_ui's state of the local player when it has just become alive: call 23A1A0h; push 0 (AL 1, EDX the ui; then 0x2383B0 hides the kits); shown: past the kits' hiding, the update's next step: lohook -> kit_change_on_alive
+global kit_change_on_alive
+extern hook_kit_change_on_alive
+kit_change_on_alive:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kit_change_on_alive
+    mov edx, kit_change_on_alive_replay
+    cmp eax, 0
+    je kit_change_on_alive_go
+    mov edx, 0x23b7e1
+    cmp eax, 1
+    je kit_change_on_alive_go
+    mov edx, 0x23b7fc
+    cmp eax, 2
+    je kit_change_on_alive_go
+    ud2
+kit_change_on_alive_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kit_change_on_alive_replay:
+    call 0x23a1a0
+    db 0x6a, 0x00
+    jmp 0x23b7e1
+
+; 0x23b7fc game_world_ui's state of the local player at every update: lea eax,[ebp+0D0h] (ESI the ui, EBP the local player): lohook -> kit_change_on_update
+global kit_change_on_update
+extern hook_kit_change_on_update
+kit_change_on_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kit_change_on_update
+    mov edx, kit_change_on_update_replay
+    cmp eax, 0
+    je kit_change_on_update_go
+    mov edx, 0x23b802
+    cmp eax, 1
+    je kit_change_on_update_go
+    ud2
+kit_change_on_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kit_change_on_update_replay:
+    db 0x8d, 0x85, 0xd0, 0x00, 0x00, 0x00
+    jmp 0x23b802
+
 ; 0x316e57 the respawn rule's spawn 0x316DA0, the load of the call that initialises the new kit's player (mov edx,[esi]; mov edx,[edx+1Ch]; ESI the player, [esp+10h] the kit before and [esp+18h] the new one as 0x316E02/0x316E06 put them; an fldz is live on the x87 stack): lohook -> kit_state_on_spawn
 global kit_state_on_spawn
 extern hook_kit_state_on_spawn
