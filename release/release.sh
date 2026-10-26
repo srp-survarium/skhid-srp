@@ -3,7 +3,8 @@
 #                           [--revision <n>] [--server-code auto|yes|no]
 #                           [--minutes <n> | --no-maintenance] [--now]
 #                           [--match-wait <minutes>] [--label <word>]
-#                           [--ref <branch>] [--dry-run] [--yes --i-know]
+#                           [--ref <branch>] [--no-bot-data] [--dry-run]
+#                           [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
@@ -50,6 +51,17 @@
 #      about 2 min, in a worktree of the commit; a failure stops the run),
 #      and the server's source carries them (the server code is then built;
 #      --server-code no is refused, the dry run too);
+#      the bots' data files (release/bot-data.tsv, the benched maps and the
+#      routes table; $SKHID_BOT_DATA, a private folder laid out as the data
+#      volume): each present there with the sha256 and size the list gives
+#      (a missing or different file is a problem: the release stops), and
+#      each compared with the data volume's own (a read): those it lacks or
+#      has otherwise are put in at the swap (step 4 stages them, step 5
+#      puts them in place with srp26 stopped, the old ones kept in the
+#      folder for the rollback); and a warning about the maps' built grids
+#      and trees (mapdata/built, keyed by SIGHT_ALGO and GRID_ALGO): srp has
+#      no build command, a match builds a map it needs, on the host's one
+#      core (--no-bot-data leaves all of it out, said loudly);
 #      which server code differs between main and the target's tree;
 #      whether main changes what a match computes: a `next` row of
 #      srp-026g/crates/session/src/v026g/simulation_changes.tsv, which a PR
@@ -165,6 +177,12 @@
 #   --label <word>      ends the release folder's name
 #   --ref <branch>      with --test only: release that pushed branch instead
 #                       of main (a branch under review); live is always main
+#   --no-bot-data       leaves the bots' data files (release/bot-data.tsv) out:
+#                       not checked, not compared, not staged, not put in the
+#                       volume; for a release that must go without them (the
+#                       plan says so). Without it a release stops when
+#                       $SKHID_BOT_DATA is not set, or lacks a listed file, or
+#                       has one of another sha256
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
@@ -183,7 +201,7 @@ MINUTE=${SKHID_TEST_SECONDS_PER_MINUTE:-60}
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0
+no_maint=0 match_wait='' now=0 no_bot_data=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -194,6 +212,7 @@ while (($#)); do
     --minutes) (($# >= 2)) || usage 1; minutes=$2; shift 2 ;;
     --no-maintenance) no_maint=1; shift ;;
     --now) now=1; shift ;;
+    --no-bot-data) no_bot_data=1; shift ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
@@ -1084,6 +1103,78 @@ if ((target_ok)); then
     fi
 fi
 
+# The bots' data files (release/bot-data.tsv): the benched maps and routes
+# table, from $SKHID_BOT_DATA, each as the list says (else the release stops);
+# compared with the data volume's own, the ones it lacks or has otherwise to
+# be put in at the swap. And the built maps (F5): said, not done (below).
+bd_dir=${SKHID_BOT_DATA:-} bd_ok=0 bd_bytes=0 bd_line=''
+if ((no_bot_data)); then
+    say "  WARNING  --no-bot-data: the bots' data files (release/bot-data.tsv) are neither checked nor put in the volume: the bots run on what the volume holds now"
+    bd_line="NOT TOUCHED (--no-bot-data): the bots run on what the volume holds now"
+else
+    read_bot_data_list
+    if ((${#BD_PATH[@]} == 0)); then
+        okay "the bots' data list (release/bot-data.tsv) is empty"
+        bd_line="none listed"
+    elif [[ -z $bd_dir ]]; then
+        problem "SKHID_BOT_DATA is not set in $RELEASE_ENV: the folder of the benched bots' data files, laid out as the data volume (release/bot-data check <folder>), or --no-bot-data"
+    elif [[ ! -d $bd_dir ]]; then
+        problem "SKHID_BOT_DATA: $bd_dir is not a folder"
+    elif bd_out=$(bot_data_check_folder "$bd_dir"); then
+        bd_ok=1
+        okay "the bots' data: ${#BD_PATH[@]} file(s) in $bd_dir, each with the sha256 and size of release/bot-data.tsv (what was benched)"
+    else
+        while IFS= read -r line; do problem "the bots' data: $line"; done <<<"$bd_out"
+    fi
+    if ((bd_ok && target_ok)) && [[ -n $RUN_VOLUME_DIR ]]; then
+        bot_data_volume_state
+        if ((${#BD_TODO[@]})); then
+            for i in "${BD_TODO[@]}"; do bd_bytes=$((bd_bytes + BD_SIZE[i])); done
+            okay "the bots' data on the $TARGET volume ($RUN_VOLUME_DIR): $BD_SAME file(s) as listed already, ${#BD_TODO[@]} to put in ($((bd_bytes / 1048576)) MB) at the swap:"
+            printf '             %s\n' "${BD_REPORT[@]}"
+            bd_line="${#BD_TODO[@]} file(s) put in the volume at the swap, with srp26 stopped ($BD_SAME already as listed); the old ones kept in the folder for the rollback"
+            have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (staged, and the old files kept)"; fi
+            have=$(on_target "df -Pk $(q "$RUN_VOLUME_DIR") | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((bd_bytes / 1048576 + 100))
+            if ((have < need)); then problem "free in the $TARGET data volume ($RUN_VOLUME_DIR): $have MB, $need wanted for the bots' data"; fi
+        else
+            okay "the bots' data on the $TARGET volume ($RUN_VOLUME_DIR): all $BD_SAME file(s) are as listed already"
+            bd_line="nothing to put: all $BD_SAME file(s) in the volume are as listed"
+        fi
+    elif ((bd_ok)); then
+        bd_line="the volume could not be read (above): its files are put in as listed"
+        BD_TODO=("${!BD_PATH[@]}")
+        BOT_DATA=1
+    fi
+fi
+# The maps' built grids and trees (mapdata/built, srp's own cache, written
+# by whichever match first needs a map): their key has SIGHT_ALGO and
+# GRID_ALGO of crates/mapdata and the map file's content, so a changed
+# algorithm or a replaced map file makes the first match on that map build
+# it again, on the host's one core (0.3-0.8 s off the match thread on a PC;
+# seconds there). srp has no command that builds them (a match asks:
+# bots/maps.rs `Maps::get`), so this release cannot do it before the swap:
+# it says so, and what is likely to rebuild.
+built_note=''
+if ((target_ok)) && [[ -n $main_commit && -n ${RUN_VOLUME_DIR:-} ]]; then
+    algo_main=$(git -C "$REPO" show "$main_commit:srp-026g/crates/mapdata/src/lib.rs" 2>/dev/null | grep -E '^pub const (SIGHT|GRID)_ALGO' | tr -s ' ' || true)
+    algo_live=$(on_target "cd $D && grep -E '^pub const (SIGHT|GRID)_ALGO' srp-026g/crates/mapdata/src/lib.rs 2>/dev/null | tr -s ' '; true" || true)
+    built_n=$(on_target "ls $(q "$RUN_VOLUME_DIR")/mapdata/built 2>/dev/null | wc -l" || echo '?')
+    maps_new=$(for i in "${BD_TODO[@]}"; do [[ ${BD_PATH[i]} == *.mapdata ]] && printf '%s\n' "${BD_PATH[i]}"; done | grep -c . || true)
+    if [[ -z $algo_main || -z $algo_live ]]; then
+        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants (SIGHT_ALGO, GRID_ALGO) could not be read on main or in the live tree: the first match on each map after the swap may build it (srp has no pre-build command)"
+    elif [[ $algo_main != "$algo_live" ]]; then
+        built_note="WARNING the built maps (mapdata/built, $built_n file(s) now): $(tr '\n' ' ' <<<"$algo_live")on the live tree, $(tr '\n' ' ' <<<"$algo_main")on main: the first match on each map after the swap builds its grid and tree again, on the host's one core (srp has no pre-build command, so none is done here): the first matches per map start late; watch CPU and RAM (the container is capped at 1600 MB)"
+    elif ((maps_new)); then
+        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants are the live tree's, but $maps_new map file(s) change: those maps are built again by the first match on each (srp has no pre-build command)"
+    else
+        built_note="the built maps (mapdata/built, $built_n file(s) now) keep their keys: the algorithm constants are the live tree's and no map file changes"
+    fi
+    case $built_note in WARNING*) say "  WARNING  ${built_note#WARNING }" ;; *) say "  note     $built_note" ;; esac
+fi
+
 # The site.
 state=$(maintenance_state)
 case $state in
@@ -1246,6 +1337,9 @@ say "  new content: ${resources:-none}"
 say "  /patches will offer:"
 say_offered
 say "  server code: $(if ((build_code)); then say "built before the swap (docker compose build srp26)"; else say "not built"; fi)"
+say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the preflight stopped before it)}"
+if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
+if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
 if [[ -n $site_tree ]]; then
     say "  the Maps tab and the calculator: rebuilt from what /patches will offer (in the server's source; the record commits them)"
 elif ((site_stale)); then
@@ -1336,6 +1430,7 @@ if ((DRY_RUN)); then
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "<its sha256>"
     stage_upload "$zip" "$ZIP_NAME" "<its sha256>"
+    stage_bot_data "$bd_dir"
 else
     progress "4. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
@@ -1358,11 +1453,16 @@ else
         say
         say "the players' ZIP, against the one the site hands out now:"
         grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" || say "  (no entry changed)"
+        say
+        say "the bots' data (release/bot-data.tsv), against the $TARGET volume: ${bd_line:-not checked}"
+        if ((${#BD_TODO[@]})); then printf '  %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
+        if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
     } >"$work/changed.txt"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "$DATA_SHA"
     stage_upload "$zip" "$ZIP_NAME" "$ZIP_SHA"
+    stage_bot_data "$bd_dir"
 fi
 if ((build_code)); then
     progress "4. the server code: building the image from main's source"
@@ -1429,6 +1529,10 @@ if ((!DRY_RUN)); then
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
+    if ((${#BD_TODO[@]})); then
+        say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
+        printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"
+    fi
     say "  /patches: ${OLD_PATCHES:-(no list)} -> $EXPECTED"
     if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
     say "  the ZIP's entries, against the live ZIP:"
@@ -1484,7 +1588,8 @@ phase=finished
 released_at=$(date -u +%s)
 say
 if ((now)); then say "--now: the stop ended ${ENDED:-an unknown number of} match(es) without results"; fi
-say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, the bots' data files it replaced (old-bot-data), changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
 if ((test_server)); then
     say "No record (--test): no commit, no tag."
 else

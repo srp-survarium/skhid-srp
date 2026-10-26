@@ -22,8 +22,8 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh test.sh &&
-        shellcheck -s sh host-rollback.sh)
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data test.sh &&
+        shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
     echo "skip shellcheck (none here)"
@@ -1061,7 +1061,16 @@ SKHID_GAME_SERVER=127.0.0.1:1234
 SKHID_LOCALIZATION=english
 SKHID_MIN_FREE_MB=1
 SKHID_LIVE_MIN_FREE_MB=1
+SKHID_BOT_DATA=$T/bot-data
+SKHID_BOT_DATA_LIST=$T/bot-data.tsv
 ENV
+# The bots' data: two files, the second under another name in the owner's
+# folder (as the routes table is), listed by the tool that keeps the list.
+mkdir -p "$T/bot-data/mapdata" "$T/bot-data/bot-routes"
+echo 'map one' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
+echo '{"routes": 1}' >"$T/bot-data/bot-routes/routes-t.json"
+grep '^#' "$here/bot-data.tsv" >"$T/bot-data.tsv"
+out=$(SKHID_BOT_DATA_LIST=$T/bot-data.tsv "$here/bot-data" add "$T/bot-data" mapdata/level_t_day_2.mapdata mapdata/bot-routes.json=bot-routes/routes-t.json 2>&1) || fail "bot-data add: $out"
 export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
 SKHID_TEST_STOCK_SHA256=$(sha256sum <"$T/resources.db" | cut -d' ' -f1)
 export SKHID_TEST_STOCK_SHA256
@@ -1140,6 +1149,18 @@ check "release: checks the log's game data line" has "$out" "log: INFO game data
 check "release: prints the rollback" has "$out" "release/rollback release-rev12-[0-9-]*-a"
 check "release: the rollback puts the running image back, by its ID" grep -qx "OLD_IMAGE=sha256:[0-9a-f]*" "$(folder 12 a)/rollback.env"
 check "release: leaves nothing staged" nothing_staged
+# The bots' data: the volume had none; both files put in at the swap, the
+# second under its path, kept as created in the folder.
+check "release: the bots' data is checked in the preflight" has "$out" "the bots' data: 2 file(s) in $T/bot-data, each with the sha256 and size of release/bot-data.tsv"
+check "release: ... compared with the volume's: both to put in" has "$out" "2 to put in .* at the swap"
+check "release: ... the plan says so" has "$out" "the bots' data (release/bot-data.tsv): 2 file(s) put in the volume at the swap, with srp26 stopped"
+check "release: the map is in the volume" cmp -s "$T/bot-data/mapdata/level_t_day_2.mapdata" "$T/volume/mapdata/level_t_day_2.mapdata"
+check "release: the routes table is in the volume as mapdata/bot-routes.json" cmp -s "$T/bot-data/bot-routes/routes-t.json" "$T/volume/mapdata/bot-routes.json"
+check "release: ... mode 644" test "$(stat -c %a "$T/volume/mapdata/bot-routes.json")" = 644
+check "release: the folder says what it did: created, none replaced" bash -c "F=$(folder 12 a); test \"\$(sort \$F/bot-data.log)\" = \"\$(printf 'created mapdata/bot-routes.json\ncreated mapdata/level_t_day_2.mapdata')\" && test -z \"\$(ls -A \$F/old-bot-data)\""
+check "release: ... the rollback is told (BOT_DATA=1)" grep -qx "BOT_DATA=1" "$(folder 12 a)/rollback.env"
+check "release: ... the staged files' sha256 are in new.sha" grep -q "bot-data/mapdata/bot-routes.json" "$(folder 12 a)/new.sha"
+check "release: says the built maps are not pre-built (srp has no command)" has "$out" "srp has no pre-build command"
 check "release: the maintenance ended with the restart" test ! -e "$T/state/maint"
 check "release: took the lock on the jump host" grep -q "^ssh jump mkdir $T/lock" "$T/args"
 check "release: ... and freed it" test ! -e "$T/lock"
@@ -1271,6 +1292,30 @@ git -C "$T/repo" config user.useConfigOnly true
 git -C "$T/repo" config --unset user.email
 expect_refused "release: needs a git user (the record's tag and commit)" "has no user.name and user.email" \
     env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$here/release.sh"
+# The bots' data: the folder not set, a file missing, of another size, of
+# the same size and other bytes: each a problem of the preflight (the release
+# stops before the go); --no-bot-data leaves it all out, loudly.
+expect_refused "release: the bots' data folder not set" "SKHID_BOT_DATA is not set in $T/changed-" \
+    env SKHID_RELEASE_ENV="$(changed_env "/^SKHID_BOT_DATA=/d")" "$here/release.sh"
+expect_refused "release: the bots' data folder is not a folder" "SKHID_BOT_DATA: $T/nowhere is not a folder" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_BOT_DATA=.*|SKHID_BOT_DATA=$T/nowhere|")" "$here/release.sh"
+mv "$T/bot-data/bot-routes/routes-t.json" "$T/routes-t.json.away"
+expect_refused "release: a bots' data file missing" "the bots' data: bot-routes/routes-t.json: not in $T/bot-data" "$here/release.sh"
+mv "$T/routes-t.json.away" "$T/bot-data/bot-routes/routes-t.json"
+printf 'x' >>"$T/bot-data/mapdata/level_t_day_2.mapdata"
+expect_refused "release: a bots' data file of another size" "the bots' data: mapdata/level_t_day_2.mapdata: 9 bytes, the list says 8" "$here/release.sh"
+printf 'map two\n' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
+expect_refused "release: a bots' data file of the same size and other bytes" "the bots' data: mapdata/level_t_day_2.mapdata: sha256 [0-9a-f]*…, the list says" "$here/release.sh"
+printf 'map one\n' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
+out=$("$here/bot-data" check 2>&1) || fail "bot-data check: $out"
+check "bot-data check: the folder of release.env, each file as listed" has "$out" "$T/bot-data: 2 file(s), each as listed"
+printf 'x' >>"$T/bot-data/mapdata/level_t_day_2.mapdata"
+expect_refused "bot-data check: says which file is not as listed" "mapdata/level_t_day_2.mapdata: 9 bytes, the list says 8" "$here/bot-data" check
+printf 'map one\n' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
+expect_refused "bot-data add: a listed path with other bytes needs --replace" "--replace says it is a new benched file" \
+    bash -c "printf 'map two\n' >$T/bot-data/other.mapdata && $here/bot-data add $T/bot-data mapdata/level_t_day_2.mapdata=other.mapdata"
+rm -f "$T/bot-data/other.mapdata"
+expect_refused "bot-data: a path that leaves the volume" "is not a path under the volume" "$here/bot-data" add "$T/bot-data" ../etc/passwd
 git -C "$T/repo" config user.email owner@example.org
 git -C "$T/repo" config --unset user.useConfigOnly
 git -C "$T/repo" tag -a 026g-rev14 -m "left by a run" HEAD
@@ -1612,6 +1657,24 @@ check "release: a refusal after srp.db was opened rolls back too" has "$out" "ro
 check "release: ... with srp's backup of that start" has "$out" "srp.db: as it was before the release (srp-[0-9]*.db)"
 check "release: ... srp.db: the rollback's start, after the one before" bash -c "grep -q '^start $((starts + 1)) ' $T/volume/srp.db"
 
+# The bots' data changed (a newly benched routes table): the plan says one file
+# differs; srp refusing to start rolls the volume's file back as it was.
+: >"$T/state/admin.log"
+routes_before=$(sha256sum <"$T/volume/mapdata/bot-routes.json")
+map_before=$(sha256sum <"$T/volume/mapdata/level_t_day_2.mapdata")
+echo '{"routes": 2}' >"$T/bot-data/bot-routes/routes-t.json"
+out=$("$here/bot-data" add --replace "$T/bot-data" mapdata/bot-routes.json=bot-routes/routes-t.json 2>&1) || fail "bot-data add --replace: $out"
+check "bot-data add --replace: the row is changed" has "$out" "replaced mapdata/bot-routes.json (was sha256 "
+echo "ERROR srp: cannot load the 0.26g accounts: the kept accounts name what the server's game data (x) lacks; item 99" >"$T/refuse-start"
+run yes --minutes 1 --label n || true
+rm -f "$T/refuse-start"
+check "release: a changed bots' data file is the one to put in" has "$out" "1 to put in .* at the swap"
+check "release: ... named, with the volume's sha256 and the list's" has "$out" "mapdata/bot-routes.json: in the volume sha256 [0-9a-f]*…, the list says"
+check "release: ... srp refusing to start rolls it back" has "$out" "rolled back: srp26"
+check "release: ... the volume's routes table as it was" test "$(sha256sum <"$T/volume/mapdata/bot-routes.json")" = "$routes_before"
+check "release: ... the map untouched" test "$(sha256sum <"$T/volume/mapdata/level_t_day_2.mapdata")" = "$map_before"
+check "release: ... said by the rollback" has "$out" "bot data: the files of the release put back or removed"
+
 # A match that ends a little after the planned time (patch_14 listed now).
 : >"$T/state/admin.log"
 echo 3 >"$T/state/busy"
@@ -1621,6 +1684,8 @@ check "release: waits while a match runs" has "$out" "1 match(es) still running;
 check "release: ... then releases" cmp -s "$T/work/r14.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... with the new patch" offers patch_14
 check "release: ... without cancelling" test "$(admin_log)" = "plan 1"
+check "release: the changed routes table is in the volume" cmp -s "$T/bot-data/bot-routes/routes-t.json" "$T/volume/mapdata/bot-routes.json"
+check "release: ... the old one kept in the folder, noted as replaced, the map not touched" bash -c "F=$(folder 14 d); test \"\$(cat \$F/bot-data.log)\" = 'replaced mapdata/bot-routes.json' && grep -q 'routes.: 1' \$F/old-bot-data/mapdata/bot-routes.json && test ! -e \$F/old-bot-data/mapdata/level_t_day_2.mapdata"
 
 # release/rollback: the folders, then one rolled back keeping srp.db.
 out=$("$here/rollback" 2>&1) || fail "rollback (the list): $out"
@@ -1631,6 +1696,7 @@ out=$(yes_to "$here/rollback" --keep-db "$D_FOLDER") || fail "rollback --keep-db
 check "rollback --keep-db: the ZIP back" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "rollback --keep-db: srp.db as it was" grep -q "^start $starts " "$T/volume/srp.db"
 check "rollback --keep-db: the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
+check "rollback --keep-db: the bots' data as it was (the old routes table back)" test "$(sha256sum <"$T/volume/mapdata/bot-routes.json")" = "$routes_before"
 check "rollback --keep-db: the folder says rolled-back" grep -qx rolled-back "$(folder 14 d)/state"
 # Revision 14 went out and came back: the next release is not 14 again.
 expect_refused "release after a rollback: main's REVISION says 14 went out" "main's REVISION 14 says revision 14 went out already, and the live exe says 13 .*--revision 15" "$here/release.sh"

@@ -10,7 +10,9 @@
 # Puts back what was there just before that release's swap, then makes srp26
 # anew and waits for it: download/Survarium-0.26g-srp-files.zip and
 # download/server-game-data.db (old-*, hard links in the folder, renamed into
-# place), SRP_MIN_PATCH_REVISION (that line only), the server source
+# place), the bots' data files the release put in the volume's folder (the
+# old ones back from old-bot-data/, the new ones it created removed:
+# bot-data.log says which), SRP_MIN_PATCH_REVISION (that line only), the server source
 # (old-src.tgz, when the release built one), the image that ran before
 # (image.old) as srp-026g:latest, and srp.db, unless --keep-db, as it was
 # before the release: the copy the new srp made with VACUUM INTO at its start
@@ -38,7 +40,7 @@ if test -z "$dir" || test ! -f "$dir/rollback.env"; then
 fi
 dir=$(cd "$dir" && pwd)
 # TARGET_DIR COMPOSE IMAGE OLD_IMAGE VOLUME_DIR BACKUP_BEFORE OLD_MIN NEW_MIN
-# HAVE_ZIP HAVE_DATA SRC ZIP_NAME DATA_NAME
+# HAVE_ZIP HAVE_DATA SRC BOT_DATA ZIP_NAME DATA_NAME
 # shellcheck disable=SC1091 # written by the release
 . "$dir/rollback.env"
 cd "$TARGET_DIR"
@@ -68,6 +70,11 @@ if test -n "$db" && test "$keep_db" = 0; then need=$db; fi
 if test "$HAVE_ZIP" = 1; then need="$need $dir/old-$ZIP_NAME"; fi
 if test "$HAVE_DATA" = 1; then need="$need $dir/old-$DATA_NAME"; fi
 if test "$SRC" = 1; then need="$need $dir/old-src.tgz"; fi
+if test "${BOT_DATA:-0}" = 1 && test -f "$dir/bot-data.log"; then
+    while read -r what path; do
+        if test "$what" = replaced; then need="$need $dir/old-bot-data/$path"; fi
+    done <"$dir/bot-data.log"
+fi
 for f in $need; do
     test -s "$f" || { echo "$f is missing: nothing was rolled back" >&2; exit 1; }
 done
@@ -79,6 +86,20 @@ $COMPOSE stop srp26
 if test "$HAVE_DATA" = 1; then put "$dir/old-$DATA_NAME" "$DATA_NAME"; else rm -f "download/$DATA_NAME"; fi
 if test "$HAVE_ZIP" = 1; then put "$dir/old-$ZIP_NAME" "$ZIP_NAME"; else rm -f "download/$ZIP_NAME"; fi
 rm -f "download/.$DATA_NAME.new" "download/.$ZIP_NAME.new"
+if test "${BOT_DATA:-0}" = 1 && test -f "$dir/bot-data.log"; then
+    # srp26 is stopped. A file that was there is copied back over the new
+    # one (its owner and mode kept: cp -p as root), one the release made is
+    # removed (its folders stay).
+    while read -r what path; do
+        case $what in
+        replaced)
+            cp -p "$dir/old-bot-data/$path" "$VOLUME_DIR/$path.rollback" && mv -f "$VOLUME_DIR/$path.rollback" "$VOLUME_DIR/$path"
+            ;;
+        created) rm -f "$VOLUME_DIR/$path" ;;
+        esac
+    done <"$dir/bot-data.log"
+    echo "bot data: the files of the release put back or removed (bot-data.log)"
+fi
 if test "$OLD_MIN" = none; then
     sed -i '/^SRP_MIN_PATCH_REVISION=/d' .env
 else
