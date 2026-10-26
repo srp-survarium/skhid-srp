@@ -333,3 +333,22 @@ The example's `patches.code` is about 190 bytes: the generated entry
 (`RUST_CALL`), the shim, `OrigActionPresent::call`, and the weak
 `memcpy`/`memset` the arena keeps one of. `core::fmt` is never linked (the
 log takes pieces). `link_026g.py --sizes` gives the per-patch bytes.
+
+## Voice hook additions
+
+Patch 66 uses the same named-site declarations for five lohooks, a register-convention
+call and two vtable pointer writes. The call adapter takes each argument from the
+engine row's register or stack location, aligns the stack for Rust, and preserves
+the nonvolatile registers. Pointer installs are generated and audited with code
+installs. Void originals have a void Rust result. A lohook covering exactly one
+`call rel32` replays a generated call to its original target, rather than copying
+the displacement. Other relative-control-flow spans are still refused.
+
+The engine generator supports scalar float arguments in XMM registers; voice
+uses this for `cc_value<float>`'s minimum. `Context::reg(Esp)` is the original
+game stack pointer, accounting for the entry's dispatch slot and saved flags.
+
+Voice policy is safe Rust in `voice.rs`; the Vostok boundary owns console storage,
+live game snapshots, Scaleform values and the checked `voice-abi::Api` token.
+The optional DLL has one versioned ABI shared with its Rust implementation.
+The runtime supplies bounded byte comparison for LLVM-generated comparisons.

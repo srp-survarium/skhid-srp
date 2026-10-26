@@ -33,3 +33,5 @@ pub mod vostok;
 
 pub mod ragdoll;
 pub mod suicide_key;
+
+pub mod voice;

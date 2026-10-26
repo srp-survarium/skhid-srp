@@ -2191,7 +2191,6 @@ va	name	location	role	basis
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
 0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
 0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
-0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true0 false2	inferred
@@ -4674,3 +4673,7 @@ va	name	location	role	basis
 0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+8	now, the game's time in ms	observed
 0x00236c30	survarium::game_world_ui::set_local_respawn_time	EAX	the respawn seconds left (hud+2Ch, update_ui 0x23B3FC); returns at once when equal to the last (the global 0xACFC30)	observed
 0x00236c30	survarium::game_world_ui::set_local_respawn_time	entry ESP+4	the hud; root.set_respawn_time with "%s %02d:%02d" (st_respawn_time_pref, minutes, seconds), "" for 0	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+4	unused argument forwarded unchanged	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+4	argument1 passed unchanged through vtable slot (call at 0x1ECBE1)	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+8	argument2 passed unchanged through vtable slot (call at 0x1ECBE1)	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+12	argument3 passed unchanged through vtable slot (call at 0x1ECBE1)	observed

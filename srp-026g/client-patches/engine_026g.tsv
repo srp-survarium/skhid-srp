@@ -52,3 +52,11 @@ engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_i
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)	thunk	
 engine_cc_string	0x0ec860	EAX:object ESP+4:name ESP+8:buffer ESP+12:size ESP+16:saved	void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved)	thunk	
 engine_translate	0x1ff0f0	ECX:translator ESP+4:key ESP+8:buffer	void engine_translate(void *translator, const char *key, char *buffer)	thunk	
+engine_get_module_handle	0x87003C	-	void *engine_get_module_handle(const char *name)	import
+engine_load_library	0x870080	-	void *engine_load_library(const char *name)	import
+engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import
+engine_free_library	0x870088	-	unsigned int engine_free_library(void *module)	import
+engine_cc_float	0x1DD40	EAX:object XMM0:min ESP+4:name ESP+8:address ESP+12:max ESP+16:saved ESP+20:kind	void engine_cc_float(void *object, float min, const char *name, float *value, float max, unsigned int saved, unsigned int kind)	thunk
+engine_options_activate	0x200F50	EAX:options ESP+4:state	unsigned int engine_options_activate(void *options, unsigned int state)	thunk	options: VoiceOptions, state: Word -> u32
+engine_world_tick	0x1F77E0	ECX:world ESP+4:argument1 ESP+8:argument2 ESP+12:argument3	void engine_world_tick(void *world, unsigned int first, unsigned int second, unsigned int third)	thiscall	world: VoiceWorld, first: Word, second: Word, third: Word
+engine_options_callback	0x1FF5D0	ECX:handler ESP+4:argument ESP+8:name ESP+12:arguments ESP+16:count	void engine_options_callback(void *handler, unsigned int unknown, void *name, void *arguments, unsigned int count)	thiscall	handler: VoiceObject, unknown: Word, name: VoiceText, args: VoiceValues, count: Word

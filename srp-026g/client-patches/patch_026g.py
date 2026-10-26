@@ -497,7 +497,7 @@ Patches:
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
 - voice chat in a match (patch 66, with the late join; docs/notes/voice-chat.md):
-  voice_026g.asm and voice_026g.c (the arena's blocks voice.code, .data and
+  Rust patches::voice (the arena's shared patches.code, .data and
   .state) with skhid_voice.dll beside the exe: the sound tab's voice options
   and "Disable voice chat" (the dead g_hide_spam) registered at game::game
   (0x1E90A3); the DLL started at match_client::connect (0x27A1B0) on the
@@ -1190,7 +1190,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll")
+RUST_PATCHES = ("suicide_key", "ragdoll", "voice")
 
 
 def rust_hooks(original):
@@ -2090,8 +2090,8 @@ HIDE_UI_HOOKS = (
     (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
 )
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# that read the table of 28h rows at 0xA9DB28 read Rust's `controls` (patches.state,
+# 2Ah rows initialized before menus; F11 and mute_last_speaker appended) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2131,8 +2131,8 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
 # Voice chat (patch 66, README; client_patch.md section 3.58; the rules:
-# ../docs/notes/voice-chat.md): voice_026g.asm and voice_026g.c in the
-# arena's blocks voice.code, voice.data and voice.state (ARENA below), with
+# ../docs/notes/voice-chat.md): the safe Rust module voice.rs and its named
+# sites in voice.toml, in the shared patches blocks (ARENA below), with
 # skhid_voice.dll beside the exe (srp-026g/client-voice). The glue's entries:
 # - game::game's call of game_world::game_world (0x1E90A3, `ret 8`): the
 #   world made, then the voice's console variables registered (s_chat_volume,
@@ -2157,20 +2157,10 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # mute_last_speaker, kind 8 (the chat keys: only the chat handler and this
 # patch ask kind 8), no default key: the owner's M is set_next_ammo_type's.
 # No base relocation is under a hook site and no branch aims inside one.
-VOICE_HOOKS = (
-    (0x1E90A3, bytes.fromhex("e808d70000"), "voice_register", 0xE8),         # game::game: game_world::game_world
-    (0x27A1B0, bytes.fromhex("535556" "8bf1"), "voice_connect", 0xE9),       # match_client::connect
-    (0x1F96F0, bytes.fromhex("57" "8bf8" "8b879c000000"), "voice_finish", 0xE9),  # on_finish_match
-    (0x1F9520, bytes.fromhex("535657" "8bf9"), "voice_deactivate", 0xE9),    # on_deactivate
-    (0x25CD34, bytes.fromhex("e887b7fdff"), "voice_key", 0xE8),              # on_keyboard_action: show_player_list
-    (0x1EDBDC, bytes.fromhex("e86f330100"), "voice_menu", 0xE8),             # activate_main_menu: activate
-)
+VOICE_HOOKS = () # named Rust sites in voice.toml
 VOICE_BACKS = (0x27A1B5, 0x1F96F9, 0x1F9525)   # each entry's function after the moved instructions
 # (the slot, the game's function there, ours)
-VOICE_SLOTS = (
-    (0x9FC4FC, 0x1F77E0, "voice_tick"),        # game_world's vtable 0x9FC4F4 slot 2: tick
-    (0x9FD47C, 0x1FF5D0, "voice_menu_call"),   # game_options' Scaleform callback
-)
+VOICE_SLOTS = () # generated pointer installs from voice.toml
 # The action table's entry {name, id, kinds, toggle, default key}: 37h.
 VOICE_ACTION = 0xA74E10
 VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
@@ -2634,10 +2624,6 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 42 controls
-    ArenaBlock("voice.code", "code", 0x1000, ("voice_026g.asm", "voice_026g.c")),  # patch 66
-    ArenaBlock("voice.data", "data", 0x1000, ("voice_026g.asm",)),               # its action's name
-    ArenaBlock("voice.state", "state", 0x1000, ("voice_026g.c",)),               # its variables, the DLL
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
@@ -3696,6 +3682,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                for va, old, symbol, owner in hooks_026g.pointer_installs(exe=lambda va, n: original[file_offset(va):file_offset(va)+n]):
+                    patch_section_value(data, va, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in voice_writes(linked):
                     patch_section_value(data, va, old, new)
                 # the action's default key is none now: no relocation adds the base to its 0

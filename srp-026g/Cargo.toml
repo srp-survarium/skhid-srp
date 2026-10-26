@@ -5,6 +5,8 @@ members = [
   "crates/resources-db",
   "crates/session",
   "crates/ragdoll",
+  "crates/voice-abi",
+  "client-voice",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",

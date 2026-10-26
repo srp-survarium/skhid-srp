@@ -4,7 +4,8 @@
  * mute and for "Disable voice chat", hears a relayed speaker, and stops.
  * A missing microphone or output device only makes voice silent.
  *
- *   nix build ./srp-026g#skhid-voice ./srp-026g#skhid-voice-smoke
+ *   nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh
+ *   nix build ./srp-026g#skhid-voice-smoke
  *   (or: i686-w64-mingw32-gcc -O2 -o smoke_voice.exe smoke_voice.c -lws2_32)
  *   wine smoke_voice.exe path\to\skhid_voice.dll     (exit status 0: passed)
  */
@@ -23,6 +24,7 @@ typedef void(__cdecl *settings_fn)(float, int, float);
 typedef void(__cdecl *mask_fn)(unsigned);
 typedef unsigned(__cdecl *talking_fn)(void);
 typedef int(__cdecl *slot_fn)(void);
+typedef unsigned(__cdecl *voice_id_fn)(int);
 
 static int failures;
 #define CHECK(cond, what)                                                                  \
@@ -80,8 +82,9 @@ int main(int argc, char **argv)
     talking_fn sv_talking = (talking_fn)GetProcAddress(dll, "sv_talking");
     slot_fn sv_slot = (slot_fn)GetProcAddress(dll, "sv_slot");
     slot_fn sv_last_speaker = (slot_fn)GetProcAddress(dll, "sv_last_speaker");
+    voice_id_fn sv_voice_id = (voice_id_fn)GetProcAddress(dll, "sv_voice_id");
     CHECK(sv_version && sv_start && sv_stop && sv_ptt && sv_settings && sv_radio && sv_mute &&
-              sv_talking && sv_slot && sv_last_speaker,
+              sv_talking && sv_slot && sv_last_speaker && sv_voice_id,
           "every export resolves");
     if (failures)
         return 1;
@@ -115,6 +118,13 @@ int main(int argc, char **argv)
         CHECK(sv_slot() == 5, "WELCOME: own slot 5");
     }
 
+    {
+        unsigned char roster[] = {0x56, 1, 0x90, 2, 2, 0x11, 0, 0, 0, 5, 0x22, 0, 0, 0};
+        reply(roster, sizeof roster);
+        for (int i = 0; i < 50 && sv_voice_id(2) != 0x11; i++) Sleep(10);
+        CHECK(sv_voice_id(2) == 0x11 && sv_voice_id(5) == 0x22, "ROSTER: stable account ids");
+    }
+
     sv_mute(1u << 3);
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[8] == 0x08, "a mute sends a HELLO at once, the mask in it");
@@ -135,11 +145,25 @@ int main(int argc, char **argv)
         CHECK(sv_last_speaker() == 2, "the last speaker is 2");
     }
 
+    /* A new account reuses slot 2: its low first utterance id must not be
+     * rejected by the old account's closed/open utterance history. */
+    {
+        unsigned char roster[] = {0x56, 1, 0x90, 2, 2, 0x12, 0, 0, 0, 5, 0x22, 0, 0, 0};
+        unsigned char start[] = {0x56, 1, 0x82, 2, 1, 0, 0, 0, 0, 0};
+        reply(roster, sizeof roster);
+        for (int i = 0; i < 50 && (sv_voice_id(2) != 0x12 || (sv_talking() & (1u << 2))); i++) Sleep(10);
+        CHECK(sv_voice_id(2) == 0x12 && !(sv_talking() & (1u << 2)), "changed roster clears old speaker");
+        reply(start, sizeof start);
+        for (int i = 0; i < 50 && !(sv_talking() & (1u << 2)); i++) Sleep(10);
+        CHECK(sv_talking() & (1u << 2), "late joiner can start with a lower utterance id");
+    }
+
     sv_radio(1u << 2);
     sv_ptt(1);
     Sleep(100);
-    CHECK(sv_talking() & (1u << 5), "own bit while push-to-talk is held");
     got = expect(0x02, buf, sizeof buf, 300);
+    CHECK(((sv_talking() & (1u << 5)) != 0) == (got > 0),
+          "own talking bit means capture actually started");
     printf("note: START %s (it needs a microphone)\n", got > 0 ? "sent" : "not sent");
     sv_ptt(0);
     if (got > 0) {

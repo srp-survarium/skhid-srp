@@ -22,6 +22,12 @@
 //! ([`voice_id`]). The key is `<SRP_DATA_DIR>/voice-id.key`, made once
 //! ([`id_key_from_env`]).
 //!
+//! Outgoing utterance numbers are ordered per match slot, independently of
+//! the sending session's counter. A restarted process can begin at one while
+//! keeping the same account/slot: listeners still see a newer utterance even
+//! if its START or the intervening roster update is lost. Incoming late
+//! counters cannot replace a newer utterance of the same session.
+//!
 //! Muting is the listener's: its game plays nothing of a slot it mutes, and
 //! its HELLO says which slots (the `muted` mask), so the relay sends it
 //! nothing of them either. A game with voice turned off says it does not
@@ -337,6 +343,11 @@ fn muted(mask: u32, slot: u8) -> bool {
         .is_some_and(|bit| mask & bit != 0)
 }
 
+/// Half-range ordering of wrapping client and relay utterance counters.
+fn newer_utterance(a: u16, b: u16) -> bool {
+    (a.wrapping_sub(b) as i16) > 0
+}
+
 fn header(kind: u8) -> Vec<u8> {
     vec![MAGIC, VERSION, kind]
 }
@@ -350,6 +361,9 @@ struct Listener {
 }
 
 struct Open {
+    /// Counter supplied by this authenticated client session.
+    client_utt: u16,
+    /// Counter on the listening wire, ordered across slot occupants.
     utterance: Utterance,
     last_audio_at: Instant,
 }
@@ -380,6 +394,9 @@ pub struct Relay<S: Seats> {
     epoch: Instant,
     listeners: HashMap<u32, Listener>,
     talkers: HashMap<u32, Talker>,
+    /// Last output counter for a match slot, retained until the match ends.
+    /// A restarted client may begin at one without resetting its account ID.
+    output_utterances: HashMap<(u32, u8), u16>,
     counts: HashMap<u32, MatchCounts>,
     /// Datagrams dropped before a session was known (too large, malformed).
     pub dropped_unknown: u64,
@@ -400,6 +417,7 @@ impl<S: Seats> Relay<S> {
             epoch: now,
             listeners: HashMap::new(),
             talkers: HashMap::new(),
+            output_utterances: HashMap::new(),
             counts: HashMap::new(),
             dropped_unknown: 0,
             id_key: [0; 32],
@@ -462,6 +480,21 @@ impl<S: Seats> Relay<S> {
             self.drop_for(Some(seat.match_id));
             return out;
         }
+        // A session may acquire a new place before housekeeping runs. An
+        // utterance belongs to the seat where it began, never the old team
+        // after a reseat (even if the client reuses its utterance number).
+        let moved = self
+            .talkers
+            .get(&session)
+            .and_then(|talker| talker.open.as_ref())
+            .is_some_and(|open| {
+                open.utterance.match_id != seat.match_id
+                    || open.utterance.team != seat.team
+                    || open.utterance.speaker != seat.place
+            });
+        if moved {
+            self.close(session, EndReason::Released, now, &mut out);
+        }
         let talker = self.talkers.entry(session).or_insert(Talker {
             open: None,
             closed: None,
@@ -511,11 +544,14 @@ impl<S: Seats> Relay<S> {
             } => {
                 let talker = &self.talkers[&session];
                 let fresh = match &talker.open {
-                    Some(open) => open.utterance.utt != utt,
+                    Some(open) => open.client_utt != utt,
                     None => true,
                 };
                 if fresh {
-                    if talker.closed == Some(utt) {
+                    if talker
+                        .closed
+                        .is_some_and(|closed| !newer_utterance(utt, closed))
+                    {
                         // Late audio of an utterance that ended (cut, timed
                         // out or released): nothing reopens it.
                         self.drop_for(Some(seat.match_id));
@@ -528,6 +564,7 @@ impl<S: Seats> Relay<S> {
                     .talkers
                     .get_mut(&session)
                     .and_then(|talker| talker.open.as_mut())
+                    .filter(|open| open.client_utt == utt)
                 else {
                     return out;
                 };
@@ -535,7 +572,8 @@ impl<S: Seats> Relay<S> {
                 let utterance = open.utterance.clone();
                 let mut relayed = header(kind::RELAYED_AUDIO);
                 relayed.push(seat.place);
-                relayed.extend_from_slice(body);
+                relayed.extend_from_slice(&utterance.utt.to_le_bytes());
+                relayed.extend_from_slice(&body[2..]);
                 self.to_team(&utterance, session, &relayed, now, &mut out);
                 let mut tap_out = RelayOut::default();
                 self.tap.audio(&utterance, seq, &frames, &mut tap_out);
@@ -545,7 +583,7 @@ impl<S: Seats> Relay<S> {
                 let open = self.talkers[&session]
                     .open
                     .as_ref()
-                    .is_some_and(|open| open.utterance.utt == utt);
+                    .is_some_and(|open| open.client_utt == utt);
                 if open {
                     self.close(session, EndReason::Released, now, &mut out);
                 }
@@ -564,25 +602,45 @@ impl<S: Seats> Relay<S> {
     ) {
         let talker = &self.talkers[&session];
         if let Some(open) = &talker.open {
-            if open.utterance.utt == utt {
+            if open.client_utt == utt {
+                return;
+            }
+            if !newer_utterance(utt, open.client_utt) {
+                self.drop_for(Some(seat.match_id));
                 return;
             }
             // One open utterance a talker: a new one ends the last.
             self.close(session, EndReason::Released, now, out);
         }
-        if self.talkers[&session].closed == Some(utt) {
+        if self.talkers[&session]
+            .closed
+            .is_some_and(|closed| !newer_utterance(utt, closed))
+        {
+            self.drop_for(Some(seat.match_id));
             return;
         }
+        let output_utt = self
+            .output_utterances
+            .entry((seat.match_id, seat.place))
+            .and_modify(|last| {
+                *last = if newer_utterance(utt, *last) {
+                    utt
+                } else {
+                    last.wrapping_add(1)
+                };
+            })
+            .or_insert(utt);
+        let output_utt = *output_utt;
         let utterance = Utterance {
             match_id: seat.match_id,
             team: seat.team,
             speaker: seat.place,
-            utt,
+            utt: output_utt,
             started_at: now,
         };
         let mut relayed = header(kind::RELAYED_START);
         relayed.push(seat.place);
-        relayed.extend_from_slice(&utt.to_le_bytes());
+        relayed.extend_from_slice(&output_utt.to_le_bytes());
         relayed.extend_from_slice(&self.server_ms(now).to_le_bytes());
         self.to_team(&utterance, session, &relayed, now, out);
         self.counts.entry(seat.match_id).or_default().utterances += 1;
@@ -590,6 +648,7 @@ impl<S: Seats> Relay<S> {
         self.tap.started(&utterance, &mut tap_out);
         if let Some(talker) = self.talkers.get_mut(&session) {
             talker.open = Some(Open {
+                client_utt: utt,
                 utterance,
                 last_audio_at: now,
             });
@@ -610,7 +669,7 @@ impl<S: Seats> Relay<S> {
         let Some(open) = talker.open.take() else {
             return;
         };
-        talker.closed = Some(open.utterance.utt);
+        talker.closed = Some(open.client_utt);
         let utterance = open.utterance;
         let counts = self.counts.entry(utterance.match_id).or_default();
         counts.talked += open
@@ -638,6 +697,7 @@ impl<S: Seats> Relay<S> {
     ) {
         for (session, listener) in &self.listeners {
             if *session != speaker
+                && self.seats.voice_seat(*session) == Some(listener.seat)
                 && listener.hears
                 && listener.seat.match_id == utterance.match_id
                 && listener.seat.team == utterance.team
@@ -718,6 +778,8 @@ impl<S: Seats> Relay<S> {
             self.close(session, EndReason::Timeout, now, out);
             self.talkers.remove(&session);
         }
+        self.output_utterances
+            .retain(|(match_id, _), _| self.seats.is_open(*match_id));
         let over: Vec<u32> = self
             .counts
             .keys()
@@ -795,3 +857,6 @@ fn ip(text: &str) -> std::net::IpAddr {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod loopback;

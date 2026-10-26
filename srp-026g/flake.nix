@@ -76,7 +76,7 @@
         patches = [ ];
       });
 
-      # skhid_voice.dll (client-voice/, voice_win.c says what it is): in-match
+      # skhid_voice.dll (client-voice/src, built by client-voice/build.sh): in-match
       # voice chat, beside survarium.exe. libopus as the DLL has it: floating
       # point (opus 1.6.1's fixed-point build for x86 does not link: its
       # SSE4.1 SILK functions are missing), no custom modes, a static
@@ -89,46 +89,18 @@
       noCR = builtins.replaceStrings [ "\r" ] [ "" ];
       voiceOpusWin = (opusForVoice mingw32.libopus).overrideAttrs (old: {
         mesonFlags = old.mesonFlags ++ [ "-Ddefault_library=static" ];
+        NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -mstackrealign -D__USE_MINGW_ANSI_STDIO=0 -D_CRTIMP=";
       });
-      skhidVoice = mingw32.stdenv.mkDerivation {
-        pname = "skhid-voice";
-        version = "1";
-        src = ./client-voice;
-        # mcfgthread: the cross gcc's thread model names it on every link;
-        # nothing of it is used, and --as-needed leaves it out.
-        buildInputs = [ voiceOpusWin mingw32.windows.mcfgthreads ];
-        dontConfigure = true;
-        buildPhase = noCR ''
-          runHook preBuild
-          # -mstackrealign: the game calls the exports, and Windows starts the
-          # threads, on stacks aligned to 4 bytes only; every function of ours
-          # aligns its frame to 16, so libopus's SSE code gets 16 too.
-          # libopus's objects export its API (.drectve): only the DLL's own
-          # names (skhid_voice.def) are exported.
-          ${mingw32.stdenv.cc.targetPrefix}objcopy -R .drectve \
-            ${voiceOpusWin}/lib/libopus.a libopus-static.a
-          $CC -std=c99 -O2 -Wall -Wextra -Werror -D_WIN32_WINNT=0x0601 \
-            -msse2 -mfpmath=sse -mstackrealign \
-            -I${voiceOpusWin.dev}/include/opus \
-            -shared -o skhid_voice.dll \
-            voice_win.c voice_core.c radio_sounds.c skhid_voice.def libopus-static.a \
-            -static -static-libgcc -Wl,--as-needed -Wl,--gc-sections \
-            -lws2_32 -lwinmm -s
-          # Nothing but Windows' own DLLs.
-          imports=$(${mingw32.stdenv.cc.targetPrefix}objdump -p skhid_voice.dll \
-            | sed -n 's/^\tDLL Name: //p' | tr 'A-Z' 'a-z' | sort | tr '\n' ' ')
-          echo "skhid_voice.dll imports: $imports"
-          for dll in $imports; do
-            case $dll in
-              kernel32.dll | msvcrt.dll | winmm.dll | ws2_32.dll) ;;
-              *) echo "skhid_voice.dll imports $dll" >&2; exit 1 ;;
-            esac
-          done
-          runHook postBuild
-        '';
-        installPhase = noCR ''
-          mkdir -p $out
-          cp skhid_voice.dll $out/
+      # GCC's COFF objects use the same C ABI as Rust's MSVC target. Keep
+      # Opus static, align calls from the game's four-byte stack, use the
+      # standard C stdio names, and strip its automatic DLL export directives.
+      voiceOpusMsvc = pkgs.stdenvNoCC.mkDerivation {
+        name = "skhid-voice-opus-msvc";
+        nativeBuildInputs = [ pkgs.llvm mingw32.stdenv.cc ];
+        buildCommand = noCR ''
+          mkdir -p $out/lib
+          llvm-objcopy -R .drectve ${voiceOpusWin}/lib/libopus.a $out/lib/opus.lib
+          cp $(${mingw32.stdenv.cc.targetPrefix}gcc -print-libgcc-file-name) $out/lib/gcc.lib
         '';
       };
 
@@ -149,34 +121,34 @@
         '';
       };
 
+      # The portable Rust core has no registry dependencies. This hermetic
+      # check runs the same tests as cargo test -p skhid-voice, plus builds
+      # the WAV listening tool; the real relay test lives in match-server.
       voiceLoopback = pkgs.stdenv.mkDerivation {
         name = "skhid-voice-loopback";
         src = ./client-voice;
-        nativeBuildInputs = [ pkgs.pkg-config ];
+        nativeBuildInputs = [ rust ];
         buildInputs = [ (opusForVoice pkgs.libopus) ];
         dontConfigure = true;
         buildPhase = noCR ''
-          $CC -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Werror \
-            $(pkg-config --cflags opus) -o test_voice test_voice.c voice_core.c radio_sounds.c \
-            $(pkg-config --libs opus) -lm
-          # radio_demo: a WAV through the voice's path, for listening (built, not run)
-          $CC -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Werror \
-            $(pkg-config --cflags opus) -o radio_demo radio_demo.c voice_core.c radio_sounds.c \
-            $(pkg-config --libs opus) -lm
-          ./test_voice >test_voice.log || { cat test_voice.log; exit 1; }
+          rustc --edition=2024 --test src/lib.rs -l opus -o test_voice
+          ./test_voice >test_voice.log
           cat test_voice.log
+          rustc --edition=2024 --crate-name skhid_voice --crate-type rlib src/lib.rs -l opus -o libskhid_voice.rlib
+          rustc --edition=2024 src/bin/radio_demo.rs --extern skhid_voice=libskhid_voice.rlib -L . -l opus -o radio_demo
         '';
         installPhase = noCR ''
           mkdir -p $out
-          cp test_voice.log $out/
+          cp test_voice.log radio_demo $out/
         '';
       };
     in
     {
       packages.${system} = {
-        skhid-voice = skhidVoice;
+        voice-opus = voiceOpusMsvc;
         skhid-voice-smoke = skhidVoiceSmoke;
       };
+
       checks.${system}.voice-loopback = voiceLoopback;
 
       devShells.${system}.default = pkgs.mkShell {
@@ -189,6 +161,7 @@
         buildInputs = [
           rust
           pkgs.openssl
+          pkgs.libopus
           # Used by scripts/dev-bootstrap.sh to run the servers in tmux windows.
           pkgs.tmux
           # llvm-rc (the Windows programs' version and icon resources) and
@@ -206,9 +179,10 @@
         # dev shell stays hermetic and fast.
         env = {
           OPENSSL_NO_VENDOR = "1";
-          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libopus.dev}/lib/pkgconfig";
           # Where client/bugtrap and client/updater link the C runtime from.
           SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
+          VOICE_OPUS_LIB_DIR = "${voiceOpusMsvc}/lib";
           # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
           # links its test binaries against 32-bit glibc with this.
           CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc";

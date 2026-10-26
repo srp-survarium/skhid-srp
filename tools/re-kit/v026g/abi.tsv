@@ -1957,7 +1957,7 @@ va	name	source	ret_cleanup	result
 0x000ec860	vostok::console_commands::cc_string::cc_string	manual	16
 0x001ff5d0	survarium::game_options::scaleform_callback	manual	16
 0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16
-0x00200f50	survarium::game_options::activate	manual	4
+0x00200f50	survarium::game_options::activate	manual	4	EAX: preserved result at activate_main_menu return (0x1EDBE1)
 0x001f77e0	survarium::game_world::tick	manual	12
 0x0021beb0	survarium::network_client::connect_to_match	manual	12
 0x00122350	vostok::journaling::match_client::connect	manual	20	nothing: a replay makes no connection

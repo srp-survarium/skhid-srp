@@ -411,8 +411,8 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
-66. the same build: voice chat (patch 66, voice_026g.asm and voice_026g.c,
-    the arena's blocks voice.code, voice.data and voice.state): the
+66. the same build: voice chat (patch 66, safe Rust voice.rs and voice.toml,
+    the shared arena blocks patches.code, patches.data and patches.state): the
     original's six sites and two slots and what is at them, the hooks and
     slots in the build, the action table's entry 37h (mute_last_speaker,
     kind 8, no default key), the code's exits and imports, the movies' and
@@ -4211,46 +4211,33 @@ def test_voice(original, image, before):
           "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
           "action: no console command of that name)")
     linked = P.arena()
-    block = linked.blocks["voice.code"]
-    for va, old, symbol, opcode in P.VOICE_HOOKS:
+    block = linked.blocks["patches.code"]
+    hooks = [h for h in P.hooks_026g.hooks(exe=stock.read) if h["patch"] == "voice"]
+    check(len(hooks) == 8, "voice declares all eight hooks in the shared Rust patch framework")
+    for h in hooks:
+        va, old, symbol = h["site"], h["original"], h["entry"]
         target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, voice.code) here")
-    for va, old, symbol in P.VOICE_SLOTS:
-        target = linked.symbols[symbol]
-        check(word(stock, va) == word(before, va) == old and word(image, va) == target
-              and block.va <= target < block.va + block.size,
-              f"the slot {va:#x}: {old:#x} in the original, {symbol} ({target:#x}) here")
+        new = (struct.pack("<I", target) if h["install"][1] is None else
+               P.hook_bytes(target, va, old, 0, h["install"][1]))
+        check(stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(new)) == new and block.va <= target < block.va + block.size,
+              f"{h['site_name']}: original bytes checked, {symbol} installed in patches.code")
     name = linked.symbols["mute_action_name"]
-    data_block = linked.blocks["voice.data"]
+    data_block = linked.blocks["patches.data"]
     check(struct.unpack("<5I", image.read(P.VOICE_ACTION, 20)) == (name, 0x37, 8, 0, 0)
           and data_block.va <= name < data_block.va + data_block.size
           and image.read(name, 18) == b"mute_last_speaker\0",
-          "the entry is mute_last_speaker (voice.data), 37h, kind 8 (the chat keys), no default key (M is "
-          "set_next_ammo_type's)")
+          "the action is mute_last_speaker in patches.data, kind 8, with no default key")
+    code_hooks = [h for h in hooks if h["install"][1] is not None]
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.VOICE_HOOKS)]
-    hits = [h for va, old, _, _ in P.VOICE_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
-            if not va <= h < va + len(old) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the hook sites, and no branch aims inside one"
-          + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "voice.code")
-    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's voice.code ({len(code)} bytes)")
-    glue = linked.symbols["voice_cc_float"] + 0x40 - block.va
-    texts = [text for _, _, text in ndisasm(code[:glue], block.va)]
-    outside = {branch_target(t) for t in texts if branch_target(t) is not None
-               and not block.va <= branch_target(t) < block.va + len(code)}
-    library = {linked.symbols[f"engine_{name}"] for name in ("cc_bool", "cc_string", "binded_action",
-                                                               "movie_invoke", "translate")}
-    check(outside <= {0x1F67B0, 0x27A1B5, 0x1F96F9, 0x1F9525, 0x1F77E0, 0x2384C0, 0x200F50, 0x1FF5D0, 0x1DD40}
-          | library and {0x27A1B5, 0x1F96F9, 0x1F9525, 0x1F77E0, 0x2384C0, 0x1FF5D0, 0x1DD40} <= outside
-          and "voice.state" in linked.blocks,
-          "the glue goes on in the functions it entered (0x27A1B5, 0x1F96F9, 0x1F9525), tail-jumps to tick, "
-          "show_player_list and the callback, calls game_world::game_world, activate and cc_value<float> "
-          "(0x1DD40: its min in xmm0), and the library's functions")
+             and any(h["site"] - 4 < v < h["site"] + len(h["original"]) for h in code_hooks)]
+    hits = [hit for h in code_hooks for hit in aimed_inside(original, h["site"], len(h["original"]), 0x82)
+            if not h["site"] <= hit < h["site"] + len(h["original"]) and starts_instruction(stock, hit)]
+    check(not under and not hits, "no relocation or incoming branch inside a Rust voice hook")
+    P.hooks_026g.check_layers()
+    check(not os.path.exists(os.path.join(HERE,"voice_026g.c"))
+          and not os.path.exists(os.path.join(HERE,"voice_026g.asm")),
+          "voice is safe Rust over Vostok, without the old C/ASM implementation")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     settings = here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
     timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
@@ -4381,24 +4368,12 @@ def test_hide_ui(original, image, before):
           "the table's six readers (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B) and their six "
           "counts of 28h")
     controls = linked.symbols["controls"]
-    data_block = linked.blocks["hide_ui.data"]
-    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(P.CONTROLS_ROWS)]
-    new_row, mute_row = arena_rows[count], arena_rows[count + 1]
-    label = struct.unpack_from("<I", new_row, 4)[0]
-    mute_label = struct.unpack_from("<I", mute_row, 4)[0]
+    data_block = linked.blocks["patches.state"]
     check(P.CONTROLS_ROWS == count + 2
           and data_block.va <= controls and controls + 0x68 * P.CONTROLS_ROWS <= data_block.va + data_block.size
-          and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
-                  for i in range(count))
-          and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
-          and new_row[16:] == empty(controls + 0x68 * count)
-          and image.read(label, 25) == b"st_hide_interface_action\0"
-          and struct.unpack_from("<4I", mute_row) == (0x37, mute_label, 1, 0)
-          and mute_row[16:] == empty(controls + 0x68 * (count + 1))
-          and image.read(mute_label, 28) == b"st_mute_last_speaker_action\0",
-          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, group 2, type 1, and patch 66's 42nd: 37h, st_mute_last_speaker_action, "
-          "group 1 (the chat keys), type 0 (as ptt's)")
+          and "srp_controls_initialize" in linked.symbols,
+          f"controls ({controls:#x}) has 42 writable rows in patches.state, initialized by the Rust startup hook; "
+          "check_hide_ui_026g.py verifies every descriptor, PTT/F11 edits, accept and save")
     writes = P.hide_ui_table_writes(linked)
     check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
               for va, old, new in writes)
@@ -6344,7 +6319,7 @@ def test_late_join(original, without, server, source):
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
     # patch 66's two vtable slots (.rdata) and its action's entry (.data)
-    ranges += [(image.offset(va), 4) for va, _, _ in P.VOICE_SLOTS]
+    ranges += [(image.offset(va), 4) for va, _, _, _ in P.hooks_026g.pointer_installs(exe=Image(original).read)]
     ranges.append((image.offset(P.VOICE_ACTION), len(P.VOICE_ACTION_OLD)))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),

@@ -18,9 +18,9 @@ USAGE
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
-        [--voice=<skhid_voice.dll>]  defaults to ../client-voice/result/skhid_voice.dll
-                                     (`nix build ./srp-026g#skhid-voice -o
-                                     srp-026g/client-voice/result`)
+        [--voice=<skhid_voice.dll>]  defaults to the Rust release build in this repo
+                                     (`nix develop ./srp-026g -c bash
+                                     srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
@@ -64,8 +64,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/skhid_voice.dll
         voice chat (../client-voice, exe patch 66): the exe loads it at the
-        first match; without it voice is off. Built with nix (the flake's
-        skhid-voice); its exports are checked here.
+        first match; without it voice is off. Built by client-voice/build.sh
+        in the pinned Nix shell; its exports are checked here.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
         Winetricks and launches with the same server and language as the batch file.
@@ -199,8 +199,8 @@ def read_bugtrap(path):
     return data
 
 
-VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "client-voice", "result", "skhid_voice.dll"))
-# What patch 66 asks of the DLL by name (voice_026g.c's load).
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+# What patch 66 asks of the DLL by name (the shared voice-abi crate).
 VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_mute",
                  b"sv_talking", b"sv_slot", b"sv_last_speaker", b"sv_voice_id")
 
@@ -211,8 +211,8 @@ def read_voice(path):
         with open(path, "rb") as dll:
             data = dll.read()
     except OSError as e:
-        sys.exit(f"{path}: cannot read skhid_voice.dll ({e}). Build it with `nix build ./srp-026g#skhid-voice "
-                 "-o srp-026g/client-voice/result`, or pass --voice=<path>.")
+        sys.exit(f"{path}: cannot read skhid_voice.dll ({e}). Build it with `nix develop ./srp-026g -c bash "
+                 "srp-026g/client-voice/build.sh`, or pass --voice=<path>.")
     pe = int.from_bytes(data[0x3c:0x40], "little")
     if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
             or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c

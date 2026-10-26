@@ -247,3 +247,220 @@ ragdoll_on_held_item_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
+
+; 0x1e90a8 after game_world ctor, before user.cfg: lohook -> voice_register
+global voice_register
+extern hook_voice_register
+voice_register:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_register
+    mov edx, voice_register_replay
+    cmp eax, 0
+    je voice_register_go
+    mov edx, 0x1e90b2
+    cmp eax, 1
+    je voice_register_go
+    ud2
+voice_register_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_register_replay:
+    db 0x8a, 0x4c, 0x24, 0x2b, 0x8d, 0xb3, 0x90, 0x52, 0x00, 0x00
+    jmp 0x1e90b2
+
+; 0x27a1b0 match connect prologue: ECX client, stack host/port/session: lohook -> voice_connect
+global voice_connect
+extern hook_voice_connect
+voice_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_connect
+    mov edx, voice_connect_replay
+    cmp eax, 0
+    je voice_connect_go
+    mov edx, 0x27a1b5
+    cmp eax, 1
+    je voice_connect_go
+    ud2
+voice_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_connect_replay:
+    db 0x53, 0x55, 0x56, 0x8b, 0xf1
+    jmp 0x27a1b5
+
+; 0x1f96f0 match end, EAX world: lohook -> voice_finish
+global voice_finish
+extern hook_voice_finish
+voice_finish:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_finish
+    mov edx, voice_finish_replay
+    cmp eax, 0
+    je voice_finish_go
+    mov edx, 0x1f96f9
+    cmp eax, 1
+    je voice_finish_go
+    ud2
+voice_finish_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_finish_replay:
+    db 0x57, 0x8b, 0xf8, 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x1f96f9
+
+; 0x1f9520 world deactivation: lohook -> voice_deactivate
+global voice_deactivate
+extern hook_voice_deactivate
+voice_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_deactivate
+    mov edx, voice_deactivate_replay
+    cmp eax, 0
+    je voice_deactivate_go
+    mov edx, 0x1f9525
+    cmp eax, 1
+    je voice_deactivate_go
+    ud2
+voice_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_deactivate_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0xf9
+    jmp 0x1f9525
+
+; 0x25cd34 show_player_list call; EBP keyboard frame, EDI handler: lohook -> voice_key
+global voice_key
+extern hook_voice_key
+voice_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_key
+    mov edx, voice_key_replay
+    cmp eax, 0
+    je voice_key_go
+    mov edx, 0x25cd39
+    cmp eax, 1
+    je voice_key_go
+    ud2
+voice_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_key_replay:
+    call 0x2384c0
+    jmp 0x25cd39
+
+; 0x1edbdc main menu activate, EAX options: call -> voice_menu (wraps engine_options_activate 0x200f50)
+global voice_menu
+extern hook_voice_menu
+voice_menu:
+    pushad
+    mov ebp, esp
+    and esp, -16
+    sub esp, 8
+    push dword [ebp + 36]
+    push dword [ebp + 28]
+    call hook_voice_menu
+    mov [ebp+28], eax
+    mov esp, ebp
+    popad
+    ret 4
+
+; 0x9fc4fc world vtable tick: pointer -> voice_tick (wraps engine_world_tick 0x1f77e0)
+    RUST_THISCALL voice_tick, hook_voice_tick, 3
+
+; 0x9fd47c menu ExternalInterface callback: pointer -> voice_menu_call (wraps engine_options_callback 0x1ff5d0)
+    RUST_THISCALL voice_menu_call, hook_voice_menu_call, 4

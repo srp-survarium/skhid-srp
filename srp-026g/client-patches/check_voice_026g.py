@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 66 (voice_026g.asm and voice_026g.c: voice chat) in the default
+"""Run patch 66 (safe Rust patches::voice: voice chat) in the default
 build on made-up game objects and a made-up skhid_voice.dll.
 
     python check_voice_026g.py <original survarium.exe>
@@ -60,7 +60,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 
 import patch_026g as base
 
-REGISTER_SITE, REGISTER_BACK, WORLD_CONSTRUCTOR = 0x1E90A3, 0x1E90A8, 0x1F67B0
+REGISTER_SITE, REGISTER_BACK, WORLD_CONSTRUCTOR = 0x1E90A3, 0x1E90B2, 0x1F67B0
 CONNECT, CONNECT_BACK = 0x27A1B0, 0x27A1B5
 FINISH, FINISH_BACK, DEACTIVATE, DEACTIVATE_BACK = 0x1F96F0, 0x1F96F9, 0x1F9520, 0x1F9525
 KEY_SITE, KEY_BACK, SHOW_PLAYER_LIST = 0x25CD34, 0x25CD39, 0x2384C0
@@ -366,9 +366,7 @@ def main():
         failed += not ok
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
 
-    state = linked.symbols["voice"]
-    mutes_at = state + 0x4C + 0x48 + 0x4C + 0x48 + 0x48 + 4 + 4 + 4    # voice.mutes (voice_026g.c's layout)
-    mutes = lambda: run.text(mutes_at).decode()
+    mutes = lambda: run.text(run.read(found[b"srp_voice_mutes"] + 0x40)).decode()
 
     print("the variables (game::game's call of game_world::game_world, 0x1E90A3)")
     for r in (stock, run):
@@ -382,7 +380,7 @@ def main():
         b = run.site(REGISTER_SITE, REGISTER_BACK, [GAME, 0x42])
     report(a_calls == run.calls == [("world", MARKS[UC_X86_REG_EBX], GAME, 0x42)] and a[1] == b[1] == 8
            and a[0][UC_X86_REG_EAX] == b[0][UC_X86_REG_EAX] == 0x5151
-           and all(b[0][reg] == MARKS[reg] for reg in REGS[3:]),
+           and all(b[0][reg] == a[0][reg] for reg in REGS[3:]),
            "game_world::game_world called with its two arguments and ebx, its answer and `ret 8` kept, "
            "ebx esi edi ebp kept (twice)")
     lookup = lambda r, name: r.call(LOOKUP, [], {UC_X86_REG_ESI: r.put_text(name)})[0][UC_X86_REG_EAX]
@@ -399,8 +397,10 @@ def main():
            and all(run.read(found[name] + 0x14) == 2 and run.read(found[name] + 0x1C, 2)[1] == 1 for name in names),
            "cc_float (0x9E7C6C, min 0, max 100) twice, cc_bool (0x9E7C4C) twice, cc_string (0x9E7C2C); "
            "kind 2, saved")
-    values = lambda: (struct.unpack("<ff", run.read(state + 0x4C + 0x48 + 0x4C + 0x48 + 0x48, 8)),
-                      run.read(state + 0x4C + 0x48 + 0x4C + 0x48 + 0x48 + 8, 2))
+    values = lambda: ((f32(run.read(run.read(found[b"s_chat_volume"] + 0x40))),
+                       f32(run.read(run.read(found[b"s_mic_sens"] + 0x40)))),
+                      run.read(run.read(found[b"s_use_microphone"] + 0x40), 1) +
+                      run.read(run.read(found[b"g_hide_spam"] + 0x40), 1))
     report(values() == ((100.0, 50.0), b"\x01\x00") and mutes() == "",
            "the defaults: volume 100, sensitivity 50, microphone on, voice not disabled, no mutes")
     execute = lambda line: run.call(EXECUTE, [run.put_text(line), 1, 2])
@@ -442,8 +442,8 @@ def main():
            "the DLL loaded, sv_start(host, 2236 + 1, session); back at 0x27A1B5 with three pushes and esi the "
            "match client, as the original")
     connect(run, 3000, 0x1111)
-    report(run.calls == [("sv_ptt", 0), ("sv_start", "203.0.113.9", 3001, 0x1111)],
-           "a second match: no second load; push-to-talk released before the start")
+    report(run.calls == [("sv_ptt", 0), ("sv_stop",), ("sv_ptt", 0), ("sv_start", "203.0.113.9", 3001, 0x1111)],
+           "a second connect: the old session stopped, no second load; push-to-talk released before the start")
     for dll, version, want in ((False, 1, [("LoadLibraryA", "skhid_voice.dll")]),
                                (True, 2, [("LoadLibraryA", "skhid_voice.dll"), ("FreeLibrary", MODULE)])):
         other = Run(bytes(built), linked)
@@ -466,9 +466,10 @@ def main():
         return regs, popped, [c for c in r.calls if c[0] != "tick"], r.calls_of("tick")
     connect(run, 2236, 0xBEEF)
     regs, popped, calls, ticks = frame(run)
-    report(ticks == [("tick", WORLD, 1, 2, 3)] and popped == 12 and all(regs[reg] == MARKS[reg] for reg in REGS[2:]),
-           "tick reached with the world and its three arguments, `ret 0Ch`, the registers kept")
-    report(calls == [("sv_settings", 1.0, 1, 0.5), ("sv_mute", 1 << 3), ("sv_radio", (1 << 2) | (1 << 3) | (1 << 4))],
+    report(ticks == [("tick", WORLD, 1, 2, 3)] and popped == 12 and all(regs[reg] == MARKS[reg] for reg in REGS[3:]),
+           "tick reached with the world and its three arguments, `ret 0Ch`, the nonvolatile registers kept")
+    report(calls == [("sv_settings", 1.0, 1, 0.5), ("sv_mute", 1 << 3), ("sv_radio", (1 << 2) | (1 << 3) | (1 << 4)),
+                     ("invoke", HUD_MOVIE, "root.srp_voice_talking", [])],
            f"the first frame: the options (1.0, microphone on, 0.5), the mutes (Carol, 000ca201: slot 3), the far "
            f"slots (2, 3 at 30 m, 4 dead; not 0 at 10 m); got {calls}")
     report(frame(run)[2] == [], "the next frame, nothing changed: nothing sent")
@@ -653,6 +654,15 @@ def main():
            and run.dll_ptt == 0 and not any(c[0] == "sv_ptt" and c[1] for c in later),
            f"P down, the match ends, P up while stopped (lost), the next match: the DLL's push-to-talk is "
            f"released at the end and again before the start, and nothing presses it; {finished} {again}")
+
+    # A movie may appear after the first frame; retry an undelivered list.
+    run.word(HUD_HOLDER + 0x108, 0)
+    absent = frame(run, 1 << 0)[2]
+    run.word(HUD_HOLDER + 0x108, HUD_UI)
+    ready = frame(run, 1 << 0)[2]
+    report(not any(c[0] == "invoke" for c in absent)
+           and ("invoke", HUD_MOVIE, "root.srp_voice_talking", ["Alice", 0]) in ready,
+           "HUD initially unavailable: unchanged talking list retried when the movie appears")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

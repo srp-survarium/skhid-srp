@@ -111,7 +111,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `voice_026g.asm`, `voice_026g.c`, `check_voice_026g.py` | Patch 66: voice chat in a match through `skhid_voice.dll` (`../client-voice`): the voice's options, push-to-talk, the mute key, the radio distances, the hud's list of who talks, the Esc menu's voice panel (the arena's blocks `voice.code`, `voice.data` and `voice.state`); its check runs every entry from the game's sites and slots with the game's own console-variable code and key binder, a made-up DLL and made-up game objects (needs Unicorn) |
+| `rust/patches/src/voice.rs`, `voice.toml`, `check_voice_026g.py` | Patch 66: safe Rust voice hooks over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, HUD and Esc panel (the shared `patches.code/data/state` blocks); its check runs every entry from the game's sites and slots with the game's own console-variable code and key binder, a made-up DLL and made-up game objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -263,7 +263,7 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
   its location's role (two parameters swapped: the words do not fit), a
   stack slot missing, a cleanup that is no number or larger than the slots, a
   result the rows do not give, and what
-  it cannot pass (an XMM argument, varargs).
+  it cannot pass (vector arguments, varargs); scalar float XMM arguments are supported.
 - **The check** (`check_engine_026g.py`, in the self-test): for every
   function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
   with a marker per argument, reaches the real function once with each marker
@@ -3390,7 +3390,7 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
 
-### 66. Voice chat in a match (the next release's revision)
+### 66. Voice chat in a match (not released)
 
 The owner's ask (2026-10-23; the answers and the later asks of 2026-10-25). The rules and the
 wire: `../docs/notes/voice-chat.md`; the DLL: `../client-voice`; the relay: srp's
@@ -3399,14 +3399,14 @@ wire: `../docs/notes/voice-chat.md`; the DLL: `../client-voice`; the relay: srp'
 **What 0.26g has.** The sound tab's four voice controls (`s_chat_volume`, `s_use_microphone`,
 `s_mic_sens`, `s_ptt_button`) are bound by name and no variable of those names is registered;
 the action `ptt` (47h, kind 8, the chat keys, default P) is listed in the options and saved and
-nothing reads it. No capture, no codec: `skhid_voice.dll` (C, libopus, waveIn/waveOut,
-Winsock) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
+nothing reads it. No capture, no codec: `skhid_voice.dll` (Rust, libopus, waveIn/waveOut,
+UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
 without it, or of another version (unloaded), voice is off.
 
-**The sites** (all in the arena, `voice_026g.asm` the glue, `voice_026g.c` the logic):
-- 0x1E90A3, game::game's call of game_world::game_world (`ret 8`): after it the variables are
+**The sites** (names-only `voice.toml`, generated entries, safe `voice.rs` over Vostok):
+- 0x1E90A8, immediately after game::game's call of game_world::game_world: the variables are
   registered, before user.cfg runs and the options look them up: `s_chat_volume` and `s_mic_sens`
-  as cc_value<float> (0x1DD40, its min in xmm0: a hand-written call; 0..100, the float slider's
+  as cc_value<float> (0x1DD40, its min in xmm0: a generated engine thunk; 0..100, the float slider's
   steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead option 5, "Hide
   spam", now "Disable voice chat") as cc_bool, `srp_voice_mutes` as cc_string (0xEC860); kind 2,
   saved in user.cfg;
@@ -3432,7 +3432,7 @@ without it, or of another version (unloaded), voice is off.
 `serialize_player_state` (kinds 5, kO; a debug action whose console command does not exist),
 becomes `mute_last_speaker`, kind 8, no default key (the owner's M is `set_next_ammo_type`'s, 0Ah,
 in the game's group: kept unbound until the owner picks a key; free in every group: B, H, J, U, Y,
-Z, 9, 0, F4, F7..F10, F12, Caps Lock). Patch 62's controls table gets a 42nd row (37h,
+Z, 9, 0, F4, F7..F10, F12, Caps Lock). The shared Rust controls table gets a 42nd row (37h,
 `st_mute_last_speaker_action`, group 1 as ptt's), the six readers' counts 2Ah. Its default key's
 relocation is disabled (the pointer is 0 now).
 
@@ -3442,15 +3442,15 @@ the oldest go first).
 
 Checked: `selftest_026g.py` check 66 (the sites and slots in the original and the build, the
 action's entry, the block's exits and calls, the movies' and the content's side) and the call
-shapes (0x1E90A3, 0x25CD34, 0x1EDBDC CALLEE; 0x27A1B0, 0x1F96F0, 0x1F9520 ENTRY; 0x9FC4FC,
-0x9FD47C SLOT); `check_voice_026g.py` (Unicorn, 44 cases): the variables registered once with
+shapes (five lohooks, the options call and two typed pointer hooks); `check_voice_026g.py` (Unicorn): the variables registered once with
 the game's own constructors, found by its lookup and set by its execute; the binder's lookup of
 37h in kind 8; the connect (the DLL loaded once, no DLL, another version); the frames (the
 options, the mutes, the far slots, the hud's list on a change only, the player first, the muted
 left out; Disable voice chat); the keys (ptt down, held, up, a lost up, out of focus, voice or the
 microphone off, the mute key and its notice, never the player); the menu (the teammates with a
 voice id, no enemy; the lobby's empty) and its calls (a slot as uint or Number, the enemy refused,
-mute all; another call the game's); the end. `check_hide_ui_026g.py` with the 42nd row. The hud and
+mute all; another call the game's); the end. `check_hide_ui_026g.py` covers the shared table, PTT
+on P, rebinding, accepting, saving and reloading. The hud and
 main menu movies build from source. **Not run in a game.**
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)
 

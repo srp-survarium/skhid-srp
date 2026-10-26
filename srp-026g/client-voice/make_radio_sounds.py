@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Makes radio_sounds.c: the retail radio sounds skhid_voice.dll plays with a
+"""Makes src/sounds.rs: the retail radio sounds skhid_voice.dll plays with a
 far (radio) voice, as 16 kHz mono int16 arrays.
 
-    python3 make_radio_sounds.py <folder> > radio_sounds.c
+    python3 make_radio_sounds.py <folder> > src/sounds.rs
 
 <folder> holds the three source files below, taken out of Survarium 0.69d0's
 resources.02.db (vostok-port extract --db .../src069/resources.02.db --path
@@ -88,21 +88,20 @@ def main():
     loop[:k] = bed[:k] * ramp + bed[len(bed) - k:] * (1 - ramp)
     loop *= 10 ** (BED_DB / 20) / np.sqrt(np.mean(loop ** 2))
     sounds["static_bed"] = loop
-    out = ["/* Made by make_radio_sounds.py: do not edit. The retail radio sounds of",
-           f" * {BUILD}, 16 kHz mono (resampled from 44.1 kHz, the channels averaged).",
-           " * Retail has no separate squelch: the quick commands' _radio takes have",
-           " * their static lead-in and tail baked in (make_radio_sounds.py says more). */",
-           '#include "voice_core.h"', ""]
+    out = ["// Made by make_radio_sounds.py: do not edit. The retail radio sounds of",
+           f"// {BUILD}, 16 kHz mono (resampled from 44.1 kHz, the channels averaged).",
+           "// Retail has no separate squelch: the quick commands' _radio takes have",
+           "// their static lead-in and tail baked in (make_radio_sounds.py says more).",
+           ""]
     for name, x in sounds.items():
         path, sha = SOURCES[name]
         pcm = np.clip(np.round(x * 32767), -32768, 32767).astype(np.int16)
         rms = 20 * np.log10(np.sqrt(np.mean(x ** 2)) + 1e-12)
-        out.append(f"/* {path} (sha256 {sha[:16]}...): {len(pcm) * 1000 // RATE} ms, rms {rms:.1f} dBFS */")
-        out.append(f"const unsigned sv_{name}_len = {len(pcm)};")
-        out.append(f"const int16_t sv_{name}[{len(pcm)}] = {{")
+        out.append(f"// {path} (sha256 {sha}): {len(pcm) * 1000 // RATE} ms, rms {rms:.1f} dBFS")
+        out.append(f"pub const {name.upper()}: &[i16] = &[")
         for i in range(0, len(pcm), 16):
             out.append("    " + ", ".join(str(int(v)) for v in pcm[i:i + 16]) + ",")
-        out.append("};")
+        out.append("];")
         out.append("")
     sys.stdout.write("\n".join(out))
 

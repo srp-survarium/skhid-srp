@@ -671,3 +671,133 @@ fn a_wrong_or_unreadable_voice_id_key_is_an_error_and_left_alone() {
     assert!(path.is_dir());
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn released_or_reseated_listeners_stop_hearing_before_housekeeping() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    bench.send(1, &start(1, 1));
+    bench.table.unseat(2);
+    bench.table.seat(3, MATCH, 4, 1);
+    bench.at(20);
+    assert!(bench.send(1, &audio(1, 1, 0)).is_empty());
+    // A new HELLO adopts the new team immediately.
+    bench.send(3, &hello(3, true));
+    assert_eq!(sent_to(&bench.send(4, &start(4, 1))), vec![(3, 0x82)]);
+}
+
+#[test]
+fn a_reseated_talker_cannot_continue_sending_audio_to_its_old_team() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    bench.send(1, &start(1, 1));
+    bench.table.seat(1, MATCH, 0, 1);
+    bench.at(20);
+    // The old team's utterance ends; this AUDIO cannot reopen it there.
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 1, 0))),
+        vec![(2, 0x84), (3, 0x84)]
+    );
+    assert_eq!(sent_to(&bench.send(1, &start(1, 2))), vec![(4, 0x82)]);
+    assert_eq!(sent_to(&bench.send(1, &audio(1, 2, 0))), vec![(4, 0x83)]);
+}
+
+#[test]
+fn delayed_utterances_cannot_replace_a_newer_one() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    bench.send(1, &start(1, 10));
+    bench.send(1, &start(1, 11));
+    assert!(bench.send(1, &start(1, 9)).is_empty());
+    assert!(bench.send(1, &audio(1, 10, 5)).is_empty());
+    assert!(bench.send(1, &end(1, 10)).is_empty());
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 11, 0))),
+        vec![(2, 0x83), (3, 0x83)]
+    );
+    bench.send(1, &end(1, 11));
+    assert!(bench.send(1, &audio(1, 9, 6)).is_empty());
+    assert!(bench.send(1, &start(1, 10)).is_empty());
+}
+
+#[test]
+fn client_utterance_order_wraps_at_u16_max() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    bench.send(1, &start(1, u16::MAX));
+    bench.send(1, &end(1, u16::MAX));
+    let out = bench.send(1, &start(1, 0));
+    assert_eq!(out[0].1[4..6], [0, 0]);
+    assert!(bench.send(1, &audio(1, u16::MAX, 0)).is_empty());
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 0, 0))),
+        vec![(2, 0x83), (3, 0x83)]
+    );
+}
+
+#[test]
+fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
+    use skhid_voice::{Core, Encoder, FRAME, wire};
+    // Account identities stay attached to these slots even when their
+    // authenticated sessions change, as a restarted player rejoins a match.
+    struct StableAccounts(Table);
+    impl Seats for StableAccounts {
+        fn voice_seat(&self, session: u32) -> Option<VoiceSeat> {
+            self.0.voice_seat(session)
+        }
+        fn is_open(&self, match_id: u32) -> bool {
+            self.0.is_open(match_id)
+        }
+        fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+            self.0
+                .roster(match_id, team)
+                .into_iter()
+                .map(|(slot, _)| (slot, u32::from(slot) + 100))
+                .collect()
+        }
+    }
+    let table = Table::new();
+    let now = Instant::now();
+    let mut relay = Relay::new(StableAccounts(table.clone()), now);
+    let first_roster = relay.receive(addr(2), &hello(2, true), now);
+    let mut core = Core::new().unwrap();
+    for packet in [start(1, 10), end(1, 10)] {
+        for (_, bytes) in relay.receive(addr(1), &packet, now) {
+            core.receive(&wire::parse(&bytes).unwrap(), 0);
+        }
+    }
+    table.unseat(1);
+    table.seat(5, MATCH, 0, 0);
+    // Do not run housekeeping between departure and rejoin. The listener
+    // never observes a vacant slot or a changed stable account identity.
+    assert_eq!(first_roster, relay.receive(addr(2), &hello(2, true), now));
+    let restarted = relay.receive(addr(5), &start(5, 1), now);
+    assert_eq!(restarted[0].1[4..6], 11u16.to_le_bytes());
+    // Lose the new relayed START. Its AUDIO must still carry the new id,
+    // otherwise the listener's old tombstone would reject this speaker.
+    let mut encoder = Encoder::new().unwrap();
+    for seq in 0..2 {
+        let pcm: [i16; FRAME] = std::array::from_fn(|i| ((i as f32 * 0.25).sin() * 8000.) as i16);
+        let frame = encoder.encode(&pcm).unwrap();
+        let bytes = wire::Message::Audio {
+            session: 5,
+            utt: 1,
+            seq,
+            frames: vec![frame.clone(), frame],
+        }
+        .encode()
+        .unwrap();
+        for (_, bytes) in relay.receive(addr(5), &bytes, now) {
+            assert_eq!(bytes[4..6], 11u16.to_le_bytes());
+            core.receive(&wire::parse(&bytes).unwrap(), 20);
+        }
+    }
+    let ended = relay.receive(addr(5), &end(5, 1), now);
+    assert_eq!(ended[0].1[4..6], 11u16.to_le_bytes());
+    core.receive(&wire::parse(&ended[0].1).unwrap(), 20);
+    for tick in 0..4 {
+        core.mix(1., 0, 40 + tick * 20);
+    }
+    assert_eq!(core.stats().decoded, 4);
+    assert_eq!(core.stats().late, 0);
+}

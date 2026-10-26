@@ -77,7 +77,7 @@ ICONS_HOLDER, ICONS_UI, ICONS_MOVIE = 0x20073000, 0x20074000, 0x20075000
 # (2) and melee (5), W forward (5), F6 next_player (5; the lobby's Play at
 # 0x26CDA2); H and Enter nothing.
 F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
-BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6}
+BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x47: 0x19}
 
 
 KEY_NAMES = 0xA74FA0                   # the key names: 88h-byte {name, DIK code, ...}, to a null name
@@ -281,6 +281,9 @@ class Options(Run):
                      CREATE_ARRAY, ASSIGN, SCANF):
             emu.hook_add(UC_HOOK_CODE, self.gfx, begin=stub, end=stub)
         self.objects, self.rows, self.lines, self.handles, self.heap = {}, [], [], 0x100, OUT + 0x1000
+        # The Rust startup hook initializes the shared controls before menus.
+        if self.read(0x201151) != base.HIDE_UI_TABLE:
+            self.call(base.arena().symbols["srp_controls_initialize"], [])
 
     def gfx(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -338,6 +341,18 @@ class Options(Run):
         self.calls, self.invoked = [], []
         out, esp = self.run(start, (until,), sp, {**GAME, **(regs or {})})
         return out, esp - sp
+
+    def saved_bindings(self):
+        command, saved, allocator = CONSOLE + 0x600, OUT + 0x2000, OUT + 0x3000
+        self.word(command + 0x10, CONSOLE + 0x800)
+        self.word(command + 0x60, 0)
+        self.word(command + 0x64, BINDER)
+        self.word(allocator, allocator + 0x20)
+        self.word(allocator + 0x20 + 0x10, STUBS + 0x40)
+        for field, value in ((0, OUT + 0x2100), (4, OUT + 0x2100), (0xC, OUT + 0x2400), (0x10, allocator)):
+            self.word(saved + field, value)
+        self.call(BIND_SAVE, [saved], {UC_X86_REG_ECX: command})
+        return [self.text(self.read(at)) for at in range(OUT + 0x2100, self.read(saved + 4), 4)]
 
     def table(self):
         """The rows of the options' controls as 0x2019E0 sends them (root.set_keybindings)."""
@@ -487,6 +502,35 @@ def main():
     report(bound == f9 and line == b"bind toggle_replay_ui kF9" and p_opt.read(slot) == f9,
            f"the binder's bind (0x207DC0) binds 19h to kF9; its save (0x207450) writes {line!r} among "
            f"{len(lines)} lines; read back (bind, after F11 again) it binds kF9")
+
+    # PTT is already a stock row: one row only, in the chat group. It uses
+    # exactly the same apply/save path as F11, with the stock default P.
+    voice = Options(bytes(built))
+    voice_rows, _ = voice.table()
+    report([r for r in voice_rows if r["action_id"] == 0x47] == [
+        {"action_id": 0x47, "group_id": 1, "type": 0, "label": "st_ptt_action"}],
+        "PTT has exactly one controls row, in the chat group")
+    voice.call(KEYS_FROM_BINDER, [OPTIONS, 1])
+    report((0x47, "kP", 1) in voice.set_keybind_calls(), "PTT starts bound to P")
+    voice.emu.mem_write(OUT, b"kF8\0")
+    voice.call(KEY_SET, [OPTIONS, 0x47], {UC_X86_REG_EAX: OUT})
+    report(voice.set_keybind_calls() == [(0x47, "kF8", 0)], "PTT key changes to F8 in the options movie")
+    # Initializing again must preserve edited strings.
+    voice.call(linked.symbols["srp_controls_initialize"], [])
+    voice.lines = []
+    voice.call(APPLY, [])
+    report(voice.lines == [(b"bind", b"ptt kF8")], "accept applies PTT's binding after repeated startup")
+    voice.emu.mem_write(OUT + 0x100, b"ptt kF8\0")
+    voice.call(BIND_KEY, [OUT + 0x100, 0], {UC_X86_REG_ECX: BINDER})
+    ptt_slot = BINDER + 12 * 0x47 + 4
+    f8 = key_entry(original, name=b"kF8")
+    report(voice.read(ptt_slot) == f8, "the binder binds PTT to F8")
+    saved_ptt = next((line for line in voice.saved_bindings() if line.startswith(b"bind ptt ")), b"")
+    voice.word(ptt_slot, key_entry(original, name=b"kP"))
+    voice.emu.mem_write(OUT + 0x200, saved_ptt[len(b"bind "):] + b"\0")
+    voice.call(BIND_KEY, [OUT + 0x200, 0], {UC_X86_REG_ECX: BINDER})
+    report(saved_ptt == b"bind ptt kF8" and voice.read(ptt_slot) == f8,
+        "PTT is saved to user.cfg and restored through the game's bind command")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

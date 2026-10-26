@@ -84,10 +84,20 @@ TYPES = {
         "null": "{a} as usize as *mut _",
     },
 }
+for _name in ("VoiceWorld", "VoiceOptions", "VoiceText", "VoiceValues", "VoiceObject"):
+    TYPES[_name] = {
+        "raw": "*mut c_void", "fallible": True,
+        "build": f"{_name}::from_raw(&thread, {{a}})",
+        "orig_type": f"&mut {_name}", "orig_raw": "{n}.ptr()", "pass": "&mut {n}",
+        "null": "{a} as usize as *mut _",
+    }
+TYPES["Word"] = {"raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32",
+                 "orig_raw": "{n}", "pass": "{n}", "null": "{a}"}
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
 # and how that Vostok value `{v}` becomes the shim's u32 (EAX).
 RESULTS = {
+    None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
 }
@@ -229,13 +239,15 @@ def call_hook(patch, row, sites, functions, exe=None):
     name = patch["name"]
     site = site_of(name, "call", row, sites)
     f = engine_row(site["callee"], functions)
-    if f["call"] not in ("stdcall", "cdecl"):
+    if f["call"] not in ("stdcall", "cdecl", "thiscall", "thunk"):
         raise Bad(f"{name}: {site['callee']} is {f['call']}; a call hook needs stdcall or cdecl (a register "
                   "convention would need a reverse thunk, not built yet)")
     args, h = _typed(name, patch["patch"], "call", site, row["handler"], f)
     original = b"\xE8" + struct.pack("<I", (f["va"] - (site["va"] + 5)) & 0xFFFFFFFF)
     h.update(original=original, entry_macro=("RUST_CALL", len(args), f["cleanup"]), install=("call", 0xE8),
              orig_kind="direct")
+    if f["call"] in ("thunk", "thiscall"):
+        h["entry_macro"] = ("REGISTER_CALL", f["args"], f["cleanup"])
     return h
 
 
@@ -329,7 +341,8 @@ def lohook_hook(patch, row, sites, exe=None):
     span = span_bytes(name, site, exe)
     if len(span) < 5:
         raise Bad(f"{name}: the lohook span at {site['va']:#x} is {len(span)} bytes; a jump needs 5")
-    _branch_free(span, f"{name} lohook at {site['va']:#x}")
+    if not (len(span) == 5 and span[0] == 0xE8):
+        _branch_free(span, f"{name} lohook at {site['va']:#x}")
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
             "exits": site["exits"], "install": ("lohook", 0xE9),
@@ -359,7 +372,9 @@ def lohook_entry(h):
     lines += ["    ud2",                                # an undeclared Flow: a bug
               f"{e}_go:", "    mov [ebp + 36], edx",
               "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
-              f"{e}_replay:", "    db " + ", ".join(f"0x{b:02x}" for b in h["original"]), f"    jmp {past:#x}"]
+              f"{e}_replay:", (f"    call {(past + struct.unpack('<i', h['original'][1:])[0]) & 0xFFFFFFFF:#x}"
+                  if len(h["original"]) == 5 and h["original"][0] == 0xE8 else
+                  "    db " + ", ".join(f"0x{b:02x}" for b in h["original"])), f"    jmp {past:#x}"]
     return lines
 
 
@@ -488,7 +503,7 @@ def rs_text(hs):
                 "",
                 f"impl {h['orig']} {{",
                 "    /// The game's own function, with these typed arguments.",
-                f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
+                f"    pub fn call(&self, {orig_params})" + ("" if h["returns"] is None else f" -> {result['type']}") + " {",
                 f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
                 "        // typed by the row (engine_026g.tsv).",
                 f"        unsafe {{ {orig_body} }}",
@@ -546,7 +561,19 @@ def asm_text(hs):
         macro = h["entry_macro"]
         lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
                   f"{h['target']:#x})"]
-        if macro[0] == "RUST_CALL":
+        if macro[0] == "REGISTER_CALL":
+            slots = {r: i * 4 for i, r in enumerate(("EDI", "ESI", "EBP", "ESP", "EBX", "EDX", "ECX", "EAX"))}
+            lines += [f"global {h['entry']}", f"extern {h['shim']}", f"{h['entry']}:",
+                      "    pushad", "    mov ebp, esp", "    and esp, -16"]
+            pad = (-4 * len(macro[1])) & 15
+            if pad:
+                lines.append(f"    sub esp, {pad}")
+            for loc in reversed(macro[1]):
+                offset = 32 + int(loc[4:]) if loc.startswith("ESP+") else slots[loc]
+                lines.append(f"    push dword [ebp + {offset}]")
+            lines += [f"    call {h['shim']}", "    mov [ebp+28], eax", "    mov esp, ebp", "    popad",
+                      f"    ret {macro[2]}" if macro[2] else "    ret"]
+        elif macro[0] == "RUST_CALL":
             lines += [f"global {h['entry']}", f"{h['entry']}:", f"    RUST_CALL {h['shim']}, {macro[1]}, {macro[2]}"]
         else:                                          # RUST_THISCALL / RUST_CDECL define the label themselves
             lines.append(f"    {macro[0]} {h['entry']}, {h['shim']}, {macro[1]}")
@@ -574,10 +601,14 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     for h in hooks(tomls, functions, sites, exe):
         how, opcode = h["install"]
         if opcode is None:
-            raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
-                      "integrate its install before it can ship")
+            continue  # pointer_installs applies the typed pointer separately
         out.append((h["site"], h["original"], h["entry"], opcode, h["patch"]))
     return out
+
+
+def pointer_installs(exe=None):
+    return [(h["site"], h["original"], h["entry"], h["patch"]) for h in hooks(exe=exe)
+            if h["install"][1] is None]
 
 
 def arena_sources(tomls=None, functions=None, sites=None, exe=None):

@@ -100,7 +100,8 @@ impl<'t> Context<'t> {
             Reg::Ecx => r.ecx,
             Reg::Edx => r.edx,
             Reg::Ebx => r.ebx,
-            Reg::Esp => r.esp,
+            // pushfd and the dispatch slot precede pushad. Expose the game ESP.
+            Reg::Esp => r.esp.wrapping_add(8),
             Reg::Ebp => r.ebp,
             Reg::Esi => r.esi,
             Reg::Edi => r.edi,
@@ -209,6 +210,7 @@ mod tests {
         assert!(!ctx.flag(Flag::Zf));
         ctx.set_xmm_f32(3, 1.5);
         assert_eq!(ctx.xmm_f32(3), 1.5);
+        assert_eq!(ctx.reg(Reg::Esp), 8);
         assert_eq!(regs.eax, 0x1234_5601);
         // xmm3 lives at fxsave + 160 + 48
         assert_eq!(f32::from_le_bytes(fxsave[208..212].try_into().unwrap()), 1.5);

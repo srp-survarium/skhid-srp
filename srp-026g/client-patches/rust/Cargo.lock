@@ -7,8 +7,13 @@ name = "patches"
 version = "0.1.0"
 dependencies = [
  "ragdoll",
+ "voice-abi",
 ]
 
 [[package]]
 name = "ragdoll"
+version = "0.1.0"
+
+[[package]]
+name = "voice-abi"
 version = "0.1.0"

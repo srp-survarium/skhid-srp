@@ -162,8 +162,10 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **speaker_slot** is the speaker's player index in the match: the order of the match-start
   player list (0xE4, static_info.md). The client gets the name and the team from it without new
   data.
-- **utt** counts up per talker. **seq** counts AUDIO datagrams within the utterance. Lost and late
-  datagrams are skipped (Opus packet-loss concealment), never resent.
+- **utt** counts up per sending session. The relay assigns an ordered counter per match slot
+  on the listening wire, so a restarted game can reuse its account and slot without listeners
+  rejecting its reset counter. **seq** counts AUDIO datagrams within the utterance. Lost and
+  late datagrams are skipped (Opus packet-loss concealment), never resent.
 
 ## The relay (srp)
 
@@ -246,8 +248,11 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 
 Where the build differs from or adds to the design above:
 
-- **The exe patch is 66** (`client-patches/voice_026g.asm`, `voice_026g.c`; README patch 66,
-  client_patch.md 3.58). The sites: game::game (the variables), match_client::connect
+- **The exe patch is 66**, implemented by the safe Rust module
+  `client-patches/rust/patches/src/voice.rs`, over typed Vostok accessors. Its names-only
+  `voice.toml` declares the hooks; the build generates and verifies their entries from the raw
+  function, site and field tables. The old voice C and assembly implementations are removed.
+  The sites: game::game (the variables), match_client::connect
   (`sv_start(host, match port + 1, session)`), on_finish_match and on_deactivate (`sv_stop`),
   game_world::tick (every frame), on_keyboard_action's Tab-test call (the keys), the Esc menu.
 - **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),
@@ -270,9 +275,21 @@ Where the build differs from or adds to the design above:
   start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
   no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
   (`client-voice/make_radio_sounds.py`).
-- **The DLL:** libopus 1.6.1 in floating point (its fixed-point x86 build does not link), static;
-  about 550 KB; imports kernel32, msvcrt, winmm and ws2_32 only. The microphone opens on PTT and
-  closes 1 s after. One press transmits 30 s at most.
+- **The DLL is Rust** (`client-voice/src`), with static libopus for the codec. A worker owns
+  its socket, codec, jitter buffers and WinMM capture/playback devices. The game communicates
+  through the small typed C interface defined once in `crates/voice-abi`; both sides compile
+  against it. All exports and the ABI version must match before the game enables voice. A
+  missing or incompatible DLL leaves voice off. Capture opens when PTT starts and closes on
+  release. One press transmits 30 s at most, then requires release before another starts.
+- **The controls table is shared Rust code** (`vostok/controls.rs`). Startup copies the stock
+  descriptors and relocates their editable buffers, then adds F11 and mute-last-speaker from
+  one list. PTT already has a stock row: it stays in the chat group, with P as its default and
+  a localized label in all six language tables. The game handles rebind, accept and user.cfg
+  save/reload for every row. Initializing again preserves pending edits.
+- **Build and packaging:** `nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh` builds
+  the Windows x86 DLL with the pinned Rust/MSVC toolchain and checks its ABI. `release/build-zip`
+  runs that build and includes the DLL through `make_client_026g.py --voice`; the updater installs
+  it with the rest of the ZIP. No separate updater allowlist is needed.
 - **Push-to-talk never outlives a match:** the exe releases it at every stop and before every
   start, and the DLL starts and stops released (a key held when a match ended once opened the
   microphone in the next: the review of 7b653ac9).
@@ -295,6 +312,8 @@ Where the build differs from or adds to the design above:
   keeps talking and hearing.
 - Replays (`replay.rs`) and the match recordings (`record.rs`, `SRP_RECORD_DIR`) are made from
   the match socket's datagrams only, so **no voice is ever in a replay or a recording**.
+- Releasing or reseating a voice seat stops its old team routing immediately, without waiting
+  for housekeeping. An utterance cannot migrate with the session to another team.
 - What a match computes does not change: no `simulation_changes.tsv` row.
 
 ## Privacy
@@ -333,26 +352,24 @@ Where the build differs from or adds to the design above:
   microphone, PTT does nothing, the HUD list empty, and HELLO says "does not hear", so the relay
   sends nothing. Saved as the other options, at once, no restart.
 
-## Estimate and tests
+## Validation
 
-About **8-10 working days** plus in-game rounds, because both the capture path and a codec have
-to be added:
+- The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
+  the fitted radio response, retail squelch, muting, timeouts and the press/release lifecycle.
+- The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
+  Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
+  The received audio's energy and frequency must match the other client. No microphone or fake
+  codec participates. Relay tests also cover team isolation, mutes, authentication, rate limits,
+  released seats, immediate reseats, stale utterances and process restarts in the same slot
+  while the listener misses the new START packet.
+- Unicorn runs the game's original code around the Rust hooks. The controls harness covers the
+  single PTT row, P default, rebinding to F8, accept, the binder's save and loading the saved
+  command, alongside the existing F11 cases.
+- The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
+  and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
+  the real relay.
 
-| part | days |
-|---|---|
-| srp: voice socket, seats and IP check, utterances, tap seam, limits, tests | 1 |
-| `skhid_voice.dll`: waveIn/waveOut, Opus, jitter buffer, radio filter, socket; a Linux loopback test (encode, lose, decode) | 3 |
-| exe patch: load, cvars, connect/leave hooks, PTT, HUD poll; selftest and a Unicorn check | 2-3 |
-| positions for the radio effect (RE) | 0.5-1 |
-| HUD list (`HUD.as`), options enabled (`Settings.as`) | 0.5 |
-| shipping a new DLL: `build-zip`, the updater's client files | 0.5-1 |
-
-The in-game tests need the owner: a real microphone on at least one machine.
-
-1. Two clients on one team and one on the other.
-2. Hold P on one: the teammate hears it and sees the name. The enemy hears nothing.
-3. Walk apart past `VOICE_NEAR`: the radio sound starts.
-4. Set the options volume to 0: nothing heard, and srp stops sending (capture).
-5. Turn "Use microphone" off: P sends nothing.
-6. A resync during speech: voice goes on.
-7. Watch the match's replay: no voice.
+Real microphone capture and audible playback still require an in-game test with two games, a
+microphone on one, and both near and beyond 25 m. Also check Esc mutes, disable voice chat,
+PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
+This PR is kept out of v35 and the following port-only release.
