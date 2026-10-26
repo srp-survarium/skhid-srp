@@ -97,6 +97,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(pockets::Pockets::new(bodies)),
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),
+        side_slides(),
         request_gaps(),
         shots_heard(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),

@@ -143,6 +143,54 @@ pub(super) fn side_step(keys: u32, strafe: u32, yaw: f32, by_keys: bool) -> Vec3
     Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M)
 }
 
+/// What the fight's side step comes to this tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Step {
+    /// The reflex's side is clear: these keys.
+    Own(u32),
+    /// Its side is refused at a lip and the other is clear (`clear_step_slides_along`): these keys.
+    Slid(u32),
+    /// The keys stay as the walk or stand decided: no side step.
+    Stand,
+}
+
+/// The fight's side step with its ground test `ask(keys, strafe)` (`Tactics::clear_step_for` over the move of
+/// `keys`): the reflex's own side `strafe` if clear; refused with `sees_lip` on and the step its own (not
+/// `away` from a teammate, which is never turned to the other side: that would step into him), the other
+/// side if `slides` and clear, else [`Step::Stand`]. The other side is also asked for the bench's counts
+/// (`probe_other`) when `slides` is off; its answer comes back (`None`: not asked).
+pub(super) fn choose_step(
+    keys: u32,
+    strafe: u32,
+    away: bool,
+    sees_lip: bool,
+    slides: bool,
+    probe_other: bool,
+    ask: impl Fn(u32, u32) -> bool,
+) -> (Step, Option<bool>) {
+    if ask(keys, strafe) {
+        return (Step::Own(keys), None);
+    }
+    if !sees_lip || away || !(slides || probe_other) {
+        return (Step::Stand, None);
+    }
+    let other = if strafe == key::LEFT {
+        key::RIGHT
+    } else {
+        key::LEFT
+    };
+    let flipped = (keys & !(key::LEFT | key::RIGHT)) | other;
+    let other_clear = ask(flipped, other);
+    (
+        if slides && other_clear {
+            Step::Slid(flipped)
+        } else {
+            Step::Stand
+        },
+        Some(other_clear),
+    )
+}
+
 pub(super) fn drive_tick(
     bot: &mut Bot,
     me: &PlaceView,
@@ -1058,18 +1106,44 @@ pub(super) fn drive_tick(
         None
     };
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
-        let to = me.feet + side_step(keys, over.strafe, me.yaw, tactics.clear_step_sees_lip);
-        let clear = tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+        let (side, objective) = (bot.side, intent.objective);
+        let ask = |keys: u32, strafe: u32| {
+            let to = me.feet + side_step(keys, strafe, me.yaw, tactics.clear_step_sees_lip);
+            tactics.clear_step_for(me.feet, to, time, side, objective)
+        };
+        let slides = tuning.aim.combat.clear_step_slides_along;
+        let (step, other_clear) = choose_step(
+            keys,
+            over.strafe,
+            over.strafe_away,
+            tactics.clear_step_sees_lip,
+            slides,
+            cfg!(test),
+            ask,
+        );
         #[cfg(test)]
         {
+            let clear = matches!(step, Step::Own(_));
             motor::counts::side_step(clear);
             bot.bench_stepped = match (clear, aiming_still) {
                 (true, true) => 1,
                 (true, false) => 2,
                 (false, _) => 3,
             };
+            if let Some(other_clear) = other_clear {
+                let grid = &tactics.world.grid;
+                let in_band = grid
+                    .locate(me.feet, 1.0)
+                    .is_some_and(|node| grid.near_lip(node));
+                motor::counts::slide_asked(other_clear, !aiming_still, in_band);
+            }
+            if matches!(step, Step::Slid(_)) {
+                motor::counts::slid();
+            }
         }
-        if clear {
+        #[cfg(not(test))]
+        let _ = other_clear;
+        if let Step::Own(keys) | Step::Slid(keys) = step {
             decision.keys = keys;
         }
     }
@@ -1490,6 +1564,72 @@ mod tests {
         )
         .unwrap();
         assert!(patched.aim.combat.clear_step_sees_lip);
+    }
+
+    /// The fight's side step: its own side if clear; refused at a lip, the other side when `slides`, else it
+    /// stands; the step away from a teammate is never turned over; with the lip switch off it stands as it did.
+    #[test]
+    fn a_refused_side_step_slides_to_the_clear_side_only_when_asked_to() {
+        let (walk, left, right) = (key::FORWARD, key::LEFT, key::RIGHT);
+        // The left side is refused, the right clear; and the reverse.
+        let only = |clear: u32| move |_: u32, strafe: u32| strafe == clear;
+        let choose = |keys, strafe, away, sees, slides, ask: &dyn Fn(u32, u32) -> bool| {
+            choose_step(keys, strafe, away, sees, slides, false, ask)
+        };
+        for (keys, strafe) in [
+            (left, left),
+            (walk | left, left),
+            (right, right),
+            (walk | right, right),
+        ] {
+            let other = if strafe == left { right } else { left };
+            let flipped = (keys & !(left | right)) | other;
+            let (own, ask_other) = (only(strafe), only(other));
+            // Its own side clear: taken.
+            assert_eq!(
+                choose(keys, strafe, false, true, true, &own).0,
+                Step::Own(keys)
+            );
+            // Refused, the other clear: slides with the switch, stands without it or with the lip switch off.
+            assert_eq!(
+                choose(keys, strafe, false, true, true, &ask_other).0,
+                Step::Slid(flipped)
+            );
+            assert_eq!(
+                choose(keys, strafe, false, true, false, &ask_other).0,
+                Step::Stand
+            );
+            assert_eq!(
+                choose(keys, strafe, false, false, true, &ask_other).0,
+                Step::Stand
+            );
+            // The step away from a teammate is never turned over.
+            assert_eq!(
+                choose(keys, strafe, true, true, true, &ask_other).0,
+                Step::Stand
+            );
+            // Both refused: it stands.
+            assert_eq!(
+                choose(keys, strafe, false, true, true, &|_, _| false).0,
+                Step::Stand
+            );
+            // The weave keeps its walk key: only the side key changes.
+            assert_eq!(
+                flipped & (key::FORWARD | key::BACK),
+                keys & (key::FORWARD | key::BACK)
+            );
+        }
+        // The other side is asked for the counts when the switch is off (nothing changes), and only then.
+        let counted = choose_step(left, left, false, true, false, true, only(right));
+        assert_eq!(counted, (Step::Stand, Some(true)));
+        assert_eq!(
+            choose_step(left, left, false, true, false, false, only(right)),
+            (Step::Stand, None)
+        );
+        assert_eq!(
+            choose_step(left, left, true, true, false, true, only(right)),
+            (Step::Stand, None)
+        );
     }
 
     #[test]

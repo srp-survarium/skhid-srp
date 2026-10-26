@@ -2506,6 +2506,71 @@ pub(super) mod tests {
         );
     }
 
+    /// The slide in the world: a body facing north-west of the lip so that its left side step ends in the band
+    /// is turned to its right (the side step `drive::choose_step` asks `clear_step_for` about, over the move of
+    /// its keys); in the band, facing the lip, both sides run along it and both are refused, so it stands.
+    #[test]
+    fn a_side_step_toward_a_lip_slides_to_the_other_side() {
+        use super::super::drive::{Step, choose_step, side_step};
+        use crate::v026g::drive::key;
+        use super::super::kin;
+        let world = lip_slab();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        tactics.clear_step_sees_lip = true;
+        // Facing so that the body's left is +x, toward the slab's east lip at x = 56.
+        let yaw = kin::yaw_of([1.0, 0.0]) - std::f32::consts::FRAC_PI_2;
+        let [lx, lz] = kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+        assert!((lx - 1.0).abs() < 1e-4 && lz.abs() < 1e-4, "{lx} {lz}");
+        let choose = |tactics: &Tactics, at: Vec3, keys: u32, strafe: u32, slides: bool| {
+            let ask = |keys: u32, strafe: u32| {
+                let to = at + side_step(keys, strafe, yaw, tactics.clear_step_sees_lip);
+                tactics.clear_step_for(at, to, 0, Some(0), false)
+            };
+            choose_step(
+                keys,
+                strafe,
+                false,
+                tactics.clear_step_sees_lip,
+                slides,
+                false,
+                ask,
+            )
+            .0
+        };
+        let from = Vec3::new(54.2, 2.0, 33.0);
+        for walk in [0, key::FORWARD] {
+            let (own, other) = (walk | key::LEFT, walk | key::RIGHT);
+            // Left (east) ends in the band: refused; right (west) is clear.
+            assert_eq!(
+                choose(&tactics, from, own, key::LEFT, true),
+                Step::Slid(other),
+                "walk {walk:#x}"
+            );
+            assert_eq!(choose(&tactics, from, own, key::LEFT, false), Step::Stand);
+            // The right side first is clear and taken as it is.
+            assert_eq!(
+                choose(&tactics, from, other, key::RIGHT, true),
+                Step::Own(other)
+            );
+            // With the lip switch off the left side is clear: the old step.
+            tactics.clear_step_sees_lip = false;
+            assert_eq!(choose(&tactics, from, own, key::LEFT, true), Step::Own(own));
+            tactics.clear_step_sees_lip = true;
+        }
+        // In the band, facing the lip (yaw toward +x): the sides run along it, both ends in the band.
+        let facing = kin::yaw_of([1.0, 0.0]);
+        let in_band = Vec3::new(55.7, 2.0, 33.0);
+        let ask_along = |keys: u32, strafe: u32| {
+            let to = in_band + side_step(keys, strafe, facing, true);
+            tactics.clear_step_for(in_band, to, 0, Some(0), false)
+        };
+        assert!(!ask_along(key::LEFT, key::LEFT) && !ask_along(key::RIGHT, key::RIGHT));
+        assert_eq!(
+            choose_step(key::LEFT, key::LEFT, false, true, true, false, ask_along).0,
+            Step::Stand
+        );
+    }
+
     /// A line's end over no floor is not clear, though a floor is within
     /// the 0.6 m `locate` looks: a jump's run-up off the floors was walked
     /// at for every try (level_06 day 4's pocket at (92.1, 139.4)).
