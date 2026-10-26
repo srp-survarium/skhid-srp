@@ -308,22 +308,33 @@ pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::loadouts::{BotRole, BotTier, bot_kits_in};
+    use crate::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_kits, bot_kits_in};
     use crate::v026g::skills::SkillError;
+
+    /// The rusher kits of `tier` the game data in use can make.
+    fn made_kits(tier: BotTier) -> impl Iterator<Item = RusherKit> {
+        tier.rusher_kits()
+            .iter()
+            .copied()
+            .filter(move |&kit| kit.worn_in(tier) == kit)
+    }
 
     fn index(name: &str) -> usize {
         modifier_index(name).unwrap()
     }
 
-    /// Every tier and role, with the owner's kit and the upgrades off and
-    /// on.
-    fn every_bot() -> Vec<(BotTier, BotRole, bool, bool)> {
+    /// Every tier and role, with each rusher kit the data can make, the
+    /// owner's kit and the upgrades off and on.
+    fn every_bot() -> Vec<(BotEquipment, BotRole, bool, bool)> {
         let mut all = Vec::new();
         for new in [false, true] {
             for upgrades in [false, true] {
                 for tier in BotTier::ALL {
-                    for role in BotRole::ALL {
-                        all.push((tier, role, new, upgrades));
+                    for rusher in made_kits(tier) {
+                        let equipment = BotEquipment { tier, rusher };
+                        for role in BotRole::ALL {
+                            all.push((equipment, role, new, upgrades));
+                        }
                     }
                 }
             }
@@ -424,8 +435,9 @@ mod tests {
     #[test]
     fn no_bot_kit_is_over_its_capacity() {
         assert_eq!(item_params::player().max_carried_weight, 30.0);
-        for (tier, role, new, upgrades) in every_bot() {
-            let owned = bot_kits_in(tier, role, new, upgrades);
+        for (equipment, role, new, upgrades) in every_bot() {
+            let tier = equipment.tier;
+            let owned = bot_kits_in(equipment, role, new, upgrades);
             let kits: Vec<&Loadout> = owned.iter().collect();
             let gear = gear_level(&kits);
             assert!(tier.levels().contains(&gear), "{tier} {role}: {gear}");
@@ -477,11 +489,64 @@ mod tests {
         );
     }
 
+    /// The rusher's SMG kit slows a bot no more than the SPAS-12 kit it
+    /// replaces did: lighter in both tiers (the SMG, its ammo and the
+    /// helmet weigh less than the shotgun and its shells, or the helmet is
+    /// all it adds at 13-15), so no more of the weight's cost.
+    #[test]
+    fn the_rushers_smg_kit_is_no_slower_than_the_old_one() {
+        use crate::v026g::match_msgs::static_info::MatchProfile;
+        let level = |equipment: BotEquipment| {
+            let kits = bot_kits(equipment, BotRole::Rusher);
+            let profile = MatchProfile::from_loadouts(
+                "bot",
+                0,
+                &kits,
+                bot_modifiers(&kits),
+                Dictionary::shared(),
+                1,
+            );
+            profile_movement_level(&profile, 0).unwrap()
+        };
+        for tier in [BotTier::Mid, BotTier::High] {
+            let smg = RusherKit::Smg.worn_in(tier);
+            if smg == RusherKit::Control {
+                continue;
+            }
+            let (new, old) = (
+                level(BotEquipment { tier, rusher: smg }),
+                level(BotEquipment {
+                    tier,
+                    rusher: RusherKit::Control,
+                }),
+            );
+            assert!(new >= old - 1e-6, "{tier}: {new} against {old}");
+        }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`, the server's file) the same
+    /// holds for every rusher kit of both higher tiers, the SMGs of the
+    /// 0.29a3 weapons among them. Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p survarium --lib
+    /// -- --ignored on_the_live_data_no_rusher_kit`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_no_rusher_kit_is_over_its_capacity() {
+        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        no_bot_kit_is_over_its_capacity();
+        the_rushers_smg_kit_is_no_slower_than_the_old_one();
+        a_bots_profile_gives_its_speed_level();
+        for tier in [BotTier::Mid, BotTier::High] {
+            assert_eq!(made_kits(tier).count(), RusherKit::ALL.len(), "{tier}");
+        }
+    }
+
     #[test]
     fn a_bots_profile_gives_its_speed_level() {
         use crate::v026g::match_msgs::static_info::MatchProfile;
-        for (tier, role, new, upgrades) in every_bot() {
-            let owned = bot_kits_in(tier, role, new, upgrades);
+        for (equipment, role, new, upgrades) in every_bot() {
+            let tier = equipment.tier;
+            let owned = bot_kits_in(equipment, role, new, upgrades);
             let kits: Vec<&Loadout> = owned.iter().collect();
             let modifiers = BotSkillTier::for_kits(&kits).modifiers_with(new);
             let profile =

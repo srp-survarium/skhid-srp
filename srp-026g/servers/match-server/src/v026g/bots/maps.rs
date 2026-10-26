@@ -165,7 +165,7 @@ impl Maps {
     /// The hazard margin the shared tactics are built for: the tuning's
     /// default. A match tuned otherwise builds its own.
     pub fn margin() -> f32 {
-        Tuning::default().hazard_margin
+        Tuning::default().hazard.margin_m.get()
     }
 
     /// Starts building `project`'s map (`level_01/day_4`) unless it is
@@ -441,7 +441,7 @@ fn build(
         let seeds = map.grid_seeds();
         let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
         // With the gap links when the code default has them
-        // (`Tuning::gap_links`; the live server's tuning is the default).
+        // (`GridTuning::gap_links`; the live server's tuning is the default).
         let links = super::tuning::Tuning::default().off_mesh_links();
         let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);

@@ -468,6 +468,24 @@ impl Regions {
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
     ) -> Result<RouteSearch, (Search, Stage)> {
+        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, None)
+    }
+
+    /// [`Self::start_route_search`] for a body whose jumps rise at most
+    /// `max_rise` metres ([`WalkGrid::start_search_reaching`]). The regions'
+    /// own search knows no heights: a corridor that needs a higher jump
+    /// finds no way, and the search goes on widening to the whole grid.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_route_search_reaching(
+        &self,
+        grid: &WalkGrid,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        budget: usize,
+        max_rise: Option<f32>,
+    ) -> Result<RouteSearch, (Search, Stage)> {
         let n = grid.len();
         if from as usize >= n || to as usize >= n || !grid.may_reach(from, to) {
             return Err((Search::NoWay, Stage::NoWay));
@@ -496,6 +514,7 @@ impl Regions {
             inside: vec![0; self.len().div_ceil(64)],
             search: None,
             expanded: 0,
+            max_rise,
         };
         search.widen(self, grid, CORRIDOR_RINGS, &region_ok)?;
         Ok(search)
@@ -518,6 +537,8 @@ pub struct RouteSearch {
     search: Option<SlicedSearch>,
     /// Floors expanded by the stages done.
     expanded: usize,
+    /// The highest jump link the body takes.
+    max_rise: Option<f32>,
 }
 
 impl RouteSearch {
@@ -562,7 +583,7 @@ impl RouteSearch {
             } else {
                 self.stage = Stage::Whole;
                 self.search = None;
-                grid.start_search(self.from, self.to, self.budget)
+                grid.start_search_reaching(self.from, self.to, self.budget, self.max_rise)
                     .map(|search| self.search = Some(search))
                     .map_err(|done| (done, Stage::Whole))
             };
@@ -623,7 +644,7 @@ impl RouteSearch {
         }
         self.search = None;
         let search = grid
-            .start_search(self.from, self.to, usize::MAX)
+            .start_search_reaching(self.from, self.to, usize::MAX, self.max_rise)
             .map_err(|done| (done, self.stage))?;
         self.search = Some(search);
         Ok(())
@@ -633,6 +654,30 @@ impl RouteSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The regions' search keeps a body to its jump reach too: a 1.0 m ledge
+    /// is no way for a body that jumps 0.998 m at most, the walker finds
+    /// it, and a ramp round is the reaching body's way in every stage.
+    #[test]
+    fn a_route_search_keeps_to_a_bodys_jump_reach() {
+        use crate::grid::STANDING_JUMP_M;
+        let reaching = |rise: f32, ramp: Option<f32>| {
+            let grid = crate::grid::tests::ledge_yard(rise, ramp);
+            let regions = Regions::build(&grid, None);
+            let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(11.5, rise, 1.0), 0.3).unwrap();
+            let mut search = regions
+                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, Some(STANDING_JUMP_M))
+                .unwrap();
+            let mut iters = usize::MAX;
+            let (found, _) = search.step(&regions, &grid, |_| true, |_| true, &mut iters).unwrap();
+            let walker = regions.route_search(&grid, from, to, |_| true, |_| true, usize::MAX).0;
+            (matches!(walker, Search::Found(_)), matches!(found, Search::Found(_)))
+        };
+        assert_eq!(reaching(1.0, None), (true, false));
+        assert_eq!(reaching(0.9, None), (true, true));
+        assert_eq!(reaching(1.0, Some(7.0)), (true, true));
+    }
 
     /// A goal no let-through floor links into has no way, answered before
     /// any search, and the answer is the whole grid's.
