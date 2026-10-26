@@ -55,7 +55,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use mapdata::Vec3;
+use mapdata::{Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
@@ -96,8 +96,18 @@ const OUTSTANDING_MS: u32 = 600;
 const MOTOR_MAX_MS: u32 = 25_000;
 /// How far past the face, along its normal, a motor-driven try's top point is, m.
 const TOP_BEYOND_M: f32 = 1.2;
+/// The respawn delay of every mode's config (`respawn_time`), ms (`docs/notes/modes_maps.md`).
+const RESPAWN_MS: f32 = 8_000.0;
+/// The sprint speed of the budget's straight walk from a spawn, m/s (the `Kinematics` default), and the
+/// slack on it (the route is longer than the line, and the walk is slower than a sprint).
+const SPRINT_MPS: f32 = 5.0;
+const BUDGET_SLACK: f32 = 1.3;
+/// The suicide bit is sent this many ticks.
+const SUICIDE_TICKS: u32 = 3;
+/// A bot still alive this long after the suicide bit goes on walking, ms.
+const SUICIDE_WAIT_MS: u32 = 1_500;
 /// The keys a bot of the test may press: walking, sprinting, crouching and jumping.
-const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT;
+const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT | key::SUICIDE;
 
 /// One row of a world: what the owner's client says of one body at one tick.
 #[derive(Clone, Debug, PartialEq)]
@@ -234,6 +244,8 @@ pub struct TryDef {
     pub speed: Speed,
     pub mid: Mid,
     pub repeat: u32,
+    /// How many times the bot killed itself on the way to this try's start (one at most).
+    pub suicides: u8,
 }
 
 fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
@@ -335,6 +347,7 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
             },
             mid: parse_mid(f[8]).map_err(fail)?,
             repeat: f[9].parse().map_err(|e| fail(format!("repeat {:?}: {e}", f[9])))?,
+            suicides: 0,
         });
     }
     Ok(tries)
@@ -589,8 +602,34 @@ impl Plan {
     }
 }
 
+/// How long a walk to a start may take before the bot does better to die and respawn: the respawn
+/// delay plus a sprint over the straight line from the nearest spawn of its team to the start, with
+/// slack, ms.
+fn budget_ms(spawn_to_start_m: f32) -> u32 {
+    (RESPAWN_MS + spawn_to_start_m / SPRINT_MPS * BUDGET_SLACK * 1_000.0) as u32
+}
+
+/// [`budget_ms`] for a team's bot and the start of `def`.
+fn suicide_budget_ms(world: &World, team: u8, def: &TryDef) -> u32 {
+    let start = start_of(def);
+    let nearest = |own: bool| {
+        world
+            .map
+            .spawns
+            .iter()
+            .filter(|s| !own || s.team == i32::from(team))
+            .map(|s| s.position.distance_xz(start))
+            .fold(f32::MAX, f32::min)
+    };
+    let own = nearest(true);
+    budget_ms(if own < f32::MAX { own } else { nearest(false) })
+}
+
 #[derive(Clone, Debug)]
 enum Phase {
+    /// The bit of the suicide is sent; the next world should show the body dead. The walk had taken
+    /// `walked_ms` of its `budget_ms`.
+    Suicide { since: u32, walked_ms: u32, budget_ms: u32 },
     /// Walking to the start by the ordinary route.
     Go { since: u32 },
     /// Standing still facing the heading.
@@ -843,7 +882,7 @@ impl JumpTest {
 
     /// The think of a bot in the mode: the intent (a walk to the start while going, else standing).
     /// Returns whether the bot is the test's.
-    pub fn think(&mut self, bot: &mut Bot, view: &MatchView) -> bool {
+    pub fn think(&mut self, bot: &mut Bot, view: &MatchView, world: &World) -> bool {
         self.reload();
         let now = view.clock;
         if !self.runners.contains_key(&bot.place) {
@@ -870,6 +909,12 @@ impl JumpTest {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             // Dead: the try is lost with the life; it is redone from the start.
             if let Some(active) = runner.active.take() {
+                if let Phase::Suicide { walked_ms, budget_ms, .. } = active.phase {
+                    let line = serde_json::json!({
+                        "id": active.def.id, "bot": bot.place, "suicide": true, "elapsed_ms": walked_ms, "budget_ms": budget_ms,
+                    });
+                    Self::line(&mut self.tries_log, &line);
+                }
                 let def = TryDef { repeat: 1, ..active.def };
                 runner.pending.push_front(def);
             }
@@ -901,6 +946,16 @@ impl JumpTest {
         };
         let start = start_of(&active.def);
         match &mut active.phase {
+            Phase::Suicide { since, walked_ms, budget_ms } => {
+                if now > *since + SUICIDE_WAIT_MS {
+                    // Still alive (a helmet took the hit): no second try, the bot walks.
+                    let line = serde_json::json!({
+                        "id": active.def.id, "bot": bot.place, "suicide_failed": true, "elapsed_ms": *walked_ms, "budget_ms": *budget_ms,
+                    });
+                    Self::line(&mut self.tries_log, &line);
+                    active.phase = Phase::Go { since: now };
+                }
+            }
             Phase::Rest { until } => {
                 if now >= *until {
                     active.phase = Phase::Go { since: now };
@@ -924,6 +979,11 @@ impl JumpTest {
                     } else {
                         Phase::Settle { since: now, asked: false }
                     };
+                } else if active.def.suicides == 0 && now - *since > 8_000 && now - *since > suicide_budget_ms(world, bot.team, &active.def) {
+                    // The walk takes longer than dying and walking from a spawn: once.
+                    let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def));
+                    active.def.suicides += 1;
+                    active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
                     *since = now;
@@ -967,6 +1027,10 @@ impl JumpTest {
         let me = view.place(bot.place).filter(|p| p.alive)?;
         match &mut active.phase {
             Phase::Rest { .. } => Some(Decision::default()),
+            Phase::Suicide { since, .. } => Some(Decision {
+                keys: if time >= *since && time < *since + SUICIDE_TICKS * TICK_MS { key::SUICIDE } else { 0 },
+                turn: (0.0, 0.0),
+            }),
             Phase::Go { .. } | Phase::Motor { .. } => None,
             Phase::Settle { since, asked } => {
                 let heading = heading_of(&active.def);
@@ -1364,7 +1428,7 @@ mod tests {
     }
 
     fn def(edge: f32, angle: f32, face: Face, runup: f32, speed: Speed, mid: Mid) -> TryDef {
-        TryDef { id: "t".into(), who: Who::Bot(3), lane: 0.0, site: site(), edge, angle, face, runup, speed, mid, repeat: 1 }
+        TryDef { id: "t".into(), who: Who::Bot(3), lane: 0.0, site: site(), edge, angle, face, runup, speed, mid, repeat: 1, suicides: 0 }
     }
 
     #[test]
@@ -1384,7 +1448,7 @@ mod tests {
 
     fn wide_def(angle: f32, runup: f32) -> TryDef {
         let site = named_site("chem125c", &HashMap::new()).expect("a site");
-        TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3 }
+        TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3, suicides: 0 }
     }
 
     #[test]
@@ -1407,6 +1471,22 @@ mod tests {
         assert_eq!(free.keys, noisy);
         jt.quiet(3, &mut free);
         assert_eq!(free.keys, key::FORWARD | key::SPRINT);
+    }
+
+    #[test]
+    fn the_budget_is_the_respawn_and_a_slack_sprint_from_the_nearest_spawn() {
+        assert_eq!(budget_ms(0.0), 8_000);
+        // 50 m at 5 m/s is 10 s, with the slack 13 s.
+        assert_eq!(budget_ms(50.0), 21_000);
+    }
+
+    #[test]
+    fn the_quiet_keys_let_the_suicide_through() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        jt.runners.entry(3).or_default();
+        let mut d = Decision { keys: key::SUICIDE | key::FIRE, turn: (0.0, 0.0) };
+        jt.quiet(3, &mut d);
+        assert_eq!(d.keys, key::SUICIDE);
     }
 
     #[test]
