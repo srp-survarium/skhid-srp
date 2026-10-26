@@ -90,6 +90,20 @@ pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The holder's picks with the stand-sight rule on, those that kept spots seeing the stand, and
+/// those that fell back to the box rule (`guard_lead::stand_sight`).
+pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::guard_lead::stand_sight::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "holder_stand_picks {} holder_stand_kept {} holder_stand_fallback {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

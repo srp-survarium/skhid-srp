@@ -99,6 +99,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         motor(),
         request_gaps(),
         shots_heard(),
+        holder_stand_sight(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         foliage(),
