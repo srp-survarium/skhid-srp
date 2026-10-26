@@ -452,6 +452,16 @@ pub(crate) fn real_bot_cost() {
         // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
         let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
+        // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
+        let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
+            Some(n) => {
+                let generator = standin_fields::FieldGen::new(&world, 0, 1, standin_fields::Taker::None, 0, 0.0);
+                let radius = bench_settings().number("SRP_BENCH_FIELD_RADIUS_M").unwrap_or(standin_fields::RADIUS_M);
+                let places = &generator.places()[..n.min(generator.places().len())];
+                Arc::new(standin_fields::baked_places(&world, places, radius))
+            }
+            None => world,
+        };
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
@@ -1345,6 +1355,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {}", fight.line(&game));
             routes.finish(&game);
             eprintln!("  routes: {}", routes.line());
+            eprintln!("  {}", standin_fields::cost_line(&bots));
             eprintln!(
                 "  jumps: pressed {} refused {}; stand-in {}",
                 game.jumps_pressed,

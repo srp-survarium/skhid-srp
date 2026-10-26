@@ -167,6 +167,8 @@ impl FieldBoard {
     /// changed. `margin` is the hazard margin.
     pub fn update(&mut self, world: &[WorldField], grid: &WalkGrid, margin: f32, now: u32) -> bool {
         self.now = now;
+        #[cfg(test)]
+        let started = std::time::Instant::now();
         let mut sorted: Vec<&WorldField> = world.iter().collect();
         sorted.sort_by_key(|f| f.id);
         sorted.dedup_by_key(|f| f.id);
@@ -197,6 +199,8 @@ impl FieldBoard {
         self.remark(&next, grid.len());
         self.fields = next;
         self.version += 1;
+        #[cfg(test)]
+        timing::record(started.elapsed());
         true
     }
 
@@ -275,6 +279,26 @@ impl FieldBoard {
 /// Whether the world's field is where the board's was (only its phase differs): its floors stay.
 fn same_place(old: &WorldField, new: &WorldField) -> bool {
     old.kind == new.kind && old.shape == new.shape
+}
+
+/// The bench's count of what a changed board cost to make (`field_board_build_ms`).
+#[cfg(test)]
+pub mod timing {
+    use std::cell::RefCell;
+    use std::time::Duration;
+
+    thread_local! {
+        static BUILDS: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub fn record(took: Duration) {
+        BUILDS.with(|b| b.borrow_mut().push(took.as_micros() as u32));
+    }
+
+    /// The builds so far, µs (and forgets them).
+    pub fn take() -> Vec<u32> {
+        BUILDS.with(|b| std::mem::take(&mut *b.borrow_mut()))
+    }
 }
 
 /// The set of zones marking a floor, baked and live: what the bots compare to tell "the same zone as before" (`0` none).

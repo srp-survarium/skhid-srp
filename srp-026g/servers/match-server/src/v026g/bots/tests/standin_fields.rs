@@ -24,7 +24,7 @@ use std::collections::HashMap;
 
 use mapdata::NodeId;
 
-use crate::v026g::bots::live_zones::{hit_per_s, FieldBoard, FieldId, FieldKind, FieldPhase, WorldField};
+use crate::v026g::bots::live_zones::{self, hit_per_s, FieldBoard, FieldId, FieldKind, FieldPhase, WorldField};
 
 /// Charging, then damaging, ms (the release: 20 s, 4 s).
 pub(crate) const CHARGE_MS: u32 = 20_000;
@@ -178,6 +178,11 @@ impl FieldGen {
 
     pub(crate) fn on(&self) -> bool {
         self.max_active > 0
+    }
+
+    /// The places a try draws from.
+    pub(crate) fn places(&self) -> &[Vec3] {
+        &self.places
     }
 
     pub(crate) fn active(&self) -> usize {
@@ -340,6 +345,75 @@ fn places_of(world: &World) -> Vec<Vec3> {
     places
 }
 
+
+/// `world` with a damage zone, always on, at each of `places` (the baked-all alternative to the board, for what it
+/// costs: `SRP_BENCH_BAKE_FIELD_PLACES`): the tactics' build, their regions and the searches pay for zones that
+/// exist all match. The bots' behaviour is not the live zones' (they keep off every one for the whole match).
+pub(crate) fn baked_places(world: &World, places: &[Vec3], radius: f32) -> World {
+    use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+    let mut map = world.map.clone();
+    for (k, at) in places.iter().enumerate() {
+        map.zones.push(Zone {
+            kind: ZoneKind::Damage,
+            name: format!("baked_field_{k}"),
+            team: -1,
+            position: *at,
+            damage_type: "toxic".into(),
+            damage: Some(Damage { max_hit: hit_per_s(FieldKind::Lifebone) / 2.0, parts: 2, continuous: true, ..Damage::default() }),
+            shapes: vec![Shape {
+                kind: ShapeKind::Cylinder,
+                center: Vec3::new(at.x, at.y + 1.0, at.z),
+                rotation: Rotation::IDENTITY,
+                half: Vec3::new(radius, 2.0, radius),
+            }],
+        });
+    }
+    World::assemble(map, world.grid.clone(), world.sight.clone())
+}
+
+/// The line of what the live zones cost (the bench prints it after the `routes:` line): the tactics' build (the
+/// regions, the zones baked, the floors they mark), what a changed board cost to make (`field_board_build_ms`), and
+/// what one `allowed_for` costs on a floor no zone marks and on one a live field does (`field_query_ns`).
+pub(crate) fn cost_line(bots: &Bots) -> String {
+    let Some(tactics) = bots.tactics.as_ref() else {
+        return String::new();
+    };
+    let hazards = &tactics.hazards;
+    let mut builds = live_zones::timing::take();
+    builds.sort_unstable();
+    let ms = |us: u32| f64::from(us) / 1000.0;
+    let grid = &tactics.world.grid;
+    let pass = hazards.pass_ms;
+    let query = |nodes: &[NodeId]| -> f64 {
+        if nodes.is_empty() {
+            return 0.0;
+        }
+        const REPS: usize = 200;
+        let started = std::time::Instant::now();
+        let mut shut = 0usize;
+        for _ in 0..REPS {
+            for &node in nodes {
+                shut += usize::from(!std::hint::black_box(hazards.allowed_for(node, 100_000, pass)));
+            }
+        }
+        std::hint::black_box(shut);
+        started.elapsed().as_nanos() as f64 / (REPS * nodes.len()) as f64
+    };
+    let stride = (grid.len() / 4096).max(1);
+    let free: Vec<NodeId> = (0..grid.len() as NodeId).step_by(stride).filter(|&n| hazards.set_of(n).is_none()).collect();
+    let marked: Vec<NodeId> = (0..grid.len() as NodeId).filter(|&n| hazards.live.set_of(n) != 0).take(4096).collect();
+    format!(
+        "live zones: tactics_regions {} hazard_zones {} marked_floors {} field_board_builds {} field_board_build_ms_p50 {:.3} field_board_build_ms_max {:.3} field_query_ns_free {:.0} field_query_ns_marked {:.0}",
+        tactics.regions().len(),
+        hazards.zones.len(),
+        hazards.marked(),
+        builds.len(),
+        builds.get(builds.len() / 2).map_or(0.0, |&us| ms(us)),
+        builds.last().map_or(0.0, |&us| ms(us)),
+        query(&free),
+        query(&marked)
+    )
+}
 
 #[cfg(test)]
 mod tests {
