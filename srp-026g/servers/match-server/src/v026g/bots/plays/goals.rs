@@ -397,13 +397,20 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
         let Some((spots, reached, age)) = g.get_mut(&place) else { return };
         if !alive {
             if !*reached {
-                perch_count(17);
+                // dying within 20 s of the take, or long after the play moved on
+                perch_count(if *age <= 400 { 17 } else { 19 });
             }
             g.remove(&place);
             return;
         }
         if !*reached {
             *age += 1;
+            if *age > 1400 {
+                // longer than a play's give-up time: the take is lost
+                perch_count(20);
+                g.remove(&place);
+                return;
+            }
         }
         if spots.iter().any(|at| feet.distance_xz(*at) <= 2.0 && (feet.y - at.y).abs() < 1.5) {
             if !*reached {
@@ -421,7 +428,7 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 19]> = const { std::cell::Cell::new([0; 19]) };
+    static PERCHED: std::cell::Cell<[u64; 21]> = const { std::cell::Cell::new([0; 21]) };
     static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
@@ -447,7 +454,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 19] {
+pub fn perch_counts() -> [u64; 21] {
     PERCHED.with(|c| c.get())
 }
 
