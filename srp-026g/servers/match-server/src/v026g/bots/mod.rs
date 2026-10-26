@@ -59,6 +59,7 @@ pub mod signals;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
+pub mod threat;
 pub mod trace;
 pub mod tuning;
 pub mod view;
@@ -129,6 +130,9 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// The regions the team's held threat spots see ([`threat`]), told at
+    /// the commander's ticks; its routes keep out of them where they can.
+    threat: Arc<threat::Covered>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -287,6 +291,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -580,6 +585,8 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            threat: threat::ThreatSpots::default(),
+            covered: None,
         };
         let bots = teams
             .iter()
@@ -826,6 +833,7 @@ impl Bots {
         if self.is_bot(place) {
             return;
         }
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -876,6 +884,7 @@ impl Bots {
 
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1039,6 +1048,7 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

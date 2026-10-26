@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
+use mapdata::stands::{GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
@@ -137,7 +138,13 @@ impl Memo {
     /// ask ([`UseStands::build`]: the game's use test, a few milliseconds a
     /// map).
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
-        self.stands.get_or_init(|| UseStands::build(&tactics.world))
+        self.stands.get_or_init(|| {
+            if crate::v026g::bots::view::live_eye() {
+                UseStands::build(&tactics.world)
+            } else {
+                UseStands::build_with(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED)
+            }
+        })
     }
 
     /// Crossings kept.

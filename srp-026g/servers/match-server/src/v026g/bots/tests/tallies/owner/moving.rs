@@ -270,7 +270,8 @@ impl OwnerTally {
         } else if note.text.contains("no way to its goal") {
             at(&mut self.moving.no_way);
         } else if let Some((aim, time)) = thrown_at(&note.text) {
-            self.grenade_thrown(note.place, aim, time);
+            let team = game.bodies.get(note.place).map_or(0, |b| b.team);
+            self.grenade_thrown(note.place, team, aim, time);
         } else if let Some(why) = held_back(&note.text) {
             self.grenade_refused(why);
             // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
