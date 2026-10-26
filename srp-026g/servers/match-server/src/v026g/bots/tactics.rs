@@ -605,15 +605,29 @@ impl Tactics {
 
     /// The humans' perches of this map (and their share of time), each put on
     /// the floor under it within a storey of its height; one with none is
-    /// dropped.
+    /// dropped, and one the planner cannot get to from the spawns of both
+    /// sides (a floor the owner reached, 2026-10-26, that no walk of the
+    /// planner leads to) is dropped here, once, not tried at every pick.
     pub fn set_perches(&mut self, perches: Vec<super::routes::Perch>, share: Option<super::routes::PerchShare>) {
-        let grid = &self.world.grid;
+        let world = self.world.clone();
+        let grid = &world.grid;
+        let teams: std::collections::BTreeSet<i32> = world.map.spawns.iter().map(|s| s.team).collect();
+        let reach: Vec<Vec<u64>> = if perches.is_empty() {
+            Vec::new()
+        } else {
+            teams
+                .iter()
+                .map(|&team| walk_from_spawns(&world, |s| s.team == team))
+                .collect()
+        };
         self.perches = perches
             .into_iter()
             .filter_map(|perch| {
                 let node = grid.locate(perch.at, 1.5)?;
                 let on = grid.position(node);
-                ((on.y - perch.at.y).abs() < 1.5).then_some(super::routes::Perch { at: on, ..perch })
+                let reached = |bits: &Vec<u64>| bits.get(node as usize / 64).is_some_and(|w| w >> (node % 64) & 1 == 1);
+                ((on.y - perch.at.y).abs() < 1.5 && reach.iter().all(reached))
+                    .then_some(super::routes::Perch { at: on, ..perch })
             })
             .collect();
         self.perch_share = share;
@@ -1775,6 +1789,12 @@ impl Tactics {
 /// The floors a walk from a spawn's floor gets to, a bit each; every
 /// floor when no spawn is on a floor (a map without spawns).
 fn walkable_from_spawns(world: &World) -> Vec<u64> {
+    walk_from_spawns(world, |_| true)
+}
+
+/// The floors a walk from the floors of the spawns `of` gets to
+/// ([`walkable_from_spawns`] for all of them).
+fn walk_from_spawns(world: &World, of: impl Fn(&mapdata::Spawn) -> bool) -> Vec<u64> {
     let grid = &world.grid;
     let mut bits = vec![0u64; grid.len().div_ceil(64)];
     let mut queue: Vec<NodeId> = Vec::new();
@@ -1785,7 +1805,7 @@ fn walkable_from_spawns(world: &World) -> Vec<u64> {
             queue.push(node);
         }
     };
-    for spawn in &world.map.spawns {
+    for spawn in world.map.spawns.iter().filter(|s| of(s)) {
         if let Some(node) = grid.locate(spawn.position, 1.5) {
             mark(&mut bits, node, &mut queue);
         }

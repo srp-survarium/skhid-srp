@@ -56,6 +56,8 @@ pub struct PerchTuning {
     /// (27-63 %): the humans' share of time on perches over this is the
     /// share of the holds' picks that take one.
     pub hold_share: f32,
+    /// A multiplier on that share, for the bench to sweep (1: as designed).
+    pub p_scale: f32,
     /// The most that share of picks may be.
     pub p_max: f32,
     /// A perch is taken at least this far from the anchor it holds, m, and at
@@ -66,7 +68,7 @@ pub struct PerchTuning {
 
 impl Default for PerchTuning {
     fn default() -> Self {
-        Self { on: true, hold_share: 0.4, p_max: 0.5, min_m: 10.0, max_m: 45.0 }
+        Self { on: true, hold_share: 0.4, p_scale: 1.0, p_max: 0.5, min_m: 10.0, max_m: 45.0 }
     }
 }
 

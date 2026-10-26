@@ -290,7 +290,8 @@ impl Ctx<'_> {
 /// teammate's claim, the climb to it not in sight of an enemy the bot knows
 /// of: [`Ctx::exposed_climb`]), off the edges (`near_lip`, `near_fall`) and
 /// in sight of the anchor, go in front of `fine` with probability the map's
-/// perch share over `PerchTuning::hold_share` (at most `p_max`), in an order
+/// perch share over `PerchTuning::hold_share` (a GUESS, 0.4; times
+/// `p_scale`, 1; at most `p_max`), in an order
 /// drawn by their visit rates (Efraimidis and Spirakis' weighted sampling
 /// without replacement: key `u^(1/rate)`), so the play's "one of the best n"
 /// takes a perch by its weight. No table, no perch in range, or the switch
@@ -322,7 +323,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     if candidates.is_empty() {
         return fine;
     }
-    let p = (share.share / tuning.hold_share).clamp(0.0, tuning.p_max);
+    let p = (share.share / tuning.hold_share * tuning.p_scale).clamp(0.0, tuning.p_max);
     if rng.unit() >= p {
         return fine;
     }

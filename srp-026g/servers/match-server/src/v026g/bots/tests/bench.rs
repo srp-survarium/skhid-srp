@@ -228,6 +228,9 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     if let Ok(v) = bench_settings().var("SRP_BENCH_PERCH") {
         tuning.perch.on = v != "0";
     }
+    if let Some(x) = bench_settings().number::<f32>("SRP_BENCH_PERCH_P") {
+        tuning.perch.p_scale = x;
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX

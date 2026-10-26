@@ -89,6 +89,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::escape_ceiling: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
     s("SRP_BENCH_PERCH", "the tuning's (on)", "PerchTuning::on: `0` off (the hold plays pick no perch of the routes table), else on"),
+    s("SRP_BENCH_PERCH_P", "the tuning's (1)", "PerchTuning::p_scale: a multiplier on the share of hold picks that take a perch (the sweep: 1 and 2)"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),
