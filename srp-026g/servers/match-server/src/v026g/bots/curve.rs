@@ -112,6 +112,9 @@ pub enum Input {
     PathDist,
     /// The bot's health, `[0, 1]`.
     Health,
+    /// How much of the pools a consumable treats is missing, weighted by
+    /// what the loss costs, `[0, 1]` (`plays/heal.rs`).
+    Need,
     /// Enemies known within 25 m of the target.
     EnemiesNearTarget,
     /// Teammates (bots and humans) within 25 m of the target.
