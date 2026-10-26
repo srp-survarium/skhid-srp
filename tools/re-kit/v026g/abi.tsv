@@ -1981,3 +1981,5 @@ va	name	source	ret_cleanup	result
 0x002fc6e0	survarium::inventory::update_weight	manual	0	AL: 1 when it summed (only while +184h is set): +180h := the sum over the 23 slots of the item's +218h (kg a piece) x its count (+260h, u16, when its entry +25Ch has +22Ah set) plus a weapon's loaded ammo
 0x00018bd0	vostok::engine::engine_world::get_user_data_directory	manual	0	EAX: the folder (Documents\survarium, lower case, no last backslash; made once with SHGetFolderPathA and kept at [0xA264568])
 0x0032e3e0	survarium::bullet::apply_hit_impulse	manual	4	none; when the object hit has a physics body ([[EDI+1Ch]+0Ch], whose vtable +10h answers non-zero), applies [ESI] times the ammo's mass ([[entry ESP+4]+40h]+14h) as an impulse through [obj+2A8h] vtable +20h: the config's mass is the bullet's impulse on a prop (called from process_collision 0x32EBF6 with the velocity +1Ch, try_pierce 0x32DD9D and try_reflect 0x32E2AA with the speed lost)
+0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	manual	8	
+0x00236c30	survarium::game_world_ui::set_local_respawn_time	manual	4	
