@@ -64,7 +64,6 @@ impl RouteEnd {
     ];
 
     /// The name the bench prints.
-    #[cfg(any(test, feature = "jump-test"))]
     pub fn name(self) -> &'static str {
         match self {
             RouteEnd::Arrived => "arrived",
