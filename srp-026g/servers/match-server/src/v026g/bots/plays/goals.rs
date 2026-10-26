@@ -384,7 +384,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // the plays take one of the first three at random
-        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, None));
+        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0))));
     });
     out
 }
@@ -409,6 +409,7 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::Pl
             match *first_play {
                 None => *first_play = Some(play),
                 Some(first) if first != play => {
+                    perch_count_n(26, *age as usize);
                     // the bot's play changed before it got there
                     perch_count(25);
                     PERCH_LEFT.with(|m| {
@@ -464,7 +465,7 @@ fn lost_at(closest: f32) {
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 26]> = const { std::cell::Cell::new([0; 26]) };
+    static PERCHED: std::cell::Cell<[u64; 27]> = const { std::cell::Cell::new([0; 27]) };
     static PERCH_LEFT: std::cell::RefCell<std::collections::BTreeMap<String, u32>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
     static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32, Option<Option<super::PlayKind>>)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
@@ -491,7 +492,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 26] {
+pub fn perch_counts() -> [u64; 27] {
     PERCHED.with(|c| c.get())
 }
 
