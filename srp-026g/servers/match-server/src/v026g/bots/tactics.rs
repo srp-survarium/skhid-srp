@@ -28,6 +28,24 @@ use super::view::{EYE_CROUCHED, EYE_STANDING};
 pub const SPAWN_AREA_M: f32 = 20.0;
 /// A point is looked for on the grid within this, metres.
 const LOCATE_M: f32 = 3.0;
+/// How much height a spot earns [`SpotQuery::prefer_high`] for, metres: the
+/// reach of the old search (the grid's `locate` finds floors up to 2 m over
+/// the ring's point), so a spot on a storey above ranks with the best of the
+/// floor below, and what puts it first is its sight of the point, not its
+/// height.
+const HIGH_CREDIT_M: f32 = 2.0;
+/// Floors of one storey are this far apart at least, metres: a spot search
+/// takes one floor a band of this height of a column.
+const STOREY_BAND_M: f32 = 2.0;
+/// How far round a ring's probe a storey above is looked for, metres.
+const STOREY_RADIUS_M: f32 = 1.0;
+/// A spot higher than this over its anchor is on a storey above it, metres:
+/// the old search's reach.
+const STOREY_FROM_M: f32 = 2.0;
+/// How far past the ring's outer edge the walk up to a storey may go, and
+/// how many floors it may visit, metres and floors.
+const WALK_UP_MARGIN_M: f32 = 20.0;
+const WALK_UP_MAX_FLOORS: usize = 40_000;
 /// A use reaches this far from the eye, metres: the client's ray is
 /// `usable_objects_detection_distance`, 2.0 (PROVEN), and must hit the
 /// object's own shape; 0.2 is kept for the aim and the body's sway.
@@ -202,8 +220,14 @@ pub struct SpotQuery {
     pub sight_body: Option<Shape>,
     /// The spot must not be seen from this point.
     pub hidden_from: Option<Vec3>,
-    /// Prefer spots higher than `around` (by this weight per metre).
+    /// Prefer spots higher than `around` (by this weight per metre, up to
+    /// [`HIGH_CREDIT_M`] of height).
     pub prefer_high: f32,
+    /// Also look at the floors of the storeys above the one the ring is
+    /// on, up to this many metres over `around` (0: only the floor the
+    /// grid's [`WalkGrid::locate`] finds, which lies at most 2 m above it).
+    /// Only with a `sight_to`: a spot up there must see the point.
+    pub up_m: f32,
     /// The bot's map side: the other side's spawn area is out.
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
@@ -220,6 +244,7 @@ impl SpotQuery {
             sight_body: None,
             hidden_from: None,
             prefer_high: 0.0,
+            up_m: 0.0,
             side: None,
             samples: 48,
         }
@@ -1455,30 +1480,49 @@ impl Tactics {
                 query.around.y,
                 query.around.z + r * angle.sin(),
             );
-            let Some(node) = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 2.0) else {
-                continue;
-            };
-            let at = grid.position(node);
-            let d = at.distance_xz(query.around);
-            if d < query.min_m
-                || d > query.max_m
-                || !self.walkable(node)
-                || !self.allowed(node, time, query.side, false)
-            {
-                continue;
+            // The floor the grid finds near the probe, and with `up_m` the
+            // floors of the storeys over it.
+            let mut nodes: Vec<NodeId> = grid
+                .locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 2.0)
+                .into_iter()
+                .collect();
+            if query.up_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_over(probe, query.up_m, &mut nodes);
             }
-            if found.iter().any(|spot| spot.node == node) {
-                continue;
+            for node in nodes {
+                let at = grid.position(node);
+                let d = at.distance_xz(query.around);
+                if d < query.min_m
+                    || d > query.max_m
+                    || !self.walkable(node)
+                    || !self.allowed(node, time, query.side, false)
+                {
+                    continue;
+                }
+                if found.iter().any(|spot| spot.node == node) {
+                    continue;
+                }
+                let rise = (at.y - query.around.y).min(HIGH_CREDIT_M);
+                let score = query.prefer_high * rise - d * 0.01;
+                found.push(Spot { at, node, score });
             }
-            let score = query.prefer_high * (at.y - query.around.y) - d * 0.01;
-            found.push(Spot { at, node, score });
         }
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         // Rays lazily, from the best down.
         let mut out = Vec::new();
+        let mut by_walk: Option<std::collections::HashSet<NodeId>> = None;
         for spot in found {
             if out.len() >= n {
                 break;
+            }
+            // A spot on a storey over the anchor is one a walk up gets to (stairs,
+            // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
+            if spot.at.y > query.around.y + STOREY_FROM_M
+                && !by_walk
+                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .contains(&spot.node)
+            {
+                continue;
             }
             let eye = spot.at + Vec3::new(0.0, EYE_CROUCHED, 0.0);
             if let Some(target) = query.sight_to {
@@ -1502,6 +1546,82 @@ impl Tactics {
             out.push(spot);
         }
         out
+    }
+
+    /// The floors within `radius` (on the ground plane) of `around` that a
+    /// body gets to from the floor at `around` by walking links only (no
+    /// jump, no drop): stairs and ramps count, a ledge only a jump gets up
+    /// does not.
+    ///
+    /// Root cause (`push-record.md` V-S2a smoke): the bots' jumps are wrong
+    /// 89 % of the time and fail 40 % (the bench's wrong-jump detector, tip
+    /// 9ae23278, 1,416 presses in 64 matches); a spot reached only by a jump
+    /// chain sent bots to climbs the motor does badly (stuck +21 %, jump
+    /// stand-turn +31 % in the smoke of the search without this rule). The
+    /// jumps are the grid's and the motor's to mend; until they are, the
+    /// storeys over the ring are the ones a walk reaches.
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = std::collections::HashSet::new();
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return seen;
+        };
+        let mut queue = std::collections::VecDeque::from([start]);
+        seen.insert(start);
+        while let Some(u) = queue.pop_front() {
+            if seen.len() >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk
+                    && !seen.contains(&v)
+                    && grid.position(v).distance_xz(around) <= radius
+                {
+                    seen.insert(v);
+                    queue.push_back(v);
+                }
+            }
+        }
+        seen
+    }
+
+    /// Adds to `nodes` the floors over `probe` that the grid's `locate` does
+    /// not reach (more than 2 m over `probe.y`, up to `up_m` over it): the
+    /// nearest of each [`STOREY_BAND_M`] band within [`STOREY_RADIUS_M`] of
+    /// the probe, one that a walk gets to and no pocket holds. Read from the
+    /// grid's floors of the cells (no ray).
+    fn storeys_over(&self, probe: Vec3, up_m: f32, nodes: &mut Vec<NodeId>) {
+        let grid = &self.world.grid;
+        let r = STOREY_RADIUS_M;
+        let (low, high) = (probe.y + 2.0, probe.y + up_m);
+        let mut best: Vec<(usize, NodeId, f32)> = Vec::new();
+        for node in grid.floors_in([probe.x - r, probe.z - r, probe.x + r, probe.z + r]) {
+            let at = grid.position(node);
+            if at.y <= low || at.y > high || nodes.contains(&node) {
+                continue;
+            }
+            let d = at.distance_xz(probe);
+            // Not at an edge: a hold on a ledge strafes and turns in a fight and
+            // steps off it (the smoke of the search over every storey: falls off
+            // +16 % in all, +75 % on Cologne's decks).
+            if d > r
+                || !self.walkable(node)
+                || grid.in_pocket(node)
+                || grid.near_fall(node)
+                || grid.near_lip(node)
+            {
+                continue;
+            }
+            let band = ((at.y - low) / STOREY_BAND_M) as usize;
+            match best.iter_mut().find(|b| b.0 == band) {
+                Some(b) if d < b.2 => *b = (band, node, d),
+                Some(_) => {}
+                None => best.push((band, node, d)),
+            }
+        }
+        best.sort_by_key(|b| b.0);
+        nodes.extend(best.into_iter().map(|b| b.1));
     }
 
     /// The spots `find` gives for `key`, made once and kept until `now +
@@ -1963,6 +2083,141 @@ pub(super) mod tests {
                 .route_nodes(end_node, to, 0, Some(0), false, |_| true)
                 .is_some()
         );
+    }
+
+    /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it
+    /// from the ground at x 10..20, and a roof 4 m up no walk gets to at
+    /// x 50..60, z 28..38.
+    pub fn platform_world() -> Arc<World> {
+        let walker = mapdata::WalkerBehaviour::BySlope;
+        let quad = |a: Vec3, b: Vec3, c: Vec3, d: Vec3| {
+            [
+                mapdata::Triangle { v: [a, b, c], walker },
+                mapdata::Triangle { v: [a, c, d], walker },
+            ]
+        };
+        let mut triangles = floor(0.0, 0.0, 80.0, 40.0, 0.0).to_vec();
+        triangles.extend(floor(20.0, 28.0, 32.0, 38.0, 4.0));
+        triangles.extend(quad(
+            Vec3::new(10.0, 0.0, 28.0),
+            Vec3::new(20.0, 4.0, 28.0),
+            Vec3::new(20.0, 4.0, 38.0),
+            Vec3::new(10.0, 0.0, 38.0),
+        ));
+        triangles.extend(floor(50.0, 28.0, 60.0, 38.0, 4.0));
+        // A step of 1.2 m (a jump up from the ground) and a second one
+        // 1.2 m over it (2.4 m up): a ledge only a jump chain gets onto.
+        triangles.extend(floor(42.0, 28.0, 47.0, 38.0, 1.2));
+        triangles.extend(floor(47.0, 28.0, 51.0, 38.0, 2.4));
+        let grid = WalkGrid::build(
+            &triangles,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+        );
+        let map = field().map.clone();
+        Arc::new(World::assemble(
+            map,
+            grid.into(),
+            RayTree::build(&triangles).into(),
+        ))
+    }
+
+    /// V-S2a: a spot search looks at the storeys over the ring (up to
+    /// `up_m`) only when asked and only with a sight line to keep; what it
+    /// finds there is a floor a walk gets to, never the roof beside it.
+    #[test]
+    fn a_spot_search_finds_the_platform_over_the_ring_only_with_up_m() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        let anchor = Vec3::new(26.0, 0.0, 24.0);
+        let query = |up_m: f32, sight_to: Option<Vec3>| SpotQuery {
+            prefer_high: 1.0,
+            up_m,
+            sight_to,
+            side: Some(0),
+            samples: 600,
+            ..SpotQuery::ring(anchor, 0.0, 14.0)
+        };
+        let ys = |q: &SpotQuery| -> Vec<f32> {
+            tactics
+                .spots(q, 0, 40, &mut Rng::new(3))
+                .iter()
+                .map(|s| s.at.y)
+                .collect()
+        };
+        // The old search: the ground and the foot of the ramp (2 m).
+        let before = ys(&query(0.0, None));
+        assert!(!before.is_empty() && before.iter().all(|&y| y <= 2.01), "{before:?}");
+        // Without a sight line to keep the storeys are not looked at.
+        let blind = ys(&query(8.0, None));
+        assert!(blind.iter().all(|&y| y <= 2.01), "{blind:?}");
+        // With one (the ground and the platform's edge see the anchor).
+        let seen = ys(&query(8.0, Some(anchor)));
+        assert!(seen.iter().any(|&y| y > 3.5), "{seen:?}");
+        // The platform ranks with the best of the ground (its credit is
+        // capped), so the ground spots are still offered.
+        assert!(seen.iter().any(|&y| y < 1.0), "{seen:?}");
+        // And none of the spots up there is at the platform's edge.
+        let grid = &tactics.world.grid;
+        for spot in tactics.spots(&query(8.0, Some(anchor)), 0, 40, &mut Rng::new(3)) {
+            if spot.at.y > 3.5 {
+                assert!(!grid.near_fall(spot.node) && !grid.near_lip(spot.node), "{spot:?}");
+            }
+        }
+        // The roof is no walk's, in or out of the window.
+        let roof = SpotQuery {
+            prefer_high: 1.0,
+            up_m: 8.0,
+            sight_to: Some(Vec3::new(55.0, 4.0, 33.0)),
+            side: Some(0),
+            ..SpotQuery::ring(Vec3::new(55.0, 0.0, 33.0), 0.0, 4.0)
+        };
+        let on_roof = tactics
+            .spots(&roof, 0, 40, &mut Rng::new(3))
+            .iter()
+            .filter(|s| s.at.y > 3.0)
+            .count();
+        assert_eq!(on_roof, 0);
+    }
+
+    /// A storey only a jump chain gets onto is not offered over the ring:
+    /// the bots' jumps are the weak part of their climbing (V-S2a smoke).
+    #[test]
+    fn a_storey_only_jumps_get_onto_is_not_offered_over_the_ring() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        let anchor = Vec3::new(47.0, 0.0, 24.0);
+        let query = SpotQuery {
+            prefer_high: 1.0,
+            up_m: 8.0,
+            sight_to: Some(anchor),
+            side: Some(0),
+            ..SpotQuery::ring(anchor, 0.0, 14.0)
+        };
+        let ys: Vec<f32> = tactics
+            .spots(&query, 0, 60, &mut Rng::new(5))
+            .iter()
+            .map(|s| s.at.y)
+            .collect();
+        assert!(!ys.is_empty());
+        assert!(ys.iter().all(|&y| y <= 2.0), "{ys:?}");
+    }
+
+    /// Decisions with no storey over the ring are the old search's: the
+    /// same spots from the same stream.
+    #[test]
+    fn up_m_changes_nothing_where_no_storey_lies_over_the_ring() {
+        let tactics = Tactics::new(field(), 1.0);
+        let base = SpotQuery {
+            prefer_high: 0.5,
+            sight_to: Some(Vec3::new(30.0, 0.0, 30.0)),
+            side: Some(0),
+            ..SpotQuery::ring(Vec3::new(30.0, 0.0, 30.0), 5.0, 15.0)
+        };
+        let up = SpotQuery { up_m: 8.0, ..base };
+        let a = tactics.spots(&base, 0, 20, &mut Rng::new(9));
+        let b = tactics.spots(&up, 0, 20, &mut Rng::new(9));
+        assert!(!a.is_empty());
+        assert_eq!(a, b);
     }
 
     /// A roof one only drops from (3 m up; the jump is 1.3 m) is no goal:
