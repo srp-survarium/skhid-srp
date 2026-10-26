@@ -5,6 +5,7 @@ package
    import flash.display.BitmapData;
    import flash.display.BlendMode;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -47,6 +48,7 @@ package
    import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -394,6 +396,8 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         _keptLayer = new KeptLayer(this,this.keepLaidOut);
+         stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          super.addChild(this._stageLayer);
@@ -859,6 +863,77 @@ package
       public function interface_hidden() : Boolean
       {
          return this._interfaceHidden;
+      }
+
+      // Forced hidden for a whole match (Blackout, exe patch 65's hide_ui_force; docs/notes/blackout.md):
+      // the interface hidden as by the key, except what a forced match keeps: always the pre-match
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
+      // while the Tab list is asked for (show_player_list) the match's time left and, alive, the ammo,
+      // the quick-use slots and the body's state (critInd: the parts, bleeding, radiation, toxins) or, while the game shows the kits (the death screen, before the
+      // start), the kits to pick from (keptOnTab), not the list. A kept part is in _keptLayer
+      // (KeptLayer: on the stage over the root, placed as the root is), so the hidden root leaves it,
+      // and works there as in the root; back at its place in the root when not.
+      private var _keptLayer:KeptLayer;
+
+      private var _forced:Boolean;
+
+      // What Tab keeps now (keptOnTab at its last call): given back as it was when Tab goes up.
+      private var _tabKept:Array = [];
+
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this._forced = forced;
+         this._keptLayer.keep(this.keptWhenForced(),forced);
+         if(!forced)
+         {
+            this._keptLayer.keep(this._keptLayer.kept(),false);
+            this._tabKept = [];
+         }
+         this.hide_interface(forced);
+      }
+
+      public function interface_forced() : Boolean
+      {
+         return this._forced;
+      }
+
+      private function keptWhenForced() : Array
+      {
+         return [this.pregameInfo];
+      }
+
+      private function keptOnTab() : Array
+      {
+         if(this._profilePanel.visible)
+         {
+            return [this._profilePanel,this.matchTime()];
+         }
+         return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime()];
+      }
+
+      // Tab down or up (the game tells the movie at a change, game_world_ui::show_player_list): what
+      // keptOnTab says now kept, what it kept before and does not now given back.
+      private function keepOnTab(down:Boolean) : void
+      {
+         var now:Array = down ? this.keptOnTab() : [];
+         this._keptLayer.keep(this._tabKept.filter(function(part:*, i:int, all:Array):Boolean
+         {
+            return now.indexOf(part) == -1;
+         }),false);
+         this._keptLayer.keep(now,true);
+         this._tabKept = now;
+      }
+
+      // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
+      // its: placed by the same rule in the kept layer as in the root (the layer is placed as the
+      // root), at every resolution and interface scale, also when it was kept before the layout's
+      // first reflow (a match's start).
+      private function keepLaidOut(part:DisplayObject) : void
+      {
+         if(this.layout != null && part is Sprite && Sprite(part)["layoutData"] != null)
+         {
+            this.layout.manage(Sprite(part));
+         }
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1695,6 +1770,13 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         // Forced (Blackout): Tab shows the time left and the ammo and the quick-use slots, or the kits
+         // while the game shows them; never the list.
+         if(this._forced)
+         {
+            this.keepOnTab(bool);
+            return;
+         }
          this.player_list.visible = bool;
          this.questTaskList.visible = bool && this.questList.visible;
       }
@@ -1872,9 +1954,9 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
-         // a new match starts with the interface shown (the movie is the last match's; the exe's
-         // patch 62 shows the player icons' with it)
-         this.hide_interface(false);
+         // a new match starts with the interface shown and nothing forced (the movie is the last
+         // match's; the exe's patch 62 shows the player icons' with it, or forces both, patch 65)
+         this.force_interface_hidden(false);
          this.clear_minimap();
          this.chat.clear();
          this.show_ammo(false);
@@ -1979,14 +2061,18 @@ package
       
       public function set_match_time(time:String) : void
       {
+         this.matchTime().text = time;
+      }
+
+      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
+      // other modes' (progress_indicator's frames).
+      private function matchTime() : Object
+      {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
-            this.progress_indicator.match_time_2_tdm.text = time;
+            return this.progress_indicator.match_time_2_tdm;
          }
-         else
-         {
-            this.progress_indicator.match_time_2.text = time;
-         }
+         return this.progress_indicator.match_time_2;
       }
       
       public function show_context(bool:Boolean) : void
@@ -2513,6 +2599,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
+         this._keptLayer.place();
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

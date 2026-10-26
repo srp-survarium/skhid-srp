@@ -63,6 +63,7 @@ impl MatchHost for TestHost {
             match_id,
             match_level: setup.match_level,
             score_weights: SCORE_WEIGHTS,
+            blackout: false,
         };
         StaticInfo::new(&options, Dictionary::shared()).map_err(|error| error.to_string())?;
         self.open.locked().insert(match_id);

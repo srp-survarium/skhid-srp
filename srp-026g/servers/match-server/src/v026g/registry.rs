@@ -101,6 +101,9 @@ pub struct MatchSetup {
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
+    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
+    /// static info's flag (exe patch 65), on a battery map only.
+    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -192,6 +195,9 @@ pub(crate) struct Formed {
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// Whether the static info says Blackout (exe patch 65), the same for a
+    /// late joiner's.
+    pub blackout: bool,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -447,6 +453,7 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
+        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
         let options = MatchOptions {
             players: setup
                 .players
@@ -457,6 +464,7 @@ impl MatchRegistry {
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
+            blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -482,6 +490,7 @@ impl MatchRegistry {
                 places,
                 profiles,
                 score_weights,
+                blackout: options.blackout,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -596,6 +605,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
+                blackout: next.blackout,
             },
             Dictionary::shared(),
         )
@@ -953,6 +963,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
+    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
+    pub blackout: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

@@ -51,6 +51,15 @@ package survarium.rooms
         private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
+        // A vote card's mode tag: the protective devices blue, team
+        // deathmatch red, Research green, Blackout white.
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2};
+
+        public static function modeColour(mode:int):uint
+        {
+            var colour:* = MODE_COLOUR[String(mode)];
+            return colour != null ? uint(colour) : 0x5A8FB5;
+        }
 
         // A game's button in a colour: its art tinted, its label left white
         // (the owner's of 2026-10-20: the whole button tinted, its label too,

@@ -24,7 +24,7 @@ package survarium.rooms
     {
         private static const FORM_W:Number = 420;
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH,
-            GameMode.RESEARCH];
+            GameMode.RESEARCH, GameMode.BLACKOUT];
         // A slider after the design: the label and the gold value on one
         // line, a thin track gold up to a round gold knob, its range small
         // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
@@ -232,14 +232,16 @@ package survarium.rooms
             y += SLIDER_H;
             slider(y, win.say("wait"), "wait");
             y += SLIDER_H + 12;
-            // The modes: the two kinds of protective device apart, team
-            // deathmatch and Research; a mode out takes all its entries out of
-            // the pool. Rows of 24 px: four fit where three of 30 did.
+            // The modes the server's pool offers, in MODE_ORDER: the two kinds
+            // of protective device apart, team deathmatch, Research and
+            // Blackout; a mode out takes all its entries out of the pool. Rows
+            // of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
-            for (var mi:int = 0; mi < MODE_ORDER.length; mi++)
+            var offered:Array = poolModes();
+            for (var mi:int = 0; mi < offered.length; mi++)
             {
-                var mode:int = MODE_ORDER[mi];
+                var mode:int = offered[mi];
                 var toggle:Sprite = new Sprite();
                 toggle.x = 14;
                 toggle.y = y - 14;
@@ -568,6 +570,20 @@ package survarium.rooms
             else
                 _max = v;
             drawSlider(_drag);
+        }
+
+        // The modes of the pool's entries, in MODE_ORDER.
+        private function poolModes():Array
+        {
+            var modes:Array = [];
+            for (var m:int = 0; m < MODE_ORDER.length; m++)
+                for (var i:int = 0; i < win._pool.length; i++)
+                    if (int(win._pool[i].mode) == MODE_ORDER[m])
+                    {
+                        modes.push(MODE_ORDER[m]);
+                        break;
+                    }
+            return modes;
         }
 
         // The pool's entries by map and weather: a tile takes all its modes.

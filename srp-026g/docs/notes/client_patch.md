@@ -1650,6 +1650,54 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
   - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
   **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
+### 3.58 Blackout: a battery match with no interface but the players' markers (written 2026-10-24, README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11, the markers' feed, Tab and the input run with Unicorn with the game's own code; not run in a game
+
+- **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
+  them): a team colour painted into each torso's sleeve, carried in each player's profile; the
+  findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
+- **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
+  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
+  +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
+  chunk 1 (0x1F096C).
+- **The markers** (PROVEN in the code). The player icons' movie (`player_icons.swf`) is loaded with
+  each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons (0x23AA10,
+  from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props 0x23B1C0).
+  Its ids: a player's is his index (player::initialize_player_icon 0x1F29D0, 0x1F29E8); the
+  match's objects' from 25h (initialize_match 0x235771.., update_player_icons 0x23AA83: their
+  own list, each visible by team). The first Blackout build hid the movie at initialize_match's
+  reset with root.hide_interface and the owner still saw a teammate's name and marker: LIKELY the
+  hud then still held a movie that did not take it (the game world's own comes with it). So the
+  forced state is told from the feed: patch 62's `hide_ui_icons` before each update_player_icons
+  tells the movie the hud holds `root.force_interface_hidden` at a change of movie or state, and
+  again while the Invoke answers 0. Forced, the movie hides its objects' icons (ids from 37) and
+  shows the players' only while Tab is held (`root.force_interface_tab`, told with it; the owner,
+  2026-10-26).
+- **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
+  (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
+  the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
+  ebx the handler) builds the input's actions mask at handler+33Ch from action_present (0x242460)
+  per action (bits 0..28: forward 0Bh 1, back 0Ch 2, rstrafe 0Eh 8, lstrafe 0Dh 4, jump 4 10h, fire
+  26h 20h, reload 27h 40h, aim 28h/29h 80h, crouch 5/6 100h, sprint 7/8 200h, fire mode 9 400h, ammo
+  type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
+  use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
+  8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
+  After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
+  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the entry clears
+  bl (no Tab list), so 1 to 3 reach the kits Tab shows.
+- **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
+  them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
+  kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`
+  (scaleform_callback 0x233F06: game_world::select_profile 0x1F8070, then
+  show_profiles_selector(false), which does nothing while the game's +53C8h is set, 0x2383D8).
+  The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
+  0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
+- **The patch:** README patch 65. Exe code: the hooks at 0x25CD34 (`bo_tab_entry`, CALLEE) and
+  0x2421B0 (`bo_input_entry`, JUMP), the call of `bo_options` in patch 63's options entry,
+  `hide_ui_force` (the hud's root.force_interface_hidden), `hide_ui_icons` (the icons'
+  root.force_interface_hidden) and the `hide_ui_forced` byte in patch 62, `hide_ui_icons` called
+  from Research's per-frame icons entry (patch 53, 0x23B207). Movies: the hud's and the player
+  icons' `force_interface_hidden`. No content of its own.
+- **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

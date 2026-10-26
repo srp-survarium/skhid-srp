@@ -2153,3 +2153,67 @@ fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in()
     let inside = state(&mut world, first);
     assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
 }
+
+/// Blackout (`SRP_BLACKOUT=on`, `docs/notes/blackout.md`): the rooms offer
+/// each plain battery map of the pool once more as mode 6, by a lobby id of
+/// its own (its tile the battery map's), as part of the standard pool (the
+/// owner's of 2026-10-25): in the create window's defaults and in a room
+/// Play makes; Play puts players into a room that offers it; its match
+/// plays the battery map with the flag.
+#[test]
+fn blackout_is_a_mode_of_the_standard_pool() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117).
+    settings.maps = vec![61, 62, 117];
+    settings.rooms.blackout = true;
+    let mut world = World::with_settings(settings);
+    let entries = world.core.room_entries();
+    let blackout = maps::mode::BLACKOUT;
+    let offered: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.mode == blackout)
+        .copied()
+        .collect();
+    assert_eq!(offered.len(), 1, "{entries:?}");
+    let lobby_id = offered[0].map_id;
+    assert_eq!(maps::blackout_played(lobby_id), Some(61));
+    assert_eq!(
+        (offered[0].level, offered[0].weather),
+        (entries[0].level, entries[0].weather)
+    );
+    let index = entries
+        .iter()
+        .position(|entry| entry.mode == blackout)
+        .unwrap();
+
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    // The defaults have it.
+    let (_, chosen) = form(&mut world, alice);
+    assert!(chosen.contains(&lobby_id), "{chosen:?}");
+    // A room Play makes has it.
+    let made_by_play: u32 = play_into_room(&mut world, carol).parse().unwrap();
+    assert!(
+        world
+            .core
+            .rooms
+            .get(made_by_play)
+            .unwrap()
+            .pool
+            .contains(&lobby_id)
+    );
+    rows(&mut world, carol, ROOM_LEAVE, 1);
+    // Alice's room: Blackout alone. Play puts Bob into it.
+    rows(&mut world, alice, bits_start(0, 1 << index), 1);
+    let key = create(&mut world, alice, spec(6), None);
+    assert_eq!(play_into_room(&mut world, bob), key.to_string());
+    let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
+    let made = world.host.made.locked().clone();
+    let (_, setup) = made
+        .iter()
+        .find(|(id, _)| *id == ticket)
+        .expect("the room's match");
+    assert_eq!(setup.map_id, 61, "the battery map");
+    assert!(setup.blackout);
+}
