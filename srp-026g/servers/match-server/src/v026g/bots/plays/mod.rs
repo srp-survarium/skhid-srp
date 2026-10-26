@@ -301,6 +301,9 @@ pub struct Intent {
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
+    /// How near an exact spot (a goal within 0) the walk goes on to, metres: `None` ends it where every walk ends
+    /// ([`Feel::arrive_m`]). The jump test's walk to a start asks for a body within 0.3 m of it.
+    pub exact_arrive_m: Option<f32>,
 }
 
 impl Intent {
@@ -318,6 +321,7 @@ impl Intent {
             straight: false,
             zone_ok: false,
             failed_stand: None,
+            exact_arrive_m: None,
         }
     }
 
@@ -657,6 +661,15 @@ impl Ctx<'_> {
         let start = grid.locate(self.me.feet, 1.5);
         if start == Some(goal) {
             return true;
+        }
+        // Given up in its pocket (every exit tried): nothing outside it is
+        // reachable, whatever the grid's links say of the floors round it
+        // (`drive`'s search would end at once, `shut_in_gate`).
+        if self.tuning.think.shut_in_gate
+            && self.trapped().is_some_and(|t| t.gave_up)
+            && start.and_then(|s| grid.pocket_of(s)) != grid.pocket_of(goal)
+        {
+            return false;
         }
         let past = |b| self.tactics.past_fixed_zones(b);
         (past(goal) || grid.entered_from(goal, past))

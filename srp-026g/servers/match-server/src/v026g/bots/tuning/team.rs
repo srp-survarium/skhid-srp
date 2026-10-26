@@ -46,6 +46,30 @@ impl Default for ModTuning {
     }
 }
 
+/// The team's threat spots (K1, `threat.rs`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ThreatTuning {
+    /// The team remembers where a shooter kills from and its routes keep
+    /// out of his line (a soft preference); off, none of it runs.
+    pub spots: bool,
+    /// A bot walking to a goal in a held shooter's lane runs: it crosses
+    /// fast when there is no good way round, and keeps its task.
+    pub sprint: bool,
+    /// A route through a lane gets a local detour round it where there is a
+    /// short one (the search is capped, `search_floors`).
+    pub detour: bool,
+    /// Floors of a poll's search budget one search round the covered
+    /// regions may take (the poll's is `ThinkTuning::search_floors_per_poll`).
+    pub search_floors: u32,
+}
+
+impl Default for ThreatTuning {
+    fn default() -> Self {
+        Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
+    }
+}
+
 /// [`ThinkTuning::search_floors_per_poll`] by default: a floor expanded
 /// costs about 0.2 µs on a fast desktop core and 0.5 µs on the host's, so
 /// a poll searches for at most about 2 ms here and 5 ms there. Measured on
@@ -70,6 +94,12 @@ pub struct ThinkTuning {
     pub search_floors_per_poll: u32,
     /// A trace line at least this often per bot, ms.
     pub trace_every_ms: u32,
+    /// A bot that gave up the tries to leave its pocket (`escape::Trapped::gave_up`)
+    /// asks no search and takes no goal outside the pocket (`Ctx::reachable`,
+    /// `drive`): it is the escape's, and `stuck::SelfKill`'s at the end. Off (the default
+    /// until a train turns it on): it asks again for every goal the plays give it, every
+    /// 0.5 s, as it did.
+    pub shut_in_gate: bool,
 }
 
 impl Default for ThinkTuning {
@@ -80,6 +110,7 @@ impl Default for ThinkTuning {
             rays_per_poll: 400,
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
             trace_every_ms: 5_000,
+            shut_in_gate: false,
         }
     }
 }

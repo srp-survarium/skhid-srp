@@ -59,6 +59,7 @@ pub mod signals;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
+pub mod threat;
 pub mod trace;
 pub mod tuning;
 pub mod view;
@@ -133,6 +134,9 @@ pub struct Bot {
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
     self_killed_at: Option<u32>,
+    /// The regions the team's held threat spots see ([`threat`]), told at
+    /// the commander's ticks; its routes keep out of them where they can.
+    threat: Arc<threat::Covered>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -163,6 +167,9 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// The time of its last route search, for the bench's counts of asks (`search::asks`).
+    #[cfg(test)]
+    pub(crate) bench_asked: search::asks::Asked,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -293,6 +300,7 @@ impl Bot {
             stuck: Stuck::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
+            threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -309,6 +317,8 @@ impl Bot {
             no_way_to: Vec::new(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_asked: Default::default(),
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
@@ -588,6 +598,8 @@ impl Bots {
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
             self_kills: Vec::new(),
+            threat: threat::ThreatSpots::default(),
+            covered: None,
         };
         let bots = teams
             .iter()
@@ -834,6 +846,7 @@ impl Bots {
         if self.is_bot(place) {
             return;
         }
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -884,6 +897,7 @@ impl Bots {
 
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1047,6 +1061,7 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

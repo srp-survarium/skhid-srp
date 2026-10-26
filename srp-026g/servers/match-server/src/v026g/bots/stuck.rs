@@ -1127,6 +1127,11 @@ mod tests {
         assert_eq!(fallen.hopeless(t0 + 12_000, 0), None);
     }
 
+    /// The owner's rule: the defaults with the 60 s on.
+    fn rule() -> UnstickTuning {
+        UnstickTuning { suicide_after_ms: crate::v026g::bots::tuning::SUICIDE_AFTER_OWNER_MS, ..UnstickTuning::default() }
+    }
+
     fn facts() -> Facts {
         Facts {
             now: 100_000,
@@ -1143,7 +1148,7 @@ mod tests {
 
     fn sends(state: SelfKill, facts: &Facts) -> bool {
         matches!(
-            self_kill_step(state, facts, &UnstickTuning::default()),
+            self_kill_step(state, facts, &rule()),
             (SelfKill::Sent { tries: 1, .. }, Some(SelfKillAct::Send { again: false }))
         )
     }
@@ -1156,7 +1161,7 @@ mod tests {
     fn a_bot_kills_itself_only_when_every_rule_lets_it() {
         let ok = facts();
         assert_eq!(
-            self_kill_step(SelfKill::Ready, &ok, &UnstickTuning::default()),
+            self_kill_step(SelfKill::Ready, &ok, &rule()),
             (SelfKill::Sent { at: 100_000, tries: 1 }, Some(SelfKillAct::Send { again: false }))
         );
         let hopeless = |since| Facts { hopeless: Some(Hopeless { since, why: HopelessWhy::Pocket }), ..ok };
@@ -1186,7 +1191,7 @@ mod tests {
             assert!(sends(SelfKill::Ready, &facts), "{what}");
         }
         // The setting at 0 is never.
-        let off = UnstickTuning { suicide_after_ms: 0, ..UnstickTuning::default() };
+        let off = UnstickTuning { suicide_after_ms: 0, ..rule() };
         assert_eq!(self_kill_step(SelfKill::Ready, &ok, &off), (SelfKill::Ready, None));
     }
 
@@ -1196,7 +1201,7 @@ mod tests {
     /// gives the second up: it may ask again later.
     #[test]
     fn the_bit_is_sent_again_once_and_then_the_bot_is_barred() {
-        let rule = UnstickTuning::default();
+        let rule = rule();
         let sent = SelfKill::Sent { at: 100_000, tries: 1 };
         let at = |now| Facts { now, since_last_ms: Some(now - 100_000), team_last_minute: 2, ..facts() };
         assert_eq!(self_kill_step(sent, &at(103_999), &rule), (sent, None), "the world is not due");

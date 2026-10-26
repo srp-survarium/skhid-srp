@@ -306,6 +306,8 @@ struct PitRun {
     said: Vec<String>,
     end: Vec3,
     world: Arc<World>,
+    /// The route searches the bot made.
+    asked: u32,
 }
 
 /// The bot of `pit(1.6)`, shut in it with a goal outside, run to `until` ms
@@ -400,7 +402,25 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
             .collect(),
         end: game.bodies[0].feet,
         world,
+        asked: bots.bots[0].as_ref().map_or(0, |bot| bot.bench_asked.total),
     }
+}
+
+/// A bot given up in a pit stops asking for goals outside it (`shut_in_gate`): in 100 s the one that may not
+/// searches every 0.5 s (`NO_WAY_RETRY_MS`), the gated one only until it gave up.
+#[test]
+fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
+    let asks = |gate: bool| {
+        let mut tuning = Tuning::default();
+        tuning.think.shut_in_gate = gate;
+        tuning.unstick.suicide_after_ms = 0;
+        run_pit(tuning, 100_000)
+    };
+    let (gated, ungated) = (asks(true), asks(false));
+    eprintln!("gated {} ungated {}", gated.asked, ungated.asked);
+    assert!(ungated.asked >= 100, "it asks every 0.5 s: {}", ungated.asked);
+    assert!(gated.asked <= 10, "it gave up and asks no more: {}", gated.asked);
+    assert_eq!(gated.end.y, ungated.end.y, "both stay in the pit");
 }
 
 /// The last resort, whole: a bot shut in a pit with no exit gives up its
@@ -410,7 +430,9 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
 /// at its side's spawn after the mode's delay and goes on to its goal.
 #[test]
 fn a_bot_shut_in_a_pit_kills_itself_after_the_minute_and_comes_back() {
-    let PitRun { died, back, said, end, world } = run_pit(Tuning::default(), 100_000);
+    let mut tuning = Tuning::default();
+    tuning.unstick.suicide_after_ms = 60_000;
+    let PitRun { died, back, said, end, world, .. } = run_pit(tuning, 100_000);
     eprintln!("died {died:?} back {back:?} said {said:?}");
     assert_eq!(died.len(), 1, "once: {died:?}");
     assert!(died[0] >= 60_000, "not before the minute: {died:?}");
@@ -428,12 +450,10 @@ fn a_bot_shut_in_a_pit_kills_itself_after_the_minute_and_comes_back() {
     );
 }
 
-/// With the setting at 0 (the switch) the same bot stands in the pit to the end.
+/// With the setting at 0 (the default, the switch off) the same bot stands in the pit to the end.
 #[test]
 fn with_the_setting_at_zero_a_bot_in_a_pit_stays_there() {
-    let mut tuning = Tuning::default();
-    tuning.unstick.suicide_after_ms = 0;
-    let PitRun { died, said, end, world, .. } = run_pit(tuning, 75_000);
+    let PitRun { died, said, end, world, .. } = run_pit(Tuning::default(), 75_000);
     assert!(died.is_empty() && said.is_empty(), "{died:?} {said:?}");
     assert!(world.grid.locate(end, 1.0).is_some_and(|n| world.grid.in_pocket(n)), "{end:?}");
 }
