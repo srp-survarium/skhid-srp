@@ -194,12 +194,32 @@ struct Sim {
     tick: u32,
     /// Counts zone switches and state changes.
     changes: u64,
+    /// A timed core (`field_source::timed`): its chain of states runs on its timers as the client does (a state's
+    /// end is taken on the first tick past it, and the tick after an `energy_on_exit` chooses the next state, even
+    /// where nothing else would change). Stock cores keep the rules they were checked against real worlds with.
+    timed: bool,
 }
 
 impl Sim {
     /// Whether no tick can change anything until [`Self::next_event`].
     fn idle(&self) -> bool {
-        self.current.is_some() && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+        self.current.is_some()
+            && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+            // A timed core: not when a state's end has set an energy another state is chosen by.
+            && (!self.timed || self.finish != 0 || self.current == self.pick())
+    }
+
+    /// The state `select_state` (0x31BA90) takes when none holds it.
+    fn pick(&self) -> Option<usize> {
+        if self.states.is_empty() {
+            return None;
+        }
+        Some(
+            self.states
+                .iter()
+                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
+                .unwrap_or(0),
+        )
     }
 
     fn next_event(&self) -> u32 {
@@ -271,12 +291,9 @@ impl Sim {
             self.energy = (self.energy - self.decrease * TICK_MS as f32 / 1000.0).max(0.0);
         }
         // `select_state` 0x31BA90: a state with a finish time stays.
-        if !(self.current.is_some() && self.finish != 0) && !self.states.is_empty() {
-            let pick = self
-                .states
-                .iter()
-                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
-                .unwrap_or(0);
+        if !(self.current.is_some() && self.finish != 0)
+            && let Some(pick) = self.pick()
+        {
             if self.current != Some(pick) {
                 if let Some(old) = self.current {
                     for group in &mut self.states[old].groups {
@@ -312,7 +329,9 @@ impl Sim {
                     self.recharge(current, g, t);
                 }
             }
-            if self.finish != 0 && t >= self.finish {
+            // The first tick past the end for a timed core (`now > end`, 0x31BD16).
+            let ended = if self.timed { t > self.finish } else { t >= self.finish };
+            if self.finish != 0 && ended {
                 self.energy = self.states[current].energy_on_exit;
                 self.finish = 0;
             }
@@ -569,6 +588,7 @@ impl Anomalies {
             }
             let a = &anomaly.artefacts;
             let mut sim = Sim {
+                timed: super::field_source::timed(anomaly),
                 rng: core_seed(static_seed, &anomaly.name),
                 energy_enabled: anomaly.energy.enabled,
                 decrease: anomaly.energy.decrease_speed,
