@@ -1424,7 +1424,7 @@ impl JumpTest {
                         None => {
                             if active.redone < 3 {
                                 active.redone += 1;
-                                active.shift = shift_of(me.feet, row.feet);
+                                active.shift = redo_shift(active.shift, start, row.feet);
                                 log::info!("jump test: {} from {:?}: the rest position does not fit; redone, aiming {:?} off", active.def.id, row.feet, active.shift);
                                 active.phase = Phase::Go { since: now };
                             } else {
@@ -1603,11 +1603,14 @@ impl JumpTest {
     }
 }
 
-/// How far to aim the reckoning off the start after a rest that did not fit: the reckoning's lead over the body
-/// (`reckoned` against the `rest` row), if within [`SHIFT_MAX_M`]; else none (the reckoning was lost).
-fn shift_of(reckoned: Vec3, rest: Vec3) -> [f32; 2] {
-    let off = [reckoned.x - rest.x, reckoned.z - rest.z];
-    if off[0].hypot(off[1]) <= SHIFT_MAX_M { off } else { [0.0, 0.0] }
+/// How far to aim the walk off the start after a rest that did not fit: the last aim moved by the miss (`start` against the
+/// body's `rest`), so the next walk ends where the coast puts the body on the start. It is measured on the body, so it
+/// holds whatever the reckoning thought; kept within [`SHIFT_MAX_M`] of the start (further, the miss is not a coast: the
+/// body is somewhere else, and the next ordinary world puts the reckoning right).
+fn redo_shift(shift: [f32; 2], start: Vec3, rest: Vec3) -> [f32; 2] {
+    let next = [shift[0] + start.x - rest.x, shift[1] + start.z - rest.z];
+    let length = next[0].hypot(next[1]);
+    if length <= SHIFT_MAX_M { next } else { [next[0] / length * SHIFT_MAX_M, next[1] / length * SHIFT_MAX_M] }
 }
 
 /// Which team works each ledge: `sites` (key, start) sorted by how much nearer team 0's spawns are than team 1's; the
@@ -2316,17 +2319,18 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     }
 
     #[test]
-    fn after_a_misfit_the_reckoning_is_aimed_off_the_start_by_its_lead_over_the_body() {
+    fn after_a_misfit_the_walk_is_aimed_off_the_start_by_the_miss_of_the_body() {
         let start = Vec3::new(10.0, 2.0, 20.0);
-        // The reckoning stood at the aim, the body 0.4 m short (x): aim 0.4 m further (the reckoning's lead).
-        let (reckoned, body) = (Vec3::new(10.0, 2.0, 20.0), Vec3::new(9.6, 2.0, 20.1));
-        let shift = shift_of(reckoned, body);
-        assert!((shift[0] - 0.4).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
-        // Aimed there, a reckoning that stops on the aim puts the body (same lead) on the start.
-        let aim = (start.x + shift[0], start.z + shift[1]);
-        assert!(((aim.0 - shift[0]) - start.x).abs() < 1e-4);
-        // A reckoning 15 m off the body was lost: no shift (the next ordinary world puts it right).
-        assert_eq!(shift_of(Vec3::new(10.0, 2.0, 20.0), Vec3::new(-5.0, 2.0, 20.0)), [0.0, 0.0]);
+        // The body came to rest 0.5 m past the start (x) and 0.2 m to the side: aim 0.5 m short and 0.2 m back.
+        let shift = redo_shift([0.0, 0.0], start, Vec3::new(10.5, 2.0, 20.2));
+        assert!((shift[0] + 0.5).abs() < 1e-4 && (shift[1] + 0.2).abs() < 1e-4, "{shift:?}");
+        // Aimed there it came to rest 0.1 m past the aim: the shift adds up (an integrator), 0.6 short of the start.
+        let aim = Vec3::new(start.x + shift[0], 2.0, start.z + shift[1]);
+        let again = redo_shift(shift, start, Vec3::new(aim.x + 0.1, 2.0, aim.z));
+        assert!((again[0] + 0.6).abs() < 1e-4 && (again[1] + 0.2).abs() < 1e-4, "{again:?}");
+        // A rest 15 m off is no coast: the shift stays within the cap.
+        let far = redo_shift([0.0, 0.0], start, Vec3::new(25.0, 2.0, 20.0));
+        assert!((far[0].hypot(far[1]) - SHIFT_MAX_M).abs() < 1e-4, "{far:?}");
     }
 
     #[test]
