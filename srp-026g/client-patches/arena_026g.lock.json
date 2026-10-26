@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 159879,
-  "sha256": "a64d3d04cba0e728b23611d40cce44f2a0597794dd2de2508dbce86949902d21",
+  "size": 159933,
+  "sha256": "bcc8a651777a56a4a85c975653512610c7520bd7f88792352f58f98e2c7f0867",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -59,10 +59,10 @@
       "va": "0xa43b000",
       "size": 99616
     },
-    "suicide_key.code": {
+    "patches.code": {
       "kind": "code",
       "va": "0xa454000",
-      "size": 135
+      "size": 189
     }
   },
   "symbols": {
@@ -131,6 +131,7 @@
     "hide_ui_lobby": "0xa43511c",
     "hide_ui_match": "0xa435000",
     "hide_ui_reset": "0xa4350f0",
+    "hook_suicide_key_on_spot": "0xa454000",
     "kill_feed_event": "0xa438000",
     "kill_feed_row": "0xa43809f",
     "match_keys_chat": "0xa4330c3",
@@ -176,8 +177,7 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
-    "suicide_key": "0xa454000",
-    "suicide_key_hook": "0xa45401c"
+    "suicide_key_on_spot": "0xa4540a0"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

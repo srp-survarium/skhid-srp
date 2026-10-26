@@ -115,4 +115,16 @@ void engine_cc_bool(void *object, const char *name, unsigned char *value, unsign
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
+/* 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly */
+unsigned char __attribute__((stdcall)) engine_action_present(void *handler, unsigned int action, unsigned int *state);
+
+/* the IAT slot 0x870048 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_create_file_a)(const char * name, unsigned int access, unsigned int share, void * security, unsigned int disposition, unsigned int flags, void * template_file);
+
+/* the IAT slot 0x870108 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_write_file)(void * file, const void * bytes, unsigned int size, unsigned int * written, void * overlapped);
+
+/* the IAT slot 0x870040 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void * handle);
+
 #endif

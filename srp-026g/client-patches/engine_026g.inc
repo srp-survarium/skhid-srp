@@ -107,3 +107,19 @@ extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
+; unsigned char engine_action_present(void *handler, unsigned int action, unsigned int *state)
+; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_action_present
+; void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
+; the IAT slot 0x870048 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_create_file_a
+; unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)
+; the IAT slot 0x870108 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_write_file
+; unsigned int engine_close_handle(void *handle)
+; the IAT slot 0x870040 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_close_handle

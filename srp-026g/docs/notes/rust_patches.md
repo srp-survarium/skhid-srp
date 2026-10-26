@@ -1,166 +1,211 @@
 # Rust exe patches: the framework
 
-How to write a patch of the 0.26g exe in Rust, and how a port of an asm or C
-patch proves itself. The owner (2026-10-25): "we need to port all our asm we
-want to Rust", then "we first want the framework itself without much logic",
-and "good testing that our Rust implementation is behaviourally identical to
-asm/C". The framework is this note, `client-patches/rust/` (the workspace,
-`patch-core`), `client-patches/rust_hook_026g.inc` (the hook ABI),
-`client-patches/link_026g.py` (the build), `client-patches/equiv_026g.py`
-(the gate) and one example patch, the commit_suicide key (patch 34). No game
-logic is in the framework.
+How to write a patch of the 0.26g client exe in Rust, hook the game from it,
+and prove a port of an asm or C patch. The code is `client-patches/rust/`
+(the `patches` crate), `client-patches/engine_026g.py` and `hooks_026g.py`
+(the generators), `client-patches/link_026g.py` (the arena link) and one
+worked example, patch 34, the commit_suicide key.
 
-## 1. The decisions
+The owner's shape (2026-10-25/26): one arena crate, not one per patch; three
+layers `raw` -> `vostok` -> `patches`; the hook system modelled on NH3API /
+patcher_x86 but applied when the build writes the exe; equivalence is
+port-only tooling.
 
-| What | Decision | Why |
+## 1. The three layers
+
+A patch never touches a raw address or an `unsafe` block. Everything is in
+one crate, `client-patches/rust/patches`, in three layers:
+
+- **`raw`** (generated, unsafe, no logic): `extern` declarations for every
+  game function and the address of every object field. engine_026g.py writes
+  it (`engine_026g.rs`) from `engine_026g.tsv` (the functions) and
+  `fields_026g.tsv` (the fields). A function Rust can call directly (stdcall,
+  cdecl, thiscall) is declared in that convention at its VA; one the game
+  takes in registers keeps its cdecl thunk (block `engine.code`). kernel32's
+  imports are declarations over their IAT slots. Only `vostok` names `raw`.
+- **`vostok`** (the engine, safe and typed): handles (`InputHandler`),
+  enums and newtypes (`Action`, `ActionState`, `ActionMask`), and the hook
+  system. It is the only place with `unsafe`, each block with its invariant.
+  The runtime lives here too (the log, the panic handler, `memcpy`/`memset`,
+  `c_u32`), in `vostok::rt`/`vostok::log`.
+- **The patches** (`patches::<patch>`, one module each): safe logic over
+  `vostok`, `#![forbid(unsafe_code)]`. The example is `suicide_key.rs`.
+
+link_026g.py enforces the layering on every build (and the self-test
+repeats it): in the crate's own sources no game address, no hand-made
+binding (`GameFn`, `Import`, `transmute`, an `extern` block), and a patch
+module forbids `unsafe` and never names `raw`. A new game function is a new
+row of `engine_026g.tsv`, never a binding written by hand.
+
+## 2. One crate, i686 everywhere
+
+`rust/patches` is a `staticlib`, the arena's one block `patches.code` (with
+its generated hook entries). One copy of the core, one `memcpy`/`memset`, no
+per-patch page.
+
+Two builds, both i686 (`i686-unknown-linux-gnu`), so no `#[cfg(target_arch)]`
+appears anywhere:
+
+- the game's: link_026g.py builds the crate with the dev-shell nightly rustc
+  alone (no cargo, offline), `opt-level=s`, `panic=abort`, fat LTO, no
+  allocator; its bytes are `arena_026g.lock.json`'s.
+- the host's: `cargo test` and `cargo clippy --all-targets` in `rust/`, the
+  logic and the views, built for i686 too (`rust/.cargo/config.toml` sets the
+  target; the dev shell has the 32-bit std and linker). State a patch keeps
+  lives in `static`s (`vostok::GameCell`, below); nothing allocates.
+
+Logic shared beyond the client (with srp, the match server) is a library
+crate of its own -- pure Rust, no game bindings, so it needs no `cfg` -- that
+`patches` depends on; none exists yet.
+
+## 3. The hook system
+
+A hook is declared in a patch's `rust/patches/src/<patch>.toml` (TOML, read
+by hooks_026g.py). The build generates the NASM entry
+(`hook_entries_026g.asm`, block `patches.code`) and the `extern "C"` shim
+(`hooks_026g.rs`, inside `vostok`), installs the site, and audits the
+overlap. The kinds, modelled on NH3API's HiHook/LoHook applied at build
+time:
+
+| Kind | What | The handler gets |
 |---|---|---|
-| Layout | One cargo workspace, `client-patches/rust/`: `patch-core` and **one crate per patch** | Each patch is its own ARENA block (one object each): its bytes, its size and a failure are its own; a change of one patch moves no other's code. `patch-core` is linked into each (fat LTO keeps only what a patch uses); its weak `memcpy`/`memset` and its panic handler are the only shared symbols. |
-| Not in srp-026g's workspace | `rust/` is a workspace of its own | The server never links these; their host build (`cargo test`) leaves out what is x86-only. Logic the server shares (the sync core) stays a crate of srp-026g's workspace that a patch names by path. |
-| The game's build | `link_026g.py` (moved from #452): rustc alone, offline, i686, `-C opt-level=s -C panic=abort -C codegen-units=1`, fat LTO, static relocation, `target-cpu=pentium4` | No cargo (`-Zbuild-std` needs crates.io); the bytes are the lock's, rebuilt by every build. |
-| Allocator | **None** | A patch keeps its state in `static`s (the block's `.state`, zeros) and allocates what the game owns with the game's allocator (`engine::engine_malloc`). No bump arena: nothing needs one, and a heap of ours would be a second allocator the game cannot see. |
-| Toolchain pin | The dev shell's nightly with `rust-src` (`flake.nix`, pinned by `flake.lock`'s rust-overlay); the lock's `built_with` names the rustc | An update of the pin changes the arena's bytes, and the build stops until the lock is written again on purpose (the same rule as NASM 2.16). |
-| Hook ABI | Three NASM macros (`rust_hook_026g.inc`); the Rust side `extern "C"` | The game's frames are aligned to 4, rustc's i686 code assumes 16 (it keeps 16-byte locals with `movaps`: a crash on a misaligned frame). Only a macro enters Rust, and it aligns. |
-| Engine calls | The engine library (`engine_026g.tsv` -> generated `engine_026g.rs`), `GameFn` for plain cdecl/stdcall/thiscall, `Import` for kernel32 | A function in registers gets a cdecl thunk proved against the exe (`check_engine_026g.py`); Rust never writes a register convention by hand. |
-| Game memory | `Field<K, T>` offsets of an object kind `K`, `Obj<K>`, `Global<T>`, `Va` | An offset is named once as a constant; a field of another kind does not compile; a pointer field reads as `Option<Obj<_>>`. No offset arithmetic in patch code. |
-| Types | `GameTime`, `Tick`, `Place`, `Va`; one enum a state; `parse::Reader` / `Parse` | AGENTS.md "Types and states": raw input parsed once at the boundary. |
-| Panics | A log line (file and line) to `srp_patches.log`, then `ud2` | A panic is a bug, never a refusal: a hook refuses with a value and its entry takes the game's own path. There is no unwinding, and nothing goes on half done: the crash reporter gets our address, the log the line. A recovery (an SEH frame per entry) was looked at and left out: the exe's handlers and Wine make it a path nobody tests. |
-| Log | `patch_core::log::line(&[Text(..), Hex(..), Dec(..)])` to `srp_patches.log` beside the exe | No `core::fmt` (kilobytes of arena); kernel32 through the exe's IAT. |
-| Tests | Host `cargo test` (logic, views); the patch's Unicorn `check_*` on the built exe, unchanged; **the equivalence gate** for a port | |
-| Size | `link_026g.py --sizes` per block, against `ARENA_LIMIT` (1 MiB) | A port reports its block's bytes before and after. |
+| `call` | a game `call F` (and any pushes before it) | F's typed arguments and `Original<F>`; it decides whether and when to `orig.call(..)`, and returns F's result or a named `Exit` |
+| `splice` | a function's start, through a trampoline | the same, the original a trampoline; `replace` when ours is the whole body |
+| `pointer` | a function pointer in the image | the same; `Original` is the old pointer |
+| `lohook` | a detour anywhere (>= 5 bytes) | `&mut Context`, returning a `Flow` |
+| `vtable` | a run-time copy of a vtable with slots ours | each slot in its convention |
+| `callback` | a function the game is handed | its typed arguments |
+| `write` | a `byte`, `word`, `dword`, `float`, `bytes` or pointer, with its expected original | nothing |
+| `code` | hand-written NASM with a byte limit, where nothing above fits | -- |
 
-## 2. Writing a patch
+**`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
+`al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
+(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
+frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
+the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
+hook's named exits, so a continuation is never return-address arithmetic in
+Rust. An exit is a jump inside the host function or a `host_return { pop,
+value }`.
 
-1. A crate `client-patches/rust/<patch>/`: `Cargo.toml` (`crate-type =
-   ["staticlib"]`, `patch-core = { path = "../patch-core" }`, `[lints]
-   workspace = true`), a member of `rust/Cargo.toml`. `src/lib.rs` starts
-   `#![cfg_attr(target_arch = "x86", no_std)]` (no_std in the game, std on
-   the host for its tests). The game's side (hooks, `stdcall`, `GameFn`
-   constants of a convention) is `#[cfg(target_arch = "x86")]`; the logic is
-   plain and tested on the host.
-2. Its NASM entry, `client-patches/<patch>_026g.asm`, ten lines or so:
+Every `lohook`/`splice` entry saves and restores the full register, flag and
+FPU/SSE state (`fxsave`/`fxrstor`); the result register the row declares is
+written into the saved state (or `st0` loaded) on the way out. A `call`/
+`pointer` entry wraps a call boundary, where the host already treats
+`eax`/`ecx`/`edx`/xmm as clobbered, so it only aligns the stack, passes the
+arguments and cleans up as the function did; it adds no `fxsave`.
 
-   ```nasm
-   bits 32
-   section .text
-   %include "rust_hook_026g.inc"
-   global suicide_key
-   suicide_key:
-       RUST_HOOK suicide_key_hook      ; registers saved, stack aligned, Rust called, registers back
-       jmp 0x242460                    ; the replaced call, as the game made it
-   ```
+**Chains**: several hooks on the same site declare an `order`; a partial
+overlap fails the build. In a `call`/`splice` chain each handler's `Original`
+is the next; in a `lohook` chain the first non-`Continue` flow ends it.
+**Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
+State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
+a hook (a `Thread` token), so patch code stays safe and single-threaded.
 
-   - `RUST_HOOK target`: in the middle of the game's code (a replaced call, a
-     jump to us): `target(regs: &mut Regs)` sees every register, the flags
-     and the game's stack at the entry (`regs.stack(i)`), and what it writes
-     to `Regs` is what the game's code after the entry gets (a result in EAX
-     or AL, ZF for a `jz` after it). The entry then does the replaced
-     instructions and jumps back.
-   - `RUST_THISCALL name, target, n`: a vtable slot or delegate the game calls
-     with ECX and `n` stack dwords (`ret 4n`): `extern "C" fn target(this,
-     a, ..) -> R`.
-   - `RUST_CDECL name, target, n`: a cdecl function the game calls.
-3. Its ARENA row in `patch_026g.py`: `ArenaBlock("<patch>.code", "code",
-   0x1000, ("<patch>_026g.asm", "rust/<patch>/Cargo.toml"))` (and a
-   `"<patch>.state"` block naming the crate if it has `static`s); its hooks
-   as (site, bytes, symbol, opcode) rows applied with the arena's; each
-   declared in `INSTALLS` (client_patch.md 0.4); `python link_026g.py
-   --write`.
-4. Game memory through views, declared once:
+The TOML schema (a `call` row shown; the other kinds' keys are in
+hooks_026g.py):
+
+```toml
+name = "suicide_key"       # = the module
+patch = 34
+
+[[call]]
+at = 0x242196              # the site
+original = "e8c5020000"    # the replaced `call rel32`; at + 5 + rel32 must be F's VA
+function = "engine_action_present"   # F, a row of engine_026g.tsv (stdcall or cdecl)
+handler = "on_spot"        # patches::suicide_key::on_spot
+returns = "bool"           # mapped from F's result
+original_name = "OrigActionPresent"  # the generated Original<F> type
+what = "the input builder's last action query (spot)"
+args = ["handler: InputHandler", "action: Action", "state: Out<u32>"]
+```
+
+Only the kinds a ported patch needs are generated today: `call` (the
+example) and `write`. `splice`, `lohook`, `pointer`, `vtable`, `callback`
+and `code` are the design above and the `Context`/`Flow`/`Exit` API in
+`vostok`; hooks_026g.py refuses them until their first patch, which adds the
+entry (the register save/restore `lohook` needs, the reverse thunk a
+register-ABI `call` needs).
+
+## 4. Writing a patch, by the example
+
+Patch 34: the input builder never asks the handler for commit_suicide, so
+the input's suicide bit, which the simulation still reads, is never set. The
+patch wraps the builder's last action query (spot) and, before it, sets the
+bit when the key went down.
+
+1. **The `vostok` types** the patch needs, added to `vostok` once:
+   `InputHandler` (a handle), `Action` (a newtype, so the game's unmodelled
+   actions pass through), `ActionState` (an enum; an unknown value is a typed
+   refusal, not a panic), `ActionMask::SUICIDE`. New game functions and
+   fields are rows of `engine_026g.tsv` / `fields_026g.tsv`.
+2. **The module**, `rust/patches/src/suicide_key.rs`, `#![forbid(unsafe_code)]`:
 
    ```rust
-   pub enum InputHandler {}
-   pub const ACTIONS: Field<InputHandler, u32> = Field::at(0x33C);
-   #[cfg(target_arch = "x86")]
-   pub const ACTION_STATE: GameFn<unsafe extern "stdcall" fn(u32, u32, *mut u32) -> u8> =
-       GameFn::at(Va(0x242460));
-   // ...
-   let Some(handler) = Obj::<InputHandler>::at(Va(regs.ebx)) else { return };
-   handler.set(ACTIONS, handler.get(ACTIONS) | SUICIDE);
+   pub fn on_spot(spot: &OrigActionPresent, handler: &mut InputHandler,
+                  action: Action, state: &mut Out<u32>) -> bool {
+       if handler.action_state(Action::COMMIT_SUICIDE) == Some(ActionState::Down) {
+           handler.add_actions(ActionMask::SUICIDE);
+       }
+       spot.call(handler, action, state)
+   }
    ```
 
-   A function the game takes in registers is a row of `engine_026g.tsv` (and
-   of the re-kit), called as `patch_core::engine::engine_<name>(..)`.
-5. State: `#[repr(C)]` structs mirroring what the game (or an older patch's
-   layout) holds, its states enums; a byte read from the game is parsed with
-   a `match` (or `Option<Team>`-style niches proven by a `const` assert),
-   never transmuted.
-6. A port of C that converts floats to unsigned keeps the C's results with
-   `patch_core::c_u32` (gcc -m32: x87 `fistp` to 64 bits); float arithmetic
-   is SSE single or double precision in both (the C patches' `-msse2
-   -mfpmath=sse -ffp-contract=off`), in the C's order. A float path whose
-   results cannot be matched stays asm or C.
+   No `Regs`, no pointer, no address, no `cfg`: it reads the handler, sets a
+   bit, and asks the game's own function for the spot the site wanted.
+3. **The TOML** (section 3), declaring the `call` hook; `pub mod suicide_key`
+   in `lib.rs`, `"suicide_key"` in `RUST_PATCHES` (patch_026g.py).
+4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
+   `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
+5. **Check** (section 5).
 
-## 3. Proving a port: the equivalence gate
+## 5. The build and the checks
 
-**A port is accepted only with the gate green**: zero differences and every
-basic block of the old code covered.
-
-```
-python equiv_026g.py <patch> <original survarium.exe> [--old REV] [--cases N] [--states DIR]
-```
-
-The spec `client-patches/equiv/<patch>.py` says:
-- `HOOKS`: where the game enters the patch (`Hook(name, site, live,
-  externals)`: the run starts at the game's own instruction at `site`, ends
-  at the first leaving of the patch's code that is not a call; `live` the
-  registers compared there);
-- `EXTERNALS`: every game function the patch calls (`External(name,
-  inputs, pops, model, real)`: its inputs are compared; a stub (`model`) or
-  the game's own code (`real=True`));
-- `ranges(P, linked)` and `entries(P, linked)`: where the patch's code is in
-  a build (the old one's `.srp` offset or the new one's arena block);
-- `cases(seed, count)`: (a) the patch's `check_*` cases, (c) edge values
-  (0, all ones, boundaries; for floats NaN, infinities, denormals and the
-  x87/SSE cases), (b) thousands of seeded random states in the hook's input
-  domain. `--states DIR` adds (d) captured states (JSON: hook, regs, stack,
-  memory), for example from `private/local-clients/runtime/`; never from
-  `private/live-worlds-*` without asking.
-
-It builds the old exe from `--old` (the commit before the port by default:
-`git archive` of client-patches, crates and the re-kit, the sysroot shared)
-and the new one from the working tree, and runs every case in both: the same
-registers, stack and memory, and memory the case does not give made from the
-case's seed and the address (lazily mapped pages, alike in both). It
-compares the exit (its address, the live registers, ESP), every call into
-the game in order with its inputs, and the final bytes of every place either
-run wrote outside its private stack (an arena block's bytes by block and
-offset, so the layouts of old and new compare). Then the old code's coverage:
-its basic blocks by recursive descent (ndisasm) against Unicorn's block hook.
-
-The example (patch 34, the NASM it replaced against the Rust): 3000 cases (5
-x 8 edge masks, check_suicide_key's ten cases with the game's own
-action_state on made-up event buffers, the rest random: stubbed answers and
-random buffers), **0 differences, 5/5 basic blocks**. A broken port (a
-repeated key also kills) shows as 15 differing cases in 300, each printed
-with the byte that differs.
-
-## 4. The other checks
-
-- The patch's own Unicorn check (`check_<patch>_026g.py`) runs **unchanged**
-  on the built exe: it enters through the game's site, so where the code is
-  does not matter. Only plumbing that names a layout (a `.srp` offset, a
-  symbol) is adapted, and the commit says what and why.
-- `selftest_026g.py`: the site, the block's bytes (the link's), the entry's
-  instructions, where the code goes outside.
-- `cargo test` and `cargo clippy --all-targets` in `client-patches/rust`.
-- `python link_026g.py --sizes`: the block's bytes before and after.
+- **Generators**: engine_026g.py (`--write`/`--check`) writes the `raw`
+  layer; hooks_026g.py (`--write`/`--check`) writes the entries and shims
+  from the TOML and lists the installs (with their owning patch) for
+  patch_026g.py. link_026g.py links the arena and writes the lock; it builds
+  the crate and runs the layer check first.
+- **Overlap audit**: hooks_026g.py rejects two Rust hooks whose replaced
+  spans overlap (each hook names its patch); the whole arena's audit, across
+  the asm and C installs too, is selftest_026g.py's span check (it now
+  includes the Rust hooks).
+- **Sizes**: `python link_026g.py --sizes` prints each block's bytes and
+  pages and, for `patches.code`, each patch's bytes from its symbols -- the
+  budget a port reports before and after.
+- **Tests**: `cargo test` and `cargo clippy --all-targets` in `rust/` (i686);
+  the patch's own Unicorn check unchanged (`check_suicide_key_026g.py` runs
+  the site to the reconvergence point against the original exe, which is the
+  behavioural proof and handles the call-and-return shape); `selftest_026g.py`
+  check 35 (the action table, the builder's 35 queries without 1Fh and
+  without the bit, the consumer and its one caller, the site, the generated
+  entry's shape, the blocks and the lock) plus the engine, hooks-staleness
+  and layer checks.
 - **Not run in a game** until the owner plays it.
 
-## 5. What a crate costs
+## 6. Porting an asm/C patch: the equivalence gate
 
-The example's block is 135 bytes: the entry (26, then 2 of padding), the hook (63) and the
-weak `memcpy`/`memset` (44, kept by every crate that links `patch-core`:
-weak symbols are exported). A panic adds its location (file name and line)
-to `.rodata`; `core::fmt` is never linked (the log takes pieces).
+`client-patches/port/equiv_026g.py` is **port-only tooling** (the owner,
+"equivalence is only needed while we do the port"); the `port/` folder is
+deleted once the last port lands. It builds the exe with the old patch (asm
+or C, at a git revision) and the exe with the new Rust and runs each hook of
+`port/equiv/<patch>.py` from the same input states in both -- the patch's
+check cases, edge values, seeded random states, captured states -- comparing
+the exit, the calls into the game and the memory written. It suits a port
+that keeps the original's control-flow shape (a tail jump to the same
+reconvergence). The holistic `call` hook wraps the original with
+call-and-return instead, so a ported patch's fidelity is proven by its own
+Unicorn check against the original exe (`check_<patch>_026g.py`), which runs
+to the reconvergence point; the gate stays for shape-preserving ports and as
+the porting model.
 
-## 6. What moved from #452
+The equivalence gate may skip an out-pointer argument and a slot the game
+never reads again (declared in the spec, with the proof cited), and a new
+Rust patch that is not a port needs no spec -- its Unicorn check and cargo
+tests are enough.
 
-From `feat/sync-core` (#452), unchanged: `link_026g.py`'s Rust support
-(crate sources, the sysroot, the build) and `engine_026g.py`'s Rust output
-(`engine_026g.rs`). #452 keeps the sync core: `crates/sync-core`,
-`sync_core_arena`, `sync_core_026g.asm`, its ARENA rows, its engine row and
-its checks. On its rebase onto this framework: `sync_core_arena` becomes
-`rust/sync_core` (or keeps its folder) and drops its own panic handler for
-`patch-core`'s, includes the engine declarations through `patch_core::engine`,
-and its entry can be `RUST_THISCALL`-style or stay as it is (it already
-aligns).
+## 7. What a crate costs
+
+The example's `patches.code` is about 190 bytes: the generated entry
+(`RUST_CALL`), the shim, `OrigActionPresent::call`, and the weak
+`memcpy`/`memset` the arena keeps one of. `core::fmt` is never linked (the
+log takes pieces). `link_026g.py --sizes` gives the per-patch bytes.

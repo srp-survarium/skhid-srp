@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""The equivalence gate of a port (docs/notes/rust_patches.md, "Proving a
-port"): the exe built with the OLD patch (asm or C, at a git revision) and
-the exe built with the NEW one (the working tree, Rust), each hook run from
-the same input states in both, everything observable compared.
+"""The equivalence gate of a port (docs/notes/rust_patches.md, "Porting an
+asm/C patch"): the exe built with the OLD patch (asm or C, at a git
+revision) and the exe built with the NEW one (the working tree, Rust), each
+hook run from the same input states in both, everything observable compared.
 
-    python equiv_026g.py <patch> <original survarium.exe> [--old REV]
+This is port-only tooling, in client-patches/port/: the owner, "equivalence
+is only needed while we do the port", and the folder is deleted once the
+last port lands. It compares a port that keeps the original's control-flow
+shape (a tail jump to the same reconvergence). A `call` hook that wraps the
+original with call-and-return (the holistic framework's shape) is proven
+instead by the patch's own Unicorn check against the original exe
+(check_<patch>_026g.py), which runs to the reconvergence point.
+
+    python port/equiv_026g.py <patch> <original survarium.exe> [--old REV]
         [--cases N] [--seed S] [--states DIR] [--min-coverage PCT]
 
 <patch> names equiv/<patch>.py, the port's spec: its hooks (where the game
@@ -48,8 +56,10 @@ import subprocess
 import sys
 import tempfile
 
-HERE = Path(__file__).resolve().parent
-REPO = HERE.parent.parent
+HERE = Path(__file__).resolve().parent     # client-patches/port
+CLIENT = HERE.parent                       # client-patches
+REPO = HERE.parent.parent.parent           # the repo root
+ARENA_SCRATCH = HERE.parent.parent / "target-arena"
 
 # A case's own stack and the stop address, away from the exe and the heap.
 STACK_TOP, STACK_SIZE = 0x7F000000, 0x40000
@@ -131,7 +141,7 @@ def old_tree(rev, into):
                               "tools/re-kit"], capture_output=True, check=True).stdout
     into.mkdir(parents=True)
     subprocess.run(["tar", "-x", "-C", str(into)], input=archive, check=True)
-    shared = HERE.parent / "target-arena"                  # the sysroot, keyed by rustc: shared
+    shared = ARENA_SCRATCH                                 # the sysroot, keyed by rustc: shared
     shared.mkdir(exist_ok=True)
     os.symlink(shared, into / "srp-026g" / "target-arena")
     return into / "srp-026g" / "client-patches"
@@ -395,10 +405,10 @@ def main():
     if not args.patch or not args.original:
         parser.error("name the patch (equiv/<patch>.py) and the original exe")
     spec_path = HERE / "equiv" / f"{args.patch}.py"
-    sys.path.insert(0, str(HERE))
+    sys.path.insert(0, str(CLIENT))
     spec = load_spec(spec_path)
     import patch_026g as base
-    with tempfile.TemporaryDirectory(prefix="srp-equiv-", dir=HERE.parent / "target-arena") as folder:
+    with tempfile.TemporaryDirectory(prefix="srp-equiv-", dir=ARENA_SCRATCH) as folder:
         folder = Path(folder)
         print(f"building the old exe ({args.old}) and the new one (the working tree)", flush=True)
         old_exe, old_meta = build(old_tree(args.old, folder / "tree"), args.original, spec_path, folder / "old")

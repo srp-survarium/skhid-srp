@@ -82,9 +82,10 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425D40 -DSTATE=0xA428E20 -DLIMITS=0xA425A98 warmup_look_026g.asm -o warmup_look_026g.section.bin
         nasm -f bin -DCAVE=0xA425A98 warmup_limits_026g.asm -o warmup_limits_026g.section.bin
     (checked in; STATE is 0xE20 of the late join's state page, checked)
-    (checked in). The commit_suicide key is the arena's block suicide_key.code
-    (suicide_key_026g.asm and the Rust crate rust/suicide_key, linked by
-    link_026g.py). A spot's hit on a battery's body comes from spot_026g.asm:
+    (checked in). The commit_suicide key is the Rust patch suicide_key, in
+    the arena's block patches.code (rust/patches, hooks_026g.py, link_026g.py;
+    docs/notes/rust_patches.md). A spot's hit on a battery's body comes from
+    spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
     (checked in). The camera on the death screen comes from death_camera_026g.asm,
     a section of its own, `.srpc`, on the page after the late join's state page:
@@ -343,8 +344,8 @@ Patches:
   join, client_patch.md section 3.32): the input builder (0x241250) never
   asked for action 1Fh, so the action mask never had bit 24, which the match
   simulation still reads as a hit on one's own head (0x2D8BC1). Its last
-  action call (0x242196) calls suicide_key (the arena's block
-  suicide_key.code, Rust) first, which sets bit 24 on the key going down;
+  action call (0x242196) calls the Rust patch suicide_key (the block
+  patches.code) first, which sets bit 24 on the key going down;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -526,6 +527,7 @@ import re
 import struct
 import sys
 
+import hooks_026g
 import link_026g as linker
 
 IMAGE_BASE = 0x10000
@@ -1130,15 +1132,23 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # 0x2D86E0 for every player's input): a hit on the player's own head bone
 # "brain" (vtable+20h = 0x2D9AE0 -> hit_impl 0x2D9B90), the attacker the
 # player; on_player_killed (0x2F4F38) counts a death and a suicide for it,
-# no kill. The builder's last call (spot, 0x242196, ebx = the handler) calls
-# suicide_key (suicide_key_026g.asm, the arena's block suicide_key.code, with
-# the Rust crate rust/suicide_key: the framework's example patch,
-# docs/notes/rust_patches.md): it asks 0x242460 for 1Fh, sets bit 24 when
-# the key went down (state 0, as spot does), and jumps to 0x242460 with the
-# original arguments and return address. No base relocation under the site.
-# (Until the Rust port it was NASM at 0x980 of `.srp`, now int3.)
+# no kill. The builder's last call (spot, 0x242196, ebx = the handler) is a
+# Rust `call` hook, suicide_key::on_spot (the arena's block patches.code,
+# rust/patches, the framework's example patch, docs/notes/rust_patches.md):
+# before the spot query it asks action_present (0x242460) for 1Fh and sets
+# bit 24 when the key went down (state 0, as spot does), then does the spot
+# query the site wanted and returns its answer. No base relocation under the
+# site. (Until the Rust framework it was NASM at 0x980 of `.srp`; the port
+# before it, a Rust crate per patch with a tail jump.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
-SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), "suicide_key", 0xE8)
+
+# The Rust exe patches (docs/notes/rust_patches.md): the module names (for
+# link_026g.py --sizes) and the hooks the patches declare in their TOML,
+# applied like the other arena hooks (site VA, the bytes replaced, the
+# arena symbol of the generated entry, the opcode).
+RUST_PATCHES = ("suicide_key",)
+RUST_HOOKS = tuple((va, original, symbol, opcode)
+                   for va, original, symbol, opcode, _owner in hooks_026g.installs())
 
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
@@ -2186,7 +2196,7 @@ INSTALLS = {
     0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
     0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
     0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
-    0x242196: (CALLEE, "the input builder's last action call: suicide_key", None, None),
+    0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
     0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
@@ -2486,9 +2496,10 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
-    # patch 34, the commit_suicide key: the NASM entry and the Rust crate (the
-    # Rust framework's example, docs/notes/rust_patches.md)
-    ArenaBlock("suicide_key.code", "code", 0x1000, ("suicide_key_026g.asm", "rust/suicide_key/Cargo.toml")),
+    # The Rust exe patches (the framework's example is patch 34, the
+    # commit_suicide key): one crate, its generated hook entries, the arena's
+    # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
+    ArenaBlock("patches.code", "code", 0x1000, hooks_026g.arena_sources()),
 )
 
 
@@ -2498,6 +2509,11 @@ def arena(blocks=None, tools=None):
     linked, or when ARENA's is not arena_026g.lock.json's."""
     default = blocks is None
     blocks = ARENA if default else tuple(blocks)
+    if default:
+        try:
+            hooks_026g.check_layers()                 # raw/vostok/patches (rust_patches.md)
+        except hooks_026g.Bad as error:
+            sys.exit(f"the Rust patches: {error}")
     try:
         linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
     except linker.LinkError as error:
@@ -3423,7 +3439,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + RUST_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

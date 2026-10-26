@@ -46,12 +46,13 @@ EXTERNALS = STUBBED
 
 
 def ranges(P, linked):
-    """Where the patch's code is in a build."""
-    if "suicide_key.code" in linked.blocks:
-        block = linked.blocks["suicide_key.code"]
-        return [(block.va, block.va + block.size)]
-    size = len(open(P.suicide_key_bin(), "rb").read())
-    return [(P.SUICIDE_KEY_VA, P.SUICIDE_KEY_VA + size)]
+    """Where the patch's code is in a build: the asm port's block, or (since
+    the Rust framework) the patches crate's block."""
+    for name in ("suicide_key.code", "patches.code"):
+        if name in linked.blocks:
+            block = linked.blocks[name]
+            return [(block.va, block.va + block.size)]
+    raise SystemExit("no suicide_key.code or patches.code block in this build")
 
 
 def entries(P, linked):
