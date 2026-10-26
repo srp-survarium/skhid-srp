@@ -144,6 +144,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
         set(&mut tuning, "/grid/floor_paths", (v != "0").into());
     }
+    // The eyes a battery off the walk is tried with (`GridTuning::take_eyes`): `standing` also tries a standing
+    // eye where no crouched one sees it.
+    if let Ok(v) = settings.var("SRP_BENCH_TAKE_EYES") {
+        set(&mut tuning, "/grid/take_eyes", if v == "standing" { "crouched_then_standing" } else { "crouched" }.into());
+    }
     // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
     // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
     if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {

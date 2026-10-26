@@ -18,6 +18,24 @@ pub struct GridTuning {
     /// off priced by the walk as before (the bench's switch,
     /// `SRP_BENCH_FLOOR_PATHS=1` on).
     pub floor_paths: bool,
+    /// Which eyes a floor beside a battery off the walk is tried with
+    /// (`Tactics::stand_to_take`): [`TakeEyes::Crouched`] (the default) as
+    /// it was, or also a standing one where no crouched eye sees it
+    /// (`SRP_BENCH_TAKE_EYES=standing`).
+    pub take_eyes: TakeEyes,
+}
+
+/// The eyes `Tactics::stand_to_take` tries a floor beside a battery with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TakeEyes {
+    /// The crouched eye only.
+    #[default]
+    Crouched,
+    /// The crouched eye; where no floor's crouched eye sees the battery in
+    /// a use's reach, the standing eye (the game's use ray starts at the eye
+    /// of whichever pose the player has).
+    CrouchedThenStanding,
 }
 
 impl GridTuning {

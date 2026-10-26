@@ -2860,6 +2860,49 @@ mod tests {
         std::sync::Arc::new(mapdata::World::assemble(map, grid.into(), sight.into()))
     }
 
+    /// A battery on a shelf so high that no crouched eye is within a use's
+    /// reach of it from the floor beside the shelf, but a standing eye is:
+    /// no stand with the crouched eye only (the default), the floor beside
+    /// the shelf with `TakeEyes::CrouchedThenStanding`.
+    #[test]
+    fn a_battery_only_a_standing_eye_reaches_has_a_stand_with_the_switch_on() {
+        use crate::v026g::bots::body::tests::floor;
+        use crate::v026g::bots::tuning::TakeEyes;
+        use mapdata::{RayTree, WalkGrid, World};
+
+        let mut s = Scenario::field(Mode::Batteries);
+        let mut triangles = floor(0.0, 0.0, 80.0, 40.0, 0.0).to_vec();
+        triangles.extend(floor(47.0, 13.0, 51.0, 17.0, 2.8));
+        let grid = WalkGrid::build(
+            &triangles,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+        );
+        let map = s.tactics.world.map.clone();
+        let world = std::sync::Arc::new(World::assemble(
+            map,
+            grid.into(),
+            RayTree::build(&triangles).into(),
+        ));
+        s.tactics = Tactics::new(world, 1.0);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        let edge = Vec3::new(51.0, 3.0, 15.0);
+        s.battery(BatteryState::Free(edge));
+        assert_eq!(s.tactics.take_eyes, TakeEyes::Crouched);
+        assert_eq!(s.tactics.stand_to_take(edge), None);
+        assert_eq!(s.cx(0).take_block(edge), Some("no stand to take it from"));
+        s.tactics.take_eyes = TakeEyes::CrouchedThenStanding;
+        let stand = s.tactics.stand_to_take(edge).expect("a standing stand");
+        assert!(stand.y.abs() < 0.01 && stand.x > 51.0, "{stand:?}");
+        assert_eq!(s.cx(0).take_block(edge), None);
+        // A battery a crouched eye reaches keeps its crouched stand.
+        let low = Vec3::new(51.0, 2.0, 15.0);
+        let crouched = s.tactics.stand_to_take(low);
+        s.tactics.take_eyes = TakeEyes::Crouched;
+        assert_eq!(s.tactics.stand_to_take(low), crouched);
+    }
+
     /// Cologne CG-11: a battery in a pit no carrier gets out of is no
     /// Collect candidate, and says why; one in a pit with a standing jump
     /// out (pit A's 0.9 m rim) still is.
@@ -3047,8 +3090,11 @@ mod tests {
                     let why = cx.take_block(at).unwrap_or("takeable");
                     *reasons.entry(why).or_default() += 1;
                     if s.tactics.stand_to_take(at).is_none() {
+                        s.tactics.take_eyes = crate::v026g::bots::tuning::TakeEyes::CrouchedThenStanding;
+                        let standing = s.tactics.stand_to_take(at);
+                        s.tactics.take_eyes = crate::v026g::bots::tuning::TakeEyes::Crouched;
                         eprintln!(
-                            "level {level} mode {mode} spawner {i} at {at:?}: no crouched stand"
+                            "level {level} mode {mode} spawner {i} at {at:?}: no crouched stand, a standing one {standing:?}"
                         );
                     }
                     let Some(stand) = s.tactics.stand_to_take(at) else {

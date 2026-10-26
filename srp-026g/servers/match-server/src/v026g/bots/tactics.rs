@@ -169,6 +169,9 @@ pub struct Tactics {
     /// Whether a way out stays under its start's zone strength
     /// (`Tuning::hazard.escape`, [`Self::escape`]).
     pub escape: super::tuning::EscapeRule,
+    /// The eyes a battery off the walk is tried with
+    /// (`Tuning::grid.take_eyes`, [`Self::stand_to_take`]).
+    pub take_eyes: super::tuning::TakeEyes,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
 }
@@ -627,6 +630,7 @@ impl Tactics {
             exit_field: Default::default(),
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
+            take_eyes: super::tuning::TakeEyes::Crouched,
             foliage: Default::default(),
             base,
         }
@@ -1640,7 +1644,8 @@ impl Tactics {
     /// else the walkable floor whose crouched eye is nearest it, within a
     /// use's reach ([`USE_REACH_M`]) and in a clear line (a battery on a
     /// shelf, taken from the floor beside it, as players do); none if no
-    /// floor is so.
+    /// floor is so, but with [`TakeEyes::CrouchedThenStanding`] the floor
+    /// whose standing eye is.
     pub fn stand_to_take(&self, at: Vec3) -> Option<Vec3> {
         let grid = &self.world.grid;
         if grid
@@ -1649,20 +1654,26 @@ impl Tactics {
         {
             return Some(at);
         }
-        let r = USE_REACH_M;
-        let mut best: Option<(f32, Vec3)> = None;
-        for node in grid.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
-            if !self.walkable(node) {
-                continue;
+        let beside = |crouched: bool| {
+            let r = USE_REACH_M;
+            let mut best: Option<(f32, Vec3)> = None;
+            for node in grid.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
+                if !self.walkable(node) {
+                    continue;
+                }
+                let feet = grid.position(node);
+                let eye = still_eye(feet, crouched);
+                let d = (at - eye).length();
+                if d <= r && best.is_none_or(|(b, _)| d < b) && self.sees(eye, at) {
+                    best = Some((d, feet));
+                }
             }
-            let feet = grid.position(node);
-            let eye = still_eye(feet, true);
-            let d = (at - eye).length();
-            if d <= r && best.is_none_or(|(b, _)| d < b) && self.sees(eye, at) {
-                best = Some((d, feet));
-            }
-        }
-        best.map(|(_, feet)| feet)
+            best.map(|(_, feet)| feet)
+        };
+        beside(true).or_else(|| match self.take_eyes {
+            super::tuning::TakeEyes::Crouched => None,
+            super::tuning::TakeEyes::CrouchedThenStanding => beside(false),
+        })
     }
 
     /// Whether `b` is seen from `a` (points at the eyes).

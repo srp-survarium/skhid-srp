@@ -74,6 +74,7 @@ pub use aim::AimTuning;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
 pub use grid::GridTuning;
+pub use grid::TakeEyes;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use heal::HealTuning;

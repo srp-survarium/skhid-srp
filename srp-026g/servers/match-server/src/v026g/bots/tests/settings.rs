@@ -92,6 +92,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_BATTERY_SIGHT_M", "the tuning's", "SenseTuning::battery_sight_m"),
     s("SRP_BENCH_FRIEND_NEAR_M", "the tuning's", "FriendlyFireTuning::near_m"),
     s("SRP_BENCH_FF_LEAD", "the tuning's", "FriendlyFireTuning::lead: `0` off, else on"),
+    s("SRP_BENCH_TAKE_EYES", "crouched", "Tuning::grid.take_eyes: `standing` tries a standing eye too where no crouched floor beside a battery off the walk sees it (`Tactics::stand_to_take`); `crouched` (the default), the crouched eye only"),
     s("SRP_BENCH_FLOOR_PATHS", "on", "Tuning::grid.floor_paths (off by default): `1` makes every play's path distance the regions' walk between floors a storey apart; off, the straight ground distance (Collect's batteries a storey off keep the walk)"),
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
