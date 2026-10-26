@@ -427,6 +427,12 @@ impl Game {
             .is_some_and(|walkers| walkers.bots.has_map())
     }
 
+    /// What the server's bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {
+        self.walkers.as_ref()?.bots.pantry_of(place)
+    }
+
     /// How often to ask for a world, `every` being what the match asks:
     /// sooner while the server's bots play.
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {

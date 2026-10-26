@@ -315,6 +315,72 @@ impl Pantry {
     }
 }
 
+/// A live player's kit and player-state bytes, cut from a recording of a
+/// match of 20 places (`tests/data/live_kit_20_players_2_medkits_2_bandages.txt`):
+/// the profile's items and kit slots, and the state the client uploaded in a
+/// world, as `players::Supplies` reads it. Masked: no name, no account; the
+/// bytes of the state are the client's own. The kit in use holds a medkit
+/// and bandages, 2 of each in the slots and the rest in store.
+#[cfg(test)]
+pub(crate) mod live_kit {
+    use survarium::v026g::match_msgs::static_info::{
+        MatchItem, MatchKit, MatchProfile, NO_PROTECTION,
+    };
+
+    pub(crate) struct LiveKit {
+        pub(crate) place: u8,
+        pub(crate) profile: MatchProfile,
+        pub(crate) state: Vec<u8>,
+    }
+
+    pub(crate) fn live_kit() -> LiveKit {
+        const TEXT: &str =
+            include_str!("../../../tests/data/live_kit_20_players_2_medkits_2_bandages.txt");
+        let (mut place, mut state) = (0u8, Vec::new());
+        let mut items: Vec<MatchItem> = Vec::new();
+        let mut kits: Vec<MatchKit> = Vec::new();
+        for line in TEXT.lines().filter(|line| !line.starts_with('#')) {
+            let words: Vec<&str> = line.split(' ').collect();
+            let number = |at: usize| words[at].parse::<u32>().expect("a number");
+            match words[0] {
+                "place" => place = number(1) as u8,
+                "item" => items.push(MatchItem {
+                    dict_id: number(2) as u16,
+                    condition_or_stack: number(3),
+                    ..MatchItem::default()
+                }),
+                "slot" => {
+                    let kit = number(1) as usize;
+                    while kits.len() <= kit {
+                        kits.push(MatchKit::empty(kits.len() as u32, ""));
+                    }
+                    kits[kit].slots[number(2) as usize] =
+                        Some((number(3) as u16, number(4) as u16));
+                }
+                "state" => {
+                    state = (0..words[1].len() / 2)
+                        .map(|i| u8::from_str_radix(&words[1][2 * i..2 * i + 2], 16).expect("hex"))
+                        .collect();
+                }
+                other => panic!("the fixture has a line `{other}`"),
+            }
+        }
+        LiveKit {
+            place,
+            profile: MatchProfile {
+                team: 0,
+                name: String::new(),
+                clan_tag: String::new(),
+                protection: NO_PROTECTION,
+                kits,
+                items,
+                squad: 0,
+            },
+            state,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,5 +525,76 @@ mod tests {
         pantry.read(9_000, &read);
         pantry.new_life(0);
         assert_eq!(pantry.in_hand(Drug::Medkit), 0);
+    }
+
+    /// A block a live client uploaded in a match of 20 places: the kit in use
+    /// (kit 1) holds a medkit on quick use 1 and bandages on quick use 2,
+    /// two of each in the slots, 20 and 18 more in store.
+    #[test]
+    fn a_live_players_block_reads_two_medkits_and_two_bandages() {
+        use super::live_kit::live_kit;
+        use survarium::v026g::match_msgs::players::{PlayerBlock, PlayerState};
+        let live = live_kit();
+        let dictionary = Dictionary::shared();
+        assert!(PlayerState::read(&live.state, live.profile.items.len()).is_some_and(|s| s.alive));
+        let block = PlayerBlock {
+            place: live.place,
+            state: &live.state,
+            animation: None,
+        };
+        let supplies = Supplies::read(&block, &live.profile, dictionary).unwrap();
+        assert!(supplies.alive && supplies.inventory_read);
+        assert_eq!(supplies.kit, 1);
+        let of = |name: &str| {
+            supplies
+                .items
+                .iter()
+                .find(|item| {
+                    dictionary
+                        .item(item.dict_id)
+                        .is_some_and(|row| row.name == name)
+                })
+                .unwrap()
+        };
+        let (medkit, bandages) = (of("medkit"), of("bandages"));
+        assert_eq!((medkit.in_hand, medkit.stored), (Some(2), 20));
+        assert_eq!((bandages.in_hand, bandages.stored), (Some(2), 18));
+        // `Supplies::left`: the slots and the store.
+        let left = supplies.left();
+        assert_eq!(left[&medkit.dict_id], 22);
+        assert_eq!(left[&bandages.dict_id], 20);
+        // The readings, with the key of the kit's own slot order.
+        let read = readings(&supplies, &live.profile, dictionary);
+        assert_eq!((read.kit, read.kits, read.alive), (1, 3, true));
+        let in_use: Vec<_> = read.drugs.iter().filter(|r| r.in_use).collect();
+        assert_eq!(in_use.len(), 2);
+        assert_eq!(
+            (in_use[0].drug, in_use[0].quick, in_use[0].in_hand),
+            (Drug::Medkit, 0, Some(2))
+        );
+        assert_eq!(
+            (in_use[1].drug, in_use[1].quick, in_use[1].in_hand),
+            (Drug::Bandages, 1, Some(2))
+        );
+        // The pantry follows it.
+        let mut pantry = Pantry::standard();
+        pantry.read(109_550, &read);
+        assert_eq!(
+            (pantry.in_hand(Drug::Medkit), pantry.total(Drug::Medkit)),
+            (2, 22)
+        );
+        assert_eq!(
+            (pantry.in_hand(Drug::Bandages), pantry.total(Drug::Bandages)),
+            (2, 20)
+        );
+        assert_eq!(pantry.first(Drug::Bandages).map(|h| h.quick), Some(1));
+        // Bandages used up: the third press has no slot to find.
+        assert!(pantry.pressed(1, 110_000) && pantry.pressed(1, 111_000));
+        assert!(pantry.first(Drug::Bandages).is_none());
+        assert_eq!(
+            pantry.total(Drug::Bandages),
+            18,
+            "the store is for the next life"
+        );
     }
 }

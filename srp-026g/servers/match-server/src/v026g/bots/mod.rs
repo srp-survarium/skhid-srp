@@ -844,6 +844,12 @@ impl Bots {
         }
     }
 
+    /// What the bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
+        self.bots.get(place)?.as_ref().map(|bot| &bot.pantry)
+    }
+
     /// A trusted world's word on one place's health pools (with its body's,
     /// [`Self::fixed`]): the consumables' need.
     pub fn pools(&mut self, place: Place, pools: Pools) {
