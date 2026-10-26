@@ -10,6 +10,84 @@ pub(crate) const CAMPER_WITHIN_M: f32 = 0.7;
 /// The camper's spot and how many route points it sees, if any.
 pub(crate) type CamperSpot = Option<(Vec3, u32)>;
 
+/// How the stand-in camper's spot is chosen (`SRP_BENCH_CAMPER_SPOT`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SpotRule {
+    /// The point that sees the most of the other side's route points.
+    Most,
+    /// Of those that see some, one that sees many and is seen from few:
+    /// seen over sees under [`HIDDEN_RATIO`] (else the lowest ratio).
+    Hidden,
+}
+
+/// A hidden spot is seen from fewer than this share of what it sees
+/// (`standin-camper-fidelity.md`: the owner's holds were behind an edge or a
+/// pillar, seeing down a lane).
+pub(crate) const HIDDEN_RATIO: f32 = 0.5;
+
+/// The stand-in camper's fidelity options, each off when unset: a spot rule,
+/// the stance at the spot and the weapon (`settings.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CamperOptions {
+    pub(crate) rule: SpotRule,
+    /// Crouched once at the spot (the owner's holds: crouched behind cover,
+    /// peeking).
+    pub(crate) crouch: bool,
+    /// The tier's long gun (bolt or marksman rifle) when its kits have one.
+    pub(crate) long_gun: bool,
+}
+
+impl CamperOptions {
+    pub(crate) const OFF: Self = Self {
+        rule: SpotRule::Most,
+        crouch: false,
+        long_gun: false,
+    };
+
+    /// The environment's ([`bench_settings`]).
+    pub(crate) fn from_env() -> Self {
+        let settings = bench_settings();
+        let is = |name: &str, want: &str| settings.var(name).is_ok_and(|v| v == want);
+        Self {
+            rule: if is("SRP_BENCH_CAMPER_SPOT", "hidden") {
+                SpotRule::Hidden
+            } else {
+                SpotRule::Most
+            },
+            crouch: is("SRP_BENCH_CAMPER_CROUCH", "1"),
+            long_gun: is("SRP_BENCH_CAMPER_GUN", "long"),
+        }
+    }
+}
+
+/// The long gun among the kits of `tier` (the camper's first): a bolt rifle,
+/// else a marksman rifle ([`Gun::class`]).
+pub(crate) fn long_kit(tier: survarium::v026g::loadouts::BotTier) -> Option<&'static Arms> {
+    use survarium::v026g::loadouts::BotRole;
+    let roles = [BotRole::Camper, BotRole::Flanker, BotRole::Support, BotRole::Rusher];
+    ["bolt", "marksman"].into_iter().find_map(|class| {
+        roles
+            .into_iter()
+            .flat_map(|role| Arms::kits_of(tier, role))
+            .find(|arms| arms.primary.0.class() == class)
+    })
+}
+
+impl Bots {
+    /// The camper at `place` carries the long gun of `tier`'s kits, if any
+    /// ([`CamperOptions::long_gun`]): its only kit, from this life on.
+    pub(crate) fn arm_camper_long(&mut self, place: Place, tier: survarium::v026g::loadouts::BotTier) {
+        let (Some(arms), Some(bot)) = (long_kit(tier), self.bots[place].as_mut()) else {
+            return;
+        };
+        bot.kits = vec![(arms, arms.reserve)];
+        bot.kit = 0;
+        bot.kit_chosen = 0;
+        bot.life_carried = arms.reserve.min(arms.primary.1);
+        bot.reflex = Reflex::armed_carrying(Some(arms), bot.life_carried);
+    }
+}
+
 pub(crate) const CAMPER_THIN_M: f32 = 2.0;
 
 pub(crate) const CAMPER_SEES_M: f32 = 50.0;
@@ -21,6 +99,44 @@ pub(crate) const CAMPER_SEES_M: f32 = 50.0;
 /// the map's routes only (no spot table), with the count it sees; none
 /// when it sees none.
 pub(crate) fn camper_spot(tactics: &super::tactics::Tactics, side: i32) -> CamperSpot {
+    camper_spot_by(tactics, side, SpotRule::Most, false)
+}
+
+/// What a candidate spot sees and is seen from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Candidate {
+    pub(crate) at: Vec3,
+    /// The other side's route points its eye sees within [`CAMPER_SEES_M`].
+    pub(crate) sees: u32,
+    /// Those whose standing eye sees a body of the camper's stance there.
+    pub(crate) seen: u32,
+}
+
+/// The spot `rule` takes of the candidates that see some.
+pub(crate) fn pick_spot(rule: SpotRule, candidates: &[Candidate]) -> CamperSpot {
+    let seeing = || candidates.iter().filter(|c| c.sees > 0);
+    let most = |a: &&Candidate, b: &&Candidate| a.sees.cmp(&b.sees).then(a.at.y.total_cmp(&b.at.y));
+    let best = match rule {
+        SpotRule::Most => seeing().max_by(most),
+        SpotRule::Hidden => {
+            let hidden = |c: &&Candidate| (c.seen as f32) < HIDDEN_RATIO * c.sees as f32;
+            seeing().filter(hidden).max_by(most).or_else(|| {
+                let ratio = |c: &Candidate| c.seen as f32 / c.sees as f32;
+                seeing().min_by(|a, b| ratio(a).total_cmp(&ratio(b)).then(most(b, a)))
+            })
+        }
+    };
+    best.map(|c| (c.at, c.sees))
+}
+
+/// [`camper_spot`] by `rule`, for a camper who `crouched` at it or stands:
+/// he sees from the eye of his stance, and is seen as a body of it.
+pub(crate) fn camper_spot_by(
+    tactics: &super::tactics::Tactics,
+    side: i32,
+    rule: SpotRule,
+    crouched: bool,
+) -> CamperSpot {
     let points = |side: i32| {
         let mut kept: Vec<Vec3> = Vec::new();
         for p in tactics.routes_of(side).flat_map(|r| r.points.iter().copied()) {
@@ -32,19 +148,33 @@ pub(crate) fn camper_spot(tactics: &super::tactics::Tactics, side: i32) -> Campe
     };
     let (mine, theirs) = (points(side), points(1 - side));
     let sight = &tactics.world.sight;
-    mine.iter()
+    // The eye of the stance is the game's (`view::eye_height`).
+    let eye_up = super::view::still_eye(Vec3::ZERO, crouched);
+    let candidates: Vec<Candidate> = mine
+        .iter()
         .map(|&p| {
-            let eye = super::view::still_eye(p, false);
-            let seen = theirs
+            let eye = p + eye_up;
+            let near = |q: &&Vec3| q.distance_xz(p) <= CAMPER_SEES_M;
+            let sees = theirs
                 .iter()
-                .filter(|&&q| {
-                    q.distance_xz(p) <= CAMPER_SEES_M && super::aimpoint::shows(eye, q, false, sight, || true)
-                })
+                .filter(near)
+                .filter(|&&q| super::aimpoint::shows(eye, q, false, sight, || true))
                 .count() as u32;
-            (p, seen)
+            // Seen from only matters to the hidden rule, and only where it sees some.
+            let seen = if rule == SpotRule::Hidden && sees > 0 {
+                let standing = super::view::still_eye(Vec3::ZERO, false);
+                theirs
+                    .iter()
+                    .filter(near)
+                    .filter(|&&q| super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+                    .count() as u32
+            } else {
+                0
+            };
+            Candidate { at: p, sees, seen }
         })
-        .filter(|&(_, seen)| seen > 0)
-        .max_by(|a, b| a.1.cmp(&b.1).then(a.0.y.total_cmp(&b.0.y)))
+        .collect();
+    pick_spot(rule, &candidates)
 }
 
 /// Human routes on the soak field: side 0's north lane past the wall's
@@ -80,6 +210,53 @@ pub(crate) fn the_stand_in_campers_spot_sees_most_of_the_other_sides_routes() {
     assert_eq!(camper_spot(&walled, 0), None);
 }
 
+/// The hidden rule takes, of the spots that see some, one seen from under
+/// half of what it sees (the most seeing of them, ties to the higher), else
+/// the lowest ratio; the most rule takes the most seeing.
+#[test]
+pub(crate) fn the_hidden_rule_prefers_a_spot_seen_from_few() {
+    let at = |x: f32, y: f32| Vec3::new(x, y, 0.0);
+    let c = |x, sees, seen| Candidate { at: at(x, 0.0), sees, seen };
+    let open = [c(0.0, 10, 10), c(1.0, 6, 2), c(2.0, 4, 1), c(3.0, 0, 0)];
+    assert_eq!(pick_spot(SpotRule::Most, &open), Some((at(0.0, 0.0), 10)));
+    assert_eq!(pick_spot(SpotRule::Hidden, &open), Some((at(1.0, 0.0), 6)));
+    // None under half: the lowest ratio (4/6 over 5/6 and 9/9).
+    let seen = [c(0.0, 9, 9), c(1.0, 6, 4), c(2.0, 6, 5)];
+    assert_eq!(pick_spot(SpotRule::Hidden, &seen), Some((at(1.0, 0.0), 6)));
+    // Exactly half is not under it; ties go to the higher.
+    let tie = [Candidate { at: at(0.0, 0.0), sees: 6, seen: 3 }, Candidate { at: at(1.0, 5.0), sees: 6, seen: 3 }];
+    assert_eq!(pick_spot(SpotRule::Hidden, &tie), Some((at(1.0, 5.0), 6)));
+    let none = [c(0.0, 0, 0)];
+    assert_eq!(pick_spot(SpotRule::Hidden, &none), None);
+    assert_eq!(pick_spot(SpotRule::Most, &none), None);
+}
+
+/// On the soak field the standing most rule is the camper's old spot, and
+/// the hidden rule's has a ratio no worse than it.
+#[test]
+pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
+    let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
+    tactics.set_routes(camper_routes());
+    assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false });
+    for crouched in [false, true] {
+        let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
+        assert!(hidden.1 > 0);
+    }
+}
+
+/// The long gun of a tier's kits is a bolt or a marksman rifle, the camper
+/// kit's first.
+#[test]
+pub(crate) fn the_long_kit_is_a_bolt_or_marksman_rifle() {
+    for tier in survarium::v026g::loadouts::BotTier::ALL {
+        if let Some(arms) = long_kit(tier) {
+            assert!(["bolt", "marksman"].contains(&arms.primary.0.class()), "{tier:?}");
+        }
+    }
+    assert!(survarium::v026g::loadouts::BotTier::ALL.into_iter().any(|t| long_kit(t).is_some()));
+}
+
 /// In a Team Deathmatch on the soak field, the stand-in camper (bot 0)
 /// goes to its spot and holds it; its teammate (the near miss) roams.
 #[test]
@@ -101,12 +278,7 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
         tactics.set_routes(camper_routes());
     }
     bots.bench_camper = Some((0, None));
-    // Seed 3: the shots leave from the world's positions and the eye is the
-    // game's (`view::eye_height`), and with seed 1 the camper's life ended
-    // 6 ticks after it reached the spot (the floor below is 50); the
-    // property, that it holds the spot all the while it is there, held at
-    // all of seeds 1-12.
-    let mut game = Game::new(world, &teams, 3, Some(1_000), None);
+    let mut game = Game::new(world, &teams, 1, Some(1_000), None);
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
     }
