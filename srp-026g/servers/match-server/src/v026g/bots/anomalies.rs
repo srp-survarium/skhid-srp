@@ -293,33 +293,32 @@ impl Sim {
         // `select_state` 0x31BA90: a state with a finish time stays.
         if !(self.current.is_some() && self.finish != 0)
             && let Some(pick) = self.pick()
+            && self.current != Some(pick)
         {
-            if self.current != Some(pick) {
-                if let Some(old) = self.current {
-                    for group in &mut self.states[old].groups {
-                        group.on.iter_mut().for_each(|on| *on = false);
-                        group.next = 0;
-                    }
+            if let Some(old) = self.current {
+                for group in &mut self.states[old].groups {
+                    group.on.iter_mut().for_each(|on| *on = false);
+                    group.next = 0;
                 }
-                self.current = Some(pick);
-                self.changes += 1;
-                // `anomaly_state::initialize` 0x31BC10.
-                for g in 0..self.states[pick].groups.len() {
-                    let group = &mut self.states[pick].groups[g];
-                    if !group.enabled {
-                        continue;
-                    }
-                    if group.keep_all {
-                        group.on.iter_mut().for_each(|on| *on = true);
-                        group.next = 0;
-                    } else {
-                        // Time 0, not now (0x31BC61).
-                        self.recharge(pick, g, 0);
-                    }
-                }
-                let active_ms = self.states[pick].active_ms;
-                self.finish = if active_ms > 0 { t + active_ms } else { 0 };
             }
+            self.current = Some(pick);
+            self.changes += 1;
+            // `anomaly_state::initialize` 0x31BC10.
+            for g in 0..self.states[pick].groups.len() {
+                let group = &mut self.states[pick].groups[g];
+                if !group.enabled {
+                    continue;
+                }
+                if group.keep_all {
+                    group.on.iter_mut().for_each(|on| *on = true);
+                    group.next = 0;
+                } else {
+                    // Time 0, not now (0x31BC61).
+                    self.recharge(pick, g, 0);
+                }
+            }
+            let active_ms = self.states[pick].active_ms;
+            self.finish = if active_ms > 0 { t + active_ms } else { 0 };
         }
         // `anomaly_state::execute` 0x31BCB0.
         if let Some(current) = self.current {
