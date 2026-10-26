@@ -2324,10 +2324,13 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         // The body came to rest 0.5 m past the start (x) and 0.2 m to the side: aim 0.5 m short and 0.2 m back.
         let shift = redo_shift([0.0, 0.0], start, Vec3::new(10.5, 2.0, 20.2));
         assert!((shift[0] + 0.5).abs() < 1e-4 && (shift[1] + 0.2).abs() < 1e-4, "{shift:?}");
-        // Aimed there it came to rest 0.1 m past the aim: the shift adds up (an integrator), 0.6 short of the start.
-        let aim = Vec3::new(start.x + shift[0], 2.0, start.z + shift[1]);
-        let again = redo_shift(shift, start, Vec3::new(aim.x + 0.1, 2.0, aim.z));
+        // Aimed there it still came to rest 0.1 m past the start (x), on the line: the shift adds up (an integrator),
+        // 0.6 short of the start now.
+        let again = redo_shift(shift, start, Vec3::new(start.x + 0.1, 2.0, start.z));
         assert!((again[0] + 0.6).abs() < 1e-4 && (again[1] + 0.2).abs() < 1e-4, "{again:?}");
+        // On the start: the shift stays.
+        let kept = redo_shift(again, start, start);
+        assert_eq!(kept, again);
         // A rest 15 m off is no coast: the shift stays within the cap.
         let far = redo_shift([0.0, 0.0], start, Vec3::new(25.0, 2.0, 20.0));
         assert!((far[0].hypot(far[1]) - SHIFT_MAX_M).abs() < 1e-4, "{far:?}");
