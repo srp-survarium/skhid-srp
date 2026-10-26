@@ -334,6 +334,14 @@ pub struct CombatTuning {
     /// reflex's own AIM did that to 38 % of the SPAS-12's reloads (PROVEN by
     /// counts, eight matches). Off: the sights go as the branches ask.
     pub reload_aim_control: bool,
+    /// The reflex's legs (cover, a push, the weapon's band, a re-peek) never
+    /// take over a route jump: while the walk lines up for one or a jump is
+    /// held, the play's goal and the route keep the legs. The reflex's cover
+    /// run on a hit and the heal's cover walk replaced the goal in the middle
+    /// of a jump (a route that was lining up was dropped and planned again;
+    /// the first look of #520 showed route-jump stucks +21 %). Off: the legs
+    /// go as before. (`drive.rs`; the unstick's own keys are untouched.)
+    pub legs_wait_for_route_jump: bool,
     /// ... except that with a target seen or a threat on, the sights can be
     /// pressed to end the loop at this many rounds put in (the rounds that
     /// load are counted by the client's own clock, [`super::guns::Load`]):
@@ -862,6 +870,7 @@ impl Default for CombatTuning {
             reload_idle_ms: 400,
             reload_some_share: 0.4,
             reload_aim_control: true,
+            legs_wait_for_route_jump: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
             press_gap_ms: 50,
