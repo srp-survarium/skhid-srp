@@ -10,6 +10,7 @@ pub(crate) mod owner;
 pub(crate) mod push;
 pub(crate) mod raid;
 pub(crate) mod route;
+pub(crate) mod shot_offset;
 pub(crate) mod zone_spell;
 
 pub(crate) use block::*;

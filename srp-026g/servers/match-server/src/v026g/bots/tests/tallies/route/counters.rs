@@ -50,7 +50,7 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
     )
 }
 
-/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard.
+/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::counts::counts().to_vec(),
@@ -59,6 +59,7 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
                 "jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {}",
                 d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
             ));
+            line.tail.push(format!("look_unclear {} look_unclear_back {} look_unclear_off {}", d[8], d[9], d[10]));
         },
     )
 }
@@ -76,11 +77,33 @@ pub(super) fn request_gaps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The shots bots heard (`sense::shot_heard`): by the weapon's reach, at the fallback of an unknown weapon, from
+/// over the flat range.
+pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::sense::shots_heard().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "shots_heard_table {} shots_heard_unknown {} shots_heard_far {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::below_walk::counts()],
         |d, line| line.ends.push(format!("off_below_walk {}", d[0])),
+    )
+}
+
+/// The rest points moved off a lip (`path::rests`).
+pub(super) fn rests() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::rests::counts()],
+        |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
     )
 }
 

@@ -736,7 +736,11 @@ pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
         assert!(!east.is_empty(), "{a} {b} {gap}: no gap link east");
         for l in east {
             let (from, to) = (grid.position(l.from), grid.position(l.to));
-            let press = l.press.metres();
+            // A walk-off has no press to fly (its own test: `gap.rs`).
+            let mapdata::grid::gap::Takeoff::Press(press) = l.press else {
+                continue;
+            };
+            let press = press.metres();
             for lead in [press - GAP_PRESS_SPREAD_M, press, press + GAP_PRESS_SPREAD_M] {
                 let body = honest_body(&grid, Vec3::new(from.x - lead, from.y, from.z));
                 let (down, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, WALK_CAP);
