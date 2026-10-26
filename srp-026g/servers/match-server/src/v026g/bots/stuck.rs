@@ -726,15 +726,15 @@ pub fn meant_note(by_keys: bool, meant: Option<f32>) -> String {
     meant.map_or_else(|| " [meant unknown]".to_owned(), |m| format!(" [meant {m:.1} m]"))
 }
 
-/// A body this near a stuck one, metres, is beside it: bodies block each other in the game (the J0 matches'
-/// friends in crowds at a start, enemies head-on on one route line).
+/// A body this near a stuck one, metres, is beside it: enemy bodies block each other in the game (the J0 matches'
+/// enemies head-on on one route line, or at one start); friends pass through each other.
 pub const BESIDE_M: f32 = 1.2;
 
 /// The note of the body beside a stuck one, if one is within [`BESIDE_M`].
-pub fn beside_note(beside: Option<(usize, f32)>) -> String {
-    beside
-        .filter(|&(_, d)| d <= BESIDE_M)
-        .map_or_else(String::new, |(other, d)| format!(" [beside place {other}, {d:.1} m]"))
+pub fn beside_note(beside: Option<super::view::Beside>) -> String {
+    beside.filter(|b| b.distance_m <= BESIDE_M).map_or_else(String::new, |b| {
+        format!(" [beside {} place {}, {:.1} m]", if b.enemy { "enemy" } else { "friend" }, b.place, b.distance_m)
+    })
 }
 
 /// The note for a world that came `gap` ms after the one before it (none when the gap is not one).
@@ -744,18 +744,18 @@ pub fn gap_note(gap: Option<u32>) -> String {
 }
 
 /// The bench's counts of the worlds that came [`FIX_GAP_MS`] or more after the one before: all, the stuck notes
-/// after one, the off-reckoning notes after one, the stuck checks a tuned gap ended, and the stuck notes with a body beside.
+/// after one, the off-reckoning notes after one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, beside.
 #[cfg(test)]
 pub mod fix_gaps {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 5] {
+    pub fn counts() -> [u64; 6] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

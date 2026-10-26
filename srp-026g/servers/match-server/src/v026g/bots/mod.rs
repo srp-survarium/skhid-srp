@@ -1094,8 +1094,8 @@ impl Bots {
             let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
             let beside = self.tracker.nearest_body(place, feet);
             #[cfg(test)]
-            if beside.is_some_and(|(_, d)| d <= stuck::BESIDE_M) {
-                stuck::fix_gaps::count(4);
+            if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
+                stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
             }
             bot.note(
                 &mut notes,

@@ -59,13 +59,13 @@ fn a_stuck_note_after_a_gap_in_the_worlds_carries_it_and_a_tuned_gap_ends_the_ch
     assert_eq!(short.first().map(|n| n.0), Some(9_000), "{short:?}");
 }
 
-/// A body within 1.2 m of a stuck one is named in its note, one farther is not.
+/// A body within 1.2 m of a stuck one is named in its note (enemy or friend), one farther is not.
 #[test]
 fn a_stuck_note_names_the_body_beside_it() {
     let times = [1_000, 1_500, 2_000, 2_500, 3_000, 3_500, 4_000, 4_500];
     let near = notes_of(None, &times, Some(0.8));
     assert_eq!(near.len(), 1, "{near:?}");
-    assert!(near[0].1.contains("[beside place 1, 0.8 m]"), "{near:?}");
+    assert!(near[0].1.contains("[beside enemy place 1, 0.8 m]"), "{near:?}");
     let far = notes_of(None, &times, Some(3.0));
     assert_eq!(far.len(), 1, "{far:?}");
     assert!(!far[0].1.contains("beside"), "{far:?}");
