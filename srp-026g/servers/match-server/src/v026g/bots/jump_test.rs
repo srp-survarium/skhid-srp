@@ -32,6 +32,14 @@
 //!   `crouch`, `turn+<deg>` / `turn-<deg>`, `none` (= `hold`);
 //! - `repeat`: how many times.
 //!
+//! The `bot` column is a place number, or `*` (or `any`): a pool try, taken by whichever bot of the match
+//! is free. Every bot of the match works the pool at once; on a wide face the tries at one site take
+//! lanes along it, at least 2 m apart and inside the ledge's width (`half` of the site: the 6th field of
+//! [`SITES`], the 9th of a `sites.tsv` line `name x y z tx tz rise face half`) less what the angled
+//! approach drifts sideways; a try with no free lane waits for the next one. Bots with no try rest (no
+//! fire, no plays) unless `SRP_JUMP_TEST_IDLE_OTHERS=0`; `SRP_JUMP_TEST_MAX_ACTIVE=<n>` caps the tries
+//! under way at once (the other bots rest). The log line of a try carries its `lane`.
+//!
 //! `speed` may also be `motor` or `motor_run` (the ordinary drive, walking or running): the bot is sent
 //! from the start to the top of the ledge by the ordinary route and motor, nothing is scripted, and the
 //! log line of the try carries a `motor` object: each press the motor made (`by`, the route press's
@@ -123,6 +131,8 @@ pub struct Site {
     pub rise: f32,
     /// From `lower` to the face along `toward`, m (half the gap to the lip until a sweep measures it).
     pub face: f32,
+    /// Half the ledge's width along the face, m: the lanes of parallel tries stay inside it.
+    pub half: f32,
 }
 
 impl Site {
@@ -135,29 +145,29 @@ impl Site {
     }
 }
 
-/// A [`SITES`] row: name, deck floor, direction to the ledge, rise, face distance.
-type SiteRow = (&'static str, [f32; 3], [f32; 2], f32, f32);
+/// A [`SITES`] row: name, deck floor, direction to the ledge, rise, face distance, half width.
+type SiteRow = (&'static str, [f32; 3], [f32; 2], f32, f32, f32);
 
 /// The sites of `grid-record.md` J0 section 2: name, deck floor, direction to the ledge, rise, face
 /// distance (half the gap to the lip). `gridtool ledges` of the F1 branch's grid.
 pub const SITES: &[SiteRow] = &[
-    ("chem125a", [-78.9, 4.35, 47.1], [0.0, -1.0], 1.259, 0.25),
-    ("chem125b", [-79.9, 4.35, 70.4], [0.0, 1.0], 1.274, 0.25),
-    ("chem125c", [-84.9, 4.35, 58.9], [-1.0, 0.0], 1.259, 0.25),
-    ("chem060a", [-6.4, 1.72, 93.9], [1.0, 0.0], 0.632, 0.25),
-    ("chem060b", [30.6, 1.91, 127.1], [0.0, 1.0], 0.590, 0.15),
-    ("chem110", [21.4, 2.03, 128.4], [0.0, 1.0], 1.106, 0.25),
-    ("vect090a", [31.8, 24.46, 0.5], [-1.0, 0.0], 0.925, 0.25),
-    ("vect090b", [-12.2, 20.89, -27.3], [1.0, 0.0], 0.899, 0.25),
-    ("vect120", [-88.7, 20.94, -9.0], [-1.0, 0.0], 1.199, 0.25),
-    ("colo105", [-80.8, 35.16, 42.9], [0.0, -1.0], 1.063, 0.25),
-    ("colo100a", [39.2, 31.98, 53.1], [-1.0, 0.0], 1.007, 0.25),
-    ("colo100b", [9.2, 31.98, 52.6], [1.0, 0.0], 1.009, 0.25),
-    ("scho100a", [58.5, 15.57, 97.7], [-1.0, 0.0], 0.999, 0.25),
-    ("scho100b", [24.4, 16.00, 47.7], [1.0, 0.0], 1.017, 0.25),
-    ("scho110", [13.9, 16.04, 48.0], [0.0, 1.0], 1.092, 0.25),
-    ("scho125a", [26.2, 15.76, 47.2], [-1.0, 0.0], 1.239, 0.25),
-    ("scho125b", [3.0, 16.32, 77.0], [0.0, 1.0], 1.252, 0.25),
+    ("chem125a", [-78.9, 4.35, 47.1], [0.0, -1.0], 1.259, 0.25, 6.10),
+    ("chem125b", [-79.9, 4.35, 70.4], [0.0, 1.0], 1.274, 0.25, 5.00),
+    ("chem125c", [-84.9, 4.35, 58.9], [-1.0, 0.0], 1.259, 0.25, 11.75),
+    ("chem060a", [-6.4, 1.72, 93.9], [1.0, 0.0], 0.632, 0.25, 0.60),
+    ("chem060b", [30.6, 1.91, 127.1], [0.0, 1.0], 0.590, 0.15, 0.60),
+    ("chem110", [21.4, 2.03, 128.4], [0.0, 1.0], 1.106, 0.25, 0.50),
+    ("vect090a", [31.8, 24.46, 0.5], [-1.0, 0.0], 0.925, 0.25, 0.50),
+    ("vect090b", [-12.2, 20.89, -27.3], [1.0, 0.0], 0.899, 0.25, 0.60),
+    ("vect120", [-88.7, 20.94, -9.0], [-1.0, 0.0], 1.199, 0.25, 0.90),
+    ("colo105", [-80.8, 35.16, 42.9], [0.0, -1.0], 1.063, 0.25, 0.75),
+    ("colo100a", [39.2, 31.98, 53.1], [-1.0, 0.0], 1.007, 0.25, 0.50),
+    ("colo100b", [9.2, 31.98, 52.6], [1.0, 0.0], 1.009, 0.25, 0.50),
+    ("scho100a", [58.5, 15.57, 97.7], [-1.0, 0.0], 0.999, 0.25, 0.50),
+    ("scho100b", [24.4, 16.00, 47.7], [1.0, 0.0], 1.017, 0.25, 1.00),
+    ("scho110", [13.9, 16.04, 48.0], [0.0, 1.0], 1.092, 0.25, 0.50),
+    ("scho125a", [26.2, 15.76, 47.2], [-1.0, 0.0], 1.239, 0.25, 0.75),
+    ("scho125b", [3.0, 16.32, 77.0], [0.0, 1.0], 1.252, 0.25, 1.00),
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -200,11 +210,20 @@ pub enum Mid {
     Turn(f32),
 }
 
+/// Who works a try: a named bot, or whichever bot of the match is free (the pool).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Who {
+    Bot(Place),
+    Pool,
+}
+
 /// One line of the try file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TryDef {
     pub id: String,
-    pub bot: Place,
+    pub who: Who,
+    /// The lateral shift of the site along its face given to a pool try, m (0 in the file).
+    pub lane: f32,
     pub site: Site,
     pub edge: f32,
     pub angle: f32,
@@ -222,12 +241,13 @@ fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
     SITES
         .iter()
         .find(|s| s.0 == name)
-        .map(|&(name, lower, toward, rise, face)| Site {
+        .map(|&(name, lower, toward, rise, face, half)| Site {
             name: name.to_owned(),
             lower: Vec3::new(lower[0], lower[1], lower[2]),
             toward,
             rise,
             face,
+            half,
         })
 }
 
@@ -252,6 +272,7 @@ fn parse_site(text: &str, extra: &HashMap<String, Site>) -> Result<Site, String>
         toward: [v[3] / length, v[4] / length],
         rise: v[5],
         face: v[6],
+        half: 0.0,
     })
 }
 
@@ -289,7 +310,11 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
         let num = |i: usize, what: &str| f[i].parse::<f32>().map_err(|e| fail(format!("{what} {:?}: {e}", f[i])));
         tries.push(TryDef {
             id: f[0].to_owned(),
-            bot: f[1].parse().map_err(|e| fail(format!("bot {:?}: {e}", f[1])))?,
+            who: match f[1] {
+                "*" | "any" => Who::Pool,
+                other => Who::Bot(other.parse().map_err(|e| fail(format!("bot {other:?}: {e}")))?),
+            },
+            lane: 0.0,
             site: parse_site(f[2], extra).map_err(fail)?,
             edge: num(3, "edge")?,
             angle: num(4, "angle")?,
@@ -319,11 +344,11 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         let f: Vec<&str> = line.split_whitespace().collect();
-        if f.len() != 8 {
+        if f.len() != 8 && f.len() != 9 {
             continue;
         }
         let v: Vec<f32> = f[1..].iter().filter_map(|s| s.parse().ok()).collect();
-        if v.len() != 7 {
+        if v.len() != 7 && v.len() != 8 {
             continue;
         }
         let length = v[3].hypot(v[4]);
@@ -338,6 +363,7 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
                 toward: [v[3] / length, v[4] / length],
                 rise: v[5],
                 face: v[6],
+                half: v.get(7).copied().unwrap_or(0.0),
             },
         );
     }
@@ -608,8 +634,16 @@ pub struct JumpTest {
     burst_ms: u32,
     modified: Option<std::time::SystemTime>,
     runners: HashMap<Place, Runner>,
+    /// The tries of any bot, with repeats left, in file order.
+    pool: VecDeque<TryDef>,
+    /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
+    idle_others: bool,
+    /// At most this many tries under way at once (`SRP_JUMP_TEST_MAX_ACTIVE`).
+    max_active: usize,
     /// Repeats done by try id.
     done: HashMap<String, u32>,
+    /// Tries started by id (the `n` of the log; a try redone after a death counts again).
+    started: HashMap<String, u32>,
     /// Tries of the file, by id, as last read.
     known: HashMap<String, TryDef>,
     table: RunTable,
@@ -636,7 +670,14 @@ impl JumpTest {
             .and_then(|v| v.parse().ok())
             .filter(|&v: &u32| v >= TICK_MS)
             .unwrap_or(BURST_MS);
-        Some(Self::new(PathBuf::from(path), dir, format!("{match_id:08x}"), burst_ms))
+        let mut test = Self::new(PathBuf::from(path), dir, format!("{match_id:08x}"), burst_ms);
+        test.idle_others = !matches!(std::env::var("SRP_JUMP_TEST_IDLE_OTHERS").as_deref(), Ok("0" | "off" | "false"));
+        test.max_active = std::env::var("SRP_JUMP_TEST_MAX_ACTIVE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .filter(|&v: &usize| v > 0)
+            .unwrap_or(usize::MAX);
+        Some(test)
     }
 
     pub fn new(path: PathBuf, dir: PathBuf, stamp: String, burst_ms: u32) -> Self {
@@ -647,7 +688,11 @@ impl JumpTest {
             burst_ms,
             modified: None,
             runners: HashMap::new(),
+            pool: VecDeque::new(),
+            idle_others: true,
+            max_active: usize::MAX,
             done: HashMap::new(),
+            started: HashMap::new(),
             known: HashMap::new(),
             table: RunTable::default(),
             rows: HashMap::new(),
@@ -707,18 +752,25 @@ impl JumpTest {
                 self.known = tries.iter().map(|t| (t.id.clone(), t.clone())).collect();
                 // Rebuild each runner's pending list: the file's tries of the bot with repeats left.
                 let mut by_bot: HashMap<Place, VecDeque<TryDef>> = HashMap::new();
+                let mut pool = VecDeque::new();
                 for def in tries {
                     let done = self.done.get(&def.id).copied().unwrap_or(0);
                     let running = self
                         .runners
-                        .get(&def.bot)
-                        .and_then(|r| r.active.as_ref())
-                        .is_some_and(|a| a.def.id == def.id);
-                    let left = def.repeat.saturating_sub(done + u32::from(running));
+                        .values()
+                        .filter_map(|r| r.active.as_ref())
+                        .filter(|a| a.def.id == def.id)
+                        .count() as u32;
+                    let left = def.repeat.saturating_sub(done + running);
                     if left > 0 {
-                        by_bot.entry(def.bot).or_default().push_back(TryDef { repeat: left, ..def });
+                        let def = TryDef { repeat: left, ..def };
+                        match def.who {
+                            Who::Bot(place) => by_bot.entry(place).or_default().push_back(def),
+                            Who::Pool => pool.push_back(def),
+                        }
                     }
                 }
+                self.pool = pool;
                 for (place, runner) in &mut self.runners {
                     runner.pending = by_bot.remove(place).unwrap_or_default();
                 }
@@ -735,9 +787,42 @@ impl JumpTest {
 
     /// Whether the match must not end: some try is under way or still to come.
     pub fn holds_end(&self) -> bool {
-        self.runners
+        !self.pool.is_empty()
+            || self
+                .runners
+                .values()
+                .any(|r| r.active.is_some() || !r.pending.is_empty())
+    }
+
+    /// Tries under way.
+    fn active_count(&self) -> usize {
+        self.runners.values().filter(|r| r.active.is_some()).count()
+    }
+
+    /// The next pool try a free bot can take: the first with a free lane on its face (the lane is set
+    /// and the site shifted along the face); a try whose faces are all taken waits.
+    fn take_from_pool(&mut self) -> Option<TryDef> {
+        let taken: Vec<(Vec3, f32)> = self
+            .runners
             .values()
-            .any(|r| r.active.is_some() || !r.pending.is_empty())
+            .filter_map(|r| r.active.as_ref())
+            .map(|a| (base_of(&a.def), a.def.lane))
+            .collect();
+        let (index, lane) = self
+            .pool
+            .iter()
+            .enumerate()
+            .find_map(|(i, def)| free_lane(def, &taken).map(|lane| (i, lane)))?;
+        let mut def = self.pool[index].clone();
+        self.pool[index].repeat -= 1;
+        if self.pool[index].repeat == 0 {
+            self.pool.remove(index);
+        }
+        let perp = [-def.site.toward[1], def.site.toward[0]];
+        def.repeat = 1;
+        def.lane = lane;
+        def.site.lower = Vec3::new(def.site.lower.x + perp[0] * lane, def.site.lower.y, def.site.lower.z + perp[1] * lane);
+        Some(def)
     }
 
     /// Whether this bot's place is in the test.
@@ -750,6 +835,24 @@ impl JumpTest {
     pub fn think(&mut self, bot: &mut Bot, view: &MatchView) -> bool {
         self.reload();
         let now = view.clock;
+        if !self.runners.contains_key(&bot.place) {
+            if self.pool.is_empty() || self.active_count() >= self.max_active {
+                if self.idle_others {
+                    bot.intent = Intent::stay();
+                    bot.intent.fire = false;
+                }
+                return self.idle_others;
+            }
+            self.runners.insert(bot.place, Runner::default());
+        }
+        let free = self.runners.get(&bot.place).is_some_and(|r| r.active.is_none() && r.pending.is_empty());
+        if free
+            && self.active_count() < self.max_active
+            && let Some(def) = self.take_from_pool()
+            && let Some(runner) = self.runners.get_mut(&bot.place)
+        {
+            runner.pending.push_back(def);
+        }
         let Some(runner) = self.runners.get_mut(&bot.place) else {
             return false;
         };
@@ -773,7 +876,11 @@ impl JumpTest {
             if first.repeat == 0 {
                 runner.pending.pop_front();
             }
-            let n = self.done.get(&def.id).copied().unwrap_or(0) + 1;
+            let n = {
+                let started = self.started.entry(def.id.clone()).or_default();
+                *started += 1;
+                *started
+            };
             let sprints = matches!(def.speed, Speed::Sprint | Speed::MotorRun);
             let rest = if sprints { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None });
@@ -840,7 +947,9 @@ impl JumpTest {
     /// ordinary drive) or when the bot is not the test's.
     pub fn drive(&mut self, bot: &mut Bot, time: u32, view: &MatchView) -> Option<Decision> {
         let now = view.clock;
-        let runner = self.runners.get_mut(&bot.place)?;
+        let Some(runner) = self.runners.get_mut(&bot.place) else {
+            return self.idle_others.then(Decision::default);
+        };
         let Some(active) = runner.active.as_mut() else {
             return Some(Decision::default());
         };
@@ -1018,6 +1127,32 @@ impl JumpTest {
     }
 }
 
+/// The gap between two lanes of the same face, m.
+const LANE_GAP_M: f32 = 2.0;
+
+/// A try's site before its lane shift.
+fn base_of(def: &TryDef) -> Vec3 {
+    let perp = [-def.site.toward[1], def.site.toward[0]];
+    Vec3::new(def.site.lower.x - perp[0] * def.lane, def.site.lower.y, def.site.lower.z - perp[1] * def.lane)
+}
+
+/// The nearest free lane for a try on its face, given the (face, lane) of the tries under way: 0,
+/// then 2.5 m either side, and so on, as far as the ledge is wide minus what the approach drifts
+/// sideways; none when every lane of the face within reach is taken.
+fn free_lane(def: &TryDef, taken: &[(Vec3, f32)]) -> Option<f32> {
+    let drift = (def.runup + def.edge.max(0.0)) * def.angle.to_radians().sin().abs();
+    let reach = def.site.half - 1.0 - drift;
+    let base = base_of(def);
+    let busy = |lane: f32| taken.iter().any(|(b, l)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
+    (0..)
+        .map(|k| {
+            let step = 2.5 * ((k + 1) / 2) as f32;
+            if k % 2 == 1 { step } else { 0.0 - step }
+        })
+        .take_while(|lane| lane.abs() <= reach.max(0.0))
+        .find(|&lane| !busy(lane))
+}
+
 /// The bodies of a world as rows.
 pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
     let Some((blocks, _)) = players::walk(body) else {
@@ -1107,7 +1242,7 @@ pub fn summarize(
     let top = deck + def.site.rise;
     let press = plan.press;
     let mut v = serde_json::json!({
-        "id": def.id, "n": n, "bot": place, "site": def.site.name,
+        "id": def.id, "n": n, "bot": place, "site": def.site.name, "lane": def.lane,
         "plan": {
             "edge": def.edge, "angle": def.angle, "face": format!("{:?}", def.face).to_lowercase(),
             "runup": def.runup, "speed": format!("{:?}", def.speed).to_lowercase(), "mid": format!("{:?}", def.mid),
@@ -1218,7 +1353,7 @@ mod tests {
     }
 
     fn def(edge: f32, angle: f32, face: Face, runup: f32, speed: Speed, mid: Mid) -> TryDef {
-        TryDef { id: "t".into(), bot: 3, site: site(), edge, angle, face, runup, speed, mid, repeat: 1 }
+        TryDef { id: "t".into(), who: Who::Bot(3), lane: 0.0, site: site(), edge, angle, face, runup, speed, mid, repeat: 1 }
     }
 
     #[test]
@@ -1234,6 +1369,58 @@ mod tests {
         assert!(bad.unwrap_err().contains("line 1"));
         let short = parse_tries("a 1 chem060a\n", &HashMap::new());
         assert!(short.unwrap_err().contains("10"));
+    }
+
+    fn wide_def(angle: f32, runup: f32) -> TryDef {
+        let site = named_site("chem125c", &HashMap::new()).expect("a site");
+        TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3 }
+    }
+
+    #[test]
+    fn a_star_in_the_bot_column_is_a_pool_try() {
+        let tries = parse_tries("p1 * chem125c 1.0 0 along 5.5 sprint hold 6
+p2 any chem125c 1.0 0 along 5.5 sprint hold 6
+p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
+", &HashMap::new()).expect("parses");
+        assert_eq!(tries[0].who, Who::Pool);
+        assert_eq!(tries[1].who, Who::Pool);
+        assert_eq!(tries[2].who, Who::Bot(7));
+    }
+
+    #[test]
+    fn lanes_on_a_wide_face_are_two_and_a_half_metres_apart_and_a_narrow_ledge_has_one() {
+        let d = wide_def(0.0, 5.5);
+        let base = base_of(&d);
+        assert_eq!(free_lane(&d, &[]), Some(0.0));
+        assert_eq!(free_lane(&d, &[(base, 0.0)]), Some(2.5));
+        assert_eq!(free_lane(&d, &[(base, 0.0), (base, 2.5)]), Some(-2.5));
+        // Another face is not in the way.
+        let far = Vec3::new(base.x + 40.0, base.y, base.z);
+        assert_eq!(free_lane(&d, &[(far, 0.0)]), Some(0.0));
+        // A 60 degree run-up drifts 4.8 m sideways: the lanes of a 12 m wall are one.
+        let wall = TryDef { site: named_site("chem125a", &HashMap::new()).expect("a site"), ..wide_def(60.0, 5.5) };
+        assert_eq!(free_lane(&wall, &[]), Some(0.0));
+        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0)]), None);
+        // A 1.2 m ledge has no lane but the middle.
+        let narrow = TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) };
+        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0)]), None);
+    }
+
+    #[test]
+    fn a_free_bot_takes_the_next_pool_try_on_a_free_lane_and_the_site_moves_along_the_face() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        jt.pool.push_back(wide_def(0.0, 5.5));
+        let first = jt.take_from_pool().expect("a try");
+        assert_eq!(first.lane, 0.0);
+        assert_eq!(jt.pool[0].repeat, 2);
+        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None });
+        let second = jt.take_from_pool().expect("a try");
+        assert_eq!(second.lane, 2.5);
+        // The shift is along the face: chem125c faces -x, so the lane moves z.
+        assert!((second.site.lower.x - first.site.lower.x).abs() < 1e-4);
+        assert!((second.site.lower.z - first.site.lower.z).abs() > 2.4);
+        assert_eq!(base_of(&second), base_of(&first));
+        assert!(jt.holds_end());
     }
 
     #[test]
