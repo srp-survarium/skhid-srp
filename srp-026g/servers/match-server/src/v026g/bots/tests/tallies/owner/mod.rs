@@ -232,7 +232,7 @@ impl OwnerTally {
                     // gate tally on, the wall test too was made).
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                     grenades: bot.reflex.grenade_stats(),
-                    avoid: bot.avoid.stats,
+                    avoid: bot.features.avoid.stats,
                     throw_held: bot.reflex.view_held(),
                     thrown_ago_ms: bot.reflex.thrown_ago(tick),
                 })

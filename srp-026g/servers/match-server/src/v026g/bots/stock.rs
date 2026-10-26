@@ -611,3 +611,22 @@ mod tests {
         );
     }
 }
+
+/// A bot's consumables state, by feature ([`super::features`]): the medkits it used this life, the drugs of its
+/// kits counted for the match, and its health pools as the last trusted world showed them.
+#[derive(Default)]
+pub struct BotState {
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
+    pub medkits_used: u8,
+    /// The drugs of its kits, counted for the match ([`Pantry`]).
+    pub pantry: Pantry,
+    /// Its health pools as the last trusted world showed them (`Bots::pools`); none before the first.
+    pub pools: Option<super::pools::Pools>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, life: &super::features::Life) {
+        self.medkits_used = 0;
+        self.pantry.new_life(life.kit);
+    }
+}

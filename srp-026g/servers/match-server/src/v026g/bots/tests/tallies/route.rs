@@ -418,7 +418,7 @@ impl RouteTally {
             }
             if bots.bots[place].as_ref().is_some_and(|bot| {
                 matches!(
-                    bot.avoid.state,
+                    bot.features.avoid.state,
                     crate::v026g::bots::grenade_threat::GrenadeThreat::Stepping { .. }
                 )
             }) {

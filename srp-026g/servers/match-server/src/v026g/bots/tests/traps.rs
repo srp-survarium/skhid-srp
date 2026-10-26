@@ -39,7 +39,7 @@ pub(super) fn run_with(
     }
     bots.entered(0, true, 0);
     if let Some(kit) = kit {
-        bots.bots[0].as_mut().unwrap().traps = Habit::carry(kit);
+        bots.bots[0].as_mut().unwrap().features.traps.habit = Habit::carry(kit);
     }
     // The team has known enemy humans all over this half of the field for a
     // while (one human a lane cell, so none is throttled).
@@ -123,7 +123,7 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
         .fold(0.0_f32, f32::min);
     assert!(steepest <= -0.9, "pitch {steepest}");
     let bot = bots.bots[0].as_ref().unwrap();
-    assert_eq!(bot.traps.placed_this_life(), 1);
+    assert_eq!(bot.features.traps.habit.placed_this_life(), 1);
     assert_eq!(bots.teams[0].knowledge.traps.all().len(), 1);
     // None without the kit, and none with the habit switched off.
     let (sent, _) = run(None, Tuning::default(), 40);

@@ -118,8 +118,8 @@ fn drive_on(world: Arc<World>, level: u8, start: Vec3, goal: Vec3, until: u32) -
             playing: true,
         };
         let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
-        bots.searching.left = SEARCHES_PER_POLL;
-        bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.features.searching.left = SEARCHES_PER_POLL;
+        bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = Intent::to(goal, Pace::Run).within(1.0);
@@ -352,8 +352,8 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
             playing: true,
         };
         let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
-        bots.searching.left = SEARCHES_PER_POLL;
-        bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.features.searching.left = SEARCHES_PER_POLL;
+        bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = Intent::to(goal, Pace::Run).within(1.0);

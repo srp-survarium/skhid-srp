@@ -363,8 +363,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &TeamState) {
         .filter(|(_, _, at)| !own.iter().any(|mine| mine.distance_xz(*at) < OWN_M))
         .collect();
     let keyed: Vec<(TrapKey, Vec3)> = others.iter().map(|&(_, key, at)| (key, at)).collect();
-    bot.react.prune(&keyed);
-    bot.react.walk(due.now, me.feet, &keyed);
+    bot.features.traps.react.prune(&keyed);
+    bot.features.traps.react.walk(due.now, me.feet, &keyed);
     let nearest = others
         .iter()
         .map(|(trap, _, at)| (trap, me.feet.distance_xz(*at)))
@@ -386,7 +386,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &TeamState) {
         fighting,
     };
     let rng = &mut bot.rng;
-    bot.react.roll(
+    bot.features.traps.react.roll(
         &look,
         trap,
         t,

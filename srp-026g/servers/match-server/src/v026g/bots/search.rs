@@ -34,6 +34,16 @@ pub(super) struct Searching {
     pub(super) pending: Option<Pending>,
 }
 
+impl Default for Searching {
+    fn default() -> Self {
+        Self {
+            left: SEARCHES_PER_POLL,
+            floors: 0,
+            pending: None,
+        }
+    }
+}
+
 /// A match's hold on its thread's search arrays (8 bytes a floor of the
 /// largest grid searched, twice while a search is left under way): when
 /// the thread's last match with bots ends, they are given back
@@ -96,7 +106,7 @@ impl Bots {
     /// Detour's path queue goes on with its head): its answer to its bot,
     /// for its next tick. Dropped when its bot left or the hazards changed.
     pub(super) fn go_on_searching(&mut self) {
-        let Some(mut pending) = self.searching.pending.take() else {
+        let Some(mut pending) = self.features.searching.pending.take() else {
             return;
         };
         let Some(tactics) = self.tactics.as_ref() else {
@@ -107,12 +117,12 @@ impl Bots {
         {
             return;
         }
-        if self.searching.left == 0 {
-            self.searching.pending = Some(pending);
+        if self.features.searching.left == 0 {
+            self.features.searching.pending = Some(pending);
             return;
         }
-        self.searching.left -= 1;
-        let floors = &mut self.searching.floors;
+        self.features.searching.left -= 1;
+        let floors = &mut self.features.searching.floors;
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
         let filter = pending.filter.clone();
         let start = pending.ends.0;
@@ -141,7 +151,7 @@ impl Bots {
             )
         };
         let Some(mut route) = ended else {
-            self.searching.pending = Some(pending);
+            self.features.searching.pending = Some(pending);
             return;
         };
         let mut crossed = false;
@@ -151,7 +161,7 @@ impl Bots {
             .bots
             .get(pending.place)
             .and_then(|bot| bot.as_ref())
-            .is_some_and(|bot| long_kept(bot.long_kept, pending.goal, time));
+            .is_some_and(|bot| long_kept(bot.features.crossing.long_kept, pending.goal, time));
         if let Some(second) = pending.second.take() {
             (route, crossed, kept) = crossing::choose(
                 tactics,
@@ -172,7 +182,7 @@ impl Bots {
                     Err(planning) => {
                         pending.planning = planning;
                         pending.filter = through;
-                        self.searching.pending = Some(pending);
+                        self.features.searching.pending = Some(pending);
                         return;
                     }
                 }
@@ -203,7 +213,7 @@ impl Bots {
                             plain: route,
                             health,
                         });
-                        self.searching.pending = Some(pending);
+                        self.features.searching.pending = Some(pending);
                         return;
                     }
                 }
@@ -211,13 +221,13 @@ impl Bots {
         }
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
             if kept {
-                bot.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
+                bot.features.crossing.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
             }
             #[cfg(test)]
             {
                 bot.bench_found_ring = crossed && crossing::last_ring();
             }
-            bot.found = Some((pending.goal, route, crossed));
+            bot.features.crossing.found = Some((pending.goal, route, crossed));
         }
     }
 }

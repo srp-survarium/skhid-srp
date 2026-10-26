@@ -706,3 +706,9 @@ mod tests {
         assert_eq!(b.react[1], [0, 2, 0, 0, 4]);
     }
 }
+
+impl super::features::Feature for Avoid {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.died();
+    }
+}

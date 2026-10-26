@@ -117,7 +117,7 @@ impl Bots {
         state.refresh_traps(&tactics.world.grid);
         let field = state.trap_field.clone();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
-            bot.trap_field = field.clone();
+            bot.features.traps.field = field.clone();
         }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
@@ -261,12 +261,12 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
-                    pantry: &bot.pantry,
-                    pools: bot.pools,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
@@ -348,12 +348,12 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
-                    pantry: &bot.pantry,
-                    pools: bot.pools,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
