@@ -150,6 +150,11 @@ pub struct ThinkTuning {
     /// until a train turns it on): it asks again for every goal the plays give it, every
     /// 0.5 s, as it did.
     pub shut_in_gate: bool,
+    /// A body that stands on no floor of the grid (on the top of an object, 2.5 m or more above the
+    /// floors) plans from the nearest floor it drops to, up to 5 m below ([`super::super::path::stranded_floor`]):
+    /// the first leg of its route is the drop off the edge. Off (the default until a train turns it on): it has
+    /// no start floor, so no route, and it stands (`no_way`).
+    pub stranded_start: bool,
 }
 
 impl Default for ThinkTuning {
@@ -161,6 +166,7 @@ impl Default for ThinkTuning {
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
             trace_every_ms: 5_000,
             shut_in_gate: false,
+            stranded_start: false,
         }
     }
 }
