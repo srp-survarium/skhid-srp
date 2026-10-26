@@ -293,49 +293,83 @@ pub struct CombatTuning {
     /// [G1] The places of a roll include where an enemy was last sensed by
     /// the bot's or its team's own senses (sight, hearing, a callout) when
     /// it is not in sight now: a target just lost, a sound. Off: only held
-    /// angles and camps, as before. Humans threw 54 % of their frag
-    /// grenades with no enemy in sight in the 5 s before, and 73 % of those
-    /// that landed within 10 m of an enemy at an enemy not seen in 5 s
-    /// (`grenades-record.md` 2.3).
+    /// angles and camps, as before. Why (`grenades-record.md` 2.3, PROVEN
+    /// counts of 8,090 human frag throws): humans threw 54 % of them with
+    /// no enemy in sight in the 5 s before, and 73 % of those that landed
+    /// within 10 m of an enemy at an enemy not seen in 5 s; the rate was
+    /// flat at 1.0-1.3 a minute with an enemy within 8-30 m. The sources of
+    /// the numbers below: a human figure (H), a client number (C), GUESS
+    /// (G, to be swept by the bench).
     pub grenade_tracks: bool,
-    /// ... sensed no longer ago than this, ms (Half-Life 2's Combine
-    /// soldiers flush an enemy out of sight up to 3 s), no nearer than
-    /// `grenade_track_gap_ms` (nearer is a sight, not a place), with an
-    /// error of at most `grenade_track_error_m` metres.
+    /// ... sensed no longer ago than this, ms: 4 s. H, LIKELY: of the
+    /// aimed human throws whose aimed-at enemy had been seen in the
+    /// previous 5 s, 90 % saw him within 3 s (record 9); Half-Life 2's
+    /// Combine soldiers flush up to 3 s. Swept: 3 s and 6 s arms.
     pub grenade_track_ms: u32,
+    /// ... no nearer than this, ms: 500. G: `Memory::seen` takes 400 ms, so
+    /// a sensed place younger than that is a sight, not a place. Not
+    /// swept: it only separates a target from a place by a tick or two.
     pub grenade_track_gap_ms: u32,
+    /// ... with an error of at most this, metres: 8. G: inside the blast's
+    /// 10 m (C, PROVEN); a track's error grows 0.5 m a step once it fades
+    /// (`Memory::update`). Swept: 5 m and 12 m arms (the bench's
+    /// `places` and refusals by source say what it admits).
     pub grenade_track_error_m: f32,
-    /// ... and the chance of a roll whose nearest place is such a track
-    /// (`grenade_chance` for a held angle or a camp). Humans threw 1.0 to
-    /// 1.3 grenades a minute with an enemy within 8-30 m: 0.07-0.09 a 4 s
-    /// roll with a place; GUESS: half of it to start.
+    /// ... within 3 m of a held angle or a camp is that place already:
+    /// `camp_m`, the camp's own radius (C: the existing 3 m).
+    ///
+    /// The chance of a roll whose nearest place is such a track
+    /// (`grenade_chance` 0.15 for a held angle or a camp): 0.08. H,
+    /// LIKELY: humans threw 1.0-1.3 grenades a minute with an enemy within
+    /// 8-30 m, 0.067-0.087 a 4 s roll with a place always at hand; kept at
+    /// the top because a bot has a place only part of the time. Swept:
+    /// 0.04 and 0.15 arms.
     pub grenade_track_chance: f32,
     /// [G2] A place whose flat arc is refused (the thrower's blast, a
     /// steep wall near him, off the place) is tried with other arcs: other
-    /// pitches at the same yaw (a lob over what is in the way, 22-29 m
-    /// out only: the pitch is clamped at 57 degrees), then other yaws up to
-    /// 30 degrees, coarse to fine, at most `grenade_search_traces` traces a
-    /// place; the first that passes every check is the throw, its landing
-    /// within `grenade_search_off_m` of the place. Off: the flat arc only.
-    /// At a real target 12-27 m away the flat arc passed 18 % of human
-    /// throws' places, a pitch search 45 % of the rest, a pitch and yaw
-    /// search 75 % (`grenades-record.md` 4).
+    /// pitches at the same yaw (a lob over what is in the way, 20-29 m
+    /// out only: C, PROVEN, the pitch is clamped at 57 degrees), then other
+    /// yaws up to 30 degrees, coarse to fine, at most
+    /// `grenade_search_traces` traces a place; the first that passes every
+    /// check is the throw, its landing within `grenade_search_off_m` of the
+    /// place. Off: the flat arc only. H, LIKELY: at a real target 12-27 m
+    /// away (3,392 human throws with an enemy there) the flat arc passed
+    /// 18 % of the places, a pitch search 45 % of the rest, a pitch and
+    /// yaw search 75 % (`grenades-record.md` 4). The search grid: pitches
+    /// from -10 degrees (H: the human launch pitch's P10 is -4.6), steps
+    /// of 3 degrees at the yaw of the place, 6 degrees at the others; yaws
+    /// 6, 12, 20, 30 degrees either way (G: coarse enough for the trace
+    /// cap; the first arc found is the one nearest the flat pitch, so the
+    /// grid only decides what is findable, not what is preferred: not
+    /// swept).
     pub grenade_search: bool,
+    /// ... the landing within this of the place, metres: 5. G: the blast
+    /// is linear, 0.68 of a body's health at 5 m, 0.30 at 8 m, lethal
+    /// within 2.4 m (C, PROVEN); the flat arc's own limit is `grenade_off_m`
+    /// 8 (the existing one). The recordings have no per-throw target, so
+    /// there is no human figure. Swept: 8 m and 3 m arms.
     pub grenade_search_off_m: f32,
+    /// ... at most this many traces a place: 64. G, a CPU cap: the full
+    /// pitch x yaw scan took ~10 ms (release, the analysis probe); 64 is
+    /// ~3 ms. Swept: 32 and 128 arms, with ms/s and poll tails paired.
     pub grenade_search_traces: u32,
-    /// [G1] A roll skips a place within this of a place a teammate decided
-    /// to throw at (`TeamKnowledge::claim_throw`) in the last
-    /// `grenade_claim_ms` (the throw's own volley is not held against it),
-    /// with `grenade_tracks` (the claim is G1's; 0 m: none). The owner: do
-    /// not make several bots throw at the same spots. Human same-team
-    /// throws land within 8 m of a teammate's landing in the next 5 s in
-    /// 1.7 % of throws (2.9 % in 10 s), twice the level by chance in the
-    /// same match: they neither avoid nor seek it (LIKELY: 229 matches,
-    /// `grenades-record.md` 9); so the bots' rate stays at 0, under the
-    /// humans'. 8 m: the blast's damage at 8 m is 0.3 of a body's health
-    /// (linear to 10 m); 6 s: the fuse (4 s) and what follows. GUESS for
-    /// the exact values.
+    /// [G1] The team's claim on throw spots: a roll skips a place within
+    /// `grenade_claim_m` of a place a teammate decided to throw at
+    /// (`TeamKnowledge::claim_throw`) in the last `grenade_claim_ms`; the
+    /// throw's own volley is not held against it. Its own switch, so the
+    /// bench shows same-spot throws (`grenade_team_same_spot`) with and
+    /// without it. The owner: do not make several bots throw at the same
+    /// spots. H, LIKELY (229 matches, `grenades-record.md` 9): human
+    /// same-team throws land within 8 m of a teammate's landing in the next
+    /// 5 s in 1.7 % of throws (2.9 % in 10 s), twice the level by chance in
+    /// the same match: they neither avoid nor seek it; the claim keeps the
+    /// bots at 0, under the humans'.
+    pub grenade_claim: bool,
+    /// ... 8 m: C, PROVEN: the blast's damage at 8 m is 0.3 of a body's
+    /// health (linear to 10 m). G for the exact value; swept: 5 m and 12 m.
     pub grenade_claim_m: f32,
+    /// ... 6 s: C, PROVEN: the fuse is 4 s from the press; G: 2 s for the
+    /// flush that follows. Swept: 4 s and 10 s.
     pub grenade_claim_ms: u32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
@@ -903,6 +937,7 @@ impl Default for CombatTuning {
             grenade_search: false,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
+            grenade_claim: false,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
             grenade_give_up_ms: 1_500,
@@ -3315,7 +3350,7 @@ impl Reflex {
         };
         // [G1] The places a teammate decided to throw at lately.
         let claims: Vec<Vec3> = team
-            .filter(|_| c.grenade_tracks && c.grenade_claim_m > 0.0)
+            .filter(|_| c.grenade_claim && c.grenade_claim_m > 0.0)
             .map(|team| {
                 team.throws_of_others(me.place, now, c.grenade_claim_ms)
                     .map(|claim| claim.at)
@@ -6434,7 +6469,7 @@ mod tests {
         let view = view_of(vec![me.clone(), camper.clone()]);
         let aim = AimTuning {
             combat: CombatTuning {
-                grenade_tracks: true,
+                grenade_claim: true,
                 grenade_chance: 1.0,
                 grenade_roll_ms: 500,
                 ..CombatTuning::default()
