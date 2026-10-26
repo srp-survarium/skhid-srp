@@ -49,6 +49,12 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // The way to the box at most, metres (humans: p90 47 m in the 15 s
     // before a hold).
     ("zone_m", 45.0),
+    // ... for a nearly dry bot: a dry bot cannot fight, so the walk is worth
+    // more than a respawn (8 s in batteries, 6.4 s in TDM) while the
+    // detour is under 3.5 x 5 m/s plus how far it has come from its
+    // spawn (about 60 m): a GUESS of the cost model, no human cap (humans
+    // are never dry; `batteries-suicide-vs-resupply.md`).
+    ("zone_m_dry", 80.0),
     // No enemy known this near, metres (humans: 10 of 89 holds had one).
     ("calm_m", 30.0),
     // USE held this long once the view is on the box, ms: the client's 3000
@@ -143,11 +149,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     let Some((index, _, way)) = zones(cx).into_iter().next() else {
         return;
     };
-    if !running && way > num(cx, "zone_m") {
+    let nearly_dry = cx.bot.ammo.share() <= num(cx, "dry_share");
+    let reach = if nearly_dry { num(cx, "zone_m_dry") } else { num(cx, "zone_m") };
+    if !running && way > reach {
         return;
     }
     if let Some(shape) = cx.tactics.world.map.zones[index].shapes.first() {
-        let nearly_dry = cx.bot.ammo.share() <= num(cx, "dry_share");
         out.extend(
             cx.candidate(PlayKind::Resupply, TargetRef::Point(shape.center), None)
                 .map(|c| Candidate {

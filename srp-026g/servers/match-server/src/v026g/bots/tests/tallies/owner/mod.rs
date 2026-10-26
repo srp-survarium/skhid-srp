@@ -97,6 +97,8 @@ struct BotNow {
     /// it is ([`Nearly`]).
     resupplies: u32,
     nearly: Nearly,
+    /// Its weapon 1's rounds and the kit's count for a life.
+    ammo: crate::v026g::bots::guns::Ammo,
 }
 
 #[derive(Default)]
@@ -189,6 +191,7 @@ impl OwnerTally {
                     }),
                     goal_m,
                     resupplies: bot.resupplies,
+                    ammo: bot.ammo(),
                     nearly: nearly_dry(bots, bot, game.bodies[place].feet),
                 })
             })

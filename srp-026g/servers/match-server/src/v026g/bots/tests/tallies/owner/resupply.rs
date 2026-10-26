@@ -36,8 +36,24 @@ struct Event {
     died_dry: bool,
 }
 
+/// A bot's life as the ammunition sees it: the rounds it fired (the drops of
+/// what it holds), against the kit's count for a life.
+#[derive(Clone, Copy, Debug)]
+struct Life {
+    place: Place,
+    at: u32,
+    end: u32,
+    whole: u32,
+    have: u32,
+    fired: u32,
+    died: bool,
+}
+
 #[derive(Default)]
 pub(super) struct ResupplyCounts {
+    /// By place: the life going on, and the lives done.
+    life: Vec<Option<Life>>,
+    lives_done: Vec<Life>,
     /// By place: the holds the bot counted so far, whether this life had
     /// its nearly dry moment, and the event open.
     holds_seen: Vec<u32>,
@@ -53,6 +69,7 @@ impl ResupplyCounts {
             holds_seen: vec![0; n],
             life_done: vec![false; n],
             open: vec![None; n],
+            life: vec![None; n],
             ..Self::default()
         }
     }
@@ -64,6 +81,26 @@ impl OwnerTally {
     /// dryness is the last tick's).
     pub(super) fn resupply_step(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body, now: &BotNow) {
         let counts = &mut self.resupply;
+        if prev.alive && !body.alive {
+            if let Some(mut life) = counts.life[place].take() {
+                life.end = tick;
+                life.died = true;
+                counts.lives_done.push(life);
+            }
+        }
+        if body.alive {
+            let life = counts.life[place].get_or_insert(Life {
+                place,
+                at: tick,
+                end: tick,
+                whole: now.ammo.whole,
+                have: now.ammo.have,
+                fired: 0,
+                died: false,
+            });
+            life.fired += life.have.saturating_sub(now.ammo.have);
+            life.have = now.ammo.have;
+        }
         counts.holds += now.resupplies.saturating_sub(counts.holds_seen[place]);
         counts.holds_seen[place] = now.resupplies;
         if prev.alive && !body.alive {
@@ -117,6 +154,74 @@ impl OwnerTally {
                 }
             }
         }
+        // The ammunition of the lives: as the humans' (`human_suicide.py`, D): life length, rounds fired,
+        // rounds per kill, and what is left of the kit's count at a death.
+        let mut lives_v = std::mem::take(&mut self.resupply.lives_done);
+        for open in std::mem::take(&mut self.resupply.life).into_iter().flatten() {
+            lives_v.push(Life { end, ..open });
+        }
+        let kills_in = |l: &Life| {
+            game.kill_log
+                .iter()
+                .filter(|&&(t, shooter, victim)| {
+                    shooter == l.place
+                        && t >= l.at
+                        && t <= l.end
+                        && game.bodies.get(victim).zip(game.bodies.get(shooter)).is_some_and(|(v, s)| v.team != s.team)
+                })
+                .count() as u32
+        };
+        let lives_a: Vec<Life> = lives_v.into_iter().filter(|l| l.whole > 0 && (l.end - l.at) >= 5_000).collect();
+        let (mut fired_all, mut kills_all, mut ms_all) = (0u32, 0u32, 0u64);
+        let mut seconds: Vec<u32> = Vec::new();
+        let mut fired_each: Vec<u32> = Vec::new();
+        let mut left = [0u32; 4];
+        let mut died = 0u32;
+        for l in &lives_a {
+            fired_all += l.fired;
+            kills_all += kills_in(l);
+            ms_all += u64::from(l.end - l.at);
+            seconds.push((l.end - l.at) / 1000);
+            fired_each.push(l.fired);
+            if l.died {
+                died += 1;
+                let share = 1.0 - f64::from(l.fired.min(l.whole)) / f64::from(l.whole);
+                left[match share {
+                    s if s > 0.5 => 0,
+                    s if s >= 0.1 => 1,
+                    s if s > 0.0 => 2,
+                    _ => 3,
+                }] += 1;
+            }
+        }
+        let median = |v: &mut Vec<u32>| {
+            v.sort_unstable();
+            v.get(v.len() / 2).copied().unwrap_or(0)
+        };
+        let (life_s, fired_med) = (median(&mut seconds), median(&mut fired_each));
+        let min_all = ms_all as f64 / 60_000.0;
+        let kill_pm = if min_all > 0.0 { f64::from(kills_all) / min_all } else { 0.0 };
+        let shots_pm = if min_all > 0.0 { f64::from(fired_all) / min_all } else { 0.0 };
+        let per_kill = if kills_all > 0 { f64::from(fired_all) / f64::from(kills_all) } else { 0.0 };
+        let pct = |n: u32| if died > 0 { (1000.0 * f64::from(n) / f64::from(died)).round() / 10.0 } else { 0.0 };
+        let ammo_text = format!(
+            "owner-test ammo lives (bots, lives of 5 s or more): {} (ended by death {}); life s median {}; rounds fired per life median {} (kit count median {}); rounds per kill {:.1}; kills per bot-minute {:.2}; rounds per bot-minute {:.1}; rounds left of the kit's count at death: over 50 % {} %, 10-50 % {} %, under 10 % {} %, none {} %",
+            lives_a.len(),
+            died,
+            life_s,
+            fired_med,
+            {
+                let mut w: Vec<u32> = lives_a.iter().map(|l| l.whole).collect();
+                median(&mut w)
+            },
+            per_kill,
+            kill_pm,
+            shots_pm,
+            pct(left[0]),
+            pct(left[1]),
+            pct(left[2]),
+            pct(left[3]),
+        );
         let kills_of = |e: &Event| {
             game.kill_log
                 .iter()
@@ -148,6 +253,17 @@ impl OwnerTally {
         let json = serde_json::json!({
             "resupply_holds": self.resupply.holds,
             "resupply_lives": lives,
+            "ammo_lives": lives_a.len(),
+            "ammo_lives_died": died,
+            "ammo_life_s_median": life_s,
+            "ammo_fired_median": fired_med,
+            "ammo_rounds_per_kill": (per_kill * 10.0).round() / 10.0,
+            "ammo_kills_per_min": (kill_pm * 100.0).round() / 100.0,
+            "ammo_rounds_per_min": (shots_pm * 10.0).round() / 10.0,
+            "ammo_left_over_50": left[0],
+            "ammo_left_10_50": left[1],
+            "ammo_left_under_10": left[2],
+            "ammo_left_none": left[3],
             "resupply_runs": runs,
             "resupply_run_s": (f64::from(run_ticks) * scale.tick_s).round(),
             "nearly_dry": all[0],
@@ -179,7 +295,7 @@ impl OwnerTally {
             NEAR_EXTRA_M,
             nr[0], nr[1], nr[2], nr[3], nr[4],
         );
-        Part::new(json, text)
+        Part::new(json, format!("{text}\n  {ammo_text}"))
     }
 }
 
@@ -221,4 +337,32 @@ pub(crate) fn holds_and_the_nearly_dry_lives_are_counted() {
     assert_eq!(json["nearly_dry_objective_near_died_dry"], 1, "{json}");
     assert_eq!(json["nearly_dry_died"], 1, "bot 2 lives on");
     assert!(text.contains("box holds 1 ("), "{text}");
+}
+
+#[test]
+pub(crate) fn the_ammunition_of_a_life_is_counted_to_its_death() {
+    use crate::v026g::bots::guns::Ammo;
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    play(&mut game, &mut tally, 400, |k, game| {
+        for p in 0..2 {
+            put(game, p, 10.0 + 5.0 * p as f32, 10.0, 0);
+        }
+        // Bot 0 holds 100 of its kit's 100, fires 60 by tick 100 (a 1 round drop each tick
+        // from 20 to 80), kills bot 1 at 90, and dies at tick 300 (15 s): a life of 15 s,
+        // 60 rounds fired, 1 kill, 40 % left. Bot 1 lives on (400 ticks = 20 s).
+        game.bodies[0].alive = k < 300;
+        if k == 90 {
+            game.kill_log.push((game.tick, 0, 1));
+        }
+        let mut nows = vec![bot_now(); 2];
+        nows[0].as_mut().unwrap().ammo = Ammo { have: 100 - (k.clamp(20, 80) - 20) as u32, whole: 100, storage: 500 };
+        nows[1].as_mut().unwrap().ammo = Ammo { have: 100, whole: 100, storage: 500 };
+        nows
+    });
+    let (text, json) = tally.finish(&game);
+    assert_eq!(json["ammo_lives"], 2, "{json}");
+    assert_eq!(json["ammo_lives_died"], 1);
+    assert_eq!(json["ammo_left_10_50"], 1, "{json}");
+    assert_eq!(json["ammo_rounds_per_kill"], 60.0, "60 rounds for one kill: {json}");
+    assert!(text.contains("owner-test ammo lives"), "{text}");
 }
