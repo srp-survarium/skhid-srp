@@ -76,6 +76,10 @@ pub struct Sim {
     /// has it, `motion::Tail`), at the world's time; with none the state
     /// ends at the head and an opaque inventory.
     pub player_tails: Vec<Option<motion::Tail>>,
+    /// By place: a player's whole state as a real client wrote it (a
+    /// recorded one, with its inventory), used as it is for a place whose
+    /// head is in `player_states`.
+    pub player_raw: Vec<Option<Vec<u8>>>,
     /// No world was loaded yet: the next is this game's first.
     first_world: bool,
     /// From a tick on the statistics have the tickets of the match's
@@ -106,6 +110,7 @@ impl Sim {
             ballast: 0,
             late_objects_from: None,
             player_states: vec![None; players],
+            player_raw: Vec::new(),
             player_tails: vec![None; players],
             first_world: true,
             stale_tickets_from: None,
@@ -318,7 +323,9 @@ impl Sim {
             if let Some(head) = head {
                 mask |= 1 << place;
                 let animation = players::animation_bytes(&[true; 9], &[time, time + 7], &[0.5]);
+                let raw = self.player_raw.get(place).and_then(Option::as_ref);
                 let state = match self.player_tails.get(place).and_then(Option::as_ref) {
+                    _ if raw.is_some() => raw.cloned().unwrap_or_default(),
                     Some(tail) => motion::state_bytes(
                         head,
                         &[0xA5; 16],

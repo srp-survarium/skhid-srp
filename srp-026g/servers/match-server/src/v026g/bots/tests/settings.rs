@@ -44,7 +44,7 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 /// The names of the plays', the reflex's and the senses' number lists
 /// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
 /// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
-pub(crate) const TUNING_NAMES: [&str; 14] = [
+pub(crate) const TUNING_NAMES: [&str; 15] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -56,6 +56,7 @@ pub(crate) const TUNING_NAMES: [&str; 14] = [
     "CROSSFIRE",
     "PAIRUP",
     "COMBAT",
+    "HEAL",
     "AIM",
     "SENSE",
     "TUNING",
@@ -121,6 +122,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
+    s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 

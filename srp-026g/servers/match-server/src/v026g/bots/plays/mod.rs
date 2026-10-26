@@ -54,7 +54,9 @@ use serde::{Deserialize, Serialize};
 use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::rng::Rng;
+use super::pools::Pools;
 use super::signals::{MatchSignals, Mods};
+use super::stock::Pantry;
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
@@ -428,8 +430,14 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
-    /// Medkits it used this life (quick use 1 pressed).
+    /// Medkits it used this life (quick use 1 pressed): the tip's count, which the Heal play and Retreat go by
+    /// while `HealTuning::on` is off.
     pub medkits_used: u8,
+    /// The drugs of its kits (`stock.rs`), which they go by with it on.
+    pub pantry: &'a Pantry,
+    /// Its health pools as the last world showed them (`pools.rs`); none
+    /// before the first.
+    pub pools: Option<Pools>,
     /// Goals its searches proved no way to lately, and until when.
     pub no_way_to: &'a [(Vec3, u32)],
     /// Plays that failed at once at a target, and until when they are
@@ -851,6 +859,19 @@ impl Ctx<'_> {
         slot: Option<u32>,
         given: &[(Input, f32)],
     ) -> Option<Candidate> {
+        self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
+    }
+
+    /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
+    /// graded rule has its curve in `HealTuning`).
+    pub fn candidate_with(
+        &self,
+        kind: PlayKind,
+        target: TargetRef,
+        slot: Option<u32>,
+        considerations: &[curve::Consideration],
+        given: &[(Input, f32)],
+    ) -> Option<Candidate> {
         if self
             .bot
             .set_aside
@@ -861,7 +882,7 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
-        let (score, why) = curve::score(&play.considerations, |input| {
+        let (score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)

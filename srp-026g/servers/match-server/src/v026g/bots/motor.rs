@@ -40,7 +40,7 @@ use mapdata::Vec3;
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::path::Route;
+use super::path::{Leap, Route};
 use super::rng::Rng;
 use crate::v026g::drive::key;
 
@@ -437,6 +437,8 @@ struct Ahead {
     going: bool,
     /// Given up on: the take-off.
     failed: Option<Vec3>,
+    /// How it is pressed.
+    leap: Leap,
 }
 
 /// Why the motor pressed jump.
@@ -725,7 +727,7 @@ impl Motor {
     /// ([`ARRIVE_ABOVE_M`]).
     fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
         let end = route.end();
-        let below = if route.points().last().is_some_and(|p| p.jump) {
+        let below = if route.points().last().is_some_and(|p| p.jump.is_some()) {
             ARRIVE_ON_LANDING_M
         } else {
             ARRIVE_BELOW_M
@@ -846,6 +848,7 @@ impl Motor {
         }
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
+        let leap = points[k].jump.unwrap_or(Leap::Ledge);
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
@@ -895,13 +898,23 @@ impl Motor {
                 before: 0.0,
                 going: false,
                 failed: Some(take_off),
+                leap,
             });
         }
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
-        let run_up = [RUN_UP_M, 0.5 * RUN_UP_M]
-            .into_iter()
-            .find(|&m| clear(at(m)))
-            .unwrap_or(0.0);
+        // A gap link is pressed at its own point: the run-up starts
+        // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
+        // walked into from wherever the line is clear (it presses there).
+        let run_up = match leap {
+            Leap::Ledge => [RUN_UP_M, 0.5 * RUN_UP_M]
+                .into_iter()
+                .find(|&m| clear(at(m)))
+                .unwrap_or(0.0),
+            Leap::Gap(press) => {
+                let m = press.metres() + mapdata::grid::gap::GAP_RUN_UP_M;
+                if clear(at(m)) { m } else { press.metres() }
+            }
+        };
         let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
@@ -913,11 +926,13 @@ impl Motor {
         }
         let lined = in_the_air || (on_line && !jump.back);
         let aim = if lined {
-            // Along the jump's way, past the landing.
+            // Along the jump's way, past the landing (a gap link's lands
+            // up to 2 m on).
+            let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
             Vec3::new(
-                take_off.x + way[0] * 3.0,
+                take_off.x + way[0] * past,
                 landing.y,
-                take_off.z + way[1] * 3.0,
+                take_off.z + way[1] * past,
             )
         } else if clear(at(run_up)) {
             at(run_up)
@@ -954,6 +969,7 @@ impl Motor {
             before: -along,
             going,
             failed: None,
+            leap,
         })
     }
 
@@ -977,7 +993,12 @@ impl Motor {
         let rested = jump
             .pressed
             .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
-        let near = ahead.before <= JUMP_LEAD_S * speed + PRESS_M;
+        // A jump link as it walks over the take-off; a gap link at its own
+        // point (where the grid found the client's jump lands it).
+        let near = match ahead.leap {
+            Leap::Ledge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
+            Leap::Gap(press) => ahead.before <= press.metres(),
+        };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
             return 0;
         }
@@ -1015,7 +1036,7 @@ impl Motor {
         let leg = route
             .points()
             .iter()
-            .position(|point| point.jump && (point.at - jump.landing).length() < 0.3);
+            .position(|point| point.jump.is_some() && (point.at - jump.landing).length() < 0.3);
         if let Some(k) = leg.filter(|&k| k >= 1 && route.segment() >= k) {
             route.back_to(k - 1);
         }
@@ -1358,7 +1379,7 @@ mod tests {
                 .map(|&(x, z)| Waypoint {
                     at: Vec3::new(x, 0.0, z),
                     node: 0,
-                    jump: false,
+                    jump: None,
                     low: false,
                 })
                 .collect(),
@@ -1368,10 +1389,10 @@ mod tests {
     /// A route along x with waypoint 1 (at x = 5) up a ledge, and the leg
     /// to waypoint 2 low (from x = 5 to 10).
     fn ledge_then_low() -> Route {
-        let p = |x: f32, jump, low| Waypoint {
+        let p = |x: f32, jump: bool, low| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low,
         };
         Route::new(vec![
@@ -1607,10 +1628,10 @@ mod tests {
     /// and on along x up there; with the take-off at `(x, z)` and the
     /// jump's way turned to +z if `turned`.
     fn up_a_ledge(turned: bool) -> (Route, Ledge) {
-        let p = |x: f32, y: f32, z: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let (points, way) = if turned {
@@ -1651,10 +1672,10 @@ mod tests {
     /// is arrived at as before.
     #[test]
     fn a_near_low_jump_at_a_routes_end_is_pressed() {
-        let p = |x: f32, y: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let ledge = Ledge {
@@ -1871,10 +1892,10 @@ mod tests {
     #[test]
     fn an_end_up_a_ledge_is_arrived_at_only_up_it() {
         let mut rng = Rng::new(19);
-        let p = |x: f32, y: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let route = || {
@@ -1909,7 +1930,7 @@ mod tests {
         let p = |x: f32| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         let route = || Route::new(vec![p(0.0), p(5.0)]);
@@ -2250,10 +2271,10 @@ mod tests {
     #[test]
     fn no_hop_under_a_low_floor_or_by_a_planned_jump() {
         let mut rng = Rng::new(14);
-        let point = |x: f32, jump, low| Waypoint {
+        let point = |x: f32, jump: bool, low| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low,
         };
         for aiming in [false, true] {

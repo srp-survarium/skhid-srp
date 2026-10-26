@@ -368,3 +368,55 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     assert_eq!(bench.game().resyncs(0), 0);
     bench.assert_no_faults();
 }
+
+/// The game-level intake (`Game::observe_stock`) on bytes a live client wrote:
+/// the roster place 2 is a real player's profile, and the worlds the client
+/// uploads hold that player's state as recorded in a match of 20 places
+/// (`bots/stock.rs` `live_kit`): a medkit and bandages, two of each in the
+/// slots. The server's bot at that place counts them, with the key of the
+/// kit's own slot order, though its standard kit knew no bandages.
+#[test]
+fn the_servers_bot_counts_the_drugs_a_live_clients_world_shows() {
+    use crate::v026g::bots::stock::{Drug, live_kit::live_kit};
+    use survarium::v026g::match_msgs::players::PlayerState;
+    use survarium::v026g::match_msgs::static_info::MatchProfile;
+
+    let live = live_kit();
+    let mut setup = super::setup(3, MAP_TDM);
+    let team = setup.players[2].profile.team;
+    setup.players[2].profile = MatchProfile {
+        team,
+        ..live.profile.clone()
+    };
+    let settings = Settings {
+        maps: Some(walking_map()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::with_setup(setup, settings, &[], &[2], false);
+    let head = PlayerState::read(&live.state, live.profile.items.len()).expect("a state");
+    for client in &mut bench.clients {
+        client.sim.player_states = vec![None, None, Some(head.clone())];
+        client.sim.player_raw = vec![None, None, Some(live.state.clone())];
+    }
+    bench.join(0);
+    assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0, 2]));
+    // Its standard kit knew two medkits and no bandages: the bandages and the
+    // store are the world's.
+    let standard = |bench: &Bench| {
+        let pantry = bench.game().driven_pantry(2).expect("the bot");
+        (pantry.in_hand(Drug::Medkit), pantry.in_hand(Drug::Bandages))
+    };
+    assert!(
+        bench.until(30_000, |bench| standard(bench) == (2, 2)),
+        "{:?}",
+        standard(&bench)
+    );
+    let pantry = bench.game().driven_pantry(2).expect("the bot");
+    assert_eq!(
+        (pantry.total(Drug::Medkit), pantry.total(Drug::Bandages)),
+        (22, 20),
+        "the slots and the store"
+    );
+    assert_eq!(pantry.first(Drug::Bandages).map(|held| held.quick), Some(1));
+    assert_eq!(pantry.first(Drug::Medkit).map(|held| held.quick), Some(0));
+}

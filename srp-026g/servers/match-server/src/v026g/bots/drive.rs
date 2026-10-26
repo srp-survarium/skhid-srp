@@ -164,6 +164,18 @@ pub(super) fn drive_tick(
     // (`Intent::let_go`) may fire while the view still shows it carried.
     let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
+    // [heal] The consumable is a habit of the reflex, as the reload is: the
+    // key goes out at once whatever the play, which is neither taken nor
+    // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
+    bot.reflex.set_heal(super::plays::heal::wish(
+        bot.pools,
+        me.health,
+        view.world_time,
+        me.carrying.is_some(),
+        &bot.pantry,
+        &tuning.heal,
+        time,
+    ));
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -845,7 +857,7 @@ pub(super) fn drive_tick(
                                 .enumerate()
                                 .find(|&(k, point)| {
                                     k >= 1
-                                        && point.jump
+                                        && point.jump.is_some()
                                         && route.points()[k - 1].at.distance_xz(take_off) < 0.3
                                 })
                                 .map(|(_, point)| point.at);
@@ -954,6 +966,11 @@ pub(super) fn drive_tick(
     }
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);
+    }
+    for (quick, bit) in key::QUICK.into_iter().enumerate() {
+        if decision.keys & bit != 0 {
+            bot.pantry.pressed(quick, time);
+        }
     }
     let by = bot.motor.jumped().map(|by| match by {
         JumpBy::Route => "route",
