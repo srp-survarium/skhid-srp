@@ -550,6 +550,7 @@ pub(crate) fn real_bot_cost() {
             game.nudge = bench_settings().number("SRP_BENCH_NUDGE")
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
+            game.volume = HitVolume::bench();
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
             // count is 10), not one at every spawner.

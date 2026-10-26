@@ -14,6 +14,7 @@
 //! | `SRP_BENCH_CAMP` | no camping carrier |
 //! | `SRP_BENCH_NUDGE` | no nudged battery |
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
+//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | on: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error; `off`: the old 0.45 m disc about the chest, the centre ray, no scatter |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
@@ -116,6 +117,14 @@ pub(crate) enum Kill {
     Enemy,
     Mate,
     Own,
+}
+
+/// A bullet or pellet that met a body's hit shape: the body, the distance along the ray, the hit box.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BoxStrike {
+    pub(crate) body: Place,
+    pub(crate) along: f32,
+    pub(crate) param: standin_hitbox::HitParam,
 }
 
 /// A body of the stand-in game.
@@ -372,6 +381,9 @@ pub(crate) struct Game {
     pub(crate) shot_facts: Vec<fight_tally::ShotFact>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
+    /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
+    /// ([`HitVolume::bench`], the whole cut unless `SRP_BENCH_HIT_MODEL=off`).
+    pub(crate) volume: HitVolume,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;
     /// the sight's when the map has none, as the tests' fields); every
@@ -551,6 +563,7 @@ impl Game {
             nudged: 0,
             shot_facts: Vec::new(),
             spread: false,
+            volume: HitVolume::Disc,
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
@@ -940,6 +953,37 @@ impl Game {
         }
     }
 
+    /// The line of a shot: its origin and direction. **The one place a shot line is scattered.** The view's direction
+    /// is turned by the weapon's cone (`SRP_BENCH_SPREAD`), as the game's `get_dispersed_bullet_direction` turns
+    /// it; with the whole hit cut on ([`HitVolume::Boxes`] with a `scatter_m`) the origin is moved by one random
+    /// offset across the line, the live position error the bench's bodies lack (C3, [`standin_hitbox`]:
+    /// GUESS for its size). The origin is where the hit tests start their rays; the eye stays where the bullet
+    /// starts for the world's blocking. With the old disc, nothing moves and nothing is drawn beyond the cone.
+    pub(crate) fn shot_line(&mut self, eye: Vec3, dir: Vec3, cone: f32) -> (Vec3, Vec3) {
+        let dir = if self.spread {
+            bench_spread::deflect(dir, cone, &mut self.rng)
+        } else {
+            dir
+        };
+        let HitVolume::Boxes { scatter_m: Some(sigma) } = self.volume else {
+            return (eye, dir);
+        };
+        // Two Gaussian offsets across the line (Box-Muller from two draws): along the horizontal across it
+        // and along the line's own up.
+        let u1 = self.rng.unit().max(1e-9);
+        let u2 = self.rng.unit();
+        let radius = sigma * (-2.0 * u1.ln()).sqrt();
+        let angle = std::f32::consts::TAU * u2;
+        let side = dir.cross(Vec3::Y);
+        let side = if side.length() < 1e-4 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            side * (1.0 / side.length())
+        };
+        let up = side.cross(dir);
+        (eye + side * (radius * angle.cos()) + up * (radius * angle.sin()), dir)
+    }
+
     /// One shot of `shooter` at `at` ms (within the tick).
     pub(crate) fn shot(&mut self, shooter: Place, at: f32) {
         self.shots += 1;
@@ -956,11 +1000,7 @@ impl Game {
         self.bodies[shooter].recoil.shot(at, top, 0.0);
         let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
         let view_dir = dir;
-        let dir = if self.spread {
-            bench_spread::deflect(dir, cone, &mut self.rng)
-        } else {
-            dir
-        };
+        let (origin, dir) = self.shot_line(eye, dir, cone);
         let tick = self.tick;
         let body = &self.bodies[shooter];
         // A shot at the bot's target with nothing of him showing
@@ -983,6 +1023,96 @@ impl Game {
             }
             self.metric_rays += super::aimpoint::rays_cast() - before;
         }
+        // What the shot's bullets met: the old disc's nearest chest, or the hit shapes of each pellet's ray.
+        let ammo = standin_damage::ammo_of(&self.damage, gun);
+        let (disc, boxes) = match self.volume {
+            HitVolume::Disc => (self.strike_disc(shooter, eye, dir), Vec::new()),
+            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo)),
+        };
+        let best: Option<(Place, f32)> = disc.or_else(|| {
+            boxes
+                .iter()
+                .min_by(|a, b| a.along.total_cmp(&b.along))
+                .map(|s| (s.body, s.along))
+        });
+        let shooter_body = &self.bodies[shooter];
+        let team = shooter_body.team;
+        let (moving, aimed, crouched) = fight_tally::stance(shooter_body.keys);
+        let aimed_at = shooter_body
+            .target
+            .filter(|&t| self.bodies[t].alive)
+            .map(|t| {
+                let (d, off) = fight_tally::aim_off(origin, dir, Self::chest(&self.bodies[t]));
+                (t, d, off)
+            });
+        // [counts only] Where the shot line passed the target's chest, for the owner counts' `shot_offsets`.
+        let offset = aimed_at.map(|(t, distance, _)| {
+            let target = &self.bodies[t];
+            super::tallies::shot_offset::ShotOffset::of(
+                origin,
+                dir,
+                Self::chest(target),
+                distance,
+                super::tallies::shot_offset::ShotClass::of(gun.class()),
+                target.keys & key::CROUCH != 0,
+            )
+        });
+        // [counts only] The bullets or pellets fired, those that landed on an enemy and the parts the shapes gave.
+        let mut landed = fight_tally::Landed {
+            fired: ammo.buck_shot.clamp(1, 255) as u8,
+            ..Default::default()
+        };
+        if let Some((body, along)) = disc
+            && self.bodies[body].team != team
+        {
+            landed.on_enemy = standin_damage::pellets_hitting(ammo.buck_shot, along).min(255) as u8;
+        }
+        for strike in boxes.iter().filter(|s| self.bodies[s.body].team != team) {
+            landed.on_enemy += 1;
+            landed.parts[strike.param.part().index()] += 1;
+        }
+        // The enemy the shot hit: the shooter's target if a bullet landed on it, else the nearest enemy hit.
+        let hit = {
+            let enemies = || {
+                disc.into_iter()
+                    .chain(boxes.iter().map(|s| (s.body, s.along)))
+                    .filter(|&(body, _)| self.bodies[body].team != team)
+            };
+            aimed_at
+                .map(|(t, ..)| t)
+                .filter(|&t| enemies().any(|(body, _)| body == t))
+                .or_else(|| {
+                    enemies()
+                        .min_by(|a, b| a.1.total_cmp(&b.1))
+                        .map(|(body, _)| body)
+                })
+        };
+        self.shot_facts.push(fight_tally::ShotFact {
+            shooter,
+            tick,
+            hit,
+            target: aimed_at,
+            moving,
+            aimed,
+            crouched,
+            aim_state,
+            cone,
+            offset,
+            landed,
+        });
+        match self.volume {
+            HitVolume::Disc => {
+                if let Some((target, along)) = best {
+                    self.land_disc(shooter, target, along, [eye, dir, view_dir], cone, tick);
+                }
+            }
+            HitVolume::Boxes { .. } => self.land_boxes(shooter, &boxes, [eye, dir, view_dir], cone, tick),
+        }
+    }
+
+    /// The old rule ([`HitVolume::Disc`]): the nearest body, within 100 m along the line, whose chest the line
+    /// passes within [`standin_hitbox::DISC_M`] and sees (a clear line from the eye to the chest, not a clear shot ray).
+    fn strike_disc(&self, shooter: Place, eye: Vec3, dir: Vec3) -> Option<(Place, f32)> {
         let mut best: Option<(Place, f32)> = None;
         for (target, other) in self.bodies.iter().enumerate() {
             if !other.alive || target == shooter {
@@ -994,52 +1124,73 @@ impl Game {
                 continue;
             }
             let miss = (to - dir * along).length();
-            if miss < 0.45
+            if miss < standin_hitbox::DISC_M
                 && best.is_none_or(|(_, d)| along < d)
                 && self.world.sight.visible(eye, Self::chest(other))
             {
                 best = Some((target, along));
             }
         }
-        let shooter_body = &self.bodies[shooter];
-        let (moving, aimed, crouched) = fight_tally::stance(shooter_body.keys);
-        let aimed_at = shooter_body
-            .target
-            .filter(|&t| self.bodies[t].alive)
-            .map(|t| {
-                let (d, off) = fight_tally::aim_off(eye, dir, Self::chest(&self.bodies[t]));
-                (t, d, off)
-            });
-        // [counts only] Where the shot line passed the target's chest, for the owner counts' `shot_offsets`.
-        let offset = aimed_at.map(|(t, distance, _)| {
-            let target = &self.bodies[t];
-            super::tallies::shot_offset::ShotOffset::of(
-                eye,
+        best
+    }
+
+    /// The nearest body hit shape on the ray from `origin` along `dir`, within the stand-in's 100 m, if the
+    /// bullet mesh (the world) does not meet the ray from `eye` first (`origin` is `eye` moved across the line
+    /// by the position scatter, [`Game::shot_line`]).
+    fn nearest_shape(&self, shooter: Place, eye: Vec3, origin: Vec3, dir: Vec3) -> Option<BoxStrike> {
+        let mut best: Option<BoxStrike> = None;
+        for (body, other) in self.bodies.iter().enumerate() {
+            if !other.alive || body == shooter {
+                continue;
+            }
+            let reach = best.map_or(super::tallies::shot_offset::REACH_M, |b| b.along);
+            let hit = standin_hitbox::ray_at_body(
+                other.feet,
+                forward(other.yaw),
+                other.keys & key::CROUCH != 0,
+                other.keys & key::AIM != 0,
+                origin,
                 dir,
-                Self::chest(target),
-                distance,
-                super::tallies::shot_offset::ShotClass::of(gun.class()),
-                target.keys & key::CROUCH != 0,
-            )
-        });
-        self.shot_facts.push(fight_tally::ShotFact {
-            shooter,
-            tick,
-            hit: best
-                .map(|b| b.0)
-                .filter(|&t| self.bodies[t].team != shooter_body.team),
-            target: aimed_at,
-            moving,
-            aimed,
-            crouched,
-            aim_state,
-            cone,
-            offset,
-        });
-        let Some((target, along)) = best else {
-            return;
-        };
-        let team_hit = self.bodies[target].team == body.team;
+                reach,
+            );
+            if let Some((along, param)) = hit
+                && best.is_none_or(|b| along < b.along)
+            {
+                best = Some(BoxStrike { body, along, param });
+            }
+        }
+        best.filter(|b| self.world.sight.ray_cast(eye, dir, b.along).is_none())
+    }
+
+    /// [`HitVolume::Boxes`]: a bullet is one ray along `dir`; a shotgun's shot is its `buck_shot` pellets, each
+    /// its own ray, the shot's direction turned again by the ammunition's cone (`buck_dispersion`) as the game's
+    /// `get_dispersed_buckshot_direction` turns it (`fact-hitboxes-026g.md` 4). One strike per ray that met a
+    /// body.
+    fn strikes_boxes(
+        &mut self,
+        shooter: Place,
+        eye: Vec3,
+        origin: Vec3,
+        dir: Vec3,
+        ammo: &survarium::v026g::damage::AmmoParams,
+    ) -> Vec<BoxStrike> {
+        if ammo.buck_shot <= 1 {
+            return self.nearest_shape(shooter, eye, origin, dir).into_iter().collect();
+        }
+        (0..ammo.buck_shot)
+            .filter_map(|_| {
+                let pellet = bench_spread::deflect(dir, ammo.buck_dispersion, &mut self.rng);
+                self.nearest_shape(shooter, eye, origin, pellet)
+            })
+            .collect()
+    }
+
+    /// The old rule's hit: `shooter`'s shot hit `target` at `along` m; its part drawn by chance, a leg hit by
+    /// a hash. `line` is the eye, the shot's direction and the view's.
+    fn land_disc(&mut self, shooter: Place, target: Place, along: f32, line: [Vec3; 3], cone: f32, tick: u32) {
+        let [eye, dir, view_dir] = line;
+        let gun = self.bodies[shooter].gun;
+        let team_hit = self.bodies[target].team == self.bodies[shooter].team;
         if team_hit {
             self.team_hits += 1;
             self.team_hit_shots.push((shooter, target, eye, dir, cone, view_dir));
@@ -1058,7 +1209,59 @@ impl Game {
                 other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
             }
         }
-        let lethal = other.health <= 1e-3;
+        self.settle(shooter, target, team_hit, pain_before, tick);
+    }
+
+    /// [`HitVolume::Boxes`]' hits: every body a bullet or pellet landed on takes them together, each with the
+    /// hit box its shape is; a leg shape hurts that leg (once for the shot). The shot counts as one hit on an
+    /// enemy if any landed on one. `line` is the eye, the shot's direction and the view's.
+    fn land_boxes(&mut self, shooter: Place, strikes: &[BoxStrike], line: [Vec3; 3], cone: f32, tick: u32) {
+        let [eye, dir, view_dir] = line;
+        let (gun, team) = (self.bodies[shooter].gun, self.bodies[shooter].team);
+        let mut bodies: Vec<Place> = Vec::new();
+        let mut enemy_hit = false;
+        for strike in strikes {
+            if bodies.contains(&strike.body) {
+                continue;
+            }
+            let target = strike.body;
+            bodies.push(target);
+            let landed: Vec<(standin_hitbox::HitParam, f32)> = strikes
+                .iter()
+                .filter(|s| s.body == target)
+                .map(|s| (s.param, s.along))
+                .collect();
+            let team_hit = self.bodies[target].team == team;
+            if team_hit {
+                self.team_hits += 1;
+                self.team_hit_shots.push((shooter, target, eye, dir, cone, view_dir));
+            } else {
+                enemy_hit = true;
+                self.hit_log.push((tick, shooter, target));
+            }
+            let pain_before = self.bodies[target].pools.pain;
+            let other = &mut self.bodies[target];
+            standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
+            other.last_hit = tick;
+            for leg in [0, 1] {
+                if landed.iter().any(|(param, _)| param.leg() == Some(leg)) {
+                    other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
+                    if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
+                        other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
+                    }
+                }
+            }
+            self.settle(shooter, target, team_hit, pain_before, tick);
+        }
+        if enemy_hit {
+            self.hits += 1;
+            self.shots_hits[shooter].1 += 1;
+        }
+    }
+
+    /// After a hit on `target`: a team hit's pain is noted, and a lethal one is a kill.
+    fn settle(&mut self, shooter: Place, target: Place, team_hit: bool, pain_before: f32, tick: u32) {
+        let lethal = self.bodies[target].health <= 1e-3;
         if team_hit {
             self.team_hit_pains.push((pain_before, lethal));
         }
