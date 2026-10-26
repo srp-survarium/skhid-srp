@@ -447,7 +447,7 @@ impl SplashParams {
     /// walls; `None` beyond the radius.
     pub fn amount_at(&self, distance: f32) -> Option<f32> {
         let f = (self.radius - distance) / self.radius;
-        (f >= 0.0).then(|| self.min_damage + (self.max_damage - self.min_damage) * f)
+        (f >= 0.0).then_some(self.min_damage + (self.max_damage - self.min_damage) * f)
     }
 }
 
