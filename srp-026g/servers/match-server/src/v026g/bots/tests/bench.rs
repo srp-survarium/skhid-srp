@@ -219,6 +219,20 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
     }
+    // The team's threat spots (K1): `0` off, else on.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_THREAT") {
+        tuning.threat.spots = v != "0";
+    }
+    if let Ok(v) = bench_settings().var("SRP_BENCH_THREAT_DETOUR") {
+        tuning.threat.detour = v != "0";
+    }
+    if let Some(n) = bench_settings().number::<u32>("SRP_BENCH_THREAT_FLOORS") {
+        tuning.threat.search_floors = n;
+    }
+    // Running through a shooter's lane (K1): `0` off, else on.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_THREAT_SPRINT") {
+        tuning.threat.sprint = v != "0";
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
@@ -585,6 +599,11 @@ pub(crate) fn real_bot_cost() {
             let mut holder_thefts = [0u32; 2];
             let mut unheld_ticks = [0u64; 2];
             let mut takes_all = 0u32;
+            let mut threat_changes = 0u32;
+            let mut detour_deaths = 0u32;
+            let (mut bot_deaths, mut bot_ticks, mut detour_ticks) = (0u32, 0u64, 0u64);
+            let threat_searches_before = threat::searches();
+            let threat_checks_before = threat::checks();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
@@ -658,6 +677,17 @@ pub(crate) fn real_bot_cost() {
                     };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
                         push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
+                        let detour = threat::rounded_within(place, game.tick, 15_000);
+                        if bots.bots[place].is_some() && game.bodies[place].alive {
+                            bot_ticks += 1;
+                            detour_ticks += u64::from(detour);
+                        }
+                        if now.1 > before.1 {
+                            bot_deaths += now.1 - before.1;
+                            if detour {
+                                detour_deaths += now.1 - before.1;
+                            }
+                        }
                         let side = &mut by_team[usize::from(teams[place])];
                         if now.0 > before.0 {
                             by_play.entry(play_of(place)).or_default()[2] += now.0 - before.0;
@@ -940,6 +970,9 @@ pub(crate) fn real_bot_cost() {
                     events.note(&note);
                     carry.note(&note);
                     push.note(&note, &bots);
+                    if note.text.contains(": threat spots keep ") {
+                        threat_changes += 1;
+                    }
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -1229,6 +1262,17 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
             eprintln!("  push: {}", push.line(&bots));
+            eprintln!(
+                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
+                bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                detour_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                threat::checks()[0] - threat_checks_before[0],
+                threat::checks()[1] - threat_checks_before[1],
+                threat::searches()[0] - threat_searches_before[0],
+                threat::searches()[1] - threat_searches_before[1],
+                threat::searches()[2] - threat_searches_before[2],
+                threat::searches()[3] - threat_searches_before[3]
+            );
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }
