@@ -1,6 +1,6 @@
 # STALKER maps (team deathmatch)
 
-Six STALKER multiplayer maps as one content pack, `stalker-maps@2`, the owner's
+Six STALKER multiplayer maps as one content pack, `stalker-maps@3`, the owner's
 pick of 2026-10-24 on the map spot planner. Team deathmatch only (mode 4).
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
@@ -43,6 +43,34 @@ the floor under each one) and on ground a walker reaches without a ladder. That
 check moved one Repair Depot stash 0.7 m onto solid floor and dropped one
 Training Camp pair (its floor under the tower is not walkable in the build); the
 planner has the same.
+
+### Experimental Pool: the owner's rules (2026-10-26)
+
+Experimental Pool no longer uses the planner's proposal. Its spots in
+`ports/stalker-tdm/spots.json` follow these rules:
+
+- Every spawn is on the second floor, 12 per team. Team 1 (server team 0) has 5
+  in the south-west block and 7 in the south block (y 8.6-9.0). Team 2 (server
+  team 1) has 6 in the north-west block and 6 in the north block (y 8.5).
+- No spawn sees an enemy spawn. Each spawn is at least 0.9 m from a wall, has
+  at least 3.8 m of headroom and is indoors. The enemy's second floor is at
+  least 25 m away on foot.
+- Roof sight lines were kept as few as the blocks allow. The south block's
+  north windows face the north roofs across the pool, so 9 of team 1's spawns
+  are in sight of some roof, about 320 m² of roof in all. Only 1 of team 2's
+  is, from 9 m² of roof.
+- Each team has one stash, outside on the grass behind its spawns:
+  - Team 1's is south of the south blocks at (-14.88, 4.26, -13.62), 32 m on
+    average from its spawns.
+  - Team 2's is north of the yard at (-22.88, 4.18, 48.88), 81 m on average.
+    The north blocks have no way out to the north except through the sunken
+    passage, so team 2 walks about 50 m further. A stair from the north
+    gallery down to the yard would even this out; it is not built.
+- The hatch room under ladder clmbl#8 (south block, x -12.3..-4.5,
+  z -8.7..-4.5) has no spawns. It is kept free for team 1's way up to the
+  roof. Team 2 already has one: the table and planks in the north block's
+  broken east end. Team 1's has three designs for the owner to choose from
+  and is not built yet.
 
 ## Grass
 
@@ -158,7 +186,8 @@ The spawns do not come from the level: they are the planner's.
 - Loading pictures: Training Camp and Repair Depot use the earlier package's
   in-game shots; the other four have a placeholder cut from the top-down render
   until an in-game shot is taken.
-- `release/content.tsv`: the pack row `stalker-maps@2` (@1 without grass).
+- `release/content.tsv`: the pack row `stalker-maps@3`. @2 has the planner's
+  spots on Experimental Pool; @1 has no grass.
 
 ## Still to do before a release
 
