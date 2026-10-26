@@ -18,7 +18,7 @@ fn walked_on(motor: &mut Motor, route: &mut Route, feet: Vec3, exact: bool) -> W
         yaw: yaw_of([1.0, 0.0]),
         ..Default::default()
     };
-    motor.exact_end = exact;
+    motor.exact_end = exact.then_some(motor.feel.arrive_m);
     motor.walk(route, &pose, 5.0, |_| true).1
 }
 

@@ -195,7 +195,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // (`Look::use_box`): from where the approach stopped (up to
             // `reach_m` off) it can fall short, so it steps in as a
             // put-in does (`collect::USE_NEAR_M`) to `use_near_m`.
-            let eye = cx.me.feet + Vec3::new(0.0, view::EYE_CROUCHED, 0.0);
+            let eye = view::still_eye(cx.me.feet, true);
             if (at + Vec3::new(0.0, 1.0, 0.0) - eye).length() > num("use_near_m") {
                 intent = Intent::to(at, Pace::Sneak)
                     .within(0.5)
