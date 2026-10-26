@@ -3,16 +3,34 @@ rem Skhid-network-setup.cmd: lets the Skhid game's three programs out through
 rem Windows Firewall and, if you say yes, excludes the game's program folder
 rem (game\binaries\x86) from Microsoft Defender's scans. It turns nothing off: the firewall and
 rem Defender stay on. It belongs beside Skhid.bat, in the folder that holds
-rem the folder named game.
+rem the folder named game. What it says is in Russian (its players are).
 rem
 rem   Skhid-network-setup.cmd                add the rules (asks for administrator rights)
 rem   Skhid-network-setup.cmd --undo         remove exactly what it added
 rem   Skhid-network-setup.cmd --dry-run      print the commands, change nothing
 rem   --defender-yes or --defender-no        answer the Defender question beforehand
 rem
+rem Started without administrator rights, it asks Windows for them (the User
+rem Account Control prompt) and runs again in a new window, elevated.
+rem
 rem Running it again adds no second rule: each rule is removed by its name
 rem and added again (so a moved game folder gets its new paths).
+rem
+rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
+rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in the
+rem console's code page at the time, so it switches the console to 866 here,
+rem before the first line with a Russian letter, and back at the end: the
+rem text is right on a Russian Windows (866 already) and on any other. (Not
+rem 65001: Windows 7's cmd stops reading a script in it.) Every line above
+rem the chcp is ASCII.
 setlocal EnableExtensions DisableDelayedExpansion
+set "SKHID_CP="
+for /f "tokens=2 delims=:" %%C in ('chcp') do set "SKHID_CP=%%C"
+if defined SKHID_CP set "SKHID_CP=%SKHID_CP: =%"
+if defined SKHID_CP set "SKHID_CP=%SKHID_CP:.=%"
+chcp 866 >nul 2>&1
+set "RC=0"
+cd /d "%~dp0"
 set "MODE=add"
 set "DRY="
 set "ELEVATED="
@@ -36,25 +54,28 @@ set "MARKER=%TOP%\Skhid-network-setup.defender"
 set "PROGRAMS=launcher_skhid.exe survarium_skhid.exe updater_skhid.exe"
 if not exist "%X86%\survarium_skhid.exe" goto wrong_place
 
-echo Skhid network setup
-echo ===================
-if "%MODE%"=="undo" (
-    echo Removes the Windows Firewall rules named "Skhid ..." that this script
-    echo added, and the Microsoft Defender exclusion of the game's program
-    echo folder if this script added it.
-) else (
-    echo Adds Windows Firewall rules that let the game's three programs, in
-    echo game\binaries\x86, connect out, UDP and TCP:
-    echo   launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe
-    echo Then it asks whether to exclude that folder from Microsoft Defender's
-    echo scans. It does not turn the firewall or Defender off.
-)
-echo Game folder: "%TOP%"
+rem (No echo of Russian text inside a bracketed block: a ")" in it would end
+rem the block.)
+echo Настройка сети Skhid
+echo ====================
+if "%MODE%"=="undo" goto intro_undo
+echo Добавляет правила брандмауэра Windows, которые разрешают трём программам
+echo игры из папки game\binaries\x86 исходящие соединения (TCP и UDP):
+echo   launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe
+echo Потом спрашивает, добавить ли эту папку в исключения Microsoft Defender.
+echo Брандмауэр и Defender остаются включёнными.
+goto intro_done
+:intro_undo
+echo Удаляет правила брандмауэра Windows "Skhid ...", которые добавил этот
+echo файл, и исключение папки игры из проверки Microsoft Defender, если его
+echo добавил он.
+:intro_done
+echo Папка игры: "%TOP%"
 echo.
-if defined DRY (
-    echo Dry run: the commands are printed, nothing is changed.
-    echo.
-)
+if not defined DRY goto intro_dry_done
+echo Пробный запуск: команды только выводятся, ничего не меняется.
+echo.
+:intro_dry_done
 if defined DRY if not defined ELEVATED call :elevation
 if defined DRY goto main
 
@@ -62,13 +83,14 @@ rem Windows Firewall rules need administrator rights.
 fltmc >nul 2>&1
 if not errorlevel 1 goto main
 if defined ELEVATED goto not_admin
-echo Windows Firewall rules need administrator rights: Windows asks for them
-echo next (User Account Control). The script then runs again in a new window.
+echo Для правил брандмауэра нужны права администратора. Сейчас Windows
+echo спросит разрешение (контроль учётных записей): нажмите "Да". Тогда этот
+echo файл запустится ещё раз, в новом окне.
 echo.
 call :elevation
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Start-Process -FilePath $env:ComSpec -ArgumentList $env:SKHID_CMDLINE -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
 if errorlevel 1 goto declined
-exit /b 0
+goto quit
 
 rem The elevated run's command line, for cmd.exe: cmd /c takes the outer
 rem quotes off what follows it, so the script's quoted path and its options
@@ -97,7 +119,7 @@ echo.
 call :blocking
 call :defender_add
 echo.
-echo Done. To remove all of it: Skhid-network-setup.cmd --undo
+echo Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo
 goto end
 
 rem --- undo ------------------------------------------------------------
@@ -105,106 +127,122 @@ rem --- undo ------------------------------------------------------------
 for %%P in (%PROGRAMS%) do call :remove %%P
 call :defender_remove
 echo.
-echo Done.
+echo Готово.
 goto end
 
 rem The two rules of one program: out, TCP and UDP (the answers come back
 rem without a rule; nothing else comes in).
 :allow
 for %%T in (TCP UDP) do call :rule %1 out %%T
-echo Firewall: allowed %1 out (TCP and UDP)
+echo Брандмауэр: %1 разрешены исходящие соединения (TCP и UDP)
 exit /b 0
 
 :rule
 set "NAME=Skhid %~1 %3 %2"
 call :run_quiet netsh advfirewall firewall delete rule name="%NAME%"
 call :run netsh advfirewall firewall add rule name="%NAME%" dir=%2 action=allow program="%X86%\%~1" protocol=%3 enable=yes profile=any
-if errorlevel 1 echo   FAILED: the rule "%NAME%" could not be added.
+if errorlevel 1 echo   ОШИБКА: правило "%NAME%" не добавлено.
 exit /b 0
 
 :remove
 for %%T in (TCP UDP) do call :run_quiet netsh advfirewall firewall delete rule name="Skhid %~1 %%T out"
-echo Firewall: removed the rules "Skhid %~1 ..."
+echo Брандмауэр: правила "Skhid %~1 ..." удалены
 exit /b 0
 
 rem A rule that blocks one of the programs wins over the ones above; Windows
 rem makes one when its "allow access" question is cancelled. Said, not removed:
-rem it is not this script's.
+rem it is not this script's. (The menu names are the Russian Windows' own.)
 :blocking
-if defined DRY (
-    echo [dry-run] look for firewall rules that block the three programs
-    exit /b 0
-)
+if not defined DRY goto blocking_look
+echo [dry-run] look for firewall rules that block the three programs
+exit /b 0
+:blocking_look
 set "SKHID_X86=%X86%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($p in 'launcher_skhid.exe','survarium_skhid.exe','updater_skhid.exe') { $path = Join-Path $env:SKHID_X86 $p; Get-NetFirewallApplicationFilter -Program $path -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Action -eq 'Block' -and $_.Enabled -eq 'True' } | ForEach-Object { Write-Output ('WARNING: the firewall rule [' + $_.DisplayName + '] blocks ' + $p + '. Delete it in Windows Defender Firewall, Advanced settings, Outbound Rules.') } }" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($p in 'launcher_skhid.exe','survarium_skhid.exe','updater_skhid.exe') { $path = Join-Path $env:SKHID_X86 $p; Get-NetFirewallApplicationFilter -Program $path -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Action -eq 'Block' -and $_.Enabled -eq 'True' } | ForEach-Object { Write-Output ('ВНИМАНИЕ: правило брандмауэра [' + $_.DisplayName + '] блокирует ' + $p + '. Удалите его: Брандмауэр Защитника Windows, Дополнительные параметры, Правила для исходящего подключения.') } }" 2>nul
 exit /b 0
 
 rem The exclusion is of game\binaries\x86 alone, where the programs that get
 rem flagged are (never the folder the archive was unpacked into: Downloads).
 :defender_add
 set "SKHID_EXCLUDED=%X86%"
-if "%TOP:~2%"=="" (
-    echo Defender: not offered, the game is at the top of a drive. Move it into a folder first.
-    exit /b 0
-)
+if not "%TOP:~2%"=="" goto defender_offer
+echo Defender: исключение не предлагается, игра лежит в корне диска. Сначала
+echo перенесите её в папку.
+exit /b 0
+:defender_offer
 if "%DEFENDER%"=="no" goto defender_skipped
 if "%DEFENDER%"=="yes" goto defender_yes
 echo.
-echo Microsoft Defender can falsely flag the game's patched files (survarium_skhid.exe,
-echo bugtrap.dll, the updater) and block or delete them. An exclusion of the game's
-echo program folder only stops that:
+echo Microsoft Defender может по ошибке принять изменённые файлы игры
+echo (survarium_skhid.exe, bugtrap.dll, программу обновления) за угрозу и
+echo заблокировать или удалить их. Исключение папки с программами игры
+echo отключает только это:
 echo   "%X86%"
-choice /c YN /m "Add the Defender exclusion"
-if errorlevel 2 goto defender_skipped
+rem The answer is typed (set /p reads it as Unicode), Д or Н in either case,
+rem Y or N too. A bare Enter, or no input at all, is a no.
+:defender_ask
+set "ANSWER="
+set /p "ANSWER=Добавить исключение в Defender? Д - да, Н - нет, затем Enter: "
+if not defined ANSWER goto defender_skipped
+set "ANSWER=%ANSWER:"=%"
+if /i "%ANSWER%"=="д" goto defender_yes
+if /i "%ANSWER%"=="да" goto defender_yes
+if /i "%ANSWER%"=="y" goto defender_yes
+if /i "%ANSWER%"=="н" goto defender_skipped
+if /i "%ANSWER%"=="нет" goto defender_skipped
+if /i "%ANSWER%"=="n" goto defender_skipped
+echo Введите Д или Н.
+goto defender_ask
 :defender_yes
-if defined DRY (
-    echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
-    echo [dry-run] write "%MARKER%":
-    call :marker_line
-    exit /b 0
-)
+if not defined DRY goto defender_exclude
+echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
+echo [dry-run] write "%MARKER%":
+call :marker_line
+exit /b 0
+:defender_exclude
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop } catch { exit 1 }"
-if errorlevel 3 (
-    echo Defender: this folder was excluded already: nothing changed.
-    exit /b 0
-)
-if errorlevel 1 (
-    echo Defender: the exclusion could not be added. Another antivirus may be in
-    echo charge: add the folder to its exclusions yourself.
-    exit /b 0
-)
+if errorlevel 3 goto defender_had
+if errorlevel 1 goto defender_failed
 call :marker_line > "%MARKER%"
-echo Defender: game\binaries\x86 is excluded from scans.
+echo Defender: папка game\binaries\x86 исключена из проверки.
+exit /b 0
+:defender_had
+echo Defender: эта папка уже была в исключениях, ничего не изменено.
+exit /b 0
+:defender_failed
+echo Defender: исключение добавить не удалось. Возможно, защитой управляет
+echo другой антивирус: добавьте папку в его исключения сами.
 exit /b 0
 :defender_skipped
-echo Defender: no exclusion added.
+echo Defender: исключение не добавлено.
 exit /b 0
 
 rem The marker's one line: the path excluded, as it is. A FOR variable is not
 rem parsed again (an & in it is no command) and, without delayed expansion,
-rem a ! stays a !. (A Windows path has no * or ?, which FOR would match.)
+rem a ! stays a !. (A Windows path has no * or ?, which FOR would match.) It
+rem is written and read in code page 866, which this script runs in.
 :marker_line
 for %%A in ("%SKHID_EXCLUDED%") do echo(%%~A
 exit /b 0
 
 :defender_remove
-if not exist "%MARKER%" (
-    echo Defender: this script added no exclusion here: nothing to remove.
-    exit /b 0
-)
+if exist "%MARKER%" goto defender_unexclude
+echo Defender: этот файл не добавлял здесь исключений, удалять нечего.
+exit /b 0
+:defender_unexclude
 set /p "SKHID_EXCLUDED=" < "%MARKER%"
-if defined DRY (
-    echo [dry-run] powershell Remove-MpPreference -ExclusionPath "%SKHID_EXCLUDED%"
-    echo [dry-run] delete "%MARKER%"
-    exit /b 0
-)
+if not defined DRY goto defender_unexclude_run
+echo [dry-run] powershell Remove-MpPreference -ExclusionPath "%SKHID_EXCLUDED%"
+echo [dry-run] delete "%MARKER%"
+exit /b 0
+:defender_unexclude_run
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Remove-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop } catch { exit 1 }"
-if errorlevel 1 (
-    echo Defender: the exclusion of "%SKHID_EXCLUDED%" could not be removed.
-    exit /b 0
-)
+if not errorlevel 1 goto defender_unexcluded
+echo Defender: исключение "%SKHID_EXCLUDED%" удалить не удалось.
+exit /b 0
+:defender_unexcluded
 del "%MARKER%"
-echo Defender: the exclusion of "%SKHID_EXCLUDED%" is removed.
+echo Defender: исключение "%SKHID_EXCLUDED%" удалено.
 exit /b 0
 
 rem A command, or with --dry-run its words.
@@ -221,26 +259,36 @@ echo [dry-run] %*
 exit /b 0
 
 :bad_option
-echo Unknown option: %1
-echo Use: Skhid-network-setup.cmd [--undo] [--dry-run] [--defender-yes ^| --defender-no]
-exit /b 2
+echo Неизвестный параметр: %1
+echo Запуск: Skhid-network-setup.cmd [--undo] [--dry-run] [--defender-yes ^| --defender-no]
+set "RC=2"
+goto quit
 
 :wrong_place
-echo survarium_skhid.exe was not found in
+echo Не найден survarium_skhid.exe в папке
 echo   "%X86%"
-echo Put this file beside Skhid.bat, in the folder that holds the folder named
-echo game, and run it from there.
+echo Положите этот файл рядом со Skhid.bat, в папку, где лежит папка game,
+echo и запустите его оттуда.
 goto end
 
 :not_admin
-echo Not done: this window has no administrator rights.
+echo Ничего не изменено: у этого окна нет прав администратора.
 goto end
 
+rem No at the User Account Control prompt (or no prompt at all).
 :declined
-echo Not done: Windows did not give administrator rights.
+echo Ничего не изменено: Windows не дала прав администратора.
+echo Запустите этот файл ещё раз и в окне Windows нажмите "Да", чтобы он
+echo настроил брандмауэр.
 goto end
 
 :end
 echo.
-if not defined DRY pause
-exit /b 0
+if defined DRY goto quit
+echo Нажмите любую клавишу, чтобы закрыть окно.
+pause >nul
+
+rem The console's own code page back (a window it was started from).
+:quit
+if defined SKHID_CP chcp %SKHID_CP% >nul 2>&1
+exit /b %RC%
