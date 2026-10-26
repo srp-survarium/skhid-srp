@@ -646,7 +646,11 @@ pub(super) fn drive_tick(
                 if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                     hard = hard.with_max_jump_rise(rise);
                 }
-                let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
+                let filter = traps::soften(
+                    bot,
+                    hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
+                    grid.locate(me.feet, 1.5),
+                );
                 let avoiding = filter.has_soft();
                 // On no floor (the top of an object, 2.5 m or more above the floors): plans from the floor it
                 // drops to (`ThinkTuning::stranded_start`), its first leg the drop off the edge.
@@ -1129,6 +1133,8 @@ pub(super) fn drive_tick(
         JumpBy::Route => "route",
         JumpBy::Hop => "hop",
     });
+    // [trap_react] A noticed trap on the route, a little ahead: the same jump.
+    let by = by.or_else(|| trap_react::jump_due(bot, me, time, &tuning.traps.react).then_some("trap"));
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }
