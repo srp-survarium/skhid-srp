@@ -273,6 +273,18 @@ impl TrapField {
     }
 }
 
+/// A team's trap state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamTraps {
+    /// The floors of the traps its bots put down, and the list's version it was built for.
+    pub field: std::sync::Arc<TrapField>,
+    pub field_version: u64,
+    /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
+    pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
+    /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).
+    pub shooters: Vec<(super::trap_react::TrapKey, Place, u32)>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -467,16 +479,4 @@ mod tests {
         assert!(field.is_empty() && field.open(7));
         assert!(!field.hits(&[Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0)]));
     }
-}
-
-/// A team's trap state, by feature ([`super::features`]).
-#[derive(Default)]
-pub struct TeamTraps {
-    /// The floors of the traps its bots put down, and the list's version it was built for.
-    pub field: std::sync::Arc<TrapField>,
-    pub field_version: u64,
-    /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
-    pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
-    /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).
-    pub shooters: Vec<(super::trap_react::TrapKey, Place, u32)>,
 }

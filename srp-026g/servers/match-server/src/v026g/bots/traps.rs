@@ -803,6 +803,24 @@ pub(super) struct TrapDrive {
     pub key: u32,
 }
 
+/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
+/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
+/// (`trap_know.rs`, shared at each commander tick).
+#[derive(Default)]
+pub struct BotState {
+    pub habit: Habit,
+    pub placed: Option<(mapdata::Vec3, u32)>,
+    pub react: super::trap_react::React,
+    pub field: std::sync::Arc<super::trap_know::TrapField>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.habit.new_life();
+        self.react.new_life();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1118,23 +1136,5 @@ mod tests {
         let mut bad = crate::v026g::bots::tuning::Tuning::default();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
-    }
-}
-
-/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
-/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
-/// (`trap_know.rs`, shared at each commander tick).
-#[derive(Default)]
-pub struct BotState {
-    pub habit: Habit,
-    pub placed: Option<(mapdata::Vec3, u32)>,
-    pub react: super::trap_react::React,
-    pub field: std::sync::Arc<super::trap_know::TrapField>,
-}
-
-impl super::features::Feature for BotState {
-    fn new_life(&mut self, _life: &super::features::Life) {
-        self.habit.new_life();
-        self.react.new_life();
     }
 }
