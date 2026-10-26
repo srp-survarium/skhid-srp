@@ -14,6 +14,8 @@
 //! | `SRP_BENCH_FIELD_TAKER` | `none`; `scripted` takes a field's artefact [`TAKE_AFTER_MS`] into its holding |
 //! | `SRP_BENCH_FIELD_WORLD_MS` | [`WORLD_MS`]: how often a world lists the fields to the bots (a lag arm: 5000) |
 //! | `SRP_BENCH_FIELD_RADIUS_M` | [`RADIUS_M`]: the fields' radius |
+//! | `SRP_BENCH_FIELD_PLACES` | `spread`: floors of the map [`PLACE_GAP_M`] apart; `lanes`: points on the walks between the containers and the battery spawners (where the bots go, so a field costs them something) |
+//! | `SRP_BENCH_FIELD_PACE` | the release's; `fast`: the first try at 5 s, then every 4-8 s (a stress arm: more fields in a short match) |
 //!
 //! The fields hurt the stand-in's bodies at the kind's hit while damaging or holding ([`Game::zone_tick`]) whatever the
 //! bots know: the truth is kept apart from what the worlds showed (`lag`).
@@ -45,6 +47,31 @@ pub(crate) const RADIUS_M: f32 = 3.0;
 /// The places a try draws from lie this far apart, m, and this far from a spawn and a container.
 const PLACE_GAP_M: f32 = 12.0;
 const PLACE_CLEAR_M: f32 = 18.0;
+
+/// How often a try is made.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Pace {
+    /// The release's: the first at 30 s, then every 20-40 s.
+    Release,
+    /// A stress: the first at 5 s, then every 4-8 s.
+    Fast,
+}
+
+impl Pace {
+    fn first(self) -> u32 {
+        match self {
+            Self::Release => FIRST_TRY_MS,
+            Self::Fast => 5_000,
+        }
+    }
+
+    fn gap(self) -> (u32, u32) {
+        match self {
+            Self::Release => TRY_GAP_MS,
+            Self::Fast => (4_000, 8_000),
+        }
+    }
+}
 
 /// Who takes a field's artefact.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -104,6 +131,7 @@ pub(crate) struct FieldStats {
 /// The generator.
 pub(crate) struct FieldGen {
     max_active: usize,
+    pace: Pace,
     taker: Taker,
     world_ms: u32,
     radius: f32,
@@ -126,6 +154,7 @@ impl FieldGen {
     pub(crate) fn off() -> Self {
         Self {
             max_active: 0,
+            pace: Pace::Release,
             taker: Taker::None,
             world_ms: WORLD_MS,
             radius: RADIUS_M,
@@ -142,6 +171,13 @@ impl FieldGen {
         }
     }
 
+    /// A generator that tries at the release's pace, or [`Pace::Fast`].
+    pub(crate) fn paced(mut self, pace: Pace) -> Self {
+        self.pace = pace;
+        self.next_try = pace.first();
+        self
+    }
+
     /// From the bench's switches, for a match on `world` of `seed`.
     pub(crate) fn from_env(world: &World, seed: u64) -> Self {
         let settings = bench_settings();
@@ -152,14 +188,21 @@ impl FieldGen {
             Ok("scripted") => Taker::Scripted(TAKE_AFTER_MS),
             _ => Taker::None,
         };
-        Self::new(
+        let mut generator = Self::new(
             world,
             seed,
             max,
             taker,
             settings.number("SRP_BENCH_FIELD_WORLD_MS").unwrap_or(WORLD_MS),
             settings.number("SRP_BENCH_FIELD_RADIUS_M").unwrap_or(RADIUS_M),
-        )
+        );
+        if settings.var("SRP_BENCH_FIELD_PLACES").as_deref() == Ok("lanes") {
+            generator.places = lanes_of(world);
+        }
+        if settings.var("SRP_BENCH_FIELD_PACE").as_deref() == Ok("fast") {
+            generator = generator.paced(Pace::Fast);
+        }
+        generator
     }
 
     /// A generator of at most `max` fields at once, on `world`.
@@ -178,6 +221,10 @@ impl FieldGen {
 
     pub(crate) fn on(&self) -> bool {
         self.max_active > 0
+    }
+
+    pub(crate) fn pace(&self) -> Pace {
+        self.pace
     }
 
     /// The places a try draws from.
@@ -213,7 +260,8 @@ impl FieldGen {
         if now < self.next_try {
             return;
         }
-        self.next_try = now + TRY_GAP_MS.0 + self.rng.below((TRY_GAP_MS.1 - TRY_GAP_MS.0) as usize) as u32;
+        let gap = self.pace.gap();
+        self.next_try = now + gap.0 + self.rng.below((gap.1 - gap.0) as usize) as u32;
         self.resting.retain(|&(_, until)| until > now);
         if self.active.len() >= self.max_active || self.places.is_empty() {
             return;
@@ -369,6 +417,42 @@ pub(crate) fn baked_places(world: &World, places: &[Vec3], radius: f32) -> World
         });
     }
     World::assemble(map, world.grid.clone(), world.sight.clone())
+}
+
+/// The places on the walks bots make: every container to every battery spawner and to the other side's container, a point
+/// every [`PLACE_GAP_M`] along each walk, and none within [`PLACE_CLEAR_M`] of a spawn or container.
+fn lanes_of(world: &World) -> Vec<Vec3> {
+    let grid = &world.grid;
+    let containers: Vec<Vec3> = world.map.containers.iter().map(|c| c.use_point()).collect();
+    let spawners: Vec<Vec3> = world.map.battery_spawners.iter().map(|s| s.item).collect();
+    let avoid: Vec<Vec3> = world.map.spawns.iter().map(|s| s.position).chain(containers.iter().copied()).collect();
+    let mut places: Vec<Vec3> = Vec::new();
+    let ends: Vec<(Vec3, Vec3)> = containers
+        .iter()
+        .flat_map(|&c| spawners.iter().map(move |&s| (c, s)))
+        .chain(containers.iter().flat_map(|&a| containers.iter().map(move |&b| (a, b))))
+        .collect();
+    for (a, b) in ends {
+        let (Some(from), Some(to)) = (grid.locate(a, 3.0), grid.locate(b, 3.0)) else {
+            continue;
+        };
+        let Some(path) = grid.path(from, to) else {
+            continue;
+        };
+        let mut last: Option<Vec3> = None;
+        for node in path.nodes {
+            let at = grid.position(node);
+            if last.is_some_and(|l| l.distance_xz(at) < PLACE_GAP_M) {
+                continue;
+            }
+            last = Some(at);
+            if avoid.iter().any(|v| v.distance_xz(at) < PLACE_CLEAR_M) || places.iter().any(|p| p.distance_xz(at) < PLACE_GAP_M) {
+                continue;
+            }
+            places.push(at);
+        }
+    }
+    places
 }
 
 /// The line of what the live zones cost (the bench prints it after the `routes:` line): the tactics' build (the
