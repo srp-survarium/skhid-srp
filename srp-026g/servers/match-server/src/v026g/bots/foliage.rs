@@ -143,20 +143,27 @@ impl Foliage {
         if file.version != 1 {
             return Err(format!("version {} (this reads 1)", file.version));
         }
-        let bushes = file.projects.remove(project).map_or_else(Vec::new, |p| p.bushes);
+        let bushes = file
+            .projects
+            .remove(project)
+            .map_or_else(Vec::new, |p| p.bushes);
         Ok(Self::of(bushes))
     }
 
     /// `project`'s bushes in the file at `path`.
     pub fn load(path: &Path, project: &str) -> Result<Self, String> {
-        let text = std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| format!("{}: {error}", path.display()))?;
         Self::parse(&text, project).map_err(|error| format!("{}: {error}", path.display()))
     }
 
     fn of(bushes: Vec<Bush>) -> Self {
         let mut foliage = Self::default();
         for bush in bushes {
-            let (centre, half) = (Vec3::new(bush.p[0], bush.p[1], bush.p[2]), Vec3::new(bush.h[0], bush.h[1], bush.h[2]));
+            let (centre, half) = (
+                Vec3::new(bush.p[0], bush.p[1], bush.p[2]),
+                Vec3::new(bush.h[0], bush.h[1], bush.h[2]),
+            );
             let index = foliage.volumes.len() as u32;
             foliage.volumes.push(Volume {
                 centre,
@@ -194,7 +201,10 @@ impl Foliage {
         let mut last = None;
         for step in 0..=steps {
             let at = from + (to - from) * (step as f32 / steps as f32);
-            let cell = ((at.x / CELL_M).floor() as i32, (at.z / CELL_M).floor() as i32);
+            let cell = (
+                (at.x / CELL_M).floor() as i32,
+                (at.z / CELL_M).floor() as i32,
+            );
             if last == Some(cell) {
                 continue;
             }
@@ -207,7 +217,9 @@ impl Foliage {
                 }
             }
         }
-        seen.iter().map(|&index| self.volumes[index as usize].metres(from, to)).sum()
+        seen.iter()
+            .map(|&index| self.volumes[index as usize].metres(from, to))
+            .sum()
     }
 }
 
@@ -254,9 +266,18 @@ mod tests {
         let m = f.metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(15.0, 1.0, 0.0));
         assert!((m - 2.0).abs() < 1e-4, "{m}");
         // Over it, beside it, short of it.
-        assert_eq!(f.metres(Vec3::new(0.0, 3.0, 0.0), Vec3::new(15.0, 3.0, 0.0)), 0.0);
-        assert_eq!(f.metres(Vec3::new(0.0, 1.0, 3.0), Vec3::new(15.0, 1.0, 3.0)), 0.0);
-        assert_eq!(f.metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(5.0, 1.0, 0.0)), 0.0);
+        assert_eq!(
+            f.metres(Vec3::new(0.0, 3.0, 0.0), Vec3::new(15.0, 3.0, 0.0)),
+            0.0
+        );
+        assert_eq!(
+            f.metres(Vec3::new(0.0, 1.0, 3.0), Vec3::new(15.0, 1.0, 3.0)),
+            0.0
+        );
+        assert_eq!(
+            f.metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(5.0, 1.0, 0.0)),
+            0.0
+        );
         // Ending inside it counts the part inside.
         let m = f.metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(10.0, 1.0, 0.0));
         assert!((m - 1.0).abs() < 1e-4, "{m}");
@@ -315,11 +336,17 @@ mod tests {
         std::fs::create_dir_all(&without).unwrap();
         let default = with.join(DEFAULT_FILE);
         std::fs::write(&default, FILE).unwrap();
-        assert_eq!(Source::choose(None, Some(&with)), Source::Default(default.clone()));
+        assert_eq!(
+            Source::choose(None, Some(&with)),
+            Source::Default(default.clone())
+        );
         assert_eq!(Source::choose(None, Some(&without)), Source::None);
         assert_eq!(Source::choose(None, None), Source::None);
         for off in ["", "off"] {
-            assert_eq!(Source::choose(Some(OsStr::new(off)), Some(&with)), Source::None);
+            assert_eq!(
+                Source::choose(Some(OsStr::new(off)), Some(&with)),
+                Source::None
+            );
         }
         assert_eq!(
             Source::choose(Some(OsStr::new("/elsewhere/foliage.json")), Some(&with)),
