@@ -181,11 +181,11 @@ fn made_up_match() -> Vec<(&'static str, String)> {
             let n = (k / 7) as u32;
             let distance = 4.0 + (n * 13 % 95) as f32;
             let (lateral, vertical) = ((n * 7 % 31) as f32 / 10.0 - 1.55, (n * 11 % 29) as f32 / 10.0 - 1.45);
-            let line = (n % 23 != 0).then(|| Offset { miss: lateral.hypot(vertical), lateral, vertical });
+            let line = (!n.is_multiple_of(23)).then(|| Offset { miss: lateral.hypot(vertical), lateral, vertical });
             game.shot_facts.push(ShotFact {
                 shooter: n as usize % 3,
                 tick,
-                hit: (n % 3 == 0).then_some(3),
+                hit: (n.is_multiple_of(3)).then_some(3),
                 target: Some((3, distance, 0.0)),
                 moving: false,
                 aimed: true,
@@ -195,7 +195,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                 offset: Some(ShotOffset {
                     band: DistBand::of(distance),
                     class: ShotClass::ALL[n as usize % 7],
-                    stance: if n % 5 == 0 { Stance::Crouched } else { Stance::Standing },
+                    stance: if n.is_multiple_of(5) { Stance::Crouched } else { Stance::Standing },
                     line,
                 }),
             });
