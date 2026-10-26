@@ -48,6 +48,7 @@ pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod pools;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
@@ -56,6 +57,7 @@ pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
+pub mod stock;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
@@ -83,6 +85,7 @@ use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
 use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
+use pools::Pools;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
 use route_end::RouteEnd;
@@ -208,8 +211,13 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
-    /// Medkits used this life.
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
     medkits_used: u8,
+    /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
+    pantry: stock::Pantry,
+    /// Its health pools as the last trusted world showed them
+    /// ([`Bots::pools`]); none before the first.
+    pools: Option<Pools>,
     /// The answer of its route search that went on over several polls
     /// ([`Pending`]): the goal, the route or none, and whether the route is
     /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
@@ -339,6 +347,8 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            pantry: stock::Pantry::standard(),
+            pools: None,
             found: None,
             crossing: None,
             long_kept: None,
@@ -502,6 +512,7 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -862,6 +873,29 @@ impl Bots {
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
+        }
+    }
+
+    /// What the bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
+        self.bots.get(place)?.as_ref().map(|bot| &bot.pantry)
+    }
+
+    /// A trusted world's word on one place's health pools (with its body's,
+    /// [`Self::fixed`]): the consumables' need.
+    pub fn pools(&mut self, place: Place, pools: Pools) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pools = Some(pools);
+        }
+    }
+
+    /// A trusted world's word on what one place's kits hold of drugs
+    /// ([`stock::readings`], from `players::Supplies`): the bot's own count
+    /// follows it.
+    pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pantry.read(time, readings);
         }
     }
 

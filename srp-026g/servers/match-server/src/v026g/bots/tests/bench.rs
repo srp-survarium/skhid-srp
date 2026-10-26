@@ -133,7 +133,7 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
 ///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
 /// - The settings below it are older names for the same changes, kept so that the bench scripts and
 ///   BENCH-GUIDE go on working (`SRP_BENCH_CHEAT`, `_BATTERY_SIGHT_M`, `_FRIEND_NEAR_M`, `_FF_*`,
-///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_AIM`,
+///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_HEAL`, `_AIM`,
 ///   `_SENSE`). They are applied first, in the order they always were, and the patch last, so it wins.
 ///   For `side1` only the lists (`SRP_BENCH_SIDE1_<name>`) and the patch read team 1's names.
 pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
@@ -195,6 +195,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // aim's own (`AimTuning`: `range_m`, `fire_within_deg`, `pause_ms`, ...) and the senses' (`SenseTuning`) likewise.
     for (name, section, comma_or_semicolon) in [
         ("COMBAT", "/aim/combat", true),
+        ("HEAL", "/heal", true),
         ("AIM", "/aim", true),
         ("SENSE", "/sense", false),
     ] {
@@ -960,6 +961,7 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    standin_heal::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
