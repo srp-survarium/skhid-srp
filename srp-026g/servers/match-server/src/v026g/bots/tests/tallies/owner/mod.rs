@@ -12,7 +12,10 @@
 //! - vertical: certain drops and climbs a kilometre walked, and the share
 //!   of the time above the players' p75 height (`grid-record.md` section V);
 //! - grenades on their own side, and bots inside a blast that were outside
-//!   at the throw (the stand-in has no grenade damage: counted only);
+//!   at the throw (the stand-in has no grenade damage: counted only); the
+//!   blast where the thrower's view at the launch sends it (`arc.rs`), and
+//!   the throws that went short, were refused, or were cut by a death or a
+//!   shot;
 //! - campers (`campers.md`): kills in a run from one spot, a team's deaths
 //!   in a row to one shooter from one spot, bots entering a held line;
 //! - sight (`pr-sight.md`, the sight refresh's paired counts): fire runs and what ended them,
@@ -46,13 +49,16 @@ mod golden;
 mod grenades;
 mod jumps;
 mod moving;
+mod pre;
 mod sight;
+mod stock;
 
 use campers::*;
 use fight::*;
 use grenades::*;
 use jumps::*;
 use moving::*;
+use pre::*;
 use sight::SightCounts;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
@@ -66,6 +72,7 @@ struct Rec {
     keys: u32,
     feet: Vec3,
     yaw: f32,
+    pitch: f32,
     /// m/s over the tick.
     speed: f32,
     calm: bool,
@@ -77,6 +84,9 @@ struct Rec {
     play: u16,
     hold: bool,
     travel: bool,
+    /// The bot's target is a living enemy farther than the top of its
+    /// weapon's preferred band ([`target_past_band`]).
+    past_band: bool,
 }
 
 /// What the bench reads of a bot at a tick: out of rounds with nothing
@@ -233,6 +243,7 @@ impl OwnerTally {
                 keys: body.keys,
                 feet: body.feet,
                 yaw: body.yaw,
+                pitch: body.pitch,
                 speed: body.step_m / TICK_S,
                 calm: body.keys & (key::AIM | key::FIRE) == 0 && !enemy_near,
                 carrying: body.carrying.is_some(),
@@ -240,11 +251,13 @@ impl OwnerTally {
                 play,
                 hold,
                 travel,
+                past_band: target_past_band(game, place, body),
             };
             self.recs[place].push(rec);
             let Some(now) = now else {
                 continue;
             };
+            self.grenades_keys(place, tick, body, &prev);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
@@ -292,6 +305,7 @@ impl OwnerTally {
             self.moving_part(game, &presses, &scale),
             self.vertical_part(game),
             self.grenades_part(game),
+            self.stock_part(game),
             self.campers_part(),
             self.sight_part(&scale),
         ];

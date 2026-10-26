@@ -62,7 +62,25 @@ impl Scenario {
     /// bot (the battery cheat on); the fair battery knowledge has its own
     /// tests (`collect`, `know`, `sense`).
     pub fn field(mode: Mode) -> Self {
-        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        // The two containers have their use boxes (a metre over each), as
+        // the maps' do.
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            for (id, team, x) in [(0, 0, 12.0), (1, 1, 68.0)] {
+                let position = Vec3::new(x, 0.0, 30.0);
+                map.containers.push(mapdata::Container {
+                    position,
+                    team,
+                    id,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: position + Vec3::new(0.0, 1.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(1.0, 0.85, 0.65),
+                    }],
+                });
+            }
+        });
+        let tactics = Tactics::new(world, 1.0);
         let view = MatchView {
             clock: 300_000,
             mode,

@@ -85,5 +85,13 @@ pub(crate) fn back_to_back_at_arms_length_each_takes_the_other_as_target() {
     eprintln!("touch 2 m: targets at {with:?}; off: {without:?}");
     // The first world shows them at 500 ms: a think and the notice later.
     assert!(with.iter().all(|t| t.is_some_and(|t| t <= 1_200)), "{with:?}");
-    assert_eq!(without, [None, None], "off: back to back unseen");
+    // With the touch radius off they turn about as they walk off and notice
+    // each other later, if at all: not within the touch case's first 1.2 s
+    // and not in the first 2 s (the keys follow the way to go while the view
+    // turns, so a bot sweeps its view round a little sooner than one that
+    // first stood to turn).
+    assert!(
+        without.iter().all(|t| t.is_none_or(|t| t >= 2_000)),
+        "{without:?}: off: back to back unseen at first"
+    );
 }

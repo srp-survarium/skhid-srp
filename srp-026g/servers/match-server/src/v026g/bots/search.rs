@@ -77,9 +77,11 @@ pub(super) struct Pending {
     pub(super) objective: bool,
     /// From and to.
     pub(super) ends: (NodeId, NodeId),
-    /// The spots it got stuck at, kept clear of: the first search of two
-    /// (the second goes through them).
-    pub(super) spots: Option<Vec<Vec3>>,
+    /// What it keeps out: with the spots the body got stuck at as its soft
+    /// part for the first search of two (the second goes through them,
+    /// [`RouteFilter::without_soft`]), and the landings of jumps it gave up
+    /// ([`Stuck::shut_landings`]) as its hard part for both.
+    pub(super) filter: RouteFilter,
     /// [`hazards::Hazards::version`] when it started.
     pub(super) hazards: u64,
     pub(super) planning: path::Planning,
@@ -87,11 +89,6 @@ pub(super) struct Pending {
     pub(super) health: f32,
     /// A crossing's search, after the plain one (`crossing.rs`).
     pub(super) second: Option<crossing::Second>,
-}
-
-/// Whether `point` is near one of `spots` ([`Stuck::near_spot`]).
-pub(super) fn near_any(spots: &[Vec3], point: Vec3) -> bool {
-    spots.iter().any(|&spot| stuck::near(spot, point))
 }
 
 impl Bots {
@@ -117,13 +114,7 @@ impl Bots {
         self.searching.left -= 1;
         let floors = &mut self.searching.floors;
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
-        let grid = &tactics.world.grid;
-        let spots = pending.spots.take();
-        let open = |node: NodeId| {
-            spots
-                .as_deref()
-                .is_none_or(|spots| !near_any(spots, grid.position(node)))
-        };
+        let filter = pending.filter.clone();
         let start = pending.ends.0;
         let health = pending.health;
         let ended = if pending.second.is_some() {
@@ -135,6 +126,7 @@ impl Bots {
                 side,
                 objective,
                 health,
+                &filter,
                 floors,
             )
         } else {
@@ -144,12 +136,11 @@ impl Bots {
                 time,
                 side,
                 objective,
-                open,
+                &filter,
                 floors,
             )
         };
         let Some(mut route) = ended else {
-            pending.spots = spots;
             self.searching.pending = Some(pending);
             return;
         };
@@ -174,11 +165,13 @@ impl Bots {
             );
         } else {
             // None round the spots it got stuck at: through them.
-            if route.is_none() && spots.is_some() {
-                match tactics.start_route(from, to, time, side, objective, |_| true, floors) {
-                    Ok(through) => route = through,
+            if route.is_none() && filter.has_soft() {
+                let through = filter.without_soft();
+                match tactics.start_route(from, to, time, side, objective, &through, floors) {
+                    Ok(found) => route = found,
                     Err(planning) => {
                         pending.planning = planning;
+                        pending.filter = through;
                         self.searching.pending = Some(pending);
                         return;
                     }
@@ -189,7 +182,9 @@ impl Bots {
             if !(route.is_some() && long_kept)
                 && crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health)
             {
-                match crossing::start(tactics, from, to, time, side, objective, health, floors) {
+                match crossing::start(
+                    tactics, from, to, time, side, objective, health, &filter, floors,
+                ) {
                     Ok(crossing_route) => {
                         (route, crossed, kept) = crossing::choose(
                             tactics,

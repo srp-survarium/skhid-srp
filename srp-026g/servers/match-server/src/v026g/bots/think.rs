@@ -25,7 +25,7 @@ impl Bots {
         #[cfg(feature = "jump-test")]
         if bot.entered.is_some()
             && let Some(test) = self.jump_test.as_mut()
-            && test.think(bot, view)
+            && test.think(bot, view, &tactics.world)
         {
             return;
         }
@@ -130,7 +130,8 @@ impl Bots {
                 .and_then(|test| test.drive(bot, time, view));
             #[cfg(not(feature = "jump-test"))]
             let scripted: Option<Decision> = None;
-            let decision = match (scripted, estimate, me, self.tactics.as_ref()) {
+            #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
+            let mut decision = match (scripted, estimate, me, self.tactics.as_ref()) {
                 (Some(scripted), ..) => {
                     bot.motor.rest();
                     scripted
@@ -151,6 +152,7 @@ impl Bots {
             };
             #[cfg(feature = "jump-test")]
             if let Some(test) = self.jump_test.as_mut() {
+                test.quiet(bot.place, &mut decision);
                 test.motor_seen(bot, time, decision.keys);
             }
             if let Some(line) = bot.reflex.take_friend_note() {
@@ -559,9 +561,24 @@ pub(super) fn decide(
     };
     let mut rng = bot.rng.clone();
     let step = plays::step(&mut running, target, &cx, &mut rng);
+    // A hold on a spot a teammate of a lower place has claimed gives way
+    // (S1); the point it means to be at is its claim.
+    let (step, claim) = match step {
+        Step::Continue(intent) => {
+            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.apart, running.kind(), intent);
+            (Step::Continue(intent), Some(claim))
+        }
+        other => {
+            bot.apart.reset();
+            (other, None)
+        }
+    };
     bot.rng = rng;
     let step_name = running.step_name();
     bot.running = Some(running);
+    if let Some(at) = claim {
+        state.knowledge.claim(me.place, at, now);
+    }
     match step {
         // Its goal one its own search proved no way to lately: the play
         // is left, set aside while the proof holds, for the commander to
@@ -589,11 +606,17 @@ pub(super) fn decide(
         }
         Step::Failed(why) => {
             if let Some(a) = bot.assignment.as_ref()
-                && now < a.since + plays::QUICK_FAIL_MS
+                && (now < a.since + plays::QUICK_FAIL_MS || plays::collect::fails_aside(why))
             {
                 bot.set_aside.retain(|&(_, _, until)| until > now);
-                bot.set_aside
-                    .push((a.kind, a.target, now + plays::SET_ASIDE_MS));
+                // A battery proved out of reach is left as long as a goal no
+                // way leads to.
+                let keep = if plays::collect::fails_aside(why) {
+                    NO_WAY_KEEP_MS
+                } else {
+                    plays::SET_ASIDE_MS
+                };
+                bot.set_aside.push((a.kind, a.target, now + keep));
             }
             bot.end_play(now, why, notes);
             state.next_commander = now;

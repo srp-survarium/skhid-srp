@@ -594,8 +594,11 @@ fn gates_names() -> &'static [(u32, &'static str)] {
 /// [`crate::v026g::bots::reflex::ReloadNote`]; nothing decides by it): by weapon
 /// class, why each started, the share of the magazine left, an enemy on
 /// view (the on-view episodes' 4°) within 1 s before, the time to the next
-/// shot after it is done; deaths while reloading by team; and the on-view
-/// ticks with no shot that the reload held, by why.
+/// shot after it is done; deaths while reloading by team; the on-view
+/// ticks with no shot that the reload held, by why; and for the weapons that
+/// load round by round the rounds the ledger counts the client put in at
+/// the loop's end (`shotgun_rounds_per_reload`) and the loops the trigger or
+/// the sights ended early (`aim_cut_reloads`).
 #[derive(Default)]
 pub(crate) struct ReloadTally {
     /// By place: the last reload counted (its start), the last tick with an
@@ -603,6 +606,8 @@ pub(crate) struct ReloadTally {
     counted: Vec<Option<u32>>,
     last_view: Vec<Option<u32>>,
     waiting: Vec<Option<(u32, u8, &'static str)>>,
+    /// By place: the last loop counted (its reload key's tick).
+    looped: Vec<Option<u32>>,
     /// By team and class.
     by_class: BTreeMap<(u8, &'static str), ClassReloads>,
     died: [u32; 2],
@@ -615,6 +620,10 @@ struct ClassReloads {
     left: Vec<f32>,
     in_view_1s: u32,
     next_shot_ms: Vec<u32>,
+    /// Round-by-round loops by (rounds put in, rounds to put in), and those
+    /// cut early.
+    shotgun_rounds_per_reload: BTreeMap<(u32, u32), u32>,
+    aim_cut_reloads: u32,
 }
 
 fn why_index(why: crate::v026g::bots::reflex::ReloadWhy) -> usize {
@@ -682,6 +691,31 @@ impl ReloadTally {
         }
     }
 
+    /// A bot's tick: the end of its last round-by-round loop, counted once.
+    pub(crate) fn looped(
+        &mut self,
+        place: Place,
+        class: &'static str,
+        team: u8,
+        end: Option<crate::v026g::bots::guns::LoopEnd>,
+    ) {
+        let Some(end) = end else {
+            return;
+        };
+        if self.looped.len() <= place {
+            self.looped.resize(place + 1, None);
+        }
+        if self.looped[place] == Some(end.at) {
+            return;
+        }
+        self.looped[place] = Some(end.at);
+        let c = self.by_class.entry((team, class)).or_default();
+        *c.shotgun_rounds_per_reload
+            .entry((end.loaded, end.target))
+            .or_default() += 1;
+        c.aim_cut_reloads += u32::from(end.cut());
+    }
+
     /// An on-view tick with no shot of a bot of `team`, with its gates and
     /// last reload.
     pub(crate) fn held(
@@ -711,8 +745,22 @@ impl ReloadTally {
             .map(|((team, class), c)| {
                 let mut next = c.next_shot_ms.clone();
                 next.sort_unstable();
+                let loops = if c.shotgun_rounds_per_reload.is_empty() {
+                    String::new()
+                } else {
+                    let loops: Vec<String> = c
+                        .shotgun_rounds_per_reload
+                        .iter()
+                        .map(|((loaded, target), n)| format!("{loaded}/{target}: {n}"))
+                        .collect();
+                    format!(
+                        " rounds per reload (put in/to put in) {{{}}} cut {}",
+                        loops.join(", "),
+                        c.aim_cut_reloads
+                    )
+                };
                 format!(
-                    "t{team} {class} {:?} left {} in view 1s {} next shot median {}",
+                    "t{team} {class} {:?} left {} in view 1s {} next shot median {}{loops}",
                     c.why,
                     q(&c.left),
                     c.in_view_1s,
@@ -751,4 +799,39 @@ fn the_reload_tally_counts_each_reload_once_and_what_came_of_it() {
     assert_eq!(c.next_shot_ms, vec![300]);
     assert_eq!(c.left, vec![0.0, 10.0 / 30.0]);
     assert_eq!(t.died, [0, 1]);
+}
+
+#[test]
+fn the_reload_tally_counts_the_rounds_each_loop_put_in_and_the_loops_cut_early() {
+    use crate::v026g::bots::guns::LoopEnd;
+    let end = |at: u32, loaded, target| LoopEnd {
+        at,
+        loaded,
+        target,
+        ended: at + 1_000 + 375 * loaded,
+        ready: at + 2_100 + 375 * loaded,
+    };
+    let mut t = ReloadTally::default();
+    // Eight of eight, then one of eight (cut), counted once each however
+    // many ticks show them; nothing for a tick without a loop.
+    t.looped(0, "shotgun", 1, None);
+    for _ in 0..3 {
+        t.looped(0, "shotgun", 1, Some(end(1_000, 8, 8)));
+    }
+    t.looped(0, "shotgun", 1, Some(end(9_000, 1, 8)));
+    t.looped(2, "shotgun", 0, Some(end(500, 7, 7)));
+    let c = &t.by_class[&(1, "shotgun")];
+    assert_eq!(
+        c.shotgun_rounds_per_reload,
+        BTreeMap::from([((1, 8), 1), ((8, 8), 1)])
+    );
+    assert_eq!(c.aim_cut_reloads, 1);
+    let c = &t.by_class[&(0, "shotgun")];
+    assert_eq!(c.shotgun_rounds_per_reload, BTreeMap::from([((7, 7), 1)]));
+    assert_eq!(c.aim_cut_reloads, 0);
+    assert!(
+        t.line().contains("rounds per reload (put in/to put in) {1/8: 1, 8/8: 1} cut 1"),
+        "{}",
+        t.line()
+    );
 }
