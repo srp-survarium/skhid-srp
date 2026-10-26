@@ -1725,7 +1725,7 @@ impl JumpTest {
         // Every NORMAL_EVERY-th answer of a burst goes down the ordinary path too.
         let burst = if burst {
             self.answered += 1;
-            let ordinary = self.answered % NORMAL_EVERY == 0;
+            let ordinary = self.answered.is_multiple_of(NORMAL_EVERY);
             self.fix_counts.2 += u32::from(ordinary);
             !ordinary
         } else {
