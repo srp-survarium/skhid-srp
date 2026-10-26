@@ -92,6 +92,15 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
+/// (`rest::stops`): the owner's symptom, on and off.
+pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::rest::stops::counts().to_vec(),
+        |d, line| line.ends.push(format!("rests_on_lip {} rest_seconds_on_lip {:.1}", d[0], d[1] as f32 / 1000.0)),
+    )
+}
+
 /// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
 pub(super) fn stranded() -> Box<dyn RouteTopic> {
     Delta::of(

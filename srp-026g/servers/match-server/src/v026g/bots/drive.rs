@@ -362,6 +362,19 @@ pub(super) fn drive_tick(
         path::rests::count();
         intent.go = Go::To { at: shifted, within_m };
     }
+    // A body at rest on a lip, wherever its rest came from, steps inward once (`rest`); counted whether on or off.
+    {
+        let resting = over.legs.is_none()
+            && over.look_at.is_none()
+            && match intent.go {
+                Go::Stay => true,
+                Go::To { at, within_m } => me.feet.distance_xz(at) <= within_m,
+            };
+        if let Some(to) = bot.rest.tick(time, resting, me.speed(), me.feet, &tactics.world.grid, tuning.think.rest_off_lip) {
+            intent.go = Go::To { at: to, within_m: super::rest::STEP_ARRIVE_M };
+            intent.straight = false;
+        }
+    }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,

@@ -52,6 +52,7 @@ pub mod path;
 pub mod plays;
 pub mod pools;
 pub mod recoil;
+pub mod rest;
 pub mod reflex;
 pub mod rng;
 pub mod route_end;
@@ -183,6 +184,8 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its rest, kept off a lip ([`rest`]).
+    rest: rest::RestWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -356,6 +359,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            rest: rest::RestWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
