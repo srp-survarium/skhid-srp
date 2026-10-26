@@ -64,6 +64,28 @@ pub struct ThreatTuning {
     pub search_floors: u32,
 }
 
+/// How a bot commits to a play it has started. Every switch is off until a
+/// bench turns it on.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CommitTuning {
+    /// A Crossfire on an enemy's last known place keeps its choke where it
+    /// was when it began, after the bot's memory has forgotten the enemy,
+    /// for `crossfire_point_s` at most (the choke is a position; it ended
+    /// with the memory's timer).
+    pub crossfire_point: bool,
+    /// How long that frozen choke stays valid, s: the play's own
+    /// `give_up_s` (70). GUESS, no human data on how long players keep
+    /// covering a quiet last known spot.
+    pub crossfire_point_s: f32,
+}
+
+impl Default for CommitTuning {
+    fn default() -> Self {
+        Self { crossfire_point: false, crossfire_point_s: 70.0 }
+    }
+}
+
 impl Default for ThreatTuning {
     fn default() -> Self {
         Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }

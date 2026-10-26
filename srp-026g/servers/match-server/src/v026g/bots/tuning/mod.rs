@@ -35,6 +35,7 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    pub commit: CommitTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
     /// Metres kept from a damage zone (`hazards`).
@@ -77,6 +78,7 @@ impl Default for Tuning {
             traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
+            commit: CommitTuning::default(),
             avoid: AvoidTuning::default(),
             hazard_margin: 1.0,
             floor_paths: false,
@@ -108,7 +110,7 @@ pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, HearingRanges, SenseTuning};
 pub use team::{
-    AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
+    AvoidTuning, CommitTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
 };
 pub use traps::{ReactTuning, TrapTuning};
 
