@@ -17,6 +17,11 @@
 //! - **Commitment:** a bot keeps its play unless a candidate of a higher
 //!   band comes, or one of the same band beats it by [`MARGIN`] (research
 //!   B9: no flapping between near-equal plays).
+//! - **Arrival:** a hold still walking to its spot (`Asking::committed`,
+//!   `commit.hold_to_arrival`) keeps its play against any of its band but a
+//!   heal or a retreat;
+//!   the bench showed 39 % of the commander's switches away from a hold to
+//!   be a same-band win by the margin, while the bot was 6 s into a 15 s walk.
 //! - **Slots:** a candidate with a slot (an ambush on a battery, a battery
 //!   to fetch, a guard post) goes to one bot only; bots are served in the
 //!   order of their best score, so the best-placed bot gets the slot.
@@ -280,11 +285,20 @@ pub struct Assignment {
     pub reason: &'static str,
 }
 
+/// A play that keeps the bot alive (`Asking::committed` never holds it back):
+/// healing, and a retreat.
+fn survival(c: &Candidate) -> bool {
+    matches!(c.kind, PlayKind::Heal | PlayKind::Retreat)
+}
+
 /// One bot's input to the commander.
 pub struct Asking<'a> {
     pub place: Place,
     pub candidates: Vec<Candidate>,
     pub current: Option<&'a Assignment>,
+    /// Its running play is a hold still walking to its spot and the switch
+    /// `commit.hold_to_arrival` is on: it stays against a play of its band.
+    pub committed: bool,
 }
 
 /// The assignments for one commander tick: `(place, assignment, changed)`,
@@ -423,7 +437,9 @@ fn assign_given_up(
         let (choice, changed, reason) = match running {
             Some((current, c))
                 if band(c) > band(best)
-                    || (band(c) == band(best) && best.score.get() < c.score.get() + MARGIN) =>
+                    || (band(c) == band(best)
+                        && ((bot.committed && !survival(best))
+                            || best.score.get() < c.score.get() + MARGIN)) =>
             {
                 (c, false, current.reason)
             }
@@ -482,11 +498,13 @@ mod tests {
                     c(PlayKind::Roam, Rank::Roam, 0.9, None, 9),
                 ],
                 current: None,
+                committed: false,
             },
             Asking {
                 place: 2,
                 candidates: vec![c(PlayKind::Collect, Rank::Objective, 0.8, Some(0), 0)],
                 current: None,
+                committed: false,
             },
         ];
         let out = assign(asking, 1_000);
@@ -521,6 +539,7 @@ mod tests {
                         c(PlayKind::Roam, Rank::Roam, 0.9, None, 9),
                     ],
                     current: Some(&current),
+                    committed: false,
                 },
                 Asking {
                     place: 2,
@@ -529,6 +548,7 @@ mod tests {
                         c(PlayKind::Roam, Rank::Roam, 0.9, None, 8),
                     ],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign(asking, 1_000 + HOLD_FRESH_MS);
@@ -572,11 +592,13 @@ mod tests {
                     place: 1,
                     candidates: mine,
                     current: (!alarm).then_some(&current),
+                    committed: false,
                 },
                 Asking {
                     place: 2,
                     candidates: vec![other, c(PlayKind::Roam, Rank::Roam, 0.9, None, 8)],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign(asking, 1_000 + HOLD_FRESH_MS);
@@ -626,6 +648,7 @@ mod tests {
                     c(PlayKind::Roam, Rank::Roam, 0.9, None, 8),
                 ],
                 current: None,
+                committed: false,
             }];
             if holder_asks {
                 asking.push(Asking {
@@ -635,6 +658,7 @@ mod tests {
                         c(PlayKind::Roam, Rank::Roam, 0.9, None, 9),
                     ],
                     current: Some(&current),
+                    committed: false,
                 });
             }
             let out = assign_trapped(asking, now, 0.0, &[], shaky);
@@ -699,11 +723,13 @@ mod tests {
                 place: 1,
                 candidates: vec![holder, c(PlayKind::Roam, Rank::Roam, 0.05, None, 9)],
                 current: Some(&current),
+                committed: false,
             },
             Asking {
                 place: 2,
                 candidates: vec![other, c(PlayKind::Roam, Rank::Roam, 0.05, None, 8)],
                 current: None,
+                committed: false,
             },
         ];
         let out = assign(asking, 1_000 + HOLD_FRESH_MS);
@@ -768,6 +794,7 @@ mod tests {
                     weighted(PlayKind::Cut, 1.6, None, 1),
                 ],
                 current: None,
+                committed: false,
             }],
             1_000,
         );
@@ -781,6 +808,7 @@ mod tests {
                         c(PlayKind::Roam, Rank::Roam, 0.05, None, 9),
                     ],
                     current: None,
+                    committed: false,
                 },
                 Asking {
                     place: 2,
@@ -789,6 +817,7 @@ mod tests {
                         c(PlayKind::Roam, Rank::Roam, 0.05, None, 8),
                     ],
                     current: None,
+                    committed: false,
                 },
             ],
             1_000,
@@ -851,11 +880,13 @@ mod tests {
                     place: 1,
                     candidates: vec![at(0.9, 3.0), c(PlayKind::Roam, Rank::Roam, 0.9, None, 9)],
                     current: Some(&current),
+                    committed: false,
                 },
                 Asking {
                     place: 2,
                     candidates: vec![at(0.5, 12.0), c(PlayKind::Roam, Rank::Roam, 0.9, None, 8)],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign_trapped(asking, 1_000, 0.0, given_up, &[]);
@@ -883,6 +914,7 @@ mod tests {
                     place: 0,
                     candidates,
                     current: Some(&current),
+                    committed: false,
                 }],
                 2_000,
             )
@@ -905,6 +937,64 @@ mod tests {
             c(PlayKind::Collect, Rank::Objective, 0.1, None, 3),
         ]);
         assert_eq!(out[0].1.kind, PlayKind::Collect);
+    }
+
+    #[test]
+    fn a_hold_walking_to_its_spot_is_kept_against_its_band_but_not_a_higher_one() {
+        let current = Assignment {
+            kind: PlayKind::Crossfire,
+            target: TargetRef::Battery(1),
+            slot: None,
+            score: 0.4,
+            since: 100,
+            reason: "the best play",
+        };
+        let ask = |committed, candidates| {
+            assign(
+                vec![Asking {
+                    place: 0,
+                    candidates,
+                    current: Some(&current),
+                    committed,
+                }],
+                2_000,
+            )
+        };
+        let fight = || {
+            vec![
+                c(PlayKind::Crossfire, Rank::Fight, 0.4, None, 1),
+                c(PlayKind::PairUp, Rank::Fight, 0.9, None, 2),
+            ]
+        };
+        // Not committed: the far better play of its band takes the bot.
+        let out = ask(false, fight());
+        assert!(out[0].2 && out[0].1.kind == PlayKind::PairUp);
+        // Committed: kept, with its start time.
+        let out = ask(true, fight());
+        assert!(!out[0].2 && out[0].1.kind == PlayKind::Crossfire && out[0].1.since == 100);
+        // A play that keeps it alive still takes it: a heal, a retreat.
+        for kind in [PlayKind::Heal, PlayKind::Retreat] {
+            let out = ask(
+                true,
+                vec![
+                    c(PlayKind::Crossfire, Rank::Fight, 0.4, None, 1),
+                    c(kind, Rank::Fight, 0.9, None, 2),
+                ],
+            );
+            assert!(out[0].2 && out[0].1.kind == kind);
+        }
+        // A higher band still takes it, however low its score.
+        let out = ask(
+            true,
+            vec![
+                c(PlayKind::Crossfire, Rank::Fight, 0.9, None, 1),
+                c(PlayKind::Collect, Rank::Objective, 0.1, None, 3),
+            ],
+        );
+        assert_eq!(out[0].1.kind, PlayKind::Collect);
+        // Its play no longer a candidate: it changes (commitment is not a candidate).
+        let out = ask(true, vec![c(PlayKind::PairUp, Rank::Fight, 0.5, None, 2)]);
+        assert!(out[0].2 && out[0].1.kind == PlayKind::PairUp);
     }
 
     fn on(kind: PlayKind, score: f32, slot: u32) -> Candidate {
@@ -949,6 +1039,7 @@ mod tests {
                 place: 0,
                 candidates,
                 current,
+                committed: false,
             }],
             2_000,
             bands,
@@ -1060,6 +1151,7 @@ mod tests {
                         c(PlayKind::Cut, Rank::Fight, 0.3, None, 1),
                     ],
                     current: None,
+                    committed: false,
                 },
                 Asking {
                     place: 2,
@@ -1068,6 +1160,7 @@ mod tests {
                         c(PlayKind::Cut, Rank::Fight, 0.3, None, 2),
                     ],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign_with(asking, 1_000, &BANDS, 0.0);
@@ -1083,6 +1176,7 @@ mod tests {
                     place: 1,
                     candidates: vec![on(PlayKind::GuardLead, 0.6, 0)],
                     current: None,
+                    committed: false,
                 },
                 Asking {
                     place: 2,
@@ -1091,6 +1185,7 @@ mod tests {
                         c(PlayKind::HoldExit, Rank::Fight, 0.3, None, 2),
                     ],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign_with(asking, 1_000, &BANDS, 0.0);
@@ -1141,6 +1236,7 @@ mod tests {
                         c(PlayKind::Cut, Rank::Fight, 0.3, None, 1),
                     ],
                     current: None,
+                    committed: false,
                 },
                 Asking {
                     place: 2,
@@ -1149,6 +1245,7 @@ mod tests {
                         c(PlayKind::Cut, Rank::Fight, 0.3, None, 2),
                     ],
                     current: None,
+                    committed: false,
                 },
             ];
             let out = assign_with(asking, 1_000, &BANDS, gap);

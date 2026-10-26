@@ -58,6 +58,7 @@ pub struct Scenario {
     pub failed_stands: Vec<super::collect::FailedStand>,
     /// `BotFacts::crossing`.
     pub crossing: Option<Vec3>,
+    pub held_choke: Option<(Place, Vec3, u32)>,
 }
 
 impl Scenario {
@@ -144,6 +145,7 @@ impl Scenario {
             ammo: Default::default(),
             failed_stands: Vec::new(),
             crossing: None,
+            held_choke: None,
         };
         s.signals();
         s
@@ -295,6 +297,7 @@ impl Scenario {
                 dry: self.dry,
                 ammo: self.ammo,
                 crossing: self.crossing,
+                held_choke: self.held_choke,
             },
             memory: &self.memory,
             team: &self.team,
