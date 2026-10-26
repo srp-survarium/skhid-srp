@@ -33,6 +33,10 @@ pub struct Tuning {
     pub think: ThinkTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// Whether a bot's way out of a zone stays under the strength of the
+    /// zone it starts in (`Tactics::escape`); off: the nearest way over any
+    /// zone, as it was.
+    pub escape_ceiling: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -52,6 +56,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
+            escape_ceiling: true,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))
