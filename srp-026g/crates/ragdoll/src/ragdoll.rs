@@ -362,6 +362,10 @@ pub struct Start<'a> {
     pub hits: &'a [crate::shot::Hit],
     /// What the player wore and carried, kg on each part (its equipment).
     pub load: [f32; PARTS],
+    /// How fast the player moved just before the death (its transform's
+    /// motion while alive: a running body carries it; the clip's own motion
+    /// after the death has none of it).
+    pub velocity: Vec3,
 }
 
 /// Whether the bodies have stayed put: since when, and where they were then.
@@ -380,6 +384,24 @@ enum Rest {
         since: f32,
         anchor: (PartPoses, Option<Pose>),
     },
+}
+
+/// What a ragdoll started with (the opt-in diagnostics' line of a death).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StartReport {
+    /// 0 no bullet known, 1 a body shot, 2 a headshot, 3 a blast.
+    pub cause: u8,
+    /// The bullets that pushed it, the killing one's push (N s, the round's
+    /// own), the whole body's knock (m/s).
+    pub hits: u8,
+    pub push: f32,
+    pub knock: f32,
+    /// The body's mass (kg, the kit's weight in), its speed at the death
+    /// (m/s, carried).
+    pub mass: f32,
+    pub speed: f32,
+    /// The muscles' strength at the start: legs, waist, neck, arms.
+    pub strengths: [f32; 4],
 }
 
 /// Whether a frame's step left the ragdoll moving.
@@ -419,6 +441,7 @@ pub struct Ragdoll {
     /// take the push away again.
     grace: f32,
     rest: Rest,
+    report: StartReport,
     /// The last poses a step left finite (what a broken step falls back to).
     last_good: (PartPoses, Option<Pose>),
 }
@@ -559,7 +582,13 @@ impl Ragdoll {
         let dt = clamp(start.dt, 1.0 / 240.0, 0.25);
         for (body, was) in bodies.iter_mut().zip(before.iter()) {
             let v = (body.pose.position - was.position) * (1.0 / dt);
-            body.velocity = limit_length(v, START_SPEED);
+            let carried = if start.velocity.is_finite() {
+                limit_length(start.velocity, tuning::DEATH_VELOCITY_MAX)
+                    * tuning::DEATH_VELOCITY_SHARE
+            } else {
+                Vec3::ZERO
+            };
+            body.velocity = limit_length(v + carried, START_SPEED);
             body.spin = limit_length(
                 body.pose.rotation.rotation_from(was.rotation) * (1.0 / dt),
                 START_SPIN,
@@ -638,6 +667,30 @@ impl Ragdoll {
             limp: false,
             grace: 0.0,
             rest: Rest::Moving,
+            report: StartReport {
+                cause: match cause {
+                    Cause::Unknown => 0,
+                    Cause::Body { .. } => 1,
+                    Cause::Head { .. } => 2,
+                    Cause::Blast { .. } => 3,
+                },
+                hits: hits.len().min(255) as u8,
+                push: power,
+                knock: 0.0,
+                mass: 0.0,
+                speed: if start.velocity.is_finite() {
+                    start.velocity.length()
+                } else {
+                    0.0
+                },
+                strengths: [
+                    JointKind::Knee,
+                    JointKind::Waist,
+                    JointKind::Neck,
+                    JointKind::Elbow,
+                ]
+                .map(|kind| muscle(cause, kind, Part::Torso, power).s0),
+            },
             last_good: ([Pose::IDENTITY; PARTS], None),
         };
         if let Some(gun) = ragdoll.gun.as_mut() {
@@ -675,8 +728,10 @@ impl Ragdoll {
                 for body in ragdoll.bodies.iter_mut() {
                     body.velocity += dv;
                 }
+                ragdoll.report.knock += dv.length();
             }
         }
+        ragdoll.report.mass = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
         ragdoll.last_good = ragdoll.poses();
         Some(ragdoll)
     }
@@ -730,6 +785,11 @@ impl Ragdoll {
                 Contact::Plane { point, normal } => Some((point, normal)),
                 Contact::Free => None,
             })
+    }
+
+    /// What it started with.
+    pub fn report(&self) -> StartReport {
+        self.report
     }
 
     pub fn rig(&self) -> &Rig {

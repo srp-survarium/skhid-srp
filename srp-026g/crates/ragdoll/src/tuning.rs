@@ -18,7 +18,7 @@ pub const WAIST_STIFFNESS: f32 = 250.0;
 pub const WAIST_DECAY: f32 = 0.25;
 /// The neck's.
 pub const NECK_STIFFNESS: f32 = 60.0;
-pub const NECK_DECAY: f32 = 0.25;
+pub const NECK_DECAY: f32 = 0.3; // 464c 0.25
 /// The arms' (shoulders, elbows).
 pub const ARM_STIFFNESS: f32 = 40.0;
 pub const ARM_DECAY: f32 = 0.2;
@@ -39,11 +39,15 @@ pub const BLAST_DECAY: f32 = 0.15;
 pub const KNEE_GIVE: f32 = 1.4;
 /// A bullet that kills pushes this many times its momentum's push (the
 /// knock-back games show; a corpse's shot pushes `1`).
-pub const DEATH_KNOCK: f32 = 3.0;
+pub const DEATH_KNOCK: f32 = 3.5; // 464c 3.0
 /// And this share of it moves the whole body, level, at most
 /// `BODY_KNOCK_MAX` m/s.
 pub const BODY_SHARE: f32 = 0.6;
-pub const BODY_KNOCK_MAX: f32 = 1.2;
+pub const BODY_KNOCK_MAX: f32 = 1.6; // 464c 1.2
+/// The body's velocity at the death (a running player's) carried into the
+/// ragdoll: this share of it, at most `DEATH_VELOCITY_MAX` m/s (464c: none).
+pub const DEATH_VELOCITY_SHARE: f32 = 0.7;
+pub const DEATH_VELOCITY_MAX: f32 = 7.0;
 /// The hits just before the killing one push with this share of theirs.
 pub const EARLIER_HIT: f32 = 0.5;
 /// A killing hit this strong (N s) or more is a heavy one (a sniper's).

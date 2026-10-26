@@ -114,6 +114,7 @@ fn start<'a>(
         stood_on: Some((Vec3::ZERO, Vec3::Y)),
         hits: &[],
         load: [0.0; PARTS],
+        velocity: Vec3::ZERO,
     }
 }
 
@@ -500,6 +501,33 @@ fn the_killing_shot_decides_the_fall() {
 }
 
 #[test]
+fn a_running_body_carries_its_momentum() {
+    // shot from the front while running forward (+z) at 5 m/s: it goes on
+    // forward past where it died, instead of dropping there
+    let front = looks()[0].1;
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [front];
+    let run = |velocity: Vec3| {
+        let mut s = start(&now, &before, Cause::Unknown, None);
+        s.hits = &hits;
+        s.velocity = velocity;
+        let mut ragdoll = Ragdoll::new(&s).unwrap();
+        let mut ground = Ground::flat();
+        for _ in 0..90 {
+            ragdoll.step(1.0 / 60.0, None, &mut ground);
+        }
+        ragdoll.poses().0[Part::Pelvis.index()].position
+    };
+    let standing_still = run(Vec3::ZERO);
+    let running = run(Vec3::new(0.0, 0.0, 5.0));
+    assert!(
+        running.z > standing_still.z + 0.5 && running.z > 0.3,
+        "the running body slides on: {running:?} against {standing_still:?}"
+    );
+}
+
+#[test]
 fn the_legs_give_way_progressively_within_a_second() {
     // a body shot from the side (the legs buckle under it as it goes)
     let side = fall(&[looks()[1].1], [0.0; PARTS], 90);
@@ -862,6 +890,127 @@ fn render_dump() {
         let hits = [hit];
         let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
         s.hits = &hits;
+        let mut r = Ragdoll::new(&s).unwrap();
+        let mut ground = Ground::flat();
+        let mut frames = std::vec::Vec::new();
+        for _ in 0..240 {
+            let mut caps = std::vec::Vec::new();
+            for b in r.bodies.iter().chain(r.gun.iter()) {
+                let (a, c) = b.shape.ends(b.pose);
+                caps.push(std::format!(
+                    "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                    a.x,
+                    a.y,
+                    a.z,
+                    c.x,
+                    c.y,
+                    c.z,
+                    b.shape.radius
+                ));
+            }
+            frames.push(std::format!("[{}]", caps.join(",")));
+            r.step(1.0 / 60.0, None, &mut ground);
+        }
+        writeln!(
+            file,
+            "{{\"name\":\"{name}\",\"frames\":[{}]}}",
+            frames.join(",")
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn the_start_report_says_what_pushed_it() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [looks()[0].1];
+    let mut s = start(&now, &before, Cause::Unknown, None);
+    s.hits = &hits;
+    s.velocity = Vec3::new(0.0, 0.0, 3.0);
+    let r = Ragdoll::new(&s).unwrap().report();
+    assert_eq!((r.cause, r.hits), (1, 1));
+    assert!(
+        (r.push - 12.8).abs() < 0.01 && r.knock > 0.2 && (r.speed - 3.0).abs() < 1e-4,
+        "{r:?}"
+    );
+    assert!(r.mass > 60.0 && r.strengths[0] > 0.5);
+    let r = Ragdoll::new(&start(&now, &before, Cause::Unknown, None))
+        .unwrap()
+        .report();
+    assert_eq!(
+        (r.cause, r.hits, r.push, r.knock),
+        (0, 0, 0.0, 0.0),
+        "no bullet: no push"
+    );
+    s.hits = &[];
+    s.cause = Cause::Head { direction: Vec3::X };
+    assert_eq!(Ragdoll::new(&s).unwrap().report().cause, 2);
+}
+
+/// The owner's five looks for 464d: a rifle round from the front, from the
+/// side, in the head, a sniper's round in the chest from the front, and a
+/// rifle round from the front into a body running forward at 5 m/s.
+pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
+    let rifle = |d: Vec3| crate::shot::impulse(d, 0.02, 800.0);
+    let back = Vec3::new(0.0, 0.0, -1.0);
+    [
+        (
+            "front",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.3, 0.12),
+                impulse: rifle(back),
+            },
+            Vec3::ZERO,
+        ),
+        (
+            "side",
+            crate::shot::Hit {
+                point: Vec3::new(-0.15, 1.3, 0.0),
+                impulse: rifle(Vec3::X),
+            },
+            Vec3::ZERO,
+        ),
+        (
+            "head",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.66, 0.09),
+                impulse: rifle(back),
+            },
+            Vec3::ZERO,
+        ),
+        (
+            "sniper",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.3, 0.12),
+                impulse: crate::shot::impulse(back, 0.1, 800.0),
+            },
+            Vec3::ZERO,
+        ),
+        (
+            "running",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.3, 0.12),
+                impulse: rifle(back),
+            },
+            Vec3::new(0.0, 0.0, 5.0),
+        ),
+    ]
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_dump5 -- --ignored"]
+fn render_dump5() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    for (name, hit, velocity) in looks5() {
+        let now = standing(Quat::IDENTITY, Vec3::ZERO);
+        let before = driver_bones(&now);
+        let hits = [hit];
+        let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+        s.hits = &hits;
+        s.velocity = velocity;
         let mut r = Ragdoll::new(&s).unwrap();
         let mut ground = Ground::flat();
         let mut frames = std::vec::Vec::new();

@@ -24,7 +24,8 @@
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, Level, Motion, Ragdoll, Skeleton, Start, driver_bones,
+    Cause, DriverBones, GunShape, Level, Motion, Ragdoll, Skeleton, Start, StartReport,
+    driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
@@ -76,6 +77,8 @@ pub struct Death {
     pub hit_count: usize,
     /// What the player wore and carried, kg on each part.
     pub load: [f32; PARTS],
+    /// How fast the player moved just before the death.
+    pub velocity: Vec3,
 }
 
 impl Death {
@@ -97,6 +100,7 @@ impl Death {
             }; RECENT],
             hit_count: 0,
             load: [0.0; PARTS],
+            velocity: Vec3::ZERO,
         }
     }
 }
@@ -280,6 +284,9 @@ pub struct Corpses {
     eye: Eye,
     /// Counts the settles (orders the settled slots).
     settles: u32,
+    /// The ragdolls the last step started: their places and what they
+    /// started with (the opt-in diagnostics read them).
+    started: [Option<(u8, StartReport)>; 8],
     /// Each place's drawn ragdoll's box as the last step left it: the
     /// shots' broad phase (a shot is traced between two steps).
     bounds: [Option<(Vec3, Vec3)>; MAX_PLACES],
@@ -301,7 +308,13 @@ impl Corpses {
             eye: Eye::Off,
             settles: 0,
             bounds: [None; MAX_PLACES],
+            started: [None; 8],
         }
+    }
+
+    /// The ragdolls the last step started (a place and what it started with).
+    pub fn started(&self) -> impl Iterator<Item = (usize, StartReport)> + '_ {
+        self.started.iter().flatten().map(|&(p, r)| (p as usize, r))
     }
 
     /// Whether any place has a ragdoll a shot could meet.
@@ -402,6 +415,7 @@ impl Corpses {
     /// The step: every place's corpse from what the world shows of it, the
     /// moving ragdolls stepped, the local player's camera followed.
     pub fn step(&mut self, frame: &Frame<'_>, level: &mut impl Level) {
+        self.started = [None; 8];
         let count = frame.places.len().min(MAX_PLACES);
         // first every corpse the world no longer shows (its slot freed),
         // so the new deaths find them
@@ -518,10 +532,14 @@ impl Corpses {
                     stood_on: death.stood_on,
                     hits: &death.hits[..death.hit_count.min(RECENT)],
                     load: death.load,
+                    velocity: death.velocity,
                 };
                 let since = *age + frame.dt;
                 Some(match Ragdoll::new(&start) {
                     Some(mut ragdoll) => {
+                        if let Some(free) = self.started.iter_mut().find(|s| s.is_none()) {
+                            *free = Some((place as u8, ragdoll.report()));
+                        }
                         // the time since that skeleton was drawn
                         match ragdoll.step(since, None, level) {
                             Motion::Moving => Slot::Ragdoll {
