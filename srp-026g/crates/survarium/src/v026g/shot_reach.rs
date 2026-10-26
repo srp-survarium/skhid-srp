@@ -4,7 +4,7 @@
 //! another player hears it):
 //!
 //! ```text
-//! wpn_<name>.options  states.fire.sounds.third_view[0][1]   "weapons/akm_n_m"
+//! wpn_<name>.options  states.fire.sounds.third_view entries (type 257)  "weapons/akm_n_m"
 //!   -> sounds/composite/<it>.composite_sound                layers: filename, enabled, max_distance
 //!   -> sounds/collections/<layer>.sound_collection          sound_items[0].filename
 //!   -> sounds/single/<that>.raw_options                     spl_preset
@@ -13,8 +13,9 @@
 //!
 //! A layer is heard out to the smaller of its `max_distance` and its preset's cull (the farthest
 //! distance of a volume key whose gain is 0; none: the layer's own `max_distance`), and the shot
-//! reaches the farthest of the enabled layers whose preset was found. A weapon whose chain gives
-//! no layer has no reach ([`reach`] is `None`).
+//! reaches the farthest of the enabled layers whose chain is whole ([`Layer::heard_m`]): a layer
+//! whose file the archives lack counts for nothing, so the reach is then a lower bound
+//! ([`Cull::Missing`] says where). A weapon whose chain gives no layer has no reach.
 //!
 //! The server's game data does not carry the sound files, so the table is made offline from the
 //! archives (`srp-shot-reach`) and kept as `shot_reach.tsv` in the bots; this module is the
@@ -30,65 +31,120 @@ pub fn config_path(stem: &str) -> String {
     format!("gameplay/items/weapons/{stem}.options")
 }
 
-/// The reach in metres of the shot of the weapon whose config is `options`, if its sound chain
-/// gives one.
-pub fn reach(options: &[u8], read: Read) -> Result<Option<f32>, String> {
+/// A resource type of the shot's sounds in the weapon config: a composite sound (the others, 258,
+/// are single collections: a click, a start; they are not the shot).
+const COMPOSITE: i32 = 257;
+
+/// Where a layer's volume curve reaches 0.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Cull {
+    /// At this distance, metres.
+    At(f32),
+    /// Never: the layer is heard as far as its own `max_distance`.
+    Never,
+    /// The chain stops at this file, which the archives do not have.
+    Missing(String),
+}
+
+/// One enabled layer of a shot's composite sound.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Layer {
+    pub collection: String,
+    pub max_m: f32,
+    pub cull: Cull,
+}
+
+impl Layer {
+    /// How far the layer is heard: the smaller of its own distance and its cull; `None` when the
+    /// chain is broken.
+    pub fn heard_m(&self) -> Option<f32> {
+        match self.cull {
+            Cull::At(cull) => Some(self.max_m.min(cull)),
+            Cull::Never => Some(self.max_m),
+            Cull::Missing(_) => None,
+        }
+    }
+}
+
+/// The enabled layers of the shot of the weapon whose config is `options`: those of every
+/// composite sound its `third_view` names (none: it names none).
+pub fn layers(options: &[u8], read: Read) -> Result<Vec<Layer>, String> {
     let config = ConfigValue::parse(options).map_err(|e| e.to_string())?;
-    let Some(composite) = config
+    let composites: Vec<String> = config
         .get("states")
         .and_then(|s| s.get("fire"))
         .and_then(|f| f.get("sounds"))
         .and_then(|s| s.get("third_view"))
-        .and_then(|v| v.children().first().copied())
-        .and_then(|v| v.children().get(1).copied())
-        .and_then(ConfigValue::as_str)
-    else {
-        return Ok(None);
-    };
-    let path = format!("sounds/composite/{composite}.composite_sound");
-    let Some(bytes) = read(&path)? else {
-        return Ok(None);
-    };
-    let composite = ConfigValue::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
-    let layers = composite
-        .get("composite_sound")
-        .and_then(|c| c.get("sound_items"))
         .map(ConfigValue::children)
-        .unwrap_or_default();
-    let mut best: Option<f32> = None;
-    for layer in layers {
-        if layer.get("enabled").and_then(ConfigValue::as_bool) != Some(true) {
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let [kind, name] = entry.children()[..] else {
+                return None;
+            };
+            (kind.as_i32() == Some(COMPOSITE)).then(|| name.as_str().map(str::to_owned))?
+        })
+        .collect();
+    let mut out = Vec::new();
+    for composite in composites {
+        let path = format!("sounds/composite/{composite}.composite_sound");
+        let Some(bytes) = read(&path)? else {
             continue;
+        };
+        let parsed = ConfigValue::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
+        let items = parsed
+            .get("composite_sound")
+            .and_then(|c| c.get("sound_items"))
+            .map(ConfigValue::children)
+            .unwrap_or_default();
+        for layer in items {
+            if layer.get("enabled").and_then(ConfigValue::as_bool) != Some(true) {
+                continue;
+            }
+            let (Some(file), Some(max)) = (
+                layer.get("filename").and_then(ConfigValue::as_str),
+                layer.get("max_distance").and_then(ConfigValue::as_f32),
+            ) else {
+                continue;
+            };
+            out.push(Layer {
+                collection: file.to_owned(),
+                max_m: max,
+                cull: cull_of(file, read)?,
+            });
         }
-        let (Some(file), Some(max)) = (
-            layer.get("filename").and_then(ConfigValue::as_str),
-            layer.get("max_distance").and_then(ConfigValue::as_f32),
-        ) else {
-            continue;
-        };
-        let Some(cull) = cull_of(file, read)? else {
-            continue;
-        };
-        let heard = max.min(cull);
-        best = Some(best.map_or(heard, |b| b.max(heard)));
     }
-    Ok(best)
+    Ok(out)
 }
 
-/// The cull distance of the preset of the sound collection `collection`'s first sound: `None`
-/// when a file of the chain is missing, infinite when the preset's volume never reaches 0.
-fn cull_of(collection: &str, read: Read) -> Result<Option<f32>, String> {
-    let mut parsed = |path: String| -> Result<Option<ConfigValue>, String> {
+/// The reach of a shot of `layers`: the farthest any layer is heard; `None` when no layer's chain
+/// is whole.
+pub fn farthest(layers: &[Layer]) -> Option<f32> {
+    layers
+        .iter()
+        .filter_map(Layer::heard_m)
+        .fold(None, |best: Option<f32>, m| Some(best.map_or(m, |b| b.max(m))))
+}
+
+/// The reach in metres of the shot of the weapon whose config is `options`, if its sound chain
+/// gives one.
+pub fn reach(options: &[u8], read: Read) -> Result<Option<f32>, String> {
+    Ok(farthest(&layers(options, read)?))
+}
+
+/// The cull of the preset of the sound collection `collection`'s first sound.
+fn cull_of(collection: &str, read: Read) -> Result<Cull, String> {
+    let mut parsed = |path: String| -> Result<Result<ConfigValue, String>, String> {
         match read(&path)? {
             Some(bytes) => ConfigValue::parse(&bytes)
-                .map(Some)
+                .map(Ok)
                 .map_err(|e| format!("{path}: {e}")),
-            None => Ok(None),
+            None => Ok(Err(path)),
         }
     };
-    let Some(collection) = parsed(format!("sounds/collections/{collection}.sound_collection"))?
-    else {
-        return Ok(None);
+    let collection = match parsed(format!("sounds/collections/{collection}.sound_collection"))? {
+        Ok(c) => c,
+        Err(path) => return Ok(Cull::Missing(path)),
     };
     let Some(first) = collection
         .get("collection")
@@ -97,10 +153,11 @@ fn cull_of(collection: &str, read: Read) -> Result<Option<f32>, String> {
         .and_then(|item| item.get("filename"))
         .and_then(ConfigValue::as_str)
     else {
-        return Ok(None);
+        return Ok(Cull::Missing("a sound in the collection".to_owned()));
     };
-    let Some(options) = parsed(format!("sounds/single/{first}.raw_options"))? else {
-        return Ok(None);
+    let options = match parsed(format!("sounds/single/{first}.raw_options"))? {
+        Ok(o) => o,
+        Err(path) => return Ok(Cull::Missing(path)),
     };
     let Some(preset) = options
         .get("options")
@@ -108,12 +165,13 @@ fn cull_of(collection: &str, read: Read) -> Result<Option<f32>, String> {
         .and_then(ConfigValue::as_str)
         .filter(|p| !p.is_empty())
     else {
-        return Ok(None);
+        return Ok(Cull::Missing(format!("an spl_preset in sounds/single/{first}.raw_options")));
     };
-    let Some(spl) = parsed(format!("sounds/spl/{preset}.spl"))? else {
-        return Ok(None);
+    let spl = match parsed(format!("sounds/spl/{preset}.spl"))? {
+        Ok(s) => s,
+        Err(path) => return Ok(Cull::Missing(path)),
     };
-    let keys = spl.get("volume").map(|v| v.entries()).unwrap_or_default();
+    let keys = spl.get("volume").map(ConfigValue::entries).unwrap_or_default();
     let cull = keys
         .iter()
         .filter_map(|(_, key)| match key.get("position") {
@@ -121,7 +179,7 @@ fn cull_of(collection: &str, read: Read) -> Result<Option<f32>, String> {
             _ => None,
         })
         .fold(None, |best: Option<f32>, d| Some(best.map_or(d, |b| b.max(d))));
-    Ok(Some(cull.unwrap_or(f32::INFINITY)))
+    Ok(cull.map_or(Cull::Never, Cull::At))
 }
 
 /// The table's rows, `name<TAB>metres`, one a line, sorted by name; a name with no reach is left
