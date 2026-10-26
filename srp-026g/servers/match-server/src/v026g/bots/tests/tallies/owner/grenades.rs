@@ -191,7 +191,7 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
     let run = |bench: bool| {
         let (mut game, mut tally) = made_up(&[0, 0, 1, 0]);
         if bench {
-            tally.grenades.listed = Some(ThrowCounts::default());
+            tally.topic::<GrenadeCounts>().listed = Some(ThrowCounts::default());
         }
         play(&mut game, &mut tally, 100, |_, game| {
             put(game, 0, 10.0, 10.0, 0);
@@ -209,7 +209,7 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
         tally.note(&note, &game);
         game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
         game.tick += TICK_MS;
-        tally.step(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+        tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
         tally.finish(&game).1
     };
     let json = run(true);
@@ -661,7 +661,7 @@ impl GrenadeCounts {
                     } else {
                         2
                     };
-                    self.grenades.in_launch[who] += 1;
+                    self.in_launch[who] += 1;
                 }
             }
             if game.damage.blasts_hurt() {
@@ -766,7 +766,7 @@ impl GrenadeCounts {
                 "blasts_pending": live.pending,
                 "blasts_unlisted": live.missing,
                 "rest_error_m": live.err,
-                "inside_at_launch": self.grenades.in_launch,
+                "inside_at_launch": self.in_launch,
             });
             let mut avoid = AvoidStats::default();
             for stats in self.avoid.values() {
@@ -824,7 +824,7 @@ impl GrenadeCounts {
                 live.pending,
                 live.missing,
                 live.err,
-                self.grenades.in_launch,
+                self.in_launch,
             ));
             let mut avoid = AvoidStats::default();
             for stats in self.avoid.values() {
