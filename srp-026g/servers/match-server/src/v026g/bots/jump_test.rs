@@ -1343,7 +1343,7 @@ impl JumpTest {
                     active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
-                    if self.start_missed(bot.place, &active.def) {
+                    if Self::start_missed(&mut self.missed, &mut self.no_route, bot.place, &active.def) {
                         // Not reached by two bots: the try is void, and so is every try on that ledge.
                         let line = serde_json::json!({
                             "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start not reached",
@@ -1623,12 +1623,17 @@ impl JumpTest {
 
     /// A bot did not reach the start of `def` in time: whether this is the second bot to miss it (the ledge is
     /// given up). The first is kept off the site, so the pool offers it to another.
-    fn start_missed(&mut self, place: Place, def: &TryDef) -> bool {
+    fn start_missed(
+        missed: &mut HashMap<(i32, i32), HashSet<Place>>,
+        no_route: &mut HashSet<(Place, (i32, i32))>,
+        place: Place,
+        def: &TryDef,
+    ) -> bool {
         let key = site_key(def);
-        let missed = self.missed.entry(key).or_default();
-        missed.insert(place);
-        self.no_route.insert((place, key));
-        missed.len() >= 2
+        let by = missed.entry(key).or_default();
+        by.insert(place);
+        no_route.insert((place, key));
+        by.len() >= 2
     }
 
     /// The log line of a finished try, from the rows of its place.
@@ -2372,15 +2377,15 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
         let def = wide_def(0.0, 5.5);
         // The first bot to miss is kept off the site; the ledge stays.
-        assert!(!jt.start_missed(5, &def));
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &def));
         assert!(jt.no_route.contains(&(5, site_key(&def))));
         // The same bot missing again (it was not offered it) does not give the ledge up; a second bot does.
-        assert!(!jt.start_missed(5, &def));
-        assert!(jt.start_missed(3, &def));
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &def));
+        assert!(JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 3, &def));
         // Another site is not touched.
         let mut other = def.clone();
         other.site.lower = Vec3::new(def.site.lower.x + 40.0, def.site.lower.y, def.site.lower.z);
-        assert!(!jt.start_missed(5, &other));
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &other));
     }
 
     #[test]
