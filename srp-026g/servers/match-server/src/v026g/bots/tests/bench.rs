@@ -298,7 +298,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
-    bots.tracker.held_sounds(now);
+    bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
