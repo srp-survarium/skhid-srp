@@ -136,40 +136,44 @@ pub struct TierSkill {
     pub min: f32,
 }
 
-/// The skill's ranges in order.
-pub(super) fn validate_skill(skill: &SkillTuning) -> Result<(), String> {
-    check(
-        skill.min <= skill.start && skill.start <= skill.max,
-        "skill.start",
-    )?;
-    for (tier, row) in &skill.tiers {
+impl Check for SkillTuning {
+    /// The skill's ranges in order.
+    fn check(&self) -> Result<(), String> {
         check(
-            (0.0..=row.start).contains(&row.min) && row.start <= skill.max,
-            &format!("skill.tiers.{tier:?}"),
+            self.min <= self.start && self.start <= self.max,
+            "skill.start",
         )?;
+        for (tier, row) in &self.tiers {
+            check(
+                (0.0..=row.start).contains(&row.min) && row.start <= self.max,
+                &format!("skill.tiers.{tier:?}"),
+            )?;
+        }
+        check(self.kd_low < self.kd_high, "skill.kd_*")?;
+        Ok(())
     }
-    check(skill.kd_low < skill.kd_high, "skill.kd_*")?;
-    Ok(())
 }
 
-/// The aim's ranges in order (bursts, pauses, the combat strafe and recoil).
-pub(super) fn validate_aim(aim: &AimTuning) -> Result<(), String> {
-    check(aim.burst_ms.0 <= aim.burst_ms.1, "aim.burst_ms")?;
-    check(aim.pause_ms.0 <= aim.pause_ms.1, "aim.pause_ms")?;
-    check(aim.wander_s > 0.0, "aim.wander_s")?;
-    let c = &aim.combat;
-    check(
-        c.strafe_run_ms.0 > 0 && c.strafe_run_ms.0 <= c.strafe_run_ms.1,
-        "aim.combat.strafe_run_ms",
-    )?;
-    check(
-        c.strafe_still_ms.0 <= c.strafe_still_ms.1,
-        "aim.combat.strafe_still_ms",
-    )?;
-    check(
-        (0.0..=1.0).contains(&c.recoil_pull)
-            && (0.0..=c.recoil_pull).contains(&c.recoil_pull_low),
-        "aim.combat.recoil_pull",
-    )?;
-    Ok(())
+impl Check for AimTuning {
+    /// The aim's ranges in order (bursts, pauses, the combat strafe and recoil).
+    fn check(&self) -> Result<(), String> {
+        check(self.burst_ms.0 <= self.burst_ms.1, "aim.burst_ms")?;
+        check(self.pause_ms.0 <= self.pause_ms.1, "aim.pause_ms")?;
+        check(self.wander_s > 0.0, "aim.wander_s")?;
+        let c = &self.combat;
+        check(
+            c.strafe_run_ms.0 > 0 && c.strafe_run_ms.0 <= c.strafe_run_ms.1,
+            "aim.combat.strafe_run_ms",
+        )?;
+        check(
+            c.strafe_still_ms.0 <= c.strafe_still_ms.1,
+            "aim.combat.strafe_still_ms",
+        )?;
+        check(
+            (0.0..=1.0).contains(&c.recoil_pull)
+                && (0.0..=c.recoil_pull).contains(&c.recoil_pull_low),
+            "aim.combat.recoil_pull",
+        )?;
+        Ok(())
+    }
 }

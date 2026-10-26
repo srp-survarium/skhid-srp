@@ -52,16 +52,17 @@ impl Default for UnstickTuning {
     }
 }
 
-pub(super) fn validate_unstick(unstick: &UnstickTuning) -> Result<(), String> {
-    check(
-        unstick.suicide_wait_ms >= 2_000 && (1..=8).contains(&unstick.suicide_ticks),
-        "unstick.suicide_wait_ms, suicide_ticks",
-    )?;
-    check(
-        unstick.suicide_after_ms.is_none_or(|after| after >= unstick.suicide_quiet_ms),
-        "unstick.suicide_after_ms",
-    )?;
-    Ok(())
+impl Check for UnstickTuning {
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.suicide_wait_ms >= 2_000 && (1..=8).contains(&self.suicide_ticks),
+            "unstick.suicide_wait_ms, suicide_ticks",
+        )?;
+        check(
+            self.suicide_after_ms.is_none_or(|after| after >= self.suicide_quiet_ms),
+            "unstick.suicide_after_ms",
+        )
+    }
 }
 
 #[cfg(test)]

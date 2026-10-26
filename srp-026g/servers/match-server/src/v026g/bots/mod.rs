@@ -79,35 +79,74 @@ mod think;
 
 use std::sync::Arc;
 
-use mapdata::{NodeId, Vec3, World};
-use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
+use mapdata::NodeId;
+use mapdata::Vec3;
+use mapdata::World;
+use survarium::v026g::loadouts::BotEquipment;
+use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::loadouts::BotTier;
+use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
 
-use crate::v026g::drive::{half_value, key};
+use crate::v026g::drive::half_value;
+use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
-use encode::{Decision, Encoder};
-use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
-use path::Route;
-use pools::Pools;
-use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
-use reflex::Reflex;
-use route_end::RouteEnd;
-use route_filter::RouteFilter;
-use rng::Rng;
-use sense::RayBudget;
-use signals::{Duel, MatchSignals, Mods, Skill};
-use stuck::{Recovery, Stuck, TeamSpots};
-use tactics::Tactics;
-use team::{Asking, Assignment};
-use trace::Trace;
-use tuning::Tuning;
-use view::{BatteryState, Clock, MatchView, Place, PlaceView, Tracker, WorldFacts};
 use commander::*;
 use drive::*;
+use encode::Decision;
+use encode::Encoder;
+use know::DangerSpot;
+use know::LookSpot;
+use know::Loss;
+use know::Memory;
+use know::Percept;
+use know::Source;
+use know::TeamKnowledge;
+use know::Theft;
+use motor::Hurt;
+use motor::JumpBy;
+use motor::Motor;
+use motor::Pose;
+use motor::RoutePress;
+use motor::Walked;
+use path::Route;
+use plays::BotFacts;
+use plays::Ctx;
+use plays::Go;
+use plays::Intent;
+use plays::Look;
+use plays::Pace;
+use plays::PlayKind;
+use plays::Running;
+use plays::Step;
 use plays::goals::goal_shut;
+use pools::Pools;
+use reflex::Reflex;
+use rng::Rng;
+use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use search::*;
+use sense::RayBudget;
+use signals::Duel;
+use signals::MatchSignals;
+use signals::Mods;
+use signals::Skill;
+use stuck::Recovery;
+use stuck::Stuck;
+use stuck::TeamSpots;
+use tactics::Tactics;
+use team::Asking;
+use team::Assignment;
+use trace::Trace;
+use tuning::Tuning;
+use view::BatteryState;
+use view::Clock;
+use view::MatchView;
+use view::Place;
+use view::PlaceView;
+use view::Tracker;
+use view::WorldFacts;
 
 /// From a bot's entry to its first move, ms.
 const START_AFTER_MS: u32 = 2_000;
@@ -856,16 +895,16 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tuning.hazard_margin);
+        let tactics = Tactics::new(world, self.tuning.hazard.margin_m.get());
         self.tactics_ready(tactics)
     }
 
     /// [`Self::map_ready`] with the tactics built ([`Tactics::new`] with
-    /// this match's `tuning.hazard_margin`): the routes, the anomalies'
+    /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
-        tactics.escape_ceiling = self.tuning.escape_ceiling;
+        tactics.escape_ceiling = self.tuning.hazard.escape == tuning::EscapeRule::UnderStartZone;
         tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.

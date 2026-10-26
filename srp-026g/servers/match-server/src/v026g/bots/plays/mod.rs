@@ -816,7 +816,7 @@ impl Ctx<'_> {
     /// ([`Ctx::storey_walk_dist`]): a target a floor up or down is as far
     /// as its stairs, not as the ground between.
     pub fn path_dist(&self, at: Vec3) -> f32 {
-        if !self.tuning.floor_paths {
+        if !self.tuning.grid.floor_paths {
             return self.straight_dist(at);
         }
         self.storey_walk_dist(at)

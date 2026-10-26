@@ -626,7 +626,7 @@ pub(super) fn drive_tick(
                 let landings = bot.stuck.shut_landings(time).collect();
                 let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
                 // A body that cannot sprint takes no jump link above its standing jump.
-                if let Some(rise) = bot.motor.feel.carrier_jump_m.filter(|_| me.carrying.is_some()) {
+                if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                     hard = hard.with_max_jump_rise(rise);
                 }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
@@ -948,7 +948,7 @@ pub(super) fn drive_tick(
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
                         let grid = &tactics.world.grid;
-                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        let cap = bot.motor.feel.lip_look_ahead_m.get();
                         (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
                     };
                     #[cfg(test)]
