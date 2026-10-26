@@ -1,6 +1,6 @@
 # STALKER maps (team deathmatch)
 
-Six STALKER multiplayer maps as one content pack, `stalker-maps@1`, the owner's
+Six STALKER multiplayer maps as one content pack, `stalker-maps@2`, the owner's
 pick of 2026-10-24 on the map spot planner. Team deathmatch only (mode 4).
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
@@ -43,6 +43,34 @@ the floor under each one) and on ground a walker reaches without a ladder. That
 check moved one Repair Depot stash 0.7 m onto solid floor and dropped one
 Training Camp pair (its floor under the tower is not walkable in the build); the
 planner has the same.
+
+## Grass
+
+Experimental Pool and Military Warehouses have the grass of their Clear Sky
+levels (`level.details`), converted by the porter's recipe option
+`detail_objects` (resource-porter `docs/soc-map-porting.md`, "Grass: detail
+objects"). It is X-Ray's own grass: its models, its `build_details` texture,
+and the positions X-Ray draws, at the same density and spread for each model,
+on the collision floor. It is drawn by 0.26g's grass system (16 m patches,
+`r_grass_lod1/2_distance`, the 100 m cull, `r_decorations_quality`), like
+Training Camp's meadow.
+
+| map | tufts | models | triangles LOD 0 / 1 | patches (draws per pass) | biggest patch |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Experimental Pool | 125,844 | 13 | 1.08 M / 0.61 M | 263 | 809 tufts, 14,564 vertices |
+| Military Warehouses | 77,721 | 14 | 0.61 M / 0.36 M | 295 | 536 tufts, 9,233 vertices |
+| Training Camp (meadow) | 50,283 | 9 | 0.50 M / 0.10 M | 120 | 1,084 tufts, 32,520 vertices |
+| native level_03 (most grass) | 90,879 | | | | |
+
+- About 23,000 and 22,000 of them are within 20 m of the spots; the rest
+  cover the levels' outer hills, which the grass system culls past 100 m.
+- Not carried over: X-Ray's per-slot sun, sky and colour terms (0.26g's grass
+  has one colour per instance, fixed in the engine); 0.26g's own shadows
+  light it.
+- The other four maps take the same option. Repair Depot's level has
+  349,153 tufts at the same density (thin it with `density`); Training Camp
+  has its meadow already; Station and Depository need their level folders
+  again.
 
 ## Ladders
 
@@ -130,7 +158,7 @@ The spawns do not come from the level: they are the planner's.
 - Loading pictures: Training Camp and Repair Depot use the earlier package's
   in-game shots; the other four have a placeholder cut from the top-down render
   until an in-game shot is taken.
-- `release/content.tsv`: the pack row `stalker-maps@1`.
+- `release/content.tsv`: the pack row `stalker-maps@2` (@1 without grass).
 
 ## Still to do before a release
 
