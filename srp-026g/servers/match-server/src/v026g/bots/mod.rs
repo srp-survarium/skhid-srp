@@ -1060,6 +1060,7 @@ impl Bots {
         // The time since the world before: a long one is noted with the notes that follow it, counted, and (tuned)
         // ends the stuck check, as the bot was not shown the body for that long.
         let gap = self.tracker.body(place).and_then(|body| body.gap_of(time));
+        #[cfg(test)]
         let after_gap = gap.is_some_and(|gap| gap >= stuck::FIX_GAP_MS);
         #[cfg(test)]
         if after_gap {
