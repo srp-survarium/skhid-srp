@@ -1594,6 +1594,10 @@ impl Tactics {
 
     /// The best spots for `query`, best first, at most `n`.
     pub fn spots(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
+        super::cpu_trace::span("sp whole", || self.spots_of(query, time, n, rng))
+    }
+
+    fn spots_of(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
         let grid = &self.world.grid;
         let mut found: Vec<Spot> = Vec::new();
         for _ in 0..query.samples {
@@ -1606,20 +1610,20 @@ impl Tactics {
             );
             // The floor the grid finds near the probe, and with `up_m` the
             // floors of the storeys over it.
-            let mut nodes: Vec<NodeId> = grid
+            let mut nodes: Vec<NodeId> = super::cpu_trace::span("sp locate", || grid
                 .locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 2.0)
                 .into_iter()
-                .collect();
+                .collect());
             if query.up_m > 0.0 && query.sight_to.is_some() {
-                self.storeys_over(probe, query.up_m, &mut nodes);
+                super::cpu_trace::span("sp storeys_over", || self.storeys_over(probe, query.up_m, &mut nodes));
             }
             for node in nodes {
                 let at = grid.position(node);
                 let d = at.distance_xz(query.around);
                 if d < query.min_m
                     || d > query.max_m
-                    || !self.walkable(node)
-                    || !self.allowed(node, time, query.side, false)
+                    || !super::cpu_trace::span("sp walkable", || self.walkable(node))
+                    || !super::cpu_trace::span("sp allowed", || self.allowed(node, time, query.side, false))
                 {
                     continue;
                 }
@@ -1643,7 +1647,7 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .get_or_insert_with(|| super::cpu_trace::span("sp walk_up", || self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M)))
                     .contains(&spot.node)
             {
                 continue;
@@ -1651,10 +1655,10 @@ impl Tactics {
             let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
                 let target = target + Vec3::new(0.0, 1.0, 0.0);
-                let seen = match &query.sight_body {
+                let seen = super::cpu_trace::span("sp sees", || match &query.sight_body {
                     Some(body) => self.sees_body(eye, target, body),
                     None => self.sees(eye, target),
-                };
+                });
                 if !seen {
                     continue;
                 }
