@@ -371,6 +371,21 @@ pub struct CombatTuning {
     /// ... 6 s: C, PROVEN: the fuse is 4 s from the press; G: 2 s for the
     /// flush that follows. Swept: 4 s and 10 s.
     pub grenade_claim_ms: u32,
+    /// [G2] At the press and in the hold the trace is made again from where
+    /// the thrower stands now; when the chosen arc fails then for what is in
+    /// the way (the thrower moved since the roll: 451 of the 540 throws given
+    /// up in look 1 of the combined arm were that) the arc is searched again
+    /// for the same place, and the view turns to it, instead of the throw
+    /// being given up. Off: given up, as before. Swept: this switch.
+    pub grenade_repick: bool,
+    /// After a throw the legs go at its place from the blast for 2 s
+    /// (`grenade_push_after_blast`) also when the place came from a track
+    /// (G1: where an enemy was last sensed), as for a held angle or a camp.
+    /// The push was built for an enemy that stays. Off: no push after a
+    /// throw at a track's place. On (as before): look 1 of the combined arm
+    /// had reversals +3.2 % (z 2.3), in 10v10 only; the push is the
+    /// candidate cause (`grenades-record.md` 13). Swept: this switch.
+    pub grenade_push_tracks: bool,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -957,6 +972,8 @@ impl Default for CombatTuning {
             grenade_claim: false,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
+            grenade_repick: false,
+            grenade_push_tracks: true,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1293,6 +1310,8 @@ struct Throw {
     pitch: Option<f32>,
     /// The arc weighed and held: the flat one, or the search's.
     pick: ArcPick,
+    /// Where its place came from.
+    source: PlaceSource,
 }
 
 /// [play 20] What a grenade roll looks at: the bot, its situation (the
@@ -1448,6 +1467,17 @@ pub struct GrenadeStats {
     pub given_up: [u32; GRENADE_REASONS],
     /// Throws let go as the 1st, 2nd and 3rd or later of the life.
     pub nth: [u32; 3],
+    /// Throws dropped because the view was not on them within
+    /// `grenade_give_up_ms`: by whether a target was in view then (0 none,
+    /// 1 one) and the arc kind.
+    pub timeouts: [[u32; GRENADE_ARCS]; 2],
+    /// Traces at the press or in the hold that failed for what is in the way
+    /// and were searched again (`grenade_repick`): 0 an arc found, 1 none.
+    pub rechecks: [u32; 2],
+    /// Throws let go, by the source of their place.
+    pub thrown_from: [u32; GRENADE_SOURCES],
+    /// Pushes after a throw left out (`grenade_push_tracks` off).
+    pub pushes_skipped: u32,
 }
 
 impl GrenadeStats {
@@ -1474,6 +1504,10 @@ impl GrenadeStats {
             passed: std::array::from_fn(|i| sub(self.passed[i], before.passed[i])),
             given_up: sub(self.given_up, before.given_up),
             nth: sub(self.nth, before.nth),
+            timeouts: std::array::from_fn(|i| sub(self.timeouts[i], before.timeouts[i])),
+            rechecks: sub(self.rechecks, before.rechecks),
+            thrown_from: sub(self.thrown_from, before.thrown_from),
+            pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
         };
         (change, false)
     }
@@ -1499,6 +1533,12 @@ impl GrenadeStats {
         }
         plus(&mut self.given_up, &other.given_up);
         plus(&mut self.nth, &other.nth);
+        for (a, b) in self.timeouts.iter_mut().zip(&other.timeouts) {
+            plus(a, b);
+        }
+        plus(&mut self.rechecks, &other.rechecks);
+        plus(&mut self.thrown_from, &other.thrown_from);
+        self.pushes_skipped += other.pushes_skipped;
     }
 }
 
@@ -2482,6 +2522,12 @@ impl Reflex {
     /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
     pub fn take_throw_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.throw_notes)
+    }
+
+    /// [measure] Whether the legs are in the push after a grenade at `now`.
+    pub fn after_grenade(&self, now: u32) -> bool {
+        self.push
+            .is_some_and(|p| p.why == LegsWhy::AfterGrenade && p.from <= now && now < p.until)
     }
 
     /// The place a grenade was decided on since the last call: the team's
@@ -3491,6 +3537,10 @@ impl Reflex {
         }) {
             Ok((at, pick)) => {
                 self.throw_claim = Some(at);
+                let source = places
+                    .iter()
+                    .find(|(place, _)| *place == at)
+                    .map_or(PlaceSource::Held, |(_, source)| *source);
                 self.throw = Some(Throw {
                     at,
                     started: now,
@@ -3500,6 +3550,7 @@ impl Reflex {
                     released: false,
                     pitch: None,
                     pick,
+                    source,
                 });
             }
             Err((at, why)) => self.hold_back(at, why),
@@ -3512,6 +3563,32 @@ impl Reflex {
     /// ([`super::drive::Gates::using`]).
     pub fn view_held(&self) -> bool {
         self.throw.is_some_and(|throw| throw.pressed.is_some())
+    }
+
+    /// [G2] The arc for `throw`'s place searched again from where the
+    /// thrower stands now, when the chosen arc failed for what is in the way
+    /// (`why`) and `grenade_repick` is on: the new arc, or none (counted).
+    fn repick(
+        &mut self,
+        mesh: Option<&mapdata::RayTree>,
+        throw: &Throw,
+        me: &PlaceView,
+        view: &MatchView,
+        c: &CombatTuning,
+        why: Refuse,
+    ) -> Option<ArcPick> {
+        if !c.grenade_repick
+            || !c.grenade_search
+            || !matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Off)
+        {
+            return None;
+        }
+        let pick = over_ground(mesh, throw.at.y, |ground| {
+            weigh_place(me, view, throw.at, throw.error, c, ground)
+        })
+        .ok();
+        self.grenade_stats.rechecks[usize::from(pick.is_none())] += 1;
+        pick
     }
 
     /// [measure] A throw under way given up at the press or in the hold:
@@ -3575,10 +3652,10 @@ impl Reflex {
         };
         throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
-        let weigh = |mates: bool| {
-            over_ground(mesh.as_deref(), throw.at.y, |ground| match throw.pick {
+        let weigh = |mates: bool, pick: ArcPick| {
+            over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
-                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, throw.pick)
+                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, pick)
                     .ok_or(Refuse::Reach)
                     .and_then(|v| {
                         weigh_view(
@@ -3606,14 +3683,20 @@ impl Reflex {
                 <= c.grenade_within_deg.to_radians() =>
             {
                 // The trace again at the press, from where it stands now.
-                if let Err(why) = weigh(c.grenade_recheck) {
-                    self.give_up(throw.at, why);
-                    return None;
+                if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
+                    // The arc found again for the place, the view to turn to it first.
+                    let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
+                        self.give_up(throw.at, why);
+                        return None;
+                    };
+                    throw.pick = pick;
+                } else {
+                    throw.pressed = Some(now);
+                    keys = key::GRENADE;
                 }
-                throw.pressed = Some(now);
-                keys = key::GRENADE;
             }
             None if now >= throw.started + c.grenade_give_up_ms => {
+                self.grenade_stats.timeouts[usize::from(self.target.is_some())][throw.pick.kind()] += 1;
                 self.throw = None;
                 return None;
             }
@@ -3622,9 +3705,12 @@ impl Reflex {
                 if now < pressed + throw.hold_ms {
                     // A teammate in the blast, or about to walk into it:
                     // the key let go before the throw starts.
-                    if let Err(why) = weigh(c.grenade_recheck) {
-                        self.give_up(throw.at, why);
-                        return None;
+                    if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
+                        let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
+                            self.give_up(throw.at, why);
+                            return None;
+                        };
+                        throw.pick = pick;
                     }
                     keys = key::GRENADE;
                 } else if !throw.released {
@@ -3633,18 +3719,23 @@ impl Reflex {
                     throw.released = true;
                     self.thrown += 1;
                     self.grenade_stats.nth[(self.thrown as usize - 1).min(2)] += 1;
+                    self.grenade_stats.thrown_from[throw.source.index()] += 1;
                     let blast = pressed + fuse;
                     let from = if c.grenade_push_after_blast {
                         blast + c.grenade_push_after_ms
                     } else {
                         now + c.grenade_push_ms.0
                     };
-                    self.push = Some(Push {
-                        toward: throw.at,
-                        from,
-                        until: from + c.grenade_push_ms.1.saturating_sub(c.grenade_push_ms.0),
-                        why: LegsWhy::AfterGrenade,
-                    });
+                    if throw.source.is_track() && !c.grenade_push_tracks {
+                        self.grenade_stats.pushes_skipped += 1;
+                    } else {
+                        self.push = Some(Push {
+                            toward: throw.at,
+                            from,
+                            until: from + c.grenade_push_ms.1.saturating_sub(c.grenade_push_ms.0),
+                            why: LegsWhy::AfterGrenade,
+                        });
+                    }
                     self.throw_notes.push(format!(
                         "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}",
                         throw.at.x, throw.at.y, throw.at.z
@@ -6696,6 +6787,40 @@ mod tests {
         let mut own = TeamKnowledge::default();
         own.claim_throw(0, Vec3::new(2.0, 0.0, 22.0), 1_500);
         assert!(run(&own).1.is_some(), "his own volley is not held against him");
+    }
+
+    /// The arc searched again at the press: only with `grenade_repick` (and
+    /// the search), only for what is in the way, counted; the flat arc if it
+    /// passes from where the thrower stands now.
+    #[test]
+    fn a_failed_recheck_is_searched_again_only_when_asked_and_for_what_is_in_the_way() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let throw = Throw {
+            at: Vec3::new(0.0, 0.0, 20.0),
+            started: 0,
+            hold_ms: 500,
+            pressed: None,
+            error: (0.0, 0.0),
+            released: false,
+            pitch: None,
+            pick: ArcPick::Pitch { pitch: 0.5 },
+            source: PlaceSource::Heard,
+        };
+        let on = CombatTuning {
+            grenade_search: true,
+            grenade_repick: true,
+            ..flat_arc()
+        };
+        let mut reflex = Reflex::default();
+        assert_eq!(
+            reflex.repick(None, &throw, &me, &view, &on, Refuse::Thrower),
+            Some(ArcPick::Flat)
+        );
+        assert_eq!(reflex.grenade_stats().rechecks, [1, 0]);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &on, Refuse::Mate(3)), None);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &flat_arc(), Refuse::Thrower), None);
+        assert_eq!(reflex.grenade_stats().rechecks, [1, 0], "no search, no count");
     }
 
     #[test]
