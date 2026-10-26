@@ -31,6 +31,7 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    pub unstick: UnstickTuning,
     /// The bear-trap habit (`bots/traps.rs`).
     pub traps: TrapTuning,
     pub heal: HealTuning,
@@ -79,6 +80,7 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            unstick: UnstickTuning::default(),
             traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
@@ -108,6 +110,7 @@ mod play;
 mod sense;
 mod team;
 mod traps;
+mod unstick;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
@@ -116,6 +119,7 @@ pub use sense::{CheatTuning, HearingRanges, SenseTuning};
 pub use team::{
     AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
 };
+pub use unstick::{SUICIDE_AFTER_OWNER_MS, UnstickTuning};
 pub use traps::{ReactTuning, TrapTuning};
 
 /// `Ok` if `ok`, else the name of what is wrong.
@@ -153,6 +157,7 @@ impl Tuning {
         team::validate_think(&self.think)?;
         team::validate_avoid(&self.avoid)?;
         motion::validate_feel(&self.feel)?;
+        unstick::validate_unstick(&self.unstick)?;
         traps::validate(&self.traps)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;

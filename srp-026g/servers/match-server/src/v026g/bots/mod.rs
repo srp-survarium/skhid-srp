@@ -82,7 +82,7 @@ mod think;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -140,6 +140,10 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
+    /// when it last used it (any life).
+    self_kill: stuck::SelfKill,
+    self_killed_at: Option<u32>,
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
@@ -198,6 +202,9 @@ pub struct Bot {
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
+    /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
+    #[cfg(test)]
+    pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -325,7 +332,7 @@ impl Bot {
         // What it carries: its role's gear (the lowest tier's until
         // `Bots::with_tiers` says another), else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits = Self::kits_of(role, BotTier::Low);
+        let kits = Self::kits_of(role, BotEquipment::of(BotTier::Low, RusherKits::default()));
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
                 .personalities
@@ -346,6 +353,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            self_kill: stuck::SelfKill::default(),
+            self_killed_at: None,
             threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -380,6 +389,8 @@ impl Bot {
             bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
+            #[cfg(test)]
+            bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
@@ -429,21 +440,21 @@ impl Bot {
         }
     }
 
-    /// The kits of a bot of `role` (a personality's name) in `tier`, each
-    /// with its whole storage; none for no role.
-    fn kits_of(role: Option<&str>, tier: BotTier) -> Vec<(&'static guns::Arms, u32)> {
+    /// The kits of a bot of `role` (a personality's name) with `equipment`,
+    /// each with its whole storage; none for no role.
+    fn kits_of(role: Option<&str>, equipment: BotEquipment) -> Vec<(&'static guns::Arms, u32)> {
         role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role))
-            .map(|role| guns::Arms::kits_of(tier, role))
+            .map(|role| guns::Arms::kits_of(equipment, role))
             .unwrap_or_default()
             .into_iter()
             .map(|arms| (arms, arms.reserve))
             .collect()
     }
 
-    /// Its kits are those of `tier` (its role's): each full, the first in
-    /// hand. For a bot made before its life begins.
-    fn arm(&mut self, tier: BotTier) {
-        let kits = Self::kits_of(self.role.map(BotRole::name), tier);
+    /// Its kits are those of `equipment` (its role's): each full, the first
+    /// in hand. For a bot made before its life begins.
+    fn arm(&mut self, equipment: BotEquipment) {
+        let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
         }
@@ -539,6 +550,21 @@ impl Bot {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
     }
 
+    /// The kind of its weapon 1: the one the match gave its place
+    /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
+    /// personality's name as a role (the tests' bots, whose place has none).
+    fn weapon(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+    ) -> Option<reflex::WeaponKind> {
+        weapons
+            .get(self.place)
+            .copied()
+            .flatten()
+            .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
+    }
+
     /// The commander gave it play `next`: the running play stops, and its
     /// cooldown counts from now. A switch to another target of the same
     /// play goes on with it, so the cooldown counts from the play's own end
@@ -582,6 +608,7 @@ impl Bot {
         self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
@@ -697,9 +724,11 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            self_kills: Vec::new(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
             world_traps: Arc::new(Vec::new()),
+            shooters: Vec::new(),
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
@@ -768,19 +797,25 @@ impl Bots {
         self
     }
 
-    /// The tier of each bot's gear (`tiers[place]`, read from its profile:
-    /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
-    /// that tier (`Bots::new` gives the lowest tier's), and the skill
-    /// starts at the highest of them ([`Bots::with_tier`]; the lobby gives
-    /// a match's bots one tier). Before play.
-    pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
-        for (bot, tier) in self.bots.iter_mut().zip(tiers) {
-            if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
-                bot.arm(*tier);
+    /// The equipment of each bot's gear (`equipments[place]`, read from its
+    /// profile: `survarium::v026g::loadouts::bot_equipment_of`): its kits
+    /// are its role's of that tier and of the kit that tier's rusher wears
+    /// (`Bots::new` gives the lowest tier's), and the skill starts at the
+    /// highest tier among them ([`Bots::with_tier`]; the lobby gives a
+    /// match's bots one tier). Before play.
+    pub fn with_tiers(mut self, equipments: &[Option<BotEquipment>]) -> Self {
+        for (bot, equipment) in self.bots.iter_mut().zip(equipments) {
+            if let (Some(bot), Some(equipment)) = (bot.as_mut(), equipment) {
+                bot.arm(*equipment);
             }
         }
-        match tiers.iter().flatten().max() {
-            Some(&tier) => self.with_tier(tier),
+        match equipments
+            .iter()
+            .flatten()
+            .map(|equipment| equipment.tier)
+            .max()
+        {
+            Some(tier) => self.with_tier(tier),
             None => self,
         }
     }

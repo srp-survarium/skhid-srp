@@ -397,7 +397,7 @@ pub(crate) mod live_kit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     use survarium::v026g::match_msgs::players::ItemLeft;
 
     /// A bot's block as the game shows it: each item of the profile in
@@ -432,7 +432,12 @@ mod tests {
     }
 
     fn profile() -> MatchProfile {
-        bot_profile(1, 0, BotRole::ALL[0], BotTier::Low)
+        bot_profile(
+            1,
+            0,
+            BotRole::ALL[0],
+            BotEquipment::of(BotTier::Low, RusherKits::default()),
+        )
     }
 
     #[test]

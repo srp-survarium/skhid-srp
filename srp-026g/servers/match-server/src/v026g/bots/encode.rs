@@ -34,6 +34,8 @@ pub struct Decision {
 pub struct Encoder {
     handled: Option<u32>,
     keys: u32,
+    /// Ticks the suicide bit is still to be sent ([`Self::self_kill`]).
+    kill_ticks: u8,
 }
 
 impl Encoder {
@@ -60,7 +62,12 @@ impl Encoder {
         // TEST ONLY: the jump test's bots may kill themselves to respawn.
         #[cfg(feature = "jump-test")]
         let never = never & !key::SUICIDE;
-        let keys = decision.keys & !never;
+        let mut keys = decision.keys & !never;
+        // The one way a bot sends the suicide: the self-kill's own ticks.
+        if self.kill_ticks > 0 {
+            self.kill_ticks -= 1;
+            keys |= key::SUICIDE;
+        }
         let clamp = |turn: f32| {
             if turn.abs() < MIN_TURN || !turn.is_finite() {
                 0
@@ -85,6 +92,12 @@ impl Encoder {
         (Some(input), turn)
     }
 
+    /// The suicide bit (24: a hit on one's own head, applied by every game
+    /// from the relayed input) goes with the next `ticks` inputs.
+    pub fn self_kill(&mut self, ticks: u8) {
+        self.kill_ticks = ticks;
+    }
+
     /// The keys of the last input sent.
     pub fn keys(&self) -> u32 {
         self.keys
@@ -94,6 +107,31 @@ impl Encoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The self-kill's own ticks send the suicide bit, as many as asked, then the next input clears it;
+    /// a decision's keys never carry it.
+    #[test]
+    fn the_suicide_bit_goes_with_the_self_kill_ticks_and_no_others() {
+        let mut encoder = Encoder::default();
+        let walk = Decision { keys: key::FORWARD | key::SUICIDE, turn: (0.0, 0.0) };
+        // Not asked for: stripped (outside the jump test).
+        #[cfg(not(feature = "jump-test"))]
+        assert_eq!(encoder.encode(1_050, walk).0.map(|i| i.actions), Some(key::FORWARD));
+        encoder.self_kill(1);
+        let (first, _) = encoder.encode(1_100, walk);
+        assert_eq!(first.map(|i| i.actions), Some(key::FORWARD | key::SUICIDE));
+        // The bit is in the keys for the ticks asked, the next input clears it.
+        #[cfg(not(feature = "jump-test"))]
+        assert_eq!(encoder.encode(1_150, walk).0.map(|i| i.actions), Some(key::FORWARD));
+        encoder.self_kill(2);
+        let sent: Vec<u32> = (0..4)
+            .filter_map(|k| encoder.encode(1_200 + 50 * k, walk).0.map(|i| i.actions))
+            .collect();
+        #[cfg(not(feature = "jump-test"))]
+        assert_eq!(sent, [key::FORWARD | key::SUICIDE, key::FORWARD]);
+        #[cfg(feature = "jump-test")]
+        assert!(sent.iter().all(|k| k & key::SUICIDE != 0) || !sent.is_empty());
+    }
 
     /// The jump test's bots may send the suicide (bit 24) and nothing else of the held-back bits; any
     /// other build strips all of them.
