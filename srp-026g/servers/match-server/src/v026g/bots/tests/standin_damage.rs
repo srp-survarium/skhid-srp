@@ -179,6 +179,21 @@ pub(crate) enum Pool {
 }
 
 impl Pools {
+    /// `pool` loses `amount` at `now` ms: its regeneration counts from here.
+    pub(crate) fn hurt(&mut self, pool: Pool, amount: f32, now: u32) {
+        let (health, hit_at) = match pool {
+            Pool::Head => (&mut self.head, 1),
+            Pool::Pain => (&mut self.pain, 2),
+        };
+        *health -= amount;
+        self.hit_at[hit_at] = Some(now);
+    }
+
+    /// A lethal pool of these is empty.
+    pub(crate) fn dead(&self) -> bool {
+        self.head <= 1e-3 || self.pain <= 1e-3
+    }
+
     /// `pool` gains `amount`, up to its full health (the body's data).
     pub(crate) fn restore(&mut self, pool: Pool, amount: f32) {
         let full = Self::default();
@@ -246,6 +261,16 @@ pub(crate) struct Model {
     pub(crate) tier: BotTier,
     /// `SRP_BENCH_DAMAGE=flat`: every hit takes a fifth of the health.
     pub(crate) flat: bool,
+    /// `SRP_BENCH_GRENADE_DAMAGE=off`: a grenade's blast hurts nobody (the
+    /// stand-in before [`super::standin_grenade`]; its counts only).
+    pub(crate) grenades: bool,
+}
+
+impl Model {
+    /// The client's blast hurts the bodies.
+    pub(crate) fn blasts_hurt(&self) -> bool {
+        !self.flat && self.grenades
+    }
 }
 
 impl Default for Model {
@@ -253,6 +278,7 @@ impl Default for Model {
         Self {
             tier: bench_tier(),
             flat: bench_settings().var("SRP_BENCH_DAMAGE").is_ok_and(|v| v == "flat"),
+            grenades: !bench_settings().var("SRP_BENCH_GRENADE_DAMAGE").is_ok_and(|v| v == "off"),
         }
     }
 }
@@ -348,15 +374,13 @@ pub(crate) fn hit(
             armour_on(worn, hit_box),
         );
         target.health -= on_body;
-        target.pools.head -= on_head;
-        target.pools.pain -= on_pain;
-        for (taken, hit_at) in [on_head, on_pain].into_iter().zip(&mut target.pools.hit_at[1..]) {
+        for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
             if taken > 0.0 {
-                *hit_at = Some(now);
+                target.pools.hurt(pool, taken, now);
             }
         }
     }
-    if target.pools.head <= 1e-3 || target.pools.pain <= 1e-3 {
+    if target.pools.dead() {
         target.health = target.health.min(0.0);
     }
 }
@@ -384,6 +408,7 @@ mod tests {
     const MODEL: Model = Model {
         tier: BotTier::Low,
         flat: false,
+        grenades: true,
     };
 
     fn near(a: f32, b: f32) -> bool {
@@ -589,7 +614,7 @@ mod tests {
     #[test]
     fn a_flat_hit_is_the_old_fifth() {
         let mut body = game_body();
-        let model = Model { tier: BotTier::Low, flat: true };
+        let model = Model { tier: BotTier::Low, flat: true, grenades: true };
         let mut rng = Rng::new(1);
         hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
         assert!(near(body.health, 0.8));
@@ -602,7 +627,7 @@ mod tests {
         let mut body = game_body();
         body.pools.head = 0.0;
         body.health = 0.9;
-        let model = Model { tier: BotTier::Low, flat: false };
+        let model = Model { tier: BotTier::Low, flat: false, grenades: true };
         let mut rng = Rng::new(1);
         hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
         assert!(body.health <= 1e-3);

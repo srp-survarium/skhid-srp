@@ -151,7 +151,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if running != Some(choke)
             && cx
                 .point_of(choke)
-                .is_none_or(|at| fine_spots(cx, at).is_empty())
+                .is_none_or(|at| !has_fine_spot(cx, at))
         {
             continue;
         }
@@ -244,13 +244,28 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
     spots_by(cx, choke)
         .iter()
         .copied()
-        .filter(|at| {
-            cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
-                && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
-                && cx.can_go(*at)
-                && !cx.exposed_climb(*at, choke)
-        })
+        .filter(|at| is_fine(cx, choke, apart, &others, *at))
         .collect()
+}
+
+/// Whether [`fine_spots`] has one: it stops at the first, where the list
+/// is built whole (the offer only asks whether there is a spot).
+fn has_fine_spot(cx: &Ctx, choke: Vec3) -> bool {
+    let apart = cx.num(PlayKind::Crossfire, "apart_deg");
+    let others = halves(cx, choke);
+    spots_by(cx, choke)
+        .iter()
+        .any(|at| is_fine(cx, choke, apart, &others, *at))
+}
+
+/// Whether the bot may take `at` now: a fine goal it has a way to, `apart`
+/// degrees round the choke from every teammate in its ring (`others`).
+fn is_fine(cx: &Ctx, choke: Vec3, apart: f32, others: &[(Place, Vec3)], at: Vec3) -> bool {
+    cx.tactics.fine_goal(at, cx.now, cx.bot.side)
+        && others.iter().all(|(_, o)| round(choke, at, *o) >= apart)
+        && !cx.spot_taken(at, super::goals::APART_M)
+        && cx.can_go(at)
+        && !cx.exposed_climb(at, choke)
 }
 
 /// A spot for the choke, `apart_deg` from every teammate in its ring.
@@ -451,6 +466,30 @@ mod tests {
         let out = crossfires(&s, 0);
         assert_eq!(out.len(), 2, "{out:#?}");
         assert!(out.iter().all(|c| c.target == exit), "{out:#?}");
+    }
+
+    /// The offer asks whether a fine spot exists; it says what the list does,
+    /// for every exit, with teammates near or far and with every spot proved
+    /// no way to (the list then empty).
+    #[test]
+    fn the_offer_finds_a_spot_when_the_list_has_one() {
+        for mate in [Vec3::new(20.0, 0.0, 38.0), Vec3::new(70.0, 0.0, 5.0)] {
+            let mut s = Scenario::field(Mode::TeamDeathmatch);
+            s.bot(0, 0, Vec3::new(25.0, 0.0, 35.0));
+            s.bot(2, 0, mate);
+            let mut any = 0;
+            for &choke in &s.tactics.exits(1).to_vec() {
+                let list = fine_spots(&s.cx(0), choke);
+                assert_eq!(has_fine_spot(&s.cx(0), choke), !list.is_empty(), "{choke:?}");
+                any += list.len();
+                // Every one of them proved no way to: none left, both ways.
+                s.no_way_to = list.iter().map(|&at| (at, s.view.clock + 5_000)).collect();
+                assert!(fine_spots(&s.cx(0), choke).is_empty(), "{choke:?}");
+                assert!(!has_fine_spot(&s.cx(0), choke), "{choke:?}");
+                s.no_way_to.clear();
+            }
+            assert!(any > 0, "the scenario has fine spots");
+        }
     }
 
     #[test]

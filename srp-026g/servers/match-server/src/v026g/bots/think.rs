@@ -505,9 +505,24 @@ pub(super) fn decide(
     };
     let mut rng = bot.rng.clone();
     let step = plays::step(&mut running, target, &cx, &mut rng);
+    // A hold on a spot a teammate of a lower place has claimed gives way
+    // (S1); the point it means to be at is its claim.
+    let (step, claim) = match step {
+        Step::Continue(intent) => {
+            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.apart, running.kind(), intent);
+            (Step::Continue(intent), Some(claim))
+        }
+        other => {
+            bot.apart.reset();
+            (other, None)
+        }
+    };
     bot.rng = rng;
     let step_name = running.step_name();
     bot.running = Some(running);
+    if let Some(at) = claim {
+        state.knowledge.claim(me.place, at, now);
+    }
     match step {
         // Its goal one its own search proved no way to lately: the play
         // is left, set aside while the proof holds, for the commander to
