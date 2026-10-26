@@ -298,6 +298,109 @@ fn a_bot_in_a_pit_with_no_exit_gives_up() {
     assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
 }
 
+/// What a bot shut in a pit with no exit did in a run: when it died and came
+/// back, what it said, and where it ended.
+struct PitRun {
+    end: Vec3,
+    /// The route searches the bot made.
+    asked: u32,
+}
+
+/// The bot of `pit(1.6)`, shut in it with a goal outside, run to `until` ms
+/// on `tuning`: its think (every 100 ms) and ticks, and the stand-in game.
+fn run_pit(tuning: Tuning, until: u32) -> PitRun {
+    let world = pit(1.6);
+    let (start, goal) = (Vec3::new(32.0, -1.6, 20.0), Vec3::new(55.0, 0.0, 32.0));
+    let teams = [0u8];
+    let mut bots = Bots::new(
+        0xB17,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true],
+        &[None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    game.bodies[0].node = world.grid.locate(start, 1.0);
+    game.bodies[0].feet = start;
+    bots.entered(0, true, 0);
+    let (mut clock, mut next_world, mut next_think) = (0u32, 1_000u32, 0u32);
+    let mut notes = Vec::new();
+    while clock < until {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) =
+                game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let now = Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
+        bots.searching.left = SEARCHES_PER_POLL;
+        bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.go_on_searching();
+        if let Some(bot) = bots.bots[0].as_mut() {
+            bot.intent = Intent::to(goal, Pace::Run).within(1.0);
+        }
+        if clock >= next_think {
+            next_think += 100;
+            let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
+            bots.think(0, &view, &mut rays, &mut notes);
+            // The test's goal stands in for the plays': think's own intent is put back.
+            if let Some(bot) = bots.bots[0].as_mut() {
+                bot.intent = Intent::to(goal, Pace::Run).within(1.0);
+            }
+        }
+        let mut made = Vec::new();
+        bots.ticks(0, &now, &view, &mut made);
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let gun = Arms::fallback().primary.0;
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+        }
+    }
+    PitRun {
+        end: game.bodies[0].feet,
+        asked: bots.bots[0].as_ref().map_or(0, |bot| bot.bench_asked.total),
+    }
+}
+
+/// A bot given up in a pit stops asking for goals outside it (`shut_in_gate`): in 100 s the one that may not
+/// searches every 0.5 s (`NO_WAY_RETRY_MS`), the gated one only until it gave up.
+#[test]
+fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
+    let asks = |gate: bool| {
+        let mut tuning = Tuning::default();
+        tuning.think.shut_in_gate = gate;
+        run_pit(tuning, 100_000)
+    };
+    let (gated, ungated) = (asks(true), asks(false));
+    eprintln!("gated {} ungated {}", gated.asked, ungated.asked);
+    assert!(ungated.asked >= 100, "it asks every 0.5 s: {}", ungated.asked);
+    assert!(gated.asked <= 10, "it gave up and asks no more: {}", gated.asked);
+    assert_eq!(gated.end.y, ungated.end.y, "both stay in the pit");
+}
+
 /// A pit with no way out is shut: no route is planned into it from the
 /// yard (its rim's drops stay links), while a bot put in it is still in
 /// its pocket and gives up as before.
