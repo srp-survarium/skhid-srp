@@ -177,7 +177,7 @@ pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
     let logic = &json["grenade_logic"];
     assert_eq!(logic["bot_lives"], 2, "{json}");
     assert_eq!(logic["rolls"], 3, "{json}");
-    assert_eq!(logic["places"], serde_json::json!([3, 0]), "{json}");
+    assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0]), "{json}");
     assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
     // No bot thought: no key.
     let (mut game, mut tally) = made_up(&[0, 1]);
@@ -541,7 +541,7 @@ impl OwnerTally {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc (flat) {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}",
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}",
                 logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth,
             ));
         }
