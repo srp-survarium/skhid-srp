@@ -70,9 +70,14 @@ package survarium.rooms
             // Its two teams, arranged by its owner with « and ».
             "team1": ["Team 1", "Команда 1", "Команда 1", "Team 1", "Drużyna 1"],
             "team2": ["Team 2", "Команда 2", "Команда 2", "Team 2", "Drużyna 2"],
+            // A team's free places, one line after its last member.
+            "openSlots": ["%N open", "вільно: %N", "свободно: %N", "%N frei", "wolne: %N"],
             "teamsOwner": ["Move players between the teams with « and ».", "Переміщуйте гравців між командами кнопками « і ».",
                 "Перемещайте игроков между командами кнопками « и ».", "Verschiebe Spieler mit « und » zwischen den Teams.",
                 "Przenoś graczy między drużynami przyciskami « i »."],
+            "teamsLater": ["The teams can be changed after the match.", "Команди можна змінити після матчу.",
+                "Команды можно изменить после матча.", "Die Teams lassen sich nach dem Match ändern.",
+                "Drużyny można zmienić po meczu."],
             "teamsMember": ["The creator arranges the teams.", "Команди розставляє творець.", "Команды расставляет создатель.",
                 "Der Ersteller stellt die Teams zusammen.", "Drużyny ustawia twórca."],
             "privateRoom": ["Private room: up to 20 players; you set the teams and start.",

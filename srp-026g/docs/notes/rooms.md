@@ -139,6 +139,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     button on each member, itself too (» on Team 1, « on Team 2), that moves it to the other
     team; any split, 1 v 0 or 1 v 10 to 10 v 10, a team 10 at most. Members choose nothing:
     a newcomer comes on the team with fewer (Team 1 of two alike), the owner moves it.
+  - How it looks (the owner's of 2026-10-26, after the first try: "not very good with
+    sizing"): the open room's grid of 4 columns of 5 rows, its left half Team 1 and its right
+    half Team 2 (a rule between), each filled down then across, "TEAM 1  3 / 10" over it;
+    a team's free places on one dim line ("7 open"), not a row each; the move and the kick
+    small boxes inside their member's row, each in its own column (the owner's own row has
+    the move only). The vote's cards are 20 lower for that line. Renders of it at 1920x1080
+    and 1280x720: `scripts/rooms-start/shots.sh`.
   - Start plays the arrangement exactly: no sides drawn, no balance. A squad split by it
     plays as a squad on each team where two or more of it are.
   - The arrangement stays from match to match; a member who leaves is out of it. A late

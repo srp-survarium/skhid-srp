@@ -155,13 +155,14 @@ package
          }
          var count:Function = function(label:String):int
          {
-            return labels.filter(function(each:String, ... rest):Boolean
+            // A game button's label, or a row's small button's text.
+            return labels.concat(texts1).filter(function(each:String, ... rest):Boolean
             {
                return each == label;
             }).length;
          };
          var moved:int = count("»") + count("«");
-         trace("ROOMS " + what + ": buttons [" + labels.join(", ") + "], info \"" + info + "\", Alice at " + int(aliceX)
+         trace("ROOMS " + what + ": buttons [" + labels.join(", ") + "], moves " + (count("»") + count("«")) + ", info \"" + info + "\", Alice at " + int(aliceX)
             + ", team 2 at " + int(team2X));
          if((labels.indexOf("Start") >= 0) != start)
          {
