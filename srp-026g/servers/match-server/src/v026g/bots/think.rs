@@ -363,10 +363,12 @@ pub(super) fn sense_batteries(
 /// The memory takes the percepts, each after its notice time.
 pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
-        now, me, tuning, ..
+        now,
+        me,
+        tuning,
+        tactics,
+        ..
     } = *due;
-    #[cfg(test)]
-    let tactics = due.tactics;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
     let feet = me.feet;
@@ -374,15 +376,18 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
-            #[cfg(test)]
-            if p.source == Source::Seen {
-                super::foliage::through::count(
-                    tactics
-                        .foliage
-                        .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0)),
-                );
+            let base = sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor);
+            if p.source != Source::Seen {
+                return base;
             }
-            sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
+            // A sight that begins through bushes (`foliage.rs`) is noticed later.
+            let metres = tactics
+                .foliage
+                .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0));
+            let delayed = super::foliage::noticing_ms(base, metres, tuning.sense.bush_notice, tuning.sense.foliage_cap);
+            #[cfg(test)]
+            super::foliage::through::count(metres, delayed - base);
+            delayed
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
         tuning.sense.drop_ms,
