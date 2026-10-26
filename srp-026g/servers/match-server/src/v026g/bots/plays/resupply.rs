@@ -84,7 +84,7 @@ pub fn tuning() -> PlayTuning {
                     points: vec![(0.0, 1.0), (0.5, 0.6), (1.0, 0.05)],
                 },
             ),
-            considerations::near(60.0),
+            considerations::near(90.0),
             considerations::cooldown(60.0),
         ],
         numbers: Default::default(),
@@ -406,6 +406,9 @@ mod tests {
         s.bot(0, 0, Vec3::new(75.0, 0.0, 22.0));
         s.ammo = ammo(10);
         assert!(!offered(&s), "55 m from its box");
+        s.ammo = ammo(5);
+        assert!(offered(&s), "a nearly dry bot reaches 80 m");
+        s.ammo = ammo(10);
         s.view.places[0].feet = Vec3::new(35.0, 0.0, 22.0);
         assert!(offered(&s));
         s.tuning
