@@ -106,12 +106,6 @@ pub const ROLL_S: f32 = 2.0;
 /// its centre is [`RADIUS_M`] from the surface, which a ray of the centre's
 /// path meets up to this much later (a surface met at a 14° graze or more).
 const SKIN_M: f32 = 4.0 * RADIUS_M;
-/// The offset of the two rays that find a mesh hit's normal, metres.
-const PROBE_M: f32 = 0.05;
-/// How far from the first ray's hit a probe may hit and still be the same
-/// surface, metres.
-const PROBE_REACH_M: f32 = 1.0;
-
 /// A hit of a ray on the ground.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
@@ -154,49 +148,18 @@ impl Ground for Floor {
 
 /// The bullet mesh as the ground (`mapdata::MapData::bullet_triangles`: what
 /// the game's grenade meets, collision group 0x818 against mask 8, PROVEN;
-/// a player's hit model also stops it, which is not in the mesh). The tree
-/// answers with a distance only, so the normal is found by two more rays
-/// beside the first; where they miss the surface (an edge, a gap) the
-/// normal is taken as the reverse of the ray, which reads a graze as a wall.
+/// a player's hit model also stops it, which is not in the mesh). The
+/// normal is the hit triangle's own ([`RayTree::ray_hit`]).
 #[derive(Clone, Copy)]
 pub struct Mesh<'a>(pub &'a RayTree);
 
 impl Ground for Mesh<'_> {
     fn cast(&self, from: Vec3, dir: Vec3, max_t: f32) -> Option<Hit> {
-        let t = self.0.ray_cast(from, dir, max_t)?;
+        let hit = self.0.ray_hit(from, dir, max_t)?;
         Some(Hit {
-            t,
-            normal: self.normal(from, dir, t),
+            t: hit.t,
+            normal: hit.normal,
         })
-    }
-}
-
-impl Mesh<'_> {
-    fn normal(&self, from: Vec3, dir: Vec3, t: f32) -> Vec3 {
-        let across = dir.cross(Vec3::Y);
-        let across = if across.length() < 0.1 {
-            dir.cross(Vec3::new(1.0, 0.0, 0.0))
-        } else {
-            across
-        };
-        let a = across * (1.0 / across.length());
-        let b = dir.cross(a);
-        let at = from + dir * t;
-        let probe = |side: Vec3| {
-            let origin = from + side * PROBE_M;
-            self.0
-                .ray_cast(origin, dir, t + PROBE_REACH_M)
-                .filter(|u| (u - t).abs() <= PROBE_REACH_M)
-                .map(|u| origin + dir * u - at)
-        };
-        let normal = probe(a).zip(probe(b)).map(|(pa, pb)| pa.cross(pb));
-        match normal {
-            Some(n) if n.length() > 1e-6 => {
-                let n = n * (1.0 / n.length());
-                if n.dot(dir) > 0.0 { -n } else { n }
-            }
-            _ => -dir,
-        }
     }
 }
 
@@ -883,22 +846,84 @@ mod tests {
         assert!(behind.contact.point.z > 5.0);
     }
 
-    #[test]
-    fn the_mesh_reads_a_slopes_normal_with_two_more_rays() {
-        // A ramp of 20 deg falling away along +z from the origin line.
-        let t = 20f32.to_radians();
+    /// A ramp of `deg` falling away along +z from the line z = 0, 80 m a side.
+    fn ramp_triangles(deg: f32) -> Vec<[Vec3; 3]> {
+        let t = deg.to_radians();
         let (rise, run) = (t.sin(), t.cos());
         let (a, b) = (Vec3::new(-40.0, 0.0, 0.0), Vec3::new(40.0, 0.0, 0.0));
         let (c, d) = (
             Vec3::new(40.0, -40.0 * rise, 40.0 * run),
             Vec3::new(-40.0, -40.0 * rise, 40.0 * run),
         );
-        let tree = RayTree::from_corners([[a, b, c], [a, c, d]]);
+        vec![[a, b, c], [a, c, d]]
+    }
+
+    #[test]
+    fn the_mesh_reads_a_slopes_normal() {
+        let t = 20f32.to_radians();
+        let tree = RayTree::from_corners(ramp_triangles(20.0));
         let flight = Flight::new(Vec3::new(0.0, 1.0, -2.0), throw_velocity(0.0, 0.0));
         let landing = flight.landing(&Mesh(&tree)).unwrap();
         let normal = landing.contact.normal;
-        near(normal.y, t.cos(), 1e-3, "normal y");
-        near(normal.z, t.sin(), 1e-3, "normal z");
+        near(normal.x, 0.0, 1e-5, "normal x");
+        near(normal.y, t.cos(), 1e-5, "normal y");
+        near(normal.z, t.sin(), 1e-5, "normal z");
+        assert!(!landing.contact.is_wall());
         assert!(roll_m(&landing.contact) > ROLL_M);
+    }
+
+    #[test]
+    fn the_mesh_normal_is_the_triangles_whatever_the_angle_of_the_ray() {
+        // A grazing ray (3 degrees over a floor), a ray straight down, and one
+        // at a wall: the normal is the surface's own, not the ray's.
+        let mut both = floor_triangles();
+        both.extend(wall_triangles(30.0));
+        let tree = RayTree::from_corners(both);
+        let mesh = Mesh(&tree);
+        for deg in [-89.0f32, -45.0, -10.0, -3.0, -0.5] {
+            let t = deg.to_radians();
+            let dir = Vec3::new(0.0, t.sin(), t.cos());
+            let hit = mesh.cast(Vec3::new(3.0, 0.4, -20.0), dir, 100.0).unwrap();
+            assert!(
+                (hit.normal - Vec3::Y).length() < 1e-6,
+                "{deg} deg: {:?}",
+                hit.normal
+            );
+        }
+        // Level, toward the wall: the wall's, facing the ray.
+        let hit = mesh
+            .cast(Vec3::new(3.0, 1.0, -20.0), Vec3::new(0.0, 0.0, 1.0), 100.0)
+            .unwrap();
+        assert_eq!(hit.normal, Vec3::new(0.0, 0.0, -1.0));
+        near(hit.t, 50.0, 1e-3, "wall distance");
+    }
+
+    #[test]
+    fn a_step_meets_the_floor_and_the_riser_each_as_itself() {
+        // A floor at 0 up to z = 6, a riser 1 m high, a floor at 1 m beyond
+        // it: a flat throw into the riser is a wall, a lob onto the upper
+        // floor is not, and neither reads the other's normal.
+        let (lo, hi, z) = (0.0f32, 1.0f32, 6.0f32);
+        let tri =
+            |a: [f32; 3], b: [f32; 3], c: [f32; 3]| [a, b, c].map(|[x, y, z]| Vec3::new(x, y, z));
+        let corners = vec![
+            tri([-40.0, lo, -40.0], [40.0, lo, -40.0], [40.0, lo, z]),
+            tri([-40.0, lo, -40.0], [40.0, lo, z], [-40.0, lo, z]),
+            tri([-40.0, lo, z], [40.0, lo, z], [40.0, hi, z]),
+            tri([-40.0, lo, z], [40.0, hi, z], [-40.0, hi, z]),
+            tri([-40.0, hi, z], [40.0, hi, z], [40.0, hi, 40.0]),
+            tri([-40.0, hi, z], [40.0, hi, 40.0], [-40.0, hi, 40.0]),
+        ];
+        let tree = RayTree::from_corners(corners);
+        let mesh = Mesh(&tree);
+        let flat = Flight::new(Vec3::new(0.0, 1.6, 0.0), throw_velocity(0.0, 0.0));
+        let into = flat.landing(&mesh).unwrap();
+        assert!(into.contact.is_wall(), "{:?}", into.contact);
+        assert_eq!(into.contact.normal, Vec3::new(0.0, 0.0, -1.0));
+        let lob = Flight::new(Vec3::new(0.0, 1.6, 0.0), throw_velocity(0.0, 0.5));
+        let over = lob.landing(&mesh).unwrap();
+        assert!(!over.contact.is_wall(), "{:?}", over.contact);
+        assert!(over.contact.point.z > z);
+        assert_eq!(over.contact.normal, Vec3::Y);
     }
 }

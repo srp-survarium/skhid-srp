@@ -44,7 +44,8 @@ pub(super) struct GrenadeCounts {
     /// A fire press between the press and the end of the hold.
     pub(super) fired_after_held: u32,
     /// The throws the bot weighed and did not make: the thrower in the
-    /// blast, a steep wall near him, a teammate in the blast, any other
+    /// blast (what the arc hits within it, a wall and a ceiling too), a
+    /// steep wall beyond it, a teammate in the blast, any other
     /// (out of reach, nowhere to land, off the place).
     pub(super) refused: [u32; 4],
     pub(super) grenades: u32,

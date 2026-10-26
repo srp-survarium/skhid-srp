@@ -260,11 +260,15 @@ pub struct CombatTuning {
     /// more (GUESS: the hand's place, the guessed 0.3 m under the eye, and
     /// the view's error are metres of range).
     pub grenade_land_m: f32,
-    /// A first contact on a steep wall ([`arc::Contact::is_wall`]) nearer
-    /// than this to the thrower: not thrown, metres. GUESS: the grenade
-    /// should fall at a wall's foot (restitution 0, LIKELY), but YaPB
-    /// refuses a steep wall hit outright, and a wall near the thrower is
-    /// where the model's hand and edge errors matter.
+    /// A first contact on a steep wall ([`arc::Contact::is_wall`]) beyond
+    /// `grenade_land_m` and nearer than this to the thrower: not thrown,
+    /// metres (a wall or a ceiling within `grenade_land_m` is the
+    /// thrower's blast already). GUESS: the grenade falls at a wall's foot
+    /// (restitution 0, PROVEN), it does not come back as in YaPB, which
+    /// refuses a steep wall hit outright; kept as a margin for the model's
+    /// hand and edge errors. In the smoke it decided none of 19 refused
+    /// places (17 were the thrower's blast, 1 the place, 1 a floor);
+    /// `grenade_wall_m=0` turns it off for a paired bench.
     pub grenade_wall_m: f32,
     /// The first contact farther than this from the place the throw is at:
     /// not thrown, metres (the arc met something on its way). GUESS: the
@@ -1150,9 +1154,11 @@ enum Refuse {
     Reach,
     /// The arc meets no ground before the blast.
     Nowhere,
-    /// The first contact is on a steep wall near the thrower.
+    /// The first contact is on a steep wall beyond the thrower's blast and
+    /// nearer than `grenade_wall_m`.
     Wall,
-    /// The first contact is within the thrower's blast.
+    /// The first contact (a floor, a wall, a ceiling) is within the
+    /// thrower's blast.
     Thrower,
     /// The first contact is far from the place.
     Off,
@@ -1244,9 +1250,10 @@ fn mate_in_blast(
 
 /// [play 20] Whether `me` may throw at `at` with an aim `error` off the
 /// view that lands it there: the arc of that view from the hand, traced on
-/// `ground` ([`arc::Flight::landing`]), must come down; not on a steep wall
-/// near the thrower, not within `grenade_land_m` of him, not far from the
-/// place; and, with `mates`, with no teammate in the blast. Without
+/// `ground` ([`arc::Flight::landing`]), must come down; not within
+/// `grenade_land_m` of him (whatever it hits there), not on a steep wall
+/// nearer than `grenade_wall_m`, not far from the place; and, with
+/// `mates`, with no teammate in the blast. Without
 /// `grenade_trace`, only the teammate near the place.
 fn weigh_throw(
     me: &PlaceView,
@@ -1275,11 +1282,13 @@ fn weigh_throw(
         .landing(ground)
         .ok_or(Refuse::Nowhere)?;
     let thrower = landing.thrower_distance(me.chest());
-    if landing.contact.is_wall() && thrower < c.grenade_wall_m {
-        return Err(Refuse::Wall);
-    }
+    // The thrower's own blast first: a wall or a ceiling within it is that
+    // (17 of the 19 places a smoke refused for "a steep wall" were).
     if thrower < c.grenade_land_m {
         return Err(Refuse::Thrower);
+    }
+    if landing.contact.is_wall() && thrower < c.grenade_wall_m {
+        return Err(Refuse::Wall);
     }
     if landing.contact.point.distance_xz(at) > c.grenade_off_m {
         return Err(Refuse::Off);
@@ -5987,6 +5996,26 @@ mod tests {
         let place = Vec3::new(0.0, 0.0, 27.0);
         let off = weigh_throw(&me, &view, place, (0.0, 0.0), &c, true, &wall);
         assert_eq!(off, Err(Refuse::Off));
+        // A wall inside the thrower's blast (8 m out, the place at 17 m) is
+        // his blast, not "a wall": a wall 15 m out, with the place 2 m
+        // beyond it, is the wall rule's.
+        let wall_at = |z: f32| {
+            move |from: Vec3, dir: Vec3, max_t: f32| {
+                if dir.z <= 0.0 || from.z > z {
+                    return arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t);
+                }
+                let t = (z - from.z) / dir.z;
+                (t <= max_t).then_some(arc::Hit {
+                    t,
+                    normal: Vec3::new(0.0, 0.0, -1.0),
+                })
+            }
+        };
+        let near = Vec3::new(0.0, 0.0, 17.0);
+        let inside = weigh_throw(&me, &view, near, (0.0, 0.0), &c, true, &wall_at(8.0));
+        assert_eq!(inside, Err(Refuse::Thrower));
+        let beyond = weigh_throw(&me, &view, near, (0.0, 0.0), &c, true, &wall_at(15.0));
+        assert_eq!(beyond, Err(Refuse::Wall));
         // The aim's error moves the landing as the trace says: 0.7 rad of
         // yaw sends it 13 m aside.
         let big = weigh_throw(&me, &view, at, (0.7, 0.0), &c, true, &arc::Floor { y: 0.0 });
