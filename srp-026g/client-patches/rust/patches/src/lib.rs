@@ -37,6 +37,7 @@ pub mod replay_viewer;
 pub mod forward_scroll;
 pub mod kill_feed;
 pub mod match_keys;
+pub mod mount_patches;
 pub mod kit_state;
 pub mod shared_upgrades;
 pub mod spot;

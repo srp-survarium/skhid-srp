@@ -1895,7 +1895,15 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   zero) and starts the next step (0x176D0, 0xE5B60: the shaders' masks).
   `link_mount_ptr`, the engine's way to hold several mounts as one, is not
   in this build.
-- **The patch** (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h since patch 49, 707 before, after
+- **The patch**, since the Rust port the Rust patch `mount_patches`
+  (`rust/patches/src/mount_patches.rs`, `vostok::mount`): the same two sites
+  as lohooks (`sites_026g.tsv` `mount.query`, a 5-byte span, and
+  `mount.mounted`, the six bytes, its named exit the function's `ret`), the
+  same steps, its state statics of the crate, the required patches' bitmap
+  `SRP_REQUIRED_PATCHES` after its "Cannot open" text; proven against the
+  asm by `port/equiv/mount_patches.py` (2000 cases, 0 differences, every
+  block of the asm run) and by `check_mount_patches_026g.py` unchanged in
+  what it asserts. Before it (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h since patch 49, 707 before, after
   the upload code and the longest default server's stub and name, which end
   at +21Dh, and before the pickup code at +800h):
   - 0xE7E3E `E8 AD 00 00 00` (`call 0E7EF0h`) becomes `E8 45 D6 33 0A`,
@@ -1978,8 +1986,8 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   synchronous (`query_mount_and_wait`), and the finished tasks' callbacks
   are dispatched in order on the main thread.
 - **Checked**: `selftest_026g.py` check 27, and
-  `check_mount_patches_026g.py` (Unicorn 2.1.4, the image as is and
-  rebased by 1 MiB with its relocations): the two hooks, the code and the
+  `check_mount_patches_026g.py` (Unicorn 2.1.4, the image as is; until the
+  Rust port also rebased by 1 MiB with its relocations): the two hooks, the code and the
   game's own on_mounted_resources from 0x147E6 to its next step (0x14827)
   run on made-up folders and callbacks (each mount held by its caller while
   the callback runs): the mounts queued, the reference counts at the end

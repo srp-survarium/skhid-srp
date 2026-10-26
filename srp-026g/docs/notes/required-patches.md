@@ -1,7 +1,8 @@
 # The game requires its release's patches (patch 49)
 
 The rule after the crashes of 2026-10-21. Code:
-`client-patches/mount_patches_026g.asm` (README patch 49, `client_patch.md` section 3.46);
+`client-patches/rust/patches/src/mount_patches.rs` and `vostok/mount.rs` (README patch 49,
+`client_patch.md` section 3.46; `mount_patches_026g.asm` until the Rust port);
 the release: `release/build-zip`, `release/lib.sh` (`exe_required_patches`,
 `check_exe_requires`).
 

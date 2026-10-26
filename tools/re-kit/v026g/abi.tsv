@@ -1997,3 +1997,6 @@ va	name	source	ret_cleanup	result
 0x0003b5a0	vostok::detail::strcmp_s	manual	0	EAX: -1, 0 or 1 (a null text is "")
 0x00047160	vostok::vfs::get_file_offs<1>	manual	0	EDX:EAX: the file's offset in its archive (0 for a node not in one)
 0x00242a40	survarium::network_client::is_player_current	manual	4	EAX: 1 when the client's player (+4) is in the place, else 0
+0x00018190	vostok::fs::native_path_string::assignf	manual	0	EAX: the path string (ESI), its text the formatted one (mov eax,esi at 0x181A6)
+0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	manual	0	
+0x00113580	vostok::debug::terminate	manual	0	never returns; cdecl, printf-like: the caller would take the arguments (on_mounted_resources 0x147F8 pushes one)

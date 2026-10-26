@@ -229,3 +229,24 @@ extern engine_replay_place_mine
 ; unsigned int engine_is_player_current(void *client, unsigned int place)
 ; 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
 extern engine_is_player_current
+; void engine_query_mount_archive(void *allocator, const void *virtual_path, const void *table, const void *archive, const char *descriptor, const void *callback)
+; 0xe7ef0 vostok::resources::query_mount_archive: allocator ESI, virtual_path ESP+4, table ESP+8, archive ESP+12, descriptor ESP+16, callback ESP+20; pops 0
+extern engine_query_mount_archive
+; void *engine_format_path(void *path, const char *format, const char *name, unsigned int number)
+; 0x18190 vostok::fs::native_path_string::assignf: path ESI, format ESP+4, name ESP+8, number ESP+12; pops 0; EAX
+extern engine_format_path
+; void engine_unmount(void *mount)
+; 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0
+extern engine_unmount
+; void engine_terminate(const char *format, unsigned int first, unsigned int second)
+; 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_terminate
+; void engine_on_mounted_resources(void *holder, void *bound, const void *result)
+; 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_on_mounted_resources
+; unsigned int engine_get_last_error(void)
+; the IAT slot 0x87005c (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_last_error

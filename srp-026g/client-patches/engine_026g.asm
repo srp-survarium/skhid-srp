@@ -73,6 +73,12 @@ global engine_strcmp
 global engine_file_offset
 global engine_replay_place_mine
 global engine_is_player_current
+global engine_query_mount_archive
+global engine_format_path
+global engine_unmount
+global engine_terminate
+global engine_on_mounted_resources
+global engine_get_last_error
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -93,6 +99,9 @@ engine_get_module_file_name_w equ 0x870074   ; the IAT slot 0x870074 (kernel32, 
 engine_enqueue equ 0x379640   ; 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
 engine_process_detach_upgrade equ 0x275220   ; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
 engine_replay_place_mine equ 0x54e10   ; 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
+engine_terminate equ 0x113580   ; 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly
+engine_on_mounted_resources equ 0x147e0   ; 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
+engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (kernel32, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -929,6 +938,61 @@ engine_is_player_current:
     push dword [esp + 24]   ; place -> 4
     mov eax, [esp + 24]   ; client
     call 0x242a40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_query_mount_archive:
+    ; 0xe7ef0 vostok::resources::query_mount_archive: allocator ESI, virtual_path ESP+4, table ESP+8, archive ESP+12, descriptor ESP+16, callback ESP+20; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; callback -> 20
+    push dword [esp + 40]   ; descriptor -> 16
+    push dword [esp + 40]   ; archive -> 12
+    push dword [esp + 40]   ; table -> 8
+    push dword [esp + 40]   ; virtual_path -> 4
+    mov esi, [esp + 40]   ; allocator
+    call 0xe7ef0
+    add esp, 20                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_format_path:
+    ; 0x18190 vostok::fs::native_path_string::assignf: path ESI, format ESP+4, name ESP+8, number ESP+12; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; number -> 12
+    push dword [esp + 32]   ; name -> 8
+    push dword [esp + 32]   ; format -> 4
+    mov esi, [esp + 32]   ; path
+    call 0x18190
+    add esp, 12                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_unmount:
+    ; 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; mount
+    call 0xdfe30
     pop edi
     pop esi
     pop ebx

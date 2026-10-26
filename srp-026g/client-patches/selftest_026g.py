@@ -146,7 +146,15 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     Check 11 works out its field: byte 8 the check's. The build without the
     late join keeps the original instructions. check_stale_dll_026g.py runs
     it (and port/equiv/stale_dll.py compared it with stale_dll_026g.asm).
-27. the same build: the mount of resources.db's patches (test_mount_patches).
+27. the same build: the mount of resources.db's patches (test_mount_patches):
+    the Rust patch mount_patches' two lohooks (mount_patches.toml,
+    sites_026g.tsv mount.query and mount.mounted: query_db's call of
+    query_mount_archive at 0xE7E3E, on_mounted_resources' first six bytes
+    at 0x147E0; a jump to the generated entry, its replay the replaced
+    instructions, the named exit a `ret`); nothing of their functions or
+    of the file aims inside them; the arena holds the path's format and the
+    two fatal texts once, the "Cannot open" one SRP_REQUIRED_PATCHES' head
+    and in the exe once.
 28. the same build: the transparent effects scroll as in 0.29 (patch 28,
     the Rust patch forward_scroll). The three sites (0x1D90DC and 0x1D94CB
     in effect_fstage_default_materials::compile, 0x14990F in
@@ -376,9 +384,9 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     bytes and the PE checksum differ, bit n of byte n/8 set for each n
     (1, 12, 14, 17, 255; revision 27's list), and patch_026g's
     required_patches_of and release/lib.sh's exe_required_patches read the
-    list back; the probe's missing case tests the bit with `bt` on that
-    bitmap (plus the delta) and goes on to the same fatal call as an
-    unreadable file. 0, 256, a number twice, a build without the late join
+    list back; the Rust patches' code addresses the bitmap (vostok::mount's
+    volatile read, never the link's zeros folded in). 0, 256, a number
+    twice, a build without the late join
     and the option's text out of order are refused.
     check_mount_patches_026g.py runs the code on folders missing a
     required patch.
@@ -557,14 +565,6 @@ def test_bins():
                                check=True, timeout=60)
                 fresh = open(out, "rb").read()
             check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
-    path = P.mount_patches_bin()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.MOUNT_STATE_OFFSET
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.MOUNT_PATCHES_VA:#x}", f"-DSTATE={state:#x}",
-                        os.path.join(HERE, "mount_patches_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.KIT_CHANGE_VA:#x}",
@@ -2739,26 +2739,20 @@ ON_MOUNTED_RESOURCES = (0x147E0, 0x148A5)
 
 def test_mount_patches(original, image, before):
     """Check 27: the game mounts resources.db.patch_1, _2, ... over
-    resources.db (mount_patches_026g.asm; check_mount_patches_026g.py runs
-    it)."""
-    code = open(P.mount_patches_bin(), "rb").read()
-    entry, mounted = P.MOUNT_PATCHES_VA + P.MOUNT_ALL_OFFSET, P.MOUNT_PATCHES_VA + P.MOUNTED_OFFSET
+    resources.db (the Rust patch mount_patches, two lohooks;
+    check_mount_patches_026g.py runs it)."""
+    stock = Image(original)
     texts = lambda blob, va, size: [text for _, _, text in ndisasm(blob.read(va, size), va)]
-    va, old, new = P.MOUNT_QUERY
-    check(image.read(va, len(new)) == new and before.read(va, len(old)) == old
-          and texts(Image(original), va, 5) == [f"call {P.MOUNT_QUERY_MOUNT_ARCHIVE:#x}"]
-          and texts(image, va, 5) == [f"call {entry:#x}"],
-          f"{va:#x}: query_db's `call {P.MOUNT_QUERY_MOUNT_ARCHIVE:#x}` (query_mount_archive) is `call {entry:#x}`; "
-          "the build without the late join keeps it")
-    va, old, new = P.MOUNTED
-    rows = ndisasm(Image(original).read(va, len(old)), va)
-    check(image.read(va, len(new)) == new and before.read(va, len(old)) == old
-          and [text for _, _, text in rows[:2]] == ["push ebp", "mov ebp,esp"] and len(rows) == 3
-          and rows[2][1].lower() == "83e4f8" and texts(image, va, 6) == [f"jmp {mounted:#x}", "nop"],
-          f"{va:#x}: on_mounted_resources' `push ebp` / `mov ebp,esp` / `and esp,-8` are `jmp {mounted:#x}` / `nop`; "
-          "the build without the late join keeps them")
-    relocated = {v for kind, v in Image(original).relocations().values() if kind == 3}
-    sections = Image(original).sections
+    query, mounted = 0xE7E3E, 0x147E0
+    six = texts(stock, mounted, 6)
+    check(texts(stock, query, 5) == [f"call {P.MOUNT_QUERY_MOUNT_ARCHIVE:#x}"] and six[:2] == ["push ebp", "mov ebp,esp"]
+          and len(six) == 3 and stock.read(mounted + 3, 3) == bytes.fromhex("83e4f8"),
+          f"{query:#x} is query_db's `call {P.MOUNT_QUERY_MOUNT_ARCHIVE:#x}` (query_mount_archive), {mounted:#x} "
+          "on_mounted_resources' `push ebp` / `mov ebp,esp` / `and esp,-8`")
+    rust_lohooks(original, image, before, "mount_patches", {query: [f"call {P.MOUNT_QUERY_MOUNT_ARCHIVE:#x}"],
+                                                            mounted: six}, exits={"ret"})
+    relocated = {v for kind, v in stock.relocations().values() if kind == 3}
+    sections = stock.sections
 
     def an_address(value):
         """Whether `value` is in the file as an address of the image: a
@@ -2772,51 +2766,20 @@ def test_mount_patches(original, image, before):
             at = original.find(struct.pack("<I", value), at + 1)
         return False
 
-    for (va, old, _), (start, end) in ((P.MOUNT_QUERY, QUERY_DB), (P.MOUNTED, ON_MOUNTED_RESOURCES)):
-        under = [v for v in relocated if va - 4 < v < va + len(old)]
-        found = [a for a in aimed_inside(original, va, len(old), 0) if not va < a < va + len(old) or an_address(a)]
-        found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
-                  if (target := branch_target(text)) is not None and va < target < va + len(old)]
-        check(not under and not found, f"{va:#x}: no base relocation under it, no branch or address aims inside it"
+    for va, size, (start, end) in ((query, 5, QUERY_DB), (mounted, 6, ON_MOUNTED_RESOURCES)):
+        found = [a for a in aimed_inside(original, va, size, 0) if not va < a < va + size or an_address(a)]
+        found += [address for address, _, text in ndisasm(stock.read(start, end - start), start)
+                  if (target := branch_target(text)) is not None and va < target < va + size]
+        check(not found, f"{va:#x}: no branch or address of its own function or the file aims inside it"
               + "".join(f"\n          {a:#x}" for a in found))
-    check(image.read(P.MOUNT_PATCHES_VA, len(code)) == code,
-          f"the patches' mount at {P.MOUNT_PATCHES_VA:#x} is mount_patches_026g.section.bin ({len(code)} bytes)")
-    state = struct.unpack_from("<I", code, len(code) - 4)[0]
-    late_join = open(P.late_join_bin(), "rb").read()
-    page = P.late_join_state_va(late_join)
-    size = P.MOUNT_STATE_SIZE
-    check(state == page + P.MOUNT_STATE_OFFSET and P.MOUNT_STATE_OFFSET + size <= P.LATE_JOIN_STATE_SIZE,
-          f"its state is {size} bytes at {state:#x}, +{P.MOUNT_STATE_OFFSET:#x} of the late join's state page "
-          f"{page:#x}, inside it")
-    strings = code[code.index(b"../../%s.db.patch_%u\0"):len(code) - 4 - P.MOUNT_REQUIRED_SIZE]
-    check(strings == b"../../%s.db.patch_%u\0"
-          b"Cannot mount resources.db.patch_%u. Please run the Skhid launcher again.\0"
-          b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0",
-          "the texts it holds are the path's format, ../../%s.db.patch_%u, and the two fatal errors' "
-          "(a patch that fails to mount; one that is there and cannot be opened)")
-    listing = ndisasm(code[:len(code) - 4 - P.MOUNT_REQUIRED_SIZE - len(strings)], P.MOUNT_PATCHES_VA)
-    end = P.MOUNT_PATCHES_VA + len(code)
-    inside = lambda target: P.MOUNT_PATCHES_VA <= target < end
-    outside = sorted({target for _, _, text in listing if (target := branch_target(text)) is not None
-                      and not inside(target)})
-    indirect = sorted({int(m.group(1), 16) for _, _, text in listing
-                       if (m := re.match(r"^call (?:dword (?:near )?)?\[edx\+0x([0-9a-f]+)\]$", text))})
-    at = {address: text for address, _, text in listing}
-    # The six bytes the hook replaced, then on into the game. ndisasm 2.x
-    # spells the `and` `and esp,byte -0x8`, 3.x `and esp,0xfffffffffffffff8`.
-    games = [i for i, (_, _, text) in enumerate(listing) if text == "push ebp"]
-    tail = [text.replace("byte -0x8", "0xfffffff8").replace("0xfffffffffffffff8", "0xfffffff8")
-            for _, _, text in listing[games[0]:games[0] + 4]] if len(games) == 1 else []
-    calls = sorted([0x18190, P.MOUNTED_VA + 6, P.MOUNT_QUERY_MOUNT_ARCHIVE, 0x113580, 0xDFE30])
-    check(outside == calls and indirect == [0x870040, 0x870048, 0x87005C]
-          and at.get(mounted, "").startswith("call") and at.get(entry) == "pusha"
-          and tail == ["push ebp", "mov ebp,esp", "and esp,0xfffffff8", f"jmp {P.MOUNTED_VA + 6:#x}"],
-          "its only ways out are the path's format (0x18190), query_mount_archive, the fatal error (0x113580), "
-          "the unmount of a mount nobody holds (0xDFE30, as the game lets a mount go), "
-          "CreateFileA, GetLastError and CloseHandle (through the import table, plus the delta), and the six bytes it "
-          f"replaced followed by a jump to {P.MOUNTED_VA + 6:#x}; on_mounted at +{P.MOUNTED_OFFSET:#x} starts "
-          f"with a call for its address, mount_all at +{P.MOUNT_ALL_OFFSET:#x} with pushad"
-          + ("" if outside == calls else f": {[hex(t) for t in outside]}"))
+    linked = P.arena()
+    arena = image.read(P.ARENA_VA, len(linked.image))
+    texts_held = (b"../../%s.db.patch_%u\0", b"Cannot mount resources.db.patch_%u. Please run the Skhid launcher "
+                  b"again.\0", P.MOUNT_UNREADABLE)
+    check(all(arena.count(text) == 1 for text in texts_held) and bytes(image.data).count(P.MOUNT_UNREADABLE) == 1
+          and linked.symbols["SRP_REQUIRED_PATCHES"] == P.ARENA_VA + arena.index(P.MOUNT_UNREADABLE),
+          "the texts it holds are the path's format, ../../%s.db.patch_%u, and the two fatal errors' (a patch that "
+          "fails to mount; one that is there and cannot be opened, SRP_REQUIRED_PATCHES' head and in the exe once)")
 
 
 # effect_fstage_default_materials::compile and renderer_context's
@@ -5196,33 +5159,22 @@ def test_required_patches(original, default, server):
     of the same server: the mount's bitmap and the PE checksum, nothing else."""
     code = open(P.late_join_bin(), "rb").read()
     upload = open(P.default_bin("section"), "rb").read()
-    mount = open(P.mount_patches_bin(), "rb").read()
-    needed = len(mount) - 4 - P.MOUNT_REQUIRED_SIZE
     image = Image(default)
-    bitmap_va = P.MOUNT_PATCHES_VA + needed
+    linked = P.arena()
+    bitmap_va = linked.symbols["SRP_REQUIRED_PATCHES"] + len(P.MOUNT_UNREADABLE)
     check(image.read(bitmap_va - len(P.MOUNT_UNREADABLE), len(P.MOUNT_UNREADABLE)) == P.MOUNT_UNREADABLE
           and image.read(bitmap_va, P.MOUNT_REQUIRED_SIZE) == bytes(P.MOUNT_REQUIRED_SIZE)
           and P.required_patches_of(bytes(default)) == [] and lib_required_patches(default) in ("", None),
           f"the default build requires no patch: its bitmap at {bitmap_va:#x}, after the \"Cannot open\" text, is "
           f"{P.MOUNT_REQUIRED_SIZE} zeros")
-    # The probe: a missing file (error 2 or 3) tests its n in the bitmap
-    # and goes on to the "Cannot open" fatal's push when the bit is set.
-    listing = ndisasm(mount[:needed - 200], P.MOUNT_PATCHES_VA)
-    texts = [text for _, _, text in listing]
-    bt = [i for i, text in enumerate(texts) if text.startswith("bt ")]
-    unreadable = P.MOUNT_PATCHES_VA + mount.index(P.MOUNT_UNREADABLE)
-    ok = len(bt) == 1
-    if ok:
-        i = bt[0]
-        fatal_push = listing[i + 2][0]
-        ok = (texts[i] == f"bt [edx+{bitmap_va:#x}],ecx" and texts[i - 2] == "mov edx,[esp]"
-              and texts[i - 1] == "mov ecx,[esp+0x8]" and texts[i + 1].startswith("jnc ")
-              and texts[i - 4] in ("cmp eax,byte +0x3", "cmp eax,0x3"))
-        ok = ok and texts[i - 3] == f"jnz {fatal_push:#x}" and texts[i + 2] == "push eax" \
-            and texts[i + 5] == f"lea eax,[edx+{unreadable:#x}]" and texts[i + 7] == "call 0x113580"
-    check(ok, "the probe tests a missing patch's n (error 2 or 3) with `bt` on the bitmap plus the delta; a set bit "
-          "goes on to the \"Cannot open resources.db.patch_%u (error %u)\" fatal as an unreadable file, a clear one "
-          "to the next n" + ("" if ok else "\n          " + "\n          ".join(texts[bt[0] - 6:bt[0] + 9] if bt else texts)))
+    # The probe (the Rust patch mount_patches, vostok::mount::required)
+    # reads the bitmap as the build has it: its code addresses the bitmap
+    # (a volatile read, never the link's zeros folded in).
+    # check_mount_patches_026g.py runs the missing cases.
+    block = linked.blocks["patches.code"]
+    code_bytes = image.read(block.va, block.size)
+    check(struct.pack("<I", bitmap_va) in code_bytes,
+          f"the Rust patches' code reads the bitmap at {bitmap_va:#x} (its address in an instruction)")
     checksum_at = P.Headers(default).checksum_at
     bitmap_at = image.offset(bitmap_va)
     for numbers in ((1, 12, 14, 17, 255), (12, 14, 17, *range(19, 28))):
@@ -5926,7 +5878,6 @@ def test_late_join(original, without, server, source):
     # the bytes of its .bin where patch_026g.py puts it, int3 between them.
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
-            (P.MOUNT_PATCHES_OFFSET, P.mount_patches_bin, "the patches' mount"),
             (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
@@ -6010,7 +5961,6 @@ def test_late_join(original, without, server, source):
     ranges += [(image.offset(va), 4) for va, _, _ in P.rust_pointers(original)]
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])),
-               (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
                (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40),

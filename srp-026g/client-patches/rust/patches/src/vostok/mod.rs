@@ -43,6 +43,7 @@ pub mod log;
 mod options;
 pub mod parse;
 pub mod lobby;
+pub mod mount;
 pub mod replay;
 pub mod render;
 pub mod resources;

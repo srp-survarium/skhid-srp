@@ -49,10 +49,8 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0x325A60  snapshot_upload_026g.asm -o snapshot_upload_026g.hash-mismatch.bin
     (both .bin files are checked in; --bin=<file> names another one).
     The stale shell_32.dll check is the Rust patch stale_dll (the arena's
-    block patches.code). The mount of resources.db's patches comes from
-    mount_patches_026g.asm:
-        nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
-    (checked in; STATE is 0x800 of the late join's state page, checked).
+    block patches.code), the mount of resources.db's patches the Rust patch
+    mount_patches.
     The forward effect's UV scrolling is the Rust patch forward_scroll, in
     the arena's block patches.code, and so is "Watch replay"'s link, the
     Rust patch replay_link, and so is one upgrade on several items, the Rust
@@ -254,7 +252,7 @@ Patches:
   instead; the revision 12 that was built drops that code);
 - the game mounts resources.db's patches (patch revision 12,
   client_patch.md section 0.2): query_db's call of query_mount_archive at
-  0xE7E3E calls mount_patches_026g.asm at 0x400 of `.srp`, which mounts
+  0xE7E3E is the Rust patch mount_patches' lohook, which mounts
   ../../resources.db as the game did and then every
   ../../resources.db.patch_<n> that is there, n from 1 to 255 in order (a
   patch is numbered by the patch revision that brought it; a missing number
@@ -675,7 +673,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # own (owner, 2026-10-15).
 # 12: the resources.db signature is not checked at all (DB_SIGNATURE below):
 # a retail archive and one with new files both start the game; the game
-# mounts resources.db.patch_<n> over resources.db (MOUNT_PATCHES below); and
+# mounts resources.db.patch_<n> over resources.db (the Rust patch mount_patches); and
 # the sign-in reports whether %TEMP%\shell_32.dll exists (the Rust patch stale_dll below),
 # in byte 8 of the version field. Nothing a match computes: 11 and 12 play
 # together. (Owner, 2026-10-16: this build is revision 12. The numbers 12
@@ -867,40 +865,29 @@ DB_SIGNATURE = (DB_SIGNATURE_VA, bytes.fromhex("e8d8f6ffff"), bytes.fromhex("31c
 # the descriptor, the callback, cdecl) once, at 0xE7E3E. Its callback,
 # on_mounted_resources (0x147E0, the only one: its one reference is the
 # bind at 0x14E34), keeps the mount in engine_world+2D4h (m_resources_mount;
-# +2C0h is the shaders' masks) and goes on with the start-up. The call at 0xE7E3E calls mount_all of mount_patches_026g.asm
-# (MOUNT_PATCHES_OFFSET of `.srp`, after the upload code and the default
-# server's stub and name, before the pickup code) instead; the first six bytes of 0x147E0 (`push ebp` / `mov ebp,esp` /
-# `and esp,-8`) jump to its on_mounted and a nop. What the code does: the
-# .asm's head. Neither site holds an address: no base relocation is under
-# them. The code keeps its state at MOUNT_STATE_OFFSET of the late join's
-# state page (the late join's own state is its first 60 bytes); the .bin
-# ends with the address it was assembled for, which build() checks. A patch
-# is numbered by the patch revision that brought it, a byte: n = 1..255,
-# each that is there, in order.
-MOUNT_PATCHES_OFFSET = 0x400
-MOUNT_PATCHES_VA = SECTION_VA + MOUNT_PATCHES_OFFSET
-MOUNTED_OFFSET, MOUNT_ALL_OFFSET = 0, 0x88      # the .asm's two entries
-MOUNT_STATE_OFFSET = 0x800
+# +2C0h is the shaders' masks) and goes on with the start-up. The call at
+# 0xE7E3E and the first six bytes of 0x147E0 (`push ebp` / `mov ebp,esp` /
+# `and esp,-8`) are the Rust patch mount_patches' two lohooks
+# (rust/patches/src/mount_patches.toml; sites_026g.tsv mount.query and
+# mount.mounted). What it does: mount_patches.rs's head. Neither site holds
+# an address: no base relocation is under them. (Until the Rust port,
+# mount_patches_026g.asm at 0x400 of `.srp`, its state at 0x800 of the late
+# join's state page.) A patch is numbered by the patch revision that
+# brought it, a byte: n = 1..255, each that is there, in order.
 MOUNT_MAX_PATCHES = 255
-MOUNT_STATE_SIZE = 8 + 4 * (1 + MOUNT_MAX_PATCHES) + MOUNT_MAX_PATCHES
 # The patches an exe requires (patch 49, README; client_patch.md section 3.46):
 # a missing resources.db.patch_<n> whose bit is set stops the game at its
 # start with the "Cannot open resources.db.patch_<n> (error 2)" fatal, as
-# one that cannot be opened. The bitmap (bit n of byte n/8) is the .asm's
-# `needed`, the MOUNT_REQUIRED_SIZE bytes before the state's address at the
-# .bin's end, right after the "Cannot open" text (release/lib.sh's
-# exe_required_patches finds it so). build() writes it; the checked-in .bin
-# holds zeros, and a build without required_patches requires none. A
+# one that cannot be opened. The bitmap (bit n of byte n/8) is the
+# MOUNT_REQUIRED_SIZE bytes of vostok::mount's SRP_REQUIRED_PATCHES right
+# after its "Cannot open" text (release/lib.sh's exe_required_patches finds
+# it so). build() writes it into the arena's bytes; the link holds zeros,
+# and a build without required_patches requires none. A
 # release passes its offered-patch list's numbers (release/build-zip), so
 # its exe never runs on older content than its server offers.
 MOUNT_REQUIRED_SIZE = (MOUNT_MAX_PATCHES + 1) // 8
 MOUNT_UNREADABLE = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
-MOUNT_QUERY_VA, MOUNTED_VA = 0xE7E3E, 0x147E0
 MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
-MOUNT_QUERY = (MOUNT_QUERY_VA, b"\xE8" + struct.pack("<i", MOUNT_QUERY_MOUNT_ARCHIVE - MOUNT_QUERY_VA - 5),
-               b"\xE8" + struct.pack("<i", MOUNT_PATCHES_VA + MOUNT_ALL_OFFSET - MOUNT_QUERY_VA - 5))
-MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
-           b"\xE9" + struct.pack("<i", MOUNT_PATCHES_VA + MOUNTED_OFFSET - MOUNTED_VA - 5) + b"\x90")
 
 # UV scrolling for the transparent effects (patch 28, README; client_patch.md
 # section 3.26): the Rust patch forward_scroll (rust/patches/src/
@@ -1855,7 +1842,7 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # camera, tick, cull, m
 # (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
-# `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
+# `.srpd`, before patch
 # 32's (WEAPON_PREVIEW_STATE_OFFSET). Seven `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
@@ -2534,16 +2521,25 @@ def arena_target(linked, symbol):
     return va
 
 
-def add_arena(data, linked):
+def add_arena(data, linked, required=bytes(MOUNT_REQUIRED_SIZE)):
     """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
-    section; returns the new file. No arena (None): `data` as it is."""
+    section, with `required` (required_bitmap()) the bitmap of
+    SRP_REQUIRED_PATCHES; returns the new file. No arena (None): `data` as
+    it is."""
     if linked is None:
         return data
     headers = Headers(data)
     if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
         sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
                  f"past its three pages?)")
-    return add_code_section(data, ARENA_NAME, ARENA_VA, linked.image, ARENA_CHARACTERISTICS)
+    image = bytearray(linked.image)
+    at = linked.symbols["SRP_REQUIRED_PATCHES"] - ARENA_VA + len(MOUNT_UNREADABLE)
+    if image[at - len(MOUNT_UNREADABLE):at] != MOUNT_UNREADABLE or any(image[at:at + MOUNT_REQUIRED_SIZE]) \
+            or len(required) != MOUNT_REQUIRED_SIZE or image.count(MOUNT_UNREADABLE) != 1:
+        sys.exit(".srpx: SRP_REQUIRED_PATCHES is not the \"Cannot open\" text once with a zeroed bitmap after it "
+                 "(patch 49)")
+    image[at:at + MOUNT_REQUIRED_SIZE] = required
+    return add_code_section(data, ARENA_NAME, ARENA_VA, bytes(image), ARENA_CHARACTERISTICS)
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
@@ -2960,7 +2956,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     late-join code (late_join_026g.section.bin), in "section" builds only:
     with it the build is patch revision REVISION, without it
     REVISION_WITHOUT_LATE_JOIN; with it the game also checks no resources.db
-    signature, mounts resources.db's patches (mount_patches_026g.section.bin),
+    signature, mounts resources.db's patches (the Rust patch mount_patches),
     its sign-in says whether %TEMP%\\shell_32.dll exists
     (the Rust patch stale_dll), and its transparent effects scroll as in
     0.29 (the Rust patch forward_scroll), and the lobby's link starts the
@@ -3007,20 +3003,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         revision = REVISION_WITHOUT_LATE_JOIN
     elif revision is None:
         revision = REVISION
-    if late_join is not None:
-        mount_patches = open(mount_patches_bin(), "rb").read()
-        state = late_join_state_va(late_join) + MOUNT_STATE_OFFSET
-        if mount_patches[-4:] != struct.pack("<I", state):
-            sys.exit(f"mount_patches_026g.section.bin keeps its state elsewhere: assemble it with -DSTATE={state:#x}")
-        if mount_patches[MOUNTED_OFFSET:MOUNTED_OFFSET + 5] != bytes.fromhex("e800000000") \
-                or mount_patches[MOUNT_ALL_OFFSET] != 0x60:
-            sys.exit("mount_patches_026g.section.bin: its entries are not where patch_026g.py calls them")
-        needed = len(mount_patches) - 4 - MOUNT_REQUIRED_SIZE
-        if mount_patches[needed - len(MOUNT_UNREADABLE):needed] != MOUNT_UNREADABLE \
-                or any(mount_patches[needed:needed + MOUNT_REQUIRED_SIZE]):
-            sys.exit("mount_patches_026g.section.bin: no zeroed bitmap of the required patches after its "
-                     "\"Cannot open\" text (patch 49)")
-        mount_patches = mount_patches[:needed] + required_bitmap(required_patches or ()) + mount_patches[-4:]
     data = bytearray(original)
     linked = None
     WRITES.clear()
@@ -3251,9 +3233,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if LATE_JOIN_OFFSET + len(late_join) > WEAPON_PREVIEW_OFFSET \
                 or WEAPON_PREVIEW_VA + len(weapon_preview) > late_join_state_va(late_join):
             sys.exit("the late join and the weapon preview do not fit before the late join's state page")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET \
-                or WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the weapon preview's state is not between the patches' mount's and the page's end")
+        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon preview's state does not end before the page's end")
         if weapon_preview_state(weapon_preview) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or any(weapon_preview[offset] != first for (_, _, offset, _), first
                        in zip(WEAPON_PREVIEW_HOOKS, (0x60, 0x60, 0x50, 0x50, 0x50, 0x50))):
@@ -3307,17 +3288,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((TAB_LIST_LOOP_VA, TAB_LIST_LOOP_VA + len(TAB_LIST_LOOP[1])))
         if neutralize_relocs(data, sites):
             sys.exit("a base relocation under a site of the scoreboard's rows")
-        for site in (MOUNT_QUERY, MOUNTED):
-            patch(data, *site)
-            if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
-                sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
         if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
             sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
-        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > WARMUP_KEYS_OFFSET:
-            sys.exit("the upload code (and the default server) and the patches' mount do not fit before the "
-                     "warmup keys")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the patches' mount keeps more state than the late join's page has")
+        if len(cave) > WARMUP_KEYS_OFFSET:
+            sys.exit("the upload code (and the default server) do not fit before the warmup keys")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
@@ -3401,9 +3375,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
             sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
-                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
-            sys.exit("the upgrade preview's state is not between the patches' mount's and the weapon preview's")
+        if UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit("the upgrade preview's state does not end before the weapon preview's")
         if upgrade_preview_targets(upgrade_preview, upgrade_preview_va) \
                 != (stash_va + WEAPON_STASH_FIND, upgrade_preview_state, preview_state):
             sys.exit(f"upgrade_preview_026g.section.bin: its entries, its state or its find are not where "
@@ -3426,7 +3399,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
 
     if mode == "section":
         if late_join is not None:
-            cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
@@ -3463,7 +3435,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
-            data = add_arena(data, linked)
+            data = add_arena(data, linked, required_bitmap(required_patches or ()))
     if arena_blocks is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
@@ -3576,8 +3548,6 @@ def default_server_bin(mode):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), f"default_server_026g.{mode}.bin")
 
 
-def mount_patches_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mount_patches_026g.section.bin")
 
 
 def weapon_camo_bin():

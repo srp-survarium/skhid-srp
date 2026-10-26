@@ -4682,3 +4682,10 @@ va	name	location	role	basis
 0x00047160	vostok::vfs::get_file_offs<1>	ECX	the vfs node (+30h bit 0 a file; its offset at the node's -8h)	observed
 0x00242a40	survarium::network_client::is_player_current	EAX	the network client: +4 the player the camera is on (0: none), its place byte at +114h (0x242A50)	observed
 0x00242a40	survarium::network_client::is_player_current	entry ESP+4 low byte	the place (compared with the player's +114h, 0x242A56)	observed
+0x00018190	vostok::fs::native_path_string::assignf	ESI	the native path string: begin, end of the text, end of the buffer, its 260 characters at +0Ch, the separator at +110h; the text written from begin (0x18190..0x18195)	observed
+0x00018190	vostok::fs::native_path_string::assignf	entry ESP+4	printf-like format, each / written as the separator (query_db 0xE7DAD: "../../%s.db")	observed
+0x00018190	vostok::fs::native_path_string::assignf	entry ESP+8	the format's first argument (query_db: the mount's name, the descriptor, for %s)	observed
+0x00018190	vostok::fs::native_path_string::assignf	entry ESP+12	the format's next argument, when it asks for one (a number for %u)	observed
+0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	EAX	a mount nobody holds (its count at +1Ch let go to 0): its unmount queued (mov esi,eax at 0xDFE38)	observed
+0x00113580	vostok::debug::terminate	entry ESP+8	the format's first argument, when it asks for one	observed
+0x00113580	vostok::debug::terminate	entry ESP+12	the format's second argument, when it asks for two	observed

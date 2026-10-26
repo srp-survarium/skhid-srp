@@ -79,8 +79,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
 | `rust/patches/src/stale_dll.rs`, `stale_dll.toml`, `port/equiv/stale_dll.py` | Patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`) as the Rust patch `stale_dll` (a lohook at `sign_in.version_tail`), and its equivalence spec against the asm it replaced |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
-| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
-| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
+| `rust/patches/src/mount_patches.rs`, `mount_patches.toml`, `rust/patches/src/vostok/mount.rs`, `port/equiv/mount_patches.py` | Patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) as the Rust patch `mount_patches` (two lohooks, `sites_026g.tsv` `mount.query` and `mount.mounted`); the required patches' bitmap is `vostok::mount`'s `SRP_REQUIRED_PATCHES`, which `patch_026g.py` writes into the build's arena; and its equivalence spec against the asm it replaced. Until the Rust port, `mount_patches_026g.asm` at 0x400 of `.srp`, its state at 0x800 of `.srpd` |
+| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is (needs Unicorn) |
 | `rust/patches/src/forward_scroll.rs`, `forward_scroll.toml`, `port/equiv/forward_scroll.py` | Patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0), the Rust patch: three lohooks (`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`, `renderer_context.scene_time_bound`) in the block `patches.code`, and its spec for the port-only equivalence gate. Until the Rust port, `forward_scroll_026g.asm` at 0xB00 of `.srp` |
 | `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
@@ -1634,8 +1634,9 @@ take a file away.
 
 The game mounts its one archive in one place: `query_db` (0xE7D90) formats
 `../../resources.db` and calls `query_mount_archive` (0xE7EF0) once, at
-0xE7E3E. Patch 27 makes that call go to `mount_patches_026g.asm` at 0x400 of
-`.srp`. The code first looks for `..\..\resources.db.patch_<n>` for every n
+0xE7E3E. Patch 27, the Rust patch `mount_patches` (`rust/patches/src/mount_patches.rs`),
+takes that call with a lohook (until the Rust port, `mount_patches_026g.asm` at
+0x400 of `.srp`). The code first looks for `..\..\resources.db.patch_<n>` for every n
 from 1 to 255, the revision being a byte (the game's own path format with
 `.patch_%u` after it; `CreateFileA` asking no access, as patch 25 does), and
 notes each one that is there; a missing number is skipped. A number is
@@ -1650,9 +1651,9 @@ path. The file system runs its tasks in that order.
 Every mount calls `on_mounted_resources` (0x147E0) when it is done. That
 function keeps the mount in the game's world (engine_world+2D4h) and goes on
 with the start-up, so only the last call may get there. Its first six bytes
-become a jump into the same code: each start-up mount takes a reference (a
-mount nobody holds is unmounted) and is kept at 0x800 of `.srpd`, the late
-join's writable page; all but the last then return. The last calls the
+become the patch's other lohook: each start-up mount takes a reference (a
+mount nobody holds is unmounted) and is kept in the patch's state; all but
+the last then return. The last calls the
 game's code with `resources.db`'s mount, which the world keeps (its own
 reference) as without patches, and then lets the state's reference of
 `resources.db` go. So `resources.db` ends with the one reference it has in
@@ -1682,16 +1683,17 @@ that ends in `.db`, so such a patch would be read from `resources.db`. What
 the game does at a mount, and why later mounts win:
 `../docs/notes/client_patch.md` section 0.2.
 
-Checked: `selftest_026g.py` check 27 (`test_mount_patches`), check 15's
-layout of `.srp`'s first page, and `check_mount_patches_026g.py`, which runs
+Checked: `selftest_026g.py` check 27 (`test_mount_patches`), the
+equivalence gate against the asm (`port/equiv/mount_patches.py`, 2000 cases,
+0 differences), and `check_mount_patches_026g.py`, which runs
 both hooks, the code and the game's own `on_mounted_resources` up to its
 next step on made-up folders (no patch; 1 to 3; 1 to 4 and 6; 14 and 17
 alone; 255 alone; `.patch_1.db`, `_01`, `_0`, `_256`, none of them a patch;
 0 to 300, of which 1 to 255 are mounted; 1 and 3 with 2 path not found; a
 folder named `resources.db.patch_3`, patch 1 access denied and patch 255 in
 use, each stopping before any mount; 14, 17, 20 with the first, the middle
-or the last failing to mount; the retail archive failing), loaded as is and
-rebased (Unicorn 2.1.4). Each ends with `resources.db` held once and each
+or the last failing to mount; the retail archive failing), loaded as is
+(Unicorn 2.1.4; until the Rust port also rebased). Each ends with `resources.db` held once and each
 patch once, nothing unmounted. In a game: the first writing of patch 27 (the
 build numbered 14, `770f7c04…5b09`) mounted patches 14, 15 and 16 in Wine on
 2026-10-16 and they worked; its quit was not watched, and this build has not
@@ -2983,7 +2985,7 @@ missing number, so the game ran on older content than the server's and crashed i
 unknown item id in a profile, other animation ids in a world snapshot). Now each release's exe
 knows the patches of its release and does not start without them.
 
-In `mount_patches_026g.asm` (patch 27), the probe's missing case (`CreateFileA` fails with 2, file
+In `mount_patches_026g.asm` (patch 27; since the Rust port `mount_patches.rs`, the same rule), the probe's missing case (`CreateFileA` fails with 2, file
 not found, or 3, path not found) tests n in a bitmap of 32 bytes (`needed`, bit n of byte n/8,
 `bt [edx+needed],ecx`): a clear bit is a number skipped, as before; a set bit goes on to the same
 fatal call as a file that cannot be opened, before anything is mounted: "Cannot open
@@ -2991,10 +2993,10 @@ resources.db.patch_<n> (error 2). Please run the Skhid launcher again." (error 3
 folder on the way), the lowest such n. The code grows from 707 to 759 bytes at `.srp`+400h (before
 patch 30's +700h); nothing else changes and no new site.
 
-The bitmap sits right after the "Cannot open" text, before the state's address at the .bin's end.
-The checked-in .bin holds zeros: a build without the option requires no patch (local and test
-builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
-writes it into the build's copy; only those bytes and the PE checksum differ. `release/build-zip`
+The bitmap sits right after the "Cannot open" text (since the Rust port `vostok::mount`'s
+`SRP_REQUIRED_PATCHES`, read volatile; before it the .bin's, before the state's address at its end).
+The link holds zeros: a build without the option requires no patch (local and test builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
+writes it into the build's copy of the arena; only those bytes and the PE checksum differ. `release/build-zip`
 passes the numbers of every row of the offered-patch list (`release/patches.tsv`; `--test`:
 `patches-test.tsv`), which `release/release.sh` gives it with `--patches` after `upload-patch`
 added the release's new patch: one command, and each release's exe requires exactly what its
@@ -3008,10 +3010,10 @@ match. A patch is never removed from a player's folder by this; one the list no 
 simply not required by the next release's exe (and still mounted when it is there). The lobby
 only (start-up): no row in `../crates/session/src/v026g/simulation_changes.tsv`.
 
-Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the `bt` and its way to the
-fatal; against the build without the option only the bitmap and the checksum differ; the list
+Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the code addresses the
+bitmap; against the build without the option only the bitmap and the checksum differ; the list
 read back by `patch_026g.py` and by `release/lib.sh`; bad lists refused) and check 27 (the texts,
-the ways out); `check_mount_patches_026g.py` (Unicorn, as is and rebased: a build requiring 1,
+the texts); `check_mount_patches_026g.py` (Unicorn, as is: a build requiring 1,
 12, 14, 17 and 255 on folders with all of them, with more, with a required one missing, path not
 found or a folder by its name; revision 27's list without 26 and 27, the case of 2026-10-21,
 stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, the new patch

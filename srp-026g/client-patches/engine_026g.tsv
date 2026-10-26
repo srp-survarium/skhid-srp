@@ -74,3 +74,9 @@ engine_strcmp	0x03b5a0	EAX:first ECX:second	unsigned int engine_strcmp(const cha
 engine_file_offset	0x047160	ECX:node	unsigned long long engine_file_offset(void *node)	thunk	
 engine_replay_place_mine	0x054e10	ECX:client ESP+4:place	unsigned char engine_replay_place_mine(void *client, unsigned int place)	thiscall	client: ReplayClient, place: Place -> bool
 engine_is_player_current	0x242a40	EAX:client ESP+4:place	unsigned int engine_is_player_current(void *client, unsigned int place)	thunk	
+engine_query_mount_archive	0x0e7ef0	ESI:allocator ESP+4:virtual ESP+8:table ESP+12:archive ESP+16:descriptor ESP+20:callback	void engine_query_mount_archive(void *allocator, const void *virtual_path, const void *table, const void *archive, const char *descriptor, const void *callback)	thunk	
+engine_format_path	0x018190	ESI:path ESP+4:format ESP+8:name ESP+12:number	void *engine_format_path(void *path, const char *format, const char *name, unsigned int number)	thunk	
+engine_unmount	0x0dfe30	EAX:mount	void engine_unmount(void *mount)	thunk	
+engine_terminate	0x113580	ESP+4:format ESP+8:first ESP+12:second	void engine_terminate(const char *format, unsigned int first, unsigned int second)	cdecl	
+engine_on_mounted_resources	0x0147e0	ESP+4:holder ESP+8:bound ESP+12:result	void engine_on_mounted_resources(void *holder, void *bound, const void *result)	cdecl	
+engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	

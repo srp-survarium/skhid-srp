@@ -534,6 +534,91 @@ global match_keys_on_add_message
 match_keys_on_add_message:
     RUST_CALL hook_match_keys_on_add_message, 5, 20
 
+; 0xe7e3e query_db 0xE7D90's call of query_mount_archive 0xE7EF0 (call 0E7EF0h, its only caller; ESI the allocator, [esp] to [esp+10h] its five cdecl arguments: the virtual path, the file table's and the archive's path strings, the descriptor, the callback): lohook -> mount_patches_on_query
+global mount_patches_on_query
+extern hook_mount_patches_on_query
+mount_patches_on_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_mount_patches_on_query
+    mov edx, mount_patches_on_query_replay
+    cmp eax, 0
+    je mount_patches_on_query_go
+    mov edx, 0xe7e43
+    cmp eax, 1
+    je mount_patches_on_query_go
+    ud2
+mount_patches_on_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+mount_patches_on_query_replay:
+    call 0xe7ef0
+    jmp 0xe7e43
+
+; 0x147e0 on_mounted_resources 0x147E0's start (push ebp; mov ebp,esp; and esp,-8): cdecl, [esp+4] where the mount is kept, [esp+8] the next step, [esp+0Ch] &the mount; done: its return (the caller takes the arguments): lohook -> mount_patches_on_mounted
+global mount_patches_on_mounted
+extern hook_mount_patches_on_mounted
+mount_patches_on_mounted:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_mount_patches_on_mounted
+    mov edx, mount_patches_on_mounted_replay
+    cmp eax, 0
+    je mount_patches_on_mounted_go
+    mov edx, 0x147e6
+    cmp eax, 1
+    je mount_patches_on_mounted_go
+    mov edx, mount_patches_on_mounted_done
+    cmp eax, 2
+    je mount_patches_on_mounted_go
+    ud2
+mount_patches_on_mounted_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+mount_patches_on_mounted_replay:
+    db 0x55
+    db 0x8b, 0xec
+    db 0x83, 0xe4, 0xf8
+    jmp 0x147e6
+mount_patches_on_mounted_done:
+    ret
+
 ; 0x2d84e9 base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player): lohook -> pickup_below_on_reach
 global pickup_below_on_reach
 extern hook_pickup_below_on_reach

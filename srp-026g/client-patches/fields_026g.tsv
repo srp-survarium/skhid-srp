@@ -160,3 +160,17 @@ vostok::resources::query_result	priority	0x2B8	u32	the query's priority (the hig
 vostok::vfs::vfs_node	flags	0x30	u8	a vfs node's flags: 4 in an archive (get_physical_path 0x4BC39), 1 a file
 survarium::delayed_callbacks_queue	end	0x4	u32	a weapon's delayed sounds queue (delayed_callbacks_queue<64>, weapon+9FCh: begin, end, capacity end; 38h an item): its end (push_back 0x245AD0 asserts at the capacity)
 survarium::delayed_callbacks_queue	capacity_end	0x8	u32	the queue's capacity end (64 items)
+vostok::resources::mount	references	0x1C	u32	a mount's reference count (on_mounted_resources takes one, lock xadd at 0x14805, and lets the one before go, 0x1481C; at 0 it is unmounted, 0xDFE30)
+vostok::fs::native_path_string	begin	0x0	u32	the text's start (query_db 0xE7DDA: its own +0Ch)
+vostok::fs::native_path_string	end	0x4	u32	the text's end, its NUL (0x18192 sets it to begin)
+vostok::fs::native_path_string	capacity	0x8	u32	the buffer's end (query_db: its own +110h)
+vostok::fs::native_path_string	text	0xC	u8	its 260 characters (MAX_PATH; query_db 0xE7DD3)
+vostok::fs::native_path_string	separator	0x110	u8	the separator the formatting writes for each / (query_db 0xE7E36: '/' made '\')
+vostok::resources::query_db_frame	virtual_path	0x0	u32	query_mount_archive's first argument at query_db's call (by the site's ESP at 0xE7E3E): the virtual path string
+vostok::resources::query_db_frame	table	0x4	u32	its second: the file table's native path string
+vostok::resources::query_db_frame	archive	0x8	u32	its third: the archive's (the same string)
+vostok::resources::query_db_frame	descriptor	0xC	u32	its fourth: the descriptor, the mount's name
+vostok::resources::query_db_frame	callback	0x10	u32	its fifth: the callback (the helper's first member)
+vostok::resources::mounted_frame	holder	0x4	u32	on_mounted_resources' first argument (by the site's ESP at 0x147E0): where the mount is kept
+vostok::resources::mounted_frame	bound	0x8	u32	its second: the start-up's next step
+vostok::resources::mounted_frame	result	0xC	u32	its third: &the mount (0x147E6), 0 a failed mount

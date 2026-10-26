@@ -234,6 +234,41 @@ pub extern "C" fn hook_match_keys_on_add_message(a0: u32, a1: u32, a2: u32, a3: 
     { crate::match_keys::on_add_message(&orig, &mut handler, channel, body, name, tag); 0 }
 }
 
+// ---- mount_patches (patch 27) ----
+
+/// The entry `mount_patches_on_query` (0xe7e3e, query_db 0xE7D90's call of query_mount_archive 0xE7EF0 (call 0E7EF0h, its only caller; ESI the allocator, [esp] to [esp+10h] its five cdecl arguments: the virtual path, the file table's and the archive's path strings, the descriptor, the callback)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mount_patches_on_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mount_patches_on_query` calls this, from the game's jump at 0xe7e3e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mount_patches::on_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- mount_patches (patch 27) ----
+
+/// The named exits of mount_patches::on_mounted (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MountPatchesOnMountedExit { Done }
+/// The entry `mount_patches_on_mounted` (0x147e0, on_mounted_resources 0x147E0's start (push ebp; mov ebp,esp; and esp,-8): cdecl, [esp+4] where the mount is kept, [esp+8] the next step, [esp+0Ch] &the mount; done: its return (the caller takes the arguments)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mount_patches_on_mounted(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mount_patches_on_mounted` calls this, from the game's jump at 0x147e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mount_patches::on_mounted(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- pickup_below (patch 23) ----
 
 /// The entry `pickup_below_on_reach` (0x2d84e9, base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player)) calls this with the saved machine.

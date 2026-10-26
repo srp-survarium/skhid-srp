@@ -108,6 +108,12 @@ unsafe extern "C" {
     pub fn engine_file_offset(node: *mut c_void) -> u64;
     /// 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
     pub fn engine_is_player_current(client: *mut c_void, place: u32) -> u32;
+    /// 0xe7ef0 vostok::resources::query_mount_archive: allocator ESI, virtual_path ESP+4, table ESP+8, archive ESP+12, descriptor ESP+16, callback ESP+20; pops 0
+    pub fn engine_query_mount_archive(allocator: *mut c_void, virtual_path: *const c_void, table: *const c_void, archive: *const c_void, descriptor: *const u8, callback: *const c_void);
+    /// 0x18190 vostok::fs::native_path_string::assignf: path ESI, format ESP+4, name ESP+8, number ESP+12; pops 0; EAX
+    pub fn engine_format_path(path: *mut c_void, format: *const u8, name: *const u8, number: u32) -> *mut c_void;
+    /// 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0
+    pub fn engine_unmount(mount: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -126,6 +132,14 @@ unsafe extern "stdcall" {
     pub fn engine_enqueue(client: *mut c_void, packet: *mut c_void);
     /// 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
     pub fn engine_process_detach_upgrade(client: *mut c_void, upgrade: u32) -> u32;
+}
+
+#[allow(dead_code)]
+unsafe extern "cdecl" {
+    /// 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly
+    pub fn engine_terminate(format: *const u8, first: u32, second: u32);
+    /// 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
+    pub fn engine_on_mounted_resources(holder: *mut c_void, bound: *mut c_void, result: *const c_void);
 }
 
 #[allow(dead_code)]
@@ -258,6 +272,8 @@ unsafe extern "C" {
     pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
     /// the IAT slot 0x870074 (kernel32, stdcall): unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)
     pub static engine_get_module_file_name_w: unsafe extern "stdcall" fn(*mut c_void, *mut u16, u32) -> u32;
+    /// the IAT slot 0x87005c (kernel32, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
@@ -1993,5 +2009,155 @@ pub mod delayed_callbacks_queue {
     #[inline(always)]
     pub unsafe fn capacity_end(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// vostok::resources::mount's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mount {
+    use core::ffi::c_void;
+
+    /// +0x1c (u32): a mount's reference count (on_mounted_resources takes one, lock xadd at 0x14805, and lets the one before go, 0x1481C; at 0 it is unmounted, 0xDFE30)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::mount.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+}
+
+/// vostok::fs::native_path_string's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod native_path_string {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the text's start (query_db 0xE7DDA: its own +0Ch)
+    ///
+    /// # Safety
+    /// `this` is a vostok::fs::native_path_string.
+    #[inline(always)]
+    pub unsafe fn begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the text's end, its NUL (0x18192 sets it to begin)
+    ///
+    /// # Safety
+    /// `this` is a vostok::fs::native_path_string.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): the buffer's end (query_db: its own +110h)
+    ///
+    /// # Safety
+    /// `this` is a vostok::fs::native_path_string.
+    #[inline(always)]
+    pub unsafe fn capacity(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u8): its 260 characters (MAX_PATH; query_db 0xE7DD3)
+    ///
+    /// # Safety
+    /// `this` is a vostok::fs::native_path_string.
+    #[inline(always)]
+    pub unsafe fn text(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x110 (u8): the separator the formatting writes for each / (query_db 0xE7E36: '/' made '\')
+    ///
+    /// # Safety
+    /// `this` is a vostok::fs::native_path_string.
+    #[inline(always)]
+    pub unsafe fn separator(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x110).cast() }
+    }
+}
+
+/// vostok::resources::query_db_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod query_db_frame {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): query_mount_archive's first argument at query_db's call (by the site's ESP at 0xE7E3E): the virtual path string
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_db_frame.
+    #[inline(always)]
+    pub unsafe fn virtual_path(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): its second: the file table's native path string
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_db_frame.
+    #[inline(always)]
+    pub unsafe fn table(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): its third: the archive's (the same string)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_db_frame.
+    #[inline(always)]
+    pub unsafe fn archive(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u32): its fourth: the descriptor, the mount's name
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_db_frame.
+    #[inline(always)]
+    pub unsafe fn descriptor(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x10 (u32): its fifth: the callback (the helper's first member)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_db_frame.
+    #[inline(always)]
+    pub unsafe fn callback(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+}
+
+/// vostok::resources::mounted_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mounted_frame {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): on_mounted_resources' first argument (by the site's ESP at 0x147E0): where the mount is kept
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::mounted_frame.
+    #[inline(always)]
+    pub unsafe fn holder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): its second: the start-up's next step
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::mounted_frame.
+    #[inline(always)]
+    pub unsafe fn bound(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u32): its third: &the mount (0x147E6), 0 a failed mount
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::mounted_frame.
+    #[inline(always)]
+    pub unsafe fn result(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
     }
 }

@@ -182,6 +182,10 @@ def build_into(out_dir, spec_path):
             "entries": list(spec.entries(base, linked)),
             "blocks": {b.name: [b.va, b.size] for b in linked.blocks.values()},
             "places": {name: list(place) for name, place in getattr(spec, "places", lambda P, l: {})(base, linked).items()},
+            # a build's own exit aliases (the spec's aliases(): {VA: the VA it
+            # stands for}), for an exit only the link places (a lohook's
+            # replay)
+            "aliases": {str(va): to for va, to in getattr(spec, "aliases", lambda P, l: {})(base, linked).items()},
             # every symbol of the data and state blocks: a byte of a static is
             # named by its symbol and offset, so two layouts of the crate's
             # statics (another patch's added before it) compare
@@ -248,6 +252,7 @@ class Machine:
         # so an old block's variable and the new crate's static compare
         self.places = {name: (va, size) for name, (va, size) in meta.get("places", {}).items()}
         self.statics = [(va, name) for va, name in meta.get("statics", [])]
+        self.aliases = {int(va): to for va, to in meta.get("aliases", {}).items()}
         import patch_026g as base_
         self.ours_span = (base_.SECTION_VA, base_.ARENA_VA + base_.ARENA_LIMIT)   # the same in both builds
         uc.hook_add(UC_HOOK_BLOCK, self.on_block)
@@ -369,7 +374,7 @@ class Machine:
             self.inside = False                            # the game's code, up to `until`
             return
         # left the patch: a jump or a return into the game
-        at = self.hook.aliases.get(address, address)
+        at = self.hook.aliases.get(address, self.aliases.get(address, address))
         self.exit = (f"{at:#x}", {r: self.live(r) for r in self.hook.live_at.get(at, self.hook.live)},
                      (esp - self.entry_esp) & 0xFFFFFFFF)
         self.stopped = True
