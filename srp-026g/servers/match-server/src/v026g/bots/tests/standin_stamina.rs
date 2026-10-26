@@ -165,7 +165,11 @@ pub(crate) struct Stamina {
 impl Stamina {
     /// A full bar at `now` ms for `item` in `tier`.
     pub(crate) fn new(now: u32, tier: BotTier, item: &'static str) -> Self {
-        let on = enabled();
+        Self::working(enabled(), now, tier, item)
+    }
+
+    /// The same, the model working or not (a test turns it on whatever the environment says).
+    pub(crate) fn working(on: bool, now: u32, tier: BotTier, item: &'static str) -> Self {
         Self {
             value: MAX,
             flag: Flag::Fine,
@@ -182,7 +186,7 @@ impl Stamina {
     pub(crate) fn spawn(&mut self, now: u32, tier: BotTier, item: &'static str) {
         *self = Self {
             counts: self.counts,
-            ..Self::new(now, tier, item)
+            ..Self::working(self.on, now, tier, item)
         };
     }
 
@@ -449,6 +453,7 @@ mod tests {
 
         let mut game = Game::new(soak_world(), &[0], 1, None, None);
         let gun = Arms::fallback().primary.0;
+        game.bodies[0].stamina = Stamina::working(true, 0, super::super::bench_tier(), gun.item);
         let (feet, node) = (game.bodies[0].feet, game.bodies[0].node);
         let keys = key::FORWARD | key::SPRINT;
         let mut paces = Vec::new();
