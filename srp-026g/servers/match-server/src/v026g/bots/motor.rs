@@ -2164,6 +2164,45 @@ mod tests {
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
     }
 
+    /// With the reckoned bar the sprint is let go of at the empty bar and kept let go of until the bar is over 20,
+    /// and for a sprint jump ahead that the bar could not pay (the sprint to it, its run-up, the jump, a margin);
+    /// without the gauge, or with the bar full, it goes on.
+    #[test]
+    fn the_sprint_is_let_go_of_by_the_reckoned_bar() {
+        use crate::v026g::bots::stamina::Gauge;
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let route = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 1.2, true), p(40.0, 1.2, false)]);
+        let sprinting_after = |gauge: Option<Gauge>, tired: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.sprinting = true;
+            motor.tired = tired;
+            motor.gauge = gauge;
+            motor.sprint_by_the_bar(&route, 0.0);
+            motor.sprinting
+        };
+        let bar = |value: f32, low: bool| Some(Gauge { value, low });
+        assert!(sprinting_after(None, false), "no gauge: as before");
+        assert!(sprinting_after(bar(100.0, false), false), "a full bar pays the 20 m, the run-up and the jump");
+        assert!(!sprinting_after(bar(30.0, false), false), "30 - 22 is under the jump and the margin");
+        assert!(!sprinting_after(bar(2.0, false), false), "empty for the sprint");
+        assert!(!sprinting_after(bar(0.0, true), false), "locked out");
+        assert!(!sprinting_after(bar(10.0, false), true), "tired until the bar is over 20");
+        // The jump 20 m on is a sprint jump (1.2 m): with a walk jump (0.5 m) it wants no run-up.
+        let walk = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 0.5, true), p(40.0, 0.5, false)]);
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.sprinting = true;
+        motor.gauge = bar(40.0, false);
+        motor.sprint_by_the_bar(&walk, 0.0);
+        assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
+    }
+
     /// A jump that does not get the body up is tried again only from the
     /// run-up, [`JUMP_TRIES`] times in all, each at the take-off; then it
     /// is given up on ([`Walked::JumpFailed`]). Walking or aiming. Held
