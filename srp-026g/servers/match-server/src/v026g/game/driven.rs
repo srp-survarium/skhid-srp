@@ -51,6 +51,7 @@ use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
+use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
@@ -139,6 +140,7 @@ impl Walkers {
                 .collect::<Vec<_>>()
         );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        let pockets = formed.profiles.iter().map(pockets_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -169,6 +171,7 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_pockets(pockets);
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
@@ -301,6 +304,35 @@ fn weapon_of(
         .item(item.dict_id)?
         .category;
     WeaponKind::of_item(kind, category)
+}
+
+/// A player's pockets (profile slots 13..=18 of its first kit) for the
+/// throw keys: what each holds, a frag (`rgd-5`), a smoke (`rdg-m`) or
+/// something else the quick-use keys count, and the units. A server bot's
+/// throw key is a frag, so it has none. The first kit is the one the
+/// player spawns in unless it picked another (LIKELY: `kit_changes`
+/// counts the picks; the picked kit is not tracked here).
+fn pockets_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Option<Pockets> {
+    if survarium::v026g::loadouts::bot_role_of(profile).is_some() {
+        return None;
+    }
+    let kit = profile.kits.first()?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let slots = std::array::from_fn(|i| {
+        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+        let (index, units) = kit.slots[slot]?;
+        let item = profile.items.get(usize::from(index))?;
+        let name = dictionary.item(item.dict_id)?.name.as_str();
+        let held = match name {
+            "rgd-5" => Pocketed::Frag,
+            "rdg-m" => Pocketed::Smoke,
+            _ => Pocketed::Other,
+        };
+        Some((held, units))
+    });
+    Some(Pockets::new(slots))
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {

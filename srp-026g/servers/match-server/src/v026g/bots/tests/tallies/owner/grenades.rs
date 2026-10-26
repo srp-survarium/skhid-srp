@@ -1,4 +1,5 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
 use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
 use crate::v026g::bots::view::{eye_height, still_eye};
@@ -79,6 +80,22 @@ pub(super) struct GrenadeCounts {
     pub(super) blast_kills: [u32; 3],
     pub(super) blast_in: [u32; 3],
     pub(super) walked_in: [u32; 3],
+    /// The server's list of live grenades at this tick (`Tracker::live_grenades`) and what its throw keys
+    /// came to; `None` until a bench tick has read them (the made-up matches never do).
+    pub(super) live: Vec<LiveGrenade>,
+    pub(super) listed: Option<ThrowCounts>,
+    pub(super) live_blasts: LiveBlasts,
+}
+
+/// The tally's blasts against the list's entries for the same throw: found with a landing, found still in the
+/// hand (not launched by then), not found; and for those with a landing how far its rest point is from the
+/// tally's own, by `<= 1 m`, `<= 2 m`, `<= 4 m` and more.
+#[derive(Default)]
+pub(super) struct LiveBlasts {
+    pub(super) matched: u32,
+    pub(super) pending: u32,
+    pub(super) missing: u32,
+    pub(super) err: [u32; 4],
 }
 
 /// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
@@ -481,6 +498,30 @@ impl OwnerTally {
         }
     }
 
+    /// A blast against the server's list: the entry of the same thrower and press, and where it put the rest
+    /// point (only in a bench run, which reads the list).
+    fn live_blast(&mut self, blast: &Blast) {
+        if self.grenades.listed.is_none() {
+            return;
+        }
+        let press = blast.time.saturating_sub(FUSE_MS);
+        let found = self
+            .grenades
+            .live
+            .iter()
+            .find(|g| g.by == blast.thrower && g.press.abs_diff(press) <= 100);
+        let live = &mut self.grenades.live_blasts;
+        match found.map(|g| g.phase) {
+            None => live.missing += 1,
+            Some(Phase::Pressed) => live.pending += 1,
+            Some(Phase::Flying { rest, .. }) => {
+                live.matched += 1;
+                let d = rest.distance_xz(blast.at);
+                live.err[usize::from(d > 1.0) + usize::from(d > 2.0) + usize::from(d > 4.0)] += 1;
+            }
+        }
+    }
+
     /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
     pub(super) fn grenades_off(&mut self, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         self.grenade_launches(game, tick);
@@ -495,6 +536,7 @@ impl OwnerTally {
             !off
         });
         for blast in gone {
+            self.live_blast(&blast);
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
@@ -577,6 +619,21 @@ impl OwnerTally {
                 "nth": s.nth,
             });
         }
+        if let Some(listed) = self.grenades.listed {
+            let live = &self.grenades.live_blasts;
+            json["grenade_live"] = serde_json::json!({
+                "frag": listed.frag,
+                "smoke": listed.smoke,
+                "no_pockets": listed.no_pockets,
+                "launched": listed.launched,
+                "unplaced": listed.unplaced,
+                "died_throwing": listed.died_throwing,
+                "blasts_matched": live.matched,
+                "blasts_pending": live.pending,
+                "blasts_unlisted": live.missing,
+                "rest_error_m": live.err,
+            });
+        }
         let mut text = format!(
             "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
             self.grenades.grenades,
@@ -601,6 +658,22 @@ impl OwnerTally {
             text.push_str(&format!(
                 "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}",
                 logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth,
+            ));
+        }
+        if let Some(listed) = self.grenades.listed {
+            let live = &self.grenades.live_blasts;
+            text.push_str(&format!(
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}",
+                listed.frag,
+                listed.smoke,
+                listed.no_pockets,
+                listed.launched,
+                listed.unplaced,
+                listed.died_throwing,
+                live.matched,
+                live.pending,
+                live.missing,
+                live.err,
             ));
         }
         Part::new(json, text)

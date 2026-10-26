@@ -44,6 +44,7 @@ pub mod hazards;
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod live_grenades;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -688,6 +689,12 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
+    /// Every place's pockets (a human's), for the throw keys
+    /// ([`live_grenades`]).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+        self.tracker.set_pockets(pockets);
+    }
+
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.weapons = weapons;
@@ -1058,6 +1065,7 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now);
+        self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }

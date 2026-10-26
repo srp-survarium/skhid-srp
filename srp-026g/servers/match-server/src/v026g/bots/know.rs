@@ -1233,6 +1233,7 @@ mod tests {
             world_time: 10_000,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 

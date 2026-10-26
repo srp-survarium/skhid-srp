@@ -198,6 +198,8 @@ impl OwnerTally {
                 })
             })
             .collect();
+        self.grenades.listed = Some(bots.tracker.throw_counts());
+        self.grenades.live = bots.tracker.live_grenades().to_vec();
         self.step(game, &nows);
     }
 
