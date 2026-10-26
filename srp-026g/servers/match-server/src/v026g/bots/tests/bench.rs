@@ -163,6 +163,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stranded_start", true.into());
     }
+    // A rest point on a lip moved inward (`ThinkTuning::rest_off_lip`; off by default).
+    if settings.var("SRP_BENCH_REST_OFF_LIP").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/rest_off_lip", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());

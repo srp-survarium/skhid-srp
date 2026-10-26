@@ -324,6 +324,63 @@ pub fn goal_floor(grid: &WalkGrid, at: Vec3) -> Option<NodeId> {
     })
 }
 
+/// How far a rest point is moved at most to leave a lip, metres (walked over the grid's links from its floor).
+pub const REST_SHIFT_M: f32 = 1.5;
+
+/// A rest point off the edge (the owner's rule: a body at rest keeps its centre on the floor, 2026-10-26): `at` moved to
+/// the nearest floor that is neither a lip (the last floor before a ledge, its centre within a cell of the edge,
+/// [`WalkGrid::is_lip`]) nor near one ([`WalkGrid::near_lip`]: within the body's radius and a margin of it), walking the
+/// grid's links up to [`REST_SHIFT_M`]. None when `at` is not on such a floor, or there is none near.
+pub fn off_lip(grid: &WalkGrid, at: Vec3) -> Option<Vec3> {
+    let start = grid.locate(at, 1.0)?;
+    let bad = |node: NodeId| grid.is_lip(node) || grid.near_lip(node);
+    if !bad(start) {
+        return None;
+    }
+    let mut seen = std::collections::HashSet::from([start]);
+    let mut frontier = vec![start];
+    let mut best: Option<(f32, NodeId)> = None;
+    while !frontier.is_empty() {
+        let mut next = Vec::new();
+        for node in frontier {
+            for (to, kind) in grid.links(node) {
+                if kind != LinkKind::Walk || !seen.insert(to) {
+                    continue;
+                }
+                let p = grid.position(to);
+                if p.distance_xz(at) > REST_SHIFT_M {
+                    continue;
+                }
+                if !bad(to) {
+                    let d = p.distance_xz(at);
+                    if best.is_none_or(|(b, _)| d < b) {
+                        best = Some((d, to));
+                    }
+                } else {
+                    next.push(to);
+                }
+            }
+        }
+        frontier = next;
+    }
+    best.map(|(_, node)| grid.position(node))
+}
+
+/// The rest points moved off a lip ([`off_lip`]) so far, for the bench's count.
+pub mod rests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn count() {
+        COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> u64 {
+        COUNT.load(Ordering::Relaxed)
+    }
+}
+
 /// How far below a body's feet a floor may be for it to plan from there when it stands on no floor
 /// ([`stranded_floor`]), metres: the client's `harmless_height` (`docs/notes/fall_damage.md`, PROVEN: no damage up to
 /// 5 m; the grid's own `Body::max_drop` is the same), so the drop off the top never hurts.
@@ -1109,6 +1166,25 @@ mod tests {
         // No corner at the cut: the first corner after it is kept.
         let whole = plain.spliced(0.0, 90.0, &Route::new(vec![wp(0.0, 0.0), wp(90.0, 5.0)]));
         assert_eq!(whole.points().len(), 2);
+    }
+
+    #[test]
+    fn a_rest_point_on_a_lip_is_moved_inward_to_a_floor_off_the_edge() {
+        use crate::v026g::bots::body::tests::floor;
+        use mapdata::Body;
+        // A 20 m deck at height 5 over a ground 5 m lower: a drop along x = 10.
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 5.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 20.0, 10.0, 0.0));
+        let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        // On the lip (0.1 m from the edge): moved inward (west), to a floor that is not a lip and not near one.
+        let on_edge = Vec3::new(9.9, 5.0, 5.0);
+        let moved = off_lip(&grid, on_edge).expect("a lip");
+        assert!(moved.x < on_edge.x - 0.4 && moved.x > on_edge.x - REST_SHIFT_M - 0.01, "{moved:?}");
+        let node = grid.locate(moved, 0.3).unwrap();
+        assert!(!grid.is_lip(node) && !grid.near_lip(node));
+        // Well inside the deck, or on the ground below: left as it is.
+        assert_eq!(off_lip(&grid, Vec3::new(5.0, 5.0, 5.0)), None);
+        assert_eq!(off_lip(&grid, Vec3::new(15.0, 0.0, 5.0)), None);
     }
 
     #[test]

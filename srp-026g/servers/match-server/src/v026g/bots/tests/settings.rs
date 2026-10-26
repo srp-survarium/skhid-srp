@@ -85,6 +85,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
     s("SRP_BENCH_CARRIER_JUMP", "off", "`on` (or `1`) plans a battery carrier's routes over the jump links up to the standing jump's 0.998 m only (`Feel::carrier_jump_m` Some); off by default: every jump link"),
+    s("SRP_BENCH_REST_OFF_LIP", "off", "`on` (or `1`) moves a walk's goal that lies on a lip (or within the body's radius of one) inward to the nearest floor off the edge (`ThinkTuning::rest_off_lip`); off by default: the goal as the play gave it"),
     s("SRP_BENCH_CLIENT_NUMBERS", "off", "`on` (or `1`) builds the maps' grids with the numbers the 0.26g clients run (step 0.8, ground walked up to 55 degrees: `mapdata::Body::client`), `GridTuning::client_numbers`; off by default: the exe's 0.6 and 50 degrees"),
     s("SRP_BENCH_STRANDED_START", "off", "`on` (or `1`) lets a body that stands on no floor of the grid (on the top of an object) plan from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`); off by default: it has no route"),
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
