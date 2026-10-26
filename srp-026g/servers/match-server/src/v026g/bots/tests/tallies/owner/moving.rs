@@ -9,7 +9,6 @@ use super::*;
 #[derive(Default)]
 pub(super) struct MoveCounts {
     pub(super) takes: Vec<Vec<u32>>,
-    pub(super) stuck_notes: Vec<Vec<u32>>,
     pub(super) no_way: Vec<Vec<u32>>,
 }
 
@@ -17,7 +16,6 @@ impl MoveCounts {
     pub(super) fn new(n: usize) -> Self {
         Self {
             takes: vec![Vec::new(); n],
-            stuck_notes: vec![Vec::new(); n],
             no_way: vec![Vec::new(); n],
         }
     }
@@ -224,60 +222,43 @@ pub(crate) fn status_of(play: &str, step: &str, goal_m: Option<f32>) -> (bool, b
     (hold, travel)
 }
 
-impl OwnerTally {
-    /// A bot's note: takes, stuck watches, plays ended for no way to the
-    /// goal, grenades thrown.
-    pub(crate) fn note(&mut self, note: &Note, game: &Game) {
+impl Topic for MoveCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    /// A take and a play ended for no way to its goal.
+    fn note(&mut self, _run: &Run, note: &Note, kind: &NoteKind<'_>, _game: &Game) {
         let at = |list: &mut Vec<Vec<u32>>| {
             if let Some(t) = list.get_mut(note.place) {
                 t.push(note.time);
             }
         };
-        if let Some(rest) = note.text.strip_prefix("takes ") {
-            at(&mut self.moving.takes);
-            let mut words = rest.split_whitespace();
-            let (kind, target) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
-            let team = game.bodies.get(note.place).map(|b| b.team);
-            if kind == "Trade"
-                && let Some(team) = team
-            {
-                self.campers.trades.push((note.place, team, note.time));
-            }
-            // A counter run: Flank or Crossfire on a shooter who holds his
-            // kill spot against this bot's side.
-            let on = target
-                .strip_prefix("Place(")
-                .and_then(|t| t.strip_suffix(')'))
-                .and_then(|t| t.parse::<Place>().ok());
-            if matches!(kind, "Flank" | "Crossfire")
-                && let (Some(who), Some(team)) = (on, team)
-                && self.campers.spots.iter().any(|h| h.shooter == who && h.team == team)
-            {
-                self.campers.counter_runs[0] += 1;
-                self.campers.counter_runs[1] += u32::from(kind == "Flank");
-            }
-        } else if note.text.starts_with("is stuck at") {
-            at(&mut self.moving.stuck_notes);
-        } else if note.text.contains("no way to its goal") {
-            at(&mut self.moving.no_way);
-        } else if let Some((aim, time)) = thrown_at(&note.text) {
-            let team = game.bodies.get(note.place).map_or(0, |b| b.team);
-            self.grenade_thrown(note.place, team, aim, time);
-        } else if let Some(why) = held_back(&note.text) {
-            self.grenade_refused(why);
-            // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
-            self.grenade_given_up(note.place);
+        match kind {
+            NoteKind::Takes { .. } => at(&mut self.takes),
+            NoteKind::NoWay => at(&mut self.no_way),
+            _ => {}
         }
     }
 
+    fn parts(&mut self, run: &Run, game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        let presses = run.sorted_presses();
+        vec![
+            ("moving", self.moving_part(run, game, &presses, scale)),
+            ("vertical", self.vertical_part(run, game)),
+        ]
+    }
+}
+
+impl MoveCounts {
     /// One bot's stuck episodes (`stuck.py`, `navigation.md` §2d) and its
     /// blips (stuck watches in no episode). From a sample a second of each
     /// life (a life breaks at a death, or where the body moves over 25 m
     /// in a second: a new spawn), the windows of each kind, merged when at
     /// most 2 s apart; each episode's cause. The bench has no start
     /// countdown, so nothing is left out at the start.
-    pub(crate) fn stuck_episodes(&self, place: Place, teams: &[u8], presses: &[Press]) -> (Vec<Episode>, u32) {
-        let recs = &self.recs[place];
+    pub(crate) fn stuck_episodes(&self, run: &Run, place: Place, teams: &[u8], presses: &[Press]) -> (Vec<Episode>, u32) {
+        let recs = &run.recs[place];
         let secs: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
         // Lives: runs of living samples.
         let mut lives: Vec<Vec<usize>> = Vec::new();
@@ -299,7 +280,7 @@ impl OwnerTally {
         if !cur.is_empty() {
             lives.push(cur);
         }
-        let t_of = |k: usize| self.time_of(k) as f32 / 1000.0;
+        let t_of = |k: usize| run.time_of(k) as f32 / 1000.0;
         // Ticks so far with a walk key, with aim or fire, and walking with
         // forward, back, left, right: a window's shares at once.
         let (walking, aiming) = (0, 1);
@@ -331,7 +312,7 @@ impl OwnerTally {
             (sp[(sp.len() - 1) / 2] + sp[sp.len() / 2]) / 2.0
         };
         let stuck_line = |t0: f32, t1: f32| {
-            self.moving.stuck_notes[place]
+            run.stuck_notes[place]
                 .iter()
                 .any(|&t| (t as f32) >= t0 * 1000.0 && (t as f32) <= t1 * 1000.0)
         };
@@ -416,7 +397,7 @@ impl OwnerTally {
             // The server's stuck watch: from each firing, both ways while
             // the body keeps near where it was then, walking, not holding.
             let (lt0, lt1) = (t_of(life[0]), t_of(life[n - 1]));
-            for &fired in &self.moving.stuck_notes[place] {
+            for &fired in &run.stuck_notes[place] {
                 let tf = fired as f32 / 1000.0;
                 if tf < lt0 || tf > lt1 {
                     continue;
@@ -424,7 +405,7 @@ impl OwnerTally {
                 let Some(m) = (0..n).find(|&m| t_of(life[m]) >= tf) else {
                     continue;
                 };
-                let p = recs[self.index(fired).min(recs.len() - 1)].feet;
+                let p = recs[run.index(fired).min(recs.len() - 1)].feet;
                 let fits = |m: usize| recs[life[m]].feet.distance_xz(p) <= WATCH_M && !recs[life[m]].hold;
                 let walks = |a: usize, b: usize| share(life[a], life[b], walking) >= WATCH_WALK;
                 if !fits(m) {
@@ -476,10 +457,10 @@ impl OwnerTally {
             let near = |own: bool| {
                 pts.iter()
                     .filter(|&&k| {
-                        (0..self.recs.len()).any(|q| {
+                        (0..run.recs.len()).any(|q| {
                             q != place
                                 && (teams.get(q) == teams.get(place)) == own
-                                && self.recs[q].get(k).is_some_and(|r| {
+                                && run.recs[q].get(k).is_some_and(|r| {
                                     r.alive && r.feet.distance_xz(recs[k].feet) <= MATE_NEAR_M
                                 })
                         })
@@ -492,7 +473,7 @@ impl OwnerTally {
             let route_jump = presses
                 .iter()
                 .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
-            let cause = if within(&self.moving.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
+            let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
                 "no_route"
             } else if 2 * near(true) >= pts.len() {
                 "teammate"
@@ -502,7 +483,7 @@ impl OwnerTally {
                 "route_jump"
             } else if hi - lo >= UP_DOWN_M {
                 "ledge"
-            } else if kinds.contains(&"loop") && within(&self.moving.takes[place], t0, t1) >= 2 {
+            } else if kinds.contains(&"loop") && within(&self.takes[place], t0, t1) >= 2 {
                 "play_churn"
             } else if kinds[0] == "stand" {
                 "stand"
@@ -523,11 +504,11 @@ impl OwnerTally {
                 at,
             });
         }
-        let blips = self.moving.stuck_notes[place]
+        let blips = run.stuck_notes[place]
             .iter()
             .filter(|&&ms| {
                 let t = ms as f32 / 1000.0;
-                let alive = recs.get(self.index(ms)).is_some_and(|r| r.alive);
+                let alive = recs.get(run.index(ms)).is_some_and(|r| r.alive);
                 alive && !eps.iter().any(|e| t >= e.t0 - 1.0 && t <= e.t1 + 1.0)
             })
             .count() as u32;
@@ -537,7 +518,7 @@ impl OwnerTally {
     /// The verticality counts at the end: certain drops and climbs of 1.5 m or more a kilometre
     /// walked by the bots (the players' in the line of text), and the share of the bots' time
     /// above the players' 75th percentile height on the map.
-    pub(super) fn vertical_part(&self, game: &Game) -> Part {
+    fn vertical_part(&self, run: &Run, game: &Game) -> Part {
         let grid = &game.world.grid;
         let level = PLAYERS_VERT
             .iter()
@@ -545,7 +526,7 @@ impl OwnerTally {
         let (mut drops, mut climbs, mut km) = (0u32, 0u32, 0f64);
         let (mut high, mut alive) = (0u64, 0u64);
         let budget = VERT_WALK_MPS * VERT_SAMPLE_TICKS as f32 * TICK_S + VERT_WALK_SLACK_M;
-        for recs in self.recs.iter().enumerate().filter(|&(p, _)| self.is_bot[p]).map(|(_, r)| r) {
+        for recs in run.recs.iter().enumerate().filter(|&(p, _)| run.is_bot[p]).map(|(_, r)| r) {
             for r in recs.iter().filter(|r| r.alive) {
                 alive += 1;
                 high += u64::from(level.is_some_and(|&(_, p75, _)| r.feet.y >= p75));
@@ -594,8 +575,8 @@ impl OwnerTally {
     }
 
     /// The moving counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    pub(super) fn moving_part(&self, game: &Game, presses: &[Press], scale: &Scale) -> Part {
-        let n = self.recs.len();
+    fn moving_part(&self, run: &Run, game: &Game, presses: &[Press], scale: &Scale) -> Part {
+        let n = run.recs.len();
         let tick_s = scale.tick_s;
         let per_min = |x: f64| scale.per_min(x);
         let pct = Scale::pct;
@@ -604,7 +585,7 @@ impl OwnerTally {
         let mut idle: BTreeMap<String, f64> = BTreeMap::new();
         let (mut idle_s, mut drops) = (0u32, [0u32; 2]);
         let (mut uturns, mut takes_moving) = (0u32, 0u32);
-        for (place, recs) in self.recs.iter().enumerate() {
+        for (place, recs) in run.recs.iter().enumerate() {
             for r in recs.iter().filter(|r| r.alive && r.calm && !r.carrying) {
                 if r.keys & WALK_KEYS != 0 {
                     calm_walk += 1;
@@ -618,7 +599,7 @@ impl OwnerTally {
                 if streak.len() >= IDLE_S {
                     idle_s += streak.len() as u32;
                     for &p in streak.iter() {
-                        *idle.entry(self.plays[usize::from(p)].clone()).or_default() += 1.0;
+                        *idle.entry(run.plays[usize::from(p)].clone()).or_default() += 1.0;
                     }
                 }
                 streak.clear();
@@ -642,8 +623,8 @@ impl OwnerTally {
                 }
             }
             flush(&mut streak, &mut idle);
-            for &t in &self.moving.takes[place] {
-                let i = self.index(t);
+            for &t in &self.takes[place] {
+                let i = run.index(t);
                 if i < UTURN_TICKS || i + UTURN_TICKS >= recs.len() {
                     continue;
                 }
@@ -678,7 +659,7 @@ impl OwnerTally {
         };
         for a in 0..n {
             for b in a + 1..n {
-                let (ra, rb) = (&self.recs[a], &self.recs[b]);
+                let (ra, rb) = (&run.recs[a], &run.recs[b]);
                 let len = ra.len().min(rb.len());
                 let same = game.bodies[a].team == game.bodies[b].team;
                 if same {
@@ -731,7 +712,7 @@ impl OwnerTally {
                                 still_eps += 1;
                             }
                             last_still = Some(k);
-                            if counts(x.play, &self.plays) && counts(y.play, &self.plays) {
+                            if counts(x.play, &run.plays) && counts(y.play, &run.plays) {
                                 moved_ticks += 1;
                                 if last_moved.is_none_or(|l| k > l + TPS / 2) {
                                     moved_eps += 1;
@@ -751,11 +732,11 @@ impl OwnerTally {
         let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
         let mut pre = PreCounts::default();
         let mut blips = 0u32;
-        for place in (0..n).filter(|&p| self.is_bot[p]) {
-            let (eps, b) = self.stuck_episodes(place, &teams, presses);
+        for place in (0..n).filter(|&p| run.is_bot[p]) {
+            let (eps, b) = self.stuck_episodes(run, place, &teams, presses);
             blips += b;
             for e in eps {
-                pre.add(self, e.cause, place, e.k0);
+                pre.add(run, e.cause, place, e.k0);
                 for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
                     let c = map.entry(name).or_default();
                     c.0 += 1;
@@ -896,9 +877,9 @@ pub(crate) fn a_take_that_turns_a_walking_bot_back_is_a_u_turn() {
         put(game, 1, x1, z1, key::FORWARD);
         vec![bot_now(), bot_now()]
     });
-    let t = tally.first_tick + 50 * TICK_MS;
-    tally.moving.takes[0].push(t);
-    tally.moving.takes[1].push(t);
+    let t = tally.run.first_tick + 50 * TICK_MS;
+    tally.topic::<MoveCounts>().takes[0].push(t);
+    tally.topic::<MoveCounts>().takes[1].push(t);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["takes_moving"], 2);
     assert_eq!(json["uturns"], 1, "{json}");
@@ -964,11 +945,11 @@ pub(crate) fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_caus
         nows[3].as_mut().unwrap().step = Some("Hold".to_owned());
         nows
     });
-    let fired = tally.time_of(150);
-    tally.moving.stuck_notes[4].push(fired);
+    let fired = tally.run.time_of(150);
+    tally.run.stuck_notes[4].push(fired);
     // Bot 1's watch fires in its 2 s push: a blip.
-    let fired = tally.time_of(20);
-    tally.moving.stuck_notes[1].push(fired);
+    let fired = tally.run.time_of(20);
+    tally.run.stuck_notes[1].push(fired);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["stuck_by"]["push"][0], 1, "{json}");
     assert_eq!(json["stuck_by"]["stand"][0], 1, "{json}");
@@ -1031,7 +1012,7 @@ pub(crate) fn a_drop_off_a_walled_plateau_and_a_climb_onto_it_are_counted_a_kilo
     let world = super::super::soak_world_with(&plateau());
     let mut game = Game::new(world, &[0, 0], 1, None, None);
     let mut tally = OwnerTally::new(2);
-    tally.is_bot = vec![true, true];
+    tally.run.is_bot = vec![true, true];
     play(&mut game, &mut tally, 2 * VERT_SAMPLE_TICKS + 1, |k, game| {
         let second = k / VERT_SAMPLE_TICKS;
         // Bot 0 on the plateau, then dropped to the field beside it, walking east.

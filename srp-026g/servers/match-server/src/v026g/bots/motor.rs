@@ -42,6 +42,7 @@ use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
 use super::path::{Leap, Route};
 use super::rng::Rng;
+use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
 
 /// The look ahead is not shortened below this, metres.
@@ -108,7 +109,7 @@ pub struct Feel {
     /// floors the reckoning walked about the body, or the route ahead;
     /// from a rough floor's unevenness to a step and a half (the grid
     /// walks up 0.6 m a cell) …
-    pub hop_rise_m: (f32, f32),
+    pub hop_rise_m: Span,
     /// … within this, metres along the way.
     pub hop_look_m: f32,
     /// No hop while the heading is still this far from the way (a turn,
@@ -118,14 +119,19 @@ pub struct Feel {
     /// At most one hop in this, seconds: a few seconds, never spammy
     /// (a player's once a minute is mostly over things the bot's route
     /// jumps at its jump links) …
-    pub hop_every_s: f32,
+    pub hop_every_s: Positive,
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
     /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
     /// to a stop on a lip's floors; 0 is off (the default: it is switched on by the bench's trains).
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
-    pub lip_look_ahead_m: f32,
+    pub lip_look_ahead_m: Metres,
+    /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
+    /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
+    /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
+    /// link of the grid (up to `Body::max_jump`, 1.05).
+    pub carrier_jump_m: Option<Positive>,
 }
 
 impl Default for Feel {
@@ -151,13 +157,14 @@ impl Default for Feel {
             look_turn: 1.1,
             hop_behind_m: 1.0,
             hop_behind_share: 0.2,
-            hop_rise_m: (0.25, 0.9),
+            hop_rise_m: Span::of(0.25, 0.9),
             hop_look_m: 1.5,
             hop_max_turn: 0.35,
-            hop_every_s: 4.0,
+            hop_every_s: Positive::of(4.0),
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
-            lip_look_ahead_m: 0.0,
+            lip_look_ahead_m: Metres::of(0.0),
+            carrier_jump_m: None,
         }
     }
 }
@@ -1083,7 +1090,7 @@ impl Motor {
         }
         let cooled = self
             .hopped
-            .is_none_or(|at| self.clock.wrapping_sub(at) as f32 * TICK_S >= feel.hop_every_s);
+            .is_none_or(|at| self.clock.wrapping_sub(at) as f32 * TICK_S >= feel.hop_every_s.get());
         let jumped = self
             .jump_try
             .and_then(|jump| jump.pressed)
@@ -1147,7 +1154,7 @@ impl Motor {
     /// again after a world may have taken the reckoning up the lip
     /// already), or the route's own heights ahead.
     fn rises(&self, route: &Route, s: f32, feet: Vec3) -> bool {
-        let (low, high) = self.feel.hop_rise_m;
+        let (low, high) = self.feel.hop_rise_m.get();
         let look = self.feel.hop_look_m;
         let within = |rise: f32| rise >= low && rise <= high;
         let base = route.point_at(s).y;
@@ -2211,7 +2218,7 @@ mod tests {
         let jumps = reckoned(&mut motor, &mut route, lip, caught(0.0), 240, false);
         // A world every 1.5 s: the first after the cool-down hops.
         assert_eq!(jumps, [30, 120, 210]);
-        let every = (feel.hop_every_s / TICK_S) as usize;
+        let every = (feel.hop_every_s.get() / TICK_S) as usize;
         assert!(jumps.windows(2).all(|w| w[1] - w[0] >= every), "{jumps:?}");
     }
 

@@ -42,7 +42,7 @@
 
 use std::sync::OnceLock;
 
-use survarium::v026g::loadouts::{BOT_POCKETS, QUICK_USE_FIRST_BIT};
+use survarium::v026g::loadouts::QUICK_USE_FIRST_BIT;
 
 use super::*;
 use crate::v026g::bots::stock::{Drug, Reading, Readings};
@@ -306,7 +306,7 @@ pub(crate) struct Heal {
 
 /// The drugs of every bot kit ([`BOT_POCKETS`]), the game's: all in store.
 fn standard_kit() -> Vec<Slot> {
-    BOT_POCKETS
+    crate::v026g::bots::stock::standard_pockets()
         .iter()
         .filter_map(|item| {
             let drug = Drug::of_name(item.name)?;

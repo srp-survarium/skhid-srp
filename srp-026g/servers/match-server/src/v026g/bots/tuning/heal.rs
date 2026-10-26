@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::check;
+use super::{check, Check};
 
 /// The consumable play (`plays/heal.rs`, play 22): one rule for the medkit,
 /// the bandages and the antitoxin, from the best players' numbers
@@ -16,6 +16,17 @@ pub struct HealTuning {
     /// drugs of the kit counted for the match from the worlds (`stock.rs`), and, with `interrupt`, the reflex's
     /// habit. The bench's stand-in has the drugs only with it on (`standin_heal::model_on`).
     pub on: bool,
+    /// The bandage habit, **off by default** (needs `on`): the pain pool counts as a need of its own for the
+    /// kit's bandages, so a bot presses them after a medkit when its pain pool is low, or alone when the body
+    /// is full (the owner, 2026-10-26: "bots that carry bandages use them"). The medkit gives no pain
+    /// (`resources.db` rev 32: the bandages give pain +0.35, body +0.35, head +0.14, full limbs; 1 s delay,
+    /// 1 s active), and in the pools run the team kills of the graded rule came on a pain pool under 0.6 (20
+    /// of 33 lethal hits). Off, the pain weighs `weights.pain` (0.1: never alone a need).
+    pub bandages: bool,
+    /// With `bandages` on, the pain pool's weight in a need, in place of `weights.pain`: 0.4 makes a pain
+    /// pool under about 0.62 a need of `start_need` (0.15). The owner's "pain under 0.6" is the line; the
+    /// weight is a GUESS that reaches it.
+    pub bandage_pain_weight: f32,
     /// A need under this scores nothing: a body at 0.85 is not hurt enough
     /// for a unit of the kit (the humans' 79 % under 0.8 is need 0.2).
     pub start_need: f32,
@@ -75,10 +86,22 @@ impl Default for NeedWeights {
     }
 }
 
+impl HealTuning {
+    /// The weights a need is reckoned with: the tuning's, the pain's own with the bandage habit on.
+    pub fn weights_in_use(&self) -> NeedWeights {
+        NeedWeights {
+            pain: if self.bandages { self.bandage_pain_weight } else { self.weights.pain },
+            ..self.weights
+        }
+    }
+}
+
 impl Default for HealTuning {
     fn default() -> Self {
         Self {
             on: false,
+            bandages: false,
+            bandage_pain_weight: 0.4,
             start_need: 0.15,
             urgent_need: 0.2,
             weights: NeedWeights::default(),
@@ -91,24 +114,27 @@ impl Default for HealTuning {
     }
 }
 
-pub(super) fn validate(heal: &HealTuning) -> Result<(), String> {
-    let w = &heal.weights;
-    check(
-        (0.0..1.0).contains(&heal.start_need) && heal.start_need <= heal.urgent_need,
-        "heal.start_need",
-    )?;
-    check(heal.urgent_need <= 1.0, "heal.urgent_need")?;
-    check(
-        [w.body, w.head, w.legs, w.hands, w.pain, w.infection]
-            .iter()
-            .all(|w| (0.0..=1.0).contains(w)),
-        "heal.weights",
-    )?;
-    check(
-        heal.cover_m >= 0.0 && heal.enemy_m >= 0.0 && heal.cover_step_ms <= 5_000,
-        "heal.cover_*",
-    )?;
-    check((0.0..=10.0).contains(&heal.walk_mps), "heal.walk_mps")
+impl Check for HealTuning {
+    fn check(&self) -> Result<(), String> {
+        let w = &self.weights;
+        check(
+            (0.0..1.0).contains(&self.start_need) && self.start_need <= self.urgent_need,
+            "heal.start_need",
+        )?;
+        check(self.urgent_need <= 1.0, "heal.urgent_need")?;
+        check(
+            [w.body, w.head, w.legs, w.hands, w.pain, w.infection]
+                .iter()
+                .all(|w| (0.0..=1.0).contains(w)),
+            "heal.weights",
+        )?;
+        check(
+            self.cover_m >= 0.0 && self.enemy_m >= 0.0 && self.cover_step_ms <= 5_000,
+            "heal.cover_*",
+        )?;
+        check((0.0..=1.0).contains(&self.bandage_pain_weight), "heal.bandage_pain_weight")?;
+        check((0.0..=10.0).contains(&self.walk_mps), "heal.walk_mps")
+    }
 }
 
 #[cfg(test)]

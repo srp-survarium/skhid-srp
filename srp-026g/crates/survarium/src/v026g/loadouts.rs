@@ -38,9 +38,11 @@
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
 
+use super::bot_skills::BotSkillTier;
 use super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::item_params;
 use super::match_msgs::static_info::MatchProfile;
+use super::skills::modifier_index;
 
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
@@ -67,6 +69,10 @@ pub struct SlotItem {
     /// (`amount_in_storage`, the client's refill of the slot at each spawn:
     /// [`BOT_AMMO_LIVES`]); `count` unless set.
     pub stored: u32,
+    /// The modifications (upgrades) the item carries, by
+    /// [`modifications`](super::modifications) id: none for a player's
+    /// item here, the few of [`BOT_UPGRADES`] for a bot's.
+    pub mods: &'static [u32],
 }
 
 /// One loadout: its items by slot.
@@ -101,6 +107,7 @@ impl Loadout {
                     dict_id: item.dict_id,
                     count,
                     stored: count,
+                    mods: &[],
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -255,6 +262,8 @@ pub struct BotKitItem {
     pub count: u32,
     /// The bit of the input's `actions_mask` that uses it, if a key does.
     pub input_bit: Option<u8>,
+    /// The modifications it carries ([`SlotItem::mods`]).
+    pub mods: &'static [u32],
 }
 
 const fn kit_item(name: &'static str, slot: u8, count: u32, input_bit: Option<u8>) -> BotKitItem {
@@ -263,6 +272,7 @@ const fn kit_item(name: &'static str, slot: u8, count: u32, input_bit: Option<u8
         slot,
         count,
         input_bit,
+        mods: &[],
     }
 }
 
@@ -330,11 +340,109 @@ pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 /// for quick use.
 pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
 
-/// What every kit of the match server's own bots has in its pockets
-/// (`lobby-server` `play::server_bot`), whatever its tier and role:
-/// medkits, the radio and grenades, a pocket's worth of each. The role's
-/// armour opens three pockets of two in every tier ([`pockets`]).
+/// Two bandages (`bandages`, `drugs`, item level 1, 0.1 kg; with the
+/// rev 32 patch of `resources.db` one gives pain +0.35, body +0.35, head
+/// +0.14 and full limbs, which the medkit does not: it gives no pain) in
+/// the second pocket of [`bot_pockets`]: quick use 2, the second filled
+/// pocket that is no booster ([`QUICK_USE_ORDER`]). The bandages do
+/// nothing until the bot's fighting uses their key.
+pub const BOT_BANDAGES: BotKitItem = kit_item("bandages", 14, 2, Some(QUICK_USE_FIRST_BIT + 1));
+
+/// Two bear traps (`base_trap`, `trap`, item level 1, 20 silver, 0.8 kg;
+/// `docs/notes/bear_traps.md`) in the third pocket of [`bot_pockets`], for
+/// the roles that place them ([`BotRole::carries_traps`]). A trap is placed
+/// on the **release** of its quick-use bit (a one-tick pulse is one), and
+/// the bit is `QUICK_USE_FIRST_BIT` + (its rank among the kit's filled
+/// pockets, boosters not counted) - 1: the medkit is 1, the bandages 2, so
+/// the trap is **3** (PROVEN on 519 placements of the live recordings, no
+/// exception; the test below derives it with the rule).
+pub const BOT_TRAP: BotKitItem = kit_item("base_trap", 15, 2, Some(QUICK_USE_FIRST_BIT + 2));
+
+/// Whether the bots carry the owner's kit of 2026-10-26 (bandages and
+/// traps in the pockets, the gear that opens a fourth, the extra ammo bag
+/// of skill 109): `SRP_BOT_KIT` set to `1`, `on` or `true`; **off unless
+/// set**: [`BOT_POCKETS`], the old gear and skills. Read once.
+pub fn new_kit() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        std::env::var("SRP_BOT_KIT")
+            .map(|value| matches!(value.trim(), "1" | "on" | "true"))
+            .unwrap_or(false)
+    })
+}
+
+/// What every kit of the match server's own bots had in its pockets before
+/// the owner's kit ([`new_kit`], off unless set: still these), whatever its
+/// tier and role: medkits, the radio and grenades, a pocket's worth of each. The
+/// role's armour opens three pockets of two in every tier ([`pockets`]).
+/// [`bot_pockets`] is what they carry now.
 pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
+
+/// Whether the bots' armour carries [`BOT_UPGRADES`]: `SRP_BOT_UPGRADES`
+/// set to `1`, `on` or `true`; **off unless set**: the plain armour. Read
+/// once.
+pub fn upgrades_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        std::env::var("SRP_BOT_UPGRADES")
+            .map(|value| matches!(value.trim(), "1" | "on" | "true"))
+            .unwrap_or(false)
+    })
+}
+
+/// The upgrades on the pieces the bots wear: `(tier, role, profile slot,
+/// modification ids)`, the owner's SAFE SET of 2026-10-26: weight (type 18,
+/// `1060 + strength`), carry capacity (type 24, `1120 + s`: +1 to +5 kg),
+/// movement speed (type 23, `1110 + s`: +1 to +5 %) and stamina spent
+/// (type 28, `1160 + s`: -2 to -10 %), never an aim time, a range or a
+/// bolt's chamber time (a mod's strength `s` is 0 to 4). The bots of the
+/// match server read the speed and the carry from the profile
+/// ([`super::bot_skills::item_added`]); the clients apply every one.
+///
+/// **What a bot has follows what the players of its tier have** (402 live
+/// matches, mean strength of the upgrade where a piece has it): movement
+/// speed on 4 / 6 / 12 % of the pieces (strength 1.8 / 2.7 / 2.7), gear
+/// weight on 6 / 10 / 15 % (0.8 / 1.6 / 1.8), carry on 4 / 3 / 6 % (1.9 /
+/// 1.5 / 2.2), stamina spent on 2 / 4 / 6 %. One upgrade a bot at 4-5, two
+/// at 9-10 and 13-15; the lighter roles (flanker, rusher) take speed (the
+/// torso) and stamina (the boots), the heavier (support, camper) carry (the
+/// legs) and weight (the torso), which gives back some of what their kit
+/// weighs. The slots, not the pieces, so that a swap of a piece for
+/// another that takes them keeps the row (the test checks every one fits).
+pub const BOT_UPGRADES: [(BotTier, BotRole, u8, &[u32]); 20] = [
+    (BotTier::Low, BotRole::Flanker, 2, &[1112]),
+    (BotTier::Low, BotRole::Rusher, 2, &[1112]),
+    (BotTier::Low, BotRole::Support, 2, &[1061]),
+    (BotTier::Low, BotRole::Camper, 2, &[1061]),
+    (BotTier::Mid, BotRole::Flanker, 2, &[1113]),
+    (BotTier::Mid, BotRole::Flanker, 6, &[1162]),
+    (BotTier::Mid, BotRole::Rusher, 2, &[1113]),
+    (BotTier::Mid, BotRole::Rusher, 6, &[1162]),
+    (BotTier::Mid, BotRole::Support, 2, &[1062]),
+    (BotTier::Mid, BotRole::Support, 4, &[1121]),
+    (BotTier::Mid, BotRole::Camper, 2, &[1062]),
+    (BotTier::Mid, BotRole::Camper, 4, &[1121]),
+    (BotTier::High, BotRole::Flanker, 2, &[1113]),
+    (BotTier::High, BotRole::Flanker, 6, &[1162]),
+    (BotTier::High, BotRole::Rusher, 2, &[1113]),
+    (BotTier::High, BotRole::Rusher, 6, &[1162]),
+    (BotTier::High, BotRole::Support, 2, &[1062]),
+    (BotTier::High, BotRole::Support, 4, &[1122]),
+    (BotTier::High, BotRole::Camper, 2, &[1062]),
+    (BotTier::High, BotRole::Camper, 4, &[1122]),
+];
+
+/// The modifications a bot of `role` in `tier` wears on the piece in
+/// `slot` ([`BOT_UPGRADES`]) when they are `on`, else none.
+pub fn bot_upgrades_with(tier: BotTier, role: BotRole, slot: u8, on: bool) -> &'static [u32] {
+    if !on {
+        return &[];
+    }
+    BOT_UPGRADES
+        .iter()
+        .find(|&&(of_tier, of_role, of_slot, _)| (of_tier, of_role, of_slot) == (tier, role, slot))
+        .map_or(&[], |&(.., mods)| mods)
+}
 
 /// What a role wears in a tier besides [`BOT_POCKETS`]: weapon 1, the
 /// ammo it fires (as many rounds as the kit's ammo bags hold:
@@ -351,22 +459,221 @@ pub struct RoleGear {
     pub armour: &'static [(u8, &'static str)],
 }
 
+impl RoleGear {
+    /// Whether the game data in use has every item of it: a kit of an item
+    /// the data lacks cannot be made ([`RusherKit::worn_in`]).
+    pub fn in_data(&self) -> bool {
+        let dictionary = Dictionary::shared();
+        [self.weapon, self.ammo]
+            .into_iter()
+            .chain(self.armour.iter().map(|&(_, name)| name))
+            .all(|name| {
+                dictionary
+                    .item_named(name)
+                    .is_some_and(|item| item_params::item_params(item.dict_id).is_some())
+            })
+    }
+}
+
 /// A tier's [`RoleGear`] of each role.
+///
+/// The rusher is a choice ([`RusherKit`]): `rusher` is the table as it was
+/// ([`RusherKit::Control`], what a bot wears unless the operator says
+/// otherwise), `rusher_options` the other kits of a tier that has them (the
+/// lowest has none: its one table is [`RusherKit::Control`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TierGear {
     pub flanker: RoleGear,
     pub support: RoleGear,
     pub rusher: RoleGear,
+    pub rusher_options: &'static [(RusherKit, RoleGear)],
     pub camper: RoleGear,
 }
 
 impl TierGear {
+    /// The role's gear, the rusher's being the old table ([`RusherKit::Control`]).
     pub fn of(&self, role: BotRole) -> &RoleGear {
         match role {
             BotRole::Flanker => &self.flanker,
             BotRole::Support => &self.support,
             BotRole::Rusher => &self.rusher,
             BotRole::Camper => &self.camper,
+        }
+    }
+
+    /// The gear of the tier's rusher when it wears `kit`; the old table's
+    /// ([`RusherKit::Control`]) for one the tier has no table of.
+    pub fn rusher_gear(&self, kit: RusherKit) -> &RoleGear {
+        self.rusher_options
+            .iter()
+            .find(|(each, _)| *each == kit)
+            .map_or(&self.rusher, |(_, gear)| gear)
+    }
+
+    /// The role's gear when the tier's rusher wears `kit`.
+    pub fn of_kit(&self, role: BotRole, kit: RusherKit) -> &RoleGear {
+        match role {
+            BotRole::Rusher => self.rusher_gear(kit),
+            _ => self.of(role),
+        }
+    }
+}
+
+/// What the rusher of the higher tiers wears. The bots' shotgun lost fights
+/// (a K/D of 0.52 at 13-15 and 0.55 at 9-10, against 1.08 to 1.48 for the
+/// other roles) and no player of kit level 9-10 carries one, so the rusher
+/// can wear an SMG of its tier ([`TIER_9_10`], [`TIER_13_15`]); the kits are
+/// the arms to bench it with. The default is the old table
+/// ([`RusherKit::Control`]) until a bench train turns another on.
+/// Chosen where the profiles are made ([`RusherKits`]), so what a bot
+/// carries is what the match server's bot fires.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum RusherKit {
+    /// The tier's SMG with its helmet: `fn_p90` at 13-15, `sr2m` at 9-10.
+    Smg,
+    /// The other SMG: `kriss_vector` at 13-15, `ump45` at 9-10.
+    Alt,
+    /// The SPAS-12 with the SMG kit's helmet, firing slugs.
+    Slug,
+    /// The SPAS-12 with buckshot, with the SMG kit's helmet.
+    Helmet,
+    /// The table as it was: the SPAS-12 with buckshot and the old helmet
+    /// (`edge_helmet_3` at 9-10, none at 13-15). The default: the other kits
+    /// are switched on by the setting once a bench train has chosen them.
+    #[default]
+    Control,
+}
+
+impl RusherKit {
+    pub const ALL: [RusherKit; 5] = [
+        RusherKit::Smg,
+        RusherKit::Alt,
+        RusherKit::Slug,
+        RusherKit::Helmet,
+        RusherKit::Control,
+    ];
+
+    /// The word of the settings (`SRP_PVB_RUSHER_KIT`, `SRP_BENCH_RUSHER`).
+    pub fn name(self) -> &'static str {
+        match self {
+            RusherKit::Smg => "smg",
+            RusherKit::Alt => "alt",
+            RusherKit::Slug => "slug",
+            RusherKit::Helmet => "helmet",
+            RusherKit::Control => "control",
+        }
+    }
+
+    pub fn parse(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kit| kit.name() == word)
+    }
+
+    /// The kit a rusher of `tier` wears when this is chosen: this one if the
+    /// game data in use has every item of it, else [`RusherKit::Control`],
+    /// the table every data has (the repo's test data lacks `fn_p90` and
+    /// `kriss_vector`: the 0.29a3 weapons come with the live patches, and the
+    /// first use says so in the log). The lowest tier has only that table.
+    pub fn worn_in(self, tier: BotTier) -> RusherKit {
+        let gear = tier.gear();
+        if self == RusherKit::Control || gear.rusher_options.is_empty() {
+            return RusherKit::Control;
+        }
+        if gear.rusher_gear(self).in_data() {
+            return self;
+        }
+        static WARNED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let bit = 1_u32 << (tier as u32 * RusherKit::ALL.len() as u32 + self as u32);
+        if WARNED.fetch_or(bit, std::sync::atomic::Ordering::Relaxed) & bit == 0 {
+            log::warn!(
+                "The {tier} rusher's `{}` kit has an item the game data lacks; the rusher wears \
+                 the old table",
+                self.name()
+            );
+        }
+        RusherKit::Control
+    }
+}
+
+/// The rusher kit of each tier that has a choice: the setting of the lobby
+/// (`SRP_PVB_RUSHER_KIT`) and of the real-map bench (`SRP_BENCH_RUSHER`),
+/// `control` (the old table) for both tiers unless given: the switch is off
+/// by default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RusherKits {
+    pub mid: RusherKit,
+    pub high: RusherKit,
+}
+
+impl RusherKits {
+    /// The same kit in both tiers.
+    pub fn both(kit: RusherKit) -> Self {
+        Self {
+            mid: kit,
+            high: kit,
+        }
+    }
+
+    /// `kit` (both tiers) or `9-10=kit,13-15=kit` (a tier left out keeps
+    /// the default).
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let text = text.trim();
+        let kit = |word: &str| {
+            RusherKit::parse(word.trim()).ok_or_else(|| {
+                format!(
+                    "`{word}` is no rusher kit: {}",
+                    RusherKit::ALL.map(RusherKit::name).join(", ")
+                )
+            })
+        };
+        if !text.contains('=') {
+            return kit(text).map(Self::both);
+        }
+        let mut kits = Self::default();
+        for pair in text.split(',') {
+            let (tier, word) = pair
+                .split_once('=')
+                .ok_or_else(|| format!("`{pair}`: tier=kit"))?;
+            match tier.trim() {
+                "9-10" => kits.mid = kit(word)?,
+                "13-15" => kits.high = kit(word)?,
+                other => return Err(format!("`{other}` is no tier with a choice: 9-10, 13-15")),
+            }
+        }
+        Ok(kits)
+    }
+
+    /// The choice for `tier`: the lowest has none (its one table is
+    /// [`RusherKit::Control`]).
+    pub fn of(self, tier: BotTier) -> RusherKit {
+        match tier {
+            BotTier::Low => RusherKit::Control,
+            BotTier::Mid => self.mid,
+            BotTier::High => self.high,
+        }
+    }
+
+    /// The kit the rusher of `tier` wears with this choice and the game
+    /// data in use ([`RusherKit::worn_in`]).
+    pub fn worn(self, tier: BotTier) -> RusherKit {
+        self.of(tier).worn_in(tier)
+    }
+}
+
+/// What a bot wears besides its role: its tier and the kit that tier's
+/// rusher wears ([`bot_equipment_of`] reads both from its profile).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BotEquipment {
+    pub tier: BotTier,
+    pub rusher: RusherKit,
+}
+
+impl BotEquipment {
+    /// `tier` with the kit `kits` makes its rusher wear in the game data in
+    /// use.
+    pub fn of(tier: BotTier, kits: RusherKits) -> Self {
+        Self {
+            tier,
+            rusher: kits.worn(tier),
         }
     }
 }
@@ -420,6 +727,7 @@ pub const TIER_4_5: TierGear = TierGear {
             (6, "scav_boots_1"),
         ],
     },
+    rusher_options: &[],
     camper: RoleGear {
         weapon: "rem_700",
         ammo: "ammo_7.62x51_ap",
@@ -432,20 +740,59 @@ pub const TIER_4_5: TierGear = TierGear {
     },
 };
 
+/// The armour of the 9-10 rusher's kits but the old table's: that of
+/// [`RusherKit::Control`] with the helmet `ren_helmet_2` (level 9) in place
+/// of `edge_helmet_3` (level 8) (the torso of the owner's kit, as the
+/// table's: `worn` gives the legacy piece without it).
+const RUSHER_ARMOUR_9_10: &[(u8, &str)] = &[
+    (0, "ren_helmet_2"),
+    (2, "edge_hunter_torso_1"),
+    (3, "bm_back_1"),
+    (4, "bm_legs_5"),
+    (5, "edge_gloves_2"),
+    (6, "edge_boots_2"),
+];
+
+/// The armour of the 13-15 rusher's kits but the old table's: that of
+/// [`RusherKit::Control`] with the helmet `edge_helmet_5` (the backpack of
+/// the owner's kit, as the table's).
+const RUSHER_ARMOUR_13_15: &[(u8, &str)] = &[
+    (0, "edge_helmet_5"),
+    (2, "edge_torso_5"),
+    (3, "bm_back_1"),
+    (4, "ren_legs_5"),
+    (5, "edge_gloves_5"),
+    (6, "edge_boots_6"),
+];
+
 /// Bots against players of equipment level 6 to 10: items of level 10 at
 /// most, each kit of level 9 or 10 (`matchmaking::kit_level`: its highest
 /// item), none premium. The pockets as in [`TIER_4_5`]: `bm_back_1` and a
 /// piece with `pocket_slots_modifier` +1 (`ren_torso_3`, `ren_torso_2`
-/// or `bm_legs_5`).
+/// or `bm_legs_5`). Of the owner's kit ([`new_kit`]) the rusher's torso
+/// (`edge_hunter_torso_1`, level 6, 6 kg) and the support's (`ren_torso_3`,
+/// level 8, 6.5 kg) open a fourth pocket each; the other two roles keep
+/// three.
 /// - Flanker: the PP-2000 (`pp2000`, SMG, level 9, the highest SMG; 20
 ///   rounds, 750 a minute) with `ammo_9x19p_7n31` (level 9, the only
 ///   ammo it fires); Renaissance's `ren_torso_3` (level 8, 6.5 kg, a
 ///   pocket more) and light Edge pieces of level 8-9.
 /// - Support: the AKMN (`akmn`, assault rifle, level 6; the top players'
-///   pick at these levels) with `ammo_7.62x39_7n23` (level 9); Edge's `edge_torso_2` (level 9, 8 kg,
-///   an ammo bag more) and Renaissance's helmet and gloves of level 9.
-/// - Rusher: the SPAS-12 (`spas_12`, level 7: no shotgun is higher) with
-///   buckshot; the armour makes the kit level 9 (`edge_boots_2`).
+///   pick at these levels) with `ammo_7.62x39_7n23` (level 9); Renaissance's
+///   `ren_torso_3` (level 8, 6.5 kg, a pocket more; Edge's `edge_torso_2`,
+///   an ammo bag more, before the owner's kit) and Renaissance's helmet and
+///   gloves of level 9.
+/// - Rusher ([`RusherKit`]): the table as it was, the SPAS-12 (`spas_12`,
+///   level 7) with buckshot (`ammo_12mm_buck`) and `edge_helmet_3`
+///   ([`RusherKit::Control`], the default; `edge_hunter_torso_1`, a pocket
+///   more, with the owner's kit, `edge_torso_3` before it). The kits a bench
+///   train can turn on: the SR-2M (`sr2m`, SMG, level 8, the SMG real players
+///   of kit level 6-10 carry most; 20 rounds) with `ammo_9x21` (level 8, 150
+///   rounds: three bags of 50), Renaissance's helmet `ren_helmet_2` (level 9,
+///   armour 0.4, the strongest that keeps the kit at level 9-10; the armour
+///   makes the kit level 9: `edge_boots_2`); `ump45` with `ammo_45acp` (the
+///   sweep's pick at this tier); the SPAS-12 with slugs (`ammo_12mm_slug`) or
+///   buckshot and the same helmet.
 /// - Camper: the SV-98 (`sv_98`, bolt-action sniper rifle, level 9: the
 ///   only sniper weapon of level 9-10; 10 rounds) with `ammo_7.62x54_7n1`
 ///   (level 9); Renaissance's pieces of level 8-9.
@@ -467,7 +814,7 @@ pub const TIER_9_10: TierGear = TierGear {
         ammo: "ammo_7.62x39_7n23",
         armour: &[
             (0, "ren_helmet_2"),
-            (2, "edge_torso_2"),
+            (2, "ren_torso_3"),
             (3, "bm_back_1"),
             (4, "bm_legs_5"),
             (5, "ren_gloves_1"),
@@ -479,13 +826,47 @@ pub const TIER_9_10: TierGear = TierGear {
         ammo: "ammo_12mm_buck",
         armour: &[
             (0, "edge_helmet_3"),
-            (2, "edge_torso_3"),
+            (2, "edge_hunter_torso_1"),
             (3, "bm_back_1"),
             (4, "bm_legs_5"),
             (5, "edge_gloves_2"),
             (6, "edge_boots_2"),
         ],
     },
+    rusher_options: &[
+        (
+            RusherKit::Smg,
+            RoleGear {
+                weapon: "sr2m",
+                ammo: "ammo_9x21",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
+        (
+            RusherKit::Alt,
+            RoleGear {
+                weapon: "ump45",
+                ammo: "ammo_45acp",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
+        (
+            RusherKit::Slug,
+            RoleGear {
+                weapon: "spas_12",
+                ammo: "ammo_12mm_slug",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
+        (
+            RusherKit::Helmet,
+            RoleGear {
+                weapon: "spas_12",
+                ammo: "ammo_12mm_buck",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
+    ],
     camper: RoleGear {
         weapon: "sv_98",
         ammo: "ammo_7.62x54_7n1",
@@ -502,17 +883,26 @@ pub const TIER_9_10: TierGear = TierGear {
 };
 
 /// Bots against players of equipment level 11 to 15: each kit of level 13
-/// to 15, none premium. The pockets: Edge's backpack `edge_back_5` (level
-/// 14, 4 kg, `pocket_slot_size_modifier` +1), its torso `edge_torso_5`
-/// (level 14, 10 kg, a pocket and an ammo bag more) and Renaissance's
-/// trousers `ren_legs_5` (level 14, 1.8 kg, a pocket more).
+/// to 15, none premium. The pockets: the Black Market backpack `bm_back_1`
+/// (level 3, 5 kg, a pocket and `pocket_slot_size_modifier` +1), Edge's
+/// torso `edge_torso_5` (level 14, 10 kg, a pocket and an ammo bag more) and
+/// Renaissance's trousers `ren_legs_5` (level 14, 1.8 kg, a pocket more):
+/// four pockets of two. (Edge's backpack `edge_back_5`, level 14, 4 kg, gave
+/// the pocket size only and an artefact slot: three pockets, before the
+/// owner's kit.)
 /// - Flanker: the SR-3M (`sr3m`, compact assault rifle, level 14; 20
 ///   rounds, 900 a minute; no SMG is above level 9) with `ammo_sp6`
 ///   (level 14, the only ammo it fires).
 /// - Support: the AK-12 (`ak_12`, assault rifle, level 15) with
 ///   `ammo_6.5x39` (level 15, the only ammo it fires).
-/// - Rusher: the SPAS-12 (level 7: no shotgun is higher) with buckshot,
-///   the lightest armour of the tier.
+/// - Rusher ([`RusherKit`]): the table as it was, the SPAS-12 (level 7)
+///   with buckshot and no helmet ([`RusherKit::Control`], the default). The
+///   kits a bench train can turn on: the P90 (`fn_p90`, SMG, level 14; 50
+///   rounds) with `ammo_5.7x28` (level 9, the only 5.7x28; 200 rounds: four
+///   bags of 50) and the helmet `edge_helmet_5` (level 14, armour 0.5), the
+///   lightest armour of the tier otherwise (the sweep's pick at this tier);
+///   `kriss_vector` with `ammo_45acp`; the SPAS-12 with slugs or buckshot
+///   and the same helmet.
 /// - Camper: the VSK-94 (`vsk_94`, the sniper category's marksman rifle,
 ///   level 14; 20 rounds) with `ammo_sp5` (level 12, the only ammo it
 ///   fires).
@@ -523,7 +913,7 @@ pub const TIER_13_15: TierGear = TierGear {
         armour: &[
             (0, "edge_helmet_4"),
             (2, "edge_torso_5"),
-            (3, "edge_back_5"),
+            (3, "bm_back_1"),
             (4, "ren_legs_5"),
             (5, "edge_gloves_5"),
             (6, "edge_boots_6"),
@@ -536,7 +926,7 @@ pub const TIER_13_15: TierGear = TierGear {
             (0, "edge_helmet_5"),
             (1, "ren_mask_5"),
             (2, "edge_torso_5"),
-            (3, "edge_back_5"),
+            (3, "bm_back_1"),
             (4, "ren_legs_5"),
             (5, "edge_gloves_5"),
             (6, "edge_boots_5"),
@@ -547,12 +937,46 @@ pub const TIER_13_15: TierGear = TierGear {
         ammo: "ammo_12mm_buck",
         armour: &[
             (2, "edge_torso_5"),
-            (3, "edge_back_5"),
+            (3, "bm_back_1"),
             (4, "ren_legs_5"),
             (5, "edge_gloves_5"),
             (6, "edge_boots_6"),
         ],
     },
+    rusher_options: &[
+        (
+            RusherKit::Smg,
+            RoleGear {
+                weapon: "fn_p90",
+                ammo: "ammo_5.7x28",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+        (
+            RusherKit::Alt,
+            RoleGear {
+                weapon: "kriss_vector",
+                ammo: "ammo_45acp",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+        (
+            RusherKit::Slug,
+            RoleGear {
+                weapon: "spas_12",
+                ammo: "ammo_12mm_slug",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+        (
+            RusherKit::Helmet,
+            RoleGear {
+                weapon: "spas_12",
+                ammo: "ammo_12mm_buck",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+    ],
     camper: RoleGear {
         weapon: "vsk_94",
         ammo: "ammo_sp5",
@@ -560,7 +984,7 @@ pub const TIER_13_15: TierGear = TierGear {
             (0, "edge_helmet_5"),
             (1, "ren_mask_5"),
             (2, "edge_torso_5"),
-            (3, "edge_back_5"),
+            (3, "bm_back_1"),
             (4, "ren_legs_5"),
             (5, "edge_gloves_5"),
             (6, "edge_boots_5"),
@@ -628,6 +1052,15 @@ impl BotTier {
         }
     }
 
+    /// The kits its rusher can wear ([`RusherKit`]): the lowest tier has
+    /// its one table.
+    pub fn rusher_kits(self) -> &'static [RusherKit] {
+        match self {
+            BotTier::Low => &[RusherKit::Control],
+            BotTier::Mid | BotTier::High => &RusherKit::ALL,
+        }
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             BotTier::Low => "4-5",
@@ -663,6 +1096,13 @@ impl BotRole {
         BotRole::Camper,
     ];
 
+    /// Whether this role's kits carry bear traps (flankers, rushers and
+    /// campers; the support keeps a grenade, the owner's of 2026-10-26),
+    /// when the owner's kit is on ([`new_kit`], off unless set).
+    pub fn carries_traps(self) -> bool {
+        self != BotRole::Support
+    }
+
     /// The name of the match server's personality.
     pub fn name(self) -> &'static str {
         match self {
@@ -688,8 +1128,9 @@ impl BotRole {
     /// whose ammo is spent has others full (the owner's words, 2026-10-16
     /// and 2026-10-23: at least two kits, three allowed, each with its own
     /// ammo). The SMG and the assault rifle back each other up; the
-    /// shotgun and the sniper weapon, slow to fire, get the two nearer
-    /// their range.
+    /// sniper weapon, slow to fire, gets the two nearer its range. The
+    /// rusher's weapon is whatever its kit is ([`RusherKit`]), also in the
+    /// flanker's third kit, which wears the flanker's armour.
     pub fn kit_roles(self) -> [BotRole; 3] {
         match self {
             BotRole::Flanker => [BotRole::Flanker, BotRole::Support, BotRole::Rusher],
@@ -697,6 +1138,12 @@ impl BotRole {
             BotRole::Rusher => [BotRole::Rusher, BotRole::Flanker, BotRole::Support],
             BotRole::Camper => [BotRole::Camper, BotRole::Support, BotRole::Flanker],
         }
+    }
+
+    /// Whether a kit of its bot is the rusher's ([`BotRole::kit_roles`]), so
+    /// the rusher's kit ([`RusherKit`]) changes what the bot carries.
+    pub fn wears_rusher_kit(self) -> bool {
+        self.kit_roles().contains(&BotRole::Rusher)
     }
 
     /// The role of a team's `k`-th bot (0 on): smooth weighted round
@@ -755,30 +1202,159 @@ pub fn ammo_max(ammo: &str, bags: u32) -> u32 {
     (bags / params.required_bags.max(1)) * params.clip_size
 }
 
-/// Every piece of the `k`-th kit (0 on) of a bot of `role` in `tier`:
+/// The ammo bags a bot of `tier` wearing `armour` has: [`ammo_bags`] and,
+/// with the owner's kit `new`, the one more of skill 109 that its tier's
+/// skills ([`BotSkillTier::modifiers_with`]) include.
+pub fn bot_ammo_bags<'a>(
+    tier: BotTier,
+    armour: impl IntoIterator<Item = &'a str>,
+    new: bool,
+) -> u32 {
+    let skills = BotSkillTier::for_gear_level(*tier.levels().end()).modifiers_with(new);
+    let bag = modifier_index("ammo_bags").expect("the ammo bags modifier");
+    ammo_bags(armour) + skills[bag].max(0.0) as u32
+}
+
+/// The pieces `role` wears with `equipment`, by profile slot: its table's
+/// ([`TierGear`], the rusher's by the kit its tier's rusher wears) with the
+/// owner's kit `new`, or the three pieces it replaced (`LEGACY_GEAR`)
+/// without.
+fn worn(equipment: BotEquipment, role: BotRole, new: bool) -> Vec<(u8, &'static str)> {
+    /// `(tier, role or every role, slot, piece of the owner's kit, piece
+    /// before it)`.
+    const LEGACY_GEAR: [(BotTier, Option<BotRole>, u8, &str, &str); 3] = [
+        (BotTier::High, None, 3, "bm_back_1", "edge_back_5"),
+        (
+            BotTier::Mid,
+            Some(BotRole::Rusher),
+            2,
+            "edge_hunter_torso_1",
+            "edge_torso_3",
+        ),
+        (
+            BotTier::Mid,
+            Some(BotRole::Support),
+            2,
+            "ren_torso_3",
+            "edge_torso_2",
+        ),
+    ];
+    let tier = equipment.tier;
+    let rusher = equipment.rusher.worn_in(tier);
+    let mut armour = tier.gear().of_kit(role, rusher).armour.to_vec();
+    if !new {
+        for &(of_tier, of_role, slot, now, before) in &LEGACY_GEAR {
+            if of_tier == tier && of_role.is_none_or(|each| each == role) {
+                for piece in armour.iter_mut().filter(|piece| *piece == &(slot, now)) {
+                    piece.1 = before;
+                }
+            }
+        }
+    }
+    armour
+}
+
+/// The pockets a bot of `role` fills when its armour opens `open` of them,
+/// the owner's kit of 2026-10-26: two medkits, two bandages, then two
+/// bear traps for the roles that place them ([`BotRole::carries_traps`]);
+/// the support has no traps and instead one RGD-5 where a fourth pocket
+/// is open. The radio, which works by being carried, takes the last pocket
+/// there is: the fourth, and the third of the support without a grenade.
+/// So the quick-use keys are the medkit's (rank 1), the bandages' (2) and
+/// the trap's (3), and the grenade is thrown with [`GRENADE_BIT`].
+pub fn bot_pockets(role: BotRole, open: u32) -> Vec<BotKitItem> {
+    let one_grenade = BotKitItem {
+        count: 1,
+        ..BOT_GRENADE
+    };
+    let wanted = match (role.carries_traps(), open) {
+        (true, 0..=3) => vec![BOT_MEDKIT, BOT_BANDAGES, BOT_TRAP],
+        (true, _) => vec![BOT_MEDKIT, BOT_BANDAGES, BOT_TRAP, BOT_RADIO],
+        (false, 0..=3) => vec![BOT_MEDKIT, BOT_BANDAGES, BOT_RADIO],
+        (false, _) => vec![BOT_MEDKIT, BOT_BANDAGES, one_grenade, BOT_RADIO],
+    };
+    wanted
+        .into_iter()
+        .zip(POCKET_SLOTS)
+        .map(|(item, slot)| BotKitItem { slot, ..item })
+        .collect()
+}
+
+/// The pockets `armour` opens ([`pockets`] of a kit not yet built).
+fn pockets_opened<'a>(armour: impl IntoIterator<Item = &'a str>) -> u32 {
+    let dictionary = Dictionary::shared();
+    let added: f32 = armour
+        .into_iter()
+        .filter_map(|name| dictionary.item_named(name))
+        .map(|item| default_modifier(item.dict_id, "pocket_slots_modifier"))
+        .sum();
+    (item_params::player().pocket_slots_count + added.max(0.0) as u32)
+        .min(POCKET_SLOTS.len() as u32)
+}
+
+/// Every piece of the `k`-th kit (0 on) of a bot of `role` with `equipment`
+/// (its tier, and the kit its tier's rusher wears: [`RusherKit::worn_in`]);
+/// [`bot_kit_items_with`], the owner's kit only if [`new_kit`] is on.
+pub fn bot_kit_items(equipment: BotEquipment, role: BotRole, k: usize) -> Vec<BotKitItem> {
+    bot_kit_items_in(equipment, role, k, new_kit(), upgrades_on())
+}
+
+/// [`bot_kit_items_in`] without upgrades.
+pub fn bot_kit_items_with(
+    equipment: BotEquipment,
+    role: BotRole,
+    k: usize,
+    new: bool,
+) -> Vec<BotKitItem> {
+    bot_kit_items_in(equipment, role, k, new, false)
+}
+
+/// Every piece of the `k`-th kit (0 on) of a bot of `role` with `equipment`:
 /// weapon 1 of [`BotRole::kit_roles`]`[k]` and its ammo, the most the
-/// kit's bags take, in [`BOT_AMMO_SLOTS`]; the role's own armour; then
-/// [`BOT_POCKETS`].
-pub fn bot_kit_items(tier: BotTier, role: BotRole, k: usize) -> Vec<BotKitItem> {
-    let own = tier.gear().of(role);
-    let arms = tier.gear().of(role.kit_roles()[k]);
-    let rounds = ammo_max(
-        arms.ammo,
-        ammo_bags(own.armour.iter().map(|&(_, name)| name)),
-    );
+/// kit's bags take, in [`BOT_AMMO_SLOTS`]; the role's own armour; then its
+/// pockets: [`bot_pockets`] with the owner's kit `new`, else
+/// [`BOT_POCKETS`] (and the armour and the bags it had); the armour wears
+/// [`BOT_UPGRADES`] if `upgrades`.
+pub fn bot_kit_items_in(
+    equipment: BotEquipment,
+    role: BotRole,
+    k: usize,
+    new: bool,
+    upgrades: bool,
+) -> Vec<BotKitItem> {
+    let tier = equipment.tier;
+    let rusher = equipment.rusher.worn_in(tier);
+    let arms = tier.gear().of_kit(role.kit_roles()[k], rusher);
+    let armour = worn(equipment, role, new);
+    let names = || armour.iter().map(|&(_, name)| name);
+    let rounds = ammo_max(arms.ammo, bot_ammo_bags(tier, names(), new));
     let mut items = vec![kit_item(arms.weapon, 7, 1, Some(WEAPON_1_BIT))];
     items.extend(
         BOT_AMMO_SLOTS
             .iter()
             .map(|&slot| kit_item(arms.ammo, slot, rounds, None)),
     );
-    items.extend(
-        own.armour
-            .iter()
-            .map(|&(slot, name)| kit_item(name, slot, 1, None)),
-    );
-    items.extend(BOT_POCKETS);
+    items.extend(armour.iter().map(|&(slot, name)| BotKitItem {
+        mods: bot_upgrades_with(tier, role, slot, upgrades),
+        ..kit_item(name, slot, 1, None)
+    }));
+    if new {
+        items.extend(bot_pockets(role, pockets_opened(names())));
+    } else {
+        items.extend(BOT_POCKETS);
+    }
     items
+}
+
+/// The grenades a kit starts a life with: the units of its grenade
+/// pockets.
+pub fn grenades_in(kit: &Loadout) -> u32 {
+    kit.items
+        .iter()
+        .filter(|item| POCKET_SLOTS.contains(&item.slot))
+        .filter(|item| item_params::item_params(item.dict_id).is_some_and(|p| p.kind == "grenade"))
+        .map(|item| item.count)
+        .sum()
 }
 
 fn bot_loadout(items: &[BotKitItem]) -> Loadout {
@@ -789,6 +1365,7 @@ fn bot_loadout(items: &[BotKitItem]) -> Loadout {
     .expect("the bot kit's items exist and fit their slots");
     for (slot, item) in loadout.items.iter_mut().zip(items) {
         slot.count = item.count;
+        slot.mods = item.mods;
         // The ammo's storage: [`BOT_AMMO_LIVES`] lives of it.
         slot.stored = if BOT_AMMO_SLOTS.contains(&item.slot) {
             item.count * BOT_AMMO_LIVES
@@ -799,67 +1376,85 @@ fn bot_loadout(items: &[BotKitItem]) -> Loadout {
     loadout
 }
 
-/// A bot of `role` in `tier`'s kits as loadouts, one for each of its
+/// A bot of `role` with `equipment`'s kits as loadouts with the owner's kit
+/// `new` or without ([`bot_kit_items_with`]), built each time.
+pub fn bot_kits_with(equipment: BotEquipment, role: BotRole, new: bool) -> [Loadout; 3] {
+    bot_kits_in(equipment, role, new, false)
+}
+
+/// [`bot_kits_with`], the armour wearing [`BOT_UPGRADES`] if `upgrades`.
+pub fn bot_kits_in(
+    equipment: BotEquipment,
+    role: BotRole,
+    new: bool,
+    upgrades: bool,
+) -> [Loadout; 3] {
+    std::array::from_fn(|k| bot_loadout(&bot_kit_items_in(equipment, role, k, new, upgrades)))
+}
+
+/// A bot of `role` with `equipment`'s kits as loadouts, one for each of its
 /// [`BotRole::kit_roles`] ([`bot_kit_items`]).
-pub fn bot_kits(tier: BotTier, role: BotRole) -> [&'static Loadout; 3] {
-    static SHARED: std::sync::OnceLock<Vec<[Loadout; 3]>> = std::sync::OnceLock::new();
-    let kits = SHARED.get_or_init(|| {
-        BotTier::ALL
-            .into_iter()
-            .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
-            .map(|(tier, role)| std::array::from_fn(|k| bot_loadout(&bot_kit_items(tier, role, k))))
-            .collect()
+pub fn bot_kits(equipment: BotEquipment, role: BotRole) -> [&'static Loadout; 3] {
+    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len();
+    static SHARED: [std::sync::OnceLock<[Loadout; 3]>; KITS] =
+        [const { std::sync::OnceLock::new() }; KITS];
+    let equipment = BotEquipment {
+        tier: equipment.tier,
+        rusher: equipment.rusher.worn_in(equipment.tier),
+    };
+    // The enums count up in the order of their `ALL`.
+    let index = (equipment.tier as usize * BotRole::ALL.len() + role as usize)
+        * RusherKit::ALL.len()
+        + equipment.rusher as usize;
+    let [first, second, third] = SHARED[index].get_or_init(|| {
+        bot_kits_in(equipment, role, new_kit(), upgrades_on())
     });
-    let index = BotTier::ALL
-        .iter()
-        .position(|&each| each == tier)
-        .expect("a tier")
-        * BotRole::ALL.len()
-        + BotRole::ALL
-            .iter()
-            .position(|&each| each == role)
-            .expect("a role");
-    let [first, second, third] = &kits[index];
     [first, second, third]
 }
 
-/// A bot of `role` in `tier`'s first kit as a loadout.
-pub fn bot_kit(tier: BotTier, role: BotRole) -> &'static Loadout {
-    bot_kits(tier, role)[0]
+/// A bot of `role` with `equipment`'s first kit as a loadout.
+pub fn bot_kit(equipment: BotEquipment, role: BotRole) -> &'static Loadout {
+    bot_kits(equipment, role)[0]
 }
 
-/// The tier and role a profile says, what the match server reads from the
-/// profile it has of each place (`Formed::profiles`): the bot whose first
-/// kit holds exactly the items of the profile's first kit, slot by slot;
+/// The equipment and role a profile says, what the match server reads from
+/// the profile it has of each place (`Formed::profiles`): the bot whose kits
+/// hold exactly the items of the profile's (as many as it has), slot by slot;
 /// else (a profile of an older kit) the role whose weapon 1 of the lowest
-/// tier is the profile's, in the lowest tier. `None` for a player, or any
-/// profile whose weapon 1 is no role's.
-pub fn bot_of(profile: &MatchProfile) -> Option<(BotTier, BotRole)> {
-    let kit = profile.kits.first()?;
-    let dict_id = |slot: usize| -> Option<u16> {
-        let (index, _) = kit.slots[slot]?;
-        Some(profile.items.get(usize::from(index))?.dict_id)
-    };
-    let held: Vec<(u8, u16)> = (0..kit.slots.len())
-        .filter_map(|slot| Some((slot as u8, dict_id(slot)?)))
+/// tier is the profile's first kit's, in the lowest tier. `None` for a
+/// player, or any profile whose weapon 1 is no role's.
+///
+/// A role that wears the rusher's kit tells two kits apart only if their
+/// weapons or ammo differ (the flanker's third kit): the default kit, if it
+/// makes the same bot, else the first of [`RusherKit::ALL`] that does, is
+/// the one said. The other roles are said to wear the default kit.
+pub fn bot_equipment_of(profile: &MatchProfile) -> Option<(BotEquipment, BotRole)> {
+    let held: Vec<Vec<(u8, u16)>> = profile
+        .kits
+        .iter()
+        .map(|kit| {
+            (0..kit.slots.len())
+                .filter_map(|slot| {
+                    let (index, _) = kit.slots[slot]?;
+                    Some((slot as u8, profile.items.get(usize::from(index))?.dict_id))
+                })
+                .collect()
+        })
         .collect();
+    let first = held.first()?;
     let exact = BotTier::ALL
         .into_iter()
         .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
-        .find(|&(tier, role)| {
-            let wanted: Vec<(u8, u16)> = bot_kit(tier, role)
-                .items
-                .iter()
-                .map(|item| (item.slot, item.dict_id))
-                .collect();
-            let mut wanted = wanted;
-            wanted.sort_unstable();
-            wanted == held
+        .find_map(|(tier, role)| {
+            candidate_equipments(tier, role)
+                .into_iter()
+                .find(|&equipment| holds_kits(&bot_kits(equipment, role), &held))
+                .map(|equipment| (equipment, role))
         });
     if exact.is_some() {
         return exact;
     }
-    let weapon = dict_id(7)?;
+    let weapon = first.iter().find(|&&(slot, _)| slot == 7)?.1;
     let dictionary = Dictionary::shared();
     BotRole::ALL
         .into_iter()
@@ -868,7 +1463,45 @@ pub fn bot_of(profile: &MatchProfile) -> Option<(BotTier, BotRole)> {
                 .item_named(BotTier::Low.gear().of(*role).weapon)
                 .is_some_and(|item| item.dict_id == weapon)
         })
-        .map(|role| (BotTier::Low, role))
+        .map(|role| (BotEquipment::of(BotTier::Low, RusherKits::default()), role))
+}
+
+/// The equipments a bot of `role` in `tier` can have, the default kit
+/// first: every rusher kit the data can make for a role that wears the
+/// rusher's, else the default one.
+fn candidate_equipments(tier: BotTier, role: BotRole) -> Vec<BotEquipment> {
+    let default = RusherKit::default().worn_in(tier);
+    let rushers: Vec<RusherKit> = if role.wears_rusher_kit() {
+        let others = tier.rusher_kits().iter().copied();
+        let made = others.filter(|&rusher| rusher != default && rusher.worn_in(tier) == rusher);
+        std::iter::once(default).chain(made).collect()
+    } else {
+        vec![default]
+    };
+    rushers
+        .into_iter()
+        .map(|rusher| BotEquipment { tier, rusher })
+        .collect()
+}
+
+/// Whether `kits` are, slot by slot, the items `held` says of a profile's
+/// kits (as many as it has).
+fn holds_kits(kits: &[&Loadout; 3], held: &[Vec<(u8, u16)>]) -> bool {
+    held.len() <= kits.len()
+        && held.iter().zip(kits).all(|(held, kit)| {
+            let mut wanted: Vec<(u8, u16)> = kit
+                .items
+                .iter()
+                .map(|item| (item.slot, item.dict_id))
+                .collect();
+            wanted.sort_unstable();
+            wanted == *held
+        })
+}
+
+/// The tier and role a profile says ([`bot_equipment_of`]).
+pub fn bot_of(profile: &MatchProfile) -> Option<(BotTier, BotRole)> {
+    bot_equipment_of(profile).map(|(equipment, role)| (equipment.tier, role))
 }
 
 /// The role [`bot_of`] says.
@@ -904,15 +1537,16 @@ pub fn bot_name(n: usize) -> String {
 }
 
 /// The profile of the server's bot number `n` of its match (1 on) of `role`
-/// on `team` with the equipment of `tier`: the role's three kits of the
-/// tier ([`bot_kits`]), each another weapon in slot 7 with its own ammo, the
+/// on `team` with `equipment`: the role's three kits of the tier
+/// ([`bot_kits`]), each another weapon in slot 7 with its own ammo, the
 /// role's armour and the pockets; its kits carry the skills of their gear
 /// level (`bot_skills::bot_modifiers`), as a player's carry the player's.
-/// The match server reads the tier and the role back from it ([`bot_of`]).
+/// The match server reads the equipment and the role back from it
+/// ([`bot_equipment_of`]).
 ///
 /// One home for the lobby (`play::server_bot`) and for the real-map bench.
-pub fn bot_profile(n: usize, team: u8, role: BotRole, tier: BotTier) -> MatchProfile {
-    let kits = bot_kits(tier, role);
+pub fn bot_profile(n: usize, team: u8, role: BotRole, equipment: BotEquipment) -> MatchProfile {
+    let kits = bot_kits(equipment, role);
     let mut profile = MatchProfile::from_loadouts(
         &bot_name(n),
         team,
@@ -1105,16 +1739,59 @@ mod tests {
         assert!(Loadout::from_names(dictionary, [(7, "no_such_item")]).is_err());
     }
 
-    /// Every bot of every tier, role and kit.
-    fn every_kit() -> impl Iterator<Item = (BotTier, BotRole, usize, &'static Loadout)> {
-        BotTier::ALL.into_iter().flat_map(|tier| {
-            BotRole::ALL.into_iter().flat_map(move |role| {
-                bot_kits(tier, role)
-                    .into_iter()
-                    .enumerate()
-                    .map(move |(k, kit)| (tier, role, k, kit))
-            })
-        })
+    /// The rusher kits of `tier` the game data in use can make.
+    fn made_kits(tier: BotTier) -> impl Iterator<Item = RusherKit> {
+        tier.rusher_kits()
+            .iter()
+            .copied()
+            .filter(move |&kit| kit.worn_in(tier) == kit)
+    }
+
+    /// The equipment of `tier` with the default (old) rusher kit, what the
+    /// tip's tests mean by a tier.
+    fn eq(tier: BotTier) -> BotEquipment {
+        BotEquipment::of(tier, RusherKits::default())
+    }
+
+    /// Every bot of every tier, role and kit, with each rusher kit the data
+    /// can make, with the owner's kit `new` or without.
+    fn every_kit_with(new: bool) -> Vec<(BotEquipment, BotRole, usize, Loadout)> {
+        every_kit_in(new, false)
+    }
+
+    /// [`every_kit_with`], the armour wearing the upgrades if `upgrades`.
+    fn every_kit_in(new: bool, upgrades: bool) -> Vec<(BotEquipment, BotRole, usize, Loadout)> {
+        let mut all = Vec::new();
+        for tier in BotTier::ALL {
+            for rusher in made_kits(tier) {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    for (k, kit) in bot_kits_in(equipment, role, new, upgrades)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        all.push((equipment, role, k, kit));
+                    }
+                }
+            }
+        }
+        all
+    }
+
+    /// Every bot of every tier, role and kit, of both kits.
+    fn every_kit() -> Vec<(BotEquipment, BotRole, usize, Loadout)> {
+        let mut all = every_kit_with(false);
+        all.extend(every_kit_with(true));
+        all
+    }
+
+    /// What names a bot in a message.
+    fn named(equipment: BotEquipment, role: BotRole, k: usize) -> String {
+        format!(
+            "{} {} {role} kit {k}",
+            equipment.tier,
+            equipment.rusher.name()
+        )
     }
 
     /// `matchmaking::kit_level` of a loadout: the highest
@@ -1159,8 +1836,10 @@ mod tests {
     fn every_bot_kit_is_of_its_tiers_level_and_within_the_carry_limit() {
         let dictionary = Dictionary::shared();
         let limit = item_params::player().max_carried_weight;
-        for (tier, role, k, kit) in every_kit() {
-            let at = format!("{tier} {role} kit {k}");
+        for (equipment, role, k, kit) in &every_kit() {
+            let (equipment, role, k) = (*equipment, *role, *k);
+            let tier = equipment.tier;
+            let at = named(equipment, role, k);
             assert!(
                 tier.levels().contains(&kit_level(kit)),
                 "{at}: {}",
@@ -1190,7 +1869,12 @@ mod tests {
             slots.sort_unstable();
             slots.dedup();
             assert_eq!(slots.len(), kit.items.len(), "{at}: a slot twice");
-            assert!(kit.weight() <= limit, "{at}: {} kg", kit.weight());
+            // A player with the carry path of the bots' skills (209 at five,
+            // +10 kg) carries it; the skills' own test keeps it under the
+            // capacity.
+            let capacity =
+                limit + BotSkillTier::for_gear_level(*tier.levels().end()).modifiers()[5];
+            assert!(kit.weight() <= capacity, "{at}: {} kg", kit.weight());
         }
     }
 
@@ -1202,8 +1886,14 @@ mod tests {
     fn every_kits_ammo_is_the_most_its_bags_take() {
         let dictionary = Dictionary::shared();
         let name = |dict_id: u16| dictionary.item(dict_id).unwrap().name.as_str();
-        for (tier, role, k, kit) in every_kit() {
-            let at = format!("{tier} {role} kit {k}");
+        let kits = [(false, every_kit_with(false)), (true, every_kit_with(true))];
+        for (new, (equipment, role, k, kit)) in kits
+            .iter()
+            .flat_map(|(new, kits)| kits.iter().map(move |each| (*new, each)))
+        {
+            let (equipment, role, k) = (*equipment, *role, *k);
+            let tier = equipment.tier;
+            let at = format!("{} (owner's kit {new})", named(equipment, role, k));
             let weapon = kit.slot(7).unwrap();
             assert!(kit.slot(10).is_none(), "{at}: no weapon 2");
             let armour: Vec<&str> = kit
@@ -1212,8 +1902,14 @@ mod tests {
                 .filter(|item| item.slot <= 6)
                 .map(|item| name(item.dict_id))
                 .collect();
-            let bags = ammo_bags(armour.iter().copied());
+            let bags = bot_ammo_bags(tier, armour.iter().copied(), new);
             assert!(bags >= item_params::player().ammo_bags_count, "{at}");
+            // The owner's kit: skill 109's bag on top of the armour's.
+            assert_eq!(
+                bags,
+                ammo_bags(armour.iter().copied()) + u32::from(new),
+                "{at}"
+            );
             for slot in BOT_AMMO_SLOTS {
                 let ammo = kit.slot(slot).unwrap();
                 assert!(dictionary.compatible(weapon.dict_id, ammo.dict_id), "{at}");
@@ -1230,13 +1926,24 @@ mod tests {
                 }
             }
         }
-        // The lobby's numbers: four bags of 9x19 (clips of 50) with the
-        // light torso, three of 5.45x39 (30) with the support's.
-        let rounds = |tier, role| bot_kit(tier, role).slot(8).unwrap().count;
-        assert_eq!(rounds(BotTier::Low, BotRole::Flanker), 200);
-        assert_eq!(rounds(BotTier::Low, BotRole::Support), 90);
-        assert_eq!(rounds(BotTier::Low, BotRole::Rusher), 60);
-        assert_eq!(rounds(BotTier::Low, BotRole::Camper), 30);
+        // The lobby's numbers: five bags of 9x19 (clips of 50) with the
+        // light torso, four of 5.45x39 (30) with the support's; skill 109's
+        // bag is the last of each.
+        let rounds_with = |tier, role, new| {
+            let items = bot_kit_items_with(eq(tier), role, 0, new);
+            items.iter().find(|item| item.slot == 8).unwrap().count
+        };
+        let rounds = |tier, role| rounds_with(tier, role, true);
+        let old_rounds = |tier, role| rounds_with(tier, role, false);
+        assert_eq!(rounds(BotTier::Low, BotRole::Flanker), 250);
+        assert_eq!(rounds(BotTier::Low, BotRole::Support), 120);
+        assert_eq!(rounds(BotTier::Low, BotRole::Rusher), 75);
+        assert_eq!(rounds(BotTier::Low, BotRole::Camper), 40);
+        // Today's kit: a bag less.
+        assert_eq!(old_rounds(BotTier::Low, BotRole::Flanker), 200);
+        assert_eq!(old_rounds(BotTier::Low, BotRole::Support), 90);
+        assert_eq!(old_rounds(BotTier::Low, BotRole::Rusher), 60);
+        assert_eq!(old_rounds(BotTier::Low, BotRole::Camper), 30);
     }
 
     /// Three kits a bot (at least two: the owner's of 2026-10-23), each
@@ -1245,61 +1952,89 @@ mod tests {
     #[test]
     fn every_bot_has_three_kits_of_different_weapons_and_ammo() {
         for tier in BotTier::ALL {
-            // The four roles' ammo differ in each tier.
-            let mut ammo: Vec<&str> = BotRole::ALL
-                .iter()
-                .map(|&role| tier.gear().of(role).ammo)
-                .collect();
-            ammo.sort_unstable();
-            ammo.dedup();
-            assert_eq!(ammo.len(), 4, "{tier}");
-            for role in BotRole::ALL {
-                let kits = bot_kits(tier, role);
-                assert!(kits.len() >= 2);
-                assert!(kits.len() <= super::super::match_msgs::static_info::MAX_KITS);
-                assert_eq!(role.kit_roles()[0], role);
-                for (a, first) in kits.iter().enumerate() {
-                    for second in &kits[a + 1..] {
-                        let at = format!("{tier} {role}");
-                        assert_ne!(first.slot(7), second.slot(7), "{at}: one weapon");
-                        assert_ne!(
-                            first.slot(8).unwrap().dict_id,
-                            second.slot(8).unwrap().dict_id,
-                            "{at}: one ammo"
-                        );
-                        let rest = |kit: &Loadout| -> Vec<SlotItem> {
-                            kit.items
-                                .iter()
-                                .filter(|item| {
-                                    item.slot != 7 && !BOT_AMMO_SLOTS.contains(&item.slot)
-                                })
-                                .copied()
-                                .collect()
-                        };
-                        assert_eq!(rest(first), rest(second), "{at}");
+            for rusher in made_kits(tier) {
+                // The four roles' ammo differ in each tier, whichever kit
+                // the rusher wears.
+                let mut ammo: Vec<&str> = BotRole::ALL
+                    .iter()
+                    .map(|&role| tier.gear().of_kit(role, rusher).ammo)
+                    .collect();
+                ammo.sort_unstable();
+                ammo.dedup();
+                assert_eq!(ammo.len(), 4, "{tier} {}", rusher.name());
+                let equipment = BotEquipment { tier, rusher };
+                for (role, new) in BotRole::ALL
+                    .into_iter()
+                    .flat_map(|role| [(role, false), (role, true)])
+                {
+                    let owned = bot_kits_with(equipment, role, new);
+                    let kits: Vec<&Loadout> = owned.iter().collect();
+                    assert!(kits.len() >= 2);
+                    assert!(kits.len() <= super::super::match_msgs::static_info::MAX_KITS);
+                    assert_eq!(role.kit_roles()[0], role);
+                    for (a, first) in kits.iter().enumerate() {
+                        for second in &kits[a + 1..] {
+                            let at = named(equipment, role, a);
+                            assert_ne!(first.slot(7), second.slot(7), "{at}: one weapon");
+                            assert_ne!(
+                                first.slot(8).unwrap().dict_id,
+                                second.slot(8).unwrap().dict_id,
+                                "{at}: one ammo"
+                            );
+                            let rest = |kit: &Loadout| -> Vec<SlotItem> {
+                                kit.items
+                                    .iter()
+                                    .filter(|item| {
+                                        item.slot != 7 && !BOT_AMMO_SLOTS.contains(&item.slot)
+                                    })
+                                    .copied()
+                                    .collect()
+                            };
+                            assert_eq!(rest(first), rest(second), "{at}");
+                        }
                     }
-                }
-                // Each kit's weapon is its kit role's.
-                let dictionary = Dictionary::shared();
-                for (kit, kit_role) in kits.iter().zip(role.kit_roles()) {
-                    let weapon = dictionary.item(kit.slot(7).unwrap().dict_id).unwrap();
-                    assert_eq!(weapon.name, tier.gear().of(kit_role).weapon);
+                    // Each kit's weapon is its kit role's.
+                    let dictionary = Dictionary::shared();
+                    for (kit, kit_role) in kits.iter().zip(role.kit_roles()) {
+                        let weapon = dictionary.item(kit.slot(7).unwrap().dict_id).unwrap();
+                        assert_eq!(weapon.name, tier.gear().of_kit(kit_role, rusher).weapon);
+                    }
                 }
             }
         }
+    }
+
+    /// The names of the armour `role` wears in `tier`.
+    fn tier_armour(equipment: BotEquipment, role: BotRole) -> Vec<&'static str> {
+        worn(equipment, role, true)
+            .into_iter()
+            .map(|(_, name)| name)
+            .collect()
     }
 
     #[test]
     fn the_bots_kit_has_a_pocket_for_each_thing_it_uses() {
         let dictionary = Dictionary::shared();
         let params = |dict_id: u16| item_params::item_params(dict_id).unwrap();
-        for (tier, role, k, kit) in every_kit() {
-            let at = format!("{tier} {role} kit {k}");
-            // Three pockets at least, of two: a pocket's worth of medkits
-            // and of grenades (one pocket a type), and the radio.
+        for (equipment, role, k, kit) in &every_kit_with(true) {
+            let (equipment, role, k) = (*equipment, *role, *k);
+            let tier = equipment.tier;
+            let at = named(equipment, role, k);
+            // Three pockets at least, of two: a pocket's worth of medkits,
+            // bandages and traps (one pocket a type); the support's
+            // grenade is one unit, by the owner's rule.
             let (count, size) = pockets(kit);
             assert!(count >= 3, "{at}: {count} pockets");
             assert_eq!(size, 2, "{at}");
+            let armour = tier_armour(equipment, role);
+            assert_eq!(count, pockets_opened(armour.iter().copied()), "{at}");
+            let fourth = matches!(
+                (tier, role),
+                (BotTier::High, _)
+                    | (BotTier::Mid, BotRole::Rusher | BotRole::Support)
+                    | (BotTier::Low, BotRole::Support)
+            );
+            assert_eq!(count, if fourth { 4 } else { 3 }, "{at}");
             let open = &POCKET_SLOTS[..count as usize];
             for item in kit
                 .items
@@ -1307,7 +2042,9 @@ mod tests {
                 .filter(|item| POCKET_SLOTS.contains(&item.slot))
             {
                 assert!(open.contains(&item.slot), "{at}: slot {}", item.slot);
-                let most = if params(item.dict_id).fills_whole_pocket {
+                let most = if params(item.dict_id).fills_whole_pocket
+                    || params(item.dict_id).kind == "grenade"
+                {
                     1
                 } else {
                     size
@@ -1343,8 +2080,35 @@ mod tests {
                 kit.slot(slot)
                     .is_some_and(|item| params(item.dict_id).kind == "grenade")
             });
-            assert_eq!(first_grenade, Some(BOT_GRENADE.slot), "{at}");
-            let items = bot_kit_items(tier, role, k);
+            // The support has one grenade where a fourth pocket is open, the
+            // others none; the radio takes the last pocket there is.
+            let grenade = (role == BotRole::Support && fourth).then_some(BOT_GRENADE.slot);
+            assert_eq!(first_grenade, grenade, "{at}");
+            assert_eq!(grenades_in(kit), u32::from(grenade.is_some()), "{at}");
+            let has = |kind: &str| {
+                kit.items
+                    .iter()
+                    .any(|item| params(item.dict_id).kind == kind)
+            };
+            assert_eq!(has("booster"), !role.carries_traps() || fourth, "{at}");
+            assert_eq!(has("trap"), role.carries_traps(), "{at}");
+            // The keys are the ranks among the filled pockets that are no
+            // booster: the medkit 1, the bandages 2, the trap 3.
+            let mut rank = 0_u8;
+            for &slot in &POCKET_SLOTS {
+                let Some(item) = kit.slot(slot) else { continue };
+                if params(item.dict_id).kind == "booster" {
+                    continue;
+                }
+                rank += 1;
+                let name = dictionary.item(item.dict_id).unwrap().name.as_str();
+                for each in [BOT_MEDKIT, BOT_BANDAGES, BOT_TRAP] {
+                    if each.name == name {
+                        assert_eq!(each.input_bit, Some(QUICK_USE_FIRST_BIT + rank - 1), "{at}");
+                    }
+                }
+            }
+            let items = bot_kit_items(equipment, role, k);
             assert_eq!(items[0].slot, 7);
             assert_eq!(items[0].input_bit, Some(WEAPON_1_BIT));
         }
@@ -1353,12 +2117,27 @@ mod tests {
         assert_eq!(BOT_GRENADE.input_bit, Some(GRENADE_BIT));
 
         // What each is.
-        let kit = bot_kit(BotTier::Low, BotRole::Flanker);
-        let kind = |item: BotKitItem| params(kit.slot(item.slot).unwrap().dict_id).kind;
+        let owned = bot_kits_with(eq(BotTier::Mid), BotRole::Support, true);
+        let kit = &owned[0];
+        let find = |item: BotKitItem| {
+            kit.items
+                .iter()
+                .find(|each| dictionary.item(each.dict_id).unwrap().name == item.name)
+                .unwrap()
+        };
+        let kind = |item: BotKitItem| params(find(item).dict_id).kind;
         assert_eq!(kind(BOT_MEDKIT), "drugs");
+        assert_eq!(kind(BOT_BANDAGES), "drugs");
         assert_eq!(kind(BOT_RADIO), "booster");
         assert_eq!(kind(BOT_GRENADE), "grenade");
-        let radio = kit.slot(BOT_RADIO.slot).unwrap().dict_id;
+        let flanker = bot_kits_with(eq(BotTier::Low), BotRole::Flanker, true);
+        let trap = flanker[0]
+            .items
+            .iter()
+            .find(|each| dictionary.item(each.dict_id).unwrap().name == BOT_TRAP.name)
+            .unwrap();
+        assert_eq!(params(trap.dict_id).kind, "trap");
+        let radio = find(BOT_RADIO).dict_id;
         assert_eq!(params(radio).default_modifications, [1220]);
         assert!((default_modifier(radio, "respawn_time_modifier") + 0.2).abs() < 1e-6);
         // The frag grenade is the lowest one; the other is smoke.
@@ -1404,6 +2183,205 @@ mod tests {
         assert_eq!((cost(3), cost(4)), (6650, 6830));
     }
 
+    /// The rusher of each tier as its table says. The lowest tier's is a
+    /// shotgun; in the higher tiers an SMG (category 15, what 12 and more
+    /// players of the tier carry most: `fact-rusher-kits`), and the other
+    /// kits are the SPAS-12 and the other SMG. A weapon the data lacks says
+    /// nothing: the repo's test data has no `fn_p90` or `kriss_vector`
+    /// (`on_the_live_data_...` has them).
+    fn the_rushers_weapons_are_the_tables() {
+        let dictionary = Dictionary::shared();
+        let category = |name: &str| dictionary.item_named(name).map(|item| item.category);
+        let is = |name: &str, wanted: &[u8]| category(name).is_none_or(|it| wanted.contains(&it));
+        let rusher = |tier: BotTier, kit| tier.gear().rusher_gear(kit).weapon;
+        assert_eq!(rusher(BotTier::Low, RusherKit::Control), "mp_153");
+        assert_eq!(BotTier::Low.rusher_kits(), [RusherKit::Control]);
+        for (tier, smg, alt) in [
+            (BotTier::Mid, "sr2m", "ump45"),
+            (BotTier::High, "fn_p90", "kriss_vector"),
+        ] {
+            assert_eq!(rusher(tier, RusherKit::Smg), smg, "{tier}");
+            assert_eq!(tier.gear().rusher.weapon, "spas_12", "{tier}");
+            assert_eq!(rusher(tier, RusherKit::Alt), alt, "{tier}");
+            assert!(is(smg, &[15]) && is(alt, &[15]), "{tier}");
+            for shotgun in [RusherKit::Slug, RusherKit::Helmet, RusherKit::Control] {
+                assert_eq!(rusher(tier, shotgun), "spas_12", "{tier}");
+            }
+        }
+        assert!(is("spas_12", &[14]));
+    }
+
+    /// `SRP_BOT_KIT` off: the kit the bots had before the owner's of
+    /// 2026-10-26, piece for piece.
+    #[test]
+    fn the_switch_off_gives_todays_kit_back() {
+        let dictionary = Dictionary::shared();
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                for k in 0..3 {
+                    let at = format!("{tier} {role} kit {k}");
+                    let old = bot_kit_items_with(eq(tier), role, k, false);
+                    let new = bot_kit_items_with(eq(tier), role, k, true);
+                    // The pockets: medkits, radio, grenades, as before.
+                    assert_eq!(&old[old.len() - 3..], BOT_POCKETS, "{at}");
+                    // The ammo: skill 109's bag less.
+                    let rounds = |items: &[BotKitItem]| {
+                        items.iter().find(|item| item.slot == 8).unwrap().count
+                    };
+                    assert!(rounds(&old) <= rounds(&new), "{at}");
+                    // The armour: the three pieces swapped back, nothing else.
+                    let armour = |items: &[BotKitItem]| -> Vec<(u8, &str)> {
+                        items
+                            .iter()
+                            .filter(|item| item.slot <= 6)
+                            .map(|item| (item.slot, item.name))
+                            .collect()
+                    };
+                    let (a_old, a_new) = (armour(&old), armour(&new));
+                    assert_eq!(a_old.len(), a_new.len(), "{at}");
+                    for (before, now) in a_old.iter().zip(&a_new) {
+                        if before != now {
+                            let legacy = [
+                                ("edge_back_5", "bm_back_1"),
+                                ("edge_torso_3", "edge_hunter_torso_1"),
+                                ("edge_torso_2", "ren_torso_3"),
+                            ];
+                            assert!(legacy.contains(&(before.1, now.1)), "{at}: {before:?}");
+                        }
+                    }
+                    // Today's kit opens exactly the three pockets it fills.
+                    let opened = pockets_opened(a_old.iter().map(|&(_, name)| name));
+                    assert!(opened >= 3, "{at}");
+                    for item in &old {
+                        assert!(dictionary.item_named(item.name).is_some(), "{at}");
+                    }
+                }
+            }
+        }
+        // The legacy pieces are the ones the tables name, so the three
+        // swaps changed exactly the pieces the tests above name.
+        assert_eq!(
+            worn(eq(BotTier::High), BotRole::Camper, false)[3].1,
+            "edge_back_5"
+        );
+        assert_eq!(worn(eq(BotTier::High), BotRole::Camper, true)[3].1, "bm_back_1");
+        assert_eq!(
+            worn(eq(BotTier::Mid), BotRole::Rusher, false)[1].1,
+            "edge_torso_3"
+        );
+        assert_eq!(
+            worn(eq(BotTier::Mid), BotRole::Support, false)[1].1,
+            "edge_torso_2"
+        );
+        assert_eq!(
+            worn(eq(BotTier::Mid), BotRole::Flanker, false),
+            worn(eq(BotTier::Mid), BotRole::Flanker, true)
+        );
+    }
+
+    /// The owner's SAFE SET (2026-10-26): weight, carry, movement speed and
+    /// stamina upgrades only, each one a bot's piece takes, one at 4-5 and
+    /// two at 9-10 and 13-15, in every kit and on the wire.
+    #[test]
+    fn the_bots_wear_only_the_safe_upgrades_their_pieces_take() {
+        use super::super::match_msgs::static_info::MatchProfile;
+        use super::super::modifications::{MAX_RANK, Modifications};
+        use super::super::skills::MODIFIERS;
+
+        let table = Modifications::shared();
+        // Modification types: 7 weapon weight, 18 gear weight, 22 stamina
+        // regeneration, 23 movement speed, 24 carry, 28 stamina spent.
+        let safe = [7, 18, 22, 23, 24, 28];
+        for (tier, role, slot, mods) in BOT_UPGRADES {
+            let at = format!("{tier} {role} slot {slot}");
+            assert!(!mods.is_empty() && mods.len() <= MAX_RANK, "{at}");
+            for &id in mods {
+                let row = table.modification(id).expect("a modification");
+                assert!(safe.contains(&row.kind), "{at}: {id} is type {}", row.kind);
+            }
+        }
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let upgrades: usize = BOT_UPGRADES
+                    .iter()
+                    .filter(|row| (row.0, row.1) == (tier, role))
+                    .map(|row| row.3.len())
+                    .sum();
+                assert_eq!(
+                    upgrades,
+                    if tier == BotTier::Low { 1 } else { 2 },
+                    "{tier} {role}"
+                );
+            }
+        }
+        let dictionary = Dictionary::shared();
+        // Without the switch the armour is plain, whichever kit.
+        for (equipment, role, k, kit) in &every_kit() {
+            for item in &kit.items {
+                assert!(
+                    item.mods.is_empty(),
+                    "{} {role} kit {k}",
+                    equipment.tier
+                );
+            }
+        }
+        let mut with = every_kit_in(false, true);
+        with.extend(every_kit_in(true, true));
+        for (equipment, role, k, kit) in &with {
+            let (equipment, role, k) = (*equipment, *role, *k);
+            let tier = equipment.tier;
+            let at = named(equipment, role, k);
+            for item in &kit.items {
+                let wanted = if item.slot <= 6 {
+                    bot_upgrades_with(tier, role, item.slot, true)
+                } else {
+                    &[]
+                };
+                assert_eq!(item.mods, wanted, "{at}: slot {}", item.slot);
+                // Each fits its piece beside what the piece holds.
+                let mut held = Vec::new();
+                for &id in item.mods {
+                    assert!(
+                        table.fits(item.dict_id, &held, id),
+                        "{at}: {id} on {}",
+                        dictionary.item(item.dict_id).unwrap().name
+                    );
+                    held.push(id);
+                }
+            }
+            // On the wire: the profile's item carries them.
+            let profile =
+                MatchProfile::from_loadouts("Bot-1", 0, &[kit], [0.0; MODIFIERS], dictionary, 1);
+            for item in &kit.items {
+                let (index, _) = profile.kits[0].slots[usize::from(item.slot)].unwrap();
+                let wire: Vec<(u32, bool)> = item.mods.iter().map(|&id| (id, false)).collect();
+                assert_eq!(
+                    profile.items[usize::from(index)].modifications,
+                    wire,
+                    "{at}"
+                );
+            }
+        }
+        // Off: the plain armour.
+        for (tier, role, slot, _) in BOT_UPGRADES {
+            assert!(bot_upgrades_with(tier, role, slot, false).is_empty());
+        }
+        // The reading back is the same with or without them.
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = MatchProfile::from_loadouts(
+                    "Bot-1",
+                    0,
+                    &bot_kits(eq(tier), role),
+                    [0.0; MODIFIERS],
+                    dictionary,
+                    1,
+                );
+                assert_eq!(bot_of(&profile), Some((tier, role)));
+            }
+        }
+    }
+
     #[test]
     fn each_role_has_its_weapon_and_armour() {
         let dictionary = Dictionary::shared();
@@ -1419,15 +2397,18 @@ mod tests {
         assert_eq!(low(BotRole::Camper), "rem_700");
         assert_eq!(TIER_9_10.support.weapon, "akmn");
         // The kinds in every tier: an SMG or a compact rifle, an assault
-        // rifle, a shotgun, the sniper category.
-        let category = |name: &str| dictionary.item_named(name).unwrap().category;
+        // rifle, the rusher's (below), the sniper category. A weapon the
+        // data lacks says nothing: the repo's test data has no `fn_p90` or
+        // `kriss_vector` (`on_the_live_data_...` has them).
+        let category = |name: &str| dictionary.item_named(name).map(|item| item.category);
+        let is = |name: &str, wanted: &[u8]| category(name).is_none_or(|it| wanted.contains(&it));
         for tier in BotTier::ALL {
             let gear = tier.gear();
-            assert!(matches!(category(gear.flanker.weapon), 8 | 15), "{tier}");
-            assert_eq!(category(gear.support.weapon), 8, "{tier}");
-            assert_eq!(category(gear.rusher.weapon), 14, "{tier}");
-            assert_eq!(category(gear.camper.weapon), 13, "{tier}");
+            assert!(is(gear.flanker.weapon, &[8, 15]), "{tier}");
+            assert!(is(gear.support.weapon, &[8]), "{tier}");
+            assert!(is(gear.camper.weapon, &[13]), "{tier}");
         }
+        the_rushers_weapons_are_the_tables();
         assert_eq!(params("vityaz").kind, "wpn_smg");
         let lowest = |category: u8| {
             dictionary
@@ -1439,7 +2420,8 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(params("ak_74u").item_level, lowest(8));
-        // The shotgun of the higher tiers is the highest there is.
+        // The shotgun of the higher tiers' other kits is the highest there is in
+        // the test data (the live data has the 0.29a3 shotguns of level 12).
         let highest = dictionary
             .items
             .iter()
@@ -1447,7 +2429,12 @@ mod tests {
             .map(|item| item_params::item_params(item.dict_id).unwrap().item_level)
             .max()
             .unwrap();
-        assert_eq!(params(TIER_9_10.rusher.weapon).item_level, highest);
+        assert_eq!(
+            item_params::item_params(dictionary.item_named("spas_12").unwrap().dict_id)
+                .unwrap()
+                .item_level,
+            highest
+        );
         // Light armour for the rusher and the flanker, heavier for the
         // support and the camper, in the lowest tier.
         let armour = |role: BotRole| -> f32 {
@@ -1466,6 +2453,418 @@ mod tests {
         }
     }
 
+    /// What `kit` of `tier`'s rusher is made of: weapon 1 and its ammo, the
+    /// rounds of a life (what the ammo bags take), the helmet (`None`: no
+    /// helmet), and what the kit weighs carried, with the pockets, kg (the
+    /// game data's weights; `fact-rusher-kits.md` §5).
+    type RusherKitRow = (
+        BotTier,
+        RusherKit,
+        &'static str,
+        &'static str,
+        u32,
+        Option<&'static str>,
+        f32,
+    );
+
+    const RUSHER_KITS: [RusherKitRow; 10] = [
+        (
+            BotTier::Mid,
+            RusherKit::Smg,
+            "sr2m",
+            "ammo_9x21",
+            150,
+            Some("ren_helmet_2"),
+            19.6,
+        ),
+        (
+            BotTier::Mid,
+            RusherKit::Alt,
+            "ump45",
+            "ammo_45acp",
+            150,
+            Some("ren_helmet_2"),
+            21.5,
+        ),
+        (
+            BotTier::Mid,
+            RusherKit::Slug,
+            "spas_12",
+            "ammo_12mm_slug",
+            45,
+            Some("ren_helmet_2"),
+            23.4,
+        ),
+        (
+            BotTier::Mid,
+            RusherKit::Helmet,
+            "spas_12",
+            "ammo_12mm_buck",
+            45,
+            Some("ren_helmet_2"),
+            23.1,
+        ),
+        (
+            BotTier::Mid,
+            RusherKit::Control,
+            "spas_12",
+            "ammo_12mm_buck",
+            45,
+            Some("edge_helmet_3"),
+            21.8,
+        ),
+        (
+            BotTier::High,
+            RusherKit::Smg,
+            "fn_p90",
+            "ammo_5.7x28",
+            200,
+            Some("edge_helmet_5"),
+            25.7,
+        ),
+        (
+            BotTier::High,
+            RusherKit::Alt,
+            "kriss_vector",
+            "ammo_45acp",
+            200,
+            Some("edge_helmet_5"),
+            26.6,
+        ),
+        (
+            BotTier::High,
+            RusherKit::Slug,
+            "spas_12",
+            "ammo_12mm_slug",
+            60,
+            Some("edge_helmet_5"),
+            28.3,
+        ),
+        (
+            BotTier::High,
+            RusherKit::Helmet,
+            "spas_12",
+            "ammo_12mm_buck",
+            60,
+            Some("edge_helmet_5"),
+            27.9,
+        ),
+        (
+            BotTier::High,
+            RusherKit::Control,
+            "spas_12",
+            "ammo_12mm_buck",
+            60,
+            None,
+            25.9,
+        ),
+    ];
+
+    /// Each tier's rusher kit as the table says: the weapon, the ammo and the
+    /// rounds of a life (200 and 150 of the SMGs), the helmet, the weight,
+    /// the level; and the flanker's third kit follows the rusher's weapon. A
+    /// kit whose items the data lacks is left to
+    /// `on_the_live_data_every_rusher_kit_is_made`.
+    #[test]
+    fn each_rusher_kit_is_its_table_made_into_a_kit() {
+        let dictionary = Dictionary::shared();
+        let name = |kit: &Loadout, slot: u8| {
+            kit.slot(slot)
+                .map(|item| dictionary.item(item.dict_id).unwrap().name.as_str())
+        };
+        for (tier, rusher, weapon, ammo, rounds, helmet, mass) in RUSHER_KITS {
+            if rusher.worn_in(tier) != rusher {
+                continue;
+            }
+            let equipment = BotEquipment { tier, rusher };
+            let at = named(equipment, BotRole::Rusher, 0);
+            let kit = bot_kit(equipment, BotRole::Rusher);
+            assert_eq!(name(kit, 7), Some(weapon), "{at}");
+            assert_eq!(name(kit, 8), Some(ammo), "{at}");
+            assert_eq!(kit.slot(8).unwrap().count, rounds, "{at}");
+            assert_eq!(name(kit, 0), helmet, "{at}");
+            assert!(
+                (kit.weight() - mass).abs() < 0.06,
+                "{at}: {} kg",
+                kit.weight()
+            );
+            assert!(tier.levels().contains(&kit_level(kit)), "{at}");
+            // The rusher's own kit first, then the flanker's and the
+            // support's.
+            let kits = bot_kits(equipment, BotRole::Rusher);
+            assert_eq!(name(kits[1], 7), Some(tier.gear().flanker.weapon), "{at}");
+            assert_eq!(name(kits[2], 7), Some(tier.gear().support.weapon), "{at}");
+            // The flanker's third kit: the rusher's weapon and ammo, the
+            // flanker's armour and the rounds its bags take.
+            let flanker = bot_kits(equipment, BotRole::Flanker)[2];
+            assert_eq!(name(flanker, 7), Some(weapon), "{at}");
+            assert_eq!(name(flanker, 8), Some(ammo), "{at}");
+            assert_eq!(
+                name(flanker, 0),
+                name(bot_kit(equipment, BotRole::Flanker), 0),
+                "{at}"
+            );
+            let bags = ammo_bags(tier.gear().flanker.armour.iter().map(|&(_, name)| name));
+            assert_eq!(flanker.slot(8).unwrap().count, ammo_max(ammo, bags), "{at}");
+        }
+    }
+
+    /// A tier, the old rusher's armour by slot as the table has it (the pieces
+    /// of the owner's kit), as it was worn before that kit (`LEGACY_GEAR`), and
+    /// the shells it carried a life.
+    type OldRusherRow = (
+        BotTier,
+        &'static [(u8, &'static str)],
+        &'static [(u8, &'static str)],
+        u32,
+    );
+
+    /// The old table stays reachable: `Control` is the SPAS-12 with buckshot,
+    /// the helmet of 9-10 `edge_helmet_3` and none at 13-15, and with the
+    /// owner's kit off (`SRP_BOT_KIT`, the default) makes the kits it always
+    /// made (45 and 60 shells a life, the pieces before the owner's kit),
+    /// also as the flanker's third kit.
+    #[test]
+    fn the_control_kit_is_the_table_as_it_was() {
+        let old: [OldRusherRow; 2] = [
+            (
+                BotTier::Mid,
+                &[
+                    (0, "edge_helmet_3"),
+                    (2, "edge_hunter_torso_1"),
+                    (3, "bm_back_1"),
+                    (4, "bm_legs_5"),
+                    (5, "edge_gloves_2"),
+                    (6, "edge_boots_2"),
+                ],
+                &[
+                    (0, "edge_helmet_3"),
+                    (2, "edge_torso_3"),
+                    (3, "bm_back_1"),
+                    (4, "bm_legs_5"),
+                    (5, "edge_gloves_2"),
+                    (6, "edge_boots_2"),
+                ],
+                45,
+            ),
+            (
+                BotTier::High,
+                &[
+                    (2, "edge_torso_5"),
+                    (3, "bm_back_1"),
+                    (4, "ren_legs_5"),
+                    (5, "edge_gloves_5"),
+                    (6, "edge_boots_6"),
+                ],
+                &[
+                    (2, "edge_torso_5"),
+                    (3, "edge_back_5"),
+                    (4, "ren_legs_5"),
+                    (5, "edge_gloves_5"),
+                    (6, "edge_boots_6"),
+                ],
+                60,
+            ),
+        ];
+        for (tier, table, armour, shells) in old {
+            let control = tier.gear().rusher_gear(RusherKit::Control);
+            assert_eq!(
+                *control,
+                RoleGear {
+                    weapon: "spas_12",
+                    ammo: "ammo_12mm_buck",
+                    armour: table,
+                },
+                "{tier}"
+            );
+            let equipment = BotEquipment {
+                tier,
+                rusher: RusherKit::Control,
+            };
+            let mut expected = vec![
+                kit_item("spas_12", 7, 1, Some(WEAPON_1_BIT)),
+                kit_item("ammo_12mm_buck", 8, shells, None),
+            ];
+            expected.extend(
+                armour
+                    .iter()
+                    .map(|&(slot, name)| kit_item(name, slot, 1, None)),
+            );
+            expected.extend(BOT_POCKETS);
+            assert_eq!(
+                bot_kit_items_with(equipment, BotRole::Rusher, 0, false),
+                expected,
+                "{tier}"
+            );
+            // The flanker's third kit: the same weapon and shells, its own
+            // armour.
+            let third = bot_kit_items_with(equipment, BotRole::Flanker, 2, false);
+            assert_eq!(third[..2], expected[..2], "{tier}");
+            let worn_by_flanker: Vec<(u8, &str)> = third[2..third.len() - BOT_POCKETS.len()]
+                .iter()
+                .map(|item| (item.slot, item.name))
+                .collect();
+            assert_eq!(worn_by_flanker, worn(equipment, BotRole::Flanker, false), "{tier}");
+        }
+        // The lowest tier has only that table, whatever is asked.
+        for asked in RusherKit::ALL {
+            assert_eq!(asked.worn_in(BotTier::Low), RusherKit::Control);
+            let low = BotEquipment::of(BotTier::Low, RusherKits::both(asked));
+            assert_eq!(bot_kit_items(low, BotRole::Rusher, 0)[0].name, "mp_153");
+        }
+        // The default kit is the old table, and the table's `rusher` is it
+        // (so `TierGear::of` and a kit the tier has no table of are the old
+        // table too).
+        assert_eq!(RusherKit::default(), RusherKit::Control);
+        for tier in BotTier::ALL {
+            assert_eq!(
+                tier.gear().rusher_gear(RusherKit::Control),
+                &tier.gear().rusher
+            );
+            assert_eq!(tier.gear().of(BotRole::Rusher), &tier.gear().rusher);
+        }
+        for tier in [BotTier::Mid, BotTier::High] {
+            assert_eq!(tier.gear().rusher.weapon, "spas_12");
+        }
+    }
+
+    /// A kit with an item the data lacks is the old table, so a server on
+    /// data without `fn_p90` still makes its bots (and says so once): a kit
+    /// is worn if the dictionary has its weapon, and the old table is
+    /// otherwise.
+    #[test]
+    fn a_kit_the_data_lacks_is_the_old_table() {
+        let dictionary = Dictionary::shared();
+        for tier in BotTier::ALL {
+            for kit in RusherKit::ALL {
+                let wanted = tier.gear().rusher_gear(kit);
+                let has = tier.rusher_kits().contains(&kit)
+                    && dictionary.item_named(wanted.weapon).is_some();
+                let worn = kit.worn_in(tier);
+                let expected = if has { kit } else { RusherKit::Control };
+                assert_eq!(worn, expected, "{tier} {}", kit.name());
+                // Whatever is asked, the kits are made.
+                let equipment = BotEquipment { tier, rusher: kit };
+                for role in BotRole::ALL {
+                    assert_eq!(bot_kits(equipment, role).len(), 3);
+                }
+            }
+        }
+    }
+
+    /// The settings' words: one kit for both tiers, or a kit a tier; the
+    /// default is the old table in both; a wrong word is an error that names it.
+    #[test]
+    fn the_choice_is_read_from_a_setting() {
+        let both = RusherKits::both(RusherKit::Control);
+        assert_eq!(RusherKits::parse("control"), Ok(both));
+        assert_eq!(
+            RusherKits::parse(" slug "),
+            Ok(RusherKits::both(RusherKit::Slug))
+        );
+        assert_eq!(
+            RusherKits::parse("9-10=control,13-15=alt"),
+            Ok(RusherKits {
+                mid: RusherKit::Control,
+                high: RusherKit::Alt
+            })
+        );
+        assert_eq!(
+            RusherKits::parse("13-15=helmet"),
+            Ok(RusherKits {
+                mid: RusherKit::Control,
+                high: RusherKit::Helmet
+            })
+        );
+        // The winning setting of the RK sweep, in the per-tier form.
+        assert_eq!(
+            RusherKits::parse("9-10=alt,13-15=smg"),
+            Ok(RusherKits {
+                mid: RusherKit::Alt,
+                high: RusherKit::Smg
+            })
+        );
+        // Off by default: the old table in both tiers.
+        assert_eq!(RusherKits::default(), RusherKits::both(RusherKit::Control));
+        assert!(
+            RusherKits::parse("shotgun")
+                .unwrap_err()
+                .contains("`shotgun`")
+        );
+        assert!(
+            RusherKits::parse("4-5=control")
+                .unwrap_err()
+                .contains("`4-5`")
+        );
+        assert!(RusherKits::parse("9-10=nope").is_err());
+        for kit in RusherKit::ALL {
+            assert_eq!(RusherKit::parse(kit.name()), Some(kit));
+        }
+        // The lowest tier has no choice.
+        assert_eq!(both.of(BotTier::Low), RusherKit::Control);
+        assert_eq!(RusherKits::default().of(BotTier::Low), RusherKit::Control);
+    }
+
+    /// The same equipment makes the same bot every time: the kits, the
+    /// profile and what is read back from it.
+    #[test]
+    fn a_bot_of_one_equipment_is_made_the_same_every_time() {
+        for tier in BotTier::ALL {
+            for rusher in made_kits(tier) {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    let a = bot_profile(3, 0, role, equipment);
+                    let b = bot_profile(3, 0, role, equipment);
+                    assert_eq!(a, b, "{}", named(equipment, role, 0));
+                    for k in 0..3 {
+                        assert_eq!(
+                            bot_kit_items(equipment, role, k),
+                            bot_kit_items(equipment, role, k)
+                        );
+                    }
+                    assert_eq!(bot_equipment_of(&a), bot_equipment_of(&b));
+                }
+            }
+        }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's
+    /// test data lacks the 0.29a3 weapons) every rusher kit of both tiers is
+    /// made and the checks of the kits above hold for all of them. Run
+    /// alone, as the tables are built from the first data used:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p survarium --lib
+    /// -- --ignored on_the_live_data`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_every_rusher_kit_is_made() {
+        super::super::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        for tier in [BotTier::Mid, BotTier::High] {
+            for kit in RusherKit::ALL {
+                assert_eq!(kit.worn_in(tier), kit, "{tier} {}", kit.name());
+            }
+        }
+        every_bot_kit_is_of_its_tiers_level_and_within_the_carry_limit();
+        every_kits_ammo_is_the_most_its_bags_take();
+        every_bot_has_three_kits_of_different_weapons_and_ammo();
+        the_bots_kit_has_a_pocket_for_each_thing_it_uses();
+        the_rushers_weapons_are_the_tables();
+        each_rusher_kit_is_its_table_made_into_a_kit();
+        the_control_kit_is_the_table_as_it_was();
+        a_kit_the_data_lacks_is_the_old_table();
+        a_bots_tier_and_role_read_back_from_its_profile();
+        a_bot_of_one_equipment_is_made_the_same_every_time();
+        a_bots_profile_is_its_roles_kits_of_the_tier();
+        // The weapons the test data lacks are SMGs, category 15.
+        let dictionary = Dictionary::shared();
+        for weapon in ["fn_p90", "kriss_vector", "sr2m", "ump45"] {
+            assert_eq!(
+                dictionary.item_named(weapon).unwrap().category,
+                15,
+                "{weapon}"
+            );
+        }
+    }
+
     #[test]
     fn a_bots_tier_and_role_read_back_from_its_profile() {
         use super::super::match_msgs::static_info::MatchProfile;
@@ -1473,23 +2872,42 @@ mod tests {
 
         let dictionary = Dictionary::shared();
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                let profile = MatchProfile::from_loadouts(
-                    "Bot-1",
-                    0,
-                    &bot_kits(tier, role),
-                    [0.0; MODIFIERS],
-                    dictionary,
-                    1,
-                );
-                assert_eq!(bot_of(&profile), Some((tier, role)));
-                assert_eq!(bot_role_of(&profile), Some(role));
-                // The ammo's storage is the lives' worth.
-                let (index, count) = profile.kits[0].slots[8].unwrap();
-                assert_eq!(
-                    profile.items[usize::from(index)].condition_or_stack,
-                    u32::from(count) * BOT_AMMO_LIVES
-                );
+            for rusher in made_kits(tier) {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    let profile = MatchProfile::from_loadouts(
+                        "Bot-1",
+                        0,
+                        &bot_kits(equipment, role),
+                        [0.0; MODIFIERS],
+                        dictionary,
+                        1,
+                    );
+                    assert_eq!(bot_of(&profile), Some((tier, role)));
+                    assert_eq!(bot_role_of(&profile), Some(role));
+                    // The kit its tier's rusher wears: told by the rusher's
+                    // own kits, and for the flanker by its third where
+                    // that differs; a role that wears none is said to wear
+                    // the default one.
+                    let (read, _) = bot_equipment_of(&profile).unwrap();
+                    assert_eq!(read.tier, tier);
+                    match role {
+                        BotRole::Rusher => assert_eq!(read.rusher, rusher, "{tier} {role}"),
+                        BotRole::Flanker => assert_eq!(
+                            bot_kits(read, role)[2].items,
+                            bot_kits(equipment, role)[2].items,
+                            "{tier} {role} {}",
+                            rusher.name()
+                        ),
+                        _ => assert_eq!(read.rusher, RusherKit::default().worn_in(tier)),
+                    }
+                    // The ammo's storage is the lives' worth.
+                    let (index, count) = profile.kits[0].slots[8].unwrap();
+                    assert_eq!(
+                        profile.items[usize::from(index)].condition_or_stack,
+                        u32::from(count) * BOT_AMMO_LIVES
+                    );
+                }
             }
         }
         // A bot of an older kit: the role by its weapon, the lowest tier.
@@ -1510,21 +2928,32 @@ mod tests {
             ..player
         };
         assert_eq!(bot_role_of(&empty), None);
-        // The first kits differ, so the reading is one to one.
+        // The first kits differ, so the reading is one to one: for every
+        // role and every rusher kit the data can make.
         let mut firsts: Vec<Vec<(u8, u16)>> = BotTier::ALL
             .into_iter()
-            .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
-            .map(|(tier, role)| {
-                bot_kit(tier, role)
-                    .items
-                    .iter()
-                    .map(|item| (item.slot, item.dict_id))
-                    .collect()
+            .flat_map(|tier| {
+                BotRole::ALL.into_iter().flat_map(move |role| {
+                    // Only the rusher's first kit changes with its kit.
+                    let rushers: Vec<RusherKit> = if role == BotRole::Rusher {
+                        made_kits(tier).collect()
+                    } else {
+                        vec![RusherKit::default().worn_in(tier)]
+                    };
+                    rushers.into_iter().map(move |rusher| {
+                        bot_kit(BotEquipment { tier, rusher }, role)
+                            .items
+                            .iter()
+                            .map(|item| (item.slot, item.dict_id))
+                            .collect()
+                    })
+                })
             })
             .collect();
+        let count = firsts.len();
         firsts.sort_unstable();
         firsts.dedup();
-        assert_eq!(firsts.len(), 12);
+        assert_eq!(firsts.len(), count);
     }
 
     #[test]
@@ -1583,14 +3012,16 @@ mod tests {
     #[test]
     fn a_bots_profile_is_its_roles_kits_of_the_tier() {
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                let profile = bot_profile(7, 1, role, tier);
-                assert_eq!(profile.name, bot_name(7));
-                assert_eq!(profile.name, "Bot-7");
-                assert_eq!(profile.clan_tag, "BOT");
-                assert_eq!(profile.team, 1);
-                assert_eq!(profile.kits.len(), 3, "{tier} {role}");
-                assert_eq!(bot_of(&profile), Some((tier, role)));
+            for rusher in made_kits(tier) {
+                for role in BotRole::ALL {
+                    let profile = bot_profile(7, 1, role, BotEquipment { tier, rusher });
+                    assert_eq!(profile.name, bot_name(7));
+                    assert_eq!(profile.name, "Bot-7");
+                    assert_eq!(profile.clan_tag, "BOT");
+                    assert_eq!(profile.team, 1);
+                    assert_eq!(profile.kits.len(), 3, "{tier} {role}");
+                    assert_eq!(bot_of(&profile), Some((tier, role)));
+                }
             }
         }
     }

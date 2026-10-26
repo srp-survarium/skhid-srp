@@ -92,7 +92,7 @@ impl Bots {
             // kill feed gave one (one enemy's kills rose), is where this
             // death adds to a spot; a dead shooter's spots keep half.
             if self.tuning.threat.spots {
-                self.teams[1 - team].threat.shooter_died(a.place, time);
+                self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
                 let killers: Vec<Place> = after
                     .places
                     .iter()
@@ -105,7 +105,7 @@ impl Bots {
                     && let Some((_, sensed, at)) = self.last_sensed(killer, team, &[])
                     && sensed + threat::SENSED_MS >= time
                 {
-                    self.teams[team].threat.died(death.at, killer, at, sensed, time);
+                    self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time);
                 }
             }
             // An enemy known to carry a battery died: his team's HUD shows

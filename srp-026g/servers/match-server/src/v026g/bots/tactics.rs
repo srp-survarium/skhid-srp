@@ -53,6 +53,13 @@ const WALK_UP_MAX_FLOORS: usize = 40_000;
 pub const USE_REACH_M: f32 = 1.8;
 /// A way out of a zone is looked for over at most this many floors.
 const ESCAPE_FLOORS: usize = 20_000;
+/// A step out of a grenade's blast ([`Tactics::step_out`]) looks over at most
+/// this many floors: its reach is a few seconds' walk, about 14 m, a disc of
+/// some 10,000 floors at the grid's 0.25 m.
+const STEP_OUT_FLOORS: usize = 12_000;
+/// With no floor outside the blast in reach, the one as far as it gets is
+/// taken only if it is this much farther than where the body stands, metres.
+const STEP_OUT_GAIN_M: f32 = 0.5;
 
 /// [`Tactics::ledge_ahead`]: a ledge to jump up is looked for from this far
 /// ahead of the stuck body …
@@ -149,9 +156,9 @@ pub struct Tactics {
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
     past_fixed: std::sync::Mutex<Option<PastFixed>>,
-    /// [`Self::walk_estimate`]'s distances by goal region, once made: they
-    /// depend on the map alone.
-    walks: std::sync::Mutex<std::collections::HashMap<u32, Arc<Vec<f32>>>>,
+    /// [`Self::walk_estimate`]'s distances by goal region: they depend on
+    /// the map alone; the most recent [`WALKS_MOST`] are kept.
+    walks: std::sync::Mutex<WalkCache>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
     /// [`Self::exit_of`]'s field, once made.
@@ -160,8 +167,8 @@ pub struct Tactics {
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
     /// Whether a way out stays under its start's zone strength
-    /// (`Tuning::escape_ceiling`, [`Self::escape`]).
-    pub escape_ceiling: bool,
+    /// (`Tuning::hazard.escape`, [`Self::escape`]).
+    pub escape: super::tuning::EscapeRule,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
 }
@@ -181,6 +188,45 @@ const SPAWN_BITS: u32 = 8;
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
 pub const TACTICS_ALGO: u32 = 3;
+
+/// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
+/// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
+/// 2.3 MB a match, against 80 MB for all of them.
+pub const WALKS_MOST: usize = 128;
+
+/// The kept distances to goal regions, oldest first out, and how often
+/// they served ([`Tactics::walk_stats`]).
+#[derive(Default)]
+struct WalkCache {
+    kept: std::collections::HashMap<u32, Arc<Vec<f32>>>,
+    order: std::collections::VecDeque<u32>,
+    hits: u64,
+    misses: u64,
+}
+
+impl WalkCache {
+    /// Keeps `walks` for `goal`, the oldest of more than `most` going out.
+    fn keep(&mut self, goal: u32, walks: Arc<Vec<f32>>, most: usize) {
+        if self.kept.insert(goal, walks).is_none() {
+            self.order.push_back(goal);
+            while self.order.len() > most {
+                if let Some(old) = self.order.pop_front() {
+                    self.kept.remove(&old);
+                }
+            }
+        }
+    }
+}
+
+/// What the walk cache has done: hits and misses, goals kept now, and the
+/// bytes they hold.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct WalkStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub kept: usize,
+    pub bytes: usize,
+}
 
 /// The grid's own A* over the regions' costs, in metres: the mean of its
 /// length over the regions' sum, measured on School's walks to a battery a
@@ -580,7 +626,7 @@ impl Tactics {
             spot_lists: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
-            escape_ceiling: true,
+            escape: super::tuning::EscapeRule::UnderStartZone,
             foliage: Default::default(),
             base,
         }
@@ -674,6 +720,20 @@ impl Tactics {
         bits
     }
 
+    /// What the walk cache has done so far.
+    pub fn walk_stats(&self) -> WalkStats {
+        let cache = self
+            .walks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        WalkStats {
+            hits: cache.hits,
+            misses: cache.misses,
+            kept: cache.kept.len(),
+            bytes: cache.kept.values().map(|w| w.len() * 4).sum(),
+        }
+    }
+
     /// The walk from floor `from` to floor `to` in metres, over the
     /// regions' directed links (a drop is short one way and long the
     /// other), times [`REGION_WALK_FACTOR`]: coarse (a region is a block of
@@ -682,15 +742,29 @@ impl Tactics {
     pub fn walk_estimate(&self, from: NodeId, to: NodeId) -> Option<f32> {
         let regions = &self.base.regions;
         let goal = regions.of(to);
-        let walks = {
-            let mut kept = self
+        let known = {
+            let mut cache = self
                 .walks
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            kept.entry(goal)
-                .or_insert_with(|| Arc::new(region_walks_to(regions, goal)))
-                .clone()
+            let known = cache.kept.get(&goal).cloned();
+            if known.is_some() {
+                cache.hits += 1;
+            } else {
+                cache.misses += 1;
+            }
+            known
         };
+        // Worked out with nothing locked, then kept.
+        let walks = known.unwrap_or_else(|| {
+            let made = Arc::new(region_walks_to(regions, goal));
+            let mut cache = self
+                .walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.keep(goal, made.clone(), WALKS_MOST);
+            made
+        });
         let d = walks[regions.of(from) as usize];
         d.is_finite().then_some(d * REGION_WALK_FACTOR)
     }
@@ -940,6 +1014,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.max_jump_rise(),
             iters,
         )
     }
@@ -1018,6 +1093,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }
@@ -1109,7 +1185,7 @@ impl Tactics {
     /// fire.
     ///
     /// The search never goes down into a zone stronger than the body's own
-    /// (`Tactics::escape_ceiling`): the floors open to it are those no zone
+    /// (`Tactics::escape`): the floors open to it are those no zone
     /// marks, those of the start's own zones, those it may walk on, and
     /// those whose hit a second is not above the start's. From a mild zone
     /// the nearest way out may be over a strong one beside it (the 0.90
@@ -1192,7 +1268,10 @@ impl Tactics {
             }
             outs
         };
-        let mut ceiling = if self.escape_ceiling { start_hit } else { f32::INFINITY };
+        let mut ceiling = match self.escape {
+            super::tuning::EscapeRule::UnderStartZone => start_hit,
+            super::tuning::EscapeRule::Nearest => f32::INFINITY,
+        };
         let mut outs = search(&open_under(ceiling));
         if outs.is_empty() && ceiling.is_finite() {
             ceiling = f32::INFINITY;
@@ -1230,6 +1309,67 @@ impl Tactics {
             self.count_escape_route(route, from, time, side, objective);
         }
         route
+    }
+
+    /// [`grenade_avoid`](super::tuning::AvoidTuning) The floor a body at
+    /// `from` steps to, to be out of the blast of a grenade at `rest`: the
+    /// nearest floor it may stand on whose chest is `radius` or more from
+    /// `rest`, by the way over the floors it may walk (what
+    /// [`Self::allowed`] and `filter` let through; a link the planner does
+    /// not use is not walked), within `reach_m` of walking. With none in
+    /// reach, the floor in reach farthest from `rest`, if that is
+    /// [`STEP_OUT_GAIN_M`] farther than where the body stands (it goes as far
+    /// as it gets, and stays when it is at the best of it). From a floor
+    /// already outside, the nearest floor outside is its own: it stays.
+    ///
+    /// One breadth-first search like [`Self::escape`]'s, over the floors
+    /// within the reach only: about 10,000 at most, once for each body that
+    /// steps out of each grenade.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_out(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+    ) -> Option<Vec3> {
+        use super::view::CHEST;
+        let grid = &self.world.grid;
+        let up = Vec3::new(0.0, CHEST, 0.0);
+        let far = |n: NodeId| (grid.position(n) + up - rest).length();
+        let open = |n: NodeId| self.allowed(n, time, side, objective);
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
+        let mut farthest: Option<(NodeId, f32)> = None;
+        while let Some((a, d)) = queue.pop_front() {
+            let (here, ok) = (far(a), open(a));
+            if ok && here >= radius {
+                return Some(grid.position(a));
+            }
+            if ok && farthest.is_none_or(|(_, best)| here > best) {
+                farthest = Some((a, here));
+            }
+            if seen.len() > STEP_OUT_FLOORS {
+                break;
+            }
+            let at = grid.position(a);
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) {
+                    continue;
+                }
+                let next = d + grid.position(b).distance_xz(at);
+                if next <= reach_m {
+                    seen.insert(b);
+                    queue.push_back((b, next));
+                }
+            }
+        }
+        let (best, best_far) = farthest?;
+        (best_far > far(from) + STEP_OUT_GAIN_M).then(|| grid.position(best))
     }
 
     /// The bench's counts of what a way out passes ([`escapes::counts`]): a
@@ -2164,6 +2304,40 @@ pub(super) mod tests {
         hits
     }
 
+    /// A step out of a grenade's blast: the nearest floor whose chest is 10.5 m from the
+    /// rest point; the floor as far as it gets when none is in reach (and none when it already
+    /// stands at the best of it); its own floor from outside.
+    #[test]
+    fn a_step_out_of_a_blast_goes_to_the_nearest_floor_outside_or_as_far_as_it_gets() {
+        let world = field_with(|_| {});
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let open = RouteFilter::open();
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let out = tactics
+            .step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open)
+            .expect("a floor outside");
+        let chest = Vec3::new(0.0, 1.3, 0.0);
+        let reach = (out + chest - rest).length();
+        assert!((10.5..12.0).contains(&reach), "the nearest outside, not far past: {out:?} {reach}");
+        // A walk of 3 m only: no floor outside; the farthest in reach, about 3 m on from 3 m.
+        let near = tactics
+            .step_out(from, rest, 10.5, 3.0, 0, Some(0), false, &open)
+            .expect("as far as it gets");
+        let went = near.distance_xz(grid.position(from));
+        assert!((2.0..3.2).contains(&went), "{near:?} {went}");
+        assert!((near + chest - rest).length() > 3.0 + 1.5);
+        // With no reach at all it stays where it is: none.
+        assert_eq!(tactics.step_out(from, rest, 10.5, 0.0, 0, Some(0), false, &open), None);
+        // Standing outside already, its own floor.
+        let outside = grid.locate(Vec3::new(33.0, 0.0, 20.0), 1.0).unwrap();
+        let stay = tactics
+            .step_out(outside, rest, 10.5, 20.0, 0, Some(0), false, &open)
+            .unwrap();
+        assert_eq!(stay, grid.position(outside));
+    }
+
     /// From a mild zone the way out costs what it takes: not the nearest
     /// way, over a strong zone beside it, but the longer way out round it
     /// (the 0.90 stretch: a way out of a mild zone led down into a strong
@@ -2190,7 +2364,7 @@ pub(super) mod tests {
         assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
     }
 
-    /// With the ceiling off (`escape_ceiling` false) the way out is the old one:
+    /// With the ceiling off (`EscapeRule::Nearest`) the way out is the old one:
     /// the nearest, east through the strong zone.
     #[test]
     fn with_the_ceiling_off_the_way_out_is_the_nearest() {
@@ -2199,7 +2373,7 @@ pub(super) mod tests {
             map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
         });
         let mut tactics = Tactics::new(world.clone(), 1.0);
-        tactics.escape_ceiling = false;
+        tactics.escape = crate::v026g::bots::tuning::EscapeRule::Nearest;
         let inside = world.grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
         let out = tactics
             .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
@@ -2294,6 +2468,27 @@ pub(super) mod tests {
                 .route_nodes(end_node, to, 0, Some(0), false, &RouteFilter::open())
                 .is_some()
         );
+    }
+
+    /// A route for a body that cannot sprint (a battery carrier) takes no jump
+    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// 1.0 m platform is a jump away for the walker and no way for the
+    /// carrier, a 0.9 m one is a way for both.
+    #[test]
+    fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
+        let route = |rise: f32, filter: &RouteFilter| {
+            let solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
+            let world = field_with_solids(&solids, |_| {});
+            let tactics = Tactics::new(world.clone(), 1.0);
+            let grid = &world.grid;
+            let from = grid.locate(Vec3::new(7.0, 0.0, 7.0), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
+            tactics.route_nodes(from, to, 0, Some(0), false, filter)
+        };
+        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
+        assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
+        assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
     }
 
     /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it
@@ -2469,4 +2664,20 @@ pub(super) mod tests {
         assert!(!spots.is_empty());
         assert!(spots.iter().all(|spot| spot.at.y < 1.0), "{spots:?}");
     }
+
+    /// The walk cache keeps the most recent goals only: the oldest goes out
+    /// at the limit, and a goal asked again is not made twice.
+    #[test]
+    fn the_walk_cache_keeps_a_bounded_number_of_goals() {
+        let mut cache = WalkCache::default();
+        for goal in 0..5u32 {
+            cache.keep(goal, Arc::new(vec![0.0; 10]), 3);
+        }
+        assert_eq!(cache.kept.len(), 3);
+        assert!(cache.kept.contains_key(&4) && cache.kept.contains_key(&2));
+        assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
+        cache.keep(4, Arc::new(vec![0.0; 10]), 3);
+        assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
 }

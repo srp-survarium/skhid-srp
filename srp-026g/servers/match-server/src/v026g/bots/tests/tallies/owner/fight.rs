@@ -3,6 +3,10 @@ use super::*;
 /// The fight counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
 pub(super) struct FightCounts {
+    /// By place: what the bot's reflex says at this tick's reading (none: not a bot).
+    pub(super) now: Vec<Option<FightNow>>,
+    /// The tactics' walk cache at the last tick (hits, misses, kept).
+    pub(super) walk_stats: crate::v026g::bots::tactics::WalkStats,
     /// Bot state of the last tick: dry, the last reload's (at, until).
     pub(super) dry: Vec<bool>,
     pub(super) last_reload: Vec<Option<(u32, u32)>>,
@@ -36,6 +40,9 @@ pub(super) struct FightCounts {
     /// the eye to his chest or head; with none.
     pub(super) fire_on_target: u32,
     pub(super) fire_hidden: u32,
+    /// Fire at a target out of sight, in a throw's hold, and within 3 s after
+    /// a throw (the grenade logic's own reading of the +5.9 % of look 2).
+    pub(super) fire_hidden_throw: [u32; 2],
     pub(super) fire_no_target: u32,
     /// By place: the last tick's target, and the enemies who hit it (who,
     /// when).
@@ -49,6 +56,7 @@ pub(super) struct FightCounts {
 impl FightCounts {
     pub(super) fn new(n: usize) -> Self {
         Self {
+            now: vec![None; n],
             dry: vec![false; n],
             last_reload: vec![None; n],
             last_target: vec![None; n],
@@ -188,18 +196,103 @@ pub(crate) fn in_sight(
     sight.visible(eye, Game::eye(him))
 }
 
-impl OwnerTally {
+/// What the fight counts read of a bot at a tick: out of rounds with nothing to load, its last reload (start,
+/// end), and the reflex tick, if any, at which the weapon's range alone held its shot.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct FightNow {
+    pub(super) dry: bool,
+    pub(super) reload: Option<(u32, u32)>,
+    pub(super) range_held: Option<u32>,
+    /// Its view is held for a throw, and ms since it let go of its last grenade.
+    pub(super) throw_held: bool,
+    pub(super) thrown_ago_ms: Option<u32>,
+}
+
+impl Topic for FightCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+        self.now[place] = bot.map(|bot| {
+            let gates = bot.reflex.gates();
+            FightNow {
+                dry: bot.reflex.dry(),
+                reload: bot.reflex.reload_note().map(|r| (r.at, r.until)),
+                // The range was the only gate that failed (with the gate tally on, the wall test too was made).
+                range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
+                throw_held: bot.reflex.view_held(),
+                thrown_ago_ms: bot.reflex.thrown_ago(tick),
+            }
+        });
+    }
+
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.walk_stats = tactics.walk_stats();
+        }
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.now[place] = now.map(|n| FightNow {
+            dry: n.dry,
+            reload: n.reload,
+            range_held: n.range_held,
+            throw_held: n.throw_held,
+            thrown_ago_ms: n.thrown_ago_ms,
+        });
+    }
+
+    /// The game's hits this tick are kept, and the enemies who hurt each victim lately.
+    fn begin(&mut self, _run: &Run, game: &mut Game) {
+        let tick = game.tick;
+        self.fight_hits_taken(game, tick);
+    }
+
+    fn body(&mut self, _run: &Run, at: &BodyAt<'_>, rays: &mut u64) {
+        let (game, place, tick) = (at.game, at.place, at.tick);
+        let body = &game.bodies[place];
+        self.fight_death(place, tick, at.prev, body);
+        let Some(now) = self.now[place] else {
+            return;
+        };
+        self.fight_ammo(place, tick, body, &now);
+        self.fight_fire(game, place, body, at.rec, at.sight, rays);
+        self.fight_range_held(place, body, &now);
+        self.fight_switch(game, place, body, at.sight, rays);
+    }
+
+    fn end(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64) {
+        let tick = game.tick;
+        self.fight_hits_scored(run, game);
+        self.fight_reloads(run, game, sight, rays, tick);
+    }
+
+    fn publish(&self) -> Vec<(&'static str, serde_json::Value)> {
+        vec![("fire_hidden_throw", serde_json::json!(self.fire_hidden_throw))]
+    }
+
+    fn parts(&mut self, run: &Run, _game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        for r in std::mem::take(&mut self.reloads) {
+            self.reload_done(run, &r);
+        }
+        vec![("fight", self.part(run, scale))]
+    }
+}
+
+impl FightCounts {
     /// A reload over (and the 4 s after its start): in a line, died.
-    pub(crate) fn reload_done(&mut self, r: &Reload) {
+    pub(crate) fn reload_done(&mut self, run: &Run, r: &Reload) {
         if !r.in_line {
             return;
         }
-        self.fight.reloads_in_line += 1;
-        let recs = &self.recs[r.place];
-        let i0 = self.index(r.at);
-        let i1 = self.index(r.at + RELOAD_DIED_MS).min(recs.len().saturating_sub(1));
+        self.reloads_in_line += 1;
+        let recs = &run.recs[r.place];
+        let i0 = run.index(r.at);
+        let i1 = run.index(r.at + RELOAD_DIED_MS).min(recs.len().saturating_sub(1));
         let died = (i0.max(1)..=i1).any(|i| recs[i - 1].alive && !recs[i].alive);
-        self.fight.reloads_in_line_died += u32::from(died);
+        self.reloads_in_line_died += u32::from(died);
     }
 }
 
@@ -423,17 +516,17 @@ pub(super) fn enemy_of(game: &Game, place: Place, team: u8, t: Place) -> Option<
         .filter(|b| t != place && b.alive && b.team != team)
 }
 
-impl OwnerTally {
+impl FightCounts {
     /// The game's hits this tick are kept, and the enemies who hurt each victim lately (for the target switches).
     pub(super) fn fight_hits_taken(&mut self, game: &Game, tick: u32) {
-        self.fight.hits.extend(game.hit_log.iter().copied());
+        self.hits.extend(game.hit_log.iter().copied());
         for &(t, shooter, victim) in &game.hit_log {
-            if let Some(hurt) = self.fight.hurt_by.get_mut(victim) {
+            if let Some(hurt) = self.hurt_by.get_mut(victim) {
                 hurt.retain(|&(who, _)| who != shooter);
                 hurt.push((shooter, t));
             }
         }
-        for hurt in &mut self.fight.hurt_by {
+        for hurt in &mut self.hurt_by {
             hurt.retain(|&(_, t)| tick <= t + HURT_MS);
         }
     }
@@ -442,33 +535,33 @@ impl OwnerTally {
     pub(super) fn fight_death(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body) {
         // A death: dry or reloading at it.
         if prev.alive && !body.alive {
-            self.fight.deaths_dry += u32::from(self.fight.dry[place]);
-            self.fight.deaths_reloading += u32::from(self.fight.last_reload[place].is_some_and(
+            self.deaths_dry += u32::from(self.dry[place]);
+            self.deaths_reloading += u32::from(self.last_reload[place].is_some_and(
                 |(at, until)| at <= tick && tick <= until + RELOAD_AFTER_MS,
             ));
         }
     }
 
     /// The bot's ammunition and reloads.
-    pub(super) fn fight_ammo(&mut self, place: Place, tick: u32, body: &super::super::Body, now: &BotNow) {
+    pub(super) fn fight_ammo(&mut self, place: Place, tick: u32, body: &super::super::Body, now: &FightNow) {
         // The bot's ammunition and reloads.
-        self.fight.dry[place] = body.alive && now.dry;
-        if self.fight.dry[place] {
-            self.fight.dry_ticks += 1;
+        self.dry[place] = body.alive && now.dry;
+        if self.dry[place] {
+            self.dry_ticks += 1;
         }
         if let Some((at, until)) = now.reload {
-            if self.fight.last_reload[place].is_none_or(|(was, _)| was != at) {
-                self.fight.reloads_n += 1;
-                self.fight.reloads.push(Reload {
+            if self.last_reload[place].is_none_or(|(was, _)| was != at) {
+                self.reloads_n += 1;
+                self.reloads.push(Reload {
                     place,
                     at,
                     until,
                     in_line: false,
                 });
             }
-            self.fight.last_reload[place] = Some((at, until));
+            self.last_reload[place] = Some((at, until));
             if body.alive && at <= tick && tick < until {
-                self.fight.reload_ticks += 1;
+                self.reload_ticks += 1;
             }
         }
     }
@@ -476,16 +569,22 @@ impl OwnerTally {
     /// Fire this tick: by movement, at a target in line or not, by range.
     pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
         if body.alive && body.keys & key::FIRE != 0 {
-            self.fight.fire_move[move_of(rec)] += 1;
+            self.fire_move[move_of(rec)] += 1;
             // At the target: with a line to him or not.
             match body.target.and_then(|t| enemy_of(game, place, body.team, t)) {
                 Some(him) => {
-                    self.fight.fire_on_target += 1;
+                    self.fire_on_target += 1;
                     if !in_sight(sight, body, him, f32::INFINITY, rays) {
-                        self.fight.fire_hidden += 1;
+                        self.fire_hidden += 1;
+                        let throw = self.now[place].unwrap_or_default();
+                        if throw.throw_held {
+                            self.fire_hidden_throw[0] += 1;
+                        } else if throw.thrown_ago_ms.is_some_and(|ago| ago <= 3_000) {
+                            self.fire_hidden_throw[1] += 1;
+                        }
                     }
                 }
-                None => self.fight.fire_no_target += 1,
+                None => self.fire_no_target += 1,
             }
             // By range: the enemy nearest the view.
             let in_view = |reach: f32| {
@@ -501,11 +600,11 @@ impl OwnerTally {
                     .min_by(|a, b| a.0.total_cmp(&b.0))
             };
             if let Some((_, d)) = in_view(FIRE_BANDS[4]) {
-                self.fight.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
+                self.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
             }
             // And against the class's range, as far as it reaches.
             if let (Some(range), Some((_, d))) = (class_range_m(body.gun.class()), in_view(FIRE_FAR_M)) {
-                let count = self.fight.fire_range.entry(body.gun.class()).or_default();
+                let count = self.fire_range.entry(body.gun.class()).or_default();
                 count[0] += 1;
                 count[1] += u32::from(d > range);
             }
@@ -516,7 +615,7 @@ impl OwnerTally {
                 .map(|him| him.feet.distance_xz(body.feet))
                 .filter(|d| (FIRE_MIN_M..=FIRE_FAR_M).contains(d));
             if let (Some(range), Some(d)) = (class_range_m(body.gun.class()), at_target) {
-                let count = self.fight.fire_range_target.entry(body.gun.class()).or_default();
+                let count = self.fire_range_target.entry(body.gun.class()).or_default();
                 count[0] += 1;
                 count[1] += u32::from(d > range);
             }
@@ -524,14 +623,14 @@ impl OwnerTally {
     }
 
     /// The shot the range alone held back this tick (fire key or not).
-    pub(super) fn fight_range_held(&mut self, place: Place, body: &super::super::Body, now: &BotNow) {
+    pub(super) fn fight_range_held(&mut self, place: Place, body: &super::super::Body, now: &FightNow) {
         // The reflex decides ticks ahead of the game's: each of its ticks once.
-        let Some(at) = now.range_held.filter(|&at| at != self.fight.held_at[place]) else {
+        let Some(at) = now.range_held.filter(|&at| at != self.held_at[place]) else {
             return;
         };
-        self.fight.held_at[place] = at;
+        self.held_at[place] = at;
         if body.alive && class_range_m(body.gun.class()).is_some() {
-            *self.fight.range_held.entry(body.gun.class()).or_default() += 1;
+            *self.range_held.entry(body.gun.class()).or_default() += 1;
         }
     }
 
@@ -540,33 +639,33 @@ impl OwnerTally {
         // A target switch while an enemy who hurt it is in its line,
         // not the new target.
         let target = body.target.filter(|_| body.alive);
-        if let (Some(was), Some(new)) = (self.fight.last_target[place], target)
+        if let (Some(was), Some(new)) = (self.last_target[place], target)
             && was != new
         {
-            self.fight.switches += 1;
-            let hurter_in_line = self.fight.hurt_by[place].iter().any(|&(who, _)| {
+            self.switches += 1;
+            let hurter_in_line = self.hurt_by[place].iter().any(|&(who, _)| {
                 who != new
                     && enemy_of(game, place, body.team, who).is_some_and(|him| {
                         in_sight(sight, him, body, f32::INFINITY, rays)
                     })
             });
-            self.fight.switches_off_hurter += u32::from(hurter_in_line);
+            self.switches_off_hurter += u32::from(hurter_in_line);
         }
-        self.fight.last_target[place] = target;
+        self.last_target[place] = target;
     }
 
     /// The game's hits this tick, by the shooter's movement, the range and his weapon class.
-    pub(super) fn fight_hits_scored(&mut self, game: &Game) {
+    pub(super) fn fight_hits_scored(&mut self, run: &Run, game: &Game) {
         // Hits by the shooter's movement, the range and his weapon class.
         for &(_, shooter, victim) in &game.hit_log {
             let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
                 continue;
             };
-            self.fight.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
+            self.hits_move[run.recs[shooter].last().map_or(0, move_of)] += 1;
             let band = band_of(s.feet.distance_xz(v.feet));
-            self.fight.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
+            self.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
             if let Some(range) = class_range_m(s.gun.class()) {
-                let count = self.fight.hits_range.entry(s.gun.class()).or_default();
+                let count = self.hits_range.entry(s.gun.class()).or_default();
                 count[0] += 1;
                 count[1] += u32::from(s.feet.distance_xz(v.feet) > range);
             }
@@ -574,10 +673,10 @@ impl OwnerTally {
     }
 
     /// Reloads in an enemy's line (once a reload, every 4th tick), and the reloads that are over.
-    pub(super) fn fight_reloads(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+    pub(super) fn fight_reloads(&mut self, run: &Run, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         // Reloads in an enemy's line: once a reload, every 4th tick.
         if (tick / TICK_MS).is_multiple_of(4) {
-            for reload in &mut self.fight.reloads {
+            for reload in &mut self.reloads {
                 if reload.in_line || tick < reload.at || tick >= reload.until {
                     continue;
                 }
@@ -599,7 +698,7 @@ impl OwnerTally {
             }
         }
         let mut done = Vec::new();
-        self.fight.reloads.retain(|r| {
+        self.reloads.retain(|r| {
             let over = tick > r.at.max(r.until) + RELOAD_DIED_MS;
             if over {
                 done.push(*r);
@@ -607,13 +706,13 @@ impl OwnerTally {
             !over
         });
         for r in done {
-            self.reload_done(&r);
+            self.reload_done(run, &r);
         }
     }
 
     /// The fight counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    pub(super) fn fight_part(&self, scale: &Scale) -> Part {
-        let n = self.recs.len();
+    fn part(&self, run: &Run, scale: &Scale) -> Part {
+        let n = run.recs.len();
         let bot = |place: Place| place < n;
         let tick_s = scale.tick_s;
         let pct = Scale::pct;
@@ -621,14 +720,14 @@ impl OwnerTally {
         // Turned on the shooter.
         let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
         let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
-        for &(t, shooter, victim) in &self.fight.hits {
+        for &(t, shooter, victim) in &run.hits {
             let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
             last_hit.insert(victim, t);
             if !apart || !bot(victim) {
                 continue;
             }
-            let i = self.index(t);
-            let recs = &self.recs[victim];
+            let i = run.index(t);
+            let recs = &run.recs[victim];
             let Some(at) = recs.get(i) else {
                 continue;
             };
@@ -636,7 +735,7 @@ impl OwnerTally {
                 continue;
             }
             first_hits += 1;
-            let from = |k: usize| self.recs[shooter].get(k).map_or(Vec3::ZERO, |r| r.feet);
+            let from = |k: usize| run.recs[shooter].get(k).map_or(Vec3::ZERO, |r| r.feet);
             if off_deg(at.yaw, at.feet, from(i)) <= HIT_SIDE_DEG {
                 continue;
             }
@@ -661,12 +760,12 @@ impl OwnerTally {
         }
 
         let fire_far: BTreeMap<&str, [u32; 2]> = self
-            .fight.fire
+            .fire
             .iter()
             .map(|(class, bands)| (*class, [bands.iter().sum(), bands[3] + bands[4]]))
             .collect();
         let fire_near_class: [u32; 2] = self
-            .fight.fire
+            .fire
             .iter()
             .filter(|(class, _)| matches!(**class, "shotgun" | "smg"))
             .fold([0, 0], |acc, (_, b)| [acc[0] + b.iter().sum::<u32>(), acc[1] + b[3] + b[4]]);
@@ -674,63 +773,62 @@ impl OwnerTally {
         let hit_rate_move: BTreeMap<&str, f64> = MOVES
             .iter()
             .enumerate()
-            .map(|(i, m)| (*m, rate(self.fight.hits_move[i], self.fight.fire_move[i])))
+            .map(|(i, m)| (*m, rate(self.hits_move[i], self.fire_move[i])))
             .collect();
         let hit_rate_class: BTreeMap<&str, Vec<f64>> = self
-            .fight.fire
+            .fire
             .iter()
             .map(|(class, fire)| {
-                let hits = self.fight.hits_band.get(class).copied().unwrap_or_default();
+                let hits = self.hits_band.get(class).copied().unwrap_or_default();
                 (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
             })
             .collect();
         // X1: hits a fire tick within the class's range and past it.
-        let [fire_all, fire_past] = self.fight.fire_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
-        let [hits_all, hits_past] = self.fight.hits_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
-        let [target_all, target_past] = self.fight.fire_range_target.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let [fire_all, fire_past] = self.fire_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let [hits_all, hits_past] = self.hits_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let [target_all, target_past] = self.fire_range_target.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
         let rate_in = rate(hits_all - hits_past, fire_all - fire_past);
         let rate_past = rate(hits_past, fire_past);
         let rate_range_class: BTreeMap<&str, [f64; 2]> = self
-            .fight
             .fire_range
             .iter()
             .map(|(class, fire)| {
-                let hits = self.fight.hits_range.get(class).copied().unwrap_or_default();
+                let hits = self.hits_range.get(class).copied().unwrap_or_default();
                 (*class, [rate(hits[0] - hits[1], fire[0] - fire[1]), rate(hits[1], fire[1])])
             })
             .collect();
-        let held: u32 = self.fight.range_held.values().sum();
+        let held: u32 = self.range_held.values().sum();
         let json = serde_json::json!({
-            "dry_s": (self.fight.dry_ticks as f64 * tick_s).round(),
-            "reload_s": (self.fight.reload_ticks as f64 * tick_s).round(),
-            "deaths_dry": self.fight.deaths_dry,
-            "deaths_reloading": self.fight.deaths_reloading,
-            "reloads": self.fight.reloads_n,
-            "reloads_in_line": self.fight.reloads_in_line,
-            "reloads_in_line_died": self.fight.reloads_in_line_died,
-            "fire_by_class": self.fight.fire,
+            "dry_s": (self.dry_ticks as f64 * tick_s).round(),
+            "reload_s": (self.reload_ticks as f64 * tick_s).round(),
+            "deaths_dry": self.deaths_dry,
+            "deaths_reloading": self.deaths_reloading,
+            "reloads": self.reloads_n,
+            "reloads_in_line": self.reloads_in_line,
+            "reloads_in_line_died": self.reloads_in_line_died,
+            "fire_by_class": self.fire,
             "fire_far_by_class": fire_far,
             "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
-            "fire_past_class_range": self.fight.fire_range,
+            "fire_past_class_range": self.fire_range,
             "fire_past_class_range_pct": pct(fire_past.into(), fire_all.into()),
-            "fire_past_class_range_at_target": self.fight.fire_range_target,
+            "fire_past_class_range_at_target": self.fire_range_target,
             "fire_past_class_range_at_target_pct": pct(target_past.into(), target_all.into()),
-            "hits_past_class_range": self.fight.hits_range,
+            "hits_past_class_range": self.hits_range,
             "hit_rate_in_class_range": rate_in,
             "hit_rate_past_class_range": rate_past,
             "hit_rate_by_class_range": rate_range_class,
-            "fire_held_by_class_range": self.fight.range_held,
-            "hits_by_class": self.fight.hits_band,
+            "fire_held_by_class_range": self.range_held,
+            "hits_by_class": self.hits_band,
             "hit_rate_by_class": hit_rate_class,
-            "fire_by_move": by_move(&self.fight.fire_move),
-            "hits_by_move": by_move(&self.fight.hits_move),
+            "fire_by_move": by_move(&self.fire_move),
+            "hits_by_move": by_move(&self.hits_move),
             "hit_rate_by_move": hit_rate_move,
-            "fire_on_target": self.fight.fire_on_target,
-            "fire_hidden": self.fight.fire_hidden,
-            "fire_hidden_pct": pct(self.fight.fire_hidden.into(), self.fight.fire_on_target.into()),
-            "fire_no_target": self.fight.fire_no_target,
-            "target_switches": self.fight.switches,
-            "switches_off_hurter": self.fight.switches_off_hurter,
+            "fire_on_target": self.fire_on_target,
+            "fire_hidden": self.fire_hidden,
+            "fire_hidden_pct": pct(self.fire_hidden.into(), self.fire_on_target.into()),
+            "fire_no_target": self.fire_no_target,
+            "target_switches": self.switches,
+            "switches_off_hurter": self.switches_off_hurter,
             "hits_first": first_hits,
             "hits_side": hits_side,
             "turned_3s": turned,
@@ -740,17 +838,17 @@ impl OwnerTally {
         let text = format!(
             "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), at its target {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
             json["dry_s"],
-            self.fight.deaths_dry,
+            self.deaths_dry,
             json["reload_s"],
-            self.fight.deaths_reloading,
-            self.fight.reloads_n,
-            self.fight.reloads_in_line,
-            self.fight.reloads_in_line_died,
+            self.deaths_reloading,
+            self.reloads_n,
+            self.reloads_in_line,
+            self.reloads_in_line_died,
             fire_far.iter().map(|(c, v)| format!("{c} {}/{}", v[1], v[0])).collect::<Vec<_>>().join(" "),
             hits_side,
             turned,
             died_unturned,
-            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fight.fire_move[i], self.fight.hits_move[i])).collect::<Vec<_>>().join(" "),
+            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fire_move[i], self.hits_move[i])).collect::<Vec<_>>().join(" "),
             json["hit_rate_by_class"],
             fire_past,
             fire_all,
@@ -761,12 +859,22 @@ impl OwnerTally {
             rate_in,
             rate_past,
             held,
-            self.fight.fire_on_target,
-            self.fight.fire_hidden,
+            self.fire_on_target,
+            self.fire_hidden,
             json["fire_hidden_pct"].as_f64().unwrap_or(0.0),
-            self.fight.fire_no_target,
-            self.fight.switches,
-            self.fight.switches_off_hurter,
+            self.fire_no_target,
+            self.switches,
+            self.switches_off_hurter,
+        );
+        let w = self.walk_stats;
+        let text = format!(
+            "{text}
+  owner-test walk cache: {} hits {} misses ({:.1} % hit), {} goals kept, {} KB",
+            w.hits,
+            w.misses,
+            100.0 * w.hits as f64 / (w.hits + w.misses).max(1) as f64,
+            w.kept,
+            w.bytes / 1024
         );
         Part::new(json, text)
     }

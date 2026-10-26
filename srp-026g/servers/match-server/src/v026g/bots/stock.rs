@@ -21,7 +21,9 @@
 //! count).
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::{BOT_POCKETS, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER};
+use survarium::v026g::loadouts::{
+    BOT_BANDAGES, BOT_MEDKIT, BOT_POCKETS, BotKitItem, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER, new_kit,
+};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 
@@ -165,6 +167,17 @@ impl Default for Pantry {
     }
 }
 
+/// The pockets of a bot's kit before a world says what it holds: the owner's kit's drugs (the medkits, then the
+/// bandages: [`BOT_BANDAGES`], quick use 2) when the bots carry it (`SRP_BOT_KIT`, [`new_kit`]), else the
+/// tip's [`BOT_POCKETS`]. The bench's stand-in builds its bodies' kits from the same list.
+pub(crate) fn standard_pockets() -> Vec<BotKitItem> {
+    if new_kit() {
+        vec![BOT_MEDKIT, BOT_BANDAGES]
+    } else {
+        BOT_POCKETS.to_vec()
+    }
+}
+
 impl Pantry {
     /// What every server bot's kit holds ([`BOT_POCKETS`]: two medkits),
     /// until a world says what its kits hold.
@@ -176,7 +189,7 @@ impl Pantry {
     }
 
     fn standard_kit() -> Vec<Held> {
-        BOT_POCKETS
+        standard_pockets()
             .iter()
             .filter_map(|item| {
                 let drug = Drug::of_name(item.name)?;
@@ -384,7 +397,7 @@ pub(crate) mod live_kit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     use survarium::v026g::match_msgs::players::ItemLeft;
 
     /// A bot's block as the game shows it: each item of the profile in
@@ -419,7 +432,12 @@ mod tests {
     }
 
     fn profile() -> MatchProfile {
-        bot_profile(1, 0, BotRole::ALL[0], BotTier::Low)
+        bot_profile(
+            1,
+            0,
+            BotRole::ALL[0],
+            BotEquipment::of(BotTier::Low, RusherKits::default()),
+        )
     }
 
     #[test]
@@ -596,5 +614,24 @@ mod tests {
             18,
             "the store is for the next life"
         );
+    }
+}
+
+/// A bot's consumables state, by feature ([`super::features`]): the medkits it used this life, the drugs of its
+/// kits counted for the match, and its health pools as the last trusted world showed them.
+#[derive(Default)]
+pub struct BotState {
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
+    pub medkits_used: u8,
+    /// The drugs of its kits, counted for the match ([`Pantry`]).
+    pub pantry: Pantry,
+    /// Its health pools as the last trusted world showed them (`Bots::pools`); none before the first.
+    pub pools: Option<super::pools::Pools>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, life: &super::features::Life) {
+        self.medkits_used = 0;
+        self.pantry.new_life(life.kit);
     }
 }

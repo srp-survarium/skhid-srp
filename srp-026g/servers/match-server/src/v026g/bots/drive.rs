@@ -34,6 +34,45 @@ pub(super) const JUMP_WATCH_MS: u32 = 3_000;
 /// turns the view while the bot walks in.
 pub(super) const USE_LOOK_M: f32 = 2.5;
 
+/// A bot stepping out of a grenade's blast has arrived this near its floor, metres.
+const AVOID_ARRIVE_M: f32 = 0.8;
+
+/// What `grenade_threat::step` asks of the map: a line, and the floor out of a blast
+/// ([`Tactics::step_out`], over the floors the body may walk, the landings it gave up shut).
+struct BlastAround<'a> {
+    tactics: &'a Tactics,
+    stuck: &'a Stuck,
+    side: Option<i32>,
+    time: u32,
+    objective: bool,
+}
+
+impl grenade_threat::Surroundings for BlastAround<'_> {
+    fn sees(&self, from: Vec3, to: Vec3) -> bool {
+        self.tactics.world.sight.visible(from, to)
+    }
+
+    fn way_out(
+        &self,
+        me: &PlaceView,
+        blast: &grenade_threat::Blast,
+        reach_m: f32,
+    ) -> Option<Vec3> {
+        let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
+        let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
+        self.tactics.step_out(
+            from,
+            blast.rest,
+            blast.radius,
+            reach_m,
+            self.time,
+            self.side,
+            self.objective,
+            &hard,
+        )
+    }
+}
+
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
 /// and trigger, the play's legs and stance, the presses.
 /// Where a bot at `feet` with no goal of its own walks out of the zone it
@@ -58,7 +97,8 @@ pub(super) fn zone_way_out(
     {
         return Some(to);
     }
-    let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+    let landings = bot.stuck.shut_landings(time).collect();
+    let hard = traps::filter(bot, landings, Some(from));
     let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
@@ -168,11 +208,11 @@ pub(super) fn drive_tick(
     // key goes out at once whatever the play, which is neither taken nor
     // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
     bot.reflex.set_heal(super::plays::heal::wish(
-        bot.pools,
+        bot.features.stock.pools,
         me.health,
         view.world_time,
         me.carrying.is_some(),
-        &bot.pantry,
+        &bot.features.stock.pantry,
         &tuning.heal,
         time,
     ));
@@ -222,9 +262,39 @@ pub(super) fn drive_tick(
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });
+    // [traps] The bear-trap habit: when nothing calls the bot away (no
+    // target, no shot, no use), the view goes down at the floor point and the
+    // trap's key is pressed one tick and let go the next. A tick it does
+    // nothing leaves everything as it was.
+    let calm = over.look_at.is_none()
+        && !over.fire
+        && over.legs.is_none()
+        && !using
+        && bot.reflex.target().is_none();
+    let trap = traps::drive(bot, me, time, calm, &tuning.traps);
+    let aim = match trap.and_then(|trap| trap.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(trap) = trap {
+        bot.press |= trap.key;
+    }
+    // [trap_react] A noticed trap, shot: the view at its centre, the aim
+    // held and the fire key pressed a tick per shot, the legs still.
+    let react = trap_react::drive(bot, me, view, time, calm, &tuning.traps.react);
+    let aim = match react.and_then(|react| react.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(react) = react {
+        bot.press |= react.keys;
+    }
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
+    if react.is_some() {
+        intent.go = Go::Stay;
+    }
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;
@@ -244,6 +314,39 @@ pub(super) fn drive_tick(
         intent.pace = if legs.run { Pace::Run } else { Pace::Walk };
         intent.objective = false;
         intent.straight = false;
+    }
+    // [grenade_avoid] A grenade it knows of that lands or lies within its
+    // reach: out of the blast first, whatever the play wants (the reflex
+    // still aims and fires); `grenade_threat.rs`. The state is read while a
+    // grenade is listed or it is not unaware of the last one.
+    if tuning.avoid.grenade_avoid
+        && (!view.grenades.is_empty()
+            || !matches!(bot.features.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
+    {
+        let around = BlastAround {
+            tactics,
+            stuck: &bot.stuck,
+            side: bot.side,
+            time,
+            objective: intent.objective,
+        };
+        let tick = grenade_threat::Tick {
+            now: time,
+            me,
+            grenades: &view.grenades,
+        };
+        if let grenade_threat::Action::Go(to) =
+            bot.features.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
+        {
+            intent.go = Go::To {
+                at: to,
+                within_m: AVOID_ARRIVE_M,
+            };
+            intent.crouch = false;
+            intent.pace = Pace::Run;
+            intent.objective = false;
+            intent.straight = false;
+        }
     }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
@@ -356,7 +459,7 @@ pub(super) fn drive_tick(
             // escape from inside took the nearest way out instead: on
             // Mamayev Kurgan's batteries one led down a 4 m drop into a zone
             // of 0.25 a second (`crossing.rs`).
-            let at = match bot.crossing {
+            let at = match bot.features.crossing.goal {
                 Some(crossed)
                     if crossed.distance_xz(at) > REPLAN_MOVED_M
                         && bot.route.is_some()
@@ -383,7 +486,7 @@ pub(super) fn drive_tick(
             // On a crossing to this goal (`crossing.rs`): its zones' floors
             // are walked.
             let mut crossing = bot
-                .crossing
+                .features.crossing.goal
                 .is_some_and(|goal| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // One that would now leave too little health: stopped, and the
             // escape walks it out (`crossing::still_borne`).
@@ -396,7 +499,7 @@ pub(super) fn drive_tick(
                 let (walked, _) = route.progress(me.feet);
                 if !crossing::still_borne(tactics, route, walked, me.health) {
                     crossing::count(crossing::Count::Aborted);
-                    bot.crossing = None;
+                    bot.features.crossing.goal = None;
                     bot.end_route(RouteEnd::CrossingAborted, time);
                     crossing = false;
                     aborted = true;
@@ -420,7 +523,7 @@ pub(super) fn drive_tick(
             // The answer of its search that went on over several polls, if
             // it is for this goal (it walks the way so far meanwhile).
             let found = bot
-                .found
+                .features.crossing.found
                 .take()
                 .filter(|(goal, _, _)| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // Its own search under way: for this goal, else no longer
@@ -451,11 +554,19 @@ pub(super) fn drive_tick(
                     from.is_some()
                         && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
                 };
+            // The bench's count of the given-up episodes: the tick a bot becomes shut in.
+            #[cfg(test)]
+            {
+                if shut_in && !bot.bench_shut_in {
+                    search::asks::count(search::asks::Ask::Episodes);
+                }
+                bot.bench_shut_in = shut_in;
+            }
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
-                bot.crossing = crossed.then_some(goal);
+                bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven.
                 if route.is_none() {
                     bot.no_way_to.retain(|&(old, until)| {
@@ -474,11 +585,15 @@ pub(super) fn drive_tick(
                 bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
-                if !no_way {
+                if shut_in {
                     search::asks::count(search::asks::Ask::Skipped);
                 }
                 bot.end_route(RouteEnd::NoWay, time);
-                no_route = path::NoRoute::NoWay;
+                no_route = if shut_in {
+                    path::NoRoute::ShutIn
+                } else {
+                    path::NoRoute::NoWay
+                };
             } else if waiting
                 || (replan
                     && (searching.left == 0
@@ -508,7 +623,12 @@ pub(super) fn drive_tick(
                 // through them (a second search only when there are any).
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+                let landings = bot.stuck.shut_landings(time).collect();
+                let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                // A body that cannot sprint takes no jump link above its standing jump.
+                if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
+                    hard = hard.with_max_jump_rise(rise);
+                }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
@@ -674,7 +794,7 @@ pub(super) fn drive_tick(
                 if left.is_none()
                     && !escaping
                     && !there
-                    && !(route.is_some() && long_kept(bot.long_kept, at, time))
+                    && !(route.is_some() && long_kept(bot.features.crossing.long_kept, at, time))
                     && let Some((from, to)) = ends
                     && crossing::wanted(
                         tactics,
@@ -703,7 +823,7 @@ pub(super) fn drive_tick(
                                 objective,
                             );
                             if kept {
-                                bot.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
+                                bot.features.crossing.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
                             }
                         }
                         Err(planning) => {
@@ -727,7 +847,7 @@ pub(super) fn drive_tick(
                             bot.bench_route = why::PLAIN;
                         }
                         bot.set_route(Some((plain, at)), time);
-                        bot.crossing = None;
+                        bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
                     searching.pending = Some(Pending {
@@ -772,6 +892,16 @@ pub(super) fn drive_tick(
                         second: None,
                     });
                 } else {
+                    #[cfg(test)]
+                    if let Some((from, to)) = ends
+                        && !escaping
+                        && !there
+                    {
+                        path::request_gap(
+                            route.is_some(),
+                            path::Gap::of(grid.position(to).y - grid.position(from).y),
+                        );
+                    }
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.
@@ -794,7 +924,7 @@ pub(super) fn drive_tick(
                         };
                     }
                     bot.set_route(route.map(|route| (route, at)), time);
-                    bot.crossing = crossed.then_some(at);
+                    bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
             #[cfg(test)]
@@ -818,7 +948,7 @@ pub(super) fn drive_tick(
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
                         let grid = &tactics.world.grid;
-                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        let cap = bot.motor.feel.lip_look_ahead_m.get();
                         (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
                     };
                     #[cfg(test)]
@@ -965,11 +1095,11 @@ pub(super) fn drive_tick(
         decision.keys &= !(key::CROUCH | key::SPRINT);
     }
     if decision.keys & key::QUICK[0] != 0 {
-        bot.medkits_used = bot.medkits_used.saturating_add(1);
+        bot.features.stock.medkits_used = bot.features.stock.medkits_used.saturating_add(1);
     }
     for (quick, bit) in key::QUICK.into_iter().enumerate() {
         if decision.keys & bit != 0 {
-            bot.pantry.pressed(quick, time);
+            bot.features.stock.pantry.pressed(quick, time);
         }
     }
     let by = bot.motor.jumped().map(|by| match by {
