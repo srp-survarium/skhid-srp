@@ -47,6 +47,7 @@ mod grenades;
 mod jumps;
 mod moving;
 mod pre;
+mod stock;
 
 use campers::*;
 use fight::*;
@@ -285,6 +286,7 @@ impl OwnerTally {
             self.moving_part(game, &presses, &scale),
             self.vertical_part(game),
             self.grenades_part(game),
+            self.stock_part(game),
             self.campers_part(),
         ];
         let mut json = serde_json::Map::new();
