@@ -1911,6 +1911,7 @@ va	status	ref_021d	name
 0x002d9f40	inferred-high	0x001d54b4	survarium::base_player::generate_hit_event
 0x002da170	inferred-high	0x001d560c	survarium::base_player::generate_killed_event
 0x002da480	inferred-high	0x001d57be	survarium::base_player::on_affect
+0x002da4b0	inferred-medium		survarium::base_player::update_head_matrix
 0x002da5b0	inferred-high	0x001d5851	survarium::base_player::recompute_damage_collision_bones
 0x002da790	inferred-high	0x001d59c8	survarium::base_player::remove
 0x002da850	inferred-high	0x001d5a25	survarium::base_player::insert
@@ -2028,9 +2029,22 @@ va	status	ref_021d	name
 0x00303b90	inferred-high		survarium::grenade_core::start_fuse
 0x00303c10	inferred-high		survarium::grenade_core::add_to_physics_world
 0x003045a0	inferred-medium	0x001e9c22	survarium::booby_trap_core::`scalar deleting destructor'
+0x00304a40	inferred-high	0x001e9e2b	survarium::booby_trap_core::apply_damage
+0x00304bd0	inferred-high	0x001e9ed0	survarium::booby_trap_core::on_enter
+0x00304e80	inferred-high	0x001ea06a	survarium::booby_trap_core::insert
+0x00304f30	inferred-high	0x001ea169	survarium::booby_trap_core::use_execute
 0x00305050	inferred-medium	0x001ea23d	survarium::booby_trap_core::use_info
+0x00305210	inferred-high	0x001ea285	survarium::booby_trap_core::switch_to_state
 0x00305520	inferred-medium	0x001ea4ec	survarium::booby_trap_core::post_deserialize_resolve
 0x00305740	inferred-medium	0x001ea533	stlp_std::transform<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> const *,stlp_std::back_insert_iterator<vostok::buffer_vector<float> >,survarium::calc_distance_functor>
+0x00305950	inferred-medium		survarium::booby_trap_set_core::load
+0x00305ea0	inferred-high	0x001e9219	survarium::booby_trap_set_core::try_to_place_trap
+0x00305f50	inferred-high	0x001e9293	survarium::booby_trap_set_core::find_inactive_trap
+0x00305fc0	inferred-high	0x001e92fb	survarium::booby_trap_set_core::find_disarmed_trap
+0x00306490	inferred-high	0x001e966d	survarium::booby_trap_set_core::get_visible_place_transform
+0x00306720	inferred-high	0x001e98a9	survarium::booby_trap_set_core::action
+0x003067a0	inferred-high	0x001e98da	survarium::booby_trap_set_core::register_in_game_world
+0x003068e0	inferred-medium	0x001e9358	survarium::booby_trap_set_core::find_oldest_placed_trap
 0x003076a0	inferred-high	0x001eae06	survarium::collision_sensor::~collision_sensor
 0x00307700	inferred-high	0x001eae3f	survarium::collision_sensor::load
 0x00307790	inferred-high	0x001eaea1	survarium::collision_sensor::resolve_links

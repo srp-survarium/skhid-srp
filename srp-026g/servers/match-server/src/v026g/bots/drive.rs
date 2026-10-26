@@ -1018,7 +1018,7 @@ mod tests {
 
     #[test]
     fn a_use_takes_the_view_when_in_reach_and_the_reflex_holds_none_for_a_grenade() {
-        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let eye = super::view::still_eye(Vec3::ZERO, false);
         let look = |at| Intent { look: Look::Use(at), ..Intent::stay() };
         let near = Vec3::new(0.0, 0.5, 1.0);
         let far = Vec3::new(0.0, 0.5, USE_LOOK_M + 1.0);

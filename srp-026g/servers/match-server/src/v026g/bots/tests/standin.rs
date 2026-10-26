@@ -617,12 +617,12 @@ impl Game {
         body.stock.spawn(tier, body.gun);
     }
 
+    /// Where the game's bullet starts, from the bots' own function
+    /// ([`super::view::eye_height`]) at the body's pace and view.
     pub(crate) fn eye(body: &Body) -> Vec3 {
-        let up = if body.keys & key::CROUCH != 0 {
-            0.95
-        } else {
-            1.6
-        };
+        let speed = body.step_m / TICK_S;
+        let pitch = body.recoil.view(body.pitch);
+        let up = super::view::eye_height(body.keys & key::CROUCH != 0, speed, pitch);
         body.feet + Vec3::new(0.0, up, 0.0)
     }
 
@@ -730,6 +730,13 @@ impl Game {
         }
         self.record();
         self.camp(tick, &mut pressed);
+        // The shots of the tick leave from where the world of the tick
+        // shows the bodies, before this tick's move (a bullet starts at
+        // the world's position of its own tick, PROVEN live: 0.08 +-0.03
+        // tick of travel, `fact-own-eye.md` 4), as `lead_own` reckons.
+        if super::view::live_eye() {
+            self.shoot(tick);
+        }
         for place in 0..n {
             if self.camper.is_some_and(|(p, _)| p == place) {
                 continue;
@@ -810,7 +817,9 @@ impl Game {
                 }
             }
         }
-        self.shoot(tick);
+        if !super::view::live_eye() {
+            self.shoot(tick);
+        }
         standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
         self.resupply(&pressed);

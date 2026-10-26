@@ -55,7 +55,7 @@ use crate::v026g::bots::pools::{Pool, Pools};
 use crate::v026g::bots::stock::{Drug, Held, Pantry};
 use crate::v026g::bots::tactics::SpotQuery;
 use crate::v026g::bots::tuning::{HealTuning, NeedWeights};
-use crate::v026g::bots::view::{EYE_CROUCHED, EYE_STANDING};
+use crate::v026g::bots::view::still_eye;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[];
@@ -295,11 +295,11 @@ pub fn in_known_sight(cx: &Ctx) -> bool {
     if !cx.memory.all_seen(cx.now).is_empty() {
         return true;
     }
-    let me = cx.me.feet + Vec3::new(0.0, EYE_CROUCHED, 0.0);
-    cx.memory.tracks().iter().any(|track| {
-        let eye = track.at + Vec3::new(0.0, EYE_STANDING, 0.0);
-        cx.tactics.sees(eye, me)
-    })
+    let me = still_eye(cx.me.feet, true);
+    cx.memory
+        .tracks()
+        .iter()
+        .any(|track| cx.tactics.sees(still_eye(track.at, false), me))
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -373,14 +373,13 @@ fn cover_spot(cx: &Ctx, rng: &mut Rng) -> Option<Vec3> {
     if heal.cover_m <= 0.0 || cx.enemies_near(cx.me.feet, heal.enemy_m) > 0 {
         return None;
     }
-    let me = cx.me.feet + Vec3::new(0.0, EYE_STANDING, 0.0);
-    let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+    let me = still_eye(cx.me.feet, false);
     let seers: Vec<Vec3> = cx
         .memory
         .tracks()
         .iter()
         .map(|track| track.at)
-        .filter(|&at| cx.tactics.sees(at + eye, me))
+        .filter(|&at| cx.tactics.sees(still_eye(at, false), me))
         .collect();
     let nearest = seers.iter().copied().min_by(|a, b| {
         a.distance_xz(cx.me.feet)
@@ -396,7 +395,7 @@ fn cover_spot(cx: &Ctx, rng: &mut Rng) -> Option<Vec3> {
         .filter(|spot| {
             seers
                 .iter()
-                .all(|&at| !cx.tactics.sees(at + eye, spot.at + eye))
+                .all(|&at| !cx.tactics.sees(still_eye(at, false), still_eye(spot.at, false)))
         })
         .filter(|spot| {
             cx.tactics

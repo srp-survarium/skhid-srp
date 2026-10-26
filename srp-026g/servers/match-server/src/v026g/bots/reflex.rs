@@ -89,7 +89,7 @@ use super::rng::Rng;
 use super::signals::mix;
 use super::tactics::{SpotQuery, Tactics};
 use super::tuning::AimTuning;
-use super::view::{EYE_STANDING, MatchView, Place, PlaceView, SoundKind};
+use super::view::{MatchView, Place, PlaceView, SoundKind, still_eye};
 use crate::v026g::drive::key;
 
 /// A weapon's kind as the matchup (play 11) reads it.
@@ -509,6 +509,13 @@ pub struct CombatTuning {
     /// decided (its last decided tick's feet led along its speed), not
     /// where that tick left it: the shot leaves from there.
     pub lead_own: bool,
+    /// The eye is where the game's bullet starts (`view::eye_height`: 1.46 m
+    /// standing, 1.04 / 1.14 m crouched still / moving, with the view's pitch;
+    /// the stand finder's ranges; a look again when the eye has moved; the
+    /// stand-in's shots from the world's positions). Off: the old 1.6 / 0.95 m,
+    /// the old ranges and the old shot order, to bench the fix against. It
+    /// is the process's eye (both teams of a one-sided run).
+    pub live_eye: bool,
     /// The turn onto a seen target also follows his bearing's turn rate
     /// (his speed against the bot's, across the line), so a steady crossing
     /// target is not trailed by the turn's ease (the turn's time constant,
@@ -902,6 +909,7 @@ impl Default for CombatTuning {
             lead_target: true,
             lead_most_ms: 300,
             lead_own: true,
+            live_eye: true,
             turn_feed: true,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
@@ -2768,7 +2776,7 @@ impl Reflex {
             }
             let spread = c.hit_bearing_error_deg.to_radians();
             let covered = |at: Vec3| {
-                let eye = at + Vec3::new(0.0, EYE_STANDING, 0.0);
+                let eye = still_eye(at, false);
                 [-spread, 0.0, spread].iter().all(|k| {
                     let [fx, fz] = forward(toward + k);
                     tactics
@@ -5769,7 +5777,7 @@ mod tests {
         let legs = o.legs.expect("breaks sight");
         assert_eq!(legs.why, LegsWhy::BreakSight);
         let hide = legs.at;
-        let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
+        let eye = |p: Vec3| still_eye(p, false);
         assert!(!tactics.sees(eye(enemy_at), eye(hide)), "{hide:?}");
         let d = hide.distance_xz(Vec3::new(32.0, 0.0, 28.0));
         assert!((2.0..=10.0).contains(&d), "{d}");
@@ -6141,7 +6149,7 @@ mod tests {
     /// Where a throw of the look `look` (plus `error`) from a standing
     /// thrower at the origin first touches `ground`.
     fn landing_of(look: Vec3, error: (f32, f32), ground: &impl arc::Ground) -> arc::Landing {
-        let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+        let eye = still_eye(Vec3::ZERO, false);
         let yaw = yaw_of([look.x - eye.x, look.z - eye.z]) + error.0;
         let pitch = (look.y - eye.y).atan2(look.distance_xz(eye)) + error.1;
         arc::Flight::thrown(eye, yaw, pitch)
@@ -6372,7 +6380,7 @@ mod tests {
     /// from the thrower, in a smoke).
     #[test]
     fn a_throw_let_go_keeps_its_look_when_the_place_goes_out_of_reach() {
-        let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+        let eye = still_eye(Vec3::ZERO, false);
         let up = 7.0;
         let d = arc::max_range(arc::hand_of(eye).y - up).unwrap() - 0.3;
         assert!(d > 12.0 && d < 27.0, "{d}");
@@ -8042,7 +8050,7 @@ mod tests {
             hid += 1;
             assert_eq!(legs.why, LegsWhy::BreakSight);
             // Cover that way: the rays toward him meet the wall.
-            let eye = legs.at + Vec3::new(0.0, EYE_STANDING, 0.0);
+            let eye = still_eye(legs.at, false);
             let [fx, fz] = forward(truth);
             let blocked = tactics
                 .world
@@ -8284,7 +8292,7 @@ mod tests {
                 "{own:?} at {enemy:?}, carrying {carrying}, cover {cover}"
             );
             if want == Some(LegsWhy::BreakSight) {
-                let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
+                let eye = |p: Vec3| still_eye(p, false);
                 let hide = o.legs.unwrap().at;
                 assert!(!tactics.sees(eye(enemy_at), eye(hide)), "{hide:?}");
                 // There it waits, still seen or not, and never re-peeks.

@@ -2,7 +2,7 @@
 //! reads (the lobby, the match server, the rewards). The mode itself is the
 //! lobby's (`lobby_server::v026g::pvb`, which documents every setting).
 //!
-//! - `SRP_PVB` (default off): whether the mode is offered at all;
+//! - `SRP_PVB` (default on): whether the mode is offered at all;
 //! - `SRP_PVB_MAX_MATCHES` (default 5, 1 to 20): the most matches against
 //!   the server's bots at once; the match server keeps that many bots'
 //!   maps in memory at most when the mode is on;
@@ -20,14 +20,18 @@ pub const DEFAULT_PAY: f64 = 0.25;
 /// The most `SRP_PVB_MAX_MATCHES` may be.
 pub const MOST_MATCHES: usize = 20;
 
-/// `SRP_PVB`: `on`/`off` (and 1/0, true/false, yes/no); anything else is
-/// an error in the log and off.
+/// `SRP_PVB` when unset or empty: on, so that a deployment that loses the
+/// variable keeps the mode the release was benched with.
+pub const DEFAULT_ENABLED: bool = true;
+
+/// `SRP_PVB`: `on`/`off` (and 1/0, true/false, yes/no); unset or empty is
+/// [`DEFAULT_ENABLED`]; anything else is an error in the log and off.
 pub fn enabled_from(value: Option<&str>) -> bool {
     match value
         .map(|value| value.trim().to_ascii_lowercase())
         .as_deref()
     {
-        None | Some("") => false,
+        None | Some("") => DEFAULT_ENABLED,
         Some("on" | "1" | "true" | "yes") => true,
         Some("off" | "0" | "false" | "no") => false,
         Some(other) => {
@@ -105,7 +109,8 @@ mod tests {
 
     #[test]
     fn the_settings_read_as_documented() {
-        assert!(!enabled_from(None));
+        assert!(enabled_from(None) && enabled_from(Some("")) && enabled_from(Some("  ")));
+        assert!(!enabled_from(Some("off")) && !enabled_from(Some("0")) && !enabled_from(Some(" No ")));
         assert!(enabled_from(Some(" ON ")));
         assert!(!enabled_from(Some("maybe")));
         assert_eq!(max_matches_from(None), 5);

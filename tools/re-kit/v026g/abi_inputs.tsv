@@ -2665,6 +2665,7 @@ va	name	location	role	basis
 0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
 0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
+0x002d84c0	survarium::base_player::detect_usable_object	[player+47Ch]	the use ray's origin: the head matrix's position, along its forward at +46Ch	observed
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
 0x002d9a60	survarium::base_player::hit	stack+16	damage type	inferred
@@ -2719,6 +2720,7 @@ va	name	location	role	basis
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	stack+8	input direction	inferred
 0x002e23a0	survarium::weapon_core::instant_fire	stack+4	weapon receiver	inferred
 0x002e23a0	survarium::weapon_core::instant_fire	stack+8	fire-context pointer; time field observed at+10	inferred
+0x002e23a0	survarium::weapon_core::instant_fire	[user+44Ch]	the bullet's transform: the user's head matrix (the animation player's Head locator times the body transform), copied at 0x2E243D..0x2E2455	observed
 0x002e2990		ECX		auto
 0x002e2990		entry ESP+4		auto
 0x002e2a30		ECX		auto

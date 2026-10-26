@@ -61,6 +61,10 @@ pub(crate) struct RouteTally {
     pub(crate) pocket_escapes: [u64; 7],
     pub(crate) motor_counts: [u64; 6],
     pub(crate) route_ends: [(u64, u64); super::route_end::RouteEnd::ALL.len()],
+    /// The ticks off the route by the walked-leg rule alone, at the start (`path::below_walk`).
+    pub(crate) below_walk: u64,
+    /// The sights' count at the start (`foliage::through`).
+    pub(crate) foliage: [u64; 3],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -88,6 +92,8 @@ impl RouteTally {
             pocket_escapes: super::escape::counts::counts(),
             motor_counts: super::motor::counts::counts(),
             route_ends: super::route_end::counts::counts(),
+            below_walk: super::path::below_walk::counts(),
+            foliage: super::foliage::through::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
             ..Default::default()
@@ -295,8 +301,18 @@ impl RouteTally {
         let moved: Vec<u64> = (0..6).map(|k| motor[k] - self.motor_counts[k]).collect();
         // Each ending of a route: how many, and their mean age in ms.
         let ends = super::route_end::counts::counts();
+        // Sights begun, those through half a metre of bush or more, and the bush metres of all.
+        let seen = super::foliage::through::counts();
+        let foliage_line = format!(
+            " foliage_sights {} foliage_sights_through {} foliage_mm {}",
+            seen[0] - self.foliage[0],
+            seen[1] - self.foliage[1],
+            seen[2] - self.foliage[2]
+        );
         // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
         let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);
+        route_ends += &format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
+        route_ends += &foliage_line;
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;
             let age = ends[k].1 - self.route_ends[k].1;
