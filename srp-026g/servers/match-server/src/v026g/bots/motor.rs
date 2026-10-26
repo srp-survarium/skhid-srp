@@ -1833,7 +1833,6 @@ mod tests {
                 }
             })
         };
-        (route, move |_: Vec3| false).1;
         (route, move |point: Vec3| !crosses(Vec3::new(21.5, 0.0, 182.3), point))
     }
 
@@ -1846,7 +1845,7 @@ mod tests {
         let mut rng = Rng::new(3);
         let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
         // The body is on the far leg's nearest segment: past the doorway by the progress.
-        assert!(s > route.points().len() as f32, "{s}");
+        assert!(s > 5.0, "{s}");
         // Off (the default): the point it steers at is one the wall is across.
         match motor.aim_point(&route, s, 2.4, &clear) {
             Aim::Unclear(point) => assert!(!clear(point), "{point:?}"),
