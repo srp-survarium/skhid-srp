@@ -87,6 +87,8 @@ features! {
         own_traps: trap_know::OwnTrapCounts,
         /// This poll's route searches (`search`).
         searching: search::Searching,
+        /// The armed traps the last world showed and the snaps given to the ears (`trap_know`).
+        snaps: trap_know::Snaps,
         /// Every place's weapon 1 kind, where known (play 11).
         weapons: Vec<Option<reflex::WeaponKind>>,
     }
