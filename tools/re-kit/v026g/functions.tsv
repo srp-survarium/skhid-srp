@@ -1066,6 +1066,7 @@ va	status	ref_021d	name
 0x002d9b90	reviewed	0x001d524b	survarium::base_player::hit_impl
 0x002daf60	reviewed	0x001d5e96	survarium::base_player::serialize
 0x002db490	reviewed	0x001d61a3	survarium::base_player::deserialize
+0x002dbf40	reviewed	0x001d6747	survarium::base_player::can_sprint
 0x002dc0b0	reviewed	0x001d6811	survarium::base_player::set_spotted
 0x002dc0c0	reviewed	0x001d681e	survarium::base_player::can_be_spotted_by
 0x002df0d0	reviewed	0x001e1421	survarium::weapon_core::weapon_core

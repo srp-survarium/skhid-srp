@@ -693,7 +693,11 @@ impl Tracker {
 
     /// The sounds of keys held: fire held is a shot every 150 ms, a sprint
     /// is heard while it lasts (a sound a poll, at most every 500 ms).
-    pub fn held_sounds(&mut self, clock: u32) {
+    /// Sounds the held keys make. `sprint_body_mps` (`SenseTuning::
+    /// sprint_body_mps`): `None`, SPRINT and FORWARD held make the sprint
+    /// sound; `Some(v)`, only a body that also sprints by the client's key
+    /// rule ([`Kinematics::sprints`]) and moves at `v` m/s or more.
+    pub fn held_sounds(&mut self, clock: u32, sprint_body_mps: Option<f32>) {
         for (place, state) in self.places.iter_mut().enumerate() {
             let Some(at) = state.body.estimate().map(|e| e.feet) else {
                 continue;
@@ -708,7 +712,13 @@ impl Tracker {
                     time: clock,
                 });
             }
-            let sprinting = state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0;
+            let sprinting = match sprint_body_mps {
+                None => state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0,
+                Some(least) => {
+                    let [vx, vz] = state.body.estimate().map_or([0.0; 2], |e| e.velocity);
+                    Kinematics::sprints(state.keys) && vx.hypot(vz) >= least
+                }
+            };
             let heard_lately = self
                 .sounds
                 .iter()
@@ -1159,6 +1169,41 @@ mod tests {
         }
     }
 
+    /// A human's body at place 1 that holds `keys` for `ms` ms from 1.05 s
+    /// on, then `held_sounds` at its end with `by_body`: the sprint sounds
+    /// made in all.
+    fn sprint_sounds(keys: u32, ms: u32, by_body: Option<f32>) -> usize {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        assert!(tracker.fixed(1, fix(1_000, Vec3::new(5.0, 0.0, 5.0)), Some(0.8), &kin, None));
+        let mut now = 1_000;
+        for _ in 0..=ms / 50 {
+            now += 50;
+            tracker.input(1, now, keys, (0.0, 0.0), 0.0, &kin, None);
+        }
+        tracker.held_sounds(now, by_body);
+        tracker
+            .sounds
+            .iter()
+            .filter(|s| s.from == 1 && s.kind == SoundKind::Sprint)
+            .count()
+    }
+
+    #[test]
+    fn the_sprint_sound_follows_the_keys_by_default_and_the_body_when_asked() {
+        let sprint = key::SPRINT | key::FORWARD;
+        // Off (`None`): the keys make it, a body that has not moved yet too.
+        assert_eq!(sprint_sounds(sprint, 0, None), 1);
+        // On: the key rule and the speed (5.0 m/s sprinting after the blend).
+        assert_eq!(sprint_sounds(sprint, 0, Some(4.6)), 0, "not moving yet");
+        assert_eq!(sprint_sounds(sprint, 800, Some(4.6)), 1, "sprinting");
+        // A body that walks (FORWARD alone, 3.5 m/s) or holds FIRE makes none.
+        assert_eq!(sprint_sounds(key::FORWARD, 800, Some(4.6)), 0);
+        assert_eq!(sprint_sounds(sprint | key::FIRE, 800, Some(4.6)), 0);
+        assert_eq!(sprint_sounds(sprint | key::CROUCH, 800, Some(4.6)), 0);
+    }
+
     #[test]
     fn a_humans_body_is_reckoned_to_the_clock_and_its_keys_are_heard() {
         let kin = Kinematics::default();
@@ -1180,7 +1225,7 @@ mod tests {
             &kin,
             None,
         );
-        tracker.held_sounds(1_100);
+        tracker.held_sounds(1_100, None);
         let clock = Clock {
             clock: 3_000,
             time_left_s: 600.0,

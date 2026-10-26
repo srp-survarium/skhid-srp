@@ -1189,7 +1189,7 @@ impl Bots {
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        self.tracker.held_sounds(now);
+        self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }
