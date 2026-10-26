@@ -187,6 +187,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
         ("HOLDEXIT", super::plays::PlayKind::HoldExit),
         ("CROSSFIRE", super::plays::PlayKind::Crossfire),
         ("PAIRUP", super::plays::PlayKind::PairUp),
+        ("RESUPPLY_PLAY", super::plays::PlayKind::Resupply),
     ] {
         let Ok(numbers) = var(name) else {
             continue;
@@ -310,6 +311,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
