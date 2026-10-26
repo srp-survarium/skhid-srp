@@ -1999,6 +1999,7 @@ va	status	ref_021d	name
 0x002fc2a0	inferred-high	0x001e0f03	survarium::weapon_user_animations_selector::is_going_to_aim
 0x002febc0	inferred-medium	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
 0x002fffd0	inferred-medium	0x001e70bb	survarium::inventory_item::register_in_game_world
+0x002fffe0	inferred-medium		survarium::inventory_item::inventory_item
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_fire_state>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_reload_state>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::pistol_weapon_core_fire_state>::fake_callback
@@ -2011,6 +2012,7 @@ va	status	ref_021d	name
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_shotgun_reload_one_round_substate>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_shotgun_reload_start_substate>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_show_state>::fake_callback
+0x003000a0	inferred-medium		survarium::victory_item_core::victory_item_core
 0x00300b00	inferred-medium	0x001e7565	survarium::victory_item_core::set_user
 0x00301270	inferred-medium	0x001e793c	survarium::victory_item_core::is_ready_to_be_deactivated
 0x003012a0	inferred-medium	0x001e7966	survarium::victory_item_core::selected_animations
