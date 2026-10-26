@@ -290,6 +290,87 @@ pub struct CombatTuning {
     /// YaPB tries up to 12 predicted places for the same reason. 1: the
     /// nearest only.
     pub grenade_places: u32,
+    /// [G1] The places of a roll include where an enemy was last sensed by
+    /// the bot's or its team's own senses (sight, hearing, a callout) when
+    /// it is not in sight now: a target just lost, a sound. Off: only held
+    /// angles and camps, as before. Why (`grenades-record.md` 2.3, PROVEN
+    /// counts of 8,090 human frag throws): humans threw 54 % of them with
+    /// no enemy in sight in the 5 s before, and 73 % of those that landed
+    /// within 10 m of an enemy at an enemy not seen in 5 s; the rate was
+    /// flat at 1.0-1.3 a minute with an enemy within 8-30 m. The sources of
+    /// the numbers below: a human figure (H), a client number (C), GUESS
+    /// (G, to be swept by the bench).
+    pub grenade_tracks: bool,
+    /// ... sensed no longer ago than this, ms: 4 s. H, LIKELY: of the
+    /// aimed human throws whose aimed-at enemy had been seen in the
+    /// previous 5 s, 90 % saw him within 3 s (record 9); Half-Life 2's
+    /// Combine soldiers flush up to 3 s. Swept: 3 s and 6 s arms.
+    pub grenade_track_ms: u32,
+    /// ... no nearer than this, ms: 500. G: `Memory::seen` takes 400 ms, so
+    /// a sensed place younger than that is a sight, not a place. Not
+    /// swept: it only separates a target from a place by a tick or two.
+    pub grenade_track_gap_ms: u32,
+    /// ... with an error of at most this, metres: 8. G: inside the blast's
+    /// 10 m (C, PROVEN); a track's error grows 0.5 m a step once it fades
+    /// (`Memory::update`). Swept: 5 m and 12 m arms (the bench's
+    /// `places` and refusals by source say what it admits).
+    pub grenade_track_error_m: f32,
+    /// ... within 3 m of a held angle or a camp is that place already:
+    /// `camp_m`, the camp's own radius (C: the existing 3 m).
+    ///
+    /// The chance of a roll whose nearest place is such a track
+    /// (`grenade_chance` 0.15 for a held angle or a camp): 0.08. H,
+    /// LIKELY: humans threw 1.0-1.3 grenades a minute with an enemy within
+    /// 8-30 m, 0.067-0.087 a 4 s roll with a place always at hand; kept at
+    /// the top because a bot has a place only part of the time. Swept:
+    /// 0.04 and 0.15 arms.
+    pub grenade_track_chance: f32,
+    /// [G2] A place whose flat arc is refused (the thrower's blast, a
+    /// steep wall near him, off the place) is tried with other arcs: other
+    /// pitches at the same yaw (a lob over what is in the way, 20-29 m
+    /// out only: C, PROVEN, the pitch is clamped at 57 degrees), then other
+    /// yaws up to 30 degrees, coarse to fine, at most
+    /// `grenade_search_traces` traces a place; the first that passes every
+    /// check is the throw, its landing within `grenade_search_off_m` of the
+    /// place. Off: the flat arc only. H, LIKELY: at a real target 12-27 m
+    /// away (3,392 human throws with an enemy there) the flat arc passed
+    /// 18 % of the places, a pitch search 45 % of the rest, a pitch and
+    /// yaw search 75 % (`grenades-record.md` 4). The search grid: pitches
+    /// from -10 degrees (H: the human launch pitch's P10 is -4.6), steps
+    /// of 3 degrees at the yaw of the place, 6 degrees at the others; yaws
+    /// 6, 12, 20, 30 degrees either way (G: coarse enough for the trace
+    /// cap; the first arc found is the one nearest the flat pitch, so the
+    /// grid only decides what is findable, not what is preferred: not
+    /// swept).
+    pub grenade_search: bool,
+    /// ... the landing within this of the place, metres: 5. G: the blast
+    /// is linear, 0.68 of a body's health at 5 m, 0.30 at 8 m, lethal
+    /// within 2.4 m (C, PROVEN); the flat arc's own limit is `grenade_off_m`
+    /// 8 (the existing one). The recordings have no per-throw target, so
+    /// there is no human figure. Swept: 8 m and 3 m arms.
+    pub grenade_search_off_m: f32,
+    /// ... at most this many traces a place: 64. G, a CPU cap: the full
+    /// pitch x yaw scan took ~10 ms (release, the analysis probe); 64 is
+    /// ~3 ms. Swept: 32 and 128 arms, with ms/s and poll tails paired.
+    pub grenade_search_traces: u32,
+    /// [G1] The team's claim on throw spots: a roll skips a place within
+    /// `grenade_claim_m` of a place a teammate decided to throw at
+    /// (`TeamKnowledge::claim_throw`) in the last `grenade_claim_ms`; the
+    /// throw's own volley is not held against it. Its own switch, so the
+    /// bench shows same-spot throws (`grenade_team_same_spot`) with and
+    /// without it. The owner: do not make several bots throw at the same
+    /// spots. H, LIKELY (229 matches, `grenades-record.md` 9): human
+    /// same-team throws land within 8 m of a teammate's landing in the next
+    /// 5 s in 1.7 % of throws (2.9 % in 10 s), twice the level by chance in
+    /// the same match: they neither avoid nor seek it; the claim keeps the
+    /// bots at 0, under the humans'.
+    pub grenade_claim: bool,
+    /// ... 8 m: C, PROVEN: the blast's damage at 8 m is 0.3 of a body's
+    /// health (linear to 10 m). G for the exact value; swept: 5 m and 12 m.
+    pub grenade_claim_m: f32,
+    /// ... 6 s: C, PROVEN: the fuse is 4 s from the press; G: 2 s for the
+    /// flush that follows. Swept: 4 s and 10 s.
+    pub grenade_claim_ms: u32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -855,6 +936,17 @@ impl Default for CombatTuning {
             grenade_off_m: 8.0,
             grenade_lane_m: 2.0,
             grenade_places: 3,
+            grenade_tracks: false,
+            grenade_track_ms: 4_000,
+            grenade_track_gap_ms: 500,
+            grenade_track_error_m: 8.0,
+            grenade_track_chance: 0.08,
+            grenade_search: false,
+            grenade_search_off_m: 5.0,
+            grenade_search_traces: 64,
+            grenade_claim: false,
+            grenade_claim_m: 8.0,
+            grenade_claim_ms: 6_000,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1189,6 +1281,17 @@ struct Throw {
     /// let-go when the thrower's own height has moved the place out of
     /// reach (the grenade leaves at the launch whatever the bot does).
     pitch: Option<f32>,
+    /// The arc weighed and held: the flat one, or the search's.
+    pick: ArcPick,
+}
+
+/// [play 20] What a grenade roll looks at: the bot, its situation (the
+/// match view, the team's claims), its memory of the enemies, the time.
+struct RollView<'a, 'b> {
+    me: &'a PlaceView,
+    sit: &'a Situation<'b>,
+    memory: &'a Memory,
+    now: u32,
 }
 
 /// [play 20] Why a throw is not made.
@@ -1242,6 +1345,11 @@ impl Refuse {
 enum PlaceSource {
     Held,
     Camp,
+    /// [G1] Where the bot's own senses last gave an enemy it saw (now out
+    /// of sight).
+    Lost,
+    /// [G1] Where it heard one, or a teammate called one.
+    Heard,
 }
 
 impl PlaceSource {
@@ -1249,24 +1357,64 @@ impl PlaceSource {
         match self {
             Self::Held => 0,
             Self::Camp => 1,
+            Self::Lost => 2,
+            Self::Heard => 3,
+        }
+    }
+
+    /// A place from a track, not an angle held or a camp.
+    fn is_track(self) -> bool {
+        matches!(self, Self::Lost | Self::Heard)
+    }
+}
+
+/// [G2] The arc a throw at a place takes: the flat one to it, another pitch
+/// at the yaw of the place (a lob, or an arc under what is in the way), or
+/// another yaw (an offset of the view from the bearing to the place) with a
+/// pitch: what the search found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ArcPick {
+    Flat,
+    Pitch { pitch: f32 },
+    Yawed { dyaw: f32, pitch: f32 },
+}
+
+impl ArcPick {
+    /// The yaw offset of the view from the bearing to the place.
+    fn dyaw(self) -> f32 {
+        match self {
+            Self::Flat | Self::Pitch { .. } => 0.0,
+            Self::Yawed { dyaw, .. } => dyaw,
+        }
+    }
+
+    /// The kind's place in [`GrenadeStats::passed`]: 0 the flat arc, 1 another
+    /// pitch at the yaw of the place, 2 another yaw.
+    fn kind(self) -> usize {
+        match self {
+            Self::Flat => 0,
+            Self::Pitch { .. } => 1,
+            Self::Yawed { .. } => 2,
         }
     }
 }
 
 /// [measure] The kinds of place, the reasons a throw is refused
 /// ([`Refuse`]) and the kinds of arc that passed, as the lengths of
-/// [`GrenadeStats`]'s tables. The arc kinds: 0 the flat arc to the place.
-pub const GRENADE_SOURCES: usize = 2;
+/// [`GrenadeStats`]'s tables. The sources: held, camp, lost, heard
+/// ([`PlaceSource`]); the arc kinds ([`ArcPick::kind`]): flat, another
+/// pitch, another yaw.
+pub const GRENADE_SOURCES: usize = 4;
 pub const GRENADE_REASONS: usize = 6;
-pub const GRENADE_ARCS: usize = 1;
+pub const GRENADE_ARCS: usize = 3;
 
 /// [measure] What the grenade logic of one reflex (one life) did, counted
 /// as it ran: nothing here decides anything. The bench's tally reads it
 /// ([`Reflex::grenade_stats`]) to say where the throws are lost: no place,
 /// the chance, a refused arc. Tables by place source ([`PlaceSource`]:
-/// held, camp), refusal reason ([`Refuse::index`]: thrower's blast, steep
-/// wall, teammate, out of reach, lands nowhere, off the place) and arc kind
-/// (0: the flat arc).
+/// held, camp, lost, heard), refusal reason ([`Refuse::index`]: thrower's
+/// blast, steep wall, teammate, out of reach, lands nowhere, off the place)
+/// and arc kind (flat, another pitch, another yaw).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GrenadeStats {
     /// Thinks that reached the roll: the reflex's age, to tell a new life's
@@ -1279,6 +1427,8 @@ pub struct GrenadeStats {
     /// The places of those rolls, by source (a place is counted at each
     /// roll it is in).
     pub places: [u32; GRENADE_SOURCES],
+    /// Places dropped from a roll for a teammate's claim.
+    pub claimed: u32,
     /// The places weighed (up to `grenade_places` a roll, nearest first), by
     /// source; of them those refused by reason, and those that passed by arc.
     pub weighed: [u32; GRENADE_SOURCES],
@@ -1307,6 +1457,7 @@ impl GrenadeStats {
             thinks: self.thinks.saturating_sub(before.thinks),
             rolls: self.rolls.saturating_sub(before.rolls),
             chance_no: self.chance_no.saturating_sub(before.chance_no),
+            claimed: self.claimed.saturating_sub(before.claimed),
             places: sub(self.places, before.places),
             weighed: sub(self.weighed, before.weighed),
             refused: std::array::from_fn(|i| sub(self.refused[i], before.refused[i])),
@@ -1327,6 +1478,7 @@ impl GrenadeStats {
         self.thinks += other.thinks;
         self.rolls += other.rolls;
         self.chance_no += other.chance_no;
+        self.claimed += other.claimed;
         plus(&mut self.places, &other.places);
         plus(&mut self.weighed, &other.weighed);
         for (a, b) in self.refused.iter_mut().zip(&other.refused) {
@@ -1357,10 +1509,37 @@ fn throw_view(me: &PlaceView, at: Vec3, c: &CombatTuning) -> Option<(f32, f32)> 
     Some((yaw, pitch))
 }
 
+/// The yaw from `me`'s eye to `at`.
+fn bearing_to(me: &PlaceView, at: Vec3) -> f32 {
+    let eye = me.eye();
+    yaw_of([at.x - eye.x, at.z - eye.z])
+}
+
+/// [G2] The view of `pick` at `at`: the flat arc's ([`throw_view`]), or the
+/// search's pitch with its yaw offset from the bearing to the place.
+fn throw_view_of(
+    me: &PlaceView,
+    at: Vec3,
+    c: &CombatTuning,
+    pick: ArcPick,
+) -> Option<(f32, f32)> {
+    match pick {
+        ArcPick::Flat => throw_view(me, at, c),
+        ArcPick::Pitch { pitch } => Some((bearing_to(me, at), pitch)),
+        ArcPick::Yawed { dyaw, pitch } => Some((bearing_to(me, at) + dyaw, pitch)),
+    }
+}
+
 /// [play 20] The point on the ground line to `at` that the view of `pitch`
-/// from `eye` looks at: the look the driver turns to.
-fn throw_point(eye: Vec3, at: Vec3, pitch: f32) -> Vec3 {
-    Vec3::new(at.x, eye.y + pitch.tan() * eye.distance_xz(at), at.z)
+/// from `eye` looks at, the yaw turned `dyaw` from the bearing to `at`
+/// ([`ArcPick::dyaw`], 0 for the flat arc): the look the driver turns to.
+fn throw_point(eye: Vec3, at: Vec3, pitch: f32, dyaw: f32) -> Vec3 {
+    let d = eye.distance_xz(at);
+    if dyaw == 0.0 {
+        return Vec3::new(at.x, eye.y + pitch.tan() * d, at.z);
+    }
+    let [x, z] = forward(yaw_of([at.x - eye.x, at.z - eye.z]) + dyaw);
+    Vec3::new(eye.x + x * d, eye.y + pitch.tan() * d, eye.z + z * d)
 }
 
 /// [play 20] `f` with the ground a grenade meets: the bullet mesh; a level
@@ -1437,7 +1616,24 @@ fn weigh_throw(
         };
         return near.map_or(Ok(()), |mate| Err(Refuse::Mate(mate)));
     }
-    let (yaw, pitch) = throw_view(me, at, c).ok_or(Refuse::Reach)?;
+    let view_yp = throw_view(me, at, c).ok_or(Refuse::Reach)?;
+    weigh_view(me, view, at, view_yp, error, c, mates, ground, c.grenade_off_m)
+}
+
+/// [play 20] The checks of [`weigh_throw`] for the view `(yaw, pitch)` of a
+/// throw at `at`, the first contact to be within `off_m` of the place.
+#[allow(clippy::too_many_arguments)]
+fn weigh_view(
+    me: &PlaceView,
+    view: &MatchView,
+    at: Vec3,
+    (yaw, pitch): (f32, f32),
+    error: (f32, f32),
+    c: &CombatTuning,
+    mates: bool,
+    ground: &dyn arc::Ground,
+    off_m: f32,
+) -> Result<(), Refuse> {
     let landing = arc::Flight::thrown(me.eye(), yaw + error.0, pitch + error.1)
         .landing(ground)
         .ok_or(Refuse::Nowhere)?;
@@ -1450,7 +1646,7 @@ fn weigh_throw(
     if landing.contact.is_wall() && thrower < c.grenade_wall_m {
         return Err(Refuse::Wall);
     }
-    if landing.contact.point.distance_xz(at) > c.grenade_off_m {
+    if landing.contact.point.distance_xz(at) > off_m {
         return Err(Refuse::Off);
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
@@ -1460,8 +1656,98 @@ fn weigh_throw(
     }
 }
 
+/// [G2] Where the flat arc to `at` is refused for the thrower's blast, a
+/// steep wall near him or a landing off the place, other arcs: pitches from
+/// the bots' limit down to up, nearest the flat arc's first (a lob over what
+/// is in the way, an arc under it), at the yaw of the place and then turned
+/// by 6, 12, 20 and 30 degrees either way (coarser pitches), at most
+/// `grenade_search_traces` traces. The first whose first contact is within
+/// `grenade_search_off_m` of the place and which passes every check of
+/// [`weigh_view`]. A pitch is clamped at [`arc::PITCH_LIMIT`]: a lob that
+/// clears cover lands 22-29 m out and no nearer.
+fn search_arc(
+    me: &PlaceView,
+    view: &MatchView,
+    at: Vec3,
+    error: (f32, f32),
+    c: &CombatTuning,
+    ground: &dyn arc::Ground,
+) -> Option<ArcPick> {
+    const DYAWS_DEG: [f32; 9] = [0.0, 6.0, -6.0, 12.0, -12.0, 20.0, -20.0, 30.0, -30.0];
+    const LOW_DEG: f32 = -10.0;
+    let eye = me.eye();
+    let bearing = yaw_of([at.x - eye.x, at.z - eye.z]);
+    let flat = arc::pitch_for(eye.distance_xz(at), arc::hand_of(eye).y - at.y).unwrap_or(0.0);
+    let mut traces = 0;
+    for dyaw_deg in DYAWS_DEG {
+        let step = if dyaw_deg == 0.0 { 3.0 } else { 6.0 };
+        let top = arc::PITCH_LIMIT.to_degrees();
+        let mut pitches: Vec<f32> = (0..)
+            .map(|k| LOW_DEG + step * k as f32)
+            .take_while(|p| *p <= top)
+            .collect();
+        pitches.sort_by(|a, b| {
+            (a.to_radians() - flat)
+                .abs()
+                .total_cmp(&(b.to_radians() - flat).abs())
+        });
+        for pitch_deg in pitches {
+            if traces >= c.grenade_search_traces {
+                return None;
+            }
+            traces += 1;
+            let dyaw = dyaw_deg.to_radians();
+            let pitch = pitch_deg.to_radians();
+            let pick = if dyaw_deg == 0.0 {
+                ArcPick::Pitch { pitch }
+            } else {
+                ArcPick::Yawed { dyaw, pitch }
+            };
+            if weigh_view(
+                me,
+                view,
+                at,
+                (bearing + dyaw, pitch),
+                error,
+                c,
+                true,
+                ground,
+                c.grenade_search_off_m,
+            )
+            .is_ok()
+            {
+                return Some(pick);
+            }
+        }
+    }
+    None
+}
+
+/// [play 20] The arc for one place: the flat arc if it passes every check;
+/// with `grenade_search` the others ([`search_arc`]) where the flat arc is
+/// refused for what is in the way (not for a teammate, nor a place out of
+/// reach), else why it was refused.
+fn weigh_place(
+    me: &PlaceView,
+    view: &MatchView,
+    at: Vec3,
+    error: (f32, f32),
+    c: &CombatTuning,
+    ground: &dyn arc::Ground,
+) -> Result<ArcPick, Refuse> {
+    match weigh_throw(me, view, at, error, c, true, ground) {
+        Ok(()) => Ok(ArcPick::Flat),
+        Err(why @ (Refuse::Thrower | Refuse::Wall | Refuse::Off))
+            if c.grenade_search && c.grenade_trace =>
+        {
+            search_arc(me, view, at, error, c, ground).ok_or(why)
+        }
+        Err(why) => Err(why),
+    }
+}
+
 /// [play 20] The place to throw at: the first of `places` (nearest first,
-/// at most `grenade_places` of them) that [`weigh_throw`] lets through, every
+/// at most `grenade_places` of them) whose arc [`weigh_place`] finds, every
 /// check as for one place. When none does, the nearest place and why it was
 /// refused. One ground for all the places: the mesh; for a reflex never told
 /// a map, a level plane at the nearest place's height.
@@ -1474,11 +1760,11 @@ fn pick_place(
     c: &CombatTuning,
     ground: &dyn arc::Ground,
 ) -> Result<Vec3, (Vec3, Refuse)> {
-    pick_place_noting(me, view, places, error, c, ground, |_, _| {})
+    pick_place_noting(me, view, places, error, c, ground, |_, _| {}).map(|(at, _)| at)
 }
 
-/// [`pick_place`], telling `weighed` each place it weighs (its index in
-/// `places`) and the verdict, for the bench's counts.
+/// [`pick_place`], with the arc, telling `weighed` each place it weighs (its
+/// index in `places`) and the verdict, for the bench's counts.
 fn pick_place_noting(
     me: &PlaceView,
     view: &MatchView,
@@ -1486,14 +1772,14 @@ fn pick_place_noting(
     error: (f32, f32),
     c: &CombatTuning,
     ground: &dyn arc::Ground,
-    mut weighed: impl FnMut(usize, Result<(), Refuse>),
-) -> Result<Vec3, (Vec3, Refuse)> {
+    mut weighed: impl FnMut(usize, Result<ArcPick, Refuse>),
+) -> Result<(Vec3, ArcPick), (Vec3, Refuse)> {
     let mut first = None;
     for (i, &at) in places.iter().take(c.grenade_places.max(1) as usize).enumerate() {
-        let verdict = weigh_throw(me, view, at, error, c, true, ground);
+        let verdict = weigh_place(me, view, at, error, c, ground);
         weighed(i, verdict);
         match verdict {
-            Ok(()) => return Ok(at),
+            Ok(pick) => return Ok((at, pick)),
             Err(why) => {
                 first.get_or_insert((at, why));
             }
@@ -1732,6 +2018,9 @@ pub struct Reflex {
     next_grenade_roll: u32,
     /// [measure] What the grenade logic did this life ([`GrenadeStats`]).
     grenade_stats: GrenadeStats,
+    /// A grenade decided on at this place, for the team's claim
+    /// ([`Reflex::take_throw_claim`]).
+    throw_claim: Option<Vec3>,
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
@@ -2180,6 +2469,12 @@ impl Reflex {
         std::mem::take(&mut self.throw_notes)
     }
 
+    /// The place a grenade was decided on since the last call: the team's
+    /// claim on it (`TeamKnowledge::claim_throw`).
+    pub fn take_throw_claim(&mut self) -> Option<Vec3> {
+        self.throw_claim.take()
+    }
+
     /// [measure] What the grenade logic has done this life, counted as it
     /// ran; nothing decides by it.
     pub fn grenade_stats(&self) -> GrenadeStats {
@@ -2273,7 +2568,13 @@ impl Reflex {
             self.next_outranged = now + c.outranged_again_ms;
             self.break_sight(me, sit, memory, now, false, false, c, rng);
         }
-        self.grenade_roll(me, sit.view, now, aim, skill, rng);
+        let look = RollView {
+            me,
+            sit,
+            memory,
+            now,
+        };
+        self.grenade_roll(look, aim, skill, rng);
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
@@ -3044,15 +3345,14 @@ impl Reflex {
     /// throw is weighed ([`weigh_throw`]) once the chance has said yes; one
     /// that fails is not made, and the next place is weighed
     /// ([`pick_place`]), up to `grenade_places` of them, nearest first.
-    fn grenade_roll(
-        &mut self,
-        me: &PlaceView,
-        view: &MatchView,
-        now: u32,
-        aim: &AimTuning,
-        skill: f32,
-        rng: &mut Rng,
-    ) {
+    fn grenade_roll(&mut self, look: RollView, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        let RollView {
+            me,
+            sit,
+            memory,
+            now,
+        } = look;
+        let (view, team) = (sit.view, sit.team);
         let c = &aim.combat;
         self.grenade_stats.thinks += 1;
         if self.throw.is_some()
@@ -3080,13 +3380,60 @@ impl Reflex {
             view.team(me.team)
                 .any(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
         };
+        // [G1] The places a teammate decided to throw at lately.
+        let claims: Vec<Vec3> = team
+            .filter(|_| c.grenade_claim && c.grenade_claim_m > 0.0)
+            .map(|team| {
+                team.throws_of_others(me.place, now, c.grenade_claim_ms)
+                    .map(|claim| claim.at)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let claimed = |at: Vec3| claims.iter().any(|k| k.distance_xz(at) < c.grenade_claim_m);
+        let mut dropped = 0;
         let mut places: Vec<(Vec3, PlaceSource)> = held
             .chain(camps)
             .filter(|(at, _)| {
-                (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
-                    && !friend_near(*at)
+                if !((c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                    && !friend_near(*at))
+                {
+                    return false;
+                }
+                let hit = claimed(*at);
+                dropped += u32::from(hit);
+                !hit
             })
             .collect();
+        if c.grenade_tracks {
+            // [G1] Where the senses last gave an enemy that is not in sight
+            // now, if it is no older than `grenade_track_ms`.
+            for track in memory.tracks() {
+                let Some((at, sensed)) = track.own else {
+                    continue;
+                };
+                let age = now.saturating_sub(sensed);
+                if age < c.grenade_track_gap_ms
+                    || age > c.grenade_track_ms
+                    || track.error_m > c.grenade_track_error_m
+                    || !(c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                    || places.iter().any(|(held, _)| held.distance_xz(at) < c.camp_m)
+                    || friend_near(at)
+                {
+                    continue;
+                }
+                if claimed(at) {
+                    dropped += 1;
+                    continue;
+                }
+                let source = if track.sight_since.is_some() || track.source == Source::Seen {
+                    PlaceSource::Lost
+                } else {
+                    PlaceSource::Heard
+                };
+                places.push((at, source));
+            }
+        }
+        self.grenade_stats.claimed += dropped;
         if places.is_empty() {
             return;
         }
@@ -3099,7 +3446,12 @@ impl Reflex {
         for (_, source) in &places {
             self.grenade_stats.places[source.index()] += 1;
         }
-        if rng.unit() >= c.grenade_chance {
+        let chance = if places[0].1.is_track() {
+            c.grenade_track_chance
+        } else {
+            c.grenade_chance
+        };
+        if rng.unit() >= chance {
             self.grenade_stats.chance_no += 1;
             return;
         }
@@ -3114,12 +3466,13 @@ impl Reflex {
                 let source = places[i].1.index();
                 stats.weighed[source] += 1;
                 match verdict {
-                    Ok(()) => stats.passed[source][0] += 1,
+                    Ok(pick) => stats.passed[source][pick.kind()] += 1,
                     Err(why) => stats.refused[source][why.index()] += 1,
                 }
             })
         }) {
-            Ok(at) => {
+            Ok((at, pick)) => {
+                self.throw_claim = Some(at);
                 self.throw = Some(Throw {
                     at,
                     started: now,
@@ -3128,6 +3481,7 @@ impl Reflex {
                     error,
                     released: false,
                     pitch: None,
+                    pick,
                 });
             }
             Err((at, why)) => self.hold_back(at, why),
@@ -3193,7 +3547,7 @@ impl Reflex {
         // stepped down in the hold, the place out of reach from there,
         // launched at the pitch of the walk after it: 1.1 m short in a
         // smoke).
-        let pitch = match (throw_view(me, throw.at, c), throw.pitch) {
+        let pitch = match (throw_view_of(me, throw.at, c, throw.pick), throw.pitch) {
             (Some((_, pitch)), _) => pitch,
             (None, Some(last)) if throw.released => last,
             (None, _) => {
@@ -3204,14 +3558,33 @@ impl Reflex {
         throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
         let weigh = |mates: bool| {
-            over_ground(mesh.as_deref(), throw.at.y, |ground| {
-                weigh_throw(me, view, throw.at, throw.error, c, mates, ground)
+            over_ground(mesh.as_deref(), throw.at.y, |ground| match throw.pick {
+                ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
+                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, throw.pick)
+                    .ok_or(Refuse::Reach)
+                    .and_then(|v| {
+                        weigh_view(
+                            me,
+                            view,
+                            throw.at,
+                            v,
+                            throw.error,
+                            c,
+                            mates,
+                            ground,
+                            c.grenade_search_off_m,
+                        )
+                    }),
             })
         };
         let eye = me.eye();
         let mut keys = 0;
         match throw.pressed {
-            None if off_by(me, throw_point(eye, throw.at, pitch), throw.error)
+            None if off_by(
+                me,
+                throw_point(eye, throw.at, pitch, throw.pick.dyaw()),
+                throw.error,
+            )
                 <= c.grenade_within_deg.to_radians() =>
             {
                 // The trace again at the press, from where it stands now.
@@ -3268,7 +3641,7 @@ impl Reflex {
         }
         self.throw = Some(throw);
         Some(Override {
-            look_at: Some(throw_point(eye, throw.at, pitch)),
+            look_at: Some(throw_point(eye, throw.at, pitch, throw.pick.dyaw())),
             error: throw.error,
             turn_time_s: Some(settle_s * 0.5),
             keys,
@@ -6002,12 +6375,167 @@ mod tests {
         let s = run.stats;
         assert!(s.thinks > 0 && s.rolls > 0, "{s:?}");
         assert_eq!(s.chance_no, 0);
-        assert_eq!(s.places, [s.rolls, 0], "one held place a roll, no camp");
-        assert_eq!(s.weighed, [s.rolls, 0]);
+        assert_eq!(s.places, [s.rolls, 0, 0, 0], "one held place a roll, no camp, no track");
+        assert_eq!(s.weighed, [s.rolls, 0, 0, 0]);
         let refused: u32 = s.refused[0].iter().sum();
         assert_eq!(s.passed[0][0] + refused, s.weighed[0], "{s:?}");
         assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
         assert_eq!(s.nth[0], 1, "{s:?}");
+    }
+
+    /// [G2] A wall 8 m ahead and 3 m high: the flat arc to a place 21 m
+    /// ahead (18 degrees, 2.7 m over the wall) meets it inside the thrower's
+    /// blast; with the search a lob over it is found, another pitch at the
+    /// same yaw (21-25 degrees: a lob over cover is a 20 m throw, the pitch
+    /// is clamped at 57 degrees); one trace is not enough to find it.
+    #[test]
+    fn the_search_finds_a_lob_over_a_wall_the_flat_arc_meets() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let wall = |from: Vec3, dir: Vec3, max_t: f32| {
+            if dir.z > 0.0 && from.z < 8.0 {
+                let t = (8.0 - from.z) / dir.z;
+                if t <= max_t && (from.x + dir.x * t).abs() < 8.0 && from.y + dir.y * t < 3.0 {
+                    return Some(arc::Hit {
+                        t,
+                        normal: Vec3::new(0.0, 0.0, -1.0),
+                    });
+                }
+            }
+            arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t)
+        };
+        let place = Vec3::new(0.0, 0.0, 21.0);
+        let off = CombatTuning::default();
+        assert!(!off.grenade_search);
+        assert_eq!(
+            weigh_place(&me, &view, place, (0.0, 0.0), &off, &wall),
+            Err(Refuse::Thrower)
+        );
+        let on = CombatTuning {
+            grenade_search: true,
+            ..CombatTuning::default()
+        };
+        let Ok(ArcPick::Pitch { pitch }) = weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
+        else {
+            panic!("a lob over the wall is found");
+        };
+        assert!((19.0..32.0).contains(&pitch.to_degrees()), "{}", pitch.to_degrees());
+        let capped = CombatTuning {
+            grenade_search_traces: 1,
+            ..on
+        };
+        assert_eq!(
+            weigh_place(&me, &view, place, (0.0, 0.0), &capped, &wall),
+            Err(Refuse::Thrower)
+        );
+    }
+
+    /// [G2] A wall across the yaw of the place but not beside it: another
+    /// yaw is found; a teammate in the way is no case for the search.
+    #[test]
+    fn the_search_turns_the_yaw_when_the_pitch_will_not_do() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        // A wall 6 m ahead, 20 m high, between x = -1 and 1; the place is 20 m out.
+        let wall = |from: Vec3, dir: Vec3, max_t: f32| {
+            if dir.z > 0.0 && from.z < 6.0 {
+                let t = (6.0 - from.z) / dir.z;
+                if t <= max_t && (from.x + dir.x * t).abs() < 1.0 && from.y + dir.y * t < 20.0 {
+                    return Some(arc::Hit {
+                        t,
+                        normal: Vec3::new(0.0, 0.0, -1.0),
+                    });
+                }
+            }
+            arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t)
+        };
+        let place = Vec3::new(1.0, 0.0, 20.0);
+        let on = CombatTuning {
+            grenade_search: true,
+            grenade_search_off_m: 8.0,
+            ..CombatTuning::default()
+        };
+        let Ok(pick @ ArcPick::Yawed { dyaw, .. }) =
+            weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
+        else {
+            panic!("another yaw is found");
+        };
+        assert_ne!(dyaw, 0.0);
+        assert_eq!(pick.kind(), 2);
+        // Off: refused, as before.
+        assert_eq!(
+            weigh_place(&me, &view, place, (0.0, 0.0), &CombatTuning::default(), &wall),
+            Err(Refuse::Thrower)
+        );
+    }
+
+    /// [G1] An enemy seen a moment ago and gone, holding no angle and no
+    /// camp, is a place with `grenade_tracks` (counted as a lost place):
+    /// thrown at. Without it, nothing is rolled.
+    #[test]
+    fn a_target_just_lost_is_a_place_with_grenade_tracks() {
+        let at = Vec3::new(0.0, 0.0, 20.0);
+        let on = CombatTuning {
+            grenade_tracks: true,
+            grenade_track_chance: 1.0,
+            ..CombatTuning::default()
+        };
+        let run = throw_run_keyed(&[at], &[], on, None, 6_000, None, 0);
+        assert!(!run.thrown.is_empty(), "{:?}", run.stats);
+        assert_eq!(run.stats.places[0] + run.stats.places[1], 0, "{:?}", run.stats);
+        assert!(run.stats.places[2] > 0, "{:?}", run.stats);
+        let off = throw_run_keyed(&[at], &[], CombatTuning::default(), None, 6_000, None, 0);
+        assert!(off.thrown.is_empty());
+        assert_eq!(off.stats.rolls, 0);
+    }
+
+    /// [G1] A teammate's claim within `grenade_claim_m` of the place drops it
+    /// from the roll (counted); the bot's own claim does not; a decision
+    /// leaves a claim for the team.
+    #[test]
+    fn a_teammates_claim_drops_the_place_and_a_decision_makes_one() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut camper = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
+        camper.keys = key::CROUCH | key::AIM;
+        let view = view_of(vec![me.clone(), camper.clone()]);
+        let aim = AimTuning {
+            combat: CombatTuning {
+                grenade_claim: true,
+                grenade_chance: 1.0,
+                grenade_roll_ms: 500,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        let run = |team: &TeamKnowledge| {
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let sit = Situation {
+                team: Some(team),
+                ..Situation::of(&view)
+            };
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, camper.feet, now, Source::Seen)], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            for now in [1_800, 2_300, 2_800] {
+                sense(&mut memory, &[], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            (reflex.grenade_stats(), reflex.take_throw_claim())
+        };
+        let mut team = TeamKnowledge::default();
+        let (stats, claim) = run(&team);
+        assert!(claim.is_some(), "{stats:?}");
+        assert_eq!(stats.claimed, 0);
+        team.claim_throw(7, Vec3::new(2.0, 0.0, 22.0), 1_500);
+        let (stats, claim) = run(&team);
+        assert_eq!(claim, None, "{stats:?}");
+        assert!(stats.claimed > 0, "{stats:?}");
+        let mut own = TeamKnowledge::default();
+        own.claim_throw(0, Vec3::new(2.0, 0.0, 22.0), 1_500);
+        assert!(run(&own).1.is_some(), "his own volley is not held against him");
     }
 
     #[test]
@@ -6095,6 +6623,28 @@ mod tests {
         until: u32,
         step_down: Option<(u32, f32)>,
     ) -> ThrowRun {
+        throw_run_keyed(
+            campers,
+            mates,
+            combat,
+            world,
+            until,
+            step_down,
+            key::CROUCH | key::AIM,
+        )
+    }
+
+    /// The same, the enemies holding `camper_keys` (crouched and aiming
+    /// hold an angle; none holds nothing).
+    fn throw_run_keyed(
+        campers: &[Vec3],
+        mates: &[PlaceView],
+        combat: CombatTuning,
+        world: Option<&Arc<mapdata::World>>,
+        until: u32,
+        step_down: Option<(u32, f32)>,
+        camper_keys: u32,
+    ) -> ThrowRun {
         let mut pressed_at: Option<u32> = None;
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
         let campers: Vec<PlaceView> = campers
@@ -6102,7 +6652,7 @@ mod tests {
             .enumerate()
             .map(|(i, at)| {
                 let mut camper = body(i as Place + 1, 1, *at, 0.0);
-                camper.keys = key::CROUCH | key::AIM;
+                camper.keys = camper_keys;
                 camper
             })
             .collect();
@@ -6576,6 +7126,7 @@ mod tests {
         let _ = pick_place_noting(&me, &view, &places, (0.0, 0.0), &c, &wall, |i, v| {
             told.push((i, v));
         });
+        let told: Vec<_> = told.into_iter().map(|(i, v)| (i, v.map(|_| ()))).collect();
         assert_eq!(told, vec![(0, Err(Refuse::Wall)), (1, Ok(()))]);
         // None passes: no throw, and the nearest is named with its reason.
         places = blocked.to_vec();
