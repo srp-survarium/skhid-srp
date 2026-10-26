@@ -1,0 +1,5 @@
+# Every build here is the game's i686 (rust_patches.md): `cargo test` and
+# `cargo clippy` too. The dev shell has the target's std and its linker
+# (CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER, 32-bit glibc).
+[build]
+target = "i686-unknown-linux-gnu"

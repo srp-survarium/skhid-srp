@@ -38,6 +38,7 @@ given), LIKELY or GUESS.
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |
 | [client_patch.md](client_patch.md) | Porting the srp client patch, the function map |
+| [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
 | [password-reset.md](password-reset.md) | The admin's password reset while srp runs: the page's Password tab (confirm step), a script's one POST and its answers, the curl from the jump host, the owner's rule (2026-10-18) |

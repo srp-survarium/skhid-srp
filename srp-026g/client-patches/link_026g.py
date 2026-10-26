@@ -9,6 +9,9 @@
     python link_026g.py --check
         says whether the lock is what the sources give here (the self-test
         and every build compare the same)
+    python link_026g.py --sizes
+        each block's bytes, pages and languages, each Rust patch's bytes
+        (its module's symbols), and the arena against its limit
 
 Each block of ARENA names its sources. Every source becomes a relocatable
 ELF32 object, once: NASM (`-f elf32`) for `.asm`, gcc for `.c` (`-m32 -c`,
@@ -74,8 +77,19 @@ SUPPORTED = (1, 2)
 
 # A block of the arena (patch_026g.py's ARENA): name "<patch>.<what>"; kind
 # "code", "data" or "state"; align a power of two from 16 to 0x1000; its
-# sources, .c or .asm (relative to this folder).
+# sources, .c or .asm (relative to this folder), a Rust crate's Cargo.toml,
+# or a RustEntry.
 ArenaBlock = collections.namedtuple("ArenaBlock", "name kind align sources")
+# A way from the game into Rust that the link writes (rust_patches.md): a
+# block's source, one of rust_hook_026g.inc's macros, never NASM by hand.
+# `symbol` its global (what a hook names), `function` the Rust function it
+# calls, `macro` and `argument`:
+#   "RUST_HOOK"      a VA: RUST_HOOK function, then `jmp argument` (a hook on
+#                    the game's `call argument`: the replaced call goes on as
+#                    the game made it);
+#   "RUST_THISCALL"  the dwords the game pushes (a vtable slot, a delegate);
+#   "RUST_CDECL"     the dwords the game pushes.
+RustEntry = collections.namedtuple("RustEntry", "symbol function macro argument")
 # Where the link put a block.
 Block = collections.namedtuple("Block", "name kind va size")
 Linked = collections.namedtuple("Linked", "va size image blocks symbols every built_with sha256")
@@ -105,6 +119,12 @@ def toolchain(**override):
             raise LinkError(f"the arena (`.srpx`) is built from its sources: {what[key]} is needed, and "
                             f"{tool!r} is not there ({key.upper()} names another; `nix develop ./srp-026g` "
                             "has gcc, GNU ld and NASM 2.16)")
+    # A Rust crate's source needs rustc (nightly, with rust-src); found when
+    # there, asked for by compile_source when a block names a crate.
+    for key in ("rustc",):
+        tool = override.get(key, os.environ.get(key.upper(), key))
+        if shutil.which(tool):
+            tools[key] = tool
     version = first_line([tools["nasm"], "-v"])
     if not re.match(rf"NASM version {re.escape(NASM_VERSION)}\b", version):
         raise LinkError(f"{tools['nasm']}: {version!r}; the arena needs NASM {NASM_VERSION} (NASM 3 assembles "
@@ -119,9 +139,12 @@ def first_line(command):
         return "unknown"
 
 
-def versions(tools):
-    return {"cc": first_line([tools["cc"], "--version"]), "ld": first_line([tools["ld"], "--version"]),
-            "nasm": first_line([tools["nasm"], "-v"])}
+def versions(tools, rust=False):
+    out = {"cc": first_line([tools["cc"], "--version"]), "ld": first_line([tools["ld"], "--version"]),
+           "nasm": first_line([tools["nasm"], "-v"])}
+    if rust:
+        out["rustc"] = first_line([tools["rustc"], "--version"])
+    return out
 
 
 def run(command, what, cwd=None):
@@ -195,6 +218,24 @@ def check_object(source, path, kinds_of_source):
 
 # ---- the link ------------------------------------------------------------
 
+def entry_text(entry):
+    """The NASM of a RustEntry; LinkError when it is none."""
+    symbol, function, macro, argument = entry
+    if not all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n) for n in (symbol, function)) or type(argument) is not int:
+        raise LinkError(f"{entry}: no entry (a symbol and a function, identifiers; an integer argument)")
+    head = 'bits 32\nsection .text\n%include "rust_hook_026g.inc"\n'
+    if macro == "RUST_HOOK" and 0 < argument < 1 << 32:
+        return head + f"global {symbol}\n{symbol}:\n    RUST_HOOK {function}\n    jmp {argument:#x}\n"
+    if macro in ("RUST_THISCALL", "RUST_CDECL") and 0 <= argument <= 16:
+        return head + f"    {macro} {symbol}, {function}, {argument}\n"
+    raise LinkError(f"{entry}: the macro RUST_HOOK (and a VA), RUST_THISCALL or RUST_CDECL (and 0 to 16 dwords)")
+
+
+def source_name(source):
+    """A source as messages name it."""
+    return f"the entry {source.symbol} ({source.macro})" if isinstance(source, RustEntry) else str(source)
+
+
 def check_blocks(blocks):
     names = set()
     for block in blocks:
@@ -206,13 +247,18 @@ def check_blocks(blocks):
             raise LinkError(f"block {name}: a kind of {', '.join(KINDS)} and an alignment a power of two from "
                             "16 to 0x1000")
         if not sources or len(set(sources)) != len(sources) \
-                or any(not str(s).endswith((".c", ".asm")) for s in sources):
-            raise LinkError(f"block {name}: its sources, each once, .c or .asm files")
+                or any(not (isinstance(s, RustEntry) or str(s).endswith((".c", ".asm"))
+                            or Path(s).name == "Cargo.toml") for s in sources):
+            raise LinkError(f"block {name}: its sources, each once, .c or .asm files, a Rust crate's Cargo.toml "
+                            "or a RustEntry")
+        for s in sources:
+            if isinstance(s, RustEntry):
+                entry_text(s)
     for kind in KINDS:
         seen = [s for b in blocks if b.kind == kind for s in b.sources]
         twice = sorted({s for s in seen if seen.count(s) > 1})
         if twice:
-            raise LinkError(f"{', '.join(map(str, twice))}: named by two {kind} blocks")
+            raise LinkError(f"{', '.join(map(source_name, twice))}: named by two {kind} blocks")
 
 
 def script_text(blocks, objects, va, limit):
@@ -231,17 +277,199 @@ def script_text(blocks, objects, va, limit):
 _objects = {}
 
 
+def crate_files(manifest):
+    """Every file a Rust crate's build reads: its manifest and sources, and
+    those of the crates it names by path, in a fixed order."""
+    out, todo, seen = [], [manifest.resolve()], set()
+    while todo:
+        cargo = todo.pop()
+        if cargo in seen:
+            continue
+        seen.add(cargo)
+        out.append(cargo)
+        out += sorted(p for p in (cargo.parent / "src").rglob("*.rs"))
+        for dep in re.findall(r'path\s*=\s*"([^"]+)"', cargo.read_text()):
+            target = (cargo.parent / dep).resolve()
+            if (target / "Cargo.toml").is_file():
+                todo.append(target / "Cargo.toml")
+    for included in re.findall(r'include!\("([^"]+)"\)', "".join(
+            p.read_text() for p in out if p.suffix == ".rs")):
+        for p in out:
+            candidate = (p.parent / included).resolve()
+            if p.suffix == ".rs" and candidate.is_file() and candidate not in out:
+                out.append(candidate)
+    return out
+
+
+def source_path(source):
+    return Path(source) if os.path.isabs(source) else HERE / source
+
+
+def source_digest(source):
+    """The SHA-256 of a source as the build reads it (a crate: all its
+    files; an entry: its text and the include); None when it is missing."""
+    if isinstance(source, RustEntry):
+        include = (HERE / "rust_hook_026g.inc").read_bytes()
+        return hashlib.sha256(entry_text(source).encode() + b"\0" + include).hexdigest()
+    path = source_path(source)
+    if not path.is_file():
+        return None
+    if path.name == "Cargo.toml":
+        digest = hashlib.sha256()
+        for p in crate_files(path):
+            digest.update(str(p.relative_to(HERE.parent)).encode() + b"\0" + p.read_bytes())
+        return digest.hexdigest()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+# What rustc gets for a Rust crate (`Cargo.toml` source), and for the `core`
+# it is built against: the game's i686, no position-independent code, size
+# first, aborts, one codegen unit, no debug information, the paths in the
+# bytes made relative (the lock does not depend on the folder). No cargo:
+# `-Zbuild-std` resolves the whole standard library's workspace (proc_macro's
+# crates.io dependencies among them), which needs the network or a warm cache;
+# rustc alone builds `core` from the toolchain's rust-src, offline.
+RUST_TARGET = "i686-unknown-linux-gnu"
+RUST_EDITION = "2024"
+RUSTFLAGS = ["--target", RUST_TARGET, "-C", "relocation-model=static", "-C", "target-cpu=pentium4",
+             "-C", "opt-level=s", "-C", "panic=abort", "-C", "codegen-units=1", "-C", "debuginfo=0",
+             "-C", "force-frame-pointers=no", "-C", "embed-bitcode=yes"]
+# rustc links every `no_std` crate against a crate named compiler_builtins.
+# The arena takes none of its code (a call to an intrinsic is an undefined
+# symbol, which the link refuses), so an empty one stands in for it.
+COMPILER_BUILTINS_STUB = ("#![no_std]\n#![feature(compiler_builtins)]\n#![compiler_builtins]\n"
+                          "//! The arena's stand-in: no intrinsics (link_026g.py).\n")
+
+
+def ar_members(data, what):
+    """[(name, bytes)] of a System V `ar` archive."""
+    if data[:8] != b"!<arch>\n":
+        raise LinkError(f"{what}: not an ar archive")
+    out, at, names = [], 8, b""
+    while at + 60 <= len(data):
+        header = data[at:at + 60]
+        name, size = header[:16].decode().strip(), int(header[48:58].decode().strip())
+        body = data[at + 60:at + 60 + size]
+        if name == "//":
+            names = body
+        elif name.startswith("/") and name[1:].isdigit():
+            start = int(name[1:])
+            out.append((names[start:names.index(b"/\n", start)].decode(), body))
+        elif name not in ("/", "/SYM64/"):
+            out.append((name.rstrip("/"), body))
+        at += 60 + size + (size & 1)
+    return out
+
+
+def rustc(tools, args, what, env_extra=None):
+    env = {k: v for k, v in os.environ.items() if k not in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS")}
+    env.update(env_extra or {})
+    done = subprocess.run([tools["rustc"], *args], capture_output=True, text=True, env=env)
+    if done.returncode:
+        raise LinkError(f"rustc {what} failed:\n{(done.stdout + done.stderr).strip()}")
+
+
+def rust_sysroot(tools):
+    """A sysroot of our own for i686 (built once a toolchain, in
+    srp-026g/target-arena): core from the toolchain's rust-src with RUSTFLAGS,
+    and the empty compiler_builtins."""
+    version = first_line([tools["rustc"], "--version"])
+    toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
+    key = hashlib.sha256(repr((version, toolchain_root, RUSTFLAGS, COMPILER_BUILTINS_STUB)).encode()).hexdigest()[:16]
+    root = HERE.parent / "target-arena" / f"sysroot-{key}"
+    lib = root / "lib" / "rustlib" / RUST_TARGET / "lib"
+    if (lib / "libcompiler_builtins.rlib").is_file():
+        return root
+    core = Path(toolchain_root) / "lib" / "rustlib" / "src" / "rust" / "library" / "core" / "src" / "lib.rs"
+    if not core.is_file():
+        raise LinkError(f"{core}: no rust-src in the toolchain (the dev shell's has it)")
+    building = root.with_name(root.name + ".building")
+    shutil.rmtree(building, ignore_errors=True)
+    blib = building / "lib" / "rustlib" / RUST_TARGET / "lib"
+    blib.mkdir(parents=True)
+    remap = [f"--remap-path-prefix={toolchain_root}=rustc"]
+    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "core", "--crate-type", "rlib", *RUSTFLAGS, *remap,
+                  "-Zforce-unstable-if-unmarked", str(core), "-o", str(blib / "libcore.rlib")], "core")
+    stub = building / "compiler_builtins.rs"
+    stub.write_text(COMPILER_BUILTINS_STUB)
+    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "compiler_builtins", "--crate-type", "rlib", *RUSTFLAGS,
+                  "--sysroot", str(building), str(stub), "-o", str(blib / "libcompiler_builtins.rlib")],
+          "compiler_builtins")
+    shutil.rmtree(root, ignore_errors=True)
+    building.rename(root)
+    return root
+
+
+def crate_of(manifest):
+    """(the crate's name, its root source, [the manifests it names by path])."""
+    text = manifest.read_text()
+    name = re.search(r'^name\s*=\s*"([^"]+)"', text, re.M).group(1).replace("-", "_")
+    lib = re.search(r'^\[lib\][^\[]*?^path\s*=\s*"([^"]+)"', text, re.M | re.S)
+    deps = [(manifest.parent / d).resolve() / "Cargo.toml" for d in re.findall(r'path\s*=\s*"([^"]+)"', text)
+            if (manifest.parent / d / "Cargo.toml").is_file()]
+    return name, manifest.parent / (lib.group(1) if lib else "src/lib.rs"), deps
+
+
+def build_crate(manifest, tools, out):
+    """The crate's own object of the staticlib `manifest` describes, built by
+    rustc against rust_sysroot(): the crates it names by path as rlibs, then
+    it with fat LTO (one object; the archive's core and compiler_builtins
+    members are left out: a symbol the crate would need from them is an
+    undefined symbol, which the link refuses)."""
+    sysroot = rust_sysroot(tools)
+    toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
+    remap = [f"--remap-path-prefix={HERE.parent}=srp-026g", f"--remap-path-prefix={toolchain_root}=rustc"]
+    with tempfile.TemporaryDirectory(prefix="srp-rust-") as folder:
+        built, externs = set(), []
+
+        def rlib(path):
+            name, root, deps = crate_of(path)
+            for dep in deps:
+                rlib(dep)
+            if name in built:
+                return
+            built.add(name)
+            target = Path(folder) / f"lib{name}.rlib"
+            rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "rlib", *RUSTFLAGS, *remap,
+                          "--sysroot", str(sysroot), "-L", folder, *externs, str(root), "-o", str(target)], name)
+            externs.extend(["--extern", f"{name}={target}"])
+
+        name, root, deps = crate_of(manifest)
+        for dep in deps:
+            rlib(dep)
+        archive = Path(folder) / f"lib{name}.a"
+        rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "staticlib", *RUSTFLAGS, *remap,
+                      "-C", "lto=fat", "--sysroot", str(sysroot), "-L", folder, *externs, str(root),
+                      "-o", str(archive)], name)
+        own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
+               if member.endswith(".o") and f".{name}." in member]
+        if len(own) != 1:
+            raise LinkError(f"{archive.name}: {len(own)} objects of the crate's own; one is needed (fat LTO, one "
+                            "codegen unit)")
+        out.write_bytes(own[0])
+
+
 def compile_source(source, tools, folder, name):
     """The object of `source` in `folder` (the same source and tools: built
     once per process)."""
-    path = Path(source) if os.path.isabs(source) else HERE / source
-    if not path.is_file():
+    digest = source_digest(source)
+    if digest is None:
         raise LinkError(f"{source}: no such source")
-    text = path.read_bytes()
-    key = (str(path), hashlib.sha256(text).hexdigest(), tuple(sorted(tools.items())))
+    path = None if isinstance(source, RustEntry) else source_path(source)
+    key = (str(path or source), digest, tuple(sorted(tools.items())))
     if key not in _objects:
         out = Path(folder) / ("obj-" + name)
-        if path.suffix == ".asm":
+        if path is None:
+            text = Path(folder) / (name + ".asm")
+            text.write_text(entry_text(source))
+            run([tools["nasm"], "-f", "elf32", "-I", str(HERE) + os.sep, str(text), "-o", str(out)],
+                f"nasm {source_name(source)}")
+        elif path.name == "Cargo.toml":
+            if "rustc" not in tools:
+                raise LinkError(f"{source}: a Rust crate, and no rustc (`nix develop ./srp-026g` has the "
+                                "nightly with rust-src it needs)")
+            build_crate(path, tools, out)
+        elif path.suffix == ".asm":
             run([tools["nasm"], "-f", "elf32", "-I", str(path.parent) + os.sep, str(path), "-o", str(out)],
                 f"nasm {source}")
         else:
@@ -263,24 +491,24 @@ def link(blocks, va, limit, tools=None):
     check_blocks(blocks)
     tools = toolchain() if tools is None else tools
     sources = list(dict.fromkeys(s for b in blocks for s in b.sources))
-    key = (blocks, va, limit, tuple(sorted(tools.items())),
-           tuple(hashlib.sha256((Path(s) if os.path.isabs(s) else HERE / s).read_bytes()).hexdigest()
-                 if (Path(s) if os.path.isabs(s) else HERE / s).is_file() else None for s in sources))
+    key = (blocks, va, limit, tuple(sorted(tools.items())), tuple(source_digest(s) for s in sources))
     if key in _links:
         return _links[key]
     with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
         objects = {}
         for i, source in enumerate(sources):
-            name = f"{i:02d}_{Path(source).stem}.o"
+            stem = f"entry_{source.symbol}" if isinstance(source, RustEntry) else Path(source).stem
+            name = f"{i:02d}_{stem}.o"
             path = compile_source(source, tools, folder, name)
-            check_object(source, path, {b.kind for b in blocks if source in b.sources})
+            check_object(source_name(source), path, {b.kind for b in blocks if source in b.sources})
             objects[source] = name
         script = Path(folder) / "arena.ld"
         script.write_text(script_text(blocks, objects, va, limit))
         run([tools["ld"], "-m", "elf_i386", "-T", "arena.ld", "-e", "0", "--orphan-handling=discard",
              "-z", "noexecstack", "--no-warn-rwx-segments", "-o", "arena.elf", *objects.values()], "ld", cwd=folder)
         out = elf((Path(folder) / "arena.elf").read_bytes(), "the linked arena")
-    linked = layout(blocks, out, va, limit, versions(tools))
+    rust = any(not isinstance(s, RustEntry) and Path(s).name == "Cargo.toml" for s in sources)
+    linked = layout(blocks, out, va, limit, versions(tools, rust))
     _links[key] = linked
     return linked
 
@@ -294,7 +522,7 @@ def layout(blocks, out, va, limit, built_with):
     for block in blocks:
         s = by_name.get("." + block.name)
         if s is None or not s["size"]:
-            raise LinkError(f"block {block.name}: nothing of its sources ({', '.join(map(str, block.sources))}) "
+            raise LinkError(f"block {block.name}: nothing of its sources ({', '.join(map(source_name, block.sources))}) "
                             f"is in it")
         if s["addr"] < at or s["addr"] % block.align:
             raise LinkError(f"block {block.name} at {s['addr']:#x}: not after the block before it ({at:#x}) or "
@@ -367,19 +595,85 @@ def read_lock(path=LOCK):
         return None
 
 
+def rust_path(name):
+    """The path of a Rust symbol (legacy mangling, `_ZN` .. `E`, the hash
+    left out): ["patches", "suicide_key", "hook"]; [name] when unmangled."""
+    if not name.startswith("_ZN"):
+        return [name]
+    parts, at = [], 3
+    while at < len(name) and name[at].isdigit():
+        digits = re.match(r"\d+", name[at:]).group()
+        at += len(digits)
+        parts.append(name[at:at + int(digits)])
+        at += int(digits)
+    return [p for p in parts if not re.fullmatch(r"h[0-9a-f]{16}", p)] or [name]
+
+
+def patch_sizes(linked, block, patches):
+    """{owner: bytes} of a Rust block: each symbol's bytes up to the next
+    symbol (or the block's end), its owner the patch whose module it is in
+    (`patches::<patch>::..`) or whose name it starts with (the hooks'
+    `#[unsafe(no_mangle)]` functions and the entries: `<patch>`, `<patch>_..`),
+    else the crate it is from (patch_core, core: shared)."""
+    placed = linked.blocks[block]
+    starts = sorted({va for _, va, home, _ in linked.every if home == block} | {placed.va})
+    owner_at = {}
+    for name, va, home, _ in sorted(linked.every, key=lambda e: (e[1], not e[3], e[0])):
+        if home != block or va in owner_at:
+            continue
+        path = rust_path(name)
+        owns = lambda p: name == p or name.startswith(p + "_") or name.startswith("hook_" + p + "_")
+        if len(path) > 2 and path[0] == "patches" and path[1] in patches:
+            owner_at[va] = path[1]                         # patches::<patch>::..
+        elif len(path) == 1 and any(owns(p) for p in patches):
+            owner_at[va] = max((p for p in patches if owns(p)), key=len)   # the entry, the shim
+        else:
+            owner_at[va] = path[0] if len(path) > 1 else "unnamed"         # vostok, core, memcpy/memset
+    sizes = collections.Counter()
+    for va, end in zip(starts, starts[1:] + [placed.va + placed.size]):
+        sizes[owner_at.get(va, "unnamed")] += end - va
+    return dict(sizes)
+
+
+def sizes_text(blocks, linked, limit, patches=()):
+    """Each block's bytes, the pages it takes and its languages; each
+    patch's bytes in a block of Rust (`patches`: their module names); and
+    the arena against its limit (the budget of every patch)."""
+    def language(source):
+        if isinstance(source, RustEntry):
+            return "entries (generated)"
+        return "Rust" if Path(source).name == "Cargo.toml" else "C" if str(source).endswith(".c") else "NASM"
+    lines = [f"  {'block':<20} {'kind':<5} {'bytes':>7} {'pages':>5}  languages"]
+    for block in blocks:
+        placed = linked.blocks[block.name]
+        pages = (placed.size + 0xFFF) // 0x1000
+        languages = ", ".join(dict.fromkeys(language(s) for s in block.sources))
+        lines.append(f"  {block.name:<20} {block.kind:<5} {placed.size:>7} {pages:>5}  {languages}")
+        if block.kind == "code" and any(language(s) == "Rust" for s in block.sources):
+            for owner, size in sorted(patch_sizes(linked, block.name, patches).items(), key=lambda o: -o[1]):
+                lines.append(f"      {owner:<24} {size:>7}")
+    lines.append(f"the arena: {linked.size} bytes ({linked.size:#x}) of its limit {limit:#x}, "
+                 f"{100 * linked.size / limit:.1f}%")
+    return "\n".join(lines)
+
+
 def main():
     import argparse
     import patch_026g as base
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--sizes", action="store_true")
     args = parser.parse_args()
-    if args.write == args.check:
-        parser.error("--write or --check")
+    if args.write + args.check + args.sizes != 1:
+        parser.error("--write, --check or --sizes")
     try:
         linked = link(base.ARENA, base.ARENA_VA, base.ARENA_LIMIT)
     except LinkError as error:
         sys.exit(f"link_026g: {error}")
+    if args.sizes:
+        print(sizes_text(base.ARENA, linked, base.ARENA_LIMIT, base.RUST_PATCHES))
+        return
     for block in linked.blocks.values():
         print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
     if args.write:

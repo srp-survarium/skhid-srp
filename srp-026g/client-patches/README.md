@@ -93,7 +93,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
-| `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
+| `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
+| `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
@@ -106,7 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
@@ -163,15 +165,43 @@ self-test's, the release's: `release/build-zip` builds in the dev shell)
 links from source and stops if the bytes are not the lock's. After changing
 an arena source: `python link_026g.py --write` and commit the lock with it.
 
+**A Rust crate as a source** (the framework: `../docs/notes/rust_patches.md`):
+a block may name a crate's `Cargo.toml` (its name, its `[lib]` path and the
+crates it names by `path`; nothing else of it is read). The link builds it
+with the dev shell's nightly **rustc alone, offline** (no cargo:
+`-Zbuild-std` resolves the standard library's whole workspace and needs
+crates.io): `core` from the toolchain's rust-src and an empty
+`compiler_builtins`, once a toolchain, into `srp-026g/target-arena/
+sysroot-<key>`; then the path crates as rlibs and the crate as a staticlib,
+all for `i686-unknown-linux-gnu` with `-C relocation-model=static -C
+target-cpu=pentium4 -C opt-level=s -C panic=abort -C codegen-units=1`, fat
+LTO, no debug information, paths remapped. It takes the crate's one object
+out of the archive (a symbol it would need from `compiler_builtins` is an
+undefined symbol, which the link refuses) and checks it as any other
+object. Its build's files (the crate, the crates it names by path, what it
+`include!`s) are the source's digest. The rustc version is in the lock's
+`built_with`.
+
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
-`INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
-asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62), the kill feed's flags (patch 67) and the baked textures'
-cache (patch 70) are the arena's blocks today. The older fixed sections stay as they are
-(client_patch.md 0.3 says what moving one would take).
+`INSTALLS` (below); `python link_026g.py --write`. A Rust patch:
+`../docs/notes/rust_patches.md`. The arena's blocks today (`python
+link_026g.py --sizes` prints their bytes, pages and languages):
+
+| Block | Patch | Language |
+|---|---|---|
+| `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
+| `artefacts.code` | 54, the artefacts | NASM |
+| `engine.code` | the engine-function library | NASM (generated) |
+| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
+| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
+| `kill_feed.code` | 67, the kill feed's flags | NASM |
+| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
+| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
+
+The older fixed sections stay as they are (client_patch.md 0.3 says what
+moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -2098,13 +2128,16 @@ player's own head bone "brain", the attacker the player). The input builder
 (`process_first_person_mode`, 0x241250) never asks for action 1Fh, so no
 input ever had bit 24.
 
-**The patch.** Only in the builds with the late join; `suicide_key_026g.asm`,
-40 bytes at `.srp`+980h (after the pickup code, before the seek code), one
-site: the builder's last action call (spot, `call 0x242460` at 0x242196)
-calls it first. It asks `action_present` for action 1Fh with the same
-arguments and sets bit 24 when the key went down (one input, as spot), then
-goes on to the original call. K while alive in a match: the player dies at
-the input's tick, in every game.
+**The patch.** Only in the builds with the late join; the Rust patch
+`suicide_key` (the framework's example, `../docs/notes/rust_patches.md`), a
+`call` hook in the arena's block `patches.code` (until the framework, 40
+bytes of NASM at `.srp`+980h). One site: the builder's last action call
+(spot, `call 0x242460` at 0x242196) becomes a call of the generated entry,
+which hands `suicide_key::on_spot` the call's typed arguments and an
+`Original` of `action_present`. The handler asks `action_present` for action
+1Fh and sets bit 24 when the key went down (one input, as spot), then does
+the spot query the site wanted (`orig.call`) and returns its answer. K while
+alive in a match: the player dies at the input's tick, in every game.
 
 **Why the games agree.** Bit 24 is an ordinary input bit: the player's game
 applies it at once, the server relays it as it relays every input, every
@@ -2121,7 +2154,8 @@ time is a death's. No server rule is added. `../docs/notes/client_patch.md`
 section 3.32 has the proof.
 
 Checked: `selftest_026g.py` check 35 (and check 15's layout of `.srp`'s
-first page); `check_suicide_key_026g.py` runs the original's and the
+first page); `cargo test` and `cargo clippy --all-targets` in `rust/` (i686);
+`check_suicide_key_026g.py` runs the original's and the
 build's last action call with the game's own event buffer code on made-up
 handlers: K down sets bit 24 and nothing else, K repeated, released or held
 from before does not, spot answers as in the original, nothing else of the
