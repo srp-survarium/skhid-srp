@@ -7,9 +7,7 @@ use core::{
 };
 use windows_sys::Win32::{
     Foundation::*,
-    Globalization::{
-        CP_UTF8, GetACP, MB_ERR_INVALID_CHARS, MultiByteToWideChar, WideCharToMultiByte,
-    },
+    Globalization::{CP_UTF8, MB_ERR_INVALID_CHARS, MultiByteToWideChar, WideCharToMultiByte},
     Storage::FileSystem::*,
     System::{
         Environment::GetCommandLineW, LibraryLoader::GetModuleFileNameW, SystemInformation::*,
@@ -261,7 +259,11 @@ pub unsafe fn recent(
 /// `-localization`: original and russian `.1251`, english `.1252`, polish
 /// `.1250`; any other leaves the "C" locale, whose wide-to-narrow conversion
 /// (the log's `%S`, e.g. the audio device names) writes Latin-1 bytes. With
-/// no `-localization` in this process's command line, Windows' ANSI code page.
+/// no `-localization` the option keeps its default, "original" (its static
+/// initializer 0x84E3E0 sets the string at 0x21E75E0; the parser 0xDDEB0 only
+/// overwrites it when the option is given): cp1251. So the transcoder only
+/// ever sees single-byte code pages, where no lead byte can swallow an ASCII
+/// byte of a credential label.
 pub unsafe fn code_page() -> (u32, &'static str) {
     const KEY: &[u8] = b"-localization=";
     let line = GetCommandLineW();
@@ -275,7 +277,7 @@ pub unsafe fn code_page() -> (u32, &'static str) {
         core::slice::from_raw_parts(line, n)
     };
     let Some(at) = line.windows(KEY.len()).position(|w| same(w, KEY)) else {
-        return (GetACP(), "Windows' ANSI code page");
+        return (1251, "the game's default -localization (original)");
     };
     let value = &line[at + KEY.len()..];
     let end = value

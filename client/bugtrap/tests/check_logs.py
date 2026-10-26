@@ -217,10 +217,17 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
                         f"removed_lines=0, transcoded_lines=2 from cp{code_page},"))
         assert source.read_bytes() == raw
         source.unlink()
-    # UTF-8 stays as it is and is not counted; with no -localization, Windows' code page.
+    # UTF-8 stays as it is and is not counted. With no -localization the game's
+    # default (original) is cp1251, whatever Windows' ANSI code page.
     source = add("Survarium_utf8.log", sound("Динамики").encode())
     check({"logs/documents/Survarium_utf8.log": sound("Динамики").encode()},
-          messages=("(Windows' ANSI code page)", "transcoded_lines=0,"))
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "transcoded_lines=0,"))
+    source.unlink()
+    source = add("Survarium_default.log", sound("Динамики").encode("cp1251"))
+    check({"logs/documents/Survarium_default.log": sound("Динамики").encode()},
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "removed_lines=0, transcoded_lines=2 from cp1251,"))
     source.unlink()
     # A control byte in a cp1251 line still omits the source; a sensitive cp1251
     # record is still removed with its continuation.

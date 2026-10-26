@@ -216,7 +216,7 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   Ukrainian or Polish Windows ("Динамики", "Głośniki"), and the whole game log
   used to be omitted. A line that is not UTF-8 but has no NUL or control bytes
   is now taken as text of that code page (from the game's `-localization` on
-  its command line, else Windows' ANSI code page, `GetACP`) and transcoded to
+  its command line; without one the option's default, original: cp1251) and transcoded to
   UTF-8 (`MultiByteToWideChar` with `MB_ERR_INVALID_CHARS`, then
   `WideCharToMultiByte`) before the checks below. `collection.txt` names the
   code page and counts each source's transcoded lines
@@ -480,7 +480,8 @@ values are absent from extracted log members, member names and the summary;
 startup memory diagnostics remain. UTF-16/binary, oversized and ambiguous
 multiline sources are omitted atomically; original files are unchanged.
 cp1251, cp1250, cp1252 and Latin-1 logs (by `-localization=russian`,
-`original`, `polish`, `english` and an unknown one on the probe's command
+`original`, `polish`, `english`, an unknown one and none (the default,
+original) on the probe's command
 line) come out as UTF-8 with their transcoded lines counted; a control byte
 in a cp1251 line still omits the source, and a cp1251 credential record is
 still removed with its continuation.
