@@ -265,10 +265,10 @@ impl Ctx<'_> {
         length >= 1.0 && ((at.x - ours.x) * dx + (at.z - ours.z) * dz) / length >= num("camp_half")
     }
 
-    /// The top of the bot's weapon's band, metres (play 11's; its role's
-    /// weapon 1, the support's for a tuning's own personality).
+    /// The top of the bot's weapon's band, metres (play 11's; its weapon 1,
+    /// the rifle's where it is not known).
     fn intercept_band_top(&self) -> f32 {
-        let kind = WeaponKind::of_role(&self.bot.personality.name).unwrap_or(WeaponKind::Rifle);
+        let kind = self.bot.weapon.unwrap_or(WeaponKind::Rifle);
         self.tuning.aim.combat.band(kind).1
     }
 
@@ -882,6 +882,28 @@ mod tests {
         s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
         s.bot(0, 0, Vec3::new(52.0, 0.0, 31.0));
         assert!((reach(&s) - 1.0).abs() < 1e-6);
+    }
+
+    /// The band follows the weapon the bot holds, not its role's name: a
+    /// rusher with an SMG (tiers 9-10 and 13-15) reaches like the SMG, a
+    /// rusher with its shotgun like the shotgun.
+    #[test]
+    fn the_reach_follows_the_weapon_held_not_the_personality() {
+        let mut s = scene(false);
+        s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
+        s.bot(0, 0, Vec3::new(1.0, 0.0, 31.0));
+        let reach = |s: &Scenario| s.cx(0).intercept_reach(TargetRef::Place(1));
+        s.personality = 2;
+        assert_eq!(s.tuning.personalities[2].name, "rusher");
+        s.weapon = Some(WeaponKind::Smg);
+        let smg = reach(&s);
+        s.personality = 0;
+        s.weapon = None;
+        assert_eq!(s.tuning.personalities[0].name, "flanker");
+        assert!((smg - reach(&s)).abs() < 1e-6, "{smg}");
+        s.personality = 2;
+        s.weapon = Some(WeaponKind::Shotgun);
+        assert!(reach(&s) < smg, "the shotgun's band is shorter");
     }
 
     #[test]

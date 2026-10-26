@@ -47,10 +47,22 @@ pub const LOOK_DOWN: f32 = 1.0;
 /// floor within 2.0 m from the standing eye only so steep (1.6 / sin 0.96 =
 /// 1.98).
 pub const PRESS_PITCH: f32 = 0.96;
+/// The head ray that puts a trap down is this long, metres (PROVEN: 2.0 m
+/// from the head along the view, `try_to_place_trap` 0x305EA0).
+pub const PLACE_RAY_M: f32 = 2.0;
 /// The metres round a trap's centre kept clear of the bot's own steps and of
 /// a mate's: the sensor reaches 0.6 m from a foot point (PROVEN) and a body
 /// has a margin.
 pub const AVOID_M: f32 = 0.9;
+/// How far from a trap's centre a foot point catches it, metres: 565 of 566
+/// catches in the recordings had the foot within 0.6 m (PROVEN; the sensor
+/// is 0.25 m and a foot reaches the rest).
+pub const TRIGGER_M: f32 = 0.6;
+/// The metres round a standing own trap the team's bots keep off: the
+/// trigger reach and 0.15 m of the route's tolerance. Less than [`AVOID_M`]
+/// (which the placer keeps from its own steps): a field of 0.9 m and half a
+/// cell shut a floor 1.025 m off, which closed every corridor under 2 m.
+pub const FIELD_M: f32 = TRIGGER_M + 0.15;
 /// The yaws tried round the bot: eight, 45 degrees apart.
 const YAWS: usize = 8;
 /// A lane cell counts toward a spot this near, metres (the cell is 6 m).
@@ -534,6 +546,27 @@ pub fn choose(s: &Search) -> Option<Chosen> {
     best.map(|(chosen, _)| chosen)
 }
 
+/// Where a trap let go of lands: the client puts it where the head ray of
+/// the frame the key came up meets the floor (`floor_y`, the level of the
+/// spot the habit planned), [`PLACE_RAY_M`] at most. The habit looks down
+/// and presses while the bot goes on walking (about 0.6 s), so this is
+/// not the planned spot; `None` where the ray is too short to reach the
+/// floor (nothing is put down).
+pub fn landing(eye: Vec3, yaw: f32, pitch: f32, floor_y: f32) -> Option<Vec3> {
+    let down = -pitch.sin();
+    let rise = eye.y - floor_y;
+    if down <= 1e-3 || rise <= 0.0 {
+        return None;
+    }
+    let length = rise / down;
+    if length > PLACE_RAY_M {
+        return None;
+    }
+    let run = length * pitch.cos();
+    let d = dir(yaw);
+    Some(Vec3::new(eye.x + d[0] * run, floor_y, eye.z + d[1] * run))
+}
+
 /// The point to look at for a yaw: along it and steeply down, as far as the
 /// head ray goes.
 pub fn look_point(eye: Vec3, yaw: f32) -> Vec3 {
@@ -546,11 +579,11 @@ impl TeamState {
     /// The team's field again if its list changed; whether it did.
     pub(super) fn refresh_traps(&mut self, grid: &WalkGrid) -> bool {
         let version = self.knowledge.traps.version();
-        if version == self.trap_field_version {
+        if version == self.features.traps.field_version {
             return false;
         }
-        self.trap_field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
-        self.trap_field_version = version;
+        self.features.traps.field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
+        self.features.traps.field_version = version;
         true
     }
 }
@@ -562,12 +595,12 @@ const KEEP_OFF_M: f32 = 15.0;
 /// be searched again round it (the searches shut the floors of the discs,
 /// [`filter`]).
 pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
-    if bot.trap_field.is_empty() {
+    if bot.features.traps.field.is_empty() {
         return;
     }
     let feet = due.me.feet;
     if !bot
-        .trap_field
+        .features.traps.field
         .discs()
         .iter()
         .any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
@@ -583,7 +616,7 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
     let points: Vec<Vec3> = (0..=KEEP_OFF_M as usize)
         .map(|k| route.point_at((s + k as f32).min(route.length())))
         .collect();
-    if bot.trap_field.hits(&points) {
+    if bot.features.traps.field.hits(&points) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
     }
 }
@@ -593,10 +626,10 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
 /// (`start`: a trap let go of a metre off must not shut the way out).
 pub(super) fn filter(bot: &Bot, landings: Vec<Vec3>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
-    if bot.trap_field.is_empty() {
+    if bot.features.traps.field.is_empty() {
         return filter;
     }
-    let field = bot.trap_field.clone();
+    let field = bot.features.traps.field.clone();
     filter.with_floors(move |node| Some(node) == start || field.open(node))
 }
 
@@ -606,13 +639,13 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let me = due.me;
     // Its trap let go of in the ticks since: promised to the team at once,
     // the field built again, the bot keeping off it from this think on.
-    if let Some((at, released)) = bot.trap_placed.take() {
+    if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid);
-        bot.trap_field = state.trap_field.clone();
+        bot.features.traps.field = state.features.traps.field.clone();
     }
     keep_off(bot, due);
-    if bot.traps.may_plan(t).is_err() {
+    if bot.features.traps.habit.may_plan(t).is_err() {
         return;
     }
     let facts = Facts {
@@ -666,7 +699,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         in_spawn: &in_spawn,
     };
     if let Some(chosen) = choose(&search) {
-        bot.traps.plan(chosen.yaw, chosen.spot, due.now);
+        bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": due.now, "bot": bot.place, "trap_plan": chosen.spot.to_array(),
@@ -715,11 +748,11 @@ pub(super) fn drive(
     calm: bool,
     t: &TrapTuning,
 ) -> Option<TrapDrive> {
-    if bot.traps.state() == State::Idle {
+    if bot.features.traps.habit.state() == State::Idle {
         return None;
     }
-    let kit = bot.traps.kit()?;
-    let out = bot.traps.tick(
+    let kit = bot.features.traps.habit.kit()?;
+    let out = bot.features.traps.habit.tick(
         Tick {
             now,
             yaw: me.yaw,
@@ -728,8 +761,18 @@ pub(super) fn drive(
         },
         t,
     );
-    if let Some(at) = out.placed {
-        bot.trap_placed = Some((at, now));
+    if let Some(planned) = out.placed {
+        // The promise is where the head ray of this frame meets the floor,
+        // not the spot planned before the look down and the steps taken
+        // since (1.8 m off at 3 m/s); a ray too short puts nothing down.
+        let landed = landing(me.eye(), me.yaw, me.pitch, planned.y);
+        bot.features.traps.placed = landed.map(|at| (at, now));
+        if bot.tracing {
+            bot.traced.push(serde_json::json!({
+                "t": now, "bot": bot.place, "trap_promise": landed.map(Vec3::to_array),
+                "planned": planned.to_array(),
+            }));
+        }
     }
     Some(TrapDrive {
         look: out.look_yaw.map(|yaw| look_point(me.eye(), yaw)),
@@ -1025,7 +1068,7 @@ mod tests {
         };
         let mut list = TrapList::default();
         list.promise(0, Vec3::new(25.0, 0.0, 10.0), 500);
-        bot.trap_field = Arc::new(TrapField::of(&list, &s.tactics.world.grid));
+        bot.features.traps.field = Arc::new(TrapField::of(&list, &s.tactics.world.grid));
         // Over the disc: dropped.
         let goal = Vec3::new(35.0, 0.0, 10.0);
         bot.route = Some((
@@ -1042,7 +1085,7 @@ mod tests {
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
         // No trap known: nothing is ever dropped.
-        bot.trap_field = Arc::new(TrapField::default());
+        bot.features.traps.field = Arc::new(TrapField::default());
         bot.route = Some((
             Route::new(vec![waypoint(15.0, 10.0), waypoint(35.0, 10.0)]),
             goal,
@@ -1059,5 +1102,23 @@ mod tests {
         let mut bad = crate::v026g::bots::tuning::Tuning::default();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
+    }
+}
+
+/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
+/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
+/// (`trap_know.rs`, shared at each commander tick).
+#[derive(Default)]
+pub struct BotState {
+    pub habit: Habit,
+    pub placed: Option<(mapdata::Vec3, u32)>,
+    pub react: super::trap_react::React,
+    pub field: std::sync::Arc<super::trap_know::TrapField>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.habit.new_life();
+        self.react.new_life();
     }
 }

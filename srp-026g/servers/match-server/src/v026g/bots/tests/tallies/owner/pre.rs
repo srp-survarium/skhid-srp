@@ -43,15 +43,15 @@ pub(crate) struct PreCounts {
 
 impl PreCounts {
     /// The episode of `place` at record `ri`, under `key`.
-    pub(crate) fn add(&mut self, tally: &OwnerTally, key: &'static str, place: Place, ri: usize) {
-        let recs = &tally.recs[place];
+    pub(crate) fn add(&mut self, run: &Run, key: &'static str, place: Place, ri: usize) {
+        let recs = &run.recs[place];
         let pre = Pre::before(recs, ri);
         let c = self.by.entry(key).or_default();
         c[0] += 1;
         c[1] += u32::from(pre.fired);
         c[2] += u32::from(pre.past_band);
         c[3] += u32::from(pre.standing);
-        let play = recs.get(ri).map_or("none", |r| tally.plays[usize::from(r.play)].as_str());
+        let play = recs.get(ri).map_or("none", |r| run.plays[usize::from(r.play)].as_str());
         *self.plays.entry(play.to_owned()).or_default() += 1;
     }
 
@@ -208,12 +208,12 @@ pub(crate) fn a_missed_jump_and_a_press_that_freed_nothing_are_counted_with_what
         }
         nows
     });
-    let presses = tally.jumps.presses.clone();
-    let (stalls, starts) = tally.stall_scan(0, &grid, &presses);
+    let presses = tally.run.presses.clone();
+    let (stalls, starts) = tally.run.stall_scan(0, &grid, &presses);
     assert_eq!((stalls[0], starts.len()), (1, 1));
-    let pre = Pre::before(&tally.recs[0], starts[0]);
+    let pre = Pre::before(&tally.run.recs[0], starts[0]);
     assert_eq!(pre, Pre { fired: true, past_band: true, standing: true });
-    assert!(tally.stall_scan(1, &grid, &presses).1.is_empty());
+    assert!(tally.run.stall_scan(1, &grid, &presses).1.is_empty());
     // The hop that freed nothing (bot 3) is in the jumps part's counts.
     let (_, json) = tally.finish(&game);
     assert_eq!(json["not_freed_pre_5s"]["hop"], serde_json::json!([1, 1, 1, 1]), "{json}");
