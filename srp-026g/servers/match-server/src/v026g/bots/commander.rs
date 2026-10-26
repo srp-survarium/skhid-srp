@@ -14,6 +14,8 @@ pub(super) struct TeamState {
     pub(super) no_way_to: Vec<(Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub(super) spots: TeamSpots,
+    /// The traps its bots put down, as they meant them (`traps.rs`).
+    pub(super) traps: Vec<traps::OwnTrap>,
 }
 
 impl Bots {

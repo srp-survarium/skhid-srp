@@ -59,6 +59,7 @@ pub mod stuck;
 pub mod tactics;
 pub mod team;
 pub mod trace;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
@@ -202,6 +203,10 @@ pub struct Bot {
     paired: bool,
     /// Medkits used this life.
     medkits_used: u8,
+    /// The bear-trap habit (`traps.rs`), and the point of the trap it let go
+    /// of since the last think.
+    traps: traps::Habit,
+    trap_placed: Option<Vec3>,
     /// The answer of its route search that went on over several polls
     /// ([`Pending`]): the goal, the route or none, and whether the route is
     /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
@@ -328,6 +333,8 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            traps: traps::Habit::none(),
+            trap_placed: None,
             found: None,
             crossing: None,
             long_kept: None,
@@ -491,6 +498,7 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.traps.new_life();
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -577,6 +585,7 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            traps: Vec::new(),
         };
         let bots = teams
             .iter()

@@ -202,6 +202,23 @@ pub(super) fn drive_tick(
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });
+    // [traps] The bear-trap habit: when nothing calls the bot away (no
+    // target, no shot, no use), the view goes down at the floor point and the
+    // trap's key is pressed one tick and let go the next. A tick it does
+    // nothing leaves everything as it was.
+    let calm = over.look_at.is_none()
+        && !over.fire
+        && over.legs.is_none()
+        && !using
+        && bot.reflex.target().is_none();
+    let trap = traps::drive(bot, me, time, calm, &tuning.traps);
+    let aim = match trap.and_then(|trap| trap.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(trap) = trap {
+        bot.press |= trap.key;
+    }
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
