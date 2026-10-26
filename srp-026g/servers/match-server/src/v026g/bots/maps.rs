@@ -45,7 +45,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Instant;
 
-use mapdata::{Body, MapData, RayTree, WalkGrid, World};
+use mapdata::{MapData, RayTree, WalkGrid, World};
 
 use super::tactics::TacticsBase;
 use super::tuning::Tuning;
@@ -778,7 +778,7 @@ mod tests {
         assert!(!Arc::ptr_eq(&day.world.grid, &evening.world.grid));
         assert!(!Arc::ptr_eq(&day.world.sight, &evening.world.sight));
         // A shared grid is the grid the project builds on its own.
-        let alone = World::build(tiny_map("tiny/rain_4"), mapdata::CELL, Body::default());
+        let alone = World::build(tiny_map("tiny/rain_4"), mapdata::CELL, mapdata::Body::default());
         assert_eq!(rain.world.grid.digest(), alone.grid.digest());
         assert_eq!(rain.world.sight.digest(), alone.sight.digest());
         let _ = std::fs::remove_dir_all(dir);
