@@ -205,7 +205,7 @@ impl Site {
     /// Climb or over for a try that presses `edge` m before the face at `speed`: climb when the flat top is deep
     /// enough for the jump to land on it (`depth >= edge + travel`).
     pub fn kind(&self, edge: f32, speed: Speed) -> Kind {
-        let travel = if speed == Speed::Sprint { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        let travel = if speed.sprints() { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
         if self.gap {
             return Kind::Gap;
         }
@@ -264,6 +264,9 @@ pub enum Speed {
     Sprint,
     /// A standing jump: the press is the first key tick, with no move key (`edge` is where the body stands).
     Stand,
+    /// A sprint jump from a full stop: forward and sprint from the first key tick, the press this many ms after it
+    /// (`sprint_at_<ms>`): the sprint's prepare runs to the next footfall, so the take-off depends on the gait phase.
+    SprintAt(u32),
     /// The ordinary drive at a walk (the motor presses the jumps).
     Motor,
     /// The ordinary drive at a run.
@@ -271,6 +274,11 @@ pub enum Speed {
 }
 
 impl Speed {
+    /// Whether the body sprints.
+    fn sprints(self) -> bool {
+        matches!(self, Self::Sprint | Self::SprintAt(_))
+    }
+
     /// Whether the keys are the motor's, not the plan's.
     fn is_motor(self) -> bool {
         matches!(self, Self::Motor | Self::MotorRun)
@@ -481,6 +489,13 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
                 "walk" => Speed::Walk,
                 "sprint" => Speed::Sprint,
                 "stand" => Speed::Stand,
+                other if other.starts_with("sprint_at_") => {
+                    let ms = other["sprint_at_".len()..].parse::<u32>().map_err(|e| fail(format!("speed {other:?}: {e}")))?;
+                    if !(100..=3_000).contains(&ms) {
+                        return Err(fail(format!("speed {other:?}: the press 100-3000 ms after the sprint")));
+                    }
+                    Speed::SprintAt(ms)
+                }
                 "motor" => Speed::Motor,
                 "motor_run" => Speed::MotorRun,
                 other => return Err(fail(format!("speed {other:?}"))),
@@ -560,7 +575,7 @@ impl RunTable {
     }
 
     pub fn distance(&self, speed: Speed, ticks: u32) -> f32 {
-        let kind = usize::from(speed == Speed::Sprint);
+        let kind = usize::from(speed.sprints());
         let rows = &self.measured[kind];
         if let Some(i) = rows.iter().position(|r| r.0 >= ticks) {
             if rows[i].0 == ticks || i == 0 {
@@ -570,11 +585,11 @@ impl RunTable {
             return a.1 + (b.1 - a.1) * (ticks - a.0) as f32 / (b.0 - a.0) as f32;
         }
         if let Some(&(t, d)) = rows.last() {
-            let v = if speed == Speed::Sprint { 5.0 } else { 3.5 };
+            let v = if speed.sprints() { 5.0 } else { 3.5 };
             return d + v * (ticks - t) as f32 * TICK_S;
         }
         let kin = super::kin::Kinematics::default();
-        let v = if speed == Speed::Sprint { kin.sprint } else { kin.walk[0] };
+        let v = if speed.sprints() { kin.sprint } else { kin.walk[0] };
         // The blend: a linear ramp over `blend_ticks`, then steady.
         let ramp = kin.blend_ticks.max(1);
         let mut d = 0.0;
@@ -621,7 +636,7 @@ fn base_keys(def: &TryDef) -> u32 {
         return 0;
     }
     let mut keys = key::FORWARD;
-    if def.speed == Speed::Sprint {
+    if def.speed.sprints() {
         keys |= key::SPRINT;
     }
     if def.face == Face::Normal {
@@ -677,8 +692,8 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
     let to_face = ((cx - rest.x) * t[0] + (cz - rest.z) * t[1]) / cos;
     let (run, press) = if def.edge < 0.0 {
         (def.runup, None)
-    } else if def.speed == Speed::Stand {
-        // The rest is the start (it fits within the settle's tolerance): the press is the first tick.
+    } else if matches!(def.speed, Speed::Stand | Speed::SprintAt(_)) {
+        // The rest is the start (it fits within the settle's tolerance): the press is a fixed time from the first tick.
         (0.0, Some(()))
     } else {
         let run = to_face - def.edge / cos;
@@ -687,7 +702,11 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
         }
         (run, Some(()))
     };
-    let ticks = if def.speed == Speed::Stand { 0 } else { table.ticks_for(def.speed, run) };
+    let ticks = match def.speed {
+        Speed::Stand => 0,
+        Speed::SprintAt(ms) => (ms + TICK_MS / 2) / TICK_MS,
+        _ => table.ticks_for(def.speed, run),
+    };
     let press_at = first + ticks * TICK_MS;
     let end = match press {
         Some(()) => press_at + if let Mid::Land { after_ms, .. } = def.mid { after_ms + LAND_KEYS_MS } else { KEYS_AFTER_MS },
@@ -1391,7 +1410,7 @@ impl JumpTest {
                     .unwrap_or_default();
                 if let [row, before] = &rests[..]
                     && row.feet.distance_xz(before.feet) <= STILL_M
-                    && elapsed >= if active.def.speed == Speed::Sprint { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
+                    && elapsed >= if active.def.speed.sprints() { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
                     let plan = rest_fits(row.feet, row.yaw, start, heading)
@@ -2449,11 +2468,29 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
     }
 
     #[test]
+    fn a_sprint_from_a_stop_presses_at_the_asked_time_after_the_first_key() {
+        let table = RunTable::default();
+        let tries = parse_tries(
+            "sp1 * rs3 0 0 along 0 sprint_at_850 none 2\nsp2 * rs3 0 0 along 0 sprint_at_800 none 2\n",
+            &HashMap::from([("rs3".to_owned(), site())]),
+        )
+        .unwrap();
+        assert_eq!((tries[0].speed, tries[1].speed), (Speed::SprintAt(850), Speed::SprintAt(800)));
+        assert!(parse_tries("x * rs3 0 0 along 0 sprint_at_50 none 1\n", &HashMap::from([("rs3".to_owned(), site())])).is_err());
+        for (d, ms) in tries.iter().zip([850u32, 800]) {
+            assert_eq!(base_keys(d), key::FORWARD | key::SPRINT);
+            let plan = plan_from(d, start_of(d), heading_of(d), 10_000, &table).unwrap();
+            // A tick rounds to 50 ms: 850 is 17 ticks, 800 is 16.
+            assert_eq!(plan.press, Some(10_000 + (ms + 25) / 50 * 50));
+            assert_eq!(plan.at(10_000 + 50).keys, key::FORWARD | key::SPRINT);
+        }
+    }
+
+    #[test]
     fn a_gap_site_is_flagged_by_its_trailing_word() {
-        let sites = parse_sites("rg1 55.88 8.58 66.88 -0.4472 0.8944 0.890 0.868 0.30 gap  # a gap
-rc 11.4 10.17 66 1 0 1.03 0.4 0.3
-d1 1 2 3 1 0 0.6 0.25 0.6 1.01 gap
-");
+        let sites = parse_sites(
+            "rg1 55.88 8.58 66.88 -0.4472 0.8944 0.890 0.868 0.30 gap  # a gap\nrc 11.4 10.17 66 1 0 1.03 0.4 0.3\nd1 1 2 3 1 0 0.6 0.25 0.6 1.01 gap\n",
+        );
         assert!(sites["rg1"].gap && sites["rg1"].depth.is_none());
         assert_eq!(sites["rg1"].kind(1.2, Speed::Walk), Kind::Gap);
         assert!(!sites["rc"].gap);
