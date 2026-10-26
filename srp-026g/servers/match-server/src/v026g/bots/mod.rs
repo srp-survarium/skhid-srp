@@ -129,6 +129,10 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
+    /// when it last used it (any life).
+    self_kill: stuck::SelfKill,
+    self_killed_at: Option<u32>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -287,6 +291,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            self_kill: stuck::SelfKill::default(),
+            self_killed_at: None,
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -471,6 +477,7 @@ impl Bot {
         self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
@@ -580,6 +587,7 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            self_kills: Vec::new(),
         };
         let bots = teams
             .iter()

@@ -221,6 +221,10 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     }
     // A way out of a zone stays under its start's strength
     // (`Tuning::escape_ceiling`): `0` off.
+    // The last resort of a bot with nothing left to try (`Tuning::unstick`): `0` never, as it was.
+    if let Some(ms) = bench_settings().number("SRP_BENCH_SUICIDE_AFTER_MS") {
+        tuning.unstick.suicide_after_ms = ms;
+    }
     if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
         tuning.escape_ceiling = v != "0";
     }

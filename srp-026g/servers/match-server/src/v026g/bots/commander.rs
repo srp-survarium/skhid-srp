@@ -14,6 +14,8 @@ pub(super) struct TeamState {
     pub(super) no_way_to: Vec<(Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub(super) spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`stuck::SelfKill`).
+    pub(super) self_kills: Vec<u32>,
 }
 
 impl Bots {

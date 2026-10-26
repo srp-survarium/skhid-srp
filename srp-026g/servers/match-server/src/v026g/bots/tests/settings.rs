@@ -88,6 +88,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
+    s("SRP_BENCH_SUICIDE_AFTER_MS", "the tuning's (60000)", "UnstickTuning::suicide_after_ms: a bot with nothing left to try kills itself this long after it began, ms; `0` never"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::escape_ceiling: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),

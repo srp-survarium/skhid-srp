@@ -31,6 +31,7 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    pub unstick: UnstickTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// Whether a bot's way out of a zone stays under the strength of the
@@ -55,6 +56,7 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            unstick: UnstickTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
             plays: PlayKind::ALL
@@ -75,11 +77,13 @@ mod motion;
 mod play;
 mod sense;
 mod team;
+mod unstick;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
 pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
+pub use unstick::UnstickTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -106,6 +110,7 @@ impl Tuning {
         sense::validate(&self.sense)?;
         team::validate_think(&self.think)?;
         motion::validate_feel(&self.feel)?;
+        unstick::validate_unstick(&self.unstick)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
         check(self.hazard_margin >= 0.0, "hazard_margin")?;
