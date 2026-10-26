@@ -64,6 +64,8 @@ mod bench_spread;
 mod camper;
 mod driving;
 mod fights;
+#[cfg(feature = "jump-test")]
+mod jump_pool;
 mod kits;
 mod no_way;
 mod pocket_runs;

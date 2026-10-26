@@ -55,7 +55,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use mapdata::{Vec3, World};
+use mapdata::{NodeId, Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
@@ -66,6 +66,7 @@ use super::plays::{Go, Intent, Pace};
 use super::view::{MatchView, Place};
 use super::Bot;
 use super::motor::RoutePress;
+use super::path;
 use crate::v026g::drive::key;
 
 /// Worlds are asked for this often around a try, ms (`SRP_JUMP_TEST_BURST_MS`).
@@ -78,7 +79,7 @@ const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
 const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
-const ARRIVED_M: f32 = 0.6;
+const ARRIVED_M: f32 = 0.2;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -111,6 +112,15 @@ const BUDGET_SLACK: f32 = 1.3;
 const SUICIDE_TICKS: u32 = 3;
 /// A bot still alive this long after the suicide bit goes on walking, ms.
 const SUICIDE_WAIT_MS: u32 = 1_500;
+/// A rest position fits its start within this (xz, y), m, and this facing (rad, 10 degrees); two worlds
+/// of the rest agree within [`STILL_M`].
+const REST_FIT_M: f32 = 0.3;
+const REST_FIT_Y_M: f32 = 0.3;
+const REST_FIT_YAW: f32 = 0.1745;
+const STILL_M: f32 = 0.05;
+/// A bot with no try stays at least this far from the start, the run-up and the top of every try under
+/// way, m (and moves off to a spot 0.5 m further).
+const CLEAR_M: f32 = 5.0;
 /// The keys a bot of the test may press: walking, sprinting, crouching and jumping.
 const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT | key::SUICIDE;
 
@@ -687,6 +697,10 @@ pub struct JumpTest {
     runners: HashMap<Place, Runner>,
     /// The tries of any bot, with repeats left, in file order.
     pool: VecDeque<TryDef>,
+    /// The reach of both teams' spawns, made at the first try file read.
+    reach: Option<ReachSets>,
+    /// Sites already checked: (the deck's x and z, in 0.1 m) and why refused.
+    checked: HashMap<(i32, i32), Option<String>>,
     /// Ledges whose start no bot reached twice: no try is taken on them (their base, before any lane).
     bad_sites: Vec<Vec3>,
     /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
@@ -747,6 +761,8 @@ impl JumpTest {
             runners: HashMap::new(),
             pool: VecDeque::new(),
             bad_sites: Vec::new(),
+            reach: None,
+            checked: HashMap::new(),
             idle_others: true,
             max_active: usize::MAX,
             done: HashMap::new(),
@@ -783,7 +799,7 @@ impl JumpTest {
 
     /// The try file, when it changed: new tries are queued, changed or struck ones not yet started
     /// are replaced or dropped.
-    fn reload(&mut self) {
+    fn reload(&mut self, world: &World) {
         let Ok(meta) = fs::metadata(&self.path) else {
             return;
         };
@@ -809,6 +825,28 @@ impl JumpTest {
             }
             Ok(tries) => {
                 self.problem = None;
+                // A site whose start or top is not reached both ways from both teams' spawns is refused.
+                let mut tries_ok = Vec::new();
+                for def in tries {
+                    let key = ((def.site.lower.x * 10.0).round() as i32, (def.site.lower.z * 10.0).round() as i32);
+                    if !self.checked.contains_key(&key) {
+                        let reach = self.reach.get_or_insert_with(|| ReachSets::build(world));
+                        let why = reach.refuse(world, &def);
+                        if let Some(why) = &why {
+                            log::warn!("jump test: site {} refused: {why}", def.site.name);
+                            let line = serde_json::json!({ "refused": def.site.name, "id": def.id, "why": why, "deck": def.site.lower.to_array() });
+                            if self.tries_log.is_none() {
+                                self.tries_log = self.open("tries");
+                            }
+                            Self::line(&mut self.tries_log, &line);
+                        }
+                        self.checked.insert(key, why);
+                    }
+                    if self.checked.get(&key).is_some_and(Option::is_none) {
+                        tries_ok.push(def);
+                    }
+                }
+                let tries = tries_ok;
                 self.known = tries.iter().map(|t| (t.id.clone(), t.clone())).collect();
                 // Rebuild each runner's pending list: the file's tries of the bot with repeats left.
                 let mut by_bot: HashMap<Place, VecDeque<TryDef>> = HashMap::new();
@@ -854,6 +892,42 @@ impl JumpTest {
                 .runners
                 .values()
                 .any(|r| r.active.is_some() || !r.pending.is_empty())
+    }
+
+    /// What the tries under way of the other bots take up.
+    fn zones_except(&self, place: Place) -> Vec<Zone> {
+        self.runners
+            .iter()
+            .filter(|(p, _)| **p != place)
+            .filter_map(|(_, r)| r.active.as_ref())
+            .map(|a| Zone::of(&a.def, a.team, matches!(a.phase, Phase::Settle { .. } | Phase::Run(_) | Phase::Record { .. } | Phase::Motor { .. })))
+            .collect()
+    }
+
+    /// The bots with a try in a phase where another body near them spoils it, and their team.
+    pub fn trying(&self) -> Vec<(Place, u8)> {
+        self.runners
+            .iter()
+            .filter_map(|(&place, r)| {
+                let a = r.active.as_ref()?;
+                matches!(a.phase, Phase::Settle { .. } | Phase::Run(_) | Phase::Record { .. } | Phase::Motor { .. }).then_some((place, a.team))
+            })
+            .collect()
+    }
+
+    /// What a bot of the test is doing, for the dry run's reports.
+    pub fn phase_name(&self, place: Place) -> &'static str {
+        match self.runners.get(&place).and_then(|r| r.active.as_ref()).map(|a| &a.phase) {
+            None if self.runners.contains_key(&place) => "free",
+            None => "idle",
+            Some(Phase::Rest { .. }) => "rest",
+            Some(Phase::Go { .. }) => "go",
+            Some(Phase::Settle { .. }) => "settle",
+            Some(Phase::Run(_)) => "run",
+            Some(Phase::Record { .. }) => "record",
+            Some(Phase::Motor { .. }) => "motor",
+            Some(Phase::Suicide { .. }) => "suicide",
+        }
     }
 
     /// Tries under way.
@@ -904,26 +978,32 @@ impl JumpTest {
     /// The think of a bot in the mode: the intent (a walk to the start while going, else standing).
     /// Returns whether the bot is the test's.
     pub fn think(&mut self, bot: &mut Bot, view: &MatchView, world: &World) -> bool {
-        self.reload();
+        self.reload(world);
         let now = view.clock;
         if !self.runners.contains_key(&bot.place) {
             if self.pool.is_empty() || self.active_count() >= self.max_active {
                 if self.idle_others {
                     bot.intent = Intent::stay();
                     bot.intent.fire = false;
+                    if let Some(me) = view.place(bot.place).filter(|p| p.alive) {
+                        keep_clear(&self.zones_except(bot.place), world, bot, me.feet);
+                    }
                 }
                 return self.idle_others;
             }
             self.runners.insert(bot.place, Runner::default());
         }
         let free = self.runners.get(&bot.place).is_some_and(|r| r.active.is_none() && r.pending.is_empty());
+        let alive = view.place(bot.place).is_some_and(|p| p.alive);
         if free
+            && alive
             && self.active_count() < self.max_active
             && let Some(def) = self.take_from_pool(bot.team)
             && let Some(runner) = self.runners.get_mut(&bot.place)
         {
             runner.pending.push_back(def);
         }
+        let zones = self.zones_except(bot.place);
         let Some(runner) = self.runners.get_mut(&bot.place) else {
             return false;
         };
@@ -937,7 +1017,11 @@ impl JumpTest {
                     Self::line(&mut self.tries_log, &line);
                 }
                 let def = TryDef { repeat: 1, ..active.def };
-                runner.pending.push_front(def);
+                if def.who == Who::Pool {
+                    back_to_pool(&mut self.pool, def);
+                } else {
+                    runner.pending.push_front(def);
+                }
             }
             bot.intent = Intent::stay();
             return true;
@@ -962,6 +1046,7 @@ impl JumpTest {
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
         }
         let Some(active) = runner.active.as_mut() else {
+            keep_clear(&zones, world, bot, me.feet);
             return true;
         };
         let start = start_of(&active.def);
@@ -999,6 +1084,11 @@ impl JumpTest {
                     } else {
                         Phase::Settle { since: now, asked: false }
                     };
+                } else if yield_to(&zones, bot.team, me.feet) {
+                    // An enemy's try is on the way: wait short of it (the walk's clock does not run meanwhile).
+                    bot.intent = Intent::stay();
+                    bot.intent.fire = false;
+                    *since = (*since).max(now.saturating_sub(GO_MAX_MS - 5_000));
                 } else if active.def.suicides == 0 && now - *since > 8_000 && now - *since > suicide_budget_ms(world, bot.team, &active.def) {
                     // The walk takes longer than dying and walking from a spawn: once.
                     let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def));
@@ -1024,7 +1114,7 @@ impl JumpTest {
                     }
                 } else {
                     bot.intent = Intent {
-                        go: Go::To { at: start, within_m: 0.3 },
+                        go: Go::To { at: start, within_m: 0.0 },
                         pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
                         fire: false,
                         ..Intent::stay()
@@ -1053,11 +1143,13 @@ impl JumpTest {
     /// ordinary drive) or when the bot is not the test's.
     pub fn drive(&mut self, bot: &mut Bot, time: u32, view: &MatchView) -> Option<Decision> {
         let now = view.clock;
+        // A bot with no try that walks off a try's ground (`keep_clear`) goes by the ordinary drive.
+        let walking_off = matches!(bot.intent.go, Go::To { .. });
         let Some(runner) = self.runners.get_mut(&bot.place) else {
-            return self.idle_others.then(Decision::default);
+            return (self.idle_others && !walking_off).then(Decision::default);
         };
         let Some(active) = runner.active.as_mut() else {
-            return Some(Decision::default());
+            return (!walking_off).then(Decision::default);
         };
         let me = view.place(bot.place).filter(|p| p.alive)?;
         match &mut active.phase {
@@ -1075,18 +1167,23 @@ impl JumpTest {
                 if elapsed >= 600 {
                     *asked = true;
                 }
-                // The rest position: the last world of this place at rest, after the settle began.
-                let rest = self.rows.get(&bot.place).and_then(|rows| {
-                    rows.iter()
-                        .rev()
-                        .find(|r| r.time >= *since + 600 && r.alive && r.speed < 0.15 && !r.jumping && wrap(r.yaw - heading).abs() < 0.04)
-                        .cloned()
-                });
-                if let Some(row) = rest
+                // The rest position: the last two worlds of this place at rest, after the settle began, that
+                // agree; they must be where the try starts and facing the heading.
+                let start = start_of(&active.def);
+                let rests: Vec<Row> = self
+                    .rows
+                    .get(&bot.place)
+                    .map(|rows| rows.iter().rev().filter(|r| r.time >= *since + 600 && r.alive && r.speed < 0.15 && !r.jumping).take(2).cloned().collect())
+                    .unwrap_or_default();
+                if let [row, before] = &rests[..]
+                    && row.feet.distance_xz(before.feet) <= STILL_M
                     && elapsed >= if active.def.speed == Speed::Sprint { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
-                    match plan_from(&active.def, row.feet, row.yaw, first, &self.table) {
+                    let plan = rest_fits(row.feet, row.yaw, start, heading)
+                        .then(|| plan_from(&active.def, row.feet, row.yaw, first, &self.table))
+                        .flatten();
+                    match plan {
                         Some(plan) => {
                             active.phase = Phase::Run(plan);
                         }
@@ -1098,7 +1195,7 @@ impl JumpTest {
                             } else {
                                 let line = serde_json::json!({
                                     "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start does not fit",
-                                    "rest": row.feet.to_array(),
+                                    "rest": row.feet.to_array(), "start": start.to_array(), "yaw": row.yaw, "heading": heading,
                                 });
                                 Self::line(&mut self.tries_log, &line);
                                 *self.done.entry(active.def.id.clone()).or_default() += 1;
@@ -1110,6 +1207,16 @@ impl JumpTest {
                 }
                 if elapsed > SETTLE_MAX_MS {
                     active.redone += 1;
+                    if active.redone >= 3 {
+                        let line = serde_json::json!({
+                            "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "no rest",
+                            "start": start.to_array(),
+                        });
+                        Self::line(&mut self.tries_log, &line);
+                        *self.done.entry(active.def.id.clone()).or_default() += 1;
+                        runner.active = None;
+                        return Some(Decision::default());
+                    }
                     active.phase = Phase::Go { since: now };
                 }
                 Some(Decision { keys: 0, turn: (turn, 0.0) })
@@ -1213,7 +1320,11 @@ impl JumpTest {
     /// An upload came (`time` its tick, `bytes` its size, at the match clock `clock`): log its rows.
     /// Returns whether it answered a burst request (then it is not passed on).
     pub fn upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
-        let rows = rows_of(body, time);
+        self.take_rows(rows_of(body, time), time, clock, bytes)
+    }
+
+    /// [`Self::upload`] for the rows of a world already read (the stand-in's dry run gives its own).
+    pub fn take_rows(&mut self, rows: Vec<Row>, time: u32, clock: u32, bytes: usize) -> bool {
         let burst = self.outstanding.take().is_some();
         if let Some(sent) = self.last_request {
             self.uploads.push((sent, clock, bytes));
@@ -1255,6 +1366,170 @@ impl JumpTest {
 fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3) {
     bad_sites.push(bad);
     pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
+}
+
+/// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_M`] of the start
+/// on the ground plane, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
+pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32) -> bool {
+    rest.distance_xz(start) <= REST_FIT_M && (rest.y - start.y).abs() <= REST_FIT_Y_M && wrap(yaw - heading).abs() <= REST_FIT_YAW
+}
+
+/// What a try under way takes up: the start, the run-up line to the face and the top past it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Zone {
+    start: Vec3,
+    centre: [f32; 2],
+    top: Vec3,
+    /// The team of the bot working it, and whether it is in the part another body near spoils.
+    team: u8,
+    live: bool,
+}
+
+impl Zone {
+    fn of(def: &TryDef, team: u8, live: bool) -> Self {
+        Self { start: start_of(def), centre: def.site.centre(), top: top_of(def), team, live }
+    }
+
+    /// The nearest point of the zone to `p` on the ground plane, and its distance.
+    fn nearest(&self, p: Vec3) -> ([f32; 2], f32) {
+        let (a, b) = ([self.start.x, self.start.z], self.centre);
+        let ab = [b[0] - a[0], b[1] - a[1]];
+        let len2 = (ab[0] * ab[0] + ab[1] * ab[1]).max(1e-6);
+        let k = (((p.x - a[0]) * ab[0] + (p.z - a[1]) * ab[1]) / len2).clamp(0.0, 1.0);
+        let on_line = [a[0] + ab[0] * k, a[1] + ab[1] * k];
+        let at_top = [self.top.x, self.top.z];
+        let d = |q: [f32; 2]| (p.x - q[0]).hypot(p.z - q[1]);
+        if d(on_line) <= d(at_top) { (on_line, d(on_line)) } else { (at_top, d(at_top)) }
+    }
+}
+
+/// A bot on its way to a start stops short of the ground of an enemy's try in its sensitive part: enemies
+/// collide, and the run is lost when one comes near.
+const YIELD_M: f32 = 3.0;
+
+fn yield_to(zones: &[Zone], team: u8, feet: Vec3) -> bool {
+    zones.iter().any(|z| z.live && z.team != team && z.nearest(feet).1 < YIELD_M)
+}
+
+/// A bot with no try that stands within [`CLEAR_M`] of a try under way walks off, straight away from it
+/// where it can (to a floor of the grid at least [`CLEAR_M`] + 0.5 m from every zone), at a run.
+fn keep_clear(zones: &[Zone], world: &World, bot: &mut Bot, feet: Vec3) {
+    let Some((point, near)) = zones.iter().map(|z| z.nearest(feet)).min_by(|a, b| a.1.total_cmp(&b.1)) else {
+        return;
+    };
+    if near >= CLEAR_M {
+        return;
+    }
+    let away = {
+        let (dx, dz) = (feet.x - point[0], feet.z - point[1]);
+        let len = dx.hypot(dz);
+        if len < 0.05 { [1.0, 0.0] } else { [dx / len, dz / len] }
+    };
+    for turn in [0.0f32, 0.785, -0.785, 1.571, -1.571, 2.356, -2.356, std::f32::consts::PI] {
+        let (s, c) = turn.sin_cos();
+        let dir = [away[0] * c - away[1] * s, away[0] * s + away[1] * c];
+        for r in [7.0f32, 10.0, 14.0] {
+            let want = Vec3::new(feet.x + dir[0] * r, feet.y, feet.z + dir[1] * r);
+            let Some(node) = path::goal_floor(&world.grid, want) else {
+                continue;
+            };
+            let at = world.grid.position(node);
+            if at.distance_xz(want) < 1.5 && (at.y - feet.y).abs() < 3.0 && zones.iter().all(|z| z.nearest(at).1 >= CLEAR_M + 0.5) {
+                bot.intent = Intent { go: Go::To { at, within_m: 0.5 }, pace: Pace::Run, fire: false, ..Intent::stay() };
+                return;
+            }
+        }
+    }
+}
+
+/// From each team's first spawn: the floors it reaches and the floors that reach it (any link of finite
+/// cost), to check a site once.
+struct ReachSets {
+    forward: [Vec<bool>; 2],
+    back: [Vec<bool>; 2],
+}
+
+impl ReachSets {
+    fn build(world: &World) -> Self {
+        let grid = &world.grid;
+        let n = grid.len();
+        let mut reverse: Vec<Vec<NodeId>> = vec![Vec::new(); n];
+        for f in 0..n as NodeId {
+            for (m, kind) in grid.links(f) {
+                if grid.link_cost(f, m, kind).is_finite() {
+                    reverse[m as usize].push(f);
+                }
+            }
+        }
+        let flood = |team: i32, back: bool| {
+            let mut seen = vec![false; n];
+            if let Some(start) = world.map.spawns.iter().find(|s| s.team == team).and_then(|s| grid.locate(s.position, 3.0)) {
+                let mut stack = vec![start];
+                seen[start as usize] = true;
+                while let Some(f) = stack.pop() {
+                    let next: Vec<NodeId> = if back {
+                        reverse[f as usize].clone()
+                    } else {
+                        grid.links(f).filter(|&(m, kind)| grid.link_cost(f, m, kind).is_finite()).map(|(m, _)| m).collect()
+                    };
+                    for m in next {
+                        if !seen[m as usize] {
+                            seen[m as usize] = true;
+                            stack.push(m);
+                        }
+                    }
+                }
+            }
+            seen
+        };
+        Self { forward: [flood(0, false), flood(1, false)], back: [flood(0, true), flood(1, true)] }
+    }
+
+    /// Why a try's site is refused, or none: its start and top must be reached from both teams' spawns,
+    /// and both must have a way back.
+    fn refuse(&self, world: &World, def: &TryDef) -> Option<String> {
+        let floor = |at: Vec3| path::goal_floor(&world.grid, at);
+        let (Some(start), Some(top)) = (floor(start_of(def)), floor(top_of(def))) else {
+            return Some("the start or the top is on no floor".to_owned());
+        };
+        for team in 0..2usize {
+            let checks = [
+                ("start reached from", self.forward[team][start as usize]),
+                ("top reached from", self.forward[team][top as usize]),
+                ("start has a way back to", self.back[team][start as usize]),
+                ("top has a way back to", self.back[team][top as usize]),
+            ];
+            if let Some((what, _)) = checks.iter().find(|c| !c.1) {
+                return Some(format!("{what} the spawns of team {team}: no"));
+            }
+        }
+        None
+    }
+}
+
+/// How far a try's rest position is from its planned start: metres on the ground, metres in height, degrees
+/// of facing (for the log).
+fn rest_off(def: &TryDef, plan: &Plan) -> serde_json::Value {
+    let start = start_of(def);
+    let round = |v: f32| (v * 100.0).round() / 100.0;
+    serde_json::json!([
+        round(plan.rest.distance_xz(start)),
+        round(plan.rest.y - start.y),
+        round(wrap(plan.heading - heading_of(def)).to_degrees()),
+    ])
+}
+
+/// A pool try lost with a life goes back to the pool (as one more repeat of its row, on its own face and
+/// lane again), not to its bot: the lanes and the team lock are the pool's.
+fn back_to_pool(pool: &mut VecDeque<TryDef>, mut def: TryDef) {
+    def.site.lower = base_of(&def);
+    def.lane = 0.0;
+    def.repeat = 1;
+    if let Some(same) = pool.iter_mut().find(|d| d.id == def.id) {
+        same.repeat += 1;
+    } else {
+        pool.push_front(def);
+    }
 }
 
 /// The gap between two lanes of the same face, m.
@@ -1388,6 +1663,7 @@ pub fn summarize(
             "run_planned": plan.run,
         },
         "rest": plan.rest.to_array(), "heading": plan.heading,
+        "start": start_of(def).to_array(), "rest_off": rest_off(def, plan),
         "began": began, "first_key_ms": plan.first, "press_ms": press, "keys_end_ms": plan.end,
         "redone": redone, "rows": rows.len(),
     });
@@ -1421,6 +1697,16 @@ pub fn summarize(
             let cos = (f[0] * t[0] + f[1] * t[1]).clamp(-1.0, 1.0);
             let sign = (t[0] * f[1] - t[1] * f[0]).signum();
             obj.insert("angle_face".into(), serde_json::json!((cos.acos().to_degrees() * sign * 10.0).round() / 10.0));
+        }
+    }
+    // The way the body went from rest: to the press, else to the end of the keys; against the approach.
+    let went_to = press.unwrap_or(plan.end.saturating_sub(600));
+    if let Some(p) = feet_at(rows, went_to) {
+        let (dx, dz) = (p.x - plan.rest.x, p.z - plan.rest.z);
+        let length = dx.hypot(dz);
+        if length > 0.5 {
+            let cos = ((dx * a[0] + dz * a[1]) / length).clamp(-1.0, 1.0);
+            obj.insert("dir_off".into(), serde_json::json!((cos.acos().to_degrees() * 10.0).round() / 10.0));
         }
     }
     let types: Vec<u8> = after.iter().map(|r| r.jump_type).filter(|&j| j != 0).collect();
@@ -1564,6 +1850,61 @@ mod tests {
         assert_eq!(pool.len(), 1);
         assert_eq!(pool[0].site.name, "chem060a");
         assert_eq!(bad.len(), 1);
+    }
+
+    #[test]
+    fn a_rest_fits_only_within_a_third_of_a_metre_a_third_up_and_ten_degrees_of_the_heading() {
+        let start = Vec3::new(-6.0, 1.72, 93.9);
+        assert!(rest_fits(start, 0.0, start, 0.0));
+        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0));
+        // 0.6 m off, another ledge's start 9 m off, on the top deck, facing 20 degrees off.
+        assert!(!rest_fits(Vec3::new(-5.4, 1.72, 93.9), 0.0, start, 0.0));
+        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0));
+        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0));
+        assert!(!rest_fits(start, 0.35, start, 0.0));
+        // The heading wraps.
+        assert!(rest_fits(start, 3.1, start, -3.1));
+    }
+
+    #[test]
+    fn a_zone_is_the_start_the_run_up_and_the_top() {
+        let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
+        let zone = Zone::of(&d, 0, true);
+        let mid = Vec3::new((zone.start.x + zone.centre[0]) / 2.0, zone.start.y, (zone.start.z + zone.centre[1]) / 2.0);
+        assert!(zone.nearest(zone.start).1 < 0.01);
+        assert!(zone.nearest(mid).1 < 0.01);
+        assert!(zone.nearest(Vec3::new(mid.x + 3.0, mid.y, mid.z)).1 > 2.9);
+        // The top is in it as well; a point behind the start is measured from the start.
+        assert!(zone.nearest(Vec3::new(zone.top.x, zone.top.y, zone.top.z + 1.0)).1 < 1.01);
+        let behind = Vec3::new(zone.start.x, zone.start.y, zone.start.z + 6.0);
+        assert!(zone.nearest(behind).1 >= CLEAR_M);
+    }
+
+    #[test]
+    fn a_bot_waits_short_of_an_enemy_try_in_its_sensitive_part_and_a_lost_try_goes_back_to_the_pool() {
+        let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
+        let zone = Zone::of(&d, 1, true);
+        let near = Vec3::new(zone.start.x + 2.0, zone.start.y, zone.start.z);
+        let far = Vec3::new(zone.start.x + 4.0, zone.start.y, zone.start.z);
+        assert!(yield_to(&[zone], 0, near));
+        assert!(!yield_to(&[zone], 0, far));
+        // A teammate's try, and an enemy's that is only walking to its start, are not waited for.
+        assert!(!yield_to(&[Zone::of(&d, 0, true)], 0, near));
+        assert!(!yield_to(&[Zone::of(&d, 1, false)], 0, near));
+        // The lost try is one more repeat of its row, on its own face again.
+        let mut pool = VecDeque::from([TryDef { repeat: 2, ..wide_def(0.0, 5.5) }]);
+        let mut lost = wide_def(0.0, 5.5);
+        lost.lane = 2.5;
+        lost.site.lower = Vec3::new(lost.site.lower.x, lost.site.lower.y, lost.site.lower.z + 2.5);
+        let base = base_of(&lost);
+        back_to_pool(&mut pool, lost);
+        assert_eq!(pool.len(), 1);
+        assert_eq!(pool[0].repeat, 3);
+        let other = TryDef { id: "other".into(), ..wide_def(0.0, 5.5) };
+        back_to_pool(&mut pool, TryDef { lane: 2.5, ..other.clone() });
+        assert_eq!(pool[0].id, "other");
+        assert_eq!(pool[0].lane, 0.0);
+        assert!(base_of(&pool[0]).distance_xz(base) < 3.0);
     }
 
     #[test]
