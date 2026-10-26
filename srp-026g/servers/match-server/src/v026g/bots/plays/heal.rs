@@ -13,7 +13,11 @@
 //!   A body at 0.8 has a need of 0.2.
 //! - **When:** a need from `start_need` (0.15) scores, the more the deeper
 //!   (the graded consideration on [`Input::Need`]); from `urgent_need`
-//!   (0.4, a body under 0.6) the play takes the alarm band. The best
+//!   (0.2, a body under 0.8) the play takes the alarm band: a Fight-band
+//!   play that is running is kept against a candidate of its band short of
+//!   `team::MARGIN`, and the bot knows its health a world late (up to 2 s),
+//!   so a threshold of 0.6 or 0.7 presses at a true 0.4-0.55 in a fight
+//!   where the best players press at 0.65 (`pr-heal.md`). The best
 //!   players press 2-3 s after the first loss, at any depth, 79 % of them
 //!   with the body under 0.8, moving and firing, an enemy within 30 m in
 //!   57 % (`fighting-record.md` §8.8). Which item: the one that leaves the
@@ -456,11 +460,13 @@ mod tests {
     }
 
     #[test]
-    fn the_trigger_is_graded_a_body_at_0_85_waits_0_8_scores_0_55_is_urgent() {
+    fn the_trigger_is_graded_a_body_at_0_86_waits_0_84_scores_0_78_is_urgent() {
         let at = Vec3::new(30.0, 0.0, 10.0);
         assert!(heals(&hurt_bot(0.9, at)).is_none());
         assert!(heals(&hurt_bot(0.86, at)).is_none());
-        let mild = heals(&hurt_bot(0.8, at)).expect("a body at 0.8");
+        let mild = heals(&hurt_bot(0.84, at)).expect("a body at 0.84");
+        let urgent = heals(&hurt_bot(0.78, at)).expect("a body at 0.78");
+        assert_eq!(urgent.rank, Rank::Alarm);
         let deep = heals(&hurt_bot(0.5, at)).expect("a body at 0.5");
         let deeper = heals(&hurt_bot(0.3, at)).expect("a body at 0.3");
         assert_eq!(mild.rank, Rank::Fight);
@@ -482,7 +488,7 @@ mod tests {
         pools.legs = [0.0, 0.5];
         s.pools = Some(pools);
         let candidate = heals(&s).expect("a broken leg");
-        assert_eq!(candidate.rank, Rank::Fight);
+        assert_eq!(candidate.rank, Rank::Alarm, "a leg's 0.38 is over the 0.2");
         // The body from the pools when there are some, else from the view.
         s.pools = Some(Pools::of_body(0.4));
         s.view.places[0].health = 1.0;

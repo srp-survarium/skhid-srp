@@ -18,11 +18,13 @@ pub struct HealTuning {
     /// for a unit of the kit (the humans' 79 % under 0.8 is need 0.2).
     pub start_need: f32,
     /// A need from this takes the alarm band: the play beats any other
-    /// play, as a heal of a body under 0.6 does.
+    /// play. 0.2 is a body under 0.8: the bot knows its health a world late,
+    /// so in a fight a lower line presses at a true 0.4-0.55, the best
+    /// players' median being 0.65 (`pr-heal.md`, the timing section).
     pub urgent_need: f32,
     /// How much of a pool's missing share counts in a need: what kills
-    /// counts fully, what slows less (a broken leg 0.38, under the 0.4 of
-    /// `urgent_need`; an infection at 0.8 reaches `start_need`).
+    /// counts fully, what slows less (a broken leg 0.38; an infection at 0.8
+    /// reaches `start_need`).
     pub weights: NeedWeights,
     /// A cover step is taken first only if a cover spot is this near, m,
     /// and no enemy it knows of is within `enemy_m`; it lasts at most
@@ -64,7 +66,7 @@ impl Default for HealTuning {
         Self {
             graded: true,
             start_need: 0.15,
-            urgent_need: 0.4,
+            urgent_need: 0.2,
             weights: NeedWeights::default(),
             cover_m: 4.0,
             enemy_m: 10.0,
