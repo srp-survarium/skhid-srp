@@ -942,7 +942,7 @@ impl Route {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
             .take_while(|&k| self.along[k - 1] <= s + within)
-            .filter(|&k| !self.points[k].jump && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+            .filter(|&k| self.points[k].jump.is_none() && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
             .map(|k| self.points[k].at)
             .collect()
     }
