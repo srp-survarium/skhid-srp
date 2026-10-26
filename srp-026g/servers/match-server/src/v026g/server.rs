@@ -545,6 +545,7 @@ impl Server {
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
                     private: formed.private,
+                    blackout: formed.blackout,
                     players: formed
                         .places
                         .iter()

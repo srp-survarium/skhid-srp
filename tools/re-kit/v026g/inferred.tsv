@@ -3104,3 +3104,6 @@ va	status	ref_021d	name
 0x00332440	inferred-medium		survarium::ammo_data::load
 0x00018bd0	observed		vostok::engine::engine_world::get_user_data_directory
 0x0032e3e0	inferred-medium		survarium::bullet::apply_hit_impulse
+0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
+0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
+0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list

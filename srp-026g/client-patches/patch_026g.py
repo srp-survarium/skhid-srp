@@ -377,6 +377,15 @@ Patches:
   the body a powered ragdoll (muscles that weaken from the death, the
   kit's weight from the inventory on its parts). Drawn only: nothing a
   match computes, keeps or hashes changes, the bullet goes on as before;
+- Blackout, a battery match with no interface (patch 65, a prototype, with
+  the late join; docs/notes/blackout.md; client_patch.md section 3.58): the
+  Rust patch blackout (rust/patches/src/blackout.rs, blackout.toml), five
+  lohooks at sites of its own (sites_026g.tsv): srp's block's tag 2 read
+  after each match_options::deserialize (0x27B92D, 0x1F0971); each frame's
+  update_player_icons (0x23AA10) tells the hud and the player icons the
+  forced interface and Tab; on_keyboard_action after its Tab test (0x25CD2C)
+  lets a key go on while Tab is held; the input builder's end (0x2421B0)
+  takes the moves and acts out of the mask while Tab is held;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -1190,7 +1199,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "voice")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "voice")
 
 
 def rust_hooks(original):
@@ -2390,22 +2399,6 @@ INSTALLS = {
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
-    # voice chat, patch 66 (in `.srpx`)
-    0x1E90A3: (CALLEE, "game::game's call of game_world::game_world (`ret 8`): voice_register, which calls it and "
-                       "registers the voice's console variables", None, None),
-    0x27A1B0: (ENTRY, "match_client::connect (thiscall: the host, the port, the session, the time, a functor; "
-                      "`ret 14h`): voice_connect, then the function", None, None),
-    0x1F96F0: (ENTRY, "game_world::on_finish_match (eax the world): voice_finish, then the function", None, None),
-    0x1F9520: (ENTRY, "game_world::on_deactivate (ecx the world): voice_deactivate, then the function", None, None),
-    0x25CD34: (CALLEE, "on_keyboard_action's show_player_list (esi the hud, the shown byte pushed; `ret 4`): "
-                       "voice_key, then the call as a tail jump", None, None),
-    0x1EDBDC: (CALLEE, "activate_main_menu's game_options::activate (eax the options, the state pushed; `ret 4`): "
-                       "voice_menu, which calls it and fills the voice panel", None, None),
-    0x9FC4FC: (SLOT, "game_world's vtable 0x9FC4F4 slot 2, tick (ecx the world; `ret 0Ch`): voice_tick, then the "
-                     "tick as a tail jump", None, None),
-    0x9FD47C: (SLOT, "game_options' Scaleform callback (thiscall: ?, the name, the arguments, the count; "
-                     "`ret 10h`): voice_menu_call, the voice panel's calls or a tail jump to the function", None,
-               None),
     # the kill feed's wall, ricochet and pain icons, patch 67 (in `.srpx`)
     0x2DA3D1: (INLINE, "generate_killed_event's `mov [eax+4],bl / mov edx,[esi+120h]` (eax the event, esi the "
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
@@ -2579,6 +2572,11 @@ def audit_installs(data, writes, installs=None):
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+
+# Calls and pointer slots use the same named-site declaration as their glue.
+for _va, _owner, _what, _kind in hooks_026g.typed_install_sites():
+    INSTALLS[_va] = ({"call": CALLEE, "pointer": SLOT, "splice": ENTRY}[_kind],
+                     f"{_what}: {_owner} (Rust {_kind})", None, None)
 
 
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
@@ -3753,6 +3751,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

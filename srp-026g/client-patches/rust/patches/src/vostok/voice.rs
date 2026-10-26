@@ -88,12 +88,12 @@ unsafe fn movie(holder: *mut c_void) -> *mut c_void {
         return core::ptr::null_mut();
     }
     // SAFETY: caller supplies a live movie holder; its nullable inner is checked.
-    let inner = unsafe { object(raw::movie_holder::inner(holder)) };
+    let inner = unsafe { object(raw::movie_holder::view(holder)) };
     if inner.is_null() {
         core::ptr::null_mut()
     } else {
         // SAFETY: non-null inner belongs to the live holder.
-        unsafe { object(raw::movie_inner::movie(inner)) }
+        unsafe { object(raw::movie_view::movie(inner)) }
     }
 }
 unsafe fn snapshot(game: *mut c_void, world: *mut c_void) -> Match {

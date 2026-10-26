@@ -65,34 +65,44 @@ vostok::render::game::renderer	scene_renderer	0x200064	u32	its scene renderer (t
 survarium::player_model	render_instance	0x108	u32	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
 survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
 survarium::image	controls_table	0xA9DB28	u32	the 40 controls rows, 68h bytes each (game_options readers 0x201150,0x2013BF,0x201A19; check_hide_ui_026g.py)
-survarium::game	world	0x18	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game	translator	0x52A8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game	binder	0x5344	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::network_client	local_place	0x1F1C44	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::network_client	match_client	0x1F1C48	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::match_client	static_info	0xC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::profile	name	0x8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::profile	team	0x45EC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::profile	end	0x45FC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game_world	core_owner	0x4D4C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game_world	hud_holder	0x204	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::core_owner	core	0x1F8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game_world_core	places	0x18458	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::player_place	kit	0xC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::player_place	players	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::player_place	end	0x30	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::player	position	0x43C	f32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game_options	movie_holder	0xC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::game_options	game	0x34	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-scaleform::movie_holder	inner	0x108	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-scaleform::movie_inner	movie	0x4	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::keyboard_frame	input_world	0x8	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::keyboard_frame	key	0xC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::keyboard_frame	kind	0x10	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::keyboard_handler	game	-0x15C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::image	cc_bool_vtable	0x9E7C4C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-survarium::image	cc_float_vtable	0x9E7C6C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-vostok::input_world	vtable	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-vostok::input_vtable	keyboard	0x24	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-vostok::keyboard	vtable	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
-vostok::keyboard_vtable	pressed	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.58
+survarium::game	world	0x18	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game	translator	0x52A8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game	binder	0x5344	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::network_client	local_place	0x1F1C44	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::network_client	match_client	0x1F1C48	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::match_client	static_info	0xC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::profile	name	0x8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::profile	team	0x45EC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::profile	end	0x45FC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game_world	core_owner	0x4D4C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game_world	hud_holder	0x204	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::core_owner	core	0x1F8	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game_world_core	places	0x18458	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::player_place	kit	0xC	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::player_place	players	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::player_place	end	0x30	u8	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::player	position	0x43C	f32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game_options	movie_holder	0xC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::game_options	game	0x34	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::keyboard_frame	input_world	0x8	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::keyboard_frame	key	0xC	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::keyboard_frame	kind	0x10	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::keyboard_handler	game	-0x15C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::image	cc_bool_vtable	0x9E7C4C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::image	cc_float_vtable	0x9E7C6C	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+vostok::input_world	vtable	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+vostok::input_vtable	keyboard	0x24	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+vostok::keyboard	vtable	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+vostok::keyboard_vtable	pressed	0	u32	voice chat: observed reads of original patch 66, client_patch.md section 3.59
+survarium::match_options	srp_blackout	0x57870	u32	patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
+vostok::buffer_reader	begin	0x0	u32	a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
+vostok::buffer_reader	cursor	0x4	u32	the next byte to read
+vostok::buffer_reader	size	0x8	u32	the bytes from begin
+survarium::game_world_ui	hud_movie	0x8	u32	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
+survarium::game_world_ui	icons_movie	0x10	u32	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+vostok::ui::movie_holder	view	0x108	u32	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
+vostok::ui::movie_view	movie	0x4	u32	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
+survarium::static_info_frame	reader	-0x2C	u32	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
+survarium::replay_options_frame	options	0x40	u32	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
+survarium::replay_options_frame	reader	0x14	u32	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
+survarium::update_player_icons_frame	ui	0x4	u32	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)

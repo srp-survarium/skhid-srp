@@ -77,6 +77,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         players,
         vs_bots: false,
         private: false,
+        blackout: false,
     }
 }
 
@@ -3714,4 +3715,33 @@ fn a_withdrawn_scope_variant_in_the_kept_state_is_taken_off_at_start() {
     drop(results);
     let store = kept_accounts(&players, &repository);
     assert!(!store.is_dirty(alice_id));
+}
+
+/// Blackout (`docs/notes/blackout.md`): every point counts twice, in the
+/// score and in what it pays; the counts on the screen are as played. The
+/// same match without it pays once.
+#[test]
+fn a_blackout_match_pays_its_points_twice() {
+    let players = alice_and_bob();
+    let plain = result(players.clone());
+    let mut blackout = result(players.clone());
+    blackout.blackout = true;
+    let once = Results::new()
+        .settle(&plain, &accounts(&players), &terms(), &mut Rng::new(1))
+        .unwrap();
+    let twice = Results::new()
+        .settle(&blackout, &accounts(&players), &terms(), &mut Rng::new(1))
+        .unwrap();
+    let (once, twice) = (&once.players[0], &twice.players[0]);
+    assert_eq!((once.reward.score, twice.reward.score), (35, 70));
+    // Kills 75 / 9, help 10 / 1, the fixed part of a win 82.73 / 122.69:
+    // each cell twice before it is rounded down.
+    assert_eq!(columns(&once.full, 0), (3.0, 75, 9, 0));
+    assert_eq!(columns(&twice.full, 0), (3.0, 150, 18, 0));
+    assert_eq!(columns(&once.full, 1), (1.0, 10, 1, 0));
+    assert_eq!(columns(&twice.full, 1), (1.0, 20, 2, 0));
+    assert_eq!(columns(&once.full, 2), (2.0, 82, 122, 0));
+    assert_eq!(columns(&twice.full, 2), (2.0, 165, 245, 0));
+    assert_eq!((once.reward.experience, once.reward.money), (132, 167));
+    assert_eq!((twice.reward.experience, twice.reward.money), (265, 335));
 }

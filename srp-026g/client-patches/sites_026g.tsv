@@ -14,3 +14,8 @@ keyboard.player_list	0x25CD34	lohook	-	5	-	show_player_list call; EBP keyboard f
 game_options.activate	0x1EDBDC	call	engine_options_activate	-	-	main menu activate, EAX options
 game_world.tick_slot	0x9FC4FC	pointer	engine_world_tick	-	-	world vtable tick
 game_options.callback_slot	0x9FD47C	pointer	engine_options_callback	-	-	menu ExternalInterface callback
+static_info.options_read	0x27b92d	lohook	-	5	-	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
+replay.options_read	0x1f0971	lohook	-	5	-	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
+player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
+keyboard.tab_state	0x25cd2c	lohook	-	7	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
+input_builder.end	0x2421b0	lohook	-	5	-	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)

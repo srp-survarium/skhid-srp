@@ -5,6 +5,7 @@ package
    import flash.display.BitmapData;
    import flash.display.BlendMode;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -48,6 +49,8 @@ package
    import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.ForcedView;
+   import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
    import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
@@ -404,6 +407,10 @@ package
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
          stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
+         _keptLayer = new KeptLayer(this,this.keepLaidOut);
+         _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
+                                      this.holdChatHistory);
+         stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          super.addChild(this._stageLayer);
@@ -862,7 +869,18 @@ package
 
       private var _interfaceHidden:Boolean;
 
+      // Forced (Blackout, force_interface_hidden) the interface stays as forced: the key and a
+      // match's reset do nothing to it; the exe's patch 65 unforces it for a match without.
       public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._forcedView && this._forcedView.forced)
+         {
+            return;
+         }
+         this.setInterfaceHidden(hidden);
+      }
+
+      private function setInterfaceHidden(hidden:Boolean) : void
       {
          _interfaceHidden = hidden;
          visible = !hidden;
@@ -871,6 +889,80 @@ package
       public function interface_hidden() : Boolean
       {
          return this._interfaceHidden;
+      }
+
+      // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
+      // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
+      // alive, the ammo, the quick-use slots and the body's state (critInd: the parts, bleeding,
+      // radiation, toxins) or, while the game shows the kits (the death screen, before the start), the
+      // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
+      // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
+      // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
+      // place in the root when not.
+      private var _keptLayer:KeptLayer;
+
+      private var _forcedView:ForcedView;
+
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this._forcedView.forced = forced;
+         this.setInterfaceHidden(forced);
+      }
+
+      public function interface_forced() : Boolean
+      {
+         return this._forcedView.forced;
+      }
+
+      private function keptWhenForced() : Array
+      {
+         return [this.pregameInfo];
+      }
+
+      private function keptOnTab() : Array
+      {
+         if(this._profilePanel.visible)
+         {
+            return [this._profilePanel,this.matchTime(),this.chat];
+         }
+         return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime(),this.chat];
+      }
+
+      private function keptWhileTyping() : Array
+      {
+         return [this.chat];
+      }
+
+      // The chat's last lines held on screen (Tab's history), or let fade again as the chat does.
+      private function holdChatHistory(hold:Boolean) : void
+      {
+         if(!this.chat || !this.chat.messageContainer)
+         {
+            return;
+         }
+         if(hold)
+         {
+            this.chat.messageContainer.showLastMessages();
+            this.chat.messageContainer.stopHideout();
+         }
+         else
+         {
+            this.chat.messageContainer.resumeHideout();
+         }
+      }
+
+      // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
+      // its: placed by the same rule in the kept layer as in the root (the layer is placed as the
+      // root), at every resolution and interface scale, also when it was kept before the layout's
+      // first reflow (a match's start).
+      private function keepLaidOut(part:DisplayObject) : void
+      {
+         if(this.layout != null && part is Sprite && Sprite(part)["layoutData"] != null)
+         {
+            this.layout.manage(Sprite(part));
+         }
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1100,6 +1192,9 @@ package
       public function show_profiles_selector(value:Boolean) : void
       {
          this._profilePanel.visible = value;
+         // A death/respawn switches the Tab view even while Tab stays held.
+         // The game's show_player_list only invokes the movie when Tab changes.
+         this._forcedView.refresh();
       }
       
       public function set_game_stats(state:uint, fps:uint, latency:uint, lowFps:Boolean = false, lowLatenxy:Boolean = false) : void
@@ -1473,6 +1568,8 @@ package
                this.chat.stopEnterMessage();
             }
          }
+         // forced (Blackout): the chat shows while typed in (keptWhileTyping)
+         this._forcedView.typing = bool;
       }
       
       public function set_friends_list(value:Array) : void
@@ -1713,6 +1810,12 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
+         this._forcedView.tab = bool;
+         if(this._forcedView.forced)
+         {
+            return;
+         }
          this.player_list.visible = bool;
          this.questTaskList.visible = bool && this.questList.visible;
       }
@@ -1891,7 +1994,8 @@ package
       {
          trace("HUD::reset");
          // a new match starts with the interface shown (the movie is the last match's; the exe's
-         // patch 62 shows the player icons' with it)
+         // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
+         // tells the movie the new match's state
          this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
@@ -2013,14 +2117,18 @@ package
       
       public function set_match_time(time:String) : void
       {
+         this.matchTime().text = time;
+      }
+
+      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
+      // other modes' (progress_indicator's frames).
+      private function matchTime() : Object
+      {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
-            this.progress_indicator.match_time_2_tdm.text = time;
+            return this.progress_indicator.match_time_2_tdm;
          }
-         else
-         {
-            this.progress_indicator.match_time_2.text = time;
-         }
+         return this.progress_indicator.match_time_2;
       }
       
       public function show_context(bool:Boolean) : void
@@ -2548,6 +2656,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
+         this._keptLayer.place();
          this.deathEyes.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units

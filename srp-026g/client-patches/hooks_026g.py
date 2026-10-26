@@ -641,6 +641,15 @@ def install_sites(tomls=None, sites=None):
             if row.get("site") in sites]
 
 
+def typed_install_sites(tomls=None, sites=None):
+    """Call/pointer/splice audit shapes from their named site, without an exe."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"],
+             sites[row["site"]]["kind"]) for patch in tomls for row in patch.get("hook", ())
+            if row.get("site") in sites and sites[row["site"]]["kind"] in ("call", "pointer", "splice")]
+
+
 def stale():
     return [path.name for path, content in outputs().items()
             if not path.exists() or path.read_bytes() != content]

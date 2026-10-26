@@ -219,7 +219,7 @@ kept, the right bytes cleaned):
 
 `write` is the design above; a register-ABI `call` still needs its reverse
 thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
-five) ship; the other kinds' generators are proven by check_hooks_026g.py and
+five; patch 65, Blackout's five) ship; the other kinds' generators are proven by check_hooks_026g.py and
 wait for their first patch to wire the install into patch_026g.py. A span
 hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
 reads them from the exe it builds from (hooks_026g.py and the checks take
