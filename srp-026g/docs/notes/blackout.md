@@ -33,7 +33,7 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   enemy's name never, the game's own rule), alive or dead, while Tab is held; hidden otherwise. The
   match's objects' markers (the batteries and the like) are always hidden; no Research markers.
 - **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
-  frame: ammo, health, score, crosshair, minimap, kill feed, chat, Tab list, the match clock (but on Tab), the
+  frame: ammo, health, score, crosshair, minimap, kill feed, chat (but while typed in and on Tab), Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
   rest when play starts.
