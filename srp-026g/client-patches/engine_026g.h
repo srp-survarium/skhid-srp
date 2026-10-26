@@ -115,22 +115,16 @@ void engine_cc_bool(void *object, const char *name, unsigned char *value, unsign
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
-/* 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32 */
-void engine_ray_test(void *world, void *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped);
+/* 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly */
+unsigned char __attribute__((stdcall)) engine_action_present(void *handler, unsigned int action, unsigned int *state);
 
-/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
-void engine_release_object(void *object, unsigned int *count);
+/* the IAT slot 0x870048 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_create_file_a)(const char * name, unsigned int access, unsigned int share, void * security, unsigned int disposition, unsigned int flags, void * template_file);
 
-/* 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX */
-const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second);
+/* the IAT slot 0x870108 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_write_file)(void * file, const void * bytes, unsigned int size, unsigned int * written, void * overlapped);
 
-/* 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20 */
-void engine_play_particle(const float *position, void *manager, const void *particle, const float *direction, const float *normal, unsigned int parameter);
-
-/* 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12 */
-void engine_play_sound(void *manager, const void *sound, const float *position);
-
-/* 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX */
-const char *engine_user_data_directory(void);
+/* the IAT slot 0x870040 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void * handle);
 
 #endif

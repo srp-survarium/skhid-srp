@@ -1,0 +1,13 @@
+[package]
+name = "patches"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true

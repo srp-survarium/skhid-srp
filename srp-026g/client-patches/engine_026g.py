@@ -5,9 +5,10 @@ compiler (LTO) gave the real one.
 
     python engine_026g.py --write
         writes engine_026g.h (the C declarations), engine_026g.inc (their
-        externs for NASM patches), engine_026g.rs (their declarations for
-        Rust patches) and engine_026g.asm (the thunks, the arena's block
-        engine.code: link_026g.py links it)
+        externs for NASM patches), engine_026g.rs (the Rust patches' `raw`
+        layer: these declarations and fields_026g.tsv's fields) and
+        engine_026g.asm (the thunks and the direct functions' addresses, the
+        arena's block engine.code: link_026g.py links it)
     python engine_026g.py --check
         says whether those four files are what engine_026g.tsv and the
         re-kit rows give here (the self-test runs the same)
@@ -22,6 +23,16 @@ global symbol of its own, which the link resolves for every caller):
                4, 8, ...: the stack slot above the return address) and a word
                of the re-kit's role for that location; "-" for none
     prototype  the C declaration, `ret name(type param, ...)`
+    call       how every caller calls it: "thunk" (the default: a cdecl
+               thunk, below), "stdcall", "cdecl" or "thiscall" (directly, in
+               that convention, which the re-kit's rows must be: the symbol
+               is the real VA, no thunk), "import" (va is the exe's IAT slot
+               of a kernel32 function, stdcall; the symbol is the slot;
+               arguments "-", no re-kit row)
+
+fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
+field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
+address, for the `vostok` layer (rust_patches.md).
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -56,7 +67,9 @@ import link_026g as linker
 HERE = Path(__file__).resolve().parent
 REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
+FIELDS = HERE / "fields_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
@@ -159,13 +172,46 @@ def return_kind(ret):
     return "word"
 
 
+def parse_vostok(text, name, params):
+    """The row's optional `vostok` column, the typed signature a Rust hook of
+    this function takes: "arg: Type, .. -> Result" (Result left out for void).
+    Returns {"args": [(arg, Type)], "result": Result or None}, or None when the
+    column is empty (the function has no Rust typing yet). One arg per C
+    parameter, each `arg: Type` with an identifier and a Vostok type name."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    body, _, result = text.partition("->")
+    args = [a.strip() for a in body.split(",") if a.strip()]
+    if len(args) != len(params):
+        raise Refused(f"{name}: the vostok signature has {len(args)} arguments, the prototype {len(params)}")
+    out = []
+    for a in args:
+        label, _, vtype = a.partition(":")
+        if not re.fullmatch(r"[a-z_][a-z0-9_]*", label.strip()) or not re.fullmatch(r"[A-Za-z][\w<>]*", vtype.strip()):
+            raise Refused(f"{name}: a vostok argument is `name: Type` (got {a!r})")
+        out.append((label.strip(), vtype.strip()))
+    return {"args": out, "result": result.strip() or None}
+
+
 def function(row, abi=None, inputs=None):
     """A spec row checked against the re-kit: {symbol, va, args: [location],
-    params, ret, cleanup, result, name}."""
+    params, ret, cleanup, result, name, call, vostok}."""
     va = number(row["va"])
     ret, name, params = parse_prototype(row["prototype"])
+    vostok = parse_vostok(row.get("vostok"), name, params)
+    call = (row.get("call") or "thunk").strip()
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
+    if call not in CALLS:
+        raise Refused(f"{name}: call {call!r}, one of {', '.join(CALLS)}")
+    if call == "import":
+        if row["arguments"].strip() != "-":
+            raise Refused(f"{name}: an import's arguments are \"-\" (stdcall, its prototype's)")
+        return {"symbol": name, "va": va, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params,
+                "ret": ret, "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
+                "name": "kernel32 (the IAT slot)", "prototype": row["prototype"].strip(), "call": call,
+                "vostok": vostok}
     tokens = [] if row["arguments"].strip() == "-" else [a.partition(":") for a in row["arguments"].split()]
     if any(not word for _, _, word in tokens):
         raise Refused(f"{name}: each argument is LOCATION:word (a word of the re-kit's role there)")
@@ -205,12 +251,24 @@ def function(row, abi=None, inputs=None):
         fits = {"word": ("EAX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0",)}[kind]
         if result not in fits:
             raise Refused(f"{name}: returns {ret}, but {va:#x}'s result is {result}")
+    if call != "thunk":
+        stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - (call == "thiscall"))]
+        if args != (["ECX"] if call == "thiscall" else []) + stack \
+                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AL"):
+            raise Refused(f"{name}: not {call} ({describe_args(params, args)}; pops {cleanup}; {result})")
+        if result == "AL" and not re.fullmatch(r"(unsigned )?char", ret.strip()):
+            raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
     return {"symbol": name, "va": va, "args": args, "params": params, "ret": ret, "cleanup": cleanup,
             "result": result, "name": sorted(rows["names"])[0] if rows["names"] else "",
-            "prototype": row["prototype"].strip()}
+            "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
 
 
-def functions(spec=None, abi=None, inputs=None):
+def describe_args(params, args):
+    return ", ".join(f"{p[1]} {a}" for p, a in zip(params, args)) or "no arguments"
+
+
+def every_function(spec=None, abi=None, inputs=None):
+    """Every row of the spec, checked."""
     spec = read_tsv(SPEC) if spec is None else spec
     abi = read_tsv(REKIT / "abi.tsv") if abi is None else abi
     inputs = read_tsv(REKIT / "abi_inputs.tsv") if inputs is None else inputs
@@ -221,10 +279,39 @@ def functions(spec=None, abi=None, inputs=None):
     return out
 
 
+def functions(spec=None, abi=None, inputs=None):
+    """The rows called through a thunk (what check_engine_026g.py proves)."""
+    return [f for f in every_function(spec, abi, inputs) if f["call"] == "thunk"]
+
+
+FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
+
+
+def fields(path=None):
+    """fields_026g.tsv's rows: [{kind, module, field, offset, type, about}]."""
+    out, seen = [], set()
+    for row in read_tsv(FIELDS if path is None else path):
+        kind, field, kind_type = row["kind"].strip(), row["field"].strip(), row["type"].strip()
+        module = kind.rpartition("::")[2]
+        offset = number(row["offset"])
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
+                or kind_type not in FIELD_TYPES or not 0 <= offset < 0x10000 or offset % FIELD_TYPES[kind_type] \
+                or (module, field) in seen:
+            raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
+                          f"under 0x10000 aligned to its type, a type of {', '.join(FIELD_TYPES)}")
+        seen.add((module, field))
+        out.append({"kind": kind, "module": module, "field": field, "offset": offset, "type": kind_type,
+                    "about": row["about"].strip()})
+    return out
+
+
 def describe(f):
-    where = ", ".join(f"{p[1]} {a}" for p, a in zip(f["params"], f["args"])) or "no arguments"
+    if f["call"] == "import":
+        return f"the IAT slot {f['va']:#x} (kernel32, stdcall)"
+    where = describe_args(f["params"], f["args"])
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
-            + (f"; {f['result']}" if f["result"] else ""))
+            + (f"; {f['result']}" if f["result"] else "")
+            + ("" if f["call"] == "thunk" else f"; {f['call']}, called directly"))
 
 
 GENERATED = "generated by engine_026g.py from engine_026g.tsv and tools/re-kit/v026g/abi*.tsv: do not edit"
@@ -257,12 +344,19 @@ def thunk(f):
 
 
 def asm_text(fs):
+    """`fs`: every row; a thunk for each called through one, the address of
+    each other (a direct function's VA, an import's IAT slot)."""
+    thunks = [f for f in fs if f["call"] == "thunk"]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
              "; registers and stack out (engine_026g.py). The arena's block engine.code.",
+             "; A function called directly (or an import) is its address alone.",
              "bits 32", "section .text"]
     lines += [f"global {f['symbol']}" for f in fs]
-    for i, f in enumerate(fs):
+    for f in fs:
+        if f["call"] != "thunk":
+            lines.append(f"{f['symbol']} equ {f['va']:#x}   ; {describe(f)}")
+    for i, f in enumerate(thunks):
         lines += [""] + (["    align 16, db 0xCC"] if i else []) + thunk(f)
     return "\n".join(lines) + "\n"
 
@@ -279,7 +373,14 @@ def header_text(fs):
              "#ifndef ENGINE_026G_H", "#define ENGINE_026G_H", ""]
     lines += [f"struct {t};" for t in tags] + ([""] if tags else [])
     for f in fs:
-        lines += [f"/* {describe(f)} */", f"{f['prototype']};", ""]
+        declaration = f["prototype"]
+        if f["call"] in ("stdcall", "cdecl", "thiscall"):
+            declaration = declaration.replace(f["symbol"] + "(", f"__attribute__(({f['call']})) {f['symbol']}(", 1)
+        elif f["call"] == "import":
+            ret, _, params = parse_prototype(f["prototype"])
+            declaration = (f"extern {ret} (__attribute__((stdcall)) *const {f['symbol']})("
+                           + (", ".join(f"{k} {n}" for k, n in params) or "void") + ")")
+        lines += [f"/* {describe(f)} */", f"{declaration};", ""]
     lines.append("#endif")
     return "\n".join(lines) + "\n"
 
@@ -290,7 +391,9 @@ def include_text(fs):
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
              "; each its address."]
     for f in fs:
-        lines += [f"; {f['prototype']}", f"; {describe(f)}", f"extern {f['symbol']}"]
+        how = {"thunk": [], "import": ["; `call [symbol]`: stdcall, it pops its arguments"]}.get(
+            f["call"], [f"; {f['call']}: push (and ECX for thiscall) as that convention says"])
+        lines += [f"; {f['prototype']}", f"; {describe(f)}"] + how + [f"extern {f['symbol']}"]
     return "\n".join(lines) + "\n"
 
 
@@ -322,23 +425,51 @@ def rust_type(kind):
     return out
 
 
-def rust_text(fs):
-    lines = [f"// The engine-function library for Rust ({GENERATED}).",
+def rust_text(fs, fields_=()):
+    """The `raw` layer: every function (a thunk's cdecl, or the function's
+    own convention), the imports, the fields' addresses."""
+    lines = [f"// The Rust patches' `raw` layer ({GENERATED}, and fields_026g.tsv).",
              "//",
-             "// The same cdecl thunks C and NASM call (block engine.code); the link gives",
-             "// each its address. Include it in a module: `mod engine { include!(...); }`.",
+             "// The game's functions as the link gives them: a thunk (cdecl, block",
+             "// engine.code) or the function itself in its own convention; kernel32's",
+             "// imports (their IAT slots); the address of each field. Unsafe, no logic:",
+             "// only `vostok` calls these (rust_patches.md).",
              "",
              "#[allow(unused_imports)]",
-             "use core::ffi::c_void;",
-             "",
-             "#[allow(dead_code)]",
-             'unsafe extern "C" {']
-    for f in fs:
+             "use core::ffi::c_void;"]
+
+    def signature(f):
         params = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}: {rust_type(kind)}"
                            for kind, name in f["params"])
         ret = "" if return_kind(f["ret"]) is None else f" -> {rust_type(f['ret'])}"
-        lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
-    lines.append("}")
+        return params, ret
+    for abi in ("C", "stdcall", "cdecl", "thiscall"):
+        group = [f for f in fs if {"thunk": "C"}.get(f["call"], f["call"]) == abi]
+        if group:
+            lines += ["", "#[allow(dead_code)]", f'unsafe extern "{abi}" {{']
+            for f in group:
+                params, ret = signature(f)
+                lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
+            lines.append("}")
+    imports = [f for f in fs if f["call"] == "import"]
+    if imports:
+        lines += ["", "#[allow(dead_code, non_upper_case_globals)]", 'unsafe extern "C" {']
+        for f in imports:
+            params, ret = signature(f)
+            types = ", ".join(rust_type(kind) for kind, _ in f["params"])
+            lines += [f"    /// {describe(f)}: {f['prototype']}",
+                      f'    pub static {f["symbol"]}: unsafe extern "stdcall" fn({types}){ret};']
+        lines.append("}")
+    for module in dict.fromkeys(x["module"] for x in fields_):
+        group = [x for x in fields_ if x["module"] == module]
+        lines += ["", f"/// {group[0]['kind']}'s fields (fields_026g.tsv).", "#[allow(dead_code)]",
+                  f"pub mod {module} {{", "    use core::ffi::c_void;"]
+        for x in group:
+            lines += [f"", f"    /// +{x['offset']:#x} ({x['type']}): {x['about']}", "    ///",
+                      "    /// # Safety", f"    /// `this` is a {x['kind']}.", "    #[inline(always)]",
+                      f"    pub unsafe fn {x['field']}(this: *mut c_void) -> *mut {x['type']} {{",
+                      f"        unsafe {{ this.byte_add({x['offset']:#x}).cast() }}", "    }"]
+        lines.append("}")
     return "\n".join(lines) + "\n"
 
 
@@ -355,9 +486,9 @@ def assemble(text, va=0x10000000, tools=None):
 
 def outputs(spec=None, abi=None, inputs=None):
     """{path: bytes} of the four files."""
-    fs = functions(spec, abi, inputs)
+    fs = every_function(spec, abi, inputs)
     return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
-            RUST: rust_text(fs).encode()}
+            RUST: rust_text(fs, fields()).encode()}
 
 
 def stale():

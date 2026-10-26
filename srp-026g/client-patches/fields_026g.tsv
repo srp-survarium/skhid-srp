@@ -1,0 +1,2 @@
+kind	field	offset	type	about
+survarium::player_input_handler	actions	0x33C	u32	the action mask of the input being built (process_first_person_mode 0x241250; bit 24 commit_suicide)

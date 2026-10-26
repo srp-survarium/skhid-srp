@@ -208,18 +208,32 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
+- Legacy code pages: the game writes its log in its locale's code page. The
+  engine's start-up (`core::preinitialize`, 0.26g 0xE3C10) sets it from
+  `-localization`: original and russian cp1251, english cp1252, polish cp1250;
+  any other value leaves the C locale (Latin-1 bytes). Its audio device names
+  (`%S`) and other localized text are therefore not UTF-8 on Russian,
+  Ukrainian or Polish Windows ("Динамики", "Głośniki"), and the whole game log
+  used to be omitted. A line that is not UTF-8 but has no NUL or control bytes
+  is now taken as text of that code page (from the game's `-localization` on
+  its command line; without one the option's default, original: cp1251) and transcoded to
+  UTF-8 (`MultiByteToWideChar` with `MB_ERR_INVALID_CHARS`, then
+  `WideCharToMultiByte`) before the checks below. `collection.txt` names the
+  code page and counts each source's transcoded lines
+  (`transcoded_lines=2 from cp1251`). The crash details' log tail (crash.txt)
+  still replaces such letters with `?`.
 - Credential filtering: before compression, UTF-8/ASCII text is checked one
-  complete line at a time (64 KiB maximum), including labels split across disk
-  reads. Records containing known password/passwd/pwd, account-digest,
+  complete line at a time (64 KiB maximum, also after transcoding), including
+  labels split across disk reads. Records containing known password/passwd/pwd, account-digest,
   authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
   credential, command-line or URL-userinfo markers are replaced with a fixed
   removal notice. Following unframed lines are removed until the next native
   `channel <level>\t[HH:MM:SS.mmm]\t` (also with a colon before the milliseconds, `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
   This deliberately favors omission over retaining ambiguous continuations.
   Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
-  invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.
-  ASCII and UTF-8 diagnostics around removed records remain available; logs in
-  legacy code pages and binary journals can therefore be omitted.
+  text that is neither UTF-8 nor of the legacy code page, UTF-16/32,
+  NUL/binary/control bytes omit the entire source. Diagnostics around removed
+  records remain available; binary journals can therefore be omitted.
   This detects **known credential-bearing records**, not arbitrary unlabelled
   secrets, unusual obfuscation, or a multiline value that impersonates a valid
   new record. **Minidump memory is not sanitized** and may contain credentials;
@@ -465,6 +479,12 @@ account digests, bearer/tokens, command lines, URL credentials and continuation
 values are absent from extracted log members, member names and the summary;
 startup memory diagnostics remain. UTF-16/binary, oversized and ambiguous
 multiline sources are omitted atomically; original files are unchanged.
+cp1251, cp1250, cp1252 and Latin-1 logs (by `-localization=russian`,
+`original`, `polish`, `english`, an unknown one and none (the default,
+original) on the probe's command
+line) come out as UTF-8 with their transcoded lines counted; a control byte
+in a cp1251 line still omits the source, and a cp1251 credential record is
+still removed with its continuation.
 A short successful read followed by premature EOF must also roll back the
 source even though filtered output has a different size. Host-only boundary,
 encoding and read-failure tests run with:
@@ -508,6 +528,10 @@ probes built with MinGW g++ 15.3): `check_abi.py`, `check_localization.py`
 text (10) and sanitize (7) tests pass; `client/check-reproducible.sh` gives the same DLL
 twice. `check_dumps.py` was not run: its probe uses MSVC `__try`, which
 MinGW does not build.
+
+Run on 2026-10-26 for the legacy code pages (Linux, Wine Staging 11.8; the
+probe built with MinGW g++ 15.3): `check_abi.py` and `check_logs.py` pass;
+the text (10) and sanitize (9) tests pass.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Run patch 34's commit_suicide key (suicide_key_026g.asm) in the default
-build on made-up input handlers.
+"""Run patch 34's commit_suicide key (the Rust patch `suicide_key`) in the
+default build on made-up input handlers.
 
     python check_suicide_key_026g.py <original survarium.exe>
 
@@ -27,7 +27,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 
 import patch_026g as base
 
-SITE, RETURN = base.SUICIDE_KEY_HOOK[0], base.SUICIDE_KEY_HOOK[0] + 5
+SITE, RETURN = base.RUST_HOOKS[0][0], base.RUST_HOOKS[0][0] + 5
 PUSH_BACK = 0x242580                    # circular_buffer<pair<action, state>, 64>::push_back
 HANDLER, STACK, SENTINEL = 0x20000000, 0x21000000, 0x22000000
 BUFFER, HELD, MASK = 0x98, 0x2A8, 0x33C

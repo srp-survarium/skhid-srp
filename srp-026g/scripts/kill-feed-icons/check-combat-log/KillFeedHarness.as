@@ -1,17 +1,22 @@
 package
 {
+   import flash.display.Bitmap;
+   import flash.display.DisplayObject;
    import flash.display.Loader;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.UncaughtErrorEvent;
+   import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
    import flash.system.fscommand;
+   import flash.utils.getQualifiedClassName;
 
    // Feeds the hud movie's own kill feed (SrvCombatLogList, with its timeline symbols) every kind of
-   // row the exe sends, then checks that a row added after they have all expired stays on screen.
+   // row the exe sends, then checks that a row added after they have all expired stays on screen,
+   // then the weapon icon each icon number shows.
    // Prints "KF ..." lines (trace) and ends with "KF RESULT pass" or "KF RESULT fail: ...".
    public class KillFeedHarness extends Sprite
    {
@@ -128,12 +133,66 @@ package
             {
                failures.push("a row added 40 frames ago is gone (rows " + rows() + ")");
             }
+            weapons();
             finish(failures.length ? "fail: " + failures.join("; ") : "pass");
          }
          if(frame % 20 == 0)
          {
             trace("KF frame " + frame + ": rows " + rows());
          }
+      }
+
+      // A kill row for every weapon icon a config names (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
+      // ported weapons' 53 to 68) and one past them: icon i shows frame i + 1 of object_icon, from 53 to
+      // 68 the bitmap CombatLogWeapon<i> in its place (the clip hidden), past them the clip again; the
+      // weapon right after the killer, within the row, the victim after it.
+      private function weapons() : void
+      {
+         var bitmaps:int = 0;
+         for(var icon:int = 0; icon <= 69; icon++)
+         {
+            var data:Object = row(1,0,0,0);
+            data.object_icon = icon;
+            try
+            {
+               list.addItem(data);
+            }
+            catch(e:Error)
+            {
+               failures.push("icon " + icon + " threw " + e.message);
+               continue;
+            }
+            var item:Object = Object(list.getChildAt(list.numChildren - 1)).logItem;
+            var clip:MovieClip = item.object_icon;
+            var mark:DisplayObject = clip;
+            var shown:String = clip.visible ? "frame " + clip.currentFrame : "no frame";
+            for(var i:int = 0; i < item.numChildren; i++)
+            {
+               var bitmap:Bitmap = item.getChildAt(i) as Bitmap;
+               if(bitmap && bitmap.bitmapData && getQualifiedClassName(bitmap.bitmapData).indexOf("CombatLogWeapon") == 0)
+               {
+                  shown += ", " + getQualifiedClassName(bitmap.bitmapData) + " " + bitmap.width + "x" + bitmap.height + " at y " + bitmap.y;
+                  mark = bitmap;
+                  bitmaps++;
+               }
+            }
+            var want:String = icon >= 53 && icon <= 68 ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
+            {
+               failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
+            }
+            var after:Number = item.who_name.x + item.who_name.width + 5;
+            var at:Rectangle = mark.getBounds(DisplayObject(item));
+            if(at.width > 0 && (Math.abs(at.left - after) > 0.5 || at.top < 0 || item.victim_name.x < at.right + 5 - 0.5))
+            {
+               failures.push("icon " + icon + ": the weapon at " + at + " (killer to " + after + ", victim at " + item.victim_name.x + ")");
+            }
+            if(icon >= 53)
+            {
+               trace("KF icon " + icon + ": " + shown);
+            }
+         }
+         trace("KF icons 0 to 69: " + bitmaps + " bitmaps");
       }
 
       private function finish(result:String) : void

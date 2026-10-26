@@ -58,3 +58,37 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   behind.
 - **Release:** the exe patch (the default build) and the hud movie together; an older exe with
   the new movie shows rows without the three icons.
+
+## The ported weapons' icons (2026-10-26)
+
+- **The owner, 2026-10-26:** "new weapons that were added have incorrect icons" in the kill feed.
+- **How the icon is picked:** a weapon's config `ui_desc/combat_log_icon` (an int; the exe passes it
+  as the row's `object_icon`, `client_patch.md` 3.55) is frame (icon + 1) of the row's weapon clip
+  (`object_icon` of `CombatLogItem`'s kill frame). 0.26g's clip has 53 frames: icons 0 to 52 (17 is an
+  empty frame no weapon uses, 21 an M4 no 0.26g weapon used).
+- **The cause:** base patch 19's weapons (0.27d0 to 0.31a2 builds, which give each the same icon:
+  53 to 68) came with stand-ins of stock weapons' icons, as the clip ends at 52: the AK-74M's 31 for
+  the Saiga-12K, Vepr-12, FNC, HK416, MSBS, Valmet and M4A1, the AKMN's 29 for the SOK-94 and the
+  vz. 58, the UMP45's 47 for the P90 and the KRISS, the Vityaz's 1 for the three MP7s, the RPK's 38
+  for the PKP, the UZI's 3 for the AEK-919K, the Kiparis's 22 for the Kedr, the Remington 870's 12
+  for the Neostead.
+- **The fix:**
+  - the icons after the clip's last are bitmaps of the hud movie, `CombatLogWeapon<icon>` (53 to 68;
+    `bitmaps/`, made by `scripts/kill-feed-icons/make_weapon_icons.py`): 53 to 63 the bitmaps of
+    0.28d0's clip's frames 54 to 64, as they are (its frames 1 to 53 are 0.26g's bit for bit), 64 to
+    68 0.31a2's kill log icons `icon_65.png` to `icon_69.png` (0.28d0's clip ends at 63; 0.31a2 loads
+    its icons from textures);
+  - `CombatLogItem`: a kill row whose icon is past the clip's frames shows that bitmap in the clip's
+    place (the clip hidden), centred where the clip's frames centre theirs (12.5 px down it), never
+    above it; the icons after it and the victim follow it as they follow the clip; an icon past 68
+    shows the clip's last frame, as before;
+  - `content-edit/kill-feed-weapons-1.json`: the 21 configs take their builds' icons again (the
+    premium Saiga and Vepr-12, the Neostead's second config and the MP7 Special their weapon's); the
+    M4A1 21, the clip's own M4.
+  - The premium copies of stock weapons (base patch 19's `_premium`, `_premium_2`, `_camo`) keep
+    their plain weapon's icon, as in those builds.
+- **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
+  icon 0 to 69 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
+  and where (after the killer, within the row, before the victim).
+- **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
+  before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.
