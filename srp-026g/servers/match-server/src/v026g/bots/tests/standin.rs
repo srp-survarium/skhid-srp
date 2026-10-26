@@ -107,6 +107,10 @@ pub(crate) struct PutPress {
     pub(crate) miss: f32,
     pub(crate) began: bool,
     pub(crate) putting: bool,
+    /// How far along the use ray the container's box is entered, if it is
+    /// ([`mapdata::stands::ray_distance`]): the length of use the press
+    /// needed.
+    pub(crate) reach: Option<f32>,
 }
 
 /// Whose body a kill is: an enemy's, a teammate's (the game has friendly
@@ -1207,6 +1211,22 @@ impl Game {
         (eye + dir * along - point).length()
     }
 
+    /// How far along the view's ray from `body`'s eye container `id`'s use
+    /// box is entered, if it is.
+    pub(crate) fn container_box_reach(&self, body: &Body, id: usize) -> Option<f32> {
+        let shape = self
+            .world
+            .map
+            .containers
+            .iter()
+            .find(|c| c.id == id as i32)
+            .and_then(|c| c.use_shapes.first())?;
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        mapdata::stands::ray_distance(eye, Vec3::new(fx * c, s, fz * c), shape)
+    }
+
     /// Whether the view's ray from `body`'s eye meets container `id`'s use
     /// box by the game's rule: within the use's 2 m, nothing of the bullet
     /// mesh short of it ([`mapdata::stands::ray_meets`]). A container with
@@ -1328,6 +1348,7 @@ impl Game {
                             miss: Self::ray_miss(&body, self.containers[id].1 + USE_BOX_UP),
                             began,
                             putting: was_putting,
+                            reach: self.container_box_reach(&body, id),
                         });
                     }
                 }

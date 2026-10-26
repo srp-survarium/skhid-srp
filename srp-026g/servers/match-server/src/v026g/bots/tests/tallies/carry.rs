@@ -32,6 +32,10 @@ pub(crate) struct CarryTally {
     /// together ([`put_in_pairs`]).
     pub(crate) put_in_times: Vec<(u8, usize, u32)>,
     pub(crate) span_ms: u32,
+    /// The put-ins that began (a press whose ray met the box) by the length
+    /// of use they needed: to 1.5 m, to 1.8 m (the client's reach with
+    /// startup.cfg), over 1.8 m (up to the stand-in's 2.0).
+    pub(crate) put_reach: [u32; 3],
     /// The uses at the containers ([`Game::put_presses`]) counted so far;
     /// of them: all, those that missed the box (no put began, none going
     /// on), those whose ray passed it by over [`FAR_MISS_M`] (the bot
@@ -129,6 +133,11 @@ impl CarryTally {
             && press.tick + NEXT_PRESS_MS <= game.tick
         {
             self.presses += 1;
+            if press.began
+                && let Some(reach) = press.reach
+            {
+                self.put_reach[usize::from(reach > 1.5) + usize::from(reach > 1.8)] += 1;
+            }
             self.presses_missed += u32::from(!press.began && !press.putting);
             if press.miss > FAR_MISS_M {
                 self.presses_far += 1;
@@ -286,7 +295,7 @@ impl CarryTally {
         let pocket = self.pocket_counts();
         let pairs = put_in_pairs(&self.put_in_times, self.span_ms);
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}; put-ins {}, pairs of carriers within {} s {} (by chance {:.1})",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}; put-ins {}, pairs of carriers within {} s {} (by chance {:.1}); put-ins by the use ray they needed: to 1.5 m {}, to 1.8 m {}, over 1.8 m {}",
             self.right,
             self.wrong,
             self.unknown,
@@ -319,6 +328,9 @@ impl CarryTally {
             PAIR_WINDOW_MS / 1_000,
             pairs.0,
             pairs.1,
+            self.put_reach[0],
+            self.put_reach[1],
+            self.put_reach[2],
         )
     }
 }
