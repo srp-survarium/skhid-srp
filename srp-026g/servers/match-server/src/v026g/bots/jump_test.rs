@@ -2135,7 +2135,7 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     #[test]
     fn the_bodies_of_an_asked_world_go_once_to_the_reckoning() {
         let mut jt = JumpTest::new(PathBuf::from("none"), std::env::temp_dir(), "t".into(), 120);
-        let rows = vec![row(1_000, 2.0, 5.0), Row { place: 4, ..row(1_000, 2.0, 7.0) }];
+        let rows = vec![row(1_000, 2.0, 5.0, false, 0), Row { place: 4, ..row(1_000, 2.0, 7.0, false, 0) }];
         jt.take_rows(rows.clone(), 1_000, 1_050, 100);
         assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
         assert!(jt.take_fresh().is_empty(), "once");
