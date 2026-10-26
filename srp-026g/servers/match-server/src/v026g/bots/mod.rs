@@ -36,6 +36,7 @@ pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
+pub mod field_source;
 pub mod foliage;
 pub mod friends;
 pub mod grenade_threat;
@@ -82,7 +83,6 @@ use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
 use survarium::v026g::loadouts::{BotRole, BotTier};
-use survarium::v026g::match_msgs::anomaly_fields::WorldField;
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -1185,20 +1185,29 @@ impl Bots {
     /// A trusted world's objects section: the anomalies' states put right.
     /// Returns (cores read, cores missed).
     pub fn anomalies_from_world(&mut self, objects: &[u8], time: u32) -> (usize, usize) {
-        self.tactics.as_mut().map_or((0, 0), |tactics| {
+        let read = self.tactics.as_mut().map_or((0, 0), |tactics| {
             let report = tactics.hazards.sync_from_world(objects, time);
             (report.synced.len(), report.missed.len())
-        })
+        });
+        // The same world, as the live zones (the timed cores' states).
+        self.fields_from_world(time);
+        read
     }
 
-    /// The anomaly fields of a trusted world (`anomaly_fields::find`) at match time `time`: the live zones of this
-    /// match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the board holds.
-    pub fn fields_from_world(&mut self, fields: &[WorldField], time: u32) -> usize {
+    /// The anomaly fields the cores show after a trusted world (`field_source::v1`) at match time `time`: the live
+    /// zones of this match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the
+    /// board holds.
+    pub fn fields_from_world(&mut self, time: u32) -> usize {
         if !self.tuning.live_zones {
             return 0;
         }
         self.tactics.as_mut().map_or(0, |tactics| {
-            tactics.hazards.set_fields(fields, &tactics.world.grid, time);
+            let fields = tactics
+                .hazards
+                .anomalies()
+                .map(|anomalies| field_source::v1(anomalies, &tactics.world.map))
+                .unwrap_or_default();
+            tactics.hazards.set_fields(&fields, &tactics.world.grid, time);
             tactics.hazards.live.fields().len()
         })
     }

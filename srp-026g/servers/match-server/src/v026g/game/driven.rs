@@ -548,11 +548,6 @@ impl Game {
         walkers
             .bots
             .traps_from_world(decoded.sections.objects, snapshot.time);
-        // The anomaly fields of this world (none until their layout is known; `Tuning::live_zones` off reads none).
-        walkers.bots.fields_from_world(
-            &survarium::v026g::match_msgs::anomaly_fields::find(decoded.sections.objects, snapshot.time),
-            snapshot.time,
-        );
         let (read, missed) = walkers
             .bots
             .anomalies_from_world(decoded.sections.objects, snapshot.time);

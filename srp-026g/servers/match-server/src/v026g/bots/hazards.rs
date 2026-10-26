@@ -326,6 +326,10 @@ impl Hazards {
             if zone.kind != ZoneKind::Damage || zone.damage.as_ref().is_some_and(|d| !d.harmful()) {
                 continue;
             }
+            // The zones of a timed core are the board's (`field_source`), not baked.
+            if super::field_source::live_only(map, &zone.name) {
+                continue;
+            }
             let anomaly = map
                 .anomalies
                 .iter()

@@ -3,8 +3,8 @@
 //!
 //! The baked zones are a fact of the map file: [`super::hazards::HazardMarks`] marks the floors once, for every match on
 //! the map. A field made at run time (the dynamic anomalies of the redesign) is not in the file, so the world tells
-//! the bots: [`FieldBoard::update`] takes the typed fields of a world (`survarium::...::anomaly_fields`) and marks the
-//! floors they cover, for this match only. The board answers the questions the baked marks answer, in the baked code's
+//! the bots: a source (`field_source`, the only place that knows how a world shows a field) makes the typed
+//! [`WorldField`]s of a world, and [`FieldBoard::update`] marks the floors they cover, for this match only. The board answers the questions the baked marks answer, in the baked code's
 //! own terms: when a field is on ([`Activity`], the same two functions), its hit a second, and which floors it shares
 //! with another field ([`ZoneSet`]).
 //!
@@ -14,10 +14,43 @@
 
 use std::collections::HashMap;
 
-use mapdata::{NodeId, Rotation, Shape, ShapeKind, Vec3, WalkGrid};
-use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldPhase, FieldShape, WorldField};
+use mapdata::{NodeId, Shape, WalkGrid};
 
 use super::hazards::{near_floor, standing_heights, Activity, SWITCH_MARGIN_MS};
+
+/// A field's id, stable for the field's life.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FieldId(pub u32);
+
+/// What the field is made of (the pack's artefact kinds that lie in a lethal anomaly).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FieldKind {
+    Lifebone,
+    Spring,
+    Onyx,
+}
+
+/// Where a field is in its life, in match milliseconds. A field that rests or idles is not a field: a source does not
+/// return it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldPhase {
+    /// Harmless until `damage_from` (the release: 20 s after it was made).
+    Charging { damage_from: u32 },
+    /// Hurting; `until` its end when it is known (the release: 4 s of damage, then [`Self::Holding`]).
+    Damaging { until: Option<u32> },
+    /// The artefact waits and the zone stays on, with no known end (until the artefact is taken).
+    Holding,
+}
+
+/// One field of a world: what a source makes of it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldField {
+    pub id: FieldId,
+    pub kind: FieldKind,
+    /// Where it hurts, in the map's frame.
+    pub shape: Shape,
+    pub phase: FieldPhase,
+}
 
 /// A field's hit a second, of a body's health, by kind (GUESS: the pack's lethal anomalies take an unarmoured body in
 /// 2 s at full intensity, the release's lifebone, spring and onyx alike; the map's zones are read the same way,
@@ -53,13 +86,13 @@ impl LiveHazard {
             FieldPhase::Damaging { until: Some(until) } => {
                 Activity::Spans(vec![(0, until.saturating_add(SWITCH_MARGIN_MS))])
             }
-            FieldPhase::Damaging { until: None } | FieldPhase::Holding { .. } => Activity::Always,
+            FieldPhase::Damaging { until: None } | FieldPhase::Holding => Activity::Always,
         }
     }
 
-    /// Where it hurts, as a map shape.
+    /// Where it hurts.
     pub fn shape(&self) -> Shape {
-        shape_of(&self.field)
+        self.field.shape
     }
 
     /// The soonest match time after `now` at which it switches on or off, if it will.
@@ -72,24 +105,6 @@ impl LiveHazard {
                 .filter(|&t| t > now && t != u32::MAX)
                 .min(),
         }
-    }
-}
-
-fn shape_of(field: &WorldField) -> Shape {
-    let centre = Vec3::new(field.centre[0], field.centre[1], field.centre[2]);
-    match field.shape {
-        FieldShape::Cylinder { radius, half_height } => Shape {
-            kind: ShapeKind::Cylinder,
-            center: centre,
-            rotation: Rotation::IDENTITY,
-            half: Vec3::new(radius, half_height, radius),
-        },
-        FieldShape::Box { half } => Shape {
-            kind: ShapeKind::Box,
-            center: centre,
-            rotation: Rotation::IDENTITY,
-            half: Vec3::new(half[0], half[1], half[2]),
-        },
     }
 }
 
@@ -169,7 +184,7 @@ impl FieldBoard {
                     field: *field,
                     hit_per_s: hit_per_s(field.kind),
                     activity: LiveHazard::activity_of(field.phase),
-                    floors: floors_of(grid, &shape_of(field), margin),
+                    floors: floors_of(grid, &field.shape, margin),
                 },
             };
             next.push(hazard);
@@ -249,7 +264,7 @@ impl FieldBoard {
 
 /// Whether the world's field is where the board's was (only its phase differs): its floors stay.
 fn same_place(old: &WorldField, new: &WorldField) -> bool {
-    old.kind == new.kind && old.centre == new.centre && old.shape == new.shape
+    old.kind == new.kind && old.shape == new.shape
 }
 
 /// The set of zones marking a floor, baked and live: what the bots compare to tell "the same zone as before" (`0` none).

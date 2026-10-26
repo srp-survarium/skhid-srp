@@ -2689,24 +2689,23 @@ pub(super) mod tests {
 
     // The live zones (`live_zones.rs`): a world's anomaly fields next to the baked zones.
 
-    fn live_field(
-        id: u32,
-        at: Vec3,
-        radius: f32,
-        phase: survarium::v026g::match_msgs::anomaly_fields::FieldPhase,
-    ) -> survarium::v026g::match_msgs::anomaly_fields::WorldField {
-        use survarium::v026g::match_msgs::anomaly_fields::{FieldId, FieldKind, FieldShape, WorldField};
+    fn live_field(id: u32, at: Vec3, radius: f32, phase: super::super::live_zones::FieldPhase) -> super::super::live_zones::WorldField {
+        use super::super::live_zones::{FieldId, FieldKind, WorldField};
+        use mapdata::{Rotation, Shape, ShapeKind};
         WorldField {
             id: FieldId(id),
             kind: FieldKind::Spring,
-            centre: [at.x, 1.0, at.z],
-            shape: FieldShape::Cylinder { radius, half_height: 2.0 },
+            shape: Shape {
+                kind: ShapeKind::Cylinder,
+                center: Vec3::new(at.x, 1.0, at.z),
+                rotation: Rotation::IDENTITY,
+                half: Vec3::new(radius, 2.0, radius),
+            },
             phase,
         }
     }
 
-    const LIVE_ON: survarium::v026g::match_msgs::anomaly_fields::FieldPhase =
-        survarium::v026g::match_msgs::anomaly_fields::FieldPhase::Damaging { until: None };
+    const LIVE_ON: super::super::live_zones::FieldPhase = super::super::live_zones::FieldPhase::Damaging { until: None };
 
     /// Floors only: a region is not shut because a live field lies on a few of its floors (its test is the baked
     /// zone's), while the floors' own test shuts them.

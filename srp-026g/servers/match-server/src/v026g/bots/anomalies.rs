@@ -435,6 +435,11 @@ impl Core {
         self.sim.current.map(|c| self.sim.states[c].threshold)
     }
 
+    /// When the current state ends (match ms; 0: it lasts while the energy holds).
+    pub fn finish(&self) -> u32 {
+        self.sim.finish
+    }
+
     /// The random value now.
     pub fn random(&self) -> u32 {
         self.sim.rng
@@ -1353,6 +1358,75 @@ pub(super) mod tests {
         out.extend(sim.rng.to_le_bytes());
         out.extend([0x00, 0x00, 0x07]);
         (out, at)
+    }
+
+    /// A timed core as the pack builder makes it (`field_source`): states 3000 / 2000 / 1000 / 50 / 0, the charge
+    /// zone `charge` (hurts nobody) and the damage zone `damage`.
+    pub fn timed(name: &str, charge: &str, damage: &str) -> Anomaly {
+        let state = |threshold: f32, active: u32, exit: f32, zones: &[&str]| AnomalyState {
+            enabled: true,
+            threshold,
+            active_time_s: active,
+            energy_on_exit: exit,
+            groups: vec![ZoneGroup {
+                enabled: true,
+                keep_all: true,
+                max_charged: 255,
+                recharge_s: 20,
+                zones: zones.iter().map(|z| (*z).into()).collect(),
+                ..ZoneGroup::default()
+            }],
+            ..AnomalyState::default()
+        };
+        Anomaly {
+            name: name.into(),
+            position: Vec3::ZERO,
+            zones: vec![charge.into(), damage.into()],
+            energy: AnomalyEnergy {
+                enabled: true,
+                on_af_container_use: 50.0,
+                ..AnomalyEnergy::default()
+            },
+            artefacts: AnomalyArtefacts {
+                enabled: true,
+                first_spawn_s: 100_000.0,
+                respawn_s: 100_000.0,
+                chance: 1.0,
+                max_count: 1,
+                containers: 1,
+                ..AnomalyArtefacts::default()
+            },
+            states: vec![
+                state(3000.0, 20, 2000.0, &[charge]),
+                state(2000.0, 4, 1000.0, &[damage, charge]),
+                state(1000.0, 0, 0.0, &[damage]),
+                state(50.0, 60, 0.0, &[]),
+                state(0.0, 0, 0.0, &[]),
+            ],
+        }
+    }
+
+    /// The objects section of a world at which core `core` is in state `state` (as the worlds number them, highest
+    /// threshold first) with `energy` and its state ending at `finish`; `None`: before its first tick.
+    pub fn core_world(
+        anomalies: &Anomalies,
+        core: usize,
+        state: Option<usize>,
+        energy: f32,
+        finish: u32,
+    ) -> Vec<u8> {
+        let mut sim = anomalies.cores[core].base.clone();
+        sim.current = state;
+        sim.energy = energy;
+        sim.finish = finish;
+        sim.art.pending = false;
+        if let Some(s) = state {
+            for group in &mut sim.states[s].groups {
+                group.on = vec![true; group.on.len()];
+                group.next = 0;
+            }
+        }
+        world_bytes(&[1, 2, 3], &sim, 0).0
     }
 
     #[test]
