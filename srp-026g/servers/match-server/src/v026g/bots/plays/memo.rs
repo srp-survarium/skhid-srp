@@ -180,18 +180,51 @@ impl Ctx<'_> {
     /// the moment of the press. Out of reach of the box (its farthest
     /// corner and the ray) no ray is cast.
     pub fn use_press(&self, eye: Vec3, container: u8) -> Option<Vec3> {
-        let world = &self.tactics.world;
-        let shape = world
+        let shape = self
+            .tactics
+            .world
             .map
             .containers
             .iter()
             .find(|c| c.id == i32::from(container))?
             .use_shapes
             .first()?;
+        self.press_on(eye, shape)
+    }
+
+    /// [`Ctx::use_press`] against the box of the resupply zone at `zone`
+    /// (an index of `MapData::zones`).
+    pub fn zone_press(&self, eye: Vec3, zone: usize) -> Option<Vec3> {
+        let shape = self.tactics.world.map.zones.get(zone)?.shapes.first()?;
+        self.press_on(eye, shape)
+    }
+
+    fn press_on(&self, eye: Vec3, shape: &mapdata::Shape) -> Option<Vec3> {
         if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
             return None;
         }
-        mapdata::stands::press(&world.sight, eye, shape).map(|(aim, _)| aim)
+        mapdata::stands::press(&self.tactics.world.sight, eye, shape).map(|(aim, _)| aim)
+    }
+
+    /// The stands of the resupply zone at `zone`: floors from which the
+    /// game's use ray meets its box, nearest the box first.
+    pub fn zone_stands(&self, zone: usize) -> &[UseStand] {
+        self.memo.use_stands(self.tactics).of_zone(zone)
+    }
+
+    /// The stand of the resupply zone at `zone` the bot reaches soonest
+    /// (`path_dist`), standing, leaving out the floors in `passed`.
+    pub fn nearest_zone_stand(&self, zone: usize, passed: &[Vec3]) -> Option<UseStand> {
+        self.zone_stands(zone)
+            .iter()
+            .filter(|stand| stand.fits(UsePose::Standing) && !passed.contains(&stand.feet))
+            .min_by(|a, b| {
+                self.path_dist(a.feet)
+                    .total_cmp(&self.path_dist(b.feet))
+                    .then(a.feet.x.total_cmp(&b.feet.x))
+                    .then(a.feet.z.total_cmp(&b.feet.z))
+            })
+            .copied()
     }
 
     /// Whether the game's use ray from `eye` can meet the box of

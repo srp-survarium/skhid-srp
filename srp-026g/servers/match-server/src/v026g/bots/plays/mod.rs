@@ -42,6 +42,7 @@ pub mod late_denial;
 pub mod memo;
 pub mod pair_up;
 pub mod raid;
+pub mod resupply;
 pub mod retreat;
 pub mod roam;
 pub mod sneak;
@@ -121,10 +122,12 @@ pub enum PlayKind {
     /// Play 26: hold a side angle on the enemy's best way where it comes
     /// into our half.
     Cut,
+    /// Play 27: hold USE on the team's resupply box when short of rounds.
+    Resupply,
 }
 
 impl PlayKind {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::Roam,
         Self::Collect,
         Self::Ambush,
@@ -146,6 +149,7 @@ impl PlayKind {
         Self::Raid,
         Self::Buddy,
         Self::Cut,
+        Self::Resupply,
     ];
 
     /// The personality family whose weight the play's `Personality`
@@ -158,7 +162,12 @@ impl PlayKind {
             Self::Intercept | Self::Trade | Self::LateDenial | Self::Hunt => Family::Push,
             Self::Sneak | Self::Flank | Self::Raid => Family::Sneak,
             Self::Escort | Self::CoverHuman | Self::PairUp | Self::Buddy => Family::Support,
-            Self::Roam | Self::Collect | Self::Retreat | Self::Heal | Self::Station => Family::None,
+            Self::Roam
+            | Self::Collect
+            | Self::Retreat
+            | Self::Heal
+            | Self::Station
+            | Self::Resupply => Family::None,
         }
     }
 }
@@ -301,6 +310,10 @@ pub struct Intent {
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
+    /// The resupply zone at this index of `MapData::zones` finished its
+    /// top-up this step (`resupply`): the bot's kit gives the rounds to its
+    /// stack.
+    pub resupplied: Option<usize>,
 }
 
 impl Intent {
@@ -318,6 +331,7 @@ impl Intent {
             straight: false,
             zone_ok: false,
             failed_stand: None,
+            resupplied: None,
         }
     }
 
@@ -436,6 +450,9 @@ pub struct BotFacts<'a> {
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
+    /// Its weapon 1's ammo and what a resupply could bring it to
+    /// ([`Input::Ammo`], `resupply`).
+    pub ammo: super::guns::Ammo,
     /// The goal its motor walks a crossing or a ring's walk out to, across
     /// zones on all match (`crossing.rs`), while it has a route there.
     pub crossing: Option<Vec3>,
@@ -787,6 +804,7 @@ impl Ctx<'_> {
             // A target with no place (roam ahead) is near.
             Input::PathDist => point.map_or(0.0, |at| self.path_dist(at)),
             Input::Health => self.me.health,
+            Input::Ammo => self.bot.ammo.share(),
             Input::EnemiesNearTarget => point.map_or(0.0, |at| self.enemies_near(at, 25.0) as f32),
             Input::FriendsNearTarget => point.map_or(0.0, |at| self.friends_near(at, 25.0) as f32),
             Input::Personality => {
@@ -946,6 +964,7 @@ pub enum Running {
     Raid(raid::State),
     Buddy(buddy::State),
     Cut(cut::State),
+    Resupply(resupply::State),
 }
 
 impl Running {
@@ -972,6 +991,7 @@ impl Running {
             Self::Raid(_) => PlayKind::Raid,
             Self::Buddy(_) => PlayKind::Buddy,
             Self::Cut(_) => PlayKind::Cut,
+            Self::Resupply(_) => PlayKind::Resupply,
         }
     }
 
@@ -1009,6 +1029,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     raid::candidates(cx, out);
     buddy::candidates(cx, out);
     cut::candidates(cx, out);
+    resupply::candidates(cx, out);
 }
 
 /// A play's start. `slot` is the assignment's: a play whose rules depend on
@@ -1043,6 +1064,7 @@ pub fn start(
         PlayKind::Raid => Running::Raid(raid::start(target, cx, rng)),
         PlayKind::Buddy => Running::Buddy(buddy::start(target, cx, rng)),
         PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
+        PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
     }
 }
 
@@ -1070,6 +1092,7 @@ pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -
         Running::Raid(s) => raid::step(s, target, cx, rng),
         Running::Buddy(s) => buddy::step(s, target, cx, rng),
         Running::Cut(s) => cut::step(s, target, cx, rng),
+        Running::Resupply(s) => resupply::step(s, target, cx, rng),
     }
 }
 
@@ -1097,6 +1120,7 @@ pub fn default_tuning(kind: PlayKind) -> PlayTuning {
         PlayKind::Raid => raid::tuning(),
         PlayKind::Buddy => buddy::tuning(),
         PlayKind::Cut => cut::tuning(),
+        PlayKind::Resupply => resupply::tuning(),
     }
 }
 
@@ -1124,6 +1148,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
         PlayKind::Raid => raid::NUMBERS,
         PlayKind::Buddy => buddy::NUMBERS,
         PlayKind::Cut => cut::NUMBERS,
+        PlayKind::Resupply => resupply::NUMBERS,
     }
 }
 

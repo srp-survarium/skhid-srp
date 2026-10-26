@@ -369,6 +369,32 @@ impl Bot {
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
+    /// Its weapon 1's ammo and what a resupply could bring it to; none for
+    /// a bot of no role.
+    pub fn ammo(&self) -> guns::Ammo {
+        let Some(&(arms, _)) = self.kits.get(self.kit) else {
+            return guns::Ammo::default();
+        };
+        let have = self.reflex.left();
+        guns::Ammo {
+            have,
+            whole: arms.primary.1,
+            storage: self.kit_left(self.kit).saturating_sub(have),
+        }
+    }
+
+    /// A resupply zone's top-up came: the rounds go from the kit's storage
+    /// to the stack (what the kit has for the match is the same), and how
+    /// many.
+    fn top_up(&mut self) -> u32 {
+        let take = self.ammo().missing();
+        if take > 0 {
+            self.reflex.top_up(take);
+            self.life_carried += take;
+        }
+        take
+    }
+
     /// The rounds kit `i` has left for the match: the present kit's
     /// storage less what this life fired.
     fn kit_left(&self, i: usize) -> u32 {

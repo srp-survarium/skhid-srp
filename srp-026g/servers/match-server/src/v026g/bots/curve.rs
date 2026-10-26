@@ -112,6 +112,8 @@ pub enum Input {
     PathDist,
     /// The bot's health, `[0, 1]`.
     Health,
+    /// The share of its kit's rounds for a life that it holds, `[0, 1]`.
+    Ammo,
     /// Enemies known within 25 m of the target.
     EnemiesNearTarget,
     /// Teammates (bots and humans) within 25 m of the target.

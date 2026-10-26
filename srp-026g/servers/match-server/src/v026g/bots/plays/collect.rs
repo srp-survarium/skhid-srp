@@ -2030,7 +2030,7 @@ fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
 }
 
 /// Whether the bot's view is on `aim` within [`SETTLED_RAD`].
-fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
+pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
     let eye = cx.me.eye();
     let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);

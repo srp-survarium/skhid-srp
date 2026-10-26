@@ -48,6 +48,8 @@ pub struct Scenario {
     pub medkits_used: u8,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
+    /// `BotFacts::ammo`.
+    pub ammo: crate::v026g::bots::guns::Ammo,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
     /// `BotFacts::crossing`.
@@ -131,6 +133,7 @@ impl Scenario {
             medkits_used: 0,
             no_way_to: Vec::new(),
             dry: false,
+            ammo: Default::default(),
             failed_stands: Vec::new(),
             crossing: None,
         };
@@ -277,6 +280,7 @@ impl Scenario {
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                ammo: self.ammo,
                 crossing: self.crossing,
             },
             memory: &self.memory,
