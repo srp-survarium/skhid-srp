@@ -108,24 +108,6 @@ pub(crate) fn put_in_pairs(put_ins: &[(u8, usize, u32)], span_ms: u32) -> (u32, 
     (observed, expected)
 }
 
-#[cfg(test)]
-mod put_in_pairs_tests {
-    use super::*;
-
-    #[test]
-    fn two_carriers_of_a_team_within_the_window_are_a_pair_and_the_chance_follows_the_count() {
-        // Team 0: places 1 and 2 at 100 s and 104 s (a pair), place 1 again at 150 s; team 1: one put-in.
-        let put_ins = [(0, 1, 100_000), (0, 2, 104_000), (0, 1, 150_000), (1, 7, 101_000)];
-        let (observed, expected) = put_in_pairs(&put_ins, 180_000);
-        assert_eq!(observed, 1);
-        // Team 0: 3 put-ins make 3 pairs, each within 6 s with 2 x 6/180 - (6/180)^2.
-        let p = 2.0 * (6.0 / 180.0) - (6.0 / 180.0) * (6.0 / 180.0);
-        assert!((expected - 3.0 * p).abs() < 1e-9, "{expected}");
-        // The same carrier twice in the window is no pair.
-        assert_eq!(put_in_pairs(&[(0, 1, 100_000), (0, 1, 103_000)], 180_000).0, 0);
-        assert_eq!(put_in_pairs(&[], 0), (0, 0.0));
-    }
-}
 
 impl CarryTally {
     pub(crate) fn new(run: String) -> Self {
@@ -338,5 +320,24 @@ impl CarryTally {
             pairs.0,
             pairs.1,
         )
+    }
+}
+
+#[cfg(test)]
+mod put_in_pairs_tests {
+    use super::*;
+
+    #[test]
+    fn two_carriers_of_a_team_within_the_window_are_a_pair_and_the_chance_follows_the_count() {
+        // Team 0: places 1 and 2 at 100 s and 104 s (a pair), place 1 again at 150 s; team 1: one put-in.
+        let put_ins = [(0, 1, 100_000), (0, 2, 104_000), (0, 1, 150_000), (1, 7, 101_000)];
+        let (observed, expected) = put_in_pairs(&put_ins, 180_000);
+        assert_eq!(observed, 1);
+        // Team 0: 3 put-ins make 3 pairs, each within 6 s with 2 x 6/180 - (6/180)^2.
+        let p = 2.0 * (6.0 / 180.0) - (6.0 / 180.0) * (6.0 / 180.0);
+        assert!((expected - 3.0 * p).abs() < 1e-9, "{expected}");
+        // The same carrier twice in the window is no pair.
+        assert_eq!(put_in_pairs(&[(0, 1, 100_000), (0, 1, 103_000)], 180_000).0, 0);
+        assert_eq!(put_in_pairs(&[], 0), (0, 0.0));
     }
 }
