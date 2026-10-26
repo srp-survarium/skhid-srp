@@ -1,4 +1,4 @@
-use super::super::standin_heal::{DrugPress, Pressed};
+use super::super::standin_heal::{DrugPress, Pressed, model_of};
 use crate::v026g::bots::stock::Drug;
 use crate::v026g::bots::reflex::HealNote;
 use super::*;
@@ -471,7 +471,28 @@ impl HealCounts {
             (100.0 * f64::from(hits.iter().map(|h| h.0).sum::<f32>()) / hits.len() as f64).round() / 100.0
         };
         let by_depth: Vec<f64> = bands.iter().map(|&(a, b)| Scale::pct(a, b)).collect();
-        let json = serde_json::json!({
+        // Deaths while a drug's window is open: its delay and its active time from the press (nothing but death
+        // ends a use: `fact-health-recovery.md` §2), as `heal_dead_within_5s_per_100_heals` takes the next 5 s.
+        let window_ms = |drug: Drug| {
+            let model = model_of(drug);
+            ((model.delay_s + model.active_s) * 1000.0) as u32
+        };
+        let in_window = |place: Place, tick: u32, drug: Drug| {
+            used.iter()
+                .any(|p| p.1 == place && p.2 == Pressed::Used(drug) && p.0 <= tick && tick < p.0 + window_ms(drug))
+        };
+        let window_by_kind: BTreeMap<&str, u32> = Drug::ALL
+            .into_iter()
+            .map(|drug| {
+                let n = deaths.iter().filter(|&&(place, k)| in_window(place, run.time_of(k), drug)).count();
+                (drug.name(), n as u32)
+            })
+            .collect();
+        let window_deaths = deaths
+            .iter()
+            .filter(|&&(place, k)| Drug::ALL.into_iter().any(|drug| in_window(place, run.time_of(k), drug)))
+            .count() as u32;
+        let mut json = serde_json::json!({
             "heal_fatal_fights": fights,
             "heal_hurt_at_fatal_start_pct": pct(hurt_start, fights),
             "heal_hurt_over_4s_at_fatal_start_pct": pct(hurt_old, fights),
@@ -509,11 +530,13 @@ impl HealCounts {
             "heal_enemy_m_line": enemy_line,
             "heal_cover_m_line": [covers as f64, (cover_sum * 10.0).round() / 10.0],
         });
+        json["deaths_in_item_window"] = window_deaths.into();
+        json["deaths_in_item_window_by_kind"] = serde_json::json!(window_by_kind);
         let text = format!(
             "owner-test heal: hurt at the fatal fight's start {:.1} % ({:.1} % over 4 s old) of {} fights; hurt {:.1} % of alive time with stock; \
              episodes with a press {:.1} % of {} (depth >=0.8 / 0.6-0.8 / <0.6: {:.0} / {:.0} / {:.0} %), first press after {} s; \
              {} presses, {:.1} per 100 bot minutes on a hurt body, {} on an empty slot, {} on an active medkit; no stock at the spawn {:.1} % of alive time; \
-             dead within 5 s of a press {:.1} per 100; dead with a medkit unused {:.1} % (no press in the life {:.1} %) of {}; full 3-9 s after {:.1} %; infection <= 0.1 at {} deaths; cover walks {}, heal plays taken {}",
+             dead within 5 s of a press {:.1} per 100; dead with a medkit unused {:.1} % (no press in the life {:.1} %) of {}; full 3-9 s after {:.1} %; infection <= 0.1 at {} deaths; cover walks {}, heal plays taken {}; deaths in an item's window {} {}",
             pct(hurt_start, fights),
             pct(hurt_old, fights),
             fights,
@@ -537,6 +560,8 @@ impl HealCounts {
             infection_deaths,
             walks,
             displaced,
+            window_deaths,
+            json["deaths_in_item_window_by_kind"],
         );
         Part::new(json, text)
     }
@@ -610,6 +635,44 @@ mod tests {
         // The life had a medkit at its start and died with it unused and
         // one press (the first life: no death before 20 s).
         assert_eq!(json["heal_deaths_with_stock"], 1);
+    }
+
+    /// A death while a drug's window is open (the medkit's 2 s delay and 3 s active, the bandages' 1 and 1, the
+    /// antitoxin's 1 and 10) is counted once, and by the kinds whose window it was in.
+    #[test]
+    fn a_death_while_an_items_window_is_open_is_counted_by_the_item() {
+        let (mut game, mut tally) = made_up(&[0, 0, 0, 1]);
+        for k in 0..400usize {
+            game.tick = (k as u32 + 1) * TICK_MS;
+            let ms = game.tick;
+            game.hit_log.clear();
+            for place in 0..4 {
+                game.bodies[place].alive = ms < 10_000;
+                game.bodies[place].step_m = 0.0;
+            }
+            // Bot 0: a medkit at 6 s (open to 11 s); bot 1: a medkit at 4 s (over at 9 s); bot 2: bandages at 9 s
+            // (open to 11 s) and an antitoxin at 1 s (open to 12 s); bot 3: a press ignored (the medkit active).
+            for (at, place, pressed) in [
+                (6_000, 0, Pressed::Used(Drug::Medkit)),
+                (4_000, 1, Pressed::Used(Drug::Medkit)),
+                (9_000, 2, Pressed::Used(Drug::Bandages)),
+                (1_000, 2, Pressed::Used(Drug::Antitoxin)),
+                (9_000, 3, Pressed::Active(Drug::Medkit)),
+            ] {
+                if ms == at {
+                    game.drug_log.push((ms, place, pressed, 1.0));
+                }
+            }
+            tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+        }
+        let (text, json) = tally.finish(&game);
+        assert_eq!(json["deaths_in_item_window"], 2, "{json}");
+        assert_eq!(
+            json["deaths_in_item_window_by_kind"],
+            serde_json::json!({"antitoxin": 1, "bandages": 1, "medkit": 1}),
+            "{json}"
+        );
+        assert!(text.contains("deaths in an item's window 2"), "{text}");
     }
 
     /// A cover walk begun after the press (the reflex begins it at its next think) belongs to the press.
