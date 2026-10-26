@@ -34,6 +34,15 @@ package survarium.controls
       
       private var _painIcon:Bitmap = new Bitmap(PAIN,PixelSnapping.ALWAYS);
       
+      // A weapon's icon is its config's ui_desc/combat_log_icon: frame (icon + 1) of object_icon, whose
+      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53
+      // (0.27d0 to 0.31a2 alike): those icons are these bitmaps, icon 53 first, shown in the frame's place.
+      private static const MORE_WEAPONS:Array = [CombatLogWeapon53,CombatLogWeapon54,CombatLogWeapon55,CombatLogWeapon56,CombatLogWeapon57,CombatLogWeapon58,CombatLogWeapon59,CombatLogWeapon60,CombatLogWeapon61,CombatLogWeapon62,CombatLogWeapon63,CombatLogWeapon64,CombatLogWeapon65,CombatLogWeapon66,CombatLogWeapon67,CombatLogWeapon68];
+      
+      private static var _moreWeapons:Array = [];
+      
+      private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
+      
       public var who_name:TextField;
       
       public var victim_name:TextField;
@@ -66,10 +75,18 @@ package survarium.controls
             this.victim_name.autoSize = TextFieldAutoSize.LEFT;
          }
          this.who_name.text = data.who_name;
+         var weapon:BitmapData = null;
          if(this.object_icon)
          {
             this.object_icon.gotoAndStop(data.object_icon + 1);
+            if(_action_id == CombatAction.KILL)
+            {
+               weapon = moreWeapon(data.object_icon - this.object_icon.totalFrames);
+            }
+            this.object_icon.visible = weapon == null;
          }
+         this._weaponIcon.bitmapData = weapon;
+         this.showIcon(this._weaponIcon,weapon != null);
          if(_action_id == CombatAction.KILL)
          {
             this.victim_name.text = data.victim_name;
@@ -84,6 +101,26 @@ package survarium.controls
          this.showIcon(this._ricochetIcon,death && data.ricochet_icon == 1);
          this.showIcon(this._painIcon,death && data.pain_icon == 1);
          this.makeLayout();
+      }
+      
+      // The bitmap of icon (53 + i), made once; null past the last.
+      private static function moreWeapon(i:int) : BitmapData
+      {
+         if(i < 0 || i >= MORE_WEAPONS.length)
+         {
+            return null;
+         }
+         if(!_moreWeapons[i])
+         {
+            _moreWeapons[i] = new MORE_WEAPONS[i]();
+         }
+         return _moreWeapons[i];
+      }
+      
+      // What shows the weapon: object_icon, or the bitmap in its place; null on a suicide row.
+      private function get weaponMark() : DisplayObject
+      {
+         return this._weaponIcon.parent == this ? this._weaponIcon : this.object_icon;
       }
       
       private function showIcon(icon:DisplayObject, shown:Boolean) : void
@@ -107,7 +144,7 @@ package survarium.controls
          {
             return x;
          }
-         var mark:DisplayObject = this.object_icon != null ? this.object_icon : this.extra_icon;
+         var mark:DisplayObject = this.weaponMark != null ? this.weaponMark : this.extra_icon;
          icon.x = x;
          icon.y = mark == null ? 0 : Math.max(0,int(mark.y + (mark.height - icon.height) / 2));
          return x + icon.width + dx;
@@ -121,11 +158,17 @@ package survarium.controls
          x = this.who_name.x + this.who_name.width + dx;
          if(this.object_icon != null)
          {
-            if(this.object_icon)
-            {
-               this.object_icon.x = x;
-            }
-            x += this.object_icon.width + dx;
+            this.object_icon.x = x;
+         }
+         if(this._weaponIcon.parent == this)
+         {
+            // centred where the clip's frames centre theirs (12.5 px down it), never above it
+            this._weaponIcon.x = x;
+            this._weaponIcon.y = this.object_icon.y + Math.max(0,int((25 - this._weaponIcon.height) / 2));
+         }
+         if(this.weaponMark != null)
+         {
+            x += this.weaponMark.width + dx;
          }
          x = this.placeIcon(this._wallIcon,x,dx);
          x = this.placeIcon(this._ricochetIcon,x,dx);
