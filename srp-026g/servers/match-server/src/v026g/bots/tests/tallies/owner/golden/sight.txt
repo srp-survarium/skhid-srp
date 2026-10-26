@@ -2,6 +2,7 @@ owner-test sight fire: runs 463 over 35 s held (lengths 1 tick 306 2 101 3-4 53 
   owner-test sight gaps: after runs that ended with the target alive (34 s held), per 100 s held: 1-2 ticks 705.882 3-4 279.412 5-8 161.765 9-20 35.294; pause-sized (3+ ticks) 476.471
   owner-test sight kills: 0 by a gun; fire to kill (first fire tick of the last burst) q1/med/q3 by class none
   owner-test sight lapses: target sights lost 2152 (182.218 a bot-minute): visible 416 range 0 cone 1584 blocked 152; by the target's ping band <20 2152 20-60 0 60-150 0 150+ 0; runs cut by a lapse 0, by band <20 0 20-60 0 60-150 0 150+ 0
+  owner-test sight activity: sight refreshes 0 (0 a bot-minute), hold uses 0 (0 a bot-minute); fire at a hidden target by the age of the break of the line: 0-150 1 150-450 1 450+ 193 never 0
 {
   "sight_cuts_by_ping_band": {
     "150+": 0,
@@ -20,6 +21,14 @@ owner-test sight fire: runs 463 over 35 s held (lengths 1 tick 306 2 101 3-4 53 
     "9-20": 35.294
   },
   "sight_gun_kills": 0,
+  "sight_hidden_fire_by_age": {
+    "0-150": 1,
+    "150-450": 1,
+    "450+": 193,
+    "never": 0
+  },
+  "sight_hold_uses": 0,
+  "sight_hold_uses_per_min": 0.0,
   "sight_lapse_causes": {
     "blocked": 152,
     "cone": 1584,
@@ -40,6 +49,8 @@ owner-test sight fire: runs 463 over 35 s held (lengths 1 tick 306 2 101 3-4 53 
   },
   "sight_pause_gaps_per_100s_held": 476.471,
   "sight_presses_per_kill_by_class": {},
+  "sight_refreshes": 0,
+  "sight_refreshes_per_min": 0.0,
   "sight_run_ends": {
     "not_run": 453,
     "target_died": 10

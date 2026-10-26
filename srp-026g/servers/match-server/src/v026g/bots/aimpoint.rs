@@ -980,8 +980,14 @@ mod tests {
         use crate::v026g::bots::sense::{RayBudget, sense};
         use crate::v026g::bots::tuning::CheatTuning;
         let aim = AimTuning::default();
-        let senses = SenseTuning::default();
-        let (mut memory, mut reflex) = (Memory::default(), Reflex::default());
+        // The sight refresh on: these are its tests.
+        let senses = SenseTuning {
+            sight_refresh: true,
+            ..SenseTuning::default()
+        };
+        let mut memory = Memory::default();
+        memory.set_sight_window(crate::v026g::bots::know::SightWindow::refreshed());
+        let mut reflex = Reflex::default();
         let mut rng = Rng::new(5);
         let mut fought = Fought {
             ticks: Vec::new(),

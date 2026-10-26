@@ -47,15 +47,17 @@ impl Bots {
             tactics,
             tuning: &tuning,
         };
-        // A poll that binds (a late one has six or seven thinks due) shares
+        // With the sight refresh: a poll that binds (a late one has six or seven thinks due) shares
         // its rays among them, not by bot index (`sense::fair_share`).
-        let thinks_left = rays.thinks_left;
-        rays.thinks_left = thinks_left.saturating_sub(1);
-        rays.allow(sense::fair_share(
-            rays.left,
-            thinks_left,
-            sense::think_most(tuning.sense.battery_rays),
-        ));
+        if tuning.sense.sight_refresh {
+            let thinks_left = rays.thinks_left;
+            rays.thinks_left = thinks_left.saturating_sub(1);
+            rays.allow(sense::fair_share(
+                rays.left,
+                thinks_left,
+                sense::think_most(tuning.sense.battery_rays),
+            ));
+        }
         let sensed = sense(&due, bot, rays);
         let state = &mut self.teams[team];
         let percepts = share(&due, bot, state, &self.tracker, sensed);
@@ -217,15 +219,25 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         tactics,
         tuning,
     } = *due;
-    // The sights it has are looked at again first, then the enemies it has
-    // not looked at the longest (research B5).
     let enemies: Vec<Place> = view.enemies_of(bot.team).map(|p| p.place).collect();
     let live: Vec<(Place, u32)> = bot.memory.live_sights().collect();
-    let order = sense::look_order(
-        &enemies,
-        |who| live.iter().any(|&(live, _)| live == who),
-        |who| bot.tested.get(who).copied().unwrap_or(0),
-    );
+    let order = if tuning.sense.sight_refresh {
+        // The sights it has are looked at again first, then the enemies it has
+        // not looked at the longest (research B5).
+        sense::look_order(
+            &enemies,
+            |who| live.iter().any(|&(live, _)| live == who),
+            |who| bot.tested.get(who).copied().unwrap_or(0),
+        )
+    } else {
+        // As before the refresh: the order turns each think, so no enemy waits long for a ray.
+        let mut order = enemies;
+        if !order.is_empty() {
+            let k = (now / 100) as usize % order.len();
+            order.rotate_left(k);
+        }
+        order
+    };
     let (percepts, looks) = sense::sense_looks(
         me,
         view,
@@ -246,7 +258,9 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
             bot.tested[who] = now;
         }
     }
-    tell_looks(&mut bot.memory, &live, &looks, view, me.feet);
+    if tuning.sense.sight_refresh {
+        tell_looks(&mut bot.memory, &live, &looks, view, me.feet);
+    }
     let quiet = percepts.is_empty() && bot.memory.all_seen(now, view.clock).is_empty();
     Sensed { percepts, quiet }
 }
@@ -792,6 +806,7 @@ mod phase_tests {
     /// Two enemies seen at 1 s, neither the target.
     fn two_sights() -> Memory {
         let mut memory = Memory::default();
+        memory.set_sight_window(know::SightWindow::refreshed());
         let seen = |who| Percept {
             who,
             at: Vec3::new(0.0, 0.0, 20.0),

@@ -250,9 +250,19 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
         set(&mut tuning, "/hazard/escape", (v != "0").into());
     }
-    // How long a sight that is not the target's is held with no test (`CheatTuning`).
+    // The sight refresh, all of it (`SenseTuning::sight_refresh`, off by default) with the hold of the cheat
+    // (`CheatTuning::sight_hold_ms`: 450 to the bot's next think); `SRP_BENCH_SIGHT_HOLD` then picks another
+    // hold: `think` (that one), `0` (none) or a fixed number of ms (the A/B of 250 and 450).
+    if settings.var("SRP_BENCH_SIGHT_REFRESH").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/sense/sight_refresh", true.into());
+        set(&mut tuning, "/cheats/sight_hold_ms", super::know::SIGHT_HOLD_MS.into());
+    }
     match settings.var("SRP_BENCH_SIGHT_HOLD").as_deref() {
-        Ok("think") | Err(_) => {}
+        Err(_) => {}
+        Ok("think") => {
+            set(&mut tuning, "/cheats/sight_hold_ms", super::know::SIGHT_HOLD_MS.into());
+            set(&mut tuning, "/cheats/sight_hold_to_next_think", true.into());
+        }
         Ok(ms) => {
             let ms: u32 = ms.parse().expect("SRP_BENCH_SIGHT_HOLD: think or ms");
             set(&mut tuning, "/cheats/sight_hold_ms", ms.into());
@@ -1860,6 +1870,33 @@ mod tuning_tests {
 
     fn settings(pairs: &[(&str, &str)]) -> BenchSettings {
         BenchSettings::from_pairs(pairs)
+    }
+
+    /// The sight refresh is off with no setting, and `SRP_BENCH_SIGHT_REFRESH` turns all of it on and nothing
+    /// else: the switch and the hold of 450 ms to the next think; `SRP_BENCH_SIGHT_HOLD` then picks the hold.
+    #[test]
+    fn the_sight_refresh_setting_turns_all_of_it_on_and_nothing_else() {
+        let off = tuning_from(&settings(&[]), false);
+        assert!(!off.sense.sight_refresh);
+        assert_eq!(off.cheats.sight_hold_ms, 0);
+        assert_eq!(off, Tuning::default());
+        let hold = super::super::know::SIGHT_HOLD_MS;
+        let mut on = Tuning::default();
+        on.sense.sight_refresh = true;
+        on.cheats.sight_hold_ms = hold;
+        for value in ["1", "on"] {
+            assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", value)]), false), on);
+        }
+        assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "0")]), false), off);
+        let with_hold = |hold: &str| {
+            tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "1"), ("SRP_BENCH_SIGHT_HOLD", hold)]), false).cheats
+        };
+        assert_eq!((with_hold("250").sight_hold_ms, with_hold("250").sight_hold_to_next_think), (250, false));
+        assert_eq!((with_hold("think").sight_hold_ms, with_hold("think").sight_hold_to_next_think), (hold, true));
+        assert_eq!(with_hold("0").sight_hold_ms, 0);
+        // The patch can name the same switches.
+        let patched = settings(&[("SRP_BENCH_TUNING", r#"{"sense":{"sight_refresh":true},"cheats":{"sight_hold_ms":450}}"#)]);
+        assert_eq!(tuning_from(&patched, false), on);
     }
 
     /// Every older switch gives the tuning it gave, for team 0 and for team 1.

@@ -98,6 +98,15 @@ pub struct SenseTuning {
     /// Timed batteries: a station's spawner seen this long ago is worth a
     /// look again, ms.
     pub spawner_recheck_ms: u32,
+    /// The sight refresh as a whole, **off by default: with it off the bots are the tip's** (a sight is
+    /// stamped with the poll clock and read on the tick clock for 400 ms after the think that sensed it, by
+    /// that think alone; the enemies in view take the poll's rays and a poll's order turns; no look, grace or
+    /// hold is used). On: one information clock for every sight (`MatchView::clock`), the target's sight
+    /// refreshed by the aim's own look every 100 ms, a failed look ending a sight only after
+    /// `sight_grace_ms`, an untested one kept to `sight_untested_ms`, the enemies in view tested outside the
+    /// poll's rays, a binding poll's rays shared by `fair_share`, and the hold below when set
+    /// (`CheatTuning::sight_hold_ms`). `SRP_BENCH_SIGHT_REFRESH=1` is the one bench setting for all of it.
+    pub sight_refresh: bool,
     /// A sight no look has tested goes on this long, ms on the information
     /// clock (`know::SIGHT_UNTESTED_MS`): the longest think gap and a tick.
     pub sight_untested_ms: u32,
@@ -143,6 +152,7 @@ impl Default for SenseTuning {
             battery_rays: 3,
             battery_moved_m: 0.2,
             spawner_recheck_ms: 45_000,
+            sight_refresh: false,
             sight_untested_ms: crate::v026g::bots::know::SIGHT_UNTESTED_MS,
             sight_grace_ms: crate::v026g::bots::know::SIGHT_GRACE_MS,
         }
@@ -170,12 +180,13 @@ pub struct CheatTuning {
     pub hearing: f32,
     /// The forgetting time instead of the sense's.
     pub forget_ms: u32,
-    /// An enemy that is not the target and was seen at a test stays seen
+    /// With `SenseTuning::sight_refresh` on, an enemy that is not the target and was seen at a test stays seen
     /// with no test, at the last tested place only (never his live one):
     /// what a player has of an enemy he saw a moment ago, in place of a
     /// look at every non-target at every tick. At most this long, ms on
     /// the information clock, and at most `SenseTuning::sight_untested_ms`
-    /// (validated: not above 450). It is the test that is the sampling
+    /// (validated: not above 450); **0 (off) by default**, 450 in the one bench setting that turns the
+    /// refresh on. It is the test that is the sampling
     /// interval, not a human's memory: a hold shorter than the longest
     /// think gap and a tick (450) blanks a visible enemy for the rest of
     /// the gap (250 did: the camper's visible-but-no-target time rose); the
@@ -197,7 +208,7 @@ impl Default for CheatTuning {
             radar_every_ms: 5_000,
             hearing: 1.25,
             forget_ms: 5_000,
-            sight_hold_ms: crate::v026g::bots::know::SIGHT_HOLD_MS,
+            sight_hold_ms: 0,
             sight_hold_to_next_think: true,
         }
     }

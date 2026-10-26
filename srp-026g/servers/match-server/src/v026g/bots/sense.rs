@@ -283,6 +283,18 @@ pub fn sense_looks(
         if enemy.team == me.team {
             continue;
         }
+        if !tuning.sight_refresh {
+            // As before the refresh: an enemy in the view and in range is tested with the rays of the
+            // poll's budget, and a refusal is a negative; no look is told.
+            if !enemy.alive || !enemy.present || reach(me, enemy, tuning).is_err() {
+                continue;
+            }
+            let eye = me.eye();
+            if super::aimpoint::any_part_visible(eye, enemy, sight, || rays.take(me.place, me.team)) {
+                out.push(seen_percept(enemy, view));
+            }
+            continue;
+        }
         if !enemy.alive || !enemy.present {
             looks.push((who, LookOutcome::Failed(Miss::Dead)));
             continue;
@@ -302,14 +314,7 @@ pub fn sense_looks(
         rays.exempt += LOOK_RAYS - own.left;
         looks.push((who, outcome));
         if outcome == LookOutcome::Seen {
-            out.push(Percept {
-                who,
-                at: enemy.feet,
-                error_m: 0.0,
-                time: view.clock,
-                source: Source::Seen,
-                busy: enemy.speed() > 1.0 || enemy.keys & crate::v026g::drive::key::FIRE != 0,
-            });
+            out.push(seen_percept(enemy, view));
         }
     }
     let hearing = cheats.hearing.max(1.0);
@@ -384,6 +389,18 @@ pub fn sense_looks(
         }
     }
     (out, looks)
+}
+
+/// The percept of an enemy found by a ray test at `view`'s clock.
+fn seen_percept(enemy: &PlaceView, view: &MatchView) -> Percept {
+    Percept {
+        who: enemy.place,
+        at: enemy.feet,
+        error_m: 0.0,
+        time: view.clock,
+        source: Source::Seen,
+        busy: enemy.speed() > 1.0 || enemy.keys & crate::v026g::drive::key::FIRE != 0,
+    }
 }
 
 /// Where a lying battery is looked at, metres over its position: the top
@@ -640,14 +657,30 @@ mod tests {
         assert_eq!((percepts[0].who, percepts[0].source), (1, Source::Seen));
         assert_eq!((percepts[1].who, percepts[1].source), (2, Source::Heard));
         assert!(percepts[1].error_m > 0.0 && percepts[1].busy);
-        // No rays left in the poll: an enemy in view is tested all the same
-        // (outside the budget, counted apart), and nothing is starved.
+        // No rays left in the poll, the refresh off (the default, the tip's): nothing is seen, and the
+        // refusals are counted.
         let mut none = RayBudget::new(0);
         let percepts = sense(
             &me,
             &view,
             &sight,
             &SenseTuning::default(),
+            &CheatTuning::default(),
+            500,
+            &[1, 2],
+            &mut none,
+            &mut Rng::new(1),
+        );
+        assert!(percepts.iter().all(|p| p.source != Source::Seen));
+        assert_eq!((none.left, none.starved() > 0, none.exempt), (0, true, 0));
+        // With the refresh an enemy in view is tested all the same (outside the budget, counted apart),
+        // and nothing is starved.
+        let mut none = RayBudget::new(0);
+        let percepts = sense(
+            &me,
+            &view,
+            &sight,
+            &refreshed(),
             &CheatTuning::default(),
             500,
             &[1, 2],
@@ -1080,6 +1113,14 @@ mod tests {
         assert!(!in_view(Vec3::ZERO, 0.0, Vec3::new(0.0, 0.0, -5.0), 90.0));
     }
 
+    /// The senses with the sight refresh on (it is off by default).
+    fn refreshed() -> SenseTuning {
+        SenseTuning {
+            sight_refresh: true,
+            ..SenseTuning::default()
+        }
+    }
+
     fn enemy_ahead(z: f32) -> PlaceView {
         place(1, 1, Vec3::new(0.0, 0.0, z), 0.0)
     }
@@ -1265,7 +1306,7 @@ mod tests {
                 &me,
                 &view,
                 &wall(),
-                &SenseTuning::default(),
+                &refreshed(),
                 &CheatTuning::default(),
                 0,
                 &order,
@@ -1283,7 +1324,7 @@ mod tests {
             &me,
             &view,
             &RayTree::build(&[]),
-            &SenseTuning::default(),
+            &refreshed(),
             &CheatTuning::default(),
             0,
             &order,
@@ -1330,7 +1371,7 @@ mod tests {
                 &me,
                 &view,
                 sight,
-                &SenseTuning::default(),
+                &refreshed(),
                 &CheatTuning::default(),
                 0,
                 &[1, 2, 3, 4, 5],

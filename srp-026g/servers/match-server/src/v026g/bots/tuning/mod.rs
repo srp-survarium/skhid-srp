@@ -245,7 +245,10 @@ mod tests {
         // The defaults are at the caps, and a longer think gap moves them.
         let at_the_cap = Tuning::default();
         assert_eq!(at_the_cap.sense.sight_untested_ms, at_the_cap.think.think_ms.1 + 50);
-        assert_eq!(at_the_cap.cheats.sight_hold_ms, at_the_cap.sense.sight_untested_ms);
+        // The refresh and the hold are off by default; the hold of the alias is at the cap too.
+        assert!(!at_the_cap.sense.sight_refresh);
+        assert_eq!(at_the_cap.cheats.sight_hold_ms, 0);
+        assert_eq!(crate::v026g::bots::know::SIGHT_HOLD_MS, at_the_cap.sense.sight_untested_ms);
         assert!(wrong(|t| t.sense.sight_untested_ms = 450).is_ok());
         assert!(wrong(|t| t.sense.sight_untested_ms = 451).is_err());
         assert!(

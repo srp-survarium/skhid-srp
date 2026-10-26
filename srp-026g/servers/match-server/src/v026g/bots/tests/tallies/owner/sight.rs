@@ -63,7 +63,21 @@ pub(super) struct SightCounts {
     lapses_by_band: [u32; PING_BANDS],
     /// Runs ended by a sight lapse, by the target's ping band.
     cuts_by_band: [u32; PING_BANDS],
+    /// By place: the target and the last tick the truth (the stand-in's bullet mesh from the eye to the
+    /// chest or the head, as `fire_hidden` tests) had a line to him.
+    clear: Vec<Option<(Place, u32)>>,
+    /// Fire ticks at a target with no line, by the age of the break: up to 150 ms, up to 450, over 450,
+    /// never a line since the bot took him ([`AGES`]).
+    hidden_by_age: [u32; 4],
+    /// By place: the bot's memory counts read last (the sight refreshes, the hold uses), and the sums
+    /// (a count that goes down is a new memory: the new total is all new).
+    memory_seen: Vec<(u32, u32)>,
+    refreshes: u64,
+    hold_uses: u64,
 }
+
+/// The age buckets of the break of the line to a target fired at ([`SightCounts::hidden_by_age`]).
+const AGES: [&str; 4] = ["0-150", "150-450", "450+", "never"];
 
 /// A fire run under way.
 #[derive(Clone, Copy, Debug)]
@@ -82,6 +96,8 @@ impl SightCounts {
             after: vec![None; n],
             gates: vec![VecDeque::new(); n],
             now_gates: vec![Gates::default(); n],
+            clear: vec![None; n],
+            memory_seen: vec![(0, 0); n],
             last_kill: vec![None; n],
             target_was: vec![None; n],
             range_m: 150.0,
@@ -100,6 +116,13 @@ impl Topic for SightCounts {
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         if let Some(gates) = self.now_gates.get_mut(place) {
             *gates = bot.map_or_else(Gates::default, |bot| bot.reflex.gates());
+        }
+        if let (Some(bot), Some(seen)) = (bot, self.memory_seen.get_mut(place)) {
+            let (refreshes, holds) = (bot.memory.refreshes(), bot.memory.hold_uses());
+            let new = |now: u32, before: u32| u64::from(if now >= before { now - before } else { now });
+            self.refreshes += new(refreshes, seen.0);
+            self.hold_uses += new(holds, seen.1);
+            *seen = (refreshes, holds);
         }
     }
 
@@ -214,6 +237,7 @@ impl SightCounts {
         let tick = game.tick;
         let class = body.gun.class();
         let firing = body.alive && body.keys & key::FIRE != 0;
+        self.hidden_age(game, place, body, sight, firing);
         let gates = &mut self.gates[place];
         if gates.back().is_none_or(|&(at, _)| at != now.at) {
             gates.push_back((now.at, now.bits));
@@ -266,6 +290,34 @@ impl SightCounts {
             self.lapses_by_band[self.sight_band(was)] += 1;
         }
         self.target_was[place] = target;
+    }
+
+    /// The line to the target of the body at `place` this tick, by the truth of the stand-in (the test of
+    /// `fire_hidden`, its rays not counted): the last tick it held, and, on a tick of fire at a target with
+    /// no line, how long ago that was.
+    fn hidden_age(&mut self, game: &Game, place: Place, body: &super::super::Body, sight: &mapdata::RayTree, firing: bool) {
+        let Some((target, him)) = body
+            .target
+            .filter(|_| body.alive)
+            .and_then(|t| enemy_of(game, place, body.team, t).map(|him| (t, him)))
+        else {
+            return;
+        };
+        let mut spare = 0u64;
+        if in_sight(sight, body, him, f32::INFINITY, &mut spare) {
+            self.clear[place] = Some((target, game.tick));
+        } else if firing {
+            let ago = self.clear[place]
+                .filter(|&(was, _)| was == target)
+                .map(|(_, at)| game.tick - at);
+            let bucket = match ago {
+                Some(ms) if ms <= 150 => 0,
+                Some(ms) if ms <= 450 => 1,
+                Some(_) => 2,
+                None => 3,
+            };
+            self.hidden_by_age[bucket] += 1;
+        }
     }
 
     /// The ping band of `place` (the bench's ping for it, none: the lowest).
@@ -451,10 +503,16 @@ impl SightCounts {
             "sight_lapse_causes_per_min": by_cause_min,
             "sight_lapses_by_ping_band": by_band(&s.lapses_by_band),
             "sight_cuts_by_ping_band": by_band(&s.cuts_by_band),
+            "sight_refreshes": s.refreshes,
+            "sight_refreshes_per_min": scale.per_min(s.refreshes as f64),
+            "sight_hold_uses": s.hold_uses,
+            "sight_hold_uses_per_min": scale.per_min(s.hold_uses as f64),
+            "sight_hidden_fire_by_age": AGES.iter().copied().zip(s.hidden_by_age).collect::<BTreeMap<_, _>>(),
         });
         let list = |parts: Vec<String>| if parts.is_empty() { "none".to_owned() } else { parts.join(" ") };
         let text = format!(
-            "owner-test sight fire: runs {runs} over {held_s:.0} s held (lengths 1 tick {} 2 {} 3-4 {} 5+ {}); ended by {}\n  owner-test sight gaps: after runs that ended with the target alive ({held_alive_s:.0} s held), per 100 s held: 1-2 ticks {} 3-4 {} 5-8 {} 9-20 {}; pause-sized (3+ ticks) {pause_per_100}\n  owner-test sight kills: {kills_n} by a gun; fire to kill (first fire tick of the last burst) q1/med/q3 by class {}\n  owner-test sight lapses: target sights lost {lapses} ({} a bot-minute): {}; by the target's ping band {}; runs cut by a lapse {cuts}, by band {}",
+            "owner-test sight fire: runs {runs} over {held_s:.0} s held (lengths 1 tick {} 2 {} 3-4 {} 5+ {}); ended by {}\n  owner-test sight gaps: after runs that ended with the target alive ({held_alive_s:.0} s held), per 100 s held: 1-2 ticks {} 3-4 {} 5-8 {} 9-20 {}; pause-sized (3+ ticks) {pause_per_100}\n  owner-test sight kills: {kills_n} by a gun; fire to kill (first fire tick of the last burst) q1/med/q3 by class {}\n  owner-test sight lapses: target sights lost {lapses} ({} a bot-minute): {}; by the target's ping band {}; runs cut by a lapse {cuts}, by band {}
+  owner-test sight activity: sight refreshes {} ({} a bot-minute), hold uses {} ({} a bot-minute); fire at a hidden target by the age of the break of the line: {}",
             s.lengths[0],
             s.lengths[1],
             s.lengths[2],
@@ -469,6 +527,11 @@ impl SightCounts {
             list(CAUSES.iter().zip(s.lapses).map(|(name, n)| format!("{name} {n}")).collect()),
             list(BAND_NAMES.iter().zip(s.lapses_by_band).map(|(name, n)| format!("{name} {n}")).collect()),
             list(BAND_NAMES.iter().zip(s.cuts_by_band).map(|(name, n)| format!("{name} {n}")).collect()),
+            s.refreshes,
+            scale.per_min(s.refreshes as f64),
+            s.hold_uses,
+            scale.per_min(s.hold_uses as f64),
+            list(AGES.iter().zip(s.hidden_by_age).map(|(name, n)| format!("{name} {n}")).collect()),
         );
         Part::new(json, text)
     }
@@ -554,4 +617,34 @@ fn a_target_dropped_in_the_open_is_visible_and_one_behind_the_wall_is_blocked() 
     assert_eq!(json["sight_target_lapses"], 2, "{json}");
     assert_eq!(json["sight_lapse_causes"]["blocked"], 1);
     assert_eq!(json["sight_lapse_causes"]["visible"], 1);
+}
+
+#[test]
+fn fire_at_a_hidden_target_is_counted_by_the_age_of_the_break_of_the_line() {
+    // The soak field's wall stands at x = 40 for z < 25. Body 1 is in the open for ten ticks, then
+    // behind the wall; body 0 fires at him from tick 5. Body 3 is behind the wall all along; body 2
+    // fires at him for ticks 5 to 10.
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
+    play(&mut game, &mut tally, 40, |k, game| {
+        let tick = k + 1;
+        put(game, 0, 30.0, 10.0, if tick >= 5 { key::FIRE } else { 0 });
+        put(game, 1, if tick <= 10 { 35.0 } else { 50.0 }, 10.0, 0);
+        put(game, 2, 30.0, 14.0, if (5..=10).contains(&tick) { key::FIRE } else { 0 });
+        put(game, 3, 50.0, 14.0, 0);
+        game.bodies[0].yaw = yaw_of([1.0, 0.0]);
+        game.bodies[2].yaw = yaw_of([1.0, 0.0]);
+        game.bodies[0].target = Some(1);
+        game.bodies[2].target = Some(3);
+        vec![bot_now(); 4]
+    });
+    let (_, json) = tally.finish(&game);
+    // Body 1 is hidden from tick 11: 50, 100 and 150 ms after the last tick with a line (the first
+    // bucket), 200 to 450 ms (the second), then over 450 ms; body 3 never was in line.
+    assert_eq!(
+        json["sight_hidden_fire_by_age"],
+        serde_json::json!({"0-150": 3, "150-450": 6, "450+": 21, "never": 6}),
+        "{json}"
+    );
+    // The tally of the fight is the same fire: the buckets are its `fire_hidden`.
+    assert_eq!(json["fire_hidden"], 36, "{json}");
 }

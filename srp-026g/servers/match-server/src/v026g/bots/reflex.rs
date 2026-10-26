@@ -2546,7 +2546,7 @@ impl Reflex {
     ) -> Option<SeenTrack> {
         memory.seen(target, now, sight_now).or_else(|| {
             self.retaken
-                .then(|| memory.in_sight(target, sight_now))
+                .then(|| memory.in_sight(target, now, sight_now))
                 .flatten()
         })
     }
@@ -2780,7 +2780,9 @@ impl Reflex {
         self.new_life(me);
         memory.set_sight_target(self.target);
         let looked = self.sight.update(me, self.target, view, world, now);
-        self.sight_tick(me, view, memory, sense, looked);
+        if sense.sight_refresh {
+            self.sight_tick(me, view, memory, sense, looked);
+        }
     }
 
     /// The target's sight at this tick, told to the memory
@@ -4375,7 +4377,7 @@ impl Reflex {
             && self.target.is_none()
             && let Some((who, _)) = self.lost.filter(|(_, at)| now <= at + c.aim_carry_ms)
             && memory
-                .in_sight(who, view.clock)
+                .in_sight(who, now, view.clock)
                 .is_some_and(|t| t.at().distance_xz(me.feet) <= aim.range_m)
         {
             self.retake(who);
@@ -5503,7 +5505,7 @@ mod tests {
                 reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
             }
             view.clock = now;
-        reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             now += 50;
         }
         assert_eq!(reflex.target(), Some(1));
@@ -5512,7 +5514,7 @@ mod tests {
         while now < lost_at + 500 {
             sense(&mut memory, &[], now);
             view.clock = now;
-        reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             now += 50;
         }
         assert_eq!(reflex.target(), None);
