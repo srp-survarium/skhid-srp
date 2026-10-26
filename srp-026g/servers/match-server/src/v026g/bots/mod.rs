@@ -160,12 +160,34 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
+    lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// Which reflex play had the legs at that tick (the falls probe).
+    #[cfg(test)]
+    pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
+    /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
+    #[cfg(test)]
+    pub(crate) bench_stepped: u8,
+    /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
+    #[cfg(test)]
+    pub(crate) bench_guard: u8,
+    #[cfg(test)]
+    pub(crate) bench_guard_dbg: u8,
+    /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
+    #[cfg(test)]
+    pub(crate) bench_walk: u8,
+    /// The velocity and feet the last guard check was made from.
+    #[cfg(test)]
+    pub(crate) bench_guard_at: ([f32; 2], Vec3),
+    /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
+    #[cfg(test)]
+    pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
@@ -317,8 +339,23 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_legs_why: None,
+            #[cfg(test)]
+            bench_stepped: 0,
+            #[cfg(test)]
+            bench_guard: 0,
+            #[cfg(test)]
+            bench_guard_dbg: 0,
+            #[cfg(test)]
+            bench_walk: 0,
+            #[cfg(test)]
+            bench_guard_at: ([0.0; 2], Vec3::ZERO),
+            #[cfg(test)]
+            bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
             #[cfg(test)]

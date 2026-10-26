@@ -121,6 +121,11 @@ pub struct Feel {
     pub hop_every_s: f32,
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
+    /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
+    /// to a stop on a lip's floors; 0 is off (the default: it is switched on by the bench's trains).
+    pub lip_guard_ticks: u32,
+    /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
+    pub lip_look_ahead_m: f32,
 }
 
 impl Default for Feel {
@@ -151,6 +156,8 @@ impl Default for Feel {
             hop_max_turn: 0.35,
             hop_every_s: 4.0,
             hop_after_jump_s: 2.0,
+            lip_guard_ticks: 0,
+            lip_look_ahead_m: 0.0,
         }
     }
 }
@@ -357,6 +364,9 @@ pub struct Motor {
     /// (the play's own, else [`Feel::arrive_m`]). Cleared each tick before the
     /// walk sets it.
     pub exact_end: Option<f32>,
+    /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
+    /// lip's floors, where a line to a point further on cuts a corner over the rim).
+    pub ahead_cap: Option<f32>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -457,6 +467,7 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: None,
+            ahead_cap: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -620,6 +631,7 @@ impl Motor {
             None => {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
+                ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
@@ -766,7 +778,7 @@ impl Motor {
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
-                let mut ahead = self.feel.look_ahead_m;
+                let mut ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
@@ -1283,7 +1295,7 @@ pub fn keys_toward(relative: f32) -> u32 {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1303,6 +1315,11 @@ pub mod counts {
 
     pub fn side_step(clear: bool) {
         add(if clear { 4 } else { 5 });
+    }
+
+    /// The lip guard: a tick's keys changed to ones that stop on the floor, and one with none that does.
+    pub fn lip_guard(changed: bool) {
+        add(if changed { 6 } else { 7 });
     }
 
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
@@ -1327,8 +1344,8 @@ pub mod counts {
     }
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
-    /// steps clear, side steps refused).
-    pub fn counts() -> [u64; 6] {
+    /// steps clear, side steps refused, lip guard changed, lip guard none).
+    pub fn counts() -> [u64; 8] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1686,6 +1703,26 @@ mod tests {
         let (decision, walked) = motor.walk(&mut walk, &facing_x(Vec3::ZERO), 5.0, |_| true);
         assert_eq!(walked, Walked::Arrived);
         assert_eq!(decision.keys & key::JUMP, 0);
+    }
+
+    /// A cap on the look-ahead (on a lip's floors) keeps the walk to the leg it is on: a corner 0.5 m on is
+    /// turned at, not cut by a heading to a point past it.
+    #[test]
+    fn a_capped_look_ahead_turns_at_the_corner_not_across_it() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let corner = || Route::new(vec![p(0.0, 0.0), p(3.0, 0.0), p(3.0, 4.0)]);
+        let pose = Pose { feet: Vec3::new(2.5, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let heading = |cap: Option<f32>| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.ahead_cap = cap;
+            let (decision, walked) = motor.walk(&mut corner(), &pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0.abs()
+        };
+        // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
+        // the corner's, straight ahead.
+        assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
     }
 
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
