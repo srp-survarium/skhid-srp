@@ -233,8 +233,8 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     it names, stores nothing but on its stack; no relocation under a site
     and nothing aims inside one. Its camera before the start
     (warmup_look_026g.asm at WARMUP_LOOK_OFFSET, warmup_limits_026g.asm
-    at WARMUP_LIMITS_OFFSET and warmup_keys_026g.asm at WARMUP_KEYS_OFFSET,
-    check 15's layout): the game world's input
+    at WARMUP_LIMITS_OFFSET, check 15's layout; the keys the Rust patch
+    warmup_keys): the game world's input
     handler's on_mouse_move (0x25D0E0, its vtable 0x9FC588's +0Ch,
     priority 7) jumps to warmup_look with five nops where it began, and
     process_warmup_mode's store of the pitch (0x24225E) calls
@@ -576,10 +576,7 @@ def test_bins():
     for source, defines, path in (
             ("warmup_look_026g.asm", [f"-DCAVE={P.WARMUP_LOOK_VA:#x}", f"-DSTATE={state:#x}",
                                       f"-DLIMITS={P.WARMUP_LIMITS_VA:#x}"], P.warmup_look_bin()),
-            ("warmup_limits_026g.asm", [f"-DCAVE={P.WARMUP_LIMITS_VA:#x}"], P.warmup_limits_bin()),
-            ("warmup_keys_026g.asm", [f"-DCAVE={P.WARMUP_KEYS_VA:#x}",
-                                      f"-DSTATE={state - P.WARMUP_LOOK_STATE_OFFSET + P.WARMUP_KEYS_STATE_OFFSET:#x}"],
-             P.warmup_keys_bin())):
+            ("warmup_limits_026g.asm", [f"-DCAVE={P.WARMUP_LIMITS_VA:#x}"], P.warmup_limits_bin())):
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "out.bin")
             subprocess.run([tool("nasm"), "-f", "bin", *defines, os.path.join(HERE, source), "-o", out],
@@ -1459,8 +1456,7 @@ def late_join_sites():
          ] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
-        [(P.WARMUP_LOOK_HOOK[0], len(P.WARMUP_LOOK_HOOK[1])), (P.WARMUP_LIMITS_HOOK[0], len(P.WARMUP_LIMITS_HOOK[1])),
-         (P.WARMUP_KEYS_HOOK[0], len(P.WARMUP_KEYS_HOOK[1]))] + \
+        [(P.WARMUP_LOOK_HOOK[0], len(P.WARMUP_LOOK_HOOK[1])), (P.WARMUP_LIMITS_HOOK[0], len(P.WARMUP_LIMITS_HOOK[1]))] + \
         [(P.READ_ORDER_VA, 6)] + \
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
@@ -3379,19 +3375,17 @@ def test_warmup_look(original, image, before):
 
 def test_warmup_keys(original, image, before):
     """Check 32 (continued): a mouse button held from before the start is
-    not the player's until it is let go (WARMUP_KEYS_*).
-    check_kit_change_026g.py runs the code on made-up events."""
+    not the player's until it is let go (the Rust patch warmup_keys, a
+    lohook at 0x25CF60, sites_026g.tsv warmup_keys.mouse_key).
+    check_kit_change_026g.py and check_warmup_keys_026g.py run it on made-up
+    events."""
     stock = Image(original)
     texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
     slot = lambda vt, at: struct.unpack("<I", stock.read(vt + at, 4))[0]
-    va, old, offset, opcode = P.WARMUP_KEYS_HOOK
-    new = P.hook_bytes(P.WARMUP_KEYS_VA, va, old, offset, opcode)
+    va = 0x25CF60
     original_texts = ["push ebp", "push esi", "mov esi,ecx", "mov ecx,[esp+0xc]", "mov eax,[ecx]"]
-    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
-          and texts(stock, va, len(old)) == original_texts
-          and texts(image, va, len(old)) == [f"jmp {P.WARMUP_KEYS_VA:#x}"] + ["nop"] * 5,
-          f"{va:#x}: `{' / '.join(original_texts)}` in the original and the build without the late join, "
-          f"`jmp {P.WARMUP_KEYS_VA:#x}` and 5 nops here")
+    old = stock.read(va, 10)
+    rust_lohooks(original, image, before, "warmup_keys", {va: original_texts}, exits={"ret 0xc"})
     key = texts(stock, 0x25CF60, 0x25D0E0 - 0x25CF60)
     check(slot(0x9FC588, 0x8) == 0x25CF60 and "cmp byte [esi+0x2e0],0x0" in key
           and key.count("mov al,0x1") == 3 and key.count("xor al,al") == 1 and key.count("ret 0xc") == 4
@@ -3420,24 +3414,6 @@ def test_warmup_keys(original, image, before):
           "queues each kind with the action at +98h (0x23FF50), and the play step (0x24128A..0x2421B0) asks "
           "action_present (0x242460) of 35 actions, only three of them for a press: the rest, the weapon's "
           "among them, are taken at a release too")
-    code = open(P.warmup_keys_bin(), "rb").read()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_KEYS_STATE_OFFSET
-    listing = ndisasm(code, P.WARMUP_KEYS_VA)
-    inside = lambda target: P.WARMUP_KEYS_VA <= target < P.WARMUP_KEYS_VA + len(code)
-    starts = {address for address, _, _ in listing}
-    targets = [t for _, _, text in listing if (t := branch_target(text)) is not None and not text.startswith("call")]
-    calls = [text for address, _, text in listing if text.startswith("call")
-             and not (branch_target(text) == address + 5 and text.startswith("call 0x"))]
-    check(image.read(P.WARMUP_KEYS_VA, len(code)) == code
-          and all(t in starts for t in targets if inside(t)) and [t for t in targets if not inside(t)] == [0x25CF6A]
-          and not calls and [text for _, _, text in listing if text.startswith("ret")] == ["ret 0xc"]
-          and not [t for _, _, t in listing if re.search(r"\[(?:dword |byte )?0x", t)]
-          and P.warmup_keys_state(code) == state
-          and P.WARMUP_LOOK_STATE_OFFSET + P.WARMUP_LOOK_STATE_SIZE <= P.WARMUP_KEYS_STATE_OFFSET
-          and P.WARMUP_KEYS_STATE_OFFSET + P.WARMUP_KEYS_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE,
-          f"the code at {P.WARMUP_KEYS_VA:#x} is warmup_keys' .bin ({len(code)} bytes): its branches land on its "
-          f"instructions or leave to 0x25cf6a, it calls nothing, holds no address and keeps its state at {state:#x} "
-          f"(the late join's page +{P.WARMUP_KEYS_STATE_OFFSET:#x}, after the warmup look's)")
     hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
     found = hits[:len(hits) - len(spelled)]
@@ -5878,7 +5854,6 @@ def test_late_join(original, without, server, source):
     # the bytes of its .bin where patch_026g.py puts it, int3 between them.
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
-            (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
             (P.WARMUP_LOOK_OFFSET, P.warmup_look_bin, "the warmup look"),

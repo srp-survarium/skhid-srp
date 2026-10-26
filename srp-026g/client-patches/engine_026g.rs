@@ -2161,3 +2161,27 @@ pub mod mounted_frame {
         unsafe { this.byte_add(0xc).cast() }
     }
 }
+
+/// survarium::mouse_key_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mouse_key_frame {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): on_mouse_key_action's key code (by the site's ESP at 0x25CF60, the function's start): the mouse's buttons 151h + their bit (0x3B9CA0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::mouse_key_frame.
+    #[inline(always)]
+    pub unsafe fn code(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u8): its kind's low byte: 0 down, 1 up, 2 held (vostok::input::platform::mouse::process 0x3B9D90)
+    ///
+    /// # Safety
+    /// `this` is a survarium::mouse_key_frame.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}

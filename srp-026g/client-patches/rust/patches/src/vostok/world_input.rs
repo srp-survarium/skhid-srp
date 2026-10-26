@@ -88,6 +88,66 @@ impl<'t> WorldKey<'t> {
     }
 }
 
+/// A mouse button's event (vostok::input::platform::mouse::process
+/// 0x3B9D90), by its kind's low byte.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseKind {
+    /// 0: gone down.
+    Down,
+    /// 1: let go.
+    Up,
+    /// 2: still held (and any other byte).
+    Held,
+}
+
+/// The mouse's first button's code (0x3B9CA0: 151h + the button's bit).
+const FIRST_BUTTON: u32 = 0x151;
+/// Its buttons, 151h..158h.
+const BUTTONS: u32 = 8;
+
+/// The key `warmup_keys.mouse_key` is told: the game world's
+/// on_mouse_key_action at its start.
+#[derive(Clone, Copy)]
+pub struct MouseKey<'t> {
+    code: u32,
+    kind: u8,
+    shown: bool,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> MouseKey<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> MouseKey<'t> {
+        let frame = ctx.site_esp() as usize as *mut c_void;
+        // SAFETY: the function's arguments (mouse_key_frame, by the site's
+        // ESP); ECX its this, the game world's input handler.
+        unsafe {
+            let shown = Object::at(ctx.reg(Reg::Ecx))
+                .is_some_and(|handler| read(raw::world_input_handler::cursor(handler.ptr())) != 0);
+            MouseKey { code: read(raw::mouse_key_frame::code(frame)), kind: read(raw::mouse_key_frame::kind(frame)),
+                       shown, thread: PhantomData }
+        }
+    }
+
+    /// The mouse's button (0..7), or none (a key of the keyboard's).
+    pub fn button(&self) -> Option<u32> {
+        let button = self.code.wrapping_sub(FIRST_BUTTON);
+        (button < BUTTONS).then_some(button)
+    }
+
+    pub fn kind(&self) -> MouseKind {
+        match self.kind {
+            0 => MouseKind::Down,
+            1 => MouseKind::Up,
+            _ => MouseKind::Held,
+        }
+    }
+
+    /// The hud shows the cursor (the game world takes the mouse's keys).
+    pub fn cursor_shown(&self) -> bool {
+        self.shown
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

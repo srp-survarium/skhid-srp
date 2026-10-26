@@ -650,6 +650,26 @@ pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
 }
 
+// ---- warmup_keys (patch 31) ----
+
+/// The named exits of warmup_keys::on_mouse_key (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WarmupKeysOnMouseKeyExit { Taken }
+/// The entry `warmup_keys_on_mouse_key` (0x25cf60, the game world's on_mouse_key_action 0x25CF60's start (push ebp; push esi; mov esi,ecx; mov ecx,[esp+0Ch]; mov eax,[ecx]; ECX the game world's input handler, [esp+4] the input world, [esp+8] the key's code, [esp+0Ch] its kind); taken: its return, ret 0Ch, EAX not 0 (no handler after it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_warmup_keys_on_mouse_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `warmup_keys_on_mouse_key` calls this, from the game's jump at 0x25cf60,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::warmup_keys::on_mouse_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- weapon_random (patch 18) ----
 
 /// The entry `weapon_random_on_spawn` (0x316ea0, the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi]; mov eax,[edx+20h]; ESI the player, EBP the spawn's time)) calls this with the saved machine.

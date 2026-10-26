@@ -174,3 +174,5 @@ vostok::resources::query_db_frame	callback	0x10	u32	its fifth: the callback (the
 vostok::resources::mounted_frame	holder	0x4	u32	on_mounted_resources' first argument (by the site's ESP at 0x147E0): where the mount is kept
 vostok::resources::mounted_frame	bound	0x8	u32	its second: the start-up's next step
 vostok::resources::mounted_frame	result	0xC	u32	its third: &the mount (0x147E6), 0 a failed mount
+survarium::mouse_key_frame	code	0x8	u32	on_mouse_key_action's key code (by the site's ESP at 0x25CF60, the function's start): the mouse's buttons 151h + their bit (0x3B9CA0)
+survarium::mouse_key_frame	kind	0xC	u8	its kind's low byte: 0 down, 1 up, 2 held (vostok::input::platform::mouse::process 0x3B9D90)

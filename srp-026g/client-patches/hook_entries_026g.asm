@@ -1413,6 +1413,54 @@ global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
 
+; 0x25cf60 the game world's on_mouse_key_action 0x25CF60's start (push ebp; push esi; mov esi,ecx; mov ecx,[esp+0Ch]; mov eax,[ecx]; ECX the game world's input handler, [esp+4] the input world, [esp+8] the key's code, [esp+0Ch] its kind); taken: its return, ret 0Ch, EAX not 0 (no handler after it): lohook -> warmup_keys_on_mouse_key
+global warmup_keys_on_mouse_key
+extern hook_warmup_keys_on_mouse_key
+warmup_keys_on_mouse_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_warmup_keys_on_mouse_key
+    mov edx, warmup_keys_on_mouse_key_replay
+    cmp eax, 0
+    je warmup_keys_on_mouse_key_go
+    mov edx, 0x25cf6a
+    cmp eax, 1
+    je warmup_keys_on_mouse_key_go
+    mov edx, warmup_keys_on_mouse_key_taken
+    cmp eax, 2
+    je warmup_keys_on_mouse_key_go
+    ud2
+warmup_keys_on_mouse_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+warmup_keys_on_mouse_key_replay:
+    db 0x55
+    db 0x56
+    db 0x8b, 0xf1
+    db 0x8b, 0x4c, 0x24, 0x0c
+    db 0x8b, 0x01
+    jmp 0x25cf6a
+warmup_keys_on_mouse_key_taken:
+    ret 0xc
+
 ; 0x316ea0 the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi]; mov eax,[edx+20h]; ESI the player, EBP the spawn's time): lohook -> weapon_random_on_spawn
 global weapon_random_on_spawn
 extern hook_weapon_random_on_spawn

@@ -971,13 +971,21 @@ def main():
                             (bytes.fromhex("83b858030000037416"), bytes.fromhex("83b85803000003eb16"), check_look),
                             (bytes.fromhex("890b83f90876b4"), bytes.fromhex("890b83f908eb00"), check_look),
                             (bytes.fromhex("39d00f4cc2"), bytes.fromhex("39d0909090"), check_limits),
-                            (bytes.fromhex("0fab02"), bytes.fromhex("909090"), check_keys),
-                            (bytes.fromhex("0fb302731c"), bytes.fromhex("0fb302eb1c"), check_keys)):
+                            # the keys, the Rust patch warmup_keys in the arena (its
+                            # handler's code as the lock links it): the mark's `or`
+                            # gone; the held and released buttons' `jnz` to the
+                            # original's made a `jmp`
+                            (bytes.fromhex("89ca09faf7d7"), bytes.fromhex("89ca9090f7d7"), check_keys),
+                            (bytes.fromhex("08cb7525"), bytes.fromhex("08cbeb25"), check_keys)):
         broken = bytearray(patched)
-        _, _, _, raw, size, _ = next(section for section in base.Headers(broken).sections(broken)
-                                     if section[0] == base.SECTION_NAME)
+        sections = {section[0]: section for section in base.Headers(broken).sections(broken)}
+        _, _, _, raw, size, _ = sections[base.SECTION_NAME]
         at = broken.rfind(old, raw, raw + size)    # in `.srp`
-        assert at > raw
+        if at < 0:                                 # in `.srpx`, the arena: there once
+            _, _, _, raw, size, _ = sections[base.ARENA_NAME]
+            at = broken.find(old, raw, raw + size)
+            assert broken.count(old, raw, raw + size) == 1, old.hex()
+        assert at > raw, old.hex()
         broken[at:at + len(old)] = new
         try:
             check(bytes(broken), True)

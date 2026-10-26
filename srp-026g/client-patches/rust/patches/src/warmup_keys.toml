@@ -1,0 +1,12 @@
+# Patch 31, its keys: a mouse button held from before the start is not the
+# player's until it is let go. Only the decisions: which site, and the
+# handler. The site (its VA, span and exit) is sites_026g.tsv's; the key is
+# vostok's (vostok::world_input::MouseKey); the logic is warmup_keys.rs.
+name = "warmup_keys"
+patch = 31
+
+# the game world's on_mouse_key_action: a marked button's held and let go
+# taken while the cursor is not shown
+[[hook]]
+site = "warmup_keys.mouse_key"
+handler = "on_mouse_key"

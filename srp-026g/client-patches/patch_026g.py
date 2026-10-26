@@ -1005,26 +1005,20 @@ WARMUP_LIMITS_VA = SECTION_VA + WARMUP_LIMITS_OFFSET
 WARMUP_DRAG_END_OFFSET, WARMUP_LIMITS_ENTRY_OFFSET = 0, 0x20       # the .asm's two entries
 WARMUP_LIMITS_HOOK = (0x24225E, bytes.fromhex("f30f118650030000"), WARMUP_LIMITS_ENTRY_OFFSET, 0xE8)   # the pitch's store
 # And a mouse button held from before the start is not the player's until it
-# is let go: warmup_keys_026g.asm at WARMUP_KEYS_OFFSET of `.srp` (after the
-# suicide key, before the warmup camera's limits), the buttons marked in a dword at
-# WARMUP_KEYS_STATE_OFFSET of the late join's state page (after the warmup
-# look's). The input world tells its handlers of each button each frame
+# is let go: the Rust patch warmup_keys (rust/patches/src/warmup_keys.toml,
+# sites_026g.tsv warmup_keys.mouse_key; until the Rust port
+# warmup_keys_026g.asm at 0x9A8 of `.srp`, its state at 0xE30 of the late
+# join's state page). The input world tells its handlers of each button each frame
 # until one answers 1 (0x3B9D90): kind 0 and 2 when it goes down, 1 when it
 # is let go, 2 at every frame it stays held; the game world's
 # on_mouse_key_action (0x25CF60) takes them while the cursor is shown, the
 # player's input handler queues each kind with the action (0x23FF50) and its
 # play step takes the weapon's action at any kind (0x242460): a drag of the
 # warmup camera still held at the start fired the weapon at the next frame
-# and again at its release. Its first five instructions (ten bytes) are a
-# jump to warmup_keys and five nops: a button pressed while the cursor is
-# shown is marked, and while the cursor is not shown a marked button's kind
-# 2 and its release are taken there, the release unmarking it. No base
-# relocation under the site.
-WARMUP_KEYS_OFFSET = 0x9A8
-WARMUP_KEYS_VA = SECTION_VA + WARMUP_KEYS_OFFSET
-WARMUP_KEYS_HOOK = (0x25CF60, bytes.fromhex("5556" "8bf1" "8b4c240c" "8b01"), 0, 0xE9)   # on_mouse_key_action: warmup_keys
-WARMUP_KEYS_STATE_OFFSET = 0xE30
-WARMUP_KEYS_STATE_SIZE = 4
+# and again at its release. Its first five instructions (ten bytes) are the
+# lohook: a button pressed while the cursor is shown is marked, and while
+# the cursor is not shown a marked button's kind 2 and its release are taken
+# there, the release unmarking it. No base relocation under the site.
 
 # The camera on the death screen (patch 46, README; client_patch.md section
 # 3.43; the rules: docs/notes/death-camera.md). A death leaves the player's
@@ -2180,7 +2174,6 @@ INSTALLS = {
     0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
     0x25D0E0: (ENTRY, "the game world's on_mouse_move: death_look, then warmup_look", None, None),
     0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
-    0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
     0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
@@ -3189,19 +3182,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > WARMUP_LOOK_STATE_OFFSET \
                 or WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the warmup look's state is not between the weapon preview's and the page's end")
-        warmup_keys = open(warmup_keys_bin(), "rb").read()
-        # warmup_keys begins `mov eax,[esp+8]` and ends with the ten bytes it
-        # replaced and the jump back.
-        tail = WARMUP_KEYS_HOOK[1] + b"\xE9" + struct.pack(
-            "<i", WARMUP_KEYS_HOOK[0] + len(WARMUP_KEYS_HOOK[1]) - (WARMUP_KEYS_VA + len(warmup_keys)))
-        if warmup_keys[:4] != bytes.fromhex("8b442408") or not warmup_keys.endswith(tail) \
-                or warmup_keys_state(warmup_keys) != late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:
-            sys.exit(f"warmup_keys_026g.section.bin: its entry, its end or its state are not where patch_026g.py "
-                     f"puts them (assembled with -DCAVE={WARMUP_KEYS_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:#x}?)")
-        if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > WARMUP_KEYS_STATE_OFFSET \
-                or WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the warmup keys' state is not between the warmup look's and the page's end")
         # Patch 46: the mouse move's jump goes to death_look, which goes on
         # to warmup_look; update_camera's call of the view's update calls
         # death_view.
@@ -3224,7 +3204,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("the death camera's state is not between the FOV LOD scale's and the page's end")
         for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, death_va + DEATH_LOOK_OFFSET),
                                                      (WARMUP_LIMITS_HOOK, WARMUP_LIMITS_VA),
-                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA),
                                                      (DEATH_VIEW_HOOK, death_va)):
             patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -3271,15 +3250,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
-        if WARMUP_KEYS_OFFSET + len(warmup_keys) > WARMUP_LIMITS_OFFSET:
-            sys.exit("the warmup keys and the warmup camera's limits do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
                      "not where patch_026g.py puts them")
-        if WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > TAB_LIST_STATE_OFFSET \
+        if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > TAB_LIST_STATE_OFFSET \
                 or TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the scoreboard's state is not between the warmup keys' and the page's end")
+            sys.exit("the scoreboard's state is not between the warmup look's and the page's end")
         sites = []
         for va, expected, offset, opcode in TAB_LIST_HOOKS:
             patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
@@ -3290,8 +3267,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("a base relocation under a site of the scoreboard's rows")
         if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
             sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
-        if len(cave) > WARMUP_KEYS_OFFSET:
-            sys.exit("the upload code (and the default server) do not fit before the warmup keys")
+        if len(cave) > WARMUP_LIMITS_OFFSET:
+            sys.exit("the upload code (and the default server) do not fit before the warmup camera's limits")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
@@ -3399,7 +3376,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
 
     if mode == "section":
         if late_join is not None:
-            cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
             cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
@@ -3568,18 +3544,6 @@ def warmup_limits_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_limits_026g.section.bin")
 
 
-def warmup_keys_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_keys_026g.section.bin")
-
-
-def warmup_keys_state(code):
-    """The state address warmup_keys_026g.asm was assembled for: its one
-    `call $+5` / `pop edx` / `add edx,imm32`; 0 when it is not there once."""
-    find = bytes.fromhex("e800000000" "5a" "81c2")
-    at = code.find(find)
-    if at < 0 or code.find(find, at + 1) >= 0:
-        return 0
-    return (WARMUP_KEYS_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]) & 0xFFFFFFFF
 
 
 def warmup_look_state(code):

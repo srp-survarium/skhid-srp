@@ -91,7 +91,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `warmup_keys_026g.asm`, `warmup_keys_026g.section.bin` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, and that code assembled for 0x9A8 of `.srp`, its state at 0xE30 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/warmup_keys.rs`, `warmup_keys.toml`, `port/equiv/warmup_keys.py`, `check_warmup_keys_026g.py` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, as the Rust patch `warmup_keys` (a lohook, `sites_026g.tsv` `warmup_keys.mouse_key`), its equivalence spec against the asm it replaced, and a check that runs it on made-up mouse events (needs Unicorn). Until the Rust port, `warmup_keys_026g.asm` at 0x9A8 of `.srp`, its state at 0xE30 of `.srpd` |
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/read_order.rs`, `read_order.toml`, `port/equiv/read_order.py` | Patch 33 (the order of the archive reads is a strict weak ordering) as the Rust patch `read_order` (a lohook at the predicate's start that returns for it), and its equivalence spec against the asm it replaced |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
@@ -1933,9 +1933,10 @@ start, below):
   kits went at the start fired the weapon at the next frame and once more at
   its release (and aimed with the right button; a pick held through a
   respawn did the same).
-  The first ten bytes of 0x25CF60 jump to `warmup_keys_026g.asm` (88 bytes
-  at `.srp`+9A8h, after the suicide key, up to the seek code; the buttons
-  marked in a dword at `.srpd`+E30h): a button that goes down while the
+  The first ten bytes of 0x25CF60 are the Rust patch `warmup_keys`'
+  lohook (until the Rust port a jump to `warmup_keys_026g.asm`, 88 bytes at
+  `.srp`+9A8h, the buttons marked in a dword at `.srpd`+E30h; proven by
+  `port/equiv/warmup_keys.py` and `check_warmup_keys_026g.py`): a button that goes down while the
   cursor is shown is marked; while the cursor is not shown a marked button's
   kind 2 and its release are taken there, and the release unmarks it. The
   owner, on the first writing, which gave the release on: "when mouse is
