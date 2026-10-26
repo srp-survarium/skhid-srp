@@ -67,10 +67,32 @@ Experimental Pool no longer uses the planner's proposal. Its spots in
     passage, so team 2 walks about 50 m further. A stair from the north
     gallery down to the yard would even this out; it is not built.
 - The hatch room under ladder clmbl#8 (south block, x -12.3..-4.5,
-  z -8.7..-4.5) has no spawns. It is kept free for team 1's way up to the
-  roof. Team 2 already has one: the table and planks in the north block's
-  broken east end. Team 1's has three designs for the owner to choose from
-  and is not built yet.
+  z -8.7..-4.5) has no spawns. It holds team 1's way up to the roof. Team 2
+  already has one: the table and planks in the north block's broken east
+  end.
+
+### Experimental Pool: team 1's way to the roof (the owner's pick, 2026-10-27)
+
+The roof over the east half of the hatch room has caved in. The geometry is
+listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
+(commit 823b2fe), and `make_spec.py` passes it to the importer.
+
+- Five cut boxes take the roof slab out (y 13.14-13.62 only, so the walls
+  stay). Together they give the hole a ragged edge.
+- On and over the rim: broken slabs with rebar, and a roof slab hanging into
+  the hole.
+- On the floor: rubble round the ladder foot, broken slabs and a fallen slab
+  leaning on the rubble.
+- A 1.2 m plank ramp (28.7 deg) runs from a fallen slab (0.53 m up) over the
+  wreckage onto the roof.
+- Ladder clmbl#8 stays in the opening.
+- Every piece is a native 0.26g model (`props/garbage/concrete_wreck*`,
+  `concrete_wrecks`, `props/cover/concrete_tray_01`) with its own collision
+  and walker collision. A tilted piece takes the prop's new `rotation`.
+- Checked on the built map:
+  - both doors reach the roof with a 0.6 m step, 50 deg and 1.8 m headroom;
+  - no spot in the room or on its roof is a dead end;
+  - the room's doors stay clear.
 
 ## Grass
 
