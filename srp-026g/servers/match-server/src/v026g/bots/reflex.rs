@@ -1154,6 +1154,10 @@ struct Throw {
     /// The key let go: the throw counted, the push set. The look is still
     /// held until the grenade has left the hand.
     released: bool,
+    /// The pitch the view was last turned to for the place: held after the
+    /// let-go when the thrower's own height has moved the place out of
+    /// reach (the grenade leaves at the launch whatever the bot does).
+    pitch: Option<f32>,
 }
 
 /// [play 20] Why a throw is not made.
@@ -2917,6 +2921,7 @@ impl Reflex {
                     pressed: None,
                     error,
                     released: false,
+                    pitch: None,
                 });
             }
             Err((at, why)) => self.hold_back(at, why),
@@ -2961,10 +2966,21 @@ impl Reflex {
             self.throw = None;
             return None;
         };
-        let Some((_, pitch)) = throw_view(me, throw.at, c) else {
-            self.hold_back(throw.at, Refuse::Reach);
-            return None;
+        // The pitch for the place from where the thrower stands now. Once the
+        // key is let go the grenade leaves at the launch whatever he does:
+        // the last pitch is held, not the look given back (a thrower who
+        // stepped down in the hold, the place out of reach from there,
+        // launched at the pitch of the walk after it: 1.1 m short in a
+        // smoke).
+        let pitch = match (throw_view(me, throw.at, c), throw.pitch) {
+            (Some((_, pitch)), _) => pitch,
+            (None, Some(last)) if throw.released => last,
+            (None, _) => {
+                self.hold_back(throw.at, Refuse::Reach);
+                return None;
+            }
         };
+        throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
         let weigh = |mates: bool| {
             over_ground(mesh.as_deref(), throw.at.y, |ground| {
@@ -5680,6 +5696,8 @@ mod tests {
     struct ThrowRun {
         ticks: Vec<(u32, Override)>,
         notes: Vec<String>,
+        /// The same with the tick each was made at.
+        timed: Vec<(u32, String)>,
         thrown: Vec<u32>,
     }
 
@@ -5690,7 +5708,13 @@ mod tests {
         world: Option<&Arc<mapdata::World>>,
         until: u32,
     ) -> ThrowRun {
-        throw_run_at(&[Vec3::new(0.0, 0.0, distance)], mates, combat, world, until)
+        throw_run_at(
+            &[Vec3::new(0.0, 0.0, distance)],
+            mates,
+            combat,
+            world,
+            until,
+        )
     }
 
     /// The same with an enemy holding an angle at each of `campers`.
@@ -5701,6 +5725,19 @@ mod tests {
         world: Option<&Arc<mapdata::World>>,
         until: u32,
     ) -> ThrowRun {
+        throw_run_stepping(campers, mates, combat, world, until, None)
+    }
+
+    /// The same, the thrower stepping down `m` metres `ms` after the press.
+    fn throw_run_stepping(
+        campers: &[Vec3],
+        mates: &[PlaceView],
+        combat: CombatTuning,
+        world: Option<&Arc<mapdata::World>>,
+        until: u32,
+        step_down: Option<(u32, f32)>,
+    ) -> ThrowRun {
+        let mut pressed_at: Option<u32> = None;
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
         let campers: Vec<PlaceView> = campers
             .iter()
@@ -5740,10 +5777,16 @@ mod tests {
         let mut run = ThrowRun {
             ticks: Vec::new(),
             notes: Vec::new(),
+            timed: Vec::new(),
             thrown: Vec::new(),
         };
         let mut now = 1_800;
         while now < until {
+            if let (Some((ms, m)), Some(pressed)) = (step_down, pressed_at)
+                && now >= pressed + ms
+            {
+                me.feet.y = -m;
+            }
             sense(&mut memory, &[], now);
             let view = view(&me);
             if now % 250 == 0 {
@@ -5754,13 +5797,19 @@ mod tests {
             }
             let before = reflex.grenades_thrown();
             let o = reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng);
+            if o.keys & key::GRENADE != 0 {
+                pressed_at.get_or_insert(now);
+            }
             if let Some(look) = o.look_at {
                 facing(&mut me, look);
             }
             if reflex.grenades_thrown() > before {
                 run.thrown.push(now);
             }
-            run.notes.extend(reflex.take_throw_notes());
+            for note in reflex.take_throw_notes() {
+                run.timed.push((now, note.clone()));
+                run.notes.push(note);
+            }
             run.ticks.push((now, o));
             now += 50;
         }
@@ -6000,6 +6049,46 @@ mod tests {
         let far = floor_and(&wall_at(23.0));
         let run = throw_run(25.0, &[], c.clone(), Some(&far), 6_000);
         assert!(!run.thrown.is_empty(), "{:?}", run.notes);
+    }
+
+    /// The thrower steps down in the hold, after the key is let go, and the
+    /// place, near the longest throw and above him, is out of reach from
+    /// where he stands now: the grenade still leaves at the launch, and the
+    /// look is held to it (it was given back, and the grenade came down 1.1 m
+    /// from the thrower, in a smoke).
+    #[test]
+    fn a_throw_let_go_keeps_its_look_when_the_place_goes_out_of_reach() {
+        let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+        let up = 7.0;
+        let d = arc::max_range(arc::hand_of(eye).y - up).unwrap() - 0.3;
+        assert!(d > 12.0 && d < 27.0, "{d}");
+        let place = Vec3::new(0.0, up, d);
+        let c = CombatTuning::default();
+        let stepped = |step| throw_run_stepping(&[place], &[], c.clone(), None, 6_000, step);
+        // Level, it is thrown.
+        let level = stepped(None);
+        assert!(!level.thrown.is_empty(), "{:?}", level.notes);
+        // A step of half a metre 900 ms after the press: no pitch lands it any more.
+        let me = body(0, 0, Vec3::new(0.0, -0.5, 0.0), 0.0);
+        assert_eq!(throw_view(&me, place, &c), None);
+        let run = stepped(Some((900, 0.5)));
+        assert!(!run.thrown.is_empty(), "{:?}", run.notes);
+        let (press, _) = pressed_at(&run).unwrap();
+        // Not given up between the press and the launch plus the look held
+        // (later rolls, from the new height, are refused as they should be).
+        let end = press + c.grenade_launch_ms + c.grenade_look_after_ms;
+        assert!(
+            run.timed
+                .iter()
+                .all(|(t, n)| !(press..end).contains(t) || !n.contains("holds a grenade back")),
+            "{:?}",
+            run.timed
+        );
+        for (now, o) in &run.ticks {
+            if (press..press + c.grenade_launch_ms + c.grenade_look_after_ms).contains(now) {
+                assert!(o.look_at.is_some() && o.legs.is_some(), "{now}: {o:?}");
+            }
+        }
     }
 
     /// A wall across the throws at x within 5 m of the thrower's line, 15 m
