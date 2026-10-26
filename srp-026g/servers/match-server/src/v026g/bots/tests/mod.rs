@@ -84,6 +84,7 @@ mod standin_weapon;
 mod tallies;
 mod trap_react;
 mod traps;
+mod unclear_aim;
 mod walkway;
 mod world_facts;
 mod zone_runs;
