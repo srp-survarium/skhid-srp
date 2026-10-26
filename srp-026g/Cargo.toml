@@ -4,6 +4,7 @@ members = [
   "crates/mapdata",
   "crates/resources-db",
   "crates/session",
+  "crates/ragdoll",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",

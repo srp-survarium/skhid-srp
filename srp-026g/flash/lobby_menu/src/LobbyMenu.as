@@ -3957,6 +3957,11 @@ package
          }
          PlayerInfo.nickname = value;
          this.statusPanel.setPlayerName(value);
+         // A lobby sign-in: the rooms' create window's start is asked anew.
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.signedIn(value);
+         }
       }
       
       public function set_account_money(value:Object) : void

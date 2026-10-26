@@ -1,7 +1,7 @@
 /* Voice chat (exe patch 66): team push-to-talk in a match through
  * skhid_voice.dll (srp-026g/client-voice, beside the exe) and srp's voice
  * relay on the match port + 1. The rules: ../docs/notes/voice-chat.md; the
- * proof of every address: docs/notes/client_patch.md section 3.55 and
+ * proof of every address: docs/notes/client_patch.md section 3.58 and
  * tools/re-kit/v026g. voice_026g.asm hands the game's sites to the vc_*
  * functions here; check_voice_026g.py runs them.
  *

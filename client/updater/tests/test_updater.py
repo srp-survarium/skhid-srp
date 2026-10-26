@@ -44,6 +44,41 @@ ABORT = b"\x1b"
 CHECKING, CHECK_FAILED, DOWNLOADING, DOWNLOAD_FAILED, DOWNLOADED = 0x04, 0x05, 0x09, 0x0A, 0x0C
 LATEST, ABORTED, INSTALLING, COPIED, ERROR = 0x0E, 0x0F, 0x10, 0x13, 0x01
 
+# The updater's own box (Retry and Cancel: a file blocked or held, a server
+# not reached), found by its process and answered as a player would.
+# (Windows only, as the pipe: test_db_patches.py imports this elsewhere.)
+if os.name == "nt":
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    user32.EnumWindows.argtypes = [WNDENUMPROC, ctypes.c_void_p]
+    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+    user32.GetClassNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    user32.GetDlgItemTextW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p, ctypes.c_int]
+    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+WM_COMMAND, IDCANCEL, IDRETRY = 0x0111, 2, 4
+
+
+def updater_boxes(pid):
+    """The message boxes (dialogs of class #32770) the process `pid` shows:
+    [(window, the box's text)]."""
+    found = []
+
+    def look(window, _):
+        owner = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(window, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(window):
+            kind = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(window, kind, 64)
+            if kind.value == "#32770":
+                text = ctypes.create_unicode_buffer(4096)
+                user32.GetDlgItemTextW(window, 0xFFFF, text, 4096)   # the box's static text
+                found.append((window, text.value))
+        return True
+
+    user32.EnumWindows(WNDENUMPROC(look), None)
+    return found
+
 
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
@@ -284,8 +319,19 @@ class Launcher:
         self.buffer = b""
         self.frames = []
         self.open = True
+        # The updater's own boxes, their texts, and how the next ones are
+        # answered (then Cancel).
+        self.boxes = []
+        self.box_answers = []
+        self.answered = set()
 
     def poll(self):
+        for window, text in updater_boxes(self.process.pid):
+            if window not in self.answered:
+                self.answered.add(window)
+                self.boxes.append(text)
+                answer = self.box_answers.pop(0) if self.box_answers else IDCANCEL
+                user32.PostMessageW(window, WM_COMMAND, answer, 0)
         while self.open:
             try:
                 waiting, _ = _winapi.PeekNamedPipe(self.pipe, 0)
@@ -582,11 +628,27 @@ class UpdaterTest(unittest.TestCase):
         self.offer(self.bundle())
         self.site.close()
         launcher = self.launcher()
-        launcher.wait_for(lambda l: l.texts(), 60, "error text")
-        self.assertEqual(launcher.states(), [CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR])
-        self.assertRegex(launcher.texts()[0], r"^The game's patches could not be checked: Cannot connect to "
-                                              r"127\.0\.0\.1\. .*PLAY stays off until this is done\.$")
+        # The server not reached is said in the updater's own box, in the
+        # launcher's language (English here unless this PC's launcher keeps
+        # another): what failed and what to try. Retry runs it all again.
+        launcher.box_answers = [IDRETRY]
+        launcher.wait_for(lambda l: len(l.boxes) == 2 and ERROR in l.states(), 90, "the updater's boxes")
+        self.assertEqual(launcher.states(), ([CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR]) * 2)
+        for box in launcher.boxes:
+            self.assertEqual(len(box.splitlines()), 3, box)
+            self.assertIn("127.0.0.1", box.splitlines()[0])
+            for name in ("Skhid-network-setup.cmd", "VPN.txt", "launcher_skhid.exe", "survarium_skhid.exe",
+                         "updater_skhid.exe"):
+                self.assertIn(name, box)
+        if launcher.boxes[0].startswith("127.0.0.1"):
+            self.assertEqual(launcher.boxes[0].splitlines()[0], "127.0.0.1 refused the connection.")
+        # The box said it: the launcher is not told again.
+        self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)
+        log = self.log()
+        self.assertIn("the player asks to try again", log)
+        self.assertRegex(log, r"The game's patches could not be checked: 127\.0\.0\.1 refused the connection\. "
+                              r".*VPN\.txt\. PLAY stays off until this is done\.")
         self.site = Site()
 
     def test_no_server_but_whole_files_lets_the_game_be_played(self):
@@ -594,23 +656,26 @@ class UpdaterTest(unittest.TestCase):
         self.site.close()
         launcher = self.launcher()
         launcher.wait_for_state(LATEST)
-        self.assertEqual(len(launcher.texts()), 1)
-        self.assertRegex(launcher.texts()[0], r"^No update check: Cannot connect to 127\.0\.0\.1\..*you can play\.$")
-        self.assertLessEqual(len(launcher.texts()[0]), 255)
+        # The box first (Cancel: play with what is installed), and nothing
+        # more to the launcher.
+        self.assertEqual(len(launcher.boxes), 1)
+        self.assertEqual(launcher.texts(), [])
+        self.assertRegex(self.log(), r"No update check: 127\.0\.0\.1 refused the connection\..*you can play\.")
         self.assertEqual(launcher.states()[-1], LATEST)
         self.assertEqual(launcher.finish(), 0)
         # But not with a program file missing: that is an error, with the
         # file's name and the reason it cannot be repaired.
         os.remove(self.path(f"{X86}/survarium_skhid.exe"))
         launcher = self.launcher()
-        launcher.wait_for(lambda l: l.texts(), 60, "error text")
+        launcher.wait_for(lambda l: l.boxes and ERROR in l.states(), 60, "the updater's box")
         self.assertNotIn(LATEST, launcher.states())
-        # "Error" in the launcher's line first, then the box with the reason.
+        # "Error" in the launcher's line, the updater's box with what to try,
+        # and the file in the log.
         self.assertEqual(launcher.states()[-1], ERROR)
-        self.assertEqual([frame[0] for frame in launcher.frames][-2:], [0x02, 0x05])
-        self.assertRegex(launcher.texts()[0], r"^x86/survarium_skhid[.]exe is missing or damaged and cannot be "
-                                              r"repaired now: Cannot connect to 127\.0\.0\.1\.")
+        self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)
+        self.assertRegex(self.log(), r"x86/survarium_skhid[.]exe is missing or damaged and cannot be "
+                                     r"repaired now: 127\.0\.0\.1 refused the connection\.")
         self.site = Site()
 
     def test_a_server_without_client_files_says_so(self):

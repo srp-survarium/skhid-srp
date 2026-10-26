@@ -1817,3 +1817,12 @@ va	status	ref_021d	name
 0x001f77e0	observed		survarium::game_world::tick
 0x0021beb0	observed		survarium::network_client::connect_to_match
 0x001edbc0	observed		survarium::game::activate_main_menu
+0x002971c0	observed		survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
+0x00297570	observed		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
+0x0012d1d0	observed		vostok::render::camouflage_decal_texture_type_baker_cook::translate_query
+0x0012db40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::on_baked_texture_loaded
+0x0012ec40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
+0x00131b40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
+0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
+0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back
+0x00316c20	observed		survarium::player_respawn_rule_base::fill_match_hud_state

@@ -45,6 +45,7 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
+   import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.ResearchUnits;
@@ -131,6 +132,10 @@ package
       protected const effectsDict:Dictionary = new Dictionary();
       
       protected const effectContainer:Sprite = new Sprite();
+
+      // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
+      // stage between the screen effects and the root, so the kits and the countdown are over it.
+      protected const deathEyes:DeathEyes = new DeathEyes();
       
       protected const BLOOD_EFFECT:uint = 0;
       
@@ -232,6 +237,7 @@ package
          stage.visible = false;
          this.init();
          this.setlayout();
+         this.placeMinimap();
          this.onResize(null);
          addEventListener(Event.RENDER,this.onInitRender);
       }
@@ -397,6 +403,7 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          super.addChild(this._stageLayer);
@@ -475,6 +482,8 @@ package
          this._hudPlayerProfile.visible = false;
          tabMinimap = this.player_list.minimap;
          this.tabMinimap.centerPlayer = false;
+         this.minimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
+         this.tabMinimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
          this.contextInfo3.visible = false;
          var _iconContainer:IconContainer = new IconContainer("inventoryitems",171,83,new hudItems(),true,0,0,0,false);
          this.quick_slots.registerIconContainer(_iconContainer);
@@ -1148,11 +1157,37 @@ package
          this.questList.alpha = value;
       }
       
+      // The minimap's position, the exe's setting (Settings, user.cfg's minimap_position): BOTTOM
+      // until the exe says. The exe may say before or after a match's map loads (setProps): the
+      // minimaps' visibility is the HUD's alone, from this and their maps (placeMinimap).
+      private var _minimapPosition:int = MinimapPosition.BOTTOM;
+
       public function set_minimap_position(value:uint) : void
       {
-         this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
-         this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
-         this.minimap.visible = value != MinimapPosition.HIDDEN;
+         _minimapPosition = MinimapPosition.parse(value);
+         this.placeMinimap();
+      }
+
+      // Runs on every position and every map loaded. The minimap shows with a map, unless hidden;
+      // hidden keeps the last place. The Tab map shows with a map (its list shows it on Tab).
+      private function placeMinimap() : void
+      {
+         if(this._minimapPosition != MinimapPosition.HIDDEN)
+         {
+            this.minimap.layoutData.alignV = this._minimapPosition == MinimapPosition.TOP ? "top" : "bottom";
+            this.minimap.layoutData.offsetV = this._minimapPosition == MinimapPosition.TOP ? 36 : -36;
+            if(this.layout)
+            {
+               this.layout.reflow();
+            }
+         }
+         this.minimap.visible = this.minimap.hasMap && this._minimapPosition != MinimapPosition.HIDDEN;
+         this.tabMinimap.visible = this.tabMinimap.hasMap;
+      }
+
+      private function onMinimapLoaded(e:Event) : void
+      {
+         this.placeMinimap();
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1265,10 +1300,9 @@ package
          this.progress_indicator.layoutData.alignH = "center";
          this.progress_indicator.layoutData.offsetV = 56;
          this.progress_indicator.layoutData.offsetH = 230;
+         // its alignV and offsetV are the position's (placeMinimap)
          this.minimap.layoutData = new LayoutData();
-         this.minimap.layoutData.alignV = "bottom";
          this.minimap.layoutData.alignH = "left";
-         this.minimap.layoutData.offsetV = -36;
          this.minimap.layoutData.offsetH = borderOffset + 22;
          this.container_icon.layoutData = new LayoutData();
          this.container_icon.layoutData.alignV = "center";
@@ -1879,6 +1913,7 @@ package
          this.connectionInfo.visible = false;
          this.show_pregame(false);
          this.set_match_time("");
+         this.deathEyes.countdown("");
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -2000,6 +2035,8 @@ package
       
       public function set_parameterized_message(text:String, fonSize:uint, shift:uint, time:uint = 2500) : void
       {
+         // %s in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
+         text = text.split("%s").join(String(Math.ceil(time / 1000)));
          if(!this.contextInfo3.visible)
          {
             this.contextInfo3.visible = true;
@@ -2359,6 +2396,7 @@ package
       
       public function set_respawn_time(time:String) : void
       {
+         this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
       }
       
@@ -2510,6 +2548,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
+         this.deathEyes.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

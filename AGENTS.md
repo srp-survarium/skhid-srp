@@ -65,9 +65,33 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   `srp-026g/client-patches/link_026g.py` (`client_patch.md` §0.3): one `ARENA` row and its sources, hooks
   by symbol, no fixed addresses; run `python link_026g.py --write` and commit `arena_026g.lock.json`.
 
+## Types and states
+
+- Make illegal states unrepresentable. A state is one enum whose variants carry exactly the data valid
+  in that state: no independent boolean flags, no sentinel values (`u32::MAX` or `-1` for "none" is an
+  `Option`), no fields that mean nothing in some states. A machine's transitions are one function from
+  (state, event) to the new state and its actions, total over the events.
+- Prefer state transitions, or a clear separation into objects (a type per thing, each owning its
+  data), to boolean flags. A flag that changes what other fields mean is a state the type should name.
+- Parse, don't validate. Turn raw input (packets, game memory, files, settings) into typed values once,
+  at the boundary, and let the code inside take only those types and never check them again. Distinct
+  units get newtypes (game time, ids, addresses), with their arithmetic (wrap-around) defined once.
+- The same holds for new client-patch C code: a tagged union and one transition function, raw memory
+  read once into it.
+
 ## Rust changes
 
 - Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)
   and the tests of what you changed.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
+
+## Checks while iterating
+
+- While iterating on a change, run only the quick checks that touch it: the patch's own Unicorn check
+  (`check_<patch>_026g.py`, and the equivalence gate while porting), the self-test functions for that
+  patch called by name, `cargo test` and clippy for the crates you changed, and the movie's own Ruffle
+  harness.
+- Before pushing, run the full set once: the whole `selftest_026g.py` (every build variant), every
+  Unicorn check, `release/build-content` where content changed, clippy for the workspace. Never push
+  or open a PR without the full run passing.

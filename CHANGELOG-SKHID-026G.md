@@ -597,3 +597,38 @@ kept and can be put back).
 - TODO: #350 Esc follow-up to #349: box over results, invite Esc hides, craft search, loading, dropdown order
 - TODO: #352 Research: count captures in the player's own kit cell
 - TODO: #353 Research HUD: units back at rev 30's height
+
+## 25 Oct, 12:14 — TODO: the owner's words (update required)
+
+<!-- Revision 32 (026g-rev32), released 2026-10-25 12:14 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #356 Upgrade window: loadout badges on the item and donor slots
+- TODO: #368 Patch 62: F11 hides the whole interface (match and lobby); no-UI battery mode spec
+- TODO: #397 Bandages: hands and legs full, pain, body and head 35 %
+- TODO: #400 New accounts start with a starter kit
+- TODO: #408 Onyx nerf: -60 % for 3 s, +1 s for each other Onyx
+- TODO: #414 Artefacts: the carrier sees his own glow in first person
+- TODO: #423 Onyx: -75 % when active
+- TODO: #422 Rooms: the create window opens with its saved settings, preloaded
+- TODO: #424 Lobby card: stats over their scale show their real value
+- TODO: #418 Kill feed: wall, ricochet and pain-shock icons after the weapon (patch 67)
+
+## 25 Oct, 13:52 — TODO: the owner's words (update required)
+
+<!-- Revision 33 (026g-rev33), released 2026-10-25 13:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #436 Kill feed: a suicide row with the pain icon no longer empties the feed
+
+## 25 Oct, 18:43 — TODO: the owner's words (update required)
+
+<!-- Revision 34 (026g-rev34), released 2026-10-25 18:43 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #443 SOCOM 16 nerf: damage 70 -> 60, armour piercing 45 -> 40, equipment level 15
+- TODO: #444 Patch 72: falls gain speed for the time they fell, not per step of a split tick
+- TODO: #367 Research: capture timers and the units' markers on the screen
+- TODO: #450 Reroll: every modification change costs the same
+- TODO: #440 Patch 70: baked camouflage textures kept across games, made once, held for the game
+- TODO: #453 Network help: clearer "no connection" errors in every language, VPN.txt, firewall script
+- TODO: #456 SVD at equipment level 15
+- TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
+- TODO: #458 Revert Research HUD markers (#367) for rev 34

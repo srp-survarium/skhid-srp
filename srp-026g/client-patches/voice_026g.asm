@@ -4,7 +4,7 @@
 ; VOICE_HOOKS and VOICE_SLOTS name the entries below). The logic is
 ; voice_026g.c; this file is the glue at the game's sites, which hands each
 ; one to it as a plain cdecl call with every register kept.
-; client_patch.md section 3.55; the rules: ../docs/notes/voice-chat.md.
+; client_patch.md section 3.58; the rules: ../docs/notes/voice-chat.md.
 ;
 ; - voice_register: game::game's call of game_world::game_world (0x1E90A3,
 ;   `ret 8`, ebx the game): the world made, then the voice's console

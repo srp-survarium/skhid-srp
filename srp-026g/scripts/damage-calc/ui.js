@@ -622,7 +622,7 @@ function drawExplain() {
   const onyx = DATA.artefacts && DATA.artefacts.onyx, pk = DATA.drugs && DATA.drugs.painkiller;
   $("explain").textContent = (LANG === "uk" ? [
     "D, P  = зброя × набій, менші між ближньою й дальньою дистанцією",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} за кожен ${nm(onyx)} (${onyx.active.damage_mul} активний)` : null,
+    onyx ? `D, P ×= ${onyx.passive.damage_mul} за кожен ${nm(onyx)} (${onyx.active.damage_mul} активний, один раз на всі)` : null,
     "hit   = D × (1 − clamp(броня − P, 0, 1))",
     "пул  −= hit       груди, спина → тіло · голова, обличчя → голова · нога · кисть",
     `біль −= hit × k   k = 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,
@@ -632,7 +632,7 @@ function drawExplain() {
     "а кожен пул бере від цієї кулі найбільше, не суму: біль від кистей 40 і 40, від грудей 35 → −40, не −115",
   ] : [
     "D, P  = weapon × ammo, lowered between near and far range",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} per ${nm(onyx)} (${onyx.active.damage_mul} active)` : null,
+    onyx ? `D, P ×= ${onyx.passive.damage_mul} per ${nm(onyx)} (${onyx.active.damage_mul} active, once for all)` : null,
     "hit   = D × (1 − clamp(armour − P, 0, 1))",
     "pool −= hit       chest, back → body · head, face → head · leg · hand",
     `pain −= hit × k   k = 1 chest, head, arms · 0.9 legs · 0.8 hands, feet${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,

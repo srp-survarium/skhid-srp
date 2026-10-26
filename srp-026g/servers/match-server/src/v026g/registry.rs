@@ -96,7 +96,8 @@ pub struct MatchSetup {
     /// ([`MatchResult::private`]: the rewards pay nothing).
     pub private: bool,
     /// A room's match: the room's own minimum of players to start (2 for
-    /// 1 v 1, 4, 6; `docs/notes/rooms.md`). With it, a match the clients'
+    /// 1 v 1, 4, 6; 1 for a private room, which its owner starts with whoever
+    /// is in, 1 v 0 too: no side needs a player; `docs/notes/rooms.md`). With it, a match the clients'
     /// own rule cannot start starts with the players who are in, and one
     /// that not even that many can play is called off
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`

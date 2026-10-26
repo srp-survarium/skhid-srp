@@ -349,7 +349,8 @@ impl Matchmaking {
     /// [`Self::seat_teams_in_pool`] does, but with teams that are not fixed:
     /// the match takes late joiners (the room's members who come while it
     /// is played; `session::v026g::rooms`). `squad_of` gives each account
-    /// its squad's id in the match (0: none).
+    /// its squad's id in the match (0: none). One side may be empty (a
+    /// private room's 1 v 0), not both.
     pub fn seat_sides_in_pool(
         &self,
         teams: [&[Player]; 2],
@@ -370,7 +371,10 @@ impl Matchmaking {
     ) -> Option<u32> {
         let mut inner = self.inner.locked();
         let players = || teams.iter().flat_map(|team| team.iter());
-        if teams.iter().any(|team| team.is_empty())
+        // A clan match has both its teams; a room's side may be empty (a
+        // private room's 1 v 0: the room decides), its whole match never.
+        if (fixed && teams.iter().any(|team| team.is_empty()))
+            || players().next().is_none()
             || players().count() > MAX_PLAYERS_PER_MATCH
             || players().any(|player| inner.seat_of_account_mut(player.account_id).is_some())
         {
@@ -855,6 +859,24 @@ mod tests {
     /// A room's member who comes while its match is played is seated in
     /// it: only once the host reserved the place, never twice, never one
     /// who waits in the queue or has a place anywhere.
+    /// A room's side may be empty (a private room's 1 v 0), the whole match
+    /// not; a clan match has both its teams.
+    #[test]
+    fn a_rooms_match_may_have_an_empty_side_a_clan_match_not() {
+        let mm = Matchmaking::new(Duration::ZERO);
+        let now = Instant::now();
+        let pool = QueuePool::GrowingRoster;
+        assert_eq!(mm.seat_sides_in_pool([&[], &[]], now, pool, &|_| 0), None);
+        assert_eq!(mm.seat_teams_in_pool([&[player(1)], &[]], now, pool), None);
+        let id = mm
+            .seat_sides_in_pool([&[player(1)], &[]], now, pool, &|_| 0)
+            .expect("1 v 0");
+        assert_eq!(mm.seat(1), Some((id, 0)));
+        // A late joiner fills the empty side.
+        assert!(mm.append_player(id, player(2), 1, |first, _| first == 1));
+        assert_eq!(mm.formed_match(id).unwrap().seats[1].team, 1);
+    }
+
     #[test]
     fn a_player_out_of_the_queue_is_seated_into_a_match_being_played() {
         let mm = Matchmaking::new(Duration::ZERO);

@@ -247,7 +247,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 Where the build differs from or adds to the design above:
 
 - **The exe patch is 66** (`client-patches/voice_026g.asm`, `voice_026g.c`; README patch 66,
-  client_patch.md 3.55). The sites: game::game (the variables), match_client::connect
+  client_patch.md 3.58). The sites: game::game (the variables), match_client::connect
   (`sv_start(host, match port + 1, session)`), on_finish_match and on_deactivate (`sv_stop`),
   game_world::tick (every frame), on_keyboard_action's Tab-test call (the keys), the Esc menu.
 - **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),

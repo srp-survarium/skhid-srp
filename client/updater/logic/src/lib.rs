@@ -11,6 +11,7 @@ pub mod file_error;
 pub mod game;
 pub mod inflate;
 pub mod manifest;
+pub mod network;
 pub mod patches;
 pub mod pipe;
 pub mod replay;

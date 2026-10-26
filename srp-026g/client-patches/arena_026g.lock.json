@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 59392,
-  "sha256": "1782d7f8478194c5e4031305f7a4641011375a58507ceb18a3741d09ddd2ae4b",
+  "size": 413697,
+  "sha256": "84695cfdb38d74dd10d5392e0458327f3b320041b5d6e19c81a866aca6c77c6e",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -17,12 +17,12 @@
     "artefacts.code": {
       "kind": "code",
       "va": "0xa431000",
-      "size": 784
+      "size": 1088
     },
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1306
+      "size": 1546
     },
     "match_keys.code": {
       "kind": "code",
@@ -58,15 +58,71 @@
       "kind": "state",
       "va": "0xa43b000",
       "size": 2048
+    },
+    "kill_feed.code": {
+      "kind": "code",
+      "va": "0xa43c000",
+      "size": 444
+    },
+    "bake_cache.code": {
+      "kind": "code",
+      "va": "0xa43d000",
+      "size": 4437
+    },
+    "bake_cache.state": {
+      "kind": "state",
+      "va": "0xa43f000",
+      "size": 99616
+    },
+    "patches.code": {
+      "kind": "code",
+      "va": "0xa458000",
+      "size": 78508
+    },
+    "patches.data": {
+      "kind": "data",
+      "va": "0xa46c000",
+      "size": 153764
+    },
+    "patches.state": {
+      "kind": "state",
+      "va": "0xa492000",
+      "size": 1
     }
   },
   "symbols": {
+    "SRP_DIAGNOSTICS": "0xa46a418",
+    "__rodata_bake_cache_code": "0xa43e0e9",
+    "__rodata_hide_ui_code": "0xa4351e2",
+    "__rodata_kill_feed_code": "0xa43c178",
+    "__rodata_match_keys_code": "0xa4330f1",
+    "__rodata_patches_code": "0xa469ff3",
+    "__rodata_research_code": "0xa42f2f9",
+    "__rodata_voice_code": "0xa43938d",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
     "artefacts_loader": "0xa431000",
+    "artefacts_onyx": "0xa43101e",
+    "artefacts_popup": "0xa431023",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
+    "bake_cache_adopt": "0xa43d02a",
+    "bake_cache_baked": "0xa43d09f",
+    "bake_cache_crc32": "0xa43d1d6",
+    "bake_cache_finish": "0xa43d304",
+    "bake_cache_loaded": "0xa43d0c8",
+    "bake_cache_lookup": "0xa43d040",
+    "bake_cache_start": "0xa43d000",
+    "bc_crc_build": "0xa43e072",
+    "bc_crc_ready": "0xa43f000",
+    "bc_crc_tables": "0xa43f020",
+    "bc_lookup": "0xa43da84",
+    "bc_open": "0xa43d4f1",
+    "bc_owners": "0xa441020",
+    "bc_release_texture": "0xa43d2b4",
+    "bc_stamp": "0xa43d8cd",
+    "bc_take": "0xa43dcf6",
     "chat_variable": "0xa434000",
     "controls": "0xa436000",
     "engine_accept_decal_edit": "0xa432460",
@@ -77,7 +133,7 @@
     "engine_camouflage_parameters": "0xa432360",
     "engine_camouflage_parameters_type": "0xa4323f0",
     "engine_cc_bool": "0xa432480",
-    "engine_cc_string": "0xa4324d0",
+    "engine_cc_string": "0xa4325c0",
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
     "engine_decal_value": "0xa432420",
@@ -90,19 +146,25 @@
     "engine_log_passes": "0xa432300",
     "engine_malloc": "0xa432040",
     "engine_match_rule_base": "0xa432060",
+    "engine_material_pair": "0xa432530",
     "engine_model_instance_release": "0xa4323d0",
     "engine_mouse_ray": "0xa432440",
     "engine_movie_invoke": "0xa432150",
+    "engine_play_particle": "0xa432550",
     "engine_profile_assign": "0xa4322a0",
     "engine_profile_construct": "0xa4322c0",
     "engine_query_resources": "0xa4323a0",
+    "engine_ray_test": "0xa4324d0",
     "engine_register_cook": "0xa432130",
+    "engine_release_object": "0xa432510",
     "engine_setup_profile": "0xa432240",
     "engine_show_message": "0xa432180",
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
-    "engine_translate": "0xa432500",
+    "engine_translate": "0xa4325f0",
     "engine_unpack_decal_value": "0xa432400",
+    "engine_update_skeleton": "0xa432590",
+    "engine_user_data_directory": "0xa432580",
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
@@ -110,12 +172,27 @@
     "hide_ui_lobby": "0xa43511c",
     "hide_ui_match": "0xa435000",
     "hide_ui_reset": "0xa4350f0",
+    "hook_ragdoll_on_bones": "0xa45c9da",
+    "hook_ragdoll_on_cull": "0xa45ccc3",
+    "hook_ragdoll_on_eye": "0xa45cd40",
+    "hook_ragdoll_on_held_item": "0xa45cdff",
+    "hook_ragdoll_on_ray": "0xa45d0de",
+    "hook_ragdoll_on_step": "0xa45e30a",
+    "hook_suicide_key_on_spot": "0xa4655f4",
+    "kill_feed_event": "0xa43c000",
+    "kill_feed_row": "0xa43c09f",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
     "mute_action_name": "0xa43a000",
+    "ragdoll_on_bones": "0xa469e58",
+    "ragdoll_on_cull": "0xa469dfb",
+    "ragdoll_on_eye": "0xa469eb4",
+    "ragdoll_on_held_item": "0xa469f70",
+    "ragdoll_on_ray": "0xa469f10",
+    "ragdoll_on_step": "0xa469da0",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",
@@ -154,6 +231,7 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
+    "suicide_key_on_spot": "0xa469fd6",
     "vc_connect": "0xa4387de",
     "vc_frame": "0xa438a45",
     "vc_key": "0xa438d79",
@@ -175,6 +253,7 @@
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
-    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024",
+    "rustc": "rustc 1.98.0-nightly (6368fd52c 2026-05-29)"
   }
 }

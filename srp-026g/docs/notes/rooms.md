@@ -10,7 +10,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
   Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots
   and clan-team matches stay (clan matches: a uniform random map, no bots).
-- **Making one:** team size 6 v 6 to 10 v 10; players to start 1 v 1 to 3 v 3; max level
+- **Making one:** team size 6 v 6 to 10 v 10 and players to start 1 v 1 to 3 v 3 (an open
+  room's; a private one has neither, "A private room is started by its owner"); max level
   (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
   1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
   Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
@@ -24,9 +25,17 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
     that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
     any max level, 30 s, every mode, the pool without the experimental maps).
-  - Fitted when the window opens: a map or mode no longer offered is dropped; one added
-    later is in (an experimental one out); the max level never below the maker's gear now;
-    other values within today's ranges; nothing of the pool left: the default pool.
+  - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
+    (an experimental one out); the max level never below the maker's gear; other values
+    within today's ranges; nothing of the pool left: the default pool.
+  - **Preloaded** (the owner's of 2026-10-25: the window was drawn first and the settings
+    applied after; "slick and fast"): the movie asks for them as the lobby comes up (after
+    the pool), at every lobby sign-in and whenever the gear level changes, and keeps the
+    last answer; New room opens already filled and no answer redraws it. A room made from
+    the window (Back pressed meanwhile too) updates that copy as the server keeps it. A
+    sign-in to another account in the same game drops the copy at once. None yet (not
+    answered so far): the window opens with the defaults and stays so until it is opened
+    again.
   - No button puts the defaults back (the owner's of 2026-10-20: "no need for that").
   - **A PIN: no rewards** (the owner's of 2026-10-20: "let's remove rewards for private (pin)
     games"; players farmed silver in 1 v 1 PIN rooms): every match of a room with a PIN pays
@@ -113,6 +122,51 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     too): the match is called off before its countdown, as one that could not be made
     (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,
     quest, wear); its players see the results screen's spinner until they close it.
+- **A private room is started by its owner** (the owner's of 2026-10-26: "in private lobbies
+  it should be possible to start the game 1vs0"; then no "from N v N", no countdown, no team
+  size). Private is a room with a PIN.
+  - No team size and no players to start: it takes the most a match has, 20 (10 v 10, every
+    map and mode). The create window hides Team size, Players to start and Time to start once
+    a PIN is typed (their values kept for the next open room) and says "Private room: up to 20
+    players; you set the teams and start."
+  - No countdown: it waits however many are in. Its owner (its maker, or the member who came
+    first after it left) has Start beside Leave; the others read "Waiting for the creator to
+    start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
+    winner then: the 3 cards are there and voted for as in any room, Start ends the vote.
+  - **Its owner arranges the teams** (the owner's of 2026-10-26: "the owner should be able to
+    arrange both teams (even 1 vs 10), there should be a button to move the player into any
+    team"): the room shows its members in two columns, Team 1 and Team 2. Its owner has a
+    button on each member, itself too (» on Team 1, « on Team 2), that moves it to the other
+    team; any split, 1 v 0 or 1 v 10 to 10 v 10, a team 10 at most. Members choose nothing:
+    a newcomer comes on the team with fewer (Team 1 of two alike), the owner moves it.
+  - How it looks (the owner's of 2026-10-26, after the first try: "not very good with
+    sizing"): the open room's grid of 4 columns of 5 rows, its left half Team 1 and its right
+    half Team 2 (a rule between), each filled down then across, "TEAM 1  3 / 10" over it;
+    a team's free places on one dim line ("7 open"), not a row each; the move and the kick
+    small boxes inside their member's row, each in its own column (the owner's own row has
+    the move only). The vote's cards are 20 lower for that line. Renders of it at 1920x1080
+    and 1280x720: `scripts/rooms-start/shots.sh`.
+  - Start plays the arrangement exactly: no sides drawn, no balance. A squad split by it
+    plays as a squad on each team where two or more of it are.
+  - The arrangement stays from match to match; a member who leaves is out of it.
+  - A member who missed the Start (its game away or started anew, a late join that failed)
+    goes in late on the team its owner put it on while that team has fewer than 10 in the
+    match, else on the other; its team in the arrangement stays (the review of #527: a 1 v 3
+    whose member came 15 s late had become 2 v 2). A newcomer who joins with the PIN during
+    the match goes to the side with fewer players, as in any room, and is on that team in
+    the arrangement after, while it has fewer than 10 there. No team ever has more than 10.
+  - The server refuses (does nothing) a move of anyone but the owner, in an open room, while
+    the room plays its match, onto a team of 10, or from an older list (`2 060 020 000`,
+    `lobby.md`). The state tells the teams in its `A;<sides>` row.
+  - The server refuses (does nothing) a Start of anyone but the owner, in an open room, while
+    the room plays its match, or with a maintenance near (`2 060 000 041`, `lobby.md`).
+  - After the match it waits for its owner's Start again: no vote or countdown of its own, so
+    a lone member left idle plays no match after match.
+  - The match server is told a minimum of 1 (`MatchSetup::room_minimum`): no side needs a
+    player; called off only with nobody in it (`match.md` §34).
+  - It pays nothing, as every PIN room's match ("A PIN: no rewards", above).
+  - Its info line and banner say no "N v N" (the banner: members / 20); the list never did.
+  - Open rooms and Play keep their size, players to start and countdown.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
