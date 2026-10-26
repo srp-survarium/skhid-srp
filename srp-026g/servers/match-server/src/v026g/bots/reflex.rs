@@ -946,15 +946,15 @@ impl Default for CombatTuning {
             grenade_off_m: 8.0,
             grenade_lane_m: 2.0,
             grenade_places: 3,
-            grenade_tracks: false,
+            grenade_tracks: true,
             grenade_track_ms: 4_000,
             grenade_track_gap_ms: 500,
             grenade_track_error_m: 8.0,
             grenade_track_chance: 0.08,
-            grenade_search: false,
+            grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
-            grenade_claim: false,
+            grenade_claim: true,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
             grenade_give_up_ms: 1_500,
@@ -6329,6 +6329,18 @@ mod tests {
         ));
     }
 
+    /// The grenade logic of the flat arc and the held and camping places only
+    /// (the three switches off): what the older grenade tests pin. The G1,
+    /// G2 and claim tests turn their own switch on.
+    fn flat_arc() -> CombatTuning {
+        CombatTuning {
+            grenade_tracks: false,
+            grenade_search: false,
+            grenade_claim: false,
+            ..CombatTuning::default()
+        }
+    }
+
     #[test]
     fn a_grenade_goes_only_at_a_sensed_place_and_two_a_life() {
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
@@ -6343,7 +6355,7 @@ mod tests {
             combat: CombatTuning {
                 grenade_chance: 1.0,
                 grenade_roll_ms: 500,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -6439,7 +6451,7 @@ mod tests {
                     grenade_chance: 1.0,
                     grenade_roll_ms: 500,
                     grenade_recheck: recheck,
-                    ..CombatTuning::default()
+                    ..flat_arc()
                 },
                 ..AimTuning::default()
             };
@@ -6531,7 +6543,7 @@ mod tests {
     /// counted as the life's 1st, 2nd.
     #[test]
     fn the_grenade_counts_follow_the_roll_the_weighing_and_the_throw() {
-        let run = throw_run(20.0, &[], CombatTuning::default(), None, 12_000);
+        let run = throw_run(20.0, &[], flat_arc(), None, 12_000);
         let s = run.stats;
         assert!(s.thinks > 0 && s.rolls > 0, "{s:?}");
         assert_eq!(s.chance_no, 0);
@@ -6565,7 +6577,7 @@ mod tests {
             arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t)
         };
         let place = Vec3::new(0.0, 0.0, 21.0);
-        let off = CombatTuning::default();
+        let off = flat_arc();
         assert!(!off.grenade_search);
         assert_eq!(
             weigh_place(&me, &view, place, (0.0, 0.0), &off, &wall),
@@ -6573,7 +6585,7 @@ mod tests {
         );
         let on = CombatTuning {
             grenade_search: true,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let Ok(ArcPick::Pitch { pitch }) = weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
         else {
@@ -6613,7 +6625,7 @@ mod tests {
         let on = CombatTuning {
             grenade_search: true,
             grenade_search_off_m: 8.0,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let Ok(pick @ ArcPick::Yawed { dyaw, .. }) =
             weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
@@ -6624,7 +6636,7 @@ mod tests {
         assert_eq!(pick.kind(), 2);
         // Off: refused, as before.
         assert_eq!(
-            weigh_place(&me, &view, place, (0.0, 0.0), &CombatTuning::default(), &wall),
+            weigh_place(&me, &view, place, (0.0, 0.0), &flat_arc(), &wall),
             Err(Refuse::Thrower)
         );
     }
@@ -6638,13 +6650,13 @@ mod tests {
         let on = CombatTuning {
             grenade_tracks: true,
             grenade_track_chance: 1.0,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let run = throw_run_keyed(&[at], &[], on, None, 6_000, None, 0);
         assert!(!run.thrown.is_empty(), "{:?}", run.stats);
         assert_eq!(run.stats.places[0] + run.stats.places[1], 0, "{:?}", run.stats);
         assert!(run.stats.places[2] > 0, "{:?}", run.stats);
-        let off = throw_run_keyed(&[at], &[], CombatTuning::default(), None, 6_000, None, 0);
+        let off = throw_run_keyed(&[at], &[], flat_arc(), None, 6_000, None, 0);
         assert!(off.thrown.is_empty());
         assert_eq!(off.stats.rolls, 0);
     }
@@ -6663,7 +6675,7 @@ mod tests {
                 grenade_claim: true,
                 grenade_chance: 1.0,
                 grenade_roll_ms: 500,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -6939,7 +6951,7 @@ mod tests {
     #[test]
     fn a_grenade_is_aimed_to_come_down_at_the_place() {
         for distance in [13.0, 20.0, 25.0, 27.0] {
-            let run = throw_run(distance, &[], CombatTuning::default(), None, 6_000);
+            let run = throw_run(distance, &[], flat_arc(), None, 6_000);
             let (_, press) = pressed_at(&run).expect("thrown");
             let place = Vec3::new(0.0, 0.0, distance);
             let landing = landing_of(press.look_at.unwrap(), (0.0, 0.0), &arc::Floor { y: 0.0 });
@@ -6954,7 +6966,7 @@ mod tests {
         // The old line: 12 m out, 8 m short of a place at 20.
         let old = CombatTuning {
             grenade_trace: false,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let run = throw_run(20.0, &[], old, None, 6_000);
         let (_, press) = pressed_at(&run).expect("thrown");
@@ -6971,7 +6983,7 @@ mod tests {
     /// turned back, so the view was level by the launch.
     #[test]
     fn the_look_and_the_legs_are_held_until_the_grenade_has_left_the_hand() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let run = throw_run(20.0, &[], c.clone(), None, 8_000);
         let (press, first) = pressed_at(&run).expect("thrown");
         let look = first.look_at.unwrap();
@@ -7013,7 +7025,7 @@ mod tests {
         // One grenade: a second throw's push would replace the first's.
         let c = CombatTuning {
             grenades: 1,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let run = throw_run(20.0, &[], c.clone(), None, 9_000);
         let (press, _) = pressed_at(&run).expect("thrown");
@@ -7032,7 +7044,7 @@ mod tests {
     /// the roll.
     #[test]
     fn a_mate_on_the_blast_segment_refuses_the_throw() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let mate_at = |x: f32, z: f32| body(3, 0, Vec3::new(x, 0.0, z), 0.0);
         // Alone: thrown.
         let alone = throw_run(25.0, &[], c.clone(), None, 6_000);
@@ -7075,7 +7087,7 @@ mod tests {
 
     #[test]
     fn fewer_grenades_are_thrown_with_a_mate_near() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let throws = |mate: bool| -> Vec<usize> {
             (13..=27)
                 .map(|d| {
@@ -7097,7 +7109,7 @@ mod tests {
     /// thrower is not a place to throw at (YaPB refuses a steep wall hit).
     #[test]
     fn a_throw_into_a_wall_near_the_thrower_is_not_made() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let open = floor_and(&[]);
         let run = throw_run(25.0, &[], c.clone(), Some(&open), 6_000);
         assert!(!run.thrown.is_empty(), "{:?}", run.notes);
@@ -7135,7 +7147,7 @@ mod tests {
         let d = arc::max_range(arc::hand_of(eye).y - up).unwrap() - 0.3;
         assert!(d > 12.0 && d < 27.0, "{d}");
         let place = Vec3::new(0.0, up, d);
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let stepped = |step| throw_run_stepping(&[place], &[], c.clone(), None, 6_000, step);
         // Level, it is thrown.
         let level = stepped(None);
@@ -7167,7 +7179,7 @@ mod tests {
     /// the look time after it, and not before or after.
     #[test]
     fn the_view_is_held_for_the_grenade_from_the_press_to_the_launch_and_after() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let run = throw_run(20.0, &[], c.clone(), None, 6_000);
         let (press, _) = pressed_at(&run).expect("thrown");
         let end = press + c.grenade_launch_ms + c.grenade_look_after_ms;
@@ -7199,7 +7211,7 @@ mod tests {
         assert!(ahead.distance_xz(Vec3::ZERO) < aside.distance_xz(Vec3::ZERO));
         let one = CombatTuning {
             grenade_places: 1,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let run = throw_run_at(&[ahead, aside], &[], one, Some(&walled), 6_000);
         assert!(run.thrown.is_empty(), "{:?}", run.notes);
@@ -7214,7 +7226,7 @@ mod tests {
         let run = throw_run_at(
             &[ahead, aside],
             &[],
-            CombatTuning::default(),
+            flat_arc(),
             Some(&walled),
             6_000,
         );
@@ -7238,7 +7250,7 @@ mod tests {
         let again = throw_run_at(
             &[ahead, aside],
             &[],
-            CombatTuning::default(),
+            flat_arc(),
             Some(&walled),
             6_000,
         );
@@ -7273,7 +7285,7 @@ mod tests {
             Vec3::new(-2.0, 0.0, 25.0),
         ];
         let clear = Vec3::new(20.0, 0.0, 14.0);
-        let c = CombatTuning::default();
+        let c = flat_arc();
         assert_eq!(c.grenade_places, 3);
         let pick = |places: &[Vec3], c: &CombatTuning| {
             pick_place(&me, &view, places, (0.0, 0.0), c, &wall)
@@ -7328,7 +7340,7 @@ mod tests {
     fn a_throw_is_weighed_on_the_ground_it_meets() {
         let me = body(0, 0, Vec3::ZERO, 0.0);
         let view = view_of(vec![me.clone()]);
-        let c = CombatTuning::default();
+        let c = flat_arc();
         let at = Vec3::new(0.0, 0.0, 20.0);
         let weigh =
             |ground: &dyn arc::Ground| weigh_throw(&me, &view, at, (0.0, 0.0), &c, true, ground);
@@ -7408,7 +7420,7 @@ mod tests {
             throw_run(
                 23.0,
                 &[body(3, 0, Vec3::new(14.0, 0.0, 10.0), 0.0)],
-                CombatTuning::default(),
+                flat_arc(),
                 None,
                 9_000,
             )
@@ -7659,7 +7671,7 @@ mod tests {
             fire_within_deg: 180.0,
             combat: CombatTuning {
                 reload_rounds_in_view: 0,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -7819,7 +7831,7 @@ mod tests {
             None,
             CombatTuning {
                 reload_rounds_in_view: 0,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             u32::MAX,
         );
@@ -7867,7 +7879,7 @@ mod tests {
             "shotgunner",
             4_000,
             Some(1_000 + 350),
-            CombatTuning::default(),
+            flat_arc(),
             u32::MAX,
         );
         let end = reflex.loop_end().expect("the loop ended");
@@ -7901,7 +7913,7 @@ mod tests {
     fn cutting() -> CombatTuning {
         CombatTuning {
             reload_rounds_in_view: 3,
-            ..CombatTuning::default()
+            ..flat_arc()
         }
     }
 
@@ -7963,11 +7975,11 @@ mod tests {
         // In view, with the rule at 0 (the default: the cut failed the
         // smoke) the whole load; at 8 or more, which is the last round-end
         // anyway, likewise.
-        assert_eq!(CombatTuning::default().reload_rounds_in_view, 0);
+        assert_eq!(flat_arc().reload_rounds_in_view, 0);
         for rule in [0, 8, 20] {
             let combat = CombatTuning {
                 reload_rounds_in_view: rule,
-                ..CombatTuning::default()
+                ..flat_arc()
             };
             let end = loop_of(combat, u32::MAX);
             assert_eq!((end.loaded, end.target), (8, 8), "{rule}");
@@ -7978,7 +7990,7 @@ mod tests {
     fn with_the_aim_control_off_the_sights_cut_the_loop_to_one_round_as_before() {
         let combat = CombatTuning {
             reload_aim_control: false,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         let (ticks, press, reflex) = first_reload("shotgunner", 4_000, None, combat, u32::MAX);
         let end = reflex.loop_end().expect("the loop ended");
@@ -7995,7 +8007,7 @@ mod tests {
         // The AK-74U's 30: no key of a bot shortens its reload, so nothing is
         // changed in what it presses, and it has no loop.
         let (ticks, press, mut reflex) =
-            first_reload("support", 3_000, None, CombatTuning::default(), u32::MAX);
+            first_reload("support", 3_000, None, flat_arc(), u32::MAX);
         assert!(
             ticks
                 .iter()
@@ -8009,7 +8021,7 @@ mod tests {
 
     #[test]
     fn the_matchup_keeps_each_weapon_at_its_range() {
-        let c = CombatTuning::default();
+        let c = flat_arc();
         assert_eq!(preferred_band(None, Some(WeaponKind::Rifle), &c), None);
         assert_eq!(
             preferred_band(Some(WeaponKind::Shotgun), None, &c),
@@ -8031,7 +8043,7 @@ mod tests {
         // Its own weapon wins when the enemy's leaves no band.
         let wide = CombatTuning {
             keep_from_shotgun_m: c.band_smg.1 - 2.0,
-            ..CombatTuning::default()
+            ..flat_arc()
         };
         assert_eq!(
             preferred_band(Some(WeaponKind::Smg), Some(WeaponKind::Shotgun), &wide),
@@ -8673,7 +8685,7 @@ mod tests {
         let aim = AimTuning {
             combat: CombatTuning {
                 glance_told_m: 30.0,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -8751,7 +8763,7 @@ mod tests {
         let aim = AimTuning {
             combat: CombatTuning {
                 hit_bearing: true,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -8874,7 +8886,7 @@ mod tests {
         let aim = AimTuning {
             combat: CombatTuning {
                 hit_bearing: true,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -8992,7 +9004,7 @@ mod tests {
         let aim = AimTuning {
             combat: CombatTuning {
                 outranged_cover: cover,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         };
@@ -9120,7 +9132,7 @@ mod tests {
                 glance_heard_m: 10.0,
                 glance_heard_share: 0.5,
                 glance_close_m: 6.0,
-                ..CombatTuning::default()
+                ..flat_arc()
             },
             ..AimTuning::default()
         }
@@ -9280,7 +9292,7 @@ mod tests {
                 combat: CombatTuning {
                     aim_in_first: first,
                     ads_near_chance: 0.0,
-                    ..CombatTuning::default()
+                    ..flat_arc()
                 },
                 ..AimTuning::default()
             };
