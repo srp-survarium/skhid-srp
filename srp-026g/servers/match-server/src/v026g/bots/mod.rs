@@ -47,6 +47,7 @@ pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod foliage;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
@@ -545,6 +546,8 @@ pub struct Bots {
     /// The human routes of this map and mode (play 17), till the map is
     /// built and they are put on its floors.
     routes: Vec<routes::HumanRoute>,
+    /// The map's bushes a sight line crosses (`foliage.rs`), till the map is built.
+    foliage: foliage::Foliage,
     /// This poll's route searches ([`Searching`]).
     searching: Searching,
     /// Kit choices made since they were last taken
@@ -608,6 +611,7 @@ impl Bots {
             #[cfg(test)]
             bench_camper: None,
             routes: Vec::new(),
+            foliage: foliage::Foliage::none(),
             weapons: Vec::new(),
             searching: Searching {
                 left: SEARCHES_PER_POLL,
@@ -700,6 +704,7 @@ impl Bots {
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
         tactics.escape_ceiling = self.tuning.escape_ceiling;
+        tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
@@ -739,6 +744,11 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.routes = table.for_map(self.level, self.mode);
+    }
+
+    /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
+    pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
+        self.foliage = foliage;
     }
 
     pub fn has_map(&self) -> bool {
