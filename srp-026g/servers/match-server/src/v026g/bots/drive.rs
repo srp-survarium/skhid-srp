@@ -415,6 +415,21 @@ pub(super) fn drive_tick(
                 }
                 _ => false,
             };
+            // Given up in its pocket, its goal outside it: no search (the grid
+            // has no way, and the next goal is no different): the bot stays, the
+            // escape's tries are spent (`escape.rs`, `stuck::SelfKill` at the end).
+            let shut_in = tuning.think.shut_in_gate
+                && bot
+                    .stuck
+                    .escape
+                    .as_ref()
+                    .is_some_and(|escape| escape.trapped().gave_up)
+                && {
+                    let grid = &tactics.world.grid;
+                    let from = grid.locate(me.feet, 1.5).and_then(|n| grid.pocket_of(n));
+                    from.is_some()
+                        && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
+                };
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
@@ -436,7 +451,11 @@ pub(super) fn drive_tick(
                     };
                 }
                 bot.set_route(route.map(|route| (route, goal)), time);
-            } else if replan && no_way {
+            } else if replan && (no_way || shut_in) {
+                #[cfg(test)]
+                if !no_way {
+                    search::asks::count(search::asks::Ask::Skipped);
+                }
                 bot.end_route(RouteEnd::NoWay, time);
                 no_route = path::NoRoute::NoWay;
             } else if waiting
@@ -455,6 +474,13 @@ pub(super) fn drive_tick(
             } else if replan {
                 searching.left -= 1;
                 let grid = &tactics.world.grid;
+                #[cfg(test)]
+                {
+                    let in_pocket = grid
+                        .locate(me.feet, 1.5)
+                        .is_some_and(|node| grid.in_pocket(node));
+                    search::asks::searched(&mut bot.bench_asked, time, in_pocket);
+                }
                 let side = bot.side;
                 let objective = intent.objective;
                 // Round the spots it got stuck at, if there is a way; else

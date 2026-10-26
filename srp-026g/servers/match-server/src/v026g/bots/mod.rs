@@ -163,6 +163,9 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// The time of its last route search, for the bench's counts of asks (`search::asks`).
+    #[cfg(test)]
+    pub(crate) bench_asked: search::asks::Asked,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -308,6 +311,8 @@ impl Bot {
             no_way_to: Vec::new(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_asked: Default::default(),
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
