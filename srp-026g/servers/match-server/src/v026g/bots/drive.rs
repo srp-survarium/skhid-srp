@@ -541,6 +541,14 @@ pub(super) fn drive_tick(
                     from.is_some()
                         && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
                 };
+            // The bench's count of the given-up episodes: the tick a bot becomes shut in.
+            #[cfg(test)]
+            {
+                if shut_in && !bot.bench_shut_in {
+                    search::asks::count(search::asks::Ask::Episodes);
+                }
+                bot.bench_shut_in = shut_in;
+            }
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
@@ -564,11 +572,15 @@ pub(super) fn drive_tick(
                 bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
-                if !no_way {
+                if shut_in {
                     search::asks::count(search::asks::Ask::Skipped);
                 }
                 bot.end_route(RouteEnd::NoWay, time);
-                no_route = path::NoRoute::NoWay;
+                no_route = if shut_in {
+                    path::NoRoute::ShutIn
+                } else {
+                    path::NoRoute::NoWay
+                };
             } else if waiting
                 || (replan
                     && (searching.left == 0

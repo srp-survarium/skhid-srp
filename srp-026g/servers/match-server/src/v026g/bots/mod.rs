@@ -196,6 +196,9 @@ pub struct Bot {
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
+    /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
+    #[cfg(test)]
+    pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -378,6 +381,8 @@ impl Bot {
             bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
+            #[cfg(test)]
+            bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]

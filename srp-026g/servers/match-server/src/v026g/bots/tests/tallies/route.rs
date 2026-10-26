@@ -44,7 +44,7 @@ pub(crate) struct RouteTally {
     pub(crate) lost: u32,
     /// "is stuck" notes, and those of them by the walk keys alone.
     pub(crate) stuck: (u32, u32),
-    pub(crate) no_route: [u64; 5],
+    pub(crate) no_route: [u64; 6],
     /// The route requests of a poll found / failed by the floors' storey gap
     /// (`path::request_gap`), at the start.
     pub(crate) request_gap: [u64; 6],
@@ -82,7 +82,7 @@ pub(crate) struct RouteTally {
     /// The sights' count at the start (`foliage::through`).
     pub(crate) foliage: [u64; 4],
     /// The route searches' counts at the start (`search::asks`).
-    pub(crate) asks: [u64; 4],
+    pub(crate) asks: [u64; 5],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -574,7 +574,7 @@ impl RouteTally {
             );
         }
         let now = super::path::no_routes();
-        let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
+        let no_route: Vec<u64> = (0..6).map(|k| now[k] - self.no_route[k]).collect();
         let gaps = super::path::request_gaps();
         let gap: Vec<u64> = (0..6).map(|k| gaps[k] - self.request_gap[k]).collect();
         let escapes = super::tactics::escapes::counts();
@@ -603,11 +603,13 @@ impl RouteTally {
         // Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in its pocket was spared.
         let asked = super::search::asks::counts();
         route_ends += &format!(
-            " asks {} asks_pocket {} asks_again_1s {} asks_skipped {}",
+            " asks {} asks_pocket {} asks_again_1s {} asks_skipped {} shut_in_bots {} no_route_shut_in {}",
             asked[0] - self.asks[0],
             asked[1] - self.asks[1],
             asked[2] - self.asks[2],
-            asked[3] - self.asks[3]
+            asked[3] - self.asks[3],
+            asked[4] - self.asks[4],
+            no_route[5]
         );
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;
