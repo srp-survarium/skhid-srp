@@ -119,3 +119,9 @@ survarium::world_keyboard_frame	kind	0x10	u32	on_keyboard_action's [ebp+10h]: th
 survarium::chat_handler	in_match	0xD	u8	set_mode's flag: in a match, its movie the hud (add_message 0x208AD0)
 survarium::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable, which the callers of cc_value<bool>'s constructor (0x1DDB0) write over its own (the hud's show_quests_progress, 0x2339E8)
 survarium::image	private_messages_option	0xA064FC	u8	"g_private_messages_in_game", the gameplay options' option 4 (main_menu.swf's _no_in_batle), which names no console command in the original (options_item_base 0x260E90)
+survarium::base_player	place	0x114	u8	the player's place in the match
+survarium::base_player	kit	0x115	u8	the player's kit of its place (0x316DDD, 0x316DFC)
+survarium::item_vtable	bind	0x70	u32	an item's bind (vtable+70h): weapon_core's 0x2E30F0 in the item vtables of weapon_core and the client's weapon alone
+survarium::weapon_item	core	-0x10	u32	the weapon_core whose item this is (weapon_core's constructor 0x2DF0D0, `lea edi,[ebp+10h]`)
+survarium::weapon_core	random_state	0x5BC	u32	the spread's minstd_rand state: the constructor's 1 (0x2DF429), drawn from by 0x2E1D50 and 0x2E2120 alone
+survarium::image	weapon_core_bind	0x2E30F0	u32	weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else

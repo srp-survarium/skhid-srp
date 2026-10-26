@@ -76,9 +76,11 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     else; every call before both takes its arguments off the stack; the
     three are the hud movie's set_game_progress, set_last_players and
     set_respawn_time; no branch or address aims inside the jump.
-19. the same build: the respawn rule's spawn calls weapon_random_hook at
-    0x316EA0 (`call` where the original and the build without the late
-    join load the call that puts the player into the world); in the
+19. the same build: the respawn rule's spawn is the Rust patch
+    weapon_random's lohook at 0x316EA0 (spawn.weapon_random, where the
+    original and the build without the late join load the call that puts
+    the player into the world; rust_lohooks: the generated entry, its
+    replay of the two instructions, no exit); in the
     original the spawn makes the target kit current, takes its player into
     esi and initialises it with the time in ebp, neither register written
     again before the hook and no flag read after it; the spawn is slot +5Ch
@@ -88,9 +90,9 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     1 into +5BCh, which .text names only there, in the two spreads (48271
     mod 2^31-1), the serialize and the deserialize; weapon_core's bind is
     in the file only in the item vtables of weapon_core and of the
-    client's weapon; the hook's code tests that bind, writes +5BCh alone,
-    and ends with the two instructions; no branch or address aims inside
-    the five bytes.
+    client's weapon; no branch or address aims inside the five bytes.
+    check_late_join_026g.py runs it (and port/equiv/weapon_random.py
+    compared it with the asm it replaces).
 20. the same build: the two calls of a game's first world (0x2D1050,
     0x2D1055) go to first_load_input and first_load_kit; in the original
     they are the only calls of 0x2D4AB0 and 0x2D4B50, in deserialize's
@@ -2455,15 +2457,12 @@ def test_weapon_random(original, image, before):
     """Check 19: a spawn gives the new kit's weapons a random state of the
     match's own."""
     source = Image(original)
-    va, old, offset, _ = P.WEAPON_RANDOM_HOOK
-    entry = P.LATE_JOIN_VA + offset
+    va, size = 0x316EA0, 5
+    bind = rust_field("survarium::image", "weapon_core_bind")
+    random_field = rust_field("survarium::weapon_core", "random_state")
     rows = lambda blob, at, size: ndisasm(blob.read(at, size), at)
     texts = lambda blob, at, size: [text for _, _, text in rows(blob, at, size)]
-    check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-          and texts(source, va, len(old)) == ["mov edx,[esi]", "mov eax,[edx+0x20]"]
-          and texts(image, va, len(old)) == [f"call 0x{entry:x}"],
-          f"{va:#x}: `mov edx,[esi]` / `mov eax,[edx+0x20]` is `call 0x{entry:x}`; the original and the build without "
-          "the late join keep them")
+    rust_lohooks(original, image, before, "weapon_random", {va: ["mov edx,[esi]", "mov eax,[edx+0x20]"]})
     # The spawn, 0x316DA0 to its `ret 0Ch`.
     spawn = rows(source, P.WEAPON_SPAWN_VA, 0x316EB3 - P.WEAPON_SPAWN_VA)
     at = {address: text for address, _, text in spawn}
@@ -2514,10 +2513,10 @@ def test_weapon_random(original, image, before):
     weapon_core = texts(source, 0x2DF0D0, 0x400)
     weapon = texts(source, 0x243640, 0x30)
     bound = []
-    position = original.find(struct.pack("<I", P.WEAPON_BIND_VA))
+    position = original.find(struct.pack("<I", bind))
     while position != -1:
         bound.append(position)
-        position = original.find(struct.pack("<I", P.WEAPON_BIND_VA), position + 1)
+        position = original.find(struct.pack("<I", bind), position + 1)
     names = {rtti_name(source, item_vtable) for item_vtable in (0xA0422C, 0xA1114C)}
     check(all(text in weapon_core for text in ("lea edi,[ebp+0x10]", "mov dword [edi],0xa1114c",
                                                "mov dword [ebp+0x0],0xa11094", "mov dword [ebp+0x5bc],0x1"))
@@ -2525,12 +2524,12 @@ def test_weapon_random(original, image, before):
           and sorted(bound) == sorted(source.offset(item_vtable + 0x70) for item_vtable in (0xA0422C, 0xA1114C))
           and names == {(".?AVweapon@survarium@@", 0x10), (".?AVweapon_core@survarium@@", 0x10)},
           f"weapon_core's constructor puts its item at +10h and 1 into +5BCh; the client's weapon is one; "
-          f"{P.WEAPON_BIND_VA:#x} (weapon_core's bind) is in the file only as +70h of their two item vtables")
+          f"{bind:#x} (weapon_core's bind) is in the file only as +70h of their two item vtables")
     # Every [register+5BCh] of .text that is not on the stack.
     text_start = P.file_offset(P.TEXT_VA)
     text = bytes(original[text_start:text_start + P.TEXT_VSIZE])
     sites, position = [], 0
-    while (position := text.find(struct.pack("<I", P.WEAPON_RANDOM_FIELD), position)) >= 0:
+    while (position := text.find(struct.pack("<I", random_field), position)) >= 0:
         modrm, sib = text[position - 1], text[position - 2]
         if modrm & 0xC0 == 0x80 and modrm & 7 != 4:
             sites.append(P.TEXT_VA + position - 2)
@@ -2545,24 +2544,16 @@ def test_weapon_random(original, image, before):
                   for draw in (0x2AB6E0, 0x2E49F0)),
           "+5BCh of a register is in .text five times: the constructor's 1, the two spreads that draw from it "
           "(minstd_rand: 48271 mod 2^31-1, 0x2AB6E0 and 0x2E49F0), the serialize and the deserialize's store")
-    hook = rows(image, entry, 0x80)
-    hook = hook[:next(i for i, (_, _, text) in enumerate(hook) if text == "ret") + 1]
-    hook_texts = [text for _, _, text in hook]
-    pc = next(i for i, (_, _, text) in enumerate(hook) if text.startswith("call"))
-    add = re.match(r"add ebx,0x([0-9a-f]+)$", hook_texts[pc + 2])
-    stores = [text for text in hook_texts if re.match(r"mov \[", text)]
-    inside = all(entry <= branch_target(text) < hook[-1][0] + 1 for text in hook_texts
-                 if branch_target(text) is not None)
-    check(hook_texts[0] == "pusha" and hook_texts[-4:] == ["popa", "mov edx,[esi]", "mov eax,[edx+0x20]", "ret"]
-          and hook_texts[pc + 1] == "pop ebx" and branch_target(hook_texts[pc]) == hook[pc + 1][0]
-          and add is not None and (hook[pc + 1][0] + int(add.group(1), 16)) & 0xFFFFFFFF == P.WEAPON_BIND_VA
-          and "cmp [eax+0x70],ebx" in hook_texts and "mov ecx,[esi+0x10c]" in hook_texts
-          and "cmp edi,byte +0x17" in hook_texts and "mov ecx,0x7ffffffe" in hook_texts
-          and stores == [f"mov [eax+0x{P.WEAPON_RANDOM_FIELD - 0x10:x}],edx"] and inside,
-          f"weapon_random_hook ({entry:#x}): pushad; for the 23 slots of the player's inventory, an item whose "
-          f"vtable+70h is {P.WEAPON_BIND_VA:#x} (taken relative to the code) gets a state at item+5ACh (weapon+5BCh) "
-          "and nothing else is written; popad, the two instructions, ret; no branch leaves it")
-    found = aimed_inside(original, va, len(old), 0x82)
+    fields = {(kind, field): rust_field(kind, field) for kind, field in (
+        ("survarium::base_player", "inventory"), ("survarium::base_player", "place"),
+        ("survarium::base_player", "kit"), ("survarium::inventory", "slots"),
+        ("survarium::item_vtable", "bind"), ("survarium::weapon_item", "core"))}
+    check(list(fields.values()) == [0x10C, 0x114, 0x115, 0x10C, 0x70, -0x10] and bind == P.WEAPON_BIND_VA
+          and random_field == 0x5BC,
+          "fields_026g.tsv as the original has them: the player's inventory +10Ch, place +114h and kit +115h "
+          "(0x316DDD, 0x316DFC), the inventory's slots +10Ch, an item's bind vtable+70h, a weapon_core's item at "
+          f"+10h, its random state +5BCh, weapon_core's bind {bind:#x}")
+    found = aimed_inside(original, va, size, 0x82)
     check(not found, "no rel32 branch of .text, no rel8 branch byte near it and no 4-byte value aims inside the five "
           "bytes (0x316E76 aims at their start)" + "".join(f"\n          {a:#x}" for a in found))
 

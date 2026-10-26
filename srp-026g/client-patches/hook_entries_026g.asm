@@ -821,3 +821,43 @@ spot_on_hit_owner_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
+
+; 0x316ea0 the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi]; mov eax,[edx+20h]; ESI the player, EBP the spawn's time): lohook -> weapon_random_on_spawn
+global weapon_random_on_spawn
+extern hook_weapon_random_on_spawn
+weapon_random_on_spawn:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_random_on_spawn
+    mov edx, weapon_random_on_spawn_replay
+    cmp eax, 0
+    je weapon_random_on_spawn_go
+    mov edx, 0x316ea5
+    cmp eax, 1
+    je weapon_random_on_spawn_go
+    ud2
+weapon_random_on_spawn_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_random_on_spawn_replay:
+    db 0x8b, 0x16
+    db 0x8b, 0x42, 0x20
+    jmp 0x316ea5

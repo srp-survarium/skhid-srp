@@ -43,6 +43,8 @@ mod options;
 pub mod parse;
 pub mod replay;
 pub mod render;
+pub mod player;
+pub mod spawn;
 pub mod spotting;
 mod rt;
 mod sync;

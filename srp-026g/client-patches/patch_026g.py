@@ -235,7 +235,7 @@ Patches:
   world, which holds the current kit's player alone: a game that loaded one
   during a match had the other kits' weapons at 1, the others had them
   drawn from, and a respawn into such a kit put it out of step. The
-  respawn rule's spawn (0x316DA0) calls into the new code at 0x316EA0,
+  respawn rule's spawn (0x316DA0) is the Rust patch weapon_random's lohook at 0x316EA0,
   after the new kit's player is initialised and before it is put into the
   world: each weapon of its inventory gets a state from its place, kit,
   slot and the spawn's time, the same in every game. And a game's first
@@ -1481,22 +1481,21 @@ STATISTICS_COUNT = (0x26D8F3, bytes.fromhex("8a82b5770500"), b"\xb0\x14" + b"\x9
 # current (0x316DE3), initialises its player (vtable+1Ch: the inventory from
 # the profile, a weapon in hand) and puts it into the world (vtable+20h).
 # Between the two, at 0x316EA0 (`mov edx,[esi]` / `mov eax,[edx+20h]`, the
-# load of that call; esi = the player, ebp = the spawn's time), a call into
-# weapon_random_hook (late_join_026g.asm) gives each weapon of the player's
-# inventory a state from its place, kit, slot and the spawn's time, in
-# 1..2^31-2, then does the two instructions. A weapon is an item whose
-# vtable+70h is weapon_core's bind 0x2E30F0, which only the vtables of
-# weapon_core and the client's weapon hold.
-WEAPON_RANDOM_VA, WEAPON_RANDOM_OFFSET = 0x316EA0, 3712
-WEAPON_RANDOM_HOOK = (WEAPON_RANDOM_VA, bytes.fromhex("8b168b4220"), WEAPON_RANDOM_OFFSET, 0xE8)
+# load of that call; esi = the player, ebp = the spawn's time), the Rust
+# patch weapon_random's lohook (rust/patches/src/weapon_random.rs, the site
+# spawn.weapon_random) gives each weapon of the player's inventory a state
+# from its place, kit, slot and the spawn's time, in 1..2^31-2, then the two
+# instructions are replayed. A weapon is an item whose vtable+70h is
+# weapon_core's bind 0x2E30F0 (fields_026g.tsv weapon_core_bind), which only
+# the vtables of weapon_core and the client's weapon hold.
 WEAPON_SPAWN_VA = 0x316DA0                    # the respawn rule's spawn
 WEAPON_BIND_VA = 0x2E30F0                     # weapon_core's bind, vtable+70h of its item
-WEAPON_RANDOM_FIELD = 0x5BC                   # weapon_core's random state
 WEAPON_RANDOM_MODULUS = 0x7FFFFFFF
 
 
 def weapon_random_state(place, kit, slot, time):
-    """The state weapon_random_hook gives a weapon at a spawn."""
+    """The state weapon_random gives a weapon at a spawn (the checks'
+    model; the cargo test holds weapon_random::state to it)."""
     h = ((((place & 0xFF) << 16 | (kit & 0xFF) << 8 | slot) * 0x85EBCA6B)
          ^ (time * 0x9E3779B1)) & 0xFFFFFFFF
     return (h ^ h >> 15) % (WEAPON_RANDOM_MODULUS - 1) + 1
@@ -1625,7 +1624,6 @@ LATE_JOIN_HOOKS = (
     (0x219E60, bytes.fromhex("558bec83e4f8"), 2432, 0xE9),       # network_client's destructor: client_destroyed_hook
     (0x23572B, bytes.fromhex("8b8c2498000000"), 3456, 0xE9),     # the hud's lists of players, made again: lists_hook
     (0x39E52, bytes.fromhex("f30f7e00660fd64704"), 3520, 0xE9),  # a box that is no box, in the tree: box_hook
-    WEAPON_RANDOM_HOOK,                                          # a spawn's weapons' random state: weapon_random_hook
     KIT_STATE_HOOK,                                              # a spawn's weapons' kept state: kit_state_hook
     FIRST_LOAD_INPUT_HOOK,                                       # a first world's inputs, in time order: first_load_input
     FIRST_LOAD_KIT_HOOK,                                         # a first world's kit choices: first_load_kit
@@ -2205,7 +2203,6 @@ INSTALLS = {
     0x219E60: (ENTRY, "network_client's destructor: client_destroyed_hook", None, None),
     0x23572B: (JUMP, "the hud's lists made again: lists_hook", None, None),
     0x39E52: (JUMP, "a box that is no box: box_hook", None, None),
-    0x316EA0: (INLINE, "a spawn's weapons' random state: weapon_random_hook", None, None),
     0x316E57: (INLINE, "a spawn's weapons' kept state: kit_state_hook", None, None),
     0x2D1050: (CALLEE, "a first world's inputs: first_load_input", None, None),
     0x2D1055: (CALLEE, "a first world's kit choices: first_load_kit", None, None),

@@ -379,3 +379,18 @@ pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
 }
+
+// ---- weapon_random (patch 18) ----
+
+/// The entry `weapon_random_on_spawn` (0x316ea0, the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi]; mov eax,[edx+20h]; ESI the player, EBP the spawn's time)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_random_on_spawn(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_random_on_spawn` calls this, from the game's jump at 0x316ea0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_random::on_spawn(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}

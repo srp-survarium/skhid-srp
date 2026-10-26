@@ -1267,8 +1267,10 @@ slot +0x5C; every spawn of a match, the first too, and every replay of its
 tick goes through it) makes the new kit current, initialises its player
 (the inventory set up from the profile) and then puts it into the world.
 Between the two, the five bytes at 0x316EA0 (`mov edx,[esi]` /
-`mov eax,[edx+20h]`) become a call into `weapon_random_hook`
-(`late_join_026g.asm`, 118 bytes at offset 3712): each weapon of the
+`mov eax,[edx+20h]`) are the Rust patch weapon_random's lohook
+(`rust/patches/src/weapon_random.rs`, the site `spawn.weapon_random`;
+ported from `late_join_026g.asm`'s weapon_random_hook with no change of
+behaviour, proven by `port/equiv/weapon_random.py`): each weapon of the
 player's inventory (an item whose vtable+0x70 is weapon_core's bind
 0x2E30F0, which only the vtables of weapon_core and the client's weapon
 hold) gets the state
@@ -1278,7 +1280,7 @@ hold) gets the state
 
 from the player's place and kit, the slot and the spawn's time (the
 place's respawn time, which is in the world), the same in every game; then
-the two instructions. Nothing else is written. Only in the builds with the
+the two instructions are replayed. Nothing else is written. Only in the builds with the
 late join (revision 10).
 
 **Revisions.** What a match computes changes at a match's first spawn: a

@@ -39,3 +39,4 @@ pub mod spot;
 pub mod ragdoll;
 pub mod blackout;
 pub mod suicide_key;
+pub mod weapon_random;

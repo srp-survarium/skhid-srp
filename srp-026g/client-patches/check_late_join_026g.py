@@ -29,6 +29,7 @@ calling convention and ID allocation, not a playable late join.
 import argparse
 import hashlib
 from pathlib import Path
+import re
 import struct
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
@@ -1426,25 +1427,49 @@ def weapon_random(original, changed):
     assert state == pow(48271, 3, 0x7FFFFFFF)
 
 
+def rust_function(data, symbol):
+    """(file offset, bytes) of a Rust patch's function in the build `data`:
+    from its symbol in the arena's link to the next symbol."""
+    linked = patch.base.arena()
+    start = linked.symbols[symbol]
+    end = min(va for _, va, _, _ in linked.every if va > start)
+    for _, rva, size, raw, raw_size, _ in patch.base.Headers(data).sections(data):
+        if patch.base.IMAGE_BASE + rva <= start < patch.base.IMAGE_BASE + rva + raw_size:
+            at = raw + start - patch.base.IMAGE_BASE - rva
+            return at, bytes(data[at:at + end - start])
+    raise AssertionError(f"{symbol} is in no section of the build")
+
+
+def broken_rust(data, symbol, pattern, new):
+    """A copy of the build with each match of `pattern` (a regex of bytes)
+    in a Rust function made `new` (a function of the match's bytes): one
+    thing broken. The pattern must be there."""
+    at, code = rust_function(data, symbol)
+    found = list(re.finditer(pattern, code, re.S))
+    assert found, f"{pattern!r} is not in {symbol}"
+    copy = bytearray(data)
+    for m in found:
+        copy[at + m.start():at + m.end()] = new(m.group(0))
+    return bytes(copy)
+
+
 def weapon_random_fails(original, changed):
     """weapon_random given the original as the build, and given copies of
-    the build with one thing broken each, must fail."""
-    image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = srp_section(changed)
-    cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.WEAPON_RANDOM_OFFSET
-    code = bytes(changed[cave:cave + 0x80])
-
-    def broken(old, new):
-        at = code.index(old)
-        copy = bytearray(changed)
-        copy[cave + at:cave + at + len(old)] = new
-        return bytes(copy)
-
+    the build with one thing broken each, must fail. The build's code is the
+    Rust patch weapon_random's (inlined into its shim): the slots' bound,
+    the spawn's time and the bind's test each changed in its instructions."""
+    shim = "hook_weapon_random_on_spawn"
     copies = {
         "the original": original,
-        "slot 10 left out (the slots end at 10)": broken(bytes.fromhex("83ff17"), bytes.fromhex("83ff0a")),
-        "the time left out": broken(bytes.fromhex("69d5b179379e"), bytes.fromhex("69d3b179379e")),
-        "every item taken for a weapon": broken(bytes.fromhex("395870753e"), bytes.fromhex("3958709090")),
+        # cmp reg,16h (the last slot, 22) -> 9: the walk ends after slot 9
+        "slot 10 left out (the slots end at 10)": broken_rust(
+            changed, shim, rb"\x83[\xf8-\xff]\x16", lambda b: b[:2] + b"\x09"),
+        # imul r,r,9E3779B1h: the time's register replaced by another
+        "the time left out": broken_rust(
+            changed, shim, rb"\x69[\xc0-\xff]\xb1\x79\x37\x9e", lambda b: bytes([b[0], b[1] ^ 1]) + b[2:]),
+        # cmp ...,2E30F0h then jnz: never skipped
+        "every item taken for a weapon": broken_rust(
+            changed, shim, rb"(?:\x3d|\x81[\xf8-\xff])\xf0\x30\x2e\x00\x75.", lambda b: b[:-2] + b"\x90\x90"),
     }
     for name, data in copies.items():
         try:

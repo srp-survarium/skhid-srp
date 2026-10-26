@@ -267,6 +267,9 @@ pub mod image {
 
     /// 0xa064fc (u8): "g_private_messages_in_game", the gameplay options' option 4 (main_menu.swf's _no_in_batle), which names no console command in the original (options_item_base 0x260E90)
     pub const PRIVATE_MESSAGES_OPTION: u32 = 0xa064fc;
+
+    /// 0x2e30f0 (u32): weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else
+    pub const WEAPON_CORE_BIND: u32 = 0x2e30f0;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -1197,6 +1200,24 @@ pub mod base_player {
     pub unsafe fn damage_model(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x2e0).cast() }
     }
+
+    /// +0x114 (u8): the player's place in the match
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn place(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x114).cast() }
+    }
+
+    /// +0x115 (u8): the player's kit of its place (0x316DDD, 0x316DFC)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn kit(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x115).cast() }
+    }
 }
 
 /// survarium::client_weapon_item's fields (fields_026g.tsv).
@@ -1472,5 +1493,50 @@ pub mod chat_handler {
     #[inline(always)]
     pub unsafe fn in_match(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0xd).cast() }
+    }
+}
+
+/// survarium::item_vtable's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod item_vtable {
+    use core::ffi::c_void;
+
+    /// +0x70 (u32): an item's bind (vtable+70h): weapon_core's 0x2E30F0 in the item vtables of weapon_core and the client's weapon alone
+    ///
+    /// # Safety
+    /// `this` is a survarium::item_vtable.
+    #[inline(always)]
+    pub unsafe fn bind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x70).cast() }
+    }
+}
+
+/// survarium::weapon_item's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod weapon_item {
+    use core::ffi::c_void;
+
+    /// -0x10 (u32): the weapon_core whose item this is (weapon_core's constructor 0x2DF0D0, `lea edi,[ebp+10h]`)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_item.
+    #[inline(always)]
+    pub unsafe fn core(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x10).cast() }
+    }
+}
+
+/// survarium::weapon_core's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod weapon_core {
+    use core::ffi::c_void;
+
+    /// +0x5bc (u32): the spread's minstd_rand state: the constructor's 1 (0x2DF429), drawn from by 0x2E1D50 and 0x2E2120 alone
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn random_state(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5bc).cast() }
     }
 }
