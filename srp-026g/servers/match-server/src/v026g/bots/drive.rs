@@ -58,7 +58,8 @@ pub(super) fn zone_way_out(
     {
         return Some(to);
     }
-    let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+    let landings = bot.stuck.shut_landings(time).collect();
+    let hard = traps::filter(bot, landings, Some(from));
     let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
@@ -464,7 +465,8 @@ pub(super) fn drive_tick(
                 // through them (a second search only when there are any).
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+                let landings = bot.stuck.shut_landings(time).collect();
+                let hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
