@@ -58,7 +58,21 @@ fn take_flat_m(below: f32, pitch: f32) -> f32 {
 const SAME_STAND_M: f32 = 0.35;
 /// The ring of stands round a battery tried after a stand failed: eight
 /// ways at these distances off it, metres.
-const RING_M: [f32; 3] = [0.6, 0.9, 1.2];
+const RING_M: [f32; 4] = [0.45, 0.6, 0.9, 1.2];
+/// A battery whose origin is at least this far under the feet is one the
+/// patched client takes through the floor (its use ray passes floors and
+/// accepts a battery whose origin is below the feet, within 1 m across,
+/// `client_patch.md` patch 11), metres: the margin over the position error.
+const SUNK_MIN_M: f32 = 0.2;
+/// ... from at most this far across (the client's 1 m less 0.1), metres.
+const SUNK_ACROSS_M: f32 = 0.9;
+/// The aim of such a take: the top of the battery's box over its origin
+/// (the box is 0.24 m high), metres...
+const SUNK_AIM_M: f32 = 0.22;
+/// ... on its far side from the stand, this far across (the box's
+/// narrowest half, 0.16 m: inside it whatever way the battery lies), where
+/// the look down is the shallowest the box gives.
+const SUNK_FAR_M: f32 = 0.16;
 /// From a ring's stand the look down at the battery is at most this,
 /// radians (the view's pitch stops at 1 rad, `kin`)...
 const RING_PITCH_MAX_RAD: f32 = 0.95;
@@ -239,8 +253,44 @@ enum UseFrom {
     Blocked,
 }
 
-fn use_from(cx: &Ctx, stand: TakeStand, aim: Vec3, max_m: f32, max_pitch: f32) -> UseFrom {
+/// Whether a take from `stand` of the battery whose origin is `at` is the
+/// patched client's: from a crouch (a standing eye that close looks down
+/// past the view's clamp), the feet over the origin and not far across. The
+/// game passes the floor for it, so no line is asked of the bullet mesh.
+fn sunk_take(stand: TakeStand, at: Vec3) -> bool {
+    stand.crouch
+        && stand.feet.y >= at.y + SUNK_MIN_M
+        && stand.feet.distance_xz(at) <= SUNK_ACROSS_M
+}
+
+/// Where a take from `stand` aims at a sunk battery: the far top of its
+/// box ([`SUNK_FAR_M`], [`SUNK_AIM_M`]).
+fn sunk_aim(stand: TakeStand, at: Vec3) -> Vec3 {
+    let (dx, dz) = (at.x - stand.feet.x, at.z - stand.feet.z);
+    let len = dx.hypot(dz);
+    let away = if len > 1e-3 {
+        Vec3::new(dx / len, 0.0, dz / len) * SUNK_FAR_M
+    } else {
+        Vec3::ZERO
+    };
+    at + away + Vec3::new(0.0, SUNK_AIM_M, 0.0)
+}
+
+fn use_from(
+    cx: &Ctx,
+    stand: TakeStand,
+    at: Vec3,
+    aim: Vec3,
+    max_m: f32,
+    max_pitch: f32,
+) -> UseFrom {
     let eye = stand.eye();
+    // A sunk battery is taken through the floor: the box's far top, no line.
+    let aim = if sunk_take(stand, at) {
+        sunk_aim(stand, at)
+    } else {
+        aim
+    };
     let d = aim - eye;
     let length = d.length();
     let pitch = (-d.y).atan2(d.x.hypot(d.z));
@@ -249,6 +299,9 @@ fn use_from(cx: &Ctx, stand: TakeStand, aim: Vec3, max_m: f32, max_pitch: f32) -
     }
     if length > max_m {
         return UseFrom::Far;
+    }
+    if sunk_take(stand, at) {
+        return UseFrom::Clear(pitch);
     }
     if length > USE_LINE_SLACK_M
         && cx
@@ -300,7 +353,7 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                 }
                 let stand = TakeStand { feet, crouch };
                 if let UseFrom::Clear(pitch) =
-                    use_from(cx, stand, aim, RING_USE_M, RING_PITCH_MAX_RAD)
+                    use_from(cx, stand, at, aim, RING_USE_M, RING_PITCH_MAX_RAD)
                     && (crossing || cx.reachable(feet, false))
                 {
                     out.push((stand, pitch));
@@ -1721,7 +1774,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             feet: me,
             crouch: true,
         };
-        match use_from(cx, here, aim, USE_NEAR_M, FIRST_PITCH_MAX_RAD) {
+        match use_from(cx, here, at, aim, USE_NEAR_M, FIRST_PITCH_MAX_RAD) {
             UseFrom::Clear(_) if !gave_up(here) => {
                 *stand = Some(here);
                 *since = cx.now;
@@ -1745,6 +1798,13 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 } else {
                     0.25
                 };
+                // Over a sunk battery the patched client takes it from
+                // close: stopped short, the 0.9 m across is lost.
+                let within = if to.y >= at.y + SUNK_MIN_M {
+                    within.min(0.6)
+                } else {
+                    within
+                };
                 let mut intent = Intent::to(to, Pace::Walk).within(within);
                 // Across a zone, upright till near (a crouch walks slower).
                 if crossing.is_none() || me.distance_xz(to) <= STRAIGHT_M {
@@ -1764,8 +1824,12 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         let level = (me.y - s.feet.y).abs() <= AT_STAND_UP_M;
         if level && (off <= AT_STAND_M || (arrived.is_some() && off <= AT_STAND_M * 2.0)) {
             let arrived_at = *arrived.get_or_insert(cx.now);
-            let lift = AIM_LIFTS_M[usize::from(*tries) % AIM_LIFTS_M.len()];
-            let aim_now = at + Vec3::new(0.0, lift, 0.0);
+            let aim_now = if sunk_take(s, at) {
+                sunk_aim(s, at)
+            } else {
+                let lift = AIM_LIFTS_M[usize::from(*tries) % AIM_LIFTS_M.len()];
+                at + Vec3::new(0.0, lift, 0.0)
+            };
             let mut intent = Intent::stay().looking(Look::Use(aim_now));
             if s.crouch {
                 intent = intent.crouched();
@@ -1784,7 +1848,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 if off > 0.05
                     && cx.now < arrived_at + SETTLE_MS
                     && !matches!(
-                        use_from(cx, here, aim_now, RING_USE_M, FIRST_PITCH_MAX_RAD),
+                        use_from(cx, here, at, aim_now, RING_USE_M, FIRST_PITCH_MAX_RAD),
                         UseFrom::Clear(_)
                     )
                 {
@@ -1843,6 +1907,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 feet: me,
                 crouch: true
             },
+            at,
             aim,
             f32::INFINITY,
             TAKE_PITCH_MAX_RAD
@@ -3076,7 +3141,7 @@ mod tests {
         let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
         let stand = TakeStand { feet, crouch: true };
         matches!(
-            use_from(&s.cx(0), stand, aim, RING_USE_M, TAKE_PITCH_MAX_RAD),
+            use_from(&s.cx(0), stand, TAKE_AT, aim, RING_USE_M, TAKE_PITCH_MAX_RAD),
             UseFrom::Clear(_)
         )
     }
@@ -3728,6 +3793,70 @@ mod tests {
             step(&mut state, target, &s.cx(0), &mut rng),
             Step::Continue(_)
         ));
+    }
+
+    /// A battery sunk under a floor (its origin 0.36 m under a raised patch
+    /// of floor, as School's battery 2): the bullet mesh lies between every
+    /// eye and it, and the patched client takes it through the floor from a
+    /// crouch with the feet over its origin, within 0.9 m across. The ring
+    /// offers such stands, none standing; a battery 1.2 m under a slab is
+    /// not offered (the look down passes the view's clamp); a battery on
+    /// plain ground keeps today's test.
+    #[test]
+    fn a_battery_sunk_under_the_floor_is_taken_from_a_crouch_over_it() {
+        let at = Vec3::new(25.0, 0.0, 12.0);
+        let aim = at + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
+        let world = |slab: f32| {
+            let solids = crate::v026g::bots::body::tests::floor(23.5, 10.5, 26.5, 13.5, slab);
+            crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {})
+        };
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world(0.36), 1.0);
+        s.battery(BatteryState::Free(at));
+        s.bot(0, 0, Vec3::new(25.7, 0.36, 12.0));
+        let cx = s.cx(0);
+        let ring = ring_stands(&cx, at, aim, false);
+        assert!(
+            ring.iter().any(|(st, _)| st.crouch
+                && st.feet.y >= at.y + SUNK_MIN_M
+                && st.feet.distance_xz(at) <= SUNK_ACROSS_M),
+            "a stand over it: {ring:?}"
+        );
+        assert!(
+            ring.iter().all(|(st, _)| st.feet.y < at.y + SUNK_MIN_M || st.crouch),
+            "none standing over it"
+        );
+        // From the stand 0.7 m off the aim is the box's far top, the use clear.
+        let stand = TakeStand {
+            feet: Vec3::new(25.7, 0.36, 12.0),
+            crouch: true,
+        };
+        assert!(sunk_take(stand, at));
+        assert!(matches!(
+            use_from(&cx, stand, at, aim, RING_USE_M, FIRST_PITCH_MAX_RAD),
+            UseFrom::Clear(_)
+        ));
+        // Standing there, or 1.2 m across, it is not the patched take.
+        assert!(!sunk_take(TakeStand { crouch: false, ..stand }, at));
+        assert!(!sunk_take(
+            TakeStand {
+                feet: Vec3::new(26.3, 0.36, 12.0),
+                crouch: true
+            },
+            at
+        ));
+        // Under a slab 1.2 m over it: no stand, the look down is past the clamp.
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world(1.2), 1.0);
+        let cx = s.cx(0);
+        assert!(
+            ring_stands(&cx, at, aim, false)
+                .iter()
+                .all(|(st, _)| st.feet.y < at.y + SUNK_MIN_M),
+            "no stand over a battery 1.2 m under"
+        );
+        // On plain ground nothing is a patched take: today's test decides.
+        let plain = Vec3::new(25.0, 0.0, 12.5);
+        assert!(!sunk_take(TakeStand { feet: plain, crouch: true }, at));
     }
 
     /// A carrier trapped in a pocket, its escape given up: its Collect has
