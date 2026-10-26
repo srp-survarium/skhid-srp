@@ -108,6 +108,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_DAMAGE", "per weapon", "**model** `flat`: every stand-in hit takes a fifth of the health and nothing regenerates (the old stand-in); else the weapon's damage against the target's kit (`standin_damage.rs`)"),
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),
     s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
+    s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
@@ -279,5 +280,22 @@ mod tests {
         assert!(found.len() > 20, "{found:?}");
         let missing: Vec<_> = found.iter().filter(|n| !known(n)).collect();
         assert!(missing.is_empty(), "not in tests/settings.rs: {missing:?}");
+    }
+
+    /// A listed setting is never also a plays' (or reflex's, or senses') number list
+    /// (`SRP_BENCH_<name>`, `SRP_BENCH_SIDE1_<name>` of [`TUNING_NAMES`]): the list is
+    /// `name=value,...`, so a plain switch of the same name would panic in its parser.
+    #[test]
+    fn no_setting_is_named_like_a_tuning_list() {
+        for setting in SETTINGS.iter() {
+            for t in TUNING_NAMES {
+                assert_ne!(setting.name, format!("SRP_BENCH_{t}"), "{t}");
+                assert_ne!(setting.name, format!("SRP_BENCH_SIDE1_{t}"), "{t}");
+            }
+        }
+        let mut names: Vec<_> = SETTINGS.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), SETTINGS.len(), "a setting is listed twice");
     }
 }
