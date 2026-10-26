@@ -545,6 +545,9 @@ pub struct Bots {
     /// The human routes of this map and mode (play 17), till the map is
     /// built and they are put on its floors.
     routes: Vec<routes::HumanRoute>,
+    /// The humans' perches of the match's map and their share of time
+    /// (V-S2b), till the tactics are built.
+    perches: (Vec<routes::Perch>, Option<routes::PerchShare>),
     /// This poll's route searches ([`Searching`]).
     searching: Searching,
     /// Kit choices made since they were last taken
@@ -608,6 +611,7 @@ impl Bots {
             #[cfg(test)]
             bench_camper: None,
             routes: Vec::new(),
+            perches: (Vec::new(), None),
             weapons: Vec::new(),
             searching: Searching {
                 left: SEARCHES_PER_POLL,
@@ -699,6 +703,8 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
+        let (perches, share) = std::mem::take(&mut self.perches);
+        tactics.set_perches(perches, share);
         tactics.escape_ceiling = self.tuning.escape_ceiling;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
@@ -739,6 +745,7 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.routes = table.for_map(self.level, self.mode);
+        self.perches = (table.perches_for(self.level), table.perch_share(self.level, self.mode));
     }
 
     pub fn has_map(&self) -> bool {

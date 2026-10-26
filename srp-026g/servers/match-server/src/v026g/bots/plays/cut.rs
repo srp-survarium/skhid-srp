@@ -334,7 +334,7 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
 
 /// A spot to cut the way through `at` (coming from `from`).
 fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
-    let fine = fine_spots(cx, at, from);
+    let fine = super::goals::perch_first(cx, at, rng, fine_spots(cx, at, from));
     let n = fine.len().min(cx.num(PlayKind::Cut, "pick_of").max(1.0) as usize);
     (n > 0).then(|| fine[rng.below(n)])
 }

@@ -46,6 +46,30 @@ impl Default for ModTuning {
     }
 }
 
+/// The humans' perches in the hold plays (V-S2b, `plays::goals::perch_first`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PerchTuning {
+    /// A hold's spot pick may take a perch of the routes table; off, none.
+    pub on: bool,
+    /// The holds' share of a bot's time, GUESS from the live play mix
+    /// (27-63 %): the humans' share of time on perches over this is the
+    /// share of the holds' picks that take one.
+    pub hold_share: f32,
+    /// The most that share of picks may be.
+    pub p_max: f32,
+    /// A perch is taken at least this far from the anchor it holds, m, and at
+    /// most this far.
+    pub min_m: f32,
+    pub max_m: f32,
+}
+
+impl Default for PerchTuning {
+    fn default() -> Self {
+        Self { on: true, hold_share: 0.4, p_max: 0.5, min_m: 10.0, max_m: 45.0 }
+    }
+}
+
 /// [`ThinkTuning::search_floors_per_poll`] by default: a floor expanded
 /// costs about 0.2 µs on a fast desktop core and 0.5 µs on the host's, so
 /// a poll searches for at most about 2 ms here and 5 ms there. Measured on

@@ -15,6 +15,8 @@
 //! - [`keep_apart`]: the one place a hold's intent is moved off a spot a
 //!   teammate of a lower place has claimed (two bots on one spot: the higher
 //!   place gives way, held [`YIELD_HOLD_MS`]).
+//! - [`perch_first`]: the humans' perches (the routes table, V-S2b) offered
+//!   first in a hold's spot pick, for a share of the picks.
 //! - [`repick_if_shut`]: a play holding a spot swaps it for another pick
 //!   only on that proof, and asks for the pick only then (a pick draws
 //!   from the bot's random stream, so asking it earlier would change every
@@ -25,7 +27,8 @@
 use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent, Look, PlayKind};
-use crate::v026g::bots::view::PlaceView;
+use crate::v026g::bots::rng::Rng;
+use crate::v026g::bots::view::{EYE_STANDING, PlaceView};
 
 /// How near another bot's claim on a spot (`know::Claim`) a spot may be,
 /// metres: two capsule widths (2 x 0.76 m, `default.player`). Players do
@@ -272,6 +275,65 @@ impl Ctx<'_> {
     pub fn can_go(&self, at: Vec3) -> bool {
         self.reachable(at, false) && !self.no_way_lately(at)
     }
+}
+
+/// The spots a hold may pick from, with the humans' perches first for a share
+/// of the picks (V-S2b). Humans spend 4.0-8.1 % of their alive time on a
+/// perch (a run of 3 s or more above the map's p75 height); the stand-in bots
+/// 0.3-1.6 % (`push-record.md`, V-S2b data): the hold plays pick a spot to
+/// watch an anchor from, and the table's perches that see the anchor are
+/// the high places humans watch from.
+///
+/// `fine` is the play's own list of spots it may take now, best first. The
+/// perches within `PerchTuning::min_m..max_m` of `anchor` that pass the same
+/// tests as a ring spot (a fine goal, a way, not a spawn area, not taken by a
+/// teammate's claim, the climb to it not in sight of an enemy the bot knows
+/// of: [`Ctx::exposed_climb`]), off the edges (`near_lip`, `near_fall`) and
+/// in sight of the anchor, go in front of `fine` with probability the map's
+/// perch share over `PerchTuning::hold_share` (at most `p_max`), in an order
+/// drawn by their visit rates (Efraimidis and Spirakis' weighted sampling
+/// without replacement: key `u^(1/rate)`), so the play's "one of the best n"
+/// takes a perch by its weight. No table, no perch in range, or the switch
+/// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
+pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
+    let tuning = &cx.tuning.perch;
+    let Some(share) = cx.tactics.perch_share.filter(|_| tuning.on && !cx.tactics.perches.is_empty()) else {
+        return fine;
+    };
+    let grid = &cx.tactics.world.grid;
+    let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+    let target = anchor + Vec3::new(0.0, 1.0, 0.0);
+    let candidates: Vec<(Vec3, f32)> = cx
+        .tactics
+        .perches
+        .iter()
+        .filter(|p| (tuning.min_m..=tuning.max_m).contains(&p.at.distance_xz(anchor)))
+        .filter(|p| {
+            cx.tactics.fine_goal(p.at, cx.now, cx.bot.side)
+                && !cx.tactics.in_spawn_area(p.at, None)
+                && grid.locate(p.at, 0.5).is_some_and(|n| !grid.near_fall(n) && !grid.near_lip(n))
+                && cx.tactics.sees(p.at + eye, target)
+                && !cx.spot_taken(p.at, APART_M)
+                && cx.can_go(p.at)
+                && !cx.exposed_climb(p.at, anchor)
+        })
+        .map(|p| (p.at, p.rate))
+        .collect();
+    if candidates.is_empty() {
+        return fine;
+    }
+    let p = (share.share / tuning.hold_share).clamp(0.0, tuning.p_max);
+    if rng.unit() >= p {
+        return fine;
+    }
+    let mut keyed: Vec<(f32, Vec3)> = candidates
+        .into_iter()
+        .map(|(at, rate)| (rng.unit().max(1e-6).powf(1.0 / rate.max(0.1)), at))
+        .collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let mut out: Vec<Vec3> = keyed.into_iter().map(|(_, at)| at).collect();
+    out.extend(fine);
+    out
 }
 
 /// A spot proved no way to is swapped for the pick `pick` makes. `pick` is
@@ -538,5 +600,53 @@ mod tests {
         let mut kept = spot;
         let swapped = repick_if_shut(&s.cx(0), &mut kept, || None);
         assert!(!swapped && kept == spot);
+    }
+
+    #[test]
+    fn a_hold_pick_takes_a_perch_for_a_share_of_the_picks_and_draws_nothing_without_one() {
+        use crate::v026g::bots::routes::{Perch, PerchShare};
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let anchor = Vec3::new(30.0, 0.0, 30.0);
+        let ring = vec![Vec3::new(25.0, 0.0, 28.0)];
+        let mut rng = Rng::new(5);
+        let untouched = rng.clone().next_u64();
+        // No table: the list as it was, and the stream not drawn from.
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut rng, ring.clone()), ring);
+        assert_eq!(rng.clone().next_u64(), untouched);
+        let perch = |x: f32, z: f32, rate: f32| Perch { at: Vec3::new(x, 0.0, z), rate, dwell_s: 5.0, visits: 10.0 };
+        // 20 m north (rate 100), 20 m east (rate 1), 4 m off (too near), 60 m off (too far).
+        let table = vec![perch(30.0, 10.0, 100.0), perch(50.0, 30.0, 1.0), perch(32.0, 32.0, 50.0), perch(75.0, 30.0, 50.0)];
+        s.tactics.set_perches(table, Some(PerchShare { p75: 0.0, share: 0.2 }));
+        s.tuning.perch.hold_share = 0.2;
+        s.tuning.perch.p_max = 1.0;
+        // A share of 1: the two in range, then the ring.
+        let mut first_is_heavy = 0;
+        for k in 0..200 {
+            let mut rng = Rng::new(100 + k);
+            let out = perch_first(&s.cx(0), anchor, &mut rng, ring.clone());
+            assert_eq!(out.len(), 3, "{out:?}");
+            assert_eq!(out[2], ring[0]);
+            // (The perches stand on the floor cell under them.)
+            let at = |p: Vec3, x: f32, z: f32| p.distance_xz(Vec3::new(x, 0.0, z)) < 1.0;
+            assert!(out[..2].iter().any(|&p| at(p, 30.0, 10.0)) && out[..2].iter().any(|&p| at(p, 50.0, 30.0)));
+            first_is_heavy += usize::from(at(out[0], 30.0, 10.0));
+        }
+        assert!(first_is_heavy > 180, "the rate-100 perch first {first_is_heavy} of 200");
+        // A share of 0 never takes one.
+        s.tactics.perch_share = Some(PerchShare { p75: 0.0, share: 0.0 });
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut Rng::new(7), ring.clone()), ring);
+        // A share of 0.1 over holds of 0.2: about half the picks.
+        s.tactics.perch_share = Some(PerchShare { p75: 0.0, share: 0.1 });
+        s.tuning.perch.p_max = 0.5;
+        let taken = (0..400)
+            .filter(|&k| perch_first(&s.cx(0), anchor, &mut Rng::new(900 + k), ring.clone()).len() == 3)
+            .count();
+        assert!((150..250).contains(&taken), "{taken} of 400");
+        // The switch off: the list as it was.
+        s.tuning.perch.on = false;
+        let mut rng = Rng::new(5);
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut rng, ring.clone()), ring);
+        assert_eq!(rng.next_u64(), untouched);
     }
 }

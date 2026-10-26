@@ -145,6 +145,10 @@ pub struct Tactics {
     /// The routes humans took on this map and mode (play 17), on its
     /// floors; empty without `SRP_BOT_ROUTES`.
     pub routes: Vec<super::routes::HumanRoute>,
+    /// The places humans spend time high on this map, put on its floors, and
+    /// their share of alive time (V-S2b); empty without the table's keys.
+    pub perches: Vec<super::routes::Perch>,
+    pub perch_share: Option<super::routes::PerchShare>,
     /// [`Self::past_fixed_zones`]'s regions, and the zones it was made for
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
@@ -573,6 +577,8 @@ impl Tactics {
             world: base.world.clone(),
             hazards: base.hazards.clone(),
             routes: Vec::new(),
+            perches: Vec::new(),
+            perch_share: None,
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
@@ -595,6 +601,22 @@ impl Tactics {
             .map(|route| route.on_floors(&self.world.grid))
             .filter(|route| !route.points.is_empty())
             .collect();
+    }
+
+    /// The humans' perches of this map (and their share of time), each put on
+    /// the floor under it within a storey of its height; one with none is
+    /// dropped.
+    pub fn set_perches(&mut self, perches: Vec<super::routes::Perch>, share: Option<super::routes::PerchShare>) {
+        let grid = &self.world.grid;
+        self.perches = perches
+            .into_iter()
+            .filter_map(|perch| {
+                let node = grid.locate(perch.at, 1.5)?;
+                let on = grid.position(node);
+                ((on.y - perch.at.y).abs() < 1.5).then_some(super::routes::Perch { at: on, ..perch })
+            })
+            .collect();
+        self.perch_share = share;
     }
 
     /// The human routes out of `side`'s base.
