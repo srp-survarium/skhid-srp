@@ -164,14 +164,43 @@ pub fn item_added(dict_id: u16, modifications: &[(u32, bool)], parameter: &str) 
     default_modifier(dict_id, parameter) + carried
 }
 
+/// What `item_weight` multiplies an item's weight by: `1 +` the sum of the
+/// type 2 (multiplying) `weight` changes of its `modifications` (the
+/// weight upgrades, -5 % to -15 %; LIKELY the client's reading, as
+/// [`Modifier::kind`]).
+pub fn item_weight(dict_id: u16, count: u32, modifications: &[(u32, bool)]) -> f32 {
+    let table = Modifications::shared();
+    let change: f32 = modifications
+        .iter()
+        .filter(|&&(_, defect)| !defect)
+        .filter_map(|&(id, _)| table.modification(id))
+        .flat_map(|row| &row.modifiers)
+        .filter(|modifier| modifier.kind == 2 && modifier.path == "weight")
+        .map(|modifier| modifier.value)
+        .sum();
+    item_params::carried_weight(dict_id, count) * (1.0 + change).max(0.0)
+}
+
+/// A slot item's modifications as the wire gives them, `(id, defect)`.
+pub fn wire_mods(mods: &[u32]) -> Vec<(u32, bool)> {
+    mods.iter().map(|&id| (id, false)).collect()
+}
+
 /// What a player with `modifiers` (a kit's skills) carries in `kit` before
 /// being overburdened: `max_carried_weight` plus the skills' and the worn
-/// items' default modifications' `max_carried_weight` (see the module).
+/// items' default modifications' `max_carried_weight` and the carry
+/// upgrades they wear (see the module).
 pub fn carry_capacity(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> f32 {
     let items: f32 = kit
         .items
         .iter()
-        .map(|item| default_modifier(item.dict_id, "max_carried_weight_modifier"))
+        .map(|item| {
+            item_added(
+                item.dict_id,
+                &wire_mods(item.mods),
+                "max_carried_weight_modifier",
+            )
+        })
         .sum();
     item_params::player().max_carried_weight + modifiers[MAX_CARRIED_WEIGHT] + items
 }
@@ -216,7 +245,7 @@ pub fn profile_movement_level(profile: &MatchProfile, kit: usize) -> Option<f32>
         let Some(item) = profile.items.get(usize::from(index)) else {
             continue;
         };
-        weight += item_params::carried_weight(item.dict_id, u32::from(count));
+        weight += item_weight(item.dict_id, u32::from(count), &item.modifications);
         capacity_added += item_added(
             item.dict_id,
             &item.modifications,
@@ -321,7 +350,9 @@ mod tests {
                 let modifiers = bot_modifiers(&kits);
                 for kit in kits {
                     let capacity = carry_capacity(kit, &modifiers);
-                    assert_eq!(capacity, 40.0, "{tier} {role}");
+                    // 40 kg, and the kilograms of the carry upgrades.
+                    assert!(capacity >= 40.0, "{tier} {role}");
+                    assert!(capacity <= 45.0, "{tier} {role}: {capacity}");
                     assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
                 }
             }
@@ -377,13 +408,24 @@ mod tests {
                 for (k, kit) in kits.iter().enumerate() {
                     let capacity = carry_capacity(kit, &modifiers);
                     // The items' own movement speed (their default
-                    // modifications; a bot's items have no others).
+                    // modifications and the upgrades they wear) and weight.
                     let items: f32 = kit
                         .items
                         .iter()
-                        .map(|item| item_added(item.dict_id, &[], "movement_speed_modifier"))
+                        .map(|item| {
+                            item_added(
+                                item.dict_id,
+                                &wire_mods(item.mods),
+                                "movement_speed_modifier",
+                            )
+                        })
                         .sum();
-                    let expected = movement_level(kit.weight(), capacity, &modifiers, items);
+                    let weight: f32 = kit
+                        .items
+                        .iter()
+                        .map(|item| item_weight(item.dict_id, item.count, &wire_mods(item.mods)))
+                        .sum();
+                    let expected = movement_level(weight, capacity, &modifiers, items);
                     let level = profile_movement_level(&profile, k).unwrap();
                     assert!(
                         (level - expected).abs() < 1e-5,
