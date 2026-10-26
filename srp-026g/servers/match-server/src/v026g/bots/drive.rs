@@ -712,6 +712,12 @@ pub(super) fn drive_tick(
                     let side = bot.side;
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
+                    // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the
+                    // corner it turns at over the rim.
+                    bot.motor.ahead_cap = {
+                        let grid = &tactics.world.grid;
+                        grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node)).then_some(LIP_AHEAD_M)
+                    };
                     #[cfg(test)]
                     {
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
@@ -972,6 +978,8 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
 const PLANNED_DROP_M: f32 = 6.0;
 /// The guard also looks this far on along the velocity (s) for a lip's floor.
 const LIP_LOOK_S: f32 = 0.4;
+/// The look-ahead of a walk on a lip's floors, m.
+const LIP_AHEAD_M: f32 = 0.8;
 /// The ticks the guard counts the keys held before the body lets go and stops.
 const LIP_HOLD_TICKS: u32 = 2;
 /// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.

@@ -340,6 +340,9 @@ pub struct Motor {
     /// within 0: Collect's walk to its stand): it is not arrived at from over
     /// it ([`ARRIVE_ABOVE_M`]). Cleared each tick before the walk sets it.
     pub exact_end: bool,
+    /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
+    /// lip's floors, where a line to a point further on cuts a corner over the rim).
+    pub ahead_cap: Option<f32>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -426,6 +429,7 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: false,
+            ahead_cap: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -548,6 +552,7 @@ impl Motor {
             None => {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
+                ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
@@ -679,7 +684,7 @@ impl Motor {
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
-                let mut ahead = self.feel.look_ahead_m;
+                let mut ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
