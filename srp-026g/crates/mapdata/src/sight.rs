@@ -41,6 +41,15 @@ pub struct RayTree {
     triangles: Vec<Prepared>,
 }
 
+/// The first hit of a ray ([`RayTree::ray_hit`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RayHit {
+    /// The distance along the ray.
+    pub t: f32,
+    /// The triangle's unit normal, on the side the ray came from.
+    pub normal: Vec3,
+}
+
 impl RayTree {
     pub fn build(triangles: &[Triangle]) -> Self {
         Self::from_corners(triangles.iter().map(|t| t.v))
@@ -224,9 +233,29 @@ impl RayTree {
 
     /// The distance to the first hit along `dir` (unit) within `max_t`.
     pub fn ray_cast(&self, origin: Vec3, dir: Vec3, max_t: f32) -> Option<f32> {
+        self.first_hit(origin, dir, max_t).map(|(t, _)| t)
+    }
+
+    /// The first hit along `dir` (unit) within `max_t`, with its triangle's
+    /// normal: unit, on the side the ray came from.
+    pub fn ray_hit(&self, origin: Vec3, dir: Vec3, max_t: f32) -> Option<RayHit> {
+        let (t, tri) = self.first_hit(origin, dir, max_t)?;
+        let normal = tri.e1.cross(tri.e2);
+        let normal = normal * (1.0 / normal.length());
+        Some(RayHit {
+            t,
+            normal: if normal.dot(dir) > 0.0 {
+                -normal
+            } else {
+                normal
+            },
+        })
+    }
+
+    fn first_hit(&self, origin: Vec3, dir: Vec3, max_t: f32) -> Option<(f32, Prepared)> {
         let mut best = None;
-        self.walk(origin, dir, 0.0, max_t, &mut |t| {
-            best = Some(t);
+        self.walk(origin, dir, 0.0, max_t, &mut |t, tri| {
+            best = Some((t, *tri));
             false
         });
         best
@@ -234,22 +263,22 @@ impl RayTree {
 
     fn any_hit(&self, origin: Vec3, dir: Vec3, min_t: f32, max_t: f32) -> bool {
         let mut hit = false;
-        self.walk(origin, dir, min_t, max_t, &mut |_| {
+        self.walk(origin, dir, min_t, max_t, &mut |_, _| {
             hit = true;
             true
         });
         hit
     }
 
-    /// Visits hits nearer than the best so far; `found(t)` returns whether
-    /// to stop.
+    /// Visits hits nearer than the best so far; `found(t, triangle)` returns
+    /// whether to stop.
     fn walk(
         &self,
         origin: Vec3,
         dir: Vec3,
         min_t: f32,
         mut max_t: f32,
-        found: &mut dyn FnMut(f32) -> bool,
+        found: &mut dyn FnMut(f32, &Prepared) -> bool,
     ) {
         if self.nodes.is_empty() || !origin.is_finite() || !dir.is_finite() {
             return;
@@ -272,7 +301,7 @@ impl RayTree {
                         && t < max_t
                     {
                         max_t = t;
-                        if found(t) {
+                        if found(t, tri) {
                             return;
                         }
                     }
@@ -506,6 +535,76 @@ mod tests {
             blocked += brute as usize;
         }
         assert!(blocked > 50 && blocked < 450, "{blocked}");
+    }
+
+    #[test]
+    fn a_hit_names_the_triangles_normal_on_the_rays_side() {
+        let tree = RayTree::from_corners(wall());
+        let ahead = Vec3::new(0.0, 0.0, 1.0);
+        let from_front = tree
+            .ray_hit(Vec3::new(0.2, 1.0, -5.0), ahead, 100.0)
+            .unwrap();
+        assert!((from_front.t - 5.0).abs() < 1e-5);
+        assert_eq!(from_front.normal, Vec3::new(0.0, 0.0, -1.0));
+        let back = Vec3::new(0.0, 0.0, -1.0);
+        let from_behind = tree.ray_hit(Vec3::new(0.2, 1.0, 5.0), back, 100.0).unwrap();
+        assert_eq!(from_behind.normal, Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(tree.ray_hit(Vec3::new(0.2, 1.0, -5.0), ahead, 4.0), None);
+    }
+
+    #[test]
+    fn the_first_hit_is_the_nearest_triangle_and_its_normal() {
+        // A field of small random triangles, the nearest of every ray found by
+        // testing them all.
+        let mut seed = 0x1234_5678_9abc_def1u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 40) as f32 / (1u64 << 24) as f32
+        };
+        let mut corners = Vec::new();
+        for _ in 0..2000 {
+            let c = Vec3::new(next() * 100.0, next() * 20.0, next() * 100.0);
+            corners.push([
+                c,
+                c + Vec3::new(next() * 3.0, next() * 3.0, next() * 3.0),
+                c + Vec3::new(next() * 3.0, next() * 3.0, next() * 3.0),
+            ]);
+        }
+        let tree = RayTree::from_corners(corners.clone());
+        let prepared: Vec<Prepared> = corners
+            .iter()
+            .map(|&[a, b, c]| Prepared {
+                a,
+                e1: b - a,
+                e2: c - a,
+            })
+            .collect();
+        let mut hits = 0;
+        for _ in 0..500 {
+            let a = Vec3::new(next() * 100.0, next() * 20.0, next() * 100.0);
+            let b = Vec3::new(next() * 100.0, next() * 20.0, next() * 100.0);
+            let dir = (b - a) * (1.0 / (b - a).length());
+            let nearest = prepared
+                .iter()
+                .filter_map(|tri| ray_triangle(a, dir, tri).map(|t| (t, tri)))
+                .filter(|(t, _)| *t > 0.0 && *t < 200.0)
+                .min_by(|x, y| x.0.total_cmp(&y.0));
+            let hit = tree.ray_hit(a, dir, 200.0);
+            assert_eq!(hit.map(|h| h.t), nearest.map(|n| n.0));
+            assert_eq!(tree.ray_cast(a, dir, 200.0), nearest.map(|n| n.0));
+            if let (Some(hit), Some((_, tri))) = (hit, nearest) {
+                let n = tri.e1.cross(tri.e2);
+                let n = n * (1.0 / n.length());
+                let n = if n.dot(dir) > 0.0 { -n } else { n };
+                assert_eq!(hit.normal, n);
+                assert!((hit.normal.length() - 1.0).abs() < 1e-5);
+                assert!(hit.normal.dot(dir) <= 0.0);
+                hits += 1;
+            }
+        }
+        assert!(hits > 100, "{hits}");
     }
 
     #[test]

@@ -1327,6 +1327,10 @@ va	status	ref_021d	name
 0x00246b80	inferred-medium	0x0018679f	survarium::victory_item::taken_from_container
 0x00246d80	inferred-medium	0x00186978	vostok::buffer_vector<vostok::math::float4x4>::resize
 0x002474a0	inferred-medium	0x00186da9	survarium::player::mt_draw
+0x00248460	inferred-medium		survarium::grenade_core_client::start_fuse
+0x00248520	inferred-medium		survarium::grenade_core_client::launch
+0x00248720	inferred-medium		survarium::grenade_core_client::explode
+0x00248980	inferred-medium		survarium::grenade_core_client::on_contact
 0x0024a3e0	inferred-high	0x00208510	survarium::weapon_core_show_state_base::on_animation_end_impl
 0x0024a3f0	inferred-medium	0x001f215d	survarium::weapon_core_shotgun_reload_start_substate::is_ready_for_transition
 0x0024a3f0	inferred-medium	0x00228365	survarium::weapon_core_shotgun_reload_one_round_substate::is_ready_for_transition
@@ -1921,12 +1925,32 @@ va	status	ref_021d	name
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
 0x002dee00	inferred-medium	0x001e11da	vostok::animation::mixing::binary_tree_binary_operation_node::binary_tree_binary_operation_node
+0x002df780	inferred-high		survarium::weapon_core_cook::add_weapon_state_transitions
 0x002e25c0	inferred-high	0x001e395c	survarium::weapon_core::on_sprint_animation_ended
 0x002e2650	inferred-medium	0x001e3b06	survarium::weapon_core::set_next_ammo_type
 0x002e30f0	inferred-high	0x001e4284	survarium::weapon_core::register_in_game_world
 0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_vertical_recoil_time
+0x002e3b00	inferred-high		survarium::weapon_core::state_ended_pred
+0x002e3b10	inferred-high		survarium::weapon_core::switch_pending
+0x002e3b40	inferred-high		survarium::weapon_core::hide_to_show_pred
+0x002e3b80	inferred-high		survarium::weapon_core::hide_wanted_pred
+0x002e3be0	inferred-high		survarium::weapon_core::hide_wanted_and_ended_pred
 0x002e3c10	inferred-medium	0x001e4a4b	survarium::weapon_core::chamber_a_round_pred
+0x002e3c80	inferred-high		survarium::weapon_core::chamber_pred_and_ended
 0x002e3cb0	inferred-medium	0x001e4ac4	survarium::weapon_core::fire_pred
+0x002e3d30	inferred-high		survarium::weapon_core::fire_pred_and_ended
+0x002e3d60	inferred-high		survarium::weapon_core::reload_wanted
+0x002e3da0	inferred-high		survarium::weapon_core::can_reload
+0x002e3ef0	inferred-high		survarium::weapon_core::reload_pred
+0x002e3f40	inferred-high		survarium::weapon_core::reload_pred_and_ended
+0x002e3f70	inferred-high		survarium::weapon_core::reload_or_empty_pred_and_ended
+0x002e3fc0	inferred-high		survarium::weapon_core::user_not_alive_pred
+0x002e3fe0	inferred-high		survarium::weapon_core::show_to_idle_pred
+0x002e4010	inferred-high		survarium::weapon_core::reload_to_idle_pred
+0x002e4090	inferred-high		survarium::weapon_core::throw_grenade_pred
+0x002e4100	inferred-high		survarium::weapon_core::melee_pred
+0x002e4140	inferred-medium		survarium::weapon_core::jump_blocks_reload
+0x002e4170	inferred-medium		survarium::weapon_core::sprint_blocks_reload
 0x002e5bb0	inferred-medium		survarium::game_effect_ptr_wrapper::serialize_root_emitter
 0x002e5c90	inferred-medium		survarium::game_effect_ptr_wrapper::serialize
 0x002e5d70	inferred-medium	0x00200dd3	survarium::loose_ptr<survarium::game_effect,survarium::loose_ptr_data,vostok::threading::single_threading_policy>::c_ptr
@@ -1999,6 +2023,8 @@ va	status	ref_021d	name
 0x00303770	inferred-medium	0x001ec241	survarium::grenade_core::~grenade_core
 0x00303890	inferred-medium	0x001ec2a7	survarium::grenade_core::load
 0x00303a60	inferred-medium	0x001ec3d1	survarium::grenade_core::tick
+0x00303b90	inferred-high		survarium::grenade_core::start_fuse
+0x00303c10	inferred-high		survarium::grenade_core::add_to_physics_world
 0x003045a0	inferred-medium	0x001e9c22	survarium::booby_trap_core::`scalar deleting destructor'
 0x00305050	inferred-medium	0x001ea23d	survarium::booby_trap_core::use_info
 0x00305520	inferred-medium	0x001ea4ec	survarium::booby_trap_core::post_deserialize_resolve
@@ -2022,6 +2048,11 @@ va	status	ref_021d	name
 0x00308220	inferred-high	0x001eb5cf	survarium::collision_sensor::requery_overlapping_objects
 0x00308620	inferred-medium	0x001eb903	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::push_back
 0x00309ae0	inferred-medium	0x001ecede	survarium::grenade_set_core::grenade_set_core
+0x00309f00	inferred-high		survarium::grenade_set_core::hand_transform
+0x0030a120	inferred-high		survarium::grenade_set_core::start_throw
+0x0030a250	inferred-high		survarium::grenade_set_core::launch_grenade
+0x0030a350	inferred-medium		survarium::grenade_set_core::splash_parameters
+0x0030a4a0	inferred-high		survarium::grenade_set_core::splash_damage
 0x0030a650	inferred-medium		survarium::reinforcement_storm_game_effect_presenter::serialize
 0x0030a880	inferred-high	0x001ef0d5	survarium::weapon_core_cook::translate_query
 0x0030aa40	inferred-high	0x001ef214	survarium::weapon_core_cook::on_weapon_config_loaded
@@ -2074,9 +2105,11 @@ va	status	ref_021d	name
 0x0030ef40	inferred-medium	0x001f2085	survarium::weapon_core_shotgun_reload_one_round_substate::`scalar deleting destructor'
 0x0030ef60	inferred-high	0x001f2317	survarium::weapon_core_shotgun_reload_one_round_substate::initialize
 0x0030ef60	inferred-high	0x001f2529	survarium::weapon_core_shotgun_reload_finish_substate::initialize
+0x0030ef80	inferred-high		survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl
 0x0030efb0	inferred-high	0x001f24dd	survarium::weapon_core_shotgun_reload_finish_substate::weapon_core_shotgun_reload_finish_substate
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_finish_substate::finalize
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_one_round_substate::finalize
+0x0030f070	inferred-high		survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl
 0x0030f0b0	inferred-high	0x001f2710	survarium::double_barreled_weapon_core_idle_state::double_barreled_weapon_core_idle_state
 0x0030f1f0	inferred-medium	0x001f27d0	survarium::double_barreled_weapon_core_idle_state::`scalar deleting destructor'
 0x0030f260	inferred-high	0x001f2818	survarium::double_barreled_weapon_core_idle_state::get_weapon_lexeme
@@ -2113,6 +2146,8 @@ va	status	ref_021d	name
 0x00310200	inferred-high	0x001f343f	survarium::pistol_weapon_core_fire_state::deserialize
 0x00310240	inferred-high	0x00208952	survarium::weapon_core_throw_grenade_base_substate::weapon_core_throw_grenade_base_substate
 0x00310330	inferred-medium	0x00208d38	survarium::weapon_core_throw_grenade_base_substate::`scalar deleting destructor'
+0x003103a0	inferred-medium		survarium::weapon_core_throw_grenade_base_substate::initialize
+0x00310680	inferred-high		survarium::weapon_core_throw_grenade_base_substate::on_animation_event
 0x003108b0	inferred-medium	0x00209592	survarium::weapon_core_melee_state::`scalar deleting destructor'
 0x00310e40	inferred-high	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
 0x00310e70	inferred-high	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
@@ -2260,6 +2295,10 @@ va	status	ref_021d	name
 0x00339cf0	inferred-high	0x001f87c7	survarium::weapon_core_shotgun_reload_state::serialize
 0x00339d30	inferred-high	0x001f87ee	survarium::weapon_core_shotgun_reload_state::deserialize
 0x00339db0	inferred-high	0x001f8815	survarium::weapon_core_shotgun_reload_state::weapon_and_hands_expression
+0x00339de0	inferred-high		survarium::weapon_core_shotgun_reload_state::finish_reload_pred
+0x00339ea0	inferred-high		survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred
+0x00339ee0	inferred-high		survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred
+0x0033a770	inferred-high		survarium::weapon_core_throw_grenade_state::throw_grenade
 0x0033a900	inferred-medium	0x00209520	boost::detail::function::function_obj_invoker0<boost::_bi::bind_t<bool,boost::_mfi::cmf1<bool,survarium::weapon_core_throw_grenade_state,bool>,boost::_bi::list2<boost::_bi::value<survarium::weapon_core_throw_grenade_state *>,boost::_bi::value<bool> > >,bool>::invoke
 0x0033acf0	inferred-medium		survarium::artefact_spring_core::config::config
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
@@ -2377,7 +2416,7 @@ va	status	ref_021d	name
 0x00356d60	inferred-medium	0x0021bce1	vostok::physics::create_static_rigid_body
 0x00356f20	inferred-medium	0x0021be50	vostok::physics::bt_static_rigid_body::~bt_static_rigid_body
 0x00357060	inferred-medium	0x0021c2e1	vostok::physics::bt_dynamic_rigid_body::~bt_dynamic_rigid_body
-0x00357100	inferred-medium	0x0021c095	vostok::physics::create_dynamic_rigid_body
+0x00357100	inferred-high	0x0021c095	vostok::physics::create_dynamic_rigid_body
 0x003578f0	inferred-medium	0x0021be7f	vostok::physics::bt_ghost_object::bt_ghost_object
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
@@ -3055,3 +3094,8 @@ va	status	ref_021d	name
 0x002d7990	inferred-high		survarium::base_player::get_air_control_vector
 0x002d6510	inferred-high		survarium::base_player::get_move_direction
 0x00337040	inferred-high		survarium::jump_state::initialize
+0x00075550	inferred-medium		vostok::physics::bullet_physics_world::resolve_character_pairs
+0x00329ff0	inferred-high		survarium::body_part_parameters::hit_by_type
+0x00332330	inferred-high		survarium::weapon_damage_params::weapon_damage_params
+0x00332440	inferred-high		survarium::weapon_ammunition::weapon_ammunition
+0x0033fa80	inferred-high		survarium::hit_type_parameters::apply_damage

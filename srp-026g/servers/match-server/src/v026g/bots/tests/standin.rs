@@ -28,6 +28,11 @@ use super::*;
 
 /// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
 pub(crate) const USE_REACH_M: f32 = 2.0;
+/// The patched client's take of a battery under the feet: its ray and the
+/// distance across (patch 11, `client_patch.md`).
+const PATCHED_REACH_M: f32 = 4.0;
+const PATCHED_ACROSS_M: f32 = 1.0;
+const PATCHED_BELOW_M: f32 = 0.2;
 
 /// A lying battery's middle over its position, and how near the ray must
 /// pass it (its box is about 0.5 by 0.25 m).
@@ -121,6 +126,8 @@ pub(crate) struct Body {
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
     pub(crate) health: f32,
+    /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
+    pub(crate) pools: standin_damage::Pools,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -229,6 +236,8 @@ pub(crate) struct Game {
     pub(crate) hurts: VecDeque<(u32, Vec<Hurt>)>,
     pub(crate) tick: u32,
     pub(crate) rng: Rng,
+    /// How a hit hurts ([`standin_damage`]).
+    pub(crate) damage: standin_damage::Model,
     pub(crate) shots: u32,
     pub(crate) hits: u32,
     /// By place: shots, and hits on an enemy.
@@ -362,6 +371,17 @@ pub(crate) fn soak_world() -> Arc<World> {
     soak_world_with(&[])
 }
 
+/// A container's use box as the maps have them: a metre over its use
+/// point (`Container::use_point`), about 2 m by 1.7 m by 1.3 m.
+pub(crate) fn use_box(position: Vec3) -> mapdata::Shape {
+    mapdata::Shape {
+        kind: mapdata::ShapeKind::Box,
+        center: position + USE_BOX_UP,
+        rotation: mapdata::Rotation::IDENTITY,
+        half: Vec3::new(1.0, 0.85, 0.65),
+    }
+}
+
 /// [`soak_world`] with `solids` (more triangles) in its geometry.
 pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
     super::tactics::tests::field_with_solids(solids, |map| {
@@ -369,7 +389,7 @@ pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
             position: Vec3::new(x, 0.0, z),
             team,
             id,
-            use_shapes: Vec::new(),
+            use_shapes: vec![use_box(Vec3::new(x, 0.0, z))],
         };
         map.containers = vec![container(0, 0, 12.0, 30.0), container(1, 1, 68.0, 30.0)];
         map.stations = vec![Vec3::new(40.0, 0.0, 33.0), Vec3::new(30.0, 0.0, 5.0)];
@@ -422,6 +442,7 @@ impl Game {
             blend: Blend::default(),
             keys: 0,
             health: 1.0,
+            pools: standin_damage::Pools::default(),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -453,6 +474,7 @@ impl Game {
             hurts: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
+            damage: standin_damage::Model::default(),
             shots: 0,
             hits: 0,
             shots_hits: vec![(0, 0); teams.len()],
@@ -549,6 +571,7 @@ impl Game {
         body.pitch = 0.0;
         body.blend = Blend::default();
         body.health = 1.0;
+        body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
@@ -754,6 +777,7 @@ impl Game {
             }
         }
         self.shoot(tick);
+        standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
         if let Some((m, next)) = self.nudge
             && tick >= next
@@ -939,7 +963,7 @@ impl Game {
             aim_state,
             cone,
         });
-        let Some((target, _)) = best else {
+        let Some((target, along)) = best else {
             return;
         };
         let team_hit = self.bodies[target].team == body.team;
@@ -952,7 +976,7 @@ impl Game {
             self.hit_log.push((tick, shooter, target));
         }
         let other = &mut self.bodies[target];
-        other.health -= 0.2;
+        standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
@@ -1082,13 +1106,18 @@ impl Game {
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
     /// within `radius` of `point` no farther than the use's 2 m.
     pub(crate) fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
+        Self::uses_reach(body, point, radius, USE_REACH_M)
+    }
+
+    /// [`Self::uses`] with a ray of `reach` m.
+    fn uses_reach(body: &Body, point: Vec3, radius: f32, reach: f32) -> bool {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
-        if !(0.0..=USE_REACH_M).contains(&along) {
+        if !(0.0..=reach).contains(&along) {
             return false;
         }
         (to - dir * along).length() <= radius
@@ -1105,10 +1134,44 @@ impl Game {
         (eye + dir * along - point).length()
     }
 
+    /// Whether the view's ray from `body`'s eye meets container `id`'s use
+    /// box by the game's rule: within the use's 2 m, nothing of the bullet
+    /// mesh short of it ([`mapdata::stands::ray_meets`]). A container with
+    /// no use box cannot be used.
+    pub(crate) fn uses_container_box(&self, body: &Body, id: usize) -> bool {
+        let Some(shape) = self
+            .world
+            .map
+            .containers
+            .iter()
+            .find(|c| c.id == id as i32)
+            .and_then(|c| c.use_shapes.first())
+        else {
+            return false;
+        };
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let dir = Vec3::new(fx * c, s, fz * c);
+        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape)
+    }
+
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up
     /// to it when [`Game::use_line`].
     pub(crate) fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
         let point = at + BATTERY_MIDDLE;
+        // The patched client's take (patch 11): a battery whose origin is
+        // under the feet, within 1 m across, is taken along a 4 m ray that
+        // passes floors (`client_patch.md`), so no line of the bullet mesh.
+        // Only for one sunk by [`PATCHED_BELOW_M`] or more: the feet over a
+        // floor battery's origin differ by less, and those takes keep the
+        // line (the bench's A sides are made with it).
+        if at.y + PATCHED_BELOW_M <= body.feet.y
+            && body.feet.distance_xz(at) <= PATCHED_ACROSS_M
+            && Self::uses_reach(body, point, self.take_m, PATCHED_REACH_M)
+        {
+            return true;
+        }
         if !Self::uses(body, point, self.take_m) {
             return false;
         }
@@ -1167,7 +1230,7 @@ impl Game {
                     let was_putting = self.putting[place].is_some();
                     let began = !was_putting
                         && home.is_some_and(|id| {
-                            Self::uses(&body, self.containers[id].1 + USE_BOX_UP, USE_BOX_M)
+                            self.uses_container_box(&body, id)
                         });
                     if began && let Some(id) = home {
                         if self.put_ms == 0 {

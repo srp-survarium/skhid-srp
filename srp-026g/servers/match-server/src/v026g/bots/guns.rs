@@ -35,6 +35,18 @@
 //!   `bolt_reaim_ms` after it, more than either, so a press never falls in
 //!   the bolt whichever time is right.
 //!
+//! The reload loop of a weapon that loads round by round, read in 0.26g's exe
+//! (PROVEN; `Loading`): the shotgun's sub-FSM (`weapon_core_shotgun_reload_state`,
+//! built at 0x339900) plays a start clip, then a one-round clip in a loop whose
+//! every end puts a round into the weapon (0x30EF80, `reload_one_round` 0x2E1A00:
+//! one from the ammo into the magazine). At each of those ends it goes on to its
+//! finish clip when the magazine is full or the ammo out (0x339DE0), or when a
+//! round is in the weapon and the trigger (0x339EA0) or the sights (0x339EE0,
+//! the AIM bit of the input) are held. So a bot that holds its sights through the
+//! loop has one round, not eight, at the first end: the ledger counts the rounds
+//! the client has put in at each end ([`Load::advance`]), not the load it meant
+//! ([`Load::reload`]).
+//!
 //! The trigger, read in 0.26g's exe (PROVEN): the fire state
 //! (`weapon_core_fire_state_base`, vtable 0xA14DAC, fields named by its
 //! serializer 0x30EAB0) keeps `m_bullets_in_queue`, set at its start
@@ -303,12 +315,54 @@ pub fn gun(item: &str) -> Option<&'static Gun> {
     guns().iter().find(|gun| gun.item == item)
 }
 
+/// How far the client's clock may be behind the bot's, ms: a key reaches the
+/// client at the tick it carries and the client reads its input a frame before
+/// (`player_bots.md` §0), so a loop end the bot's count puts here can come that
+/// much later in the client.
+pub const CLIENT_LAG_MS: u32 = 100;
+
+/// A round-by-round reload under way in the client ([`Load::reload`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Loading {
+    /// The tick of the reload key.
+    at: u32,
+    /// The rounds the loop is to put in: the room in the magazine, or the
+    /// ammo there is.
+    target: u32,
+    /// The rounds it has put in.
+    loaded: u32,
+}
+
+/// A round-by-round reload whose loop has ended ([`Load::advance`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoopEnd {
+    /// The tick of the reload key.
+    pub at: u32,
+    /// The rounds the client put in, of the `target` it was to.
+    pub loaded: u32,
+    pub target: u32,
+    /// The loop's last end, and when the weapon can fire after its finish
+    /// clip (allowing for [`CLIENT_LAG_MS`]).
+    pub ended: u32,
+    pub ready: u32,
+}
+
+impl LoopEnd {
+    /// The trigger or the sights ended the loop before the magazine was full
+    /// or the ammo out.
+    pub fn cut(&self) -> bool {
+        self.loaded < self.target
+    }
+}
+
 /// A weapon in a life: its rounds in it and the rest of its ammo.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Load {
     pub gun: &'static Gun,
     pub rounds: u32,
     pub spare: u32,
+    /// Its loop, while a round-by-round reload runs.
+    loading: Option<Loading>,
 }
 
 impl Load {
@@ -321,6 +375,7 @@ impl Load {
             gun,
             rounds,
             spare: carried - rounds,
+            loading: None,
         }
     }
 
@@ -340,14 +395,86 @@ impl Load {
         (self.gun.magazine - self.rounds).min(self.spare)
     }
 
-    /// A reload begun: its time, ms; the rounds counted in at once (the
-    /// shots wait for the time anyway).
-    pub fn reload(&mut self) -> u32 {
+    /// A reload begun at `now`: its time, ms. A magazine's, a pistol's or
+    /// two barrels' rounds are counted in at once (the client moves them at
+    /// the clip's end, and the shots wait for the time anyway); a
+    /// round-by-round reload's as the client puts them in ([`Self::advance`]),
+    /// so the time is that of the whole load, which the loop may end before.
+    pub fn reload(&mut self, now: u32) -> u32 {
         let loading = self.loadable();
         let ms = self.gun.reload_ms(self.rounds, loading);
-        self.rounds += loading;
-        self.spare -= loading;
+        if matches!(self.gun.reload, Reload::Rounds { .. }) {
+            self.loading = (loading > 0).then_some(Loading {
+                at: now,
+                target: loading,
+                loaded: 0,
+            });
+        } else {
+            self.rounds += loading;
+            self.spare -= loading;
+        }
         ms
+    }
+
+    /// A round-by-round reload's loop is running, so the client takes the
+    /// sights or the trigger held at a round's end as the wish to stop.
+    pub fn loading(&self) -> bool {
+        self.loading.is_some()
+    }
+
+    /// When the sights or the trigger held end the loop at its `n`-th round
+    /// (or at the next one, when `n` have been put in already): the middle of
+    /// the span before that round-end, so a key pressed then is held at it
+    /// whatever the tick or the client's lag. `None`: no loop, or that round
+    /// is the last, where the loop ends anyway.
+    pub fn cut_from(&self, n: u32) -> Option<u32> {
+        let Reload::Rounds {
+            start_ms, round_ms, ..
+        } = self.gun.reload
+        else {
+            return None;
+        };
+        let loading = self.loading?;
+        let round = n.max(loading.loaded + 1);
+        (round < loading.target)
+            .then(|| loading.at + start_ms + round_ms * (round - 1) + round_ms / 2)
+    }
+
+    /// The loop's round-ends up to `now`: each puts a round into the weapon
+    /// (the ledger's `rounds` up, `spare` down), and ends the loop when the
+    /// magazine is full or the ammo out, or when `held` (the trigger or the
+    /// sights were down in the keys sent since the last call). Returns the end
+    /// of the loop when it came.
+    pub fn advance(&mut self, now: u32, held: bool) -> Option<LoopEnd> {
+        let Reload::Rounds {
+            start_ms,
+            round_ms,
+            finish_ms,
+        } = self.gun.reload
+        else {
+            return None;
+        };
+        let mut loading = self.loading?;
+        loop {
+            let end = loading.at + start_ms + round_ms * (loading.loaded + 1);
+            if end > now {
+                self.loading = Some(loading);
+                return None;
+            }
+            loading.loaded += 1;
+            self.rounds = (self.rounds + 1).min(self.gun.magazine);
+            self.spare = self.spare.saturating_sub(1);
+            if loading.loaded >= loading.target || held {
+                self.loading = None;
+                return Some(LoopEnd {
+                    at: loading.at,
+                    loaded: loading.loaded,
+                    target: loading.target,
+                    ended: end,
+                    ready: end + finish_ms + CLIENT_LAG_MS,
+                });
+            }
+        }
     }
 }
 
@@ -422,8 +549,9 @@ impl Arms {
     /// For the tests of how a kind of weapon is fired, reloaded and switched
     /// from: the first bots' weapons by role (the Uzi's magazine, the
     /// AK-74U's, the TOZ-34's two barrels, the Mosin's clip of 5 loaded
-    /// round by round), with a life's rounds as their kits had them (the
-    /// most their bags take) and `loadouts::BOT_AMMO_LIVES` lives of storage.
+    /// round by round, the SPAS-12's of 8), with a life's rounds as their
+    /// kits had them (the most their bags take) and
+    /// `loadouts::BOT_AMMO_LIVES` lives of storage.
     #[cfg(test)]
     pub fn of_test_role(role: &str) -> Option<&'static Arms> {
         let (item, rounds) = match role {
@@ -431,6 +559,7 @@ impl Arms {
             "support" => ("ak_74u", 90),
             "rusher" => ("toz_34", 60),
             "camper" => ("mosin_nagant", 30),
+            "shotgunner" => ("spas_12", 40),
             _ => return None,
         };
         Some(Box::leak(Box::new(Arms {
@@ -608,11 +737,15 @@ mod tests {
         assert_eq!((mosin.rounds, mosin.spare), (5, 25));
         mosin.spare = 5;
         mosin.rounds = 2;
-        assert_eq!(mosin.reload(), 1_500 + 3 * 500 + 1_500);
+        // Round by round: the rounds are the client's at each end of its loop.
+        assert_eq!(mosin.reload(0), 1_500 + 3 * 500 + 1_500);
+        assert_eq!((mosin.rounds, mosin.spare), (2, 5));
+        assert!(mosin.advance(1_500 + 3 * 500, false).is_some());
         assert_eq!((mosin.rounds, mosin.spare), (5, 2));
         mosin.rounds = 0;
         assert!(mosin.needs_reload());
-        assert_eq!(mosin.reload(), 1_500 + 2 * 500 + 1_500);
+        assert_eq!(mosin.reload(10_000), 1_500 + 2 * 500 + 1_500);
+        assert!(mosin.advance(10_000 + 1_500 + 2 * 500, false).is_some());
         assert_eq!((mosin.rounds, mosin.spare), (2, 0));
         mosin.rounds = 0;
         assert!(mosin.dry());
@@ -622,5 +755,197 @@ mod tests {
         assert_eq!(camper.held().gun.item, "tt_33");
         assert_eq!((camper.held().rounds, camper.held().spare), (8, 42));
         assert_eq!(camper.switch_ms(), None);
+    }
+
+    /// The SPAS-12 with `rounds` in it and `spare` to load.
+    fn spas(rounds: u32, spare: u32) -> Load {
+        Load {
+            rounds,
+            spare,
+            ..Load::of(gun("spas_12").unwrap(), 0)
+        }
+    }
+
+    #[test]
+    fn a_round_by_round_reload_is_counted_at_each_end_of_the_clients_loop() {
+        // The SPAS-12: a 1.0 s start, 0.375 s a round, a 1.0 s finish.
+        let mut load = spas(0, 30);
+        assert_eq!(load.reload(2_000), 1_000 + 8 * 375 + 1_000);
+        // Nothing is in the weapon before the first end of the loop ...
+        assert!(load.loading());
+        assert_eq!(load.advance(2_000 + 1_000 + 374, false), None);
+        assert_eq!((load.rounds, load.spare), (0, 30));
+        // ... and then a round at each end; the eighth ends the loop.
+        for k in 1..8 {
+            assert_eq!(load.advance(2_000 + 1_000 + 375 * k, false), None);
+            assert_eq!((load.rounds, load.spare), (k, 30 - k));
+        }
+        let end = load.advance(2_000 + 1_000 + 375 * 8 + 10, false).unwrap();
+        assert_eq!((load.rounds, load.spare, load.loading()), (8, 22, false));
+        assert_eq!(
+            end,
+            LoopEnd {
+                at: 2_000,
+                loaded: 8,
+                target: 8,
+                ended: 6_000,
+                // The finish clip, and the client's lag.
+                ready: 6_000 + 1_000 + CLIENT_LAG_MS,
+            }
+        );
+        assert!(!end.cut());
+        // A loop over counts nothing more.
+        assert_eq!(load.advance(60_000, true), None);
+        assert_eq!((load.rounds, load.spare), (8, 22));
+    }
+
+    #[test]
+    fn one_shell_followed_by_the_sights_released_is_one_round_and_then_the_load_is_full() {
+        let mut load = spas(0, 30);
+        let ms = load.reload(0);
+        // The sights held at the first end of the loop with a round in the
+        // weapon: the client goes on to its finish clip with one round, and
+        // the ledger has the one, not the eight the load meant.
+        assert_eq!(
+            load.advance(1_000 + 375, true).map(|end| end.cut()),
+            Some(true)
+        );
+        assert_eq!((load.rounds, load.spare, load.loading()), (1, 29, false));
+        assert!(ms > 1_000 + 375 + 1_000);
+        // The sights let go for the next reload: the loop runs to the full
+        // magazine, seven rounds more.
+        let ms = load.reload(10_000);
+        assert_eq!(ms, 1_000 + 7 * 375 + 1_000);
+        let mut rounds = Vec::new();
+        for k in 1..=7 {
+            let end = load.advance(10_000 + 1_000 + 375 * k, false);
+            rounds.push(load.rounds);
+            assert_eq!(end.is_some(), k == 7);
+        }
+        assert_eq!(rounds, [2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!((load.rounds, load.spare), (8, 22));
+    }
+
+    #[test]
+    fn the_ledger_has_the_rounds_for_any_load_of_one_to_eight() {
+        for room in 1..=8u32 {
+            let mut load = spas(8 - room, 100);
+            let ms = load.reload(500);
+            assert_eq!(ms, 1_000 + 375 * room + 1_000, "{room}");
+            // Held at the end of the k-th round: k rounds, the rest left.
+            for cut in 1..=room {
+                let mut load = load;
+                for k in 1..cut {
+                    assert_eq!(load.advance(500 + 1_000 + 375 * k, false), None);
+                }
+                let end = load.advance(500 + 1_000 + 375 * cut, true).unwrap();
+                assert_eq!(end.loaded, cut, "{room} {cut}");
+                assert_eq!(end.cut(), cut < room);
+                assert_eq!((load.rounds, load.spare), (8 - room + cut, 100 - cut));
+                assert_eq!(end.ready, end.ended + 1_000 + CLIENT_LAG_MS);
+            }
+            // Never held: the room is filled, and no more.
+            let end = load.advance(500 + 1_000 + 375 * room, false).unwrap();
+            assert_eq!((end.loaded, end.target), (room, room));
+            assert_eq!((load.rounds, load.spare), (8, 100 - room));
+        }
+        // Less ammo than room: the ammo is the load, and it ends the loop.
+        let mut load = spas(2, 3);
+        assert_eq!(load.reload(0), 1_000 + 3 * 375 + 1_000);
+        let end = load.advance(1_000 + 3 * 375, false).unwrap();
+        assert_eq!((end.loaded, end.target, end.cut()), (3, 3, false));
+        assert_eq!((load.rounds, load.spare), (5, 0));
+        // Nothing to load: no loop, nothing counted.
+        let mut load = spas(8, 20);
+        load.reload(0);
+        assert!(!load.loading());
+        assert_eq!(load.advance(10_000, true), None);
+        assert_eq!((load.rounds, load.spare), (8, 20));
+    }
+
+    #[test]
+    fn the_sights_cut_a_loop_from_the_middle_before_the_round_they_are_to_end_it_at() {
+        let mut load = spas(0, 30);
+        assert_eq!(load.cut_from(3), None);
+        load.reload(2_000);
+        // The third round ends at 1.0 + 3 x 0.375 s: from the middle of
+        // the 0.375 s before it.
+        assert_eq!(load.cut_from(3), Some(2_000 + 1_000 + 2 * 375 + 187));
+        // Held from there, the loop ends at that round with three rounds.
+        let from = load.cut_from(3).unwrap();
+        assert_eq!(load.advance(from, false), None);
+        assert_eq!(
+            load.advance(2_000 + 1_000 + 3 * 375, true)
+                .map(|e| e.loaded),
+            Some(3)
+        );
+        // The last round ends the loop anyway: nothing to cut. Nor with a
+        // load of three or less asked to stop at three.
+        let mut load = spas(0, 30);
+        load.reload(0);
+        assert_eq!(load.cut_from(8), None);
+        assert_eq!(load.cut_from(9), None);
+        let mut load = spas(6, 30);
+        load.reload(0);
+        assert_eq!(load.cut_from(3), None);
+        // Three put in already: the next round-end, not one past.
+        let mut load = spas(0, 30);
+        load.reload(0);
+        for k in 1..=3 {
+            load.advance(1_000 + 375 * k, false);
+        }
+        assert_eq!(load.cut_from(3), Some(1_000 + 3 * 375 + 187));
+        // A magazine has no loop.
+        let mut ak = Load::of(gun("ak_74u").unwrap(), 90);
+        ak.rounds = 0;
+        ak.reload(0);
+        assert_eq!(ak.cut_from(1), None);
+    }
+
+    #[test]
+    fn a_magazine_or_a_pistols_clip_is_counted_in_at_once_as_before() {
+        let mut ak = Load::of(gun("ak_74u").unwrap(), 90);
+        ak.rounds = 5;
+        ak.spare = 60;
+        assert_eq!(ak.reload(0), 3_167);
+        assert_eq!((ak.rounds, ak.spare, ak.loading()), (30, 35, false));
+        assert_eq!(ak.advance(10_000, true), None);
+        assert_eq!((ak.rounds, ak.spare), (30, 35));
+        let mut tt = Load::of(gun("tt_33").unwrap(), 50);
+        tt.rounds = 0;
+        tt.spare = 42;
+        assert_eq!(tt.reload(0), 3_077);
+        assert_eq!((tt.rounds, tt.spare, tt.loading()), (8, 34, false));
+        let mut toz = Load::of(gun("toz_34").unwrap(), 20);
+        toz.rounds = 0;
+        toz.spare = 20;
+        assert_eq!(toz.reload(0), 3_438);
+        assert_eq!((toz.rounds, toz.spare, toz.loading()), (2, 18, false));
+    }
+
+    #[test]
+    fn the_guns_that_load_round_by_round_are_the_datas() {
+        // By the reload state of the config, not by the kind of gun: the
+        // semi-automatic shotguns and the pump and lever ones are in it, the
+        // two-barrel guns are not.
+        for item in ["spas_12", "mp_153", "benelli_m4", "rem_870", "mosin_nagant"] {
+            assert!(
+                matches!(gun(item).unwrap().reload, Reload::Rounds { .. }),
+                "{item}"
+            );
+        }
+        assert!(matches!(
+            gun("toz_34").unwrap().reload,
+            Reload::Barrels { .. }
+        ));
+        let spas = gun("spas_12").unwrap();
+        assert_eq!(
+            spas.reload,
+            Reload::Rounds {
+                start_ms: 1_000,
+                round_ms: 375,
+                finish_ms: 1_000
+            }
+        );
     }
 }

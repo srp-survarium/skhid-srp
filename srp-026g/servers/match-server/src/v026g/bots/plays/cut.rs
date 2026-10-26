@@ -48,6 +48,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // Off the route's line by at least this, degrees.
     ("side_deg", 35.0),
     ("prefer_high", 0.5),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     ("pick_of", 3.0),
     ("reach_m", 2.0),
     ("sneak_m", 10.0),
@@ -142,9 +146,13 @@ fn cut_on(
             1.0
         };
         let grid = &cx.tactics.world.grid;
+        let on_leg = a + (b - a) * t;
+        // On the storey the leg is on there: the nearest floor in three
+        // dimensions can be the floor above or below on a stacked map.
         if let Some(at) = grid
-            .locate(a + (b - a) * t, ON_FLOOR_M)
+            .locate(on_leg, ON_FLOOR_M)
             .map(|n| grid.position(n))
+            .filter(|at| (at.y - on_leg.y).abs() <= ON_LEVEL_M)
             && fine(at)
         {
             let from = if at.distance_xz(a) >= 1.0 {
@@ -162,6 +170,16 @@ fn cut_on(
 /// How far from a point on a route's leg its floor may lie (the bots'
 /// goals' reach, `Tactics::fine_goal`).
 const ON_FLOOR_M: f32 = 3.0;
+
+/// How far in height from the point on a route's leg the floor under the
+/// cut may lie, metres: well under a storey (3 m or more), over the
+/// slope of a ramp the leg's straight line misses.
+///
+/// Root cause (`push-record.md` V-S2, audit item 5): `locate` takes the
+/// nearest floor in three dimensions within 2.5 m below and 1 m above, so
+/// on a stacked map a cut on a leg that climbs a storey could land on the
+/// other storey's floor, and the hold stood where the enemy does not walk.
+const ON_LEVEL_M: f32 = 1.5;
 
 /// The enemy's best ways' cuts, best first: (route index, cut point, the
 /// point before it they come from, weight in (0, 1]); one a place
@@ -274,6 +292,7 @@ fn spots_by(cx: &Ctx, at: Vec3, from: Vec3, try_: u32) -> std::sync::Arc<Vec<Vec
         let query = SpotQuery {
             sight_to: Some(at),
             prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
             ..SpotQuery::ring(at, min_m, max_m)
@@ -301,7 +320,11 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
             spots_by(cx, at, from, try_)
                 .iter()
                 .copied()
-                .filter(|spot| cx.tactics.fine_goal(*spot, cx.now, cx.bot.side) && cx.can_go(*spot))
+                .filter(|spot| {
+                    cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
+                        && cx.can_go(*spot)
+                        && !cx.exposed_climb(*spot, at)
+                })
                 .collect::<Vec<_>>()
         })
         .find(|fine| !fine.is_empty())
@@ -482,6 +505,33 @@ mod tests {
             past.distance_xz(Vec3::new(33.0, 0.0, 30.0)) < 1.0,
             "{past:?}"
         );
+    }
+
+    /// A cut is on the floor of the storey the leg is on: where the
+    /// nearest floor lies 2 m off the leg's height, the leg's end stands in
+    /// for it, not that floor. The world has a platform 4 m up over
+    /// x 20..32 (ground under it); the leg runs from the ground at x 36 up
+    /// to the platform at x 30, so at the cut (x 33) it is 2 m up and only
+    /// the ground is there.
+    #[test]
+    fn a_cut_is_not_put_on_a_floor_a_storey_off_the_leg() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.tactics = Tactics::new(crate::v026g::bots::tactics::tests::platform_world(), 1.0);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+        s.tactics.set_routes(vec![HumanRoute {
+            team: 1,
+            lives: 10,
+            reward: 1.0,
+            fight: 1.0,
+            points: [(65.0, 0.0), (55.0, 0.0), (45.0, 0.0), (36.0, 0.0), (30.0, 4.0)]
+                .iter()
+                .map(|&(x, y)| Vec3::new(x, y, 33.0))
+                .collect(),
+            ..Default::default()
+        }]);
+        let cuts = cuts(&s.cx(0));
+        assert_eq!(cuts.len(), 1, "{cuts:?}");
+        assert!(cuts[0].1.y > 3.5, "on the platform: {:?}", cuts[0].1);
     }
 
     /// Ways through one place are one cut (the better way's), and only the

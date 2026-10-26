@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod arc;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
@@ -49,6 +50,8 @@ pub mod plays;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
+pub mod route_end;
+pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
@@ -80,6 +83,8 @@ use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
+use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use rng::Rng;
 use sense::RayBudget;
 use signals::{Duel, MatchSignals, Mods, Skill};
@@ -134,6 +139,12 @@ pub struct Bot {
     intent: Intent,
     /// The route and the goal it was planned to.
     route: Option<(Route, Vec3)>,
+    /// When the route was put in place, and how the last one ended with its
+    /// age in ms (the bench's counts and the jump test's log, `route_end.rs`).
+    #[cfg(any(test, feature = "jump-test"))]
+    route_born: u32,
+    #[cfg(any(test, feature = "jump-test"))]
+    route_end: Option<(RouteEnd, u32)>,
     /// A goal no way was found to, and until when it is not tried again.
     no_way: Option<(Vec3, u32)>,
     /// Goals a search from its own floor proved no way to (over the floors
@@ -280,6 +291,10 @@ impl Bot {
             last_ran: Vec::new(),
             intent: Intent::stay(),
             route: None,
+            #[cfg(any(test, feature = "jump-test"))]
+            route_born: 0,
+            #[cfg(any(test, feature = "jump-test"))]
+            route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
             #[cfg(test)]
@@ -434,7 +449,7 @@ impl Bot {
             self.note(notes, now, format!("ends {kind:?}: {why}"));
         }
         self.assignment = None;
-        self.route = None;
+        self.end_route(RouteEnd::EndPlay, now);
         self.intent = Intent::stay();
     }
 
@@ -839,6 +854,7 @@ impl Bots {
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
+            bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
                 &mut notes,
@@ -907,18 +923,49 @@ impl Bots {
             } else {
                 0
             };
+            // [unstick] A body pushing at a ledge it can jump up (more than
+            // the client's step, under the standing jump's top) jumps up it
+            // forward; the world must show it pushing forward, standing,
+            // able to jump, and the step ahead off the zones' floors. Any
+            // other stop backs off: a back-diagonal jump goes nowhere useful
+            // (`Tactics::ledge_ahead`; the first stop at a spot gets no jump,
+            // the second keeps the old one).
+            let ledge = match (self.tactics.as_ref(), yaw) {
+                (Some(tactics), Some(yaw))
+                    if matches!(recovery, Recovery::BackOff | Recovery::Sidestep)
+                        && keys & key::FORWARD != 0
+                        && keys & (key::BACK | key::CROUCH) == 0
+                        && jump != 0
+                        && tactics.zone_free_step(
+                            feet,
+                            feet + unstick_step(key::FORWARD, yaw),
+                            time,
+                        ) =>
+                {
+                    tactics.ledge_ahead(feet, yaw)
+                }
+                _ => None,
+            };
+            if let Some(rise) = ledge {
+                bot.note(
+                    &mut notes,
+                    time,
+                    format!("unstick_ledge: forward jump up a ledge of {rise:.2} m"),
+                );
+            }
+            let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape, jump);
             match recovery {
                 Recovery::BackOff => {
-                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.5, 0.8))));
+                    bot.unstick = Some((keys, ticks(&mut bot.rng, (0.5, 0.8))));
                     bot.route = None;
                 }
                 Recovery::Sidestep => {
-                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.8, 1.3))));
+                    bot.unstick = Some((keys, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck twice there", &mut notes);
                     self.teams[team].next_commander = time;
                 }
                 Recovery::GiveUp => {
-                    bot.unstick = Some((escape, ticks(&mut bot.rng, (0.8, 1.3))));
+                    bot.unstick = Some((keys, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck there again", &mut notes);
                     bot.pause_until = time + 3_000;
                 }
@@ -939,7 +986,7 @@ impl Bots {
                     goal.to_array()
                 ),
             );
-            bot.route = None;
+            bot.end_route(RouteEnd::ReckoningError, time);
         }
         notes
     }
