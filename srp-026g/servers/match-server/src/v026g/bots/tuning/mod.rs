@@ -49,6 +49,11 @@ pub struct Tuning {
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
     pub escape_ceiling: bool,
+    /// Whether the bots read the anomaly fields a world holds (`Bots::fields_from_world`, `live_zones.rs`): the
+    /// floors they cover are kept off while a field hurts, and a bot caught in one is got out. Off (the default:
+    /// merged switched off): the worlds' fields are not read, today's decisions (the bench's switch,
+    /// `SRP_BENCH_LIVE_ZONES=1` on).
+    pub live_zones: bool,
     /// Whether the maps' walk grids have the gap links (a walking jump
     /// across a gap, up or down: `mapdata::grid::gap`), which bots then
     /// route over and jump. A grid is the map's, built once for every
@@ -81,6 +86,7 @@ impl Default for Tuning {
             hazard_margin: 1.0,
             floor_paths: false,
             escape_ceiling: true,
+            live_zones: false,
             gap_links: false,
             plays: PlayKind::ALL
                 .iter()

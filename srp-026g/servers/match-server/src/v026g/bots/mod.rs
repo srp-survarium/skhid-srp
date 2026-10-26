@@ -46,6 +46,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod live_grenades;
+pub mod live_zones;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -81,6 +82,7 @@ use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
 use survarium::v026g::loadouts::{BotRole, BotTier};
+use survarium::v026g::match_msgs::anomaly_fields::WorldField;
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -1186,6 +1188,18 @@ impl Bots {
         self.tactics.as_mut().map_or((0, 0), |tactics| {
             let report = tactics.hazards.sync_from_world(objects, time);
             (report.synced.len(), report.missed.len())
+        })
+    }
+
+    /// The anomaly fields of a trusted world (`anomaly_fields::find`) at match time `time`: the live zones of this
+    /// match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the board holds.
+    pub fn fields_from_world(&mut self, fields: &[WorldField], time: u32) -> usize {
+        if !self.tuning.live_zones {
+            return 0;
+        }
+        self.tactics.as_mut().map_or(0, |tactics| {
+            tactics.hazards.set_fields(fields, &tactics.world.grid, time);
+            tactics.hazards.live.fields().len()
         })
     }
 

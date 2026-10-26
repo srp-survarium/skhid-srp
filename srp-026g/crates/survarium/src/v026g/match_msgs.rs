@@ -16,6 +16,7 @@
 //!   and rules blobs;
 //! - [`upload`]: the patched client's snapshot upload (0xE0 chunks, 0xF6);
 //! - [`rules`]: when a match starts, ends and who wins;
+//! - [`anomaly_fields`]: the anomaly fields a world holds (typed; the layout is not known yet);
 //! - [`clock`]: how fast a game's clock takes a correction, by its build;
 //! - [`client_model`]: what a client accepts, for the server's tests.
 //!
@@ -23,6 +24,7 @@
 //! comment says LIKELY or GUESS. Nothing was checked against a running
 //! 0.26g match yet.
 
+pub mod anomaly_fields;
 pub mod client_model;
 pub mod clock;
 pub mod late_join;
