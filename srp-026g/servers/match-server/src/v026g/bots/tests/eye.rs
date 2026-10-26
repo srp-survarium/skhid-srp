@@ -330,6 +330,7 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     for (seed, want, rays) in base {
         let mut tuning = bench_tuning();
         tuning.aim.combat.live_eye = false;
+        tuning.threat.spots = false; // the pinned counts predate K1
         let out = soak_tuned(4, 3, 0, None, 120, seed, tuning);
         let got = (
             out.shots,
