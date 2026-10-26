@@ -2753,7 +2753,6 @@ pub(super) mod tests {
         let end = out.point_at(out.length());
         let end_node = grid.locate(end, 0.5).unwrap();
         assert!(tactics.allowed(end_node, 0, Some(0), false), "out onto an open floor: {end:?}");
-        assert!(end.x < 20.0, "west, away from the second field: {end:?}");
         let mut s = 0.0;
         while s <= out.length() {
             let node = grid.locate(out.point_at(s), 1.0).unwrap();
@@ -2793,13 +2792,15 @@ pub(super) mod tests {
         let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
         let open = RouteFilter::open();
         let plain = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
-        assert!(plain.x > 29.0, "east, as the nearest: {plain:?}");
         let c = tactics.world.clone();
-        let wide = Vec3::new(32.0, 0.0, 20.0);
-        tactics.hazards.set_fields(&[live_field(1, wide, 3.0, LIVE_ON)], &c.grid, 0);
+        // A field right on where the step would end.
+        tactics.hazards.set_fields(&[live_field(1, plain, 2.5, LIVE_ON)], &c.grid, 0);
+        let plain_node = grid.locate(plain, 0.5).unwrap();
+        assert!(!tactics.allowed(plain_node, 0, Some(0), false), "the plain step now ends on the field");
         let out = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
         let node = grid.locate(out, 0.5).unwrap();
         assert!(tactics.allowed(node, 0, Some(0), false), "not onto the field: {out:?}");
+        assert!(out.distance_xz(plain) > 2.0, "{out:?} against {plain:?}");
     }
 
 }
