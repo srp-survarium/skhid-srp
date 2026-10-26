@@ -490,7 +490,7 @@ mod tests {
             }
             now += TICK_MS;
         }
-        assert_eq!(listings, 120_000 / 5_000 + 1);
+        assert_eq!(listings, 120_000 / 5_000, "a world at 0, 5 s, ... 115 s");
         assert!(!fg.stats.lag_ms.is_empty());
         assert!(fg.stats.lag_ms.iter().all(|&lag| lag <= 5_000), "{:?}", fg.stats.lag_ms);
     }
