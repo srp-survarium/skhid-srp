@@ -88,8 +88,8 @@ rests on a battery, the battery is never moved).
   (section 6). The exe also keeps 0.10b's third-person death camera console values
   (`death_camera_yaw` / `_pitch` / `_distance`); the death screen does not use them.
 - **Corpse lifetime (LIKELY):** the place's one player object is the corpse until its
-  respawn re-spawns that object (respawn rule 0x316820 -> spawn 0x316DA0). That is 8 s by
-  the mode's options, less with `respawn_booster`, and to the match's end in Team
+  respawn re-spawns that object (respawn rule 0x316820 -> spawn 0x316DA0). That is 8 s or 10 s by
+  the mode's options, 5 s or 6.25 s with `respawn_booster` (booster-buffs.md), and to the match's end in Team
   Deathmatch with no tickets. So there are at most 19 other corpses, one per place.
 
 ## 2. Ragdoll support in the engine
@@ -958,6 +958,36 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
   the site for a corpse with +128h 0 (the 69 bones, the ragdoll's, to the stubbed
   update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
   (the original's je), and a carrier's ragdoll with no gun.
+
+## 15. A respawn before the body rests (the radio's +60 %, 2026-10-26)
+
+The radio (booster-buffs.md) brings the shortest respawn to 5 s in Team Deathmatch and 6.25 s in
+the other modes (3.2 s and 4 s, had the owner read it as the time -60 %). The ragdoll, the death
+camera and the death fade key off the player being alive and the life's spawn time, never a
+fixed time, so a shorter respawn changes nothing in how they behave:
+
+- **At the respawn** the corpse's ragdoll is freed in that frame, at any stage (the death clip,
+  legs still holding, falling, shot, settled): the game's own skeleton, eye and cull from then
+  on, no box left for bullets. The draw and eye hooks check alive and the spawn time again, so
+  a frame between the respawn and the next step draws nothing of ours. A late push for the old
+  death is ignored; the next death starts from the death clip, its camera on the new standing
+  head (1.64 m).
+- **When bodies rest** (60 fps): down by 1 s (a headshot by 0.5 s); at rest flat 1.6 s, slope
+  1.9-2.5 s, wall 2.3-3.0 s, on a battery 3.1-3.7 s, stairs 5.0 s (the cap); a body shot every
+  0.1 s never rests. So at 5 s only a body on stairs or under fire still moves; it goes at the
+  respawn, as the stock corpse does.
+- **The death fade** sets its end at each new second the countdown shows: 5 s and 4 s are exact
+  from the start, 6.25 s and 3.2 s from the second value (0.25 s and 0.2 s in), and every length
+  ends at the respawn (openness 0.40).
+- **Tests:** `a_respawn_at_the_radios_shortest_times_drops_the_body_at_any_stage` (cargo: a
+  respawn at 1/60, 0.3, 0.7, 3.2, 4, 5 and 6.25 s, with and without a bullet every 0.1 s);
+  `check_ragdoll_026g.py`'s local player shot every 0.1 s and still moving at 3.2 s, then a real
+  respawn (new spawn time and point); `scripts/death-eyes/check.sh` over 3.2, 4, 5, 6.25 and
+  10 s countdowns.
+- **Left (not caused by the shorter respawn):** the tracked speed survives a respawn, so a death
+  within about 0.1 s of a spawn within 2 m of the last death could fling the body (up to 7 m/s;
+  spawn protection makes it rare); a bullet in the respawn's own tick can play one body-hit
+  effect where the corpse was.
 
 ## Addresses (re-kit rows added in this change)
 

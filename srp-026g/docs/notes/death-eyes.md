@@ -21,7 +21,7 @@ complete darkening before restart". Code: the hud movie,
   being the respawn rule's time left rounded up (`fill_match_hud_state` 0x316C20: ceil of
   (respawn time - now) / 1000), and `""` at 0. So a new value N comes when exactly N s are left:
   the movie takes the end as now + N s at each change, the start at the first. A time that is not
-  whole seconds (a radio: 8 s, other modifiers) is right from the second value on.
+  whole seconds (the radio's 6.25 s, other modifiers) is right from the second value on.
 - **A countdown that stops** (the world stopped, the match's end): the fading waits 1.1 s past the
   last change and goes no further until the next one.
 - **Clear at once:** at the respawn (`""`), a rollback that undoes the death (the countdown goes,
@@ -43,7 +43,7 @@ complete darkening before restart". Code: the hud movie,
   hud can only draw over it (the grey wash stands in for the loss of colour).
 - **Lockstep:** the hud only; nothing a match computes, no row in `simulation_changes.tsv`.
 - **Checked:** `scripts/death-eyes/check.sh` (Ruffle, the hud movie's own class and kit panel):
-  the curve at 0, 25, 50, 75, 100 % of a 5 s and a 10 s countdown, going down but for its dims,
+  the curve at 0, 25, 50, 75, 100 % of a 3.2, 4, 5, 6.25 and 10 s countdown (the radio's times, booster-buffs.md), going down but for its dims,
   deepest at the end and not dark there, clear at the respawn; a time that is not whole seconds, a
   rollback, a stopped countdown, the texts, a real click on a kit over it; `--video` records it
   over a 5 s countdown (`--blood` with the hud's blood). **Not run in a game.**

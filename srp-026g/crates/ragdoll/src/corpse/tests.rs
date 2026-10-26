@@ -873,3 +873,124 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
         );
     }
 }
+
+/// The radio (`respawn_booster`) shortens the respawn: respawn speed +60 %
+/// gives 5 s in Team Deathmatch (8 s base) and 6.25 s in the battery modes
+/// (10 s), respawn time -60 % 3.2 s and 4 s. A body falls for about 1 s and
+/// rests 1.6 to 5 s after its death, so a respawn often comes before it
+/// rests, or while bullets still push it: at any stage the corpse goes at
+/// once (the game's skeleton drawn, the game's camera, no box a shot meets,
+/// a late push of that death ignored, the slot free), and the place's next
+/// death starts over from its clip with the camera on the new head.
+#[test]
+fn a_respawn_at_the_radios_shortest_times_drops_the_body_at_any_stage() {
+    extern crate std;
+    use crate::ragdoll::tests::looks;
+    let front = looks()[0].1;
+    let shot_dead = |key: u32| {
+        let Seen::Dead(mut death) = dead(key) else {
+            unreachable!()
+        };
+        death.hits[0] = front;
+        death.hit_count = 1;
+        Seen::Dead(death)
+    };
+    let rifle = |along: Vec3| crate::shot::impulse(along, 0.02, 800.0);
+    // the clip, the legs still holding, the fall, the radio's four times
+    for respawn in [1.0 / 60.0, 0.3, 0.7, 3.2, 4.0, 5.0, 6.25] {
+        for pushed in [false, true] {
+            let mut corpses = Corpses::new();
+            let mut ground = Ground::flat();
+            let d = [shot_dead(7)];
+            let frames = (respawn * 60.0f32).round() as usize;
+            let mut pelvis = None;
+            for n in 0..frames {
+                frame(&mut corpses, &d, Some(0), &mut ground);
+                if let Corpse::Body { slot, .. } = corpses.place(0)
+                    && let Some(r) = corpses.slot(slot).body()
+                {
+                    let (parts, _) = r.poses();
+                    pelvis = Some(parts[Part::Pelvis.index()].position.y);
+                    // bullets in the torso every 0.1 s
+                    if pushed && n % 6 == 0 {
+                        let at = parts[Part::Torso.index()].position;
+                        corpses.push(0, DeathKey(7), Part::Torso, at, rifle(-Vec3::Z));
+                    }
+                }
+            }
+            let was = stage(&corpses, 0);
+            let eye = corpses.eye();
+            std::println!(
+                "respawn {respawn:.2} s after the death{}: {was}, the pelvis at {}, the camera {}",
+                if pushed { ", shot every 0.1 s" } else { "" },
+                pelvis.map_or("(the clip)".into(), |y| std::format!("{y:.2} m")),
+                if eye.is_some() {
+                    "on the head"
+                } else {
+                    "the game's"
+                }
+            );
+            if respawn >= 0.3 {
+                assert!(matches!(was, "ragdoll" | "settled"), "{respawn} s: {was}");
+                assert!(eye.is_some(), "{respawn} s: the camera rides the head");
+            }
+            let last = match corpses.place(0) {
+                Corpse::Body { slot, .. } => corpses
+                    .slot(slot)
+                    .body()
+                    .map(|r| r.poses().0[Part::Torso.index()].position),
+                _ => None,
+            };
+            // the respawn
+            let drawn = frame(&mut corpses, &[Seen::Alive], Some(0), &mut ground);
+            assert_eq!(drawn[0], Drawn::Game, "{respawn} s: the game's skeleton");
+            assert_eq!(stage(&corpses, 0), "alive", "{respawn} s");
+            assert!(
+                corpses.pool.iter().all(|s| matches!(s, Slot::Free)),
+                "{respawn} s: the slot is free"
+            );
+            assert_eq!(corpses.eye(), None, "{respawn} s: the game's camera");
+            assert!(!corpses.any_bodies(), "{respawn} s: no box for a shot");
+            if let Some(at) = last {
+                let shot = Shot::new(at - Vec3::X * 3.0, Vec3::X, 6.0).unwrap();
+                assert_eq!(
+                    corpses.trace(&shot),
+                    None,
+                    "{respawn} s: a shot meets nothing"
+                );
+                assert_eq!(
+                    corpses.push(0, DeathKey(7), Part::Torso, at, rifle(Vec3::X)),
+                    None,
+                    "{respawn} s: a late push of the old death"
+                );
+            }
+            // alive a while (the game's own), then killed again: a new life
+            for _ in 0..30 {
+                let drawn = frame(&mut corpses, &[Seen::Alive], Some(0), &mut ground);
+                assert_eq!((drawn[0], corpses.eye()), (Drawn::Game, None));
+            }
+            let again = [shot_dead(8)];
+            frame(&mut corpses, &again, Some(0), &mut ground);
+            assert_eq!(
+                stage(&corpses, 0),
+                "dying",
+                "{respawn} s: the next death from its clip"
+            );
+            assert_eq!(
+                corpses.eye(),
+                None,
+                "the game's camera while the clip plays"
+            );
+            for _ in 0..2 {
+                frame(&mut corpses, &again, Some(0), &mut ground);
+            }
+            assert_eq!(stage(&corpses, 0), "ragdoll");
+            let new = corpses.eye().expect("the camera on the new body's head");
+            assert!(
+                new.position.y > 1.3,
+                "{respawn} s: the new camera starts at the standing head, not the old corpse's ({:.2} m)",
+                new.position.y
+            );
+        }
+    }
+}

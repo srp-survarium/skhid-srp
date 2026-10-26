@@ -69,7 +69,12 @@ Checked:
   (the simulation dropped the battery) mt_draw's read of it gives the
   ragdoll's 69 bones to update_skeleton (0x22490, stubbed: it records them)
   and goes on at 0x24781E, and the corpse falls and settles so; a living
-  player holding nothing takes the original's je.
+  player holding nothing takes the original's je;
+- the radio's shortest respawn (3.2 s): the local player's body, shot every
+  0.1 s, still moves with the camera on its head when the place respawns (a
+  new life at its spawn point); the bones, the eye and the cull are the
+  game's at once, a shot where the body lay meets nothing, and the new
+  life's death starts from the clip with the camera on the new head.
 """
 import math
 import struct
@@ -843,6 +848,47 @@ def main():
     still = all(max(abs(a - b) for a, b in zip(m, n)) < 1e-5 for m, n in zip(frames[-1], frames[-2]))
     check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
           f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
+
+    # the radio's shortest respawn (respawn_booster: 3.2 s with "respawn time -60 %"; 5 s with
+    # "+60 % speed"): the local player's body still moving, shot every 0.1 s, when the place
+    # respawns (a new life, +328h, at its spawn point)
+    game.set_alive(a, True, 3000)
+    for _ in range(5):
+        game.step()
+    game.set_alive(a, False, 3000)
+    spin, shots = None, len(game.particles)
+    for n in range(192):
+        game.step()
+        drawn, replaced = game.draw(a)
+        if replaced and n % 6 == 0:
+            spin = drawn[7][12:15]
+            game.u32(BULLET + 0x4, 8000 + n)
+            game.shoot((spin[0] - 3.0, spin[1], spin[2]), (1.0, 0.0, 0.0), 6.0)
+    shots = len(game.particles) - shots
+    moving = game.draw(a)[0]
+    game.step()
+    check(spin is not None and shots >= 25 and game.draw(a)[0] != moving and game.eye(a) != a + EYE,
+          f"3.2 s after the death, shot every 0.1 s ({shots} hits): the body still moves and the camera rides "
+          f"its head")
+    game.set_alive(a, True, 6200)
+    game.emu.mem_write(a + TRANSFORM, struct.pack("<16f", *matrix((0.0, 0, 8.0))))
+    game.step()
+    played = len(game.particles)
+    game.u32(BULLET + 0x4, 8500)
+    game.shoot((spin[0] - 3.0, spin[1], spin[2]), (1.0, 0.0, 0.0), 6.0)
+    check(not game.draw(a)[1] and game.eye(a) == a + EYE and not game.cull(a, 1) and len(game.particles) == played,
+          "the respawn then: the bones, the eye and the cull are the game's at once, and a shot where the body "
+          "lay meets nothing")
+    game.set_alive(a, False, 6200)
+    changed, eyes = [], []
+    for _ in range(3):
+        game.step()
+        changed.append(game.draw(a)[1])
+        eyes.append(game.eye(a) != a + EYE)
+    m = game.floats(game.eye(a), 16)
+    check(changed == [False, False, True] and eyes == [False, False, True] and abs(m[1]) < 1e-3 and m[13] > 1.3,
+          f"the new life's death starts from the clip, the camera on the new body's head (level, at "
+          f"{m[13]:.2f} m) {changed} {eyes}")
     print("all checks passed")
 
 

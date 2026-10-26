@@ -286,8 +286,10 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 
 /// The radio (`respawn_booster`, "Radio", `st_respawn_booster_name`; a
 /// `booster` of item level 0, 1,500 silver, `fills_whole_pocket`): its
-/// default modification 1220 is `respawn_time_modifier` -0.2 (type 1).
-/// In the second pocket. **It works by being carried; no key.** PROVEN in
+/// default modification 1220 is `respawn_time_modifier` -0.2 (type 1) in
+/// 0.26g and the test data, -0.375 in the players' data since
+/// `content-edit/radio-respawn-1.json` (respawn speed +60 %: the time
+/// x 1/1.6). In the second pocket. **It works by being carried; no key.** PROVEN in
 /// the client: a `survarium::booster` (vtable 0xA1CA34, constructor
 /// 0x33F690) makes a modifier entry for each non-zero one of its 68
 /// parameters; at every spawn the player's modifier lists are cleared
@@ -296,13 +298,14 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// (0x2FD1A5), which for a booster (0x33F960 → 0x33F990) adds those
 /// entries to the kit's lists. At a death the respawn rule (0x316AA0)
 /// sets the delay to `respawn_time × max(0, 1 + modifier 60)` through the
-/// getter 0x2D5AE0, which sums the lists: 8 s × 0.8 = 6.4 s in Team
-/// Deathmatch, 10 s × 0.8 = 8 s in the battery modes
-/// (`docs/notes/battery_respawn.md`), then up to the 50 ms grid. That
-/// the -0.2 of the default modification reaches the booster's
-/// parameters is LIKELY (the client applies modifications to an item's
-/// config, `item_config_cook`; the defaults' path there was not
-/// traced).
+/// getter 0x2D5AE0, which sums the lists: 8 s × 0.625 = 5 s in Team
+/// Deathmatch, 10 s × 0.625 = 6.25 s in the battery modes and Research
+/// (`docs/notes/battery_respawn.md`, `booster-buffs.md`; 6.4 s and 8 s
+/// with 0.26g's -0.2), then up to the 50 ms grid. The client applies
+/// the default modifications to the booster's parameters itself
+/// (`item_config_cook::translate_query` 0x2F1750, static); the node loop,
+/// the getter and the delay are run with Unicorn
+/// (`client-patches/check_booster_modifiers_026g.py`).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 
 /// Two RGD-5 frag grenades (`rgd-5`, `grenade`, item level 3, 30 silver;

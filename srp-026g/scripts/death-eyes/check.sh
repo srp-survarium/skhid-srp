@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # check.sh <hud.swf> [work dir]: the view fading on the death screen (docs/notes/death-eyes.md) in
 # Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU), by EyesHarness.as: the
-# openness over a 5 s and a 10 s countdown, the respawn, the edge cases, and a real mouse click
-# (xdotool) on a kit over the faded view. Exits 0 when it says pass; prints its lines.
+# openness over a 3.2, 4, 5, 6.25 and 10 s countdown, the respawn, the edge cases, and a real mouse
+# click (xdotool) on a kit over the faded view. Exits 0 when it says pass; prints its lines.
 # check.sh --video <out.mp4> [--blood under|over|over-normal] <hud.swf> [backdrop.png] [work dir]:
 # records the fading over a 5 s countdown at 1280x720 (1 s alive, the countdown, the respawn, 1.5 s
 # alive) over the backdrop, with the hud's blood while dead under or over it if asked.

@@ -25,12 +25,13 @@ package
    // the eyes on the stage, a stand-in of the hud's root with the kits over them.
    // - mode "check" (the default): the countdown as the exe sends it (root.set_respawn_time,
    //   "<prefix> MM:SS" each second, the seconds rounded up, "" at the end) on a made-up clock:
-   //   the openness (how much of the view shows) at 0, 25, 50, 75 and 100 % of a 5 s and a 10 s
-   //   countdown, the curve going down but for its dims, deepest at the end and the scene still
-   //   showing there, clear again at the respawn; a time that is not whole seconds; a rollback over
-   //   the death; a countdown that stops; the texts; then in real time a 5 s countdown with a real
-   //   mouse click (check.sh's xdotool) on kit 3 at three quarters of it. Prints "EYES ..." lines, ends with
-   //   "EYES RESULT pass" or "EYES RESULT fail: ...".
+   //   the openness (how much of the view shows) at 0, 25, 50, 75 and 100 % of a 3.2, 4, 5, 6.25
+   //   and 10 s countdown (the radio's shortest respawns among them), the curve going down but for
+   //   its dims, deepest at the end and the scene still showing there, clear again at the respawn;
+   //   a time that is not whole seconds; a rollback over the death; a countdown that stops; the
+   //   texts; then in real time a 5 s countdown with a real mouse click (check.sh's xdotool) on
+   //   kit 3 at three quarters of it. Prints "EYES ..." lines, ends with "EYES RESULT pass" or
+   //   "EYES RESULT fail: ...".
    // - mode "video": 1 s alive, a 5 s countdown in real time over a backdrop (-Pbackdrop=<png>)
    //   with the kits and the countdown's text, the respawn, 1.5 s alive; check.sh records it. With
    //   -Pblood=under|over|over-normal the hud's blood (BloodEffect) while dead, under the eyes
@@ -230,7 +231,11 @@ package
          var open:Number;
          var line:String;
          var at:int;
-         for each(total in [5000,10000])
+         // the modes' 8 s and 10 s respawns with the radio (respawn_booster, battery_respawn.md):
+         // x 1/1.6 gives 5 s and 6.25 s, x 0.4 gives 3.2 s and 4 s (a time not whole seconds shows
+         // its first value rounded up: 00:07, 00:04)
+         var totals:Array = [3200,4000,5000,6250,10000];
+         for each(total in totals)
          {
             line = "EYES " + total / 1000 + " s countdown, openness at";
             by[total] = [];
@@ -274,12 +279,28 @@ package
                fail(total + " ms: not open at the respawn");
             }
          }
-         for(i = 0; i < shares.length; i++)
+         for each(total in totals)
          {
-            if(!near(by[5000][i],by[10000][i],0.002))
+            for(i = 0; i < shares.length; i++)
             {
-               fail("5 s and 10 s differ at " + shares[i] + "%");
+               if(!near(by[total][i],by[10000][i],0.002))
+               {
+                  fail(total / 1000 + " s and 10 s differ at " + shares[i] + "%");
+                  break;
+               }
             }
+         }
+         // the radio's 3.2 s: shown as 00:04 at the death, 00:03 at 0.2 s; the end set right then
+         // moves the fading on by little (no visible jump)
+         e = new Eyes();
+         run(e,3200,199);
+         var beforeTick:Number = e.progress;
+         e = new Eyes();
+         run(e,3200,200);
+         trace("EYES 3.2 s countdown: progress " + beforeTick.toFixed(4) + " at 0.199 s, " + Number(e.progress).toFixed(4) + " at 0.2 s (the second value)");
+         if(!(e.progress >= beforeTick) || e.progress - beforeTick > 0.02 || !near(e.progress,200 / 3200,0.001))
+         {
+            fail("3.2 s: progress " + beforeTick + " -> " + e.progress + " at its second value");
          }
          // the curve: down but inside a dim, never below its end, which is above 0
          var curve:Object = Object(Eyes);

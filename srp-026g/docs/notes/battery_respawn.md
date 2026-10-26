@@ -18,8 +18,8 @@ The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.option
   respawn byte is gone); srp reads it into `maps::MapMode::respawn_time` and uses it nowhere.
 - **Modifiers:** at a death (0x316AA0) the delay is `respawn_time × max(0, 1 + modifier 60)`
   (the getter 0x2D5AE0 sums the kit's and the player's lists), then rounded up to the 50 ms grid.
-  10 s is the base: with the radio (`respawn_booster`, -20 %; one pocket a type,
-  one-pocket-a-type.md) 8 s.
+  10 s is the base: with the radio (`respawn_booster`, respawn speed +60 % since radio-respawn-1:
+  modifier -0.375; one pocket a type, one-pocket-a-type.md) 6.25 s (booster-buffs.md).
 - **HUD:** the respawn countdown (`root.set_respawn_time`, 0x236C30) shows the respawn rule's own
   time to the local player's respawn, so it shows 10 s by itself. No text names the seconds.
 - **Who computes it:** every game, in the lockstep simulation (`m_player_respawn_times` is in the
