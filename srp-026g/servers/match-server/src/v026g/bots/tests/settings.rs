@@ -279,4 +279,21 @@ mod tests {
         let missing: Vec<_> = found.iter().filter(|n| !known(n)).collect();
         assert!(missing.is_empty(), "not in tests/settings.rs: {missing:?}");
     }
+
+    /// A listed setting is never also a plays' (or reflex's, or senses') number list
+    /// (`SRP_BENCH_<name>`, `SRP_BENCH_SIDE1_<name>` of [`TUNING_NAMES`]): the list is
+    /// `name=value,...`, so a plain switch of the same name would panic in its parser.
+    #[test]
+    fn no_setting_is_named_like_a_tuning_list() {
+        for setting in SETTINGS.iter() {
+            for t in TUNING_NAMES {
+                assert_ne!(setting.name, format!("SRP_BENCH_{t}"), "{t}");
+                assert_ne!(setting.name, format!("SRP_BENCH_SIDE1_{t}"), "{t}");
+            }
+        }
+        let mut names: Vec<_> = SETTINGS.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), SETTINGS.len(), "a setting is listed twice");
+    }
 }
