@@ -142,22 +142,28 @@ fn cull_of(collection: &str, read: Read) -> Result<Cull, String> {
             None => Ok(Err(path)),
         }
     };
-    let collection = match parsed(format!("sounds/collections/{collection}.sound_collection"))? {
-        Ok(c) => c,
-        Err(path) => return Ok(Cull::Missing(path)),
-    };
-    let Some(first) = collection
-        .get("collection")
-        .and_then(|c| c.get("sound_items"))
-        .and_then(|items| items.children().first().copied())
-        .and_then(|item| item.get("filename"))
-        .and_then(ConfigValue::as_str)
-    else {
-        return Ok(Cull::Missing("a sound in the collection".to_owned()));
-    };
-    let options = match parsed(format!("sounds/single/{first}.raw_options"))? {
-        Ok(o) => o,
-        Err(path) => return Ok(Cull::Missing(path)),
+    // A layer names a sound collection, or a single sound directly.
+    let single = |file: &str| format!("sounds/single/{file}.raw_options");
+    let options = match parsed(format!("sounds/collections/{collection}.sound_collection"))? {
+        Ok(collection) => {
+            let Some(first) = collection
+                .get("collection")
+                .and_then(|c| c.get("sound_items"))
+                .and_then(|items| items.children().first().copied())
+                .and_then(|item| item.get("filename"))
+                .and_then(ConfigValue::as_str)
+            else {
+                return Ok(Cull::Missing("a sound in the collection".to_owned()));
+            };
+            match parsed(single(first))? {
+                Ok(o) => o,
+                Err(path) => return Ok(Cull::Missing(path)),
+            }
+        }
+        Err(path) => match parsed(single(collection))? {
+            Ok(o) => o,
+            Err(_) => return Ok(Cull::Missing(path)),
+        },
     };
     let Some(preset) = options
         .get("options")
@@ -165,7 +171,7 @@ fn cull_of(collection: &str, read: Read) -> Result<Cull, String> {
         .and_then(ConfigValue::as_str)
         .filter(|p| !p.is_empty())
     else {
-        return Ok(Cull::Missing(format!("an spl_preset in sounds/single/{first}.raw_options")));
+        return Ok(Cull::Missing("an spl_preset in the sound's raw_options".to_owned()));
     };
     let spl = match parsed(format!("sounds/spl/{preset}.spl"))? {
         Ok(s) => s,
@@ -317,6 +323,31 @@ mod tests {
         // No composite at all, and a config with no fire sound.
         assert_eq!(reach_in(&weapon("w/other"), &files), None);
         assert_eq!(reach_in(&named(vec![]).to_bytes().unwrap(), &files), None);
+    }
+
+    #[test]
+    fn a_layer_may_name_a_single_sound_and_a_composite_of_another_type_is_not_the_shot() {
+        let files = files(&[
+            ("sounds/composite/w/m.composite_sound", composite(&[("direct", true, 80)])),
+            ("sounds/single/direct.raw_options", raw_options("mid")),
+            ("sounds/spl/mid.spl", spl(&[(0.0, 1.0), (60.0, 0.0)])),
+        ]);
+        assert_eq!(reach_in(&weapon("w/m"), &files), Some(60.0));
+        // A type-258 entry (a single collection, a click) first, the composite (257) second.
+        let third_view = ConfigValue::Indexed(vec![
+            ConfigValue::Indexed(vec![ConfigValue::Integer(258), string("w/click")]),
+            ConfigValue::Indexed(vec![ConfigValue::Integer(257), string("w/m")]),
+        ]);
+        let config = named(vec![(
+            "states",
+            named(vec![(
+                "fire",
+                named(vec![("sounds", named(vec![("third_view", third_view)]))]),
+            )]),
+        )])
+        .to_bytes()
+        .unwrap();
+        assert_eq!(reach_in(&config, &files), Some(60.0));
     }
 
     #[test]
