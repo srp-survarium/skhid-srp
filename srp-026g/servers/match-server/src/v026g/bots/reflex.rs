@@ -2425,6 +2425,15 @@ impl Reflex {
         }
     }
 
+    /// A resupply zone's top-up: `rounds` more of weapon 1's ammo in the
+    /// stack (the magazine is not touched; the reload habit loads it).
+    pub fn top_up(&mut self, rounds: u32) {
+        match &mut self.hands {
+            Some(hands) => hands.primary.spare += rounds,
+            None => self.carried = Some(self.left() + rounds),
+        }
+    }
+
     /// Nothing to fire: weapon 1 has no round in it nor to load, and no
     /// pistol with one (the kit's ammo lasts the match: dry until a spawn
     /// with another kit).
@@ -4907,6 +4916,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 
