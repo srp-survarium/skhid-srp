@@ -96,6 +96,8 @@ const OUTSTANDING_MS: u32 = 600;
 const MOTOR_MAX_MS: u32 = 25_000;
 /// How far past the face, along its normal, a motor-driven try's top point is, m.
 const TOP_BEYOND_M: f32 = 1.2;
+/// The keys a bot of the test may press: walking, sprinting, crouching and jumping.
+const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT;
 
 /// One row of a world: what the owner's client says of one body at one tick.
 #[derive(Clone, Debug, PartialEq)]
@@ -825,6 +827,15 @@ impl JumpTest {
         Some(def)
     }
 
+    /// Only the keys of moving for a bot of the test (and for the others while they rest): whatever the
+    /// ordinary drive decided while the bot walked to a start (its reflex aims and fires at anyone in
+    /// sight), nothing is fired, aimed, thrown, used, dropped or switched.
+    pub fn quiet(&self, place: Place, decision: &mut Decision) {
+        if self.runners.contains_key(&place) || self.idle_others {
+            decision.keys &= MOVING_KEYS;
+        }
+    }
+
     /// Whether this bot's place is in the test.
     pub fn owns(&self, place: Place) -> bool {
         self.runners.contains_key(&place)
@@ -1374,6 +1385,28 @@ mod tests {
     fn wide_def(angle: f32, runup: f32) -> TryDef {
         let site = named_site("chem125c", &HashMap::new()).expect("a site");
         TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3 }
+    }
+
+    #[test]
+    fn a_bot_of_the_test_presses_no_fire_aim_grenade_or_use_while_it_walks() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        jt.runners.entry(3).or_default();
+        let noisy = key::FORWARD | key::SPRINT | key::FIRE | key::AIM | key::GRENADE | key::RELOAD | key::USE | key::DROP | key::SPOT | key::WEAPON_1 | key::QUICK[0];
+        let mut decision = Decision { keys: noisy, turn: (0.1, 0.0) };
+        jt.quiet(3, &mut decision);
+        assert_eq!(decision.keys, key::FORWARD | key::SPRINT);
+        assert_eq!(decision.turn, (0.1, 0.0));
+        // A bot of the match with no try rests: the same.
+        let mut other = Decision { keys: noisy, turn: (0.0, 0.0) };
+        jt.quiet(9, &mut other);
+        assert_eq!(other.keys, key::FORWARD | key::SPRINT);
+        // With the others allowed to play they keep their keys.
+        jt.idle_others = false;
+        let mut free = Decision { keys: noisy, turn: (0.0, 0.0) };
+        jt.quiet(9, &mut free);
+        assert_eq!(free.keys, noisy);
+        jt.quiet(3, &mut free);
+        assert_eq!(free.keys, key::FORWARD | key::SPRINT);
     }
 
     #[test]
