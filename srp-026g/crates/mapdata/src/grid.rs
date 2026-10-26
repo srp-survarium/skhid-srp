@@ -59,7 +59,6 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 
 use crate::built;
 use crate::digest::Digest;
@@ -2137,7 +2136,7 @@ impl WalkGrid {
     fn flood(&self, seeds: &[NodeId], backwards: bool) -> DistanceMap {
         let n = self.len();
         let mut cost = vec![f32::INFINITY; n];
-        let mut open = BinaryHeap::new();
+        let mut open = Open::default();
         for &s in seeds {
             if (s as usize) < n {
                 cost[s as usize] = 0.0;
@@ -2450,7 +2449,7 @@ struct Scratch {
     /// ([`WalkGrid::links_back`]).
     back: Vec<u16>,
     search: u16,
-    open: BinaryHeap<Entry>,
+    open: Open,
 }
 
 /// Arrays a thread keeps for its searches: one for the searches that run
@@ -2503,7 +2502,7 @@ pub(crate) fn scratch_bytes() -> usize {
                     s.mark.capacity() * 2
                         + s.cost.capacity() * 4
                         + s.back.capacity() * 2
-                        + s.open.capacity() * std::mem::size_of::<Entry>()
+                        + s.open.capacity() * std::mem::size_of::<u64>()
                 })
                 .sum()
         })
@@ -2575,6 +2574,86 @@ impl Ord for Entry {
     }
 }
 
+/// The open list of a search: [`Entry`]s popped smallest cost first, equal costs smallest floor first, as
+/// `BinaryHeap<Entry>` pops them (the order of `Entry`'s `Ord` is total, and an entry equal to another in both fields is
+/// the same entry, so every correct priority queue pops the same sequence). Each entry is one `u64` key (the cost's
+/// `total_cmp` order in the high half, the floor in the low) in a 4-ary min-heap: one integer comparison instead of
+/// `total_cmp` and `then`, eight bytes an entry as before, and half the levels to sift through.
+#[derive(Default)]
+pub(crate) struct Open {
+    keys: Vec<u64>,
+}
+
+impl Open {
+    /// The cost's bits in the order of `f32::total_cmp`, as unsigned (the sign flipped; negative values reversed).
+    fn order_bits(cost: f32) -> u32 {
+        let bits = cost.to_bits() as i32;
+        ((bits ^ (((bits >> 31) as u32) >> 1) as i32) as u32) ^ 0x8000_0000
+    }
+
+    /// [`Self::order_bits`] undone.
+    fn cost_of(order: u32) -> f32 {
+        let bits = (order ^ 0x8000_0000) as i32;
+        f32::from_bits((bits ^ (((bits >> 31) as u32) >> 1) as i32) as u32)
+    }
+
+    fn entry_of(key: u64) -> Entry {
+        Entry(Self::cost_of((key >> 32) as u32), key as u32)
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.keys.clear();
+    }
+
+    pub(crate) fn capacity(&self) -> usize {
+        self.keys.capacity()
+    }
+
+    pub(crate) fn push(&mut self, Entry(cost, node): Entry) {
+        let key = u64::from(Self::order_bits(cost)) << 32 | u64::from(node);
+        let mut at = self.keys.len();
+        self.keys.push(key);
+        while at > 0 {
+            let parent = (at - 1) / 4;
+            if self.keys[parent] <= key {
+                break;
+            }
+            self.keys[at] = self.keys[parent];
+            at = parent;
+        }
+        self.keys[at] = key;
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<Entry> {
+        let last = self.keys.pop()?;
+        if self.keys.is_empty() {
+            return Some(Self::entry_of(last));
+        }
+        let top = self.keys[0];
+        let n = self.keys.len();
+        let mut at = 0;
+        loop {
+            let first = 4 * at + 1;
+            if first >= n {
+                break;
+            }
+            let mut best = first;
+            for child in first + 1..(first + 4).min(n) {
+                if self.keys[child] < self.keys[best] {
+                    best = child;
+                }
+            }
+            if self.keys[best] >= last {
+                break;
+            }
+            self.keys[at] = self.keys[best];
+            at = best;
+        }
+        self.keys[at] = last;
+        Some(Self::entry_of(top))
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -2587,6 +2666,156 @@ pub(crate) mod tests {
         tris.extend(wall_x(15.0, 0.0, 5.0, 3.0));
         tris.extend(wall_x(15.0, 7.0, 12.0, 3.0));
         WalkGrid::build(&tris, [0.0, 0.0, 30.0, 12.0], 0.25, Body::default())
+    }
+
+    /// The open list pops what `BinaryHeap<Entry>` pops, entry for entry: the keys keep `total_cmp`'s order and give the
+    /// costs back to the bit (zeros of both signs, subnormals, infinities and NaNs included).
+    #[test]
+    fn the_open_list_keys_keep_the_order_of_total_cmp_and_give_the_costs_back() {
+        let specials = [
+            0.0f32,
+            -0.0,
+            1.0,
+            -1.0,
+            f32::MIN_POSITIVE,
+            -f32::MIN_POSITIVE,
+            f32::from_bits(1),
+            -f32::from_bits(1),
+            f32::MAX,
+            f32::MIN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+            -f32::NAN,
+            f32::from_bits(0x7FA0_0000),
+            1.0 + f32::EPSILON,
+            100.0,
+            f32::from_bits(100.0f32.to_bits() + 1),
+        ];
+        for &a in &specials {
+            assert_eq!(Open::cost_of(Open::order_bits(a)).to_bits(), a.to_bits(), "{a:?}");
+            for &b in &specials {
+                assert_eq!(Open::order_bits(a).cmp(&Open::order_bits(b)), a.total_cmp(&b), "{a:?} {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_open_list_pops_the_same_sequence_as_the_binary_heap_of_entries() {
+        use std::collections::BinaryHeap;
+        let mut state = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move |n: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % n
+        };
+        // Costs in several shapes: few distinct values (many ties, many equal entries), a wide range, both zeros.
+        let cost = |kind: u64, r: u64| -> f32 {
+            match kind {
+                0 => (r % 6) as f32,
+                1 => (r % 100_000) as f32 * 0.37,
+                2 => [0.0, -0.0, 1.5, f32::INFINITY][(r % 4) as usize],
+                _ => f32::from_bits(r as u32 & 0x7F7F_FFFF),
+            }
+        };
+        for kind in 0..4 {
+            let mut open = Open::default();
+            let mut reference = BinaryHeap::new();
+            let (mut pops, mut longest) = (0u64, 0usize);
+            for step in 0..400_000u64 {
+                // Pushes outnumber pops early and balance later, as a search grows and drains.
+                let push = if step < 100_000 { next(3) != 0 } else { next(2) == 0 };
+                if push {
+                    let entry = Entry(cost(kind, next(u64::MAX)), next(40) as NodeId);
+                    open.push(entry);
+                    reference.push(entry);
+                } else {
+                    let (a, b) = (open.pop(), reference.pop());
+                    assert_eq!(a.map(|Entry(c, n)| (c.to_bits(), n)), b.map(|Entry(c, n)| (c.to_bits(), n)), "kind {kind} step {step}");
+                    pops += u64::from(a.is_some());
+                }
+                longest = longest.max(reference.len());
+            }
+            while let Some(want) = reference.pop() {
+                let got = open.pop().unwrap();
+                assert_eq!((got.0.to_bits(), got.1), (want.0.to_bits(), want.1));
+            }
+            assert!(open.pop().is_none());
+            assert!(pops > 50_000 && longest > 10_000, "{pops} {longest}");
+        }
+    }
+
+    /// The search, written out as it was before the open list was 4-ary (a `BinaryHeap<Entry>`, `link_cost` called for every
+    /// link): the ways it finds are the ones `WalkGrid::search` finds, floor for floor and cost to the bit.
+    #[test]
+    fn a_search_finds_the_ways_the_binary_heap_search_found() {
+        use std::collections::BinaryHeap;
+        let reference = |grid: &WalkGrid, from: NodeId, to: NodeId, allowed: &dyn Fn(NodeId) -> bool| {
+            let n = grid.len();
+            let goal = grid.position(to);
+            let (mut cost, mut back) = (vec![f32::INFINITY; n], vec![NodeId::MAX; n]);
+            let mut closed = vec![false; n];
+            let mut open = BinaryHeap::new();
+            cost[from as usize] = 0.0;
+            open.push(Entry(grid.position(from).distance_xz(goal), from));
+            while let Some(Entry(_, u)) = open.pop() {
+                if closed[u as usize] {
+                    continue;
+                }
+                closed[u as usize] = true;
+                if u == to {
+                    let mut nodes = vec![to];
+                    while *nodes.last().unwrap() != from {
+                        nodes.push(back[*nodes.last().unwrap() as usize]);
+                    }
+                    nodes.reverse();
+                    return Some((nodes, cost[to as usize]));
+                }
+                for (v, kind) in grid.links(u) {
+                    if closed[v as usize] || (v != to && !allowed(v)) {
+                        continue;
+                    }
+                    let c = cost[u as usize] + grid.link_cost(u, v, kind);
+                    if !c.is_finite() {
+                        continue;
+                    }
+                    if c < cost[v as usize] {
+                        cost[v as usize] = c;
+                        back[v as usize] = u;
+                        open.push(Entry(c + grid.position(v).distance_xz(goal), v));
+                    }
+                }
+            }
+            None
+        };
+        let grid = two_rooms();
+        let n = grid.len() as NodeId;
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = move |m: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % m
+        };
+        let mut found = 0;
+        for round in 0..120 {
+            let (a, b) = (next(u64::from(n)) as NodeId, next(u64::from(n)) as NodeId);
+            let skip = 2 + next(9) as NodeId;
+            let some = move |v: NodeId| !v.is_multiple_of(skip);
+            let allowed: &dyn Fn(NodeId) -> bool = if round % 2 == 0 { &|_| true } else { &some };
+            let want = reference(&grid, a, b, allowed);
+            match (grid.search(a, b, allowed, usize::MAX), want) {
+                (Search::Found(path), Some((nodes, cost))) => {
+                    assert_eq!(path.nodes, nodes, "{a} to {b}");
+                    assert_eq!(path.cost.to_bits(), cost.to_bits(), "{a} to {b}");
+                    found += 1;
+                }
+                (Search::NoWay, None) => {}
+                (got, want) => panic!("{a} to {b}: {got:?} against {want:?}"),
+            }
+        }
+        assert!(found > 40, "{found}");
     }
 
     /// The build gives the same grid every time, and the digest is pinned:
