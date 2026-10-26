@@ -561,8 +561,9 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   within what the server's checks allow: that is why it pays less.
 - **Maps in memory.** Each match against bots may be on another map, and a
   bot match without its map plays on the script (stage 0) until it gets
-  one. With `SRP_PVB=on` the store keeps up to `SRP_PVB_MAX_MATCHES` (5)
-  maps in memory at once, or `SRP_MAPDATA_AT_ONCE` if that is more
+  one. The store keeps up to `SRP_PVB_MAX_MATCHES` (5; matches with bots,
+  against bots and rooms' together, since 2026-10-26 whether `SRP_PVB` is
+  on or not) maps in memory at once, or `SRP_MAPDATA_AT_ONCE` if that is more
   (`session::v026g::pvb::maps_at_once`, `bots::maps`): five matches on
   five maps each have theirs, a sixth map waits for one to be let go.
   The search arrays are the match thread's, one set however many matches
@@ -585,8 +586,8 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
 
 A room's "Bots per team" (0 to 3; the rules: `rooms.md`, "Bots per team"):
 its match starts with up to that many of the server's bots a team, in the
-places its players leave, and they give their places up to players and come
-back for them.
+places its players leave, and they give their places up to players who come
+(a bot that gave way is gone for the match).
 
 - **The lobby** puts them after the players (team 0's first), with the kit
   of their role (`play::server_bot`, the same as against bots), and keeps a
@@ -594,30 +595,31 @@ back for them.
   `place_joiner`). The queue's roster has the players alone: the match's
   places past the bots are mapped to it (`Running::place_of_seat`).
 - **The match server** (`game/driven.rs`, `room_bots`): a bot's place is a
-  `BotSeat` (waiting, in since a tick, out since a tick), changed by one
-  transition (`BotSeat::after`). Each team keeps the size it was made with,
-  players and bots together (`matchmaking_policy::bot_move`): a player more
-  takes a bot's place (the team's last bot by place leaves a tick after the
-  player's entry, after a drop press and a release), a player fewer brings
-  one of the team's bots back on its own place (0xE9 again). A change waits
-  until every game simulating played the bot's last change; a team that can
-  no longer respawn keeps its bots. The giving way of 2026-10-14 (below,
-  removed 2026-10-17) chose the bot by the bots' view and kept carriers; this
-  one lets any bot go, the carrier dropping its battery first.
+  `BotSeat` (waiting, in since its entry's tick, out), changed by one
+  transition (`BotSeat::after`; out is for the rest of the match). Each
+  player who comes into the match late on a team with a bot takes a bot's
+  place (`matchmaking_policy::bot_gives_way`): the team's last bot by place
+  leaves a tick after the player's entry, after a drop press and a release.
+  Nothing brings a bot back: a place entered again desyncs a game that loaded
+  a world while it was out (`client_patch.md`, `snapshot_rules.md` §7.3). A
+  leave waits until every game simulating played the bot's entry; a team
+  that can no longer respawn keeps its bots. The giving way of 2026-10-14
+  (below, removed 2026-10-17) chose the bot by the bots' view and kept
+  carriers; this one lets any bot go, the carrier dropping its battery first.
+- **How many:** `SRP_PVB_MAX_MATCHES` matches with bots at most, against bots
+  and rooms' together (`pvb_running`): a room's match past it starts without
+  bots; the match server keeps a map in memory for each
+  (`pvb::maps_at_once`, whether Player vs Bots is on or not).
 - **The maps they play** (`rooms::BotMaps`, `maps::mode::bots_play`): the
   lobby tells a room's maker which pool entries they play (a mode of theirs,
   a map whose `<project>.mapdata` is in `SRP_MAPDATA_DIR`: the file the
   match server loads) and refuses a room with bots and another. Blackout is
   its battery map for the match server and the bots (`maps::BLACKOUT_RULES`).
-- **The bots** (`Bots::entered`): a bot that leaves is forgotten as before,
-  and its place waits as a bot anew, entering again as at the start: in its
-  own kits (the ones `Bots::wear` gave it, #578's), the rounds of the kit in
-  its hands saved as it leaves, armed as `wear` arms it with the kit it wore
-  and the one it picked for its next life.
+- **The bots** (`Bots::entered`): a bot that leaves is forgotten, as before.
 - **Their kits** (`BotKits::bot_kit_capped`): never over an open room's max
   level; a bot with no kit within it is not put in.
 - Tests: `match-server` `tests/room_bots.rs`, `bots/tests.rs`
-  `a_bot_that_left_is_forgotten_and_may_come_back`, lobby
+  `a_blackout_match_is_the_battery_mode_its_bots_bring_batteries_home`, lobby
   `core_tests/room_bots_tests.rs`, `session` `matchmaking_policy` and the
   rewards' `a_rooms_match_with_the_servers_bots_pays_as_one_against_bots`.
 - Not run with a real game.

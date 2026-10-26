@@ -195,12 +195,21 @@ fn why(code: PvbCode) -> &'static str {
 }
 
 impl Core<'_> {
-    /// The matches against bots running now (made, and not over at the
-    /// match server).
+    /// The matches with the server's bots running now (made, and not over
+    /// at the match server): against bots, and rooms' with bots in their
+    /// roster. `SRP_PVB_MAX_MATCHES` is the most of them together: each
+    /// holds a map of the bots in memory and costs their thinking.
     pub(super) fn pvb_running(&self) -> usize {
         self.matches
             .values()
-            .filter(|running| running.vs_bots && self.host.is_open(running.ticket.match_id))
+            .filter(|running| {
+                (running.vs_bots
+                    || running
+                        .seats
+                        .iter()
+                        .any(|(occupant, _)| *occupant == super::play::Occupant::Bot))
+                    && self.host.is_open(running.ticket.match_id)
+            })
             .count()
     }
 

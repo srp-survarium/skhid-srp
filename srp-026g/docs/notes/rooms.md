@@ -197,12 +197,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     go where it stands, as a player can) and lets every key go. The clients see an ordinary leave
     and an ordinary entry: nothing new on the wire. From the countdown on, as late joins are; a
     group of joiners replaces as many bots, one at a time.
-  - **A player leaves** (its own word, its game gone): the team its bots keep at the size it
-    started with gets a bot back, on that bot's own place (its entry again, as a player whose game
-    came back), while the match keeps a place for it beside every bot in it. Never more bots than
-    the team started with, never a bot of a team that started with none.
-  - A bot's place changes again only once every game simulating has played its last change (a
-    leave a game takes before it played the entry is dropped by it).
+  - **A bot that gave way is gone for the match.** A player who leaves brings no bot back: the team
+    plays short, as any room's; the room's next match starts its bots afresh. (A place entered
+    again desyncs a game that loaded a world while it was out, `client_patch.md`,
+    `snapshot_rules.md` §7.3: a returning bot would cost a resync each time.)
+  - A bot leaves only once every game simulating has played its entry (a leave a game takes before
+    it played the entry is dropped by it).
+  - **How many at once:** `SRP_PVB_MAX_MATCHES` (5) is the most matches with the server's bots
+    together, against bots and rooms' (each holds a bots' map in memory and their thinking): a
+    room whose match would be one more starts it without bots (said in the log); Player vs Bots is
+    refused at the limit as before, rooms' bot matches counted.
   - No bot of a team that can no longer respawn leaves (Team Deathmatch out of tickets: it may be
     its team's last life, and the mode ends the match on that); the player plays beside it.
   - **The maps and modes the bots play** (the owner's of 2026-10-26: "if a player chooses bots,
@@ -227,12 +231,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     default, of the silver and experience; no quest, no daily bonus; no rating), even when every
     bot was replaced later: its bots are kills and batteries a player did not take from players,
     and its maker chose them. A private room's pays nothing, as before.
-  - The results: a bot's row is its place's (what it scored, kept when it left and came back);
-    the team points are the world's. Recordings and replays have the bots' leaves and entries as
-    any player's (the recording's notes "gave way" and "bot back").
-  - Not run in a game yet: that a client takes a server's bot's leave and its entry again as any
-    player's (it cannot tell them apart, `player_bots.md` §1), and that a carrier's drop before
-    its leave lets the battery go (bit 22 is PROVEN to run, `player_bots.md` §2).
+  - The results: a bot's row is its place's (what it scored before it left); the team points are
+    the world's. Recordings and replays have the bots' leaves as any player's (the recording's
+    note "gave way").
+  - Not run in a game yet: that a client takes a server's bot's leave as any player's (it cannot
+    tell them apart, `player_bots.md` §1), and that a carrier's drop before its leave lets the
+    battery go (bit 22 is PROVEN to run, `player_bots.md` §2).
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.

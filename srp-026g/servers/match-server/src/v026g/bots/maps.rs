@@ -888,7 +888,7 @@ mod tests {
                 .write(&dir.join(mapdata::format::file_name(project)))
                 .unwrap();
         }
-        let at_once = session::v026g::pvb::maps_at_once(AT_ONCE, true, 5);
+        let at_once = session::v026g::pvb::maps_at_once(AT_ONCE, 5);
         assert_eq!(at_once, 5);
         let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None);
         let wait = Duration::from_secs(10);
@@ -945,7 +945,7 @@ mod tests {
         let maps = Maps::configured(
             Some(dir),
             KEEP,
-            session::v026g::pvb::maps_at_once(AT_ONCE, true, projects.len()),
+            session::v026g::pvb::maps_at_once(AT_ONCE, projects.len()),
             built,
         );
         let before = resident();

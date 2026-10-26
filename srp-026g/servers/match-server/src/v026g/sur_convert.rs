@@ -1286,28 +1286,6 @@ mod tests {
         records
     }
 
-    /// A place that left comes back on its own place (a room's bot that gave
-    /// its place up to a player, then came back for one who left,
-    /// `game/driven.rs`): the replay has its leave and its entry again, as
-    /// a player's whose game came back.
-    #[test]
-    fn a_place_that_leaves_and_comes_back_is_in_the_replay_twice() {
-        let mut records = recording();
-        // Place 1 enters at tick 10, leaves at tick 40 (2000 ms, the
-        // recording's) and enters again at tick 60, each sent 300 ms ahead.
-        records.push(datagram(OUT, 0, 1800, 0xE9, None, &[10, 1]));
-        records.push(datagram(OUT, 0, 4000, 0xE9, None, &[60, 1]));
-        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
-        let of_one: Vec<(u32, char)> = report
-            .roster_events
-            .iter()
-            .filter(|(_, _, place)| *place == 1)
-            .map(|(time, kind, _)| (*time, *kind))
-            .collect();
-        assert_eq!(of_one, [(500, 'E'), (2000, 'L'), (3000, 'E')]);
-        assert!(sur::verify(&file).is_ok());
-    }
-
     #[test]
     fn a_recording_becomes_a_checked_file() {
         let records = recording();

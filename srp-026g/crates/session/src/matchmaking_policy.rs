@@ -9,8 +9,8 @@
 //! A room's server bots (the owner's of 2026-10-26: "up to 3 vs 3 bots,
 //! which will be replaced with real players once those join"): the bots a
 //! room's match starts with ([`start_bots`]), a joiner taking a bot's place
-//! ([`place_joiner`] on a side with one), and what the match server does
-//! with a team's bots as players come and go ([`bot_move`]). A place of a
+//! ([`place_joiner`] on a side with one), and when the match server takes a
+//! bot out for one ([`bot_gives_way`]). A place of a
 //! match is never used twice, and every place counts toward its 20: a
 //! joiner comes on a new place, the bot's own is left. So the match keeps
 //! a place for each bot in it, for the player who takes that bot's place.
@@ -187,49 +187,15 @@ pub fn start_bots(bots: usize, size: usize, players: [usize; 2]) -> [usize; 2] {
     each
 }
 
-/// A team of a room's match as the match server has it now, for its bots
-/// ([`bot_move`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TeamBots {
-    /// The team's places when the match was made, its players' and its
-    /// bots': the size its bots keep it at.
-    pub fill: usize,
-    /// Its bots' places (each bot has one place for the whole match: it
-    /// leaves and comes back on it).
-    pub places: usize,
-    /// Its players in the match now (entered, not left).
-    pub players: usize,
-    /// Its bots in the match now.
-    pub bots: usize,
-}
-
-/// What a team's bots do now ([`bot_move`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BotMove {
-    Stay,
-    /// One leaves: a player came on the team, which is over its fill.
-    GiveWay,
-    /// One comes back: a player left the team, which is under its fill.
-    ComeBack,
-}
-
-/// What a room's match does with `team`'s bots now, the match having
-/// `places_left` places it has not used and `bots_in_match` bots in it:
-/// the team keeps its fill with them (the owner's of 2026-10-26: "replaced
-/// with real players once those join"; and a bot comes back when a player
-/// leaves, the room keeping its teams filled up to its setting). A player
-/// more than the fill takes a bot's place; a player fewer brings one of
-/// the team's bots back, while the match keeps a place for it (a bot
-/// comes back only with a place left beside the one of every bot in it).
-pub fn bot_move(team: TeamBots, places_left: usize, bots_in_match: usize) -> BotMove {
-    let wanted = team.places.min(team.fill.saturating_sub(team.players));
-    if team.bots > wanted {
-        BotMove::GiveWay
-    } else if team.bots < wanted && bots_in_match < places_left {
-        BotMove::ComeBack
-    } else {
-        BotMove::Stay
-    }
+/// Whether a team of a room's match has a server's bot to take out now
+/// (the owner's of 2026-10-26: bots "replaced with real players once those
+/// join"): one for each player who came into the match late on the team
+/// (`joined`: its late places that entered), less the bots that gave way
+/// already (`replaced`), while it has one in (`bots_in`). A bot that gave
+/// way is gone for the match: a team that loses a player plays short, as
+/// any room's, and the room's next match starts its bots afresh.
+pub fn bot_gives_way(joined: usize, replaced: usize, bots_in: usize) -> bool {
+    bots_in > 0 && joined > replaced
 }
 
 #[cfg(test)]
@@ -312,34 +278,16 @@ mod tests {
         assert_eq!(placed.assignments, [(0, 1)]);
     }
 
-    /// The team keeps its fill: a player over it takes a bot's place, a
-    /// player under it brings a bot back while the match has a place for
-    /// it beside the bots' kept ones.
+    /// A bot gives way for each late player of its team, once; none comes
+    /// back, whoever leaves.
     #[test]
-    fn a_teams_bots_give_way_to_players_and_come_back_for_them() {
-        let team = |players, bots| TeamBots {
-            fill: 4,
-            places: 3,
-            players,
-            bots,
-        };
-        assert_eq!(bot_move(team(1, 3), 12, 6), BotMove::Stay);
-        assert_eq!(bot_move(team(2, 3), 11, 6), BotMove::GiveWay);
-        assert_eq!(bot_move(team(4, 0), 8, 2), BotMove::Stay);
-        assert_eq!(bot_move(team(5, 0), 8, 2), BotMove::Stay);
-        // A player left: a bot back, if a place is left beside the bots'.
-        assert_eq!(bot_move(team(1, 2), 9, 5), BotMove::ComeBack);
-        assert_eq!(bot_move(team(1, 2), 5, 5), BotMove::Stay);
-        // Never more than its own places, whoever left.
-        assert_eq!(bot_move(team(0, 3), 12, 6), BotMove::Stay);
-        // A team that started full of players has no bot to bring.
-        let full = TeamBots {
-            fill: 8,
-            places: 0,
-            players: 5,
-            bots: 0,
-        };
-        assert_eq!(bot_move(full, 12, 0), BotMove::Stay);
+    fn a_teams_bot_gives_way_once_for_each_late_player() {
+        assert!(!bot_gives_way(0, 0, 3));
+        assert!(bot_gives_way(1, 0, 3));
+        assert!(!bot_gives_way(1, 1, 2));
+        assert!(bot_gives_way(3, 1, 2));
+        // No bot left to take out.
+        assert!(!bot_gives_way(4, 3, 0));
     }
 
     fn rule() -> LateRule {

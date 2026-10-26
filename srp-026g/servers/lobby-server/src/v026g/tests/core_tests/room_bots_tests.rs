@@ -429,6 +429,41 @@ fn an_open_rooms_bots_never_wear_more_than_its_max_level() {
     }
 }
 
+/// The review of #577: `SRP_PVB_MAX_MATCHES` is the most matches with the
+/// server's bots, against bots and rooms' together. At it, a room's match
+/// starts without bots (and its players play); Player vs Bots is held to
+/// the same count, a room's bot match counted.
+#[test]
+fn the_bot_matches_limit_counts_rooms_and_starts_the_next_without_bots() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.rooms.bot_maps = BotMaps::in_dir(bot_map_files("limit", |_| true));
+    settings.pvb.max_matches = 1;
+    let mut world = World::with_settings(settings);
+    // The first room's match takes the one bot match there may be.
+    room_of(&mut world, with_bots(6, 2), None, &["Alice", "Bob"]);
+    world.advance(VOTE_AND_WAIT);
+    let (_, first, _) = last_match(&world);
+    assert_eq!(teams(&first), [(1, 2), (1, 2)]);
+    assert_eq!(world.core.pvb_running(), 1);
+    // The next starts without bots: the players play.
+    room_of(&mut world, with_bots(6, 2), None, &["Carol", "Dave"]);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, second, _) = last_match(&world);
+    assert_eq!(teams(&second), [(1, 0), (1, 0)]);
+    assert_eq!(world.core.pvb_running(), 1, "a room's match of no bots counts not");
+    // The first's over: a bot match may run again, the next room's has bots.
+    let (first_ticket, _) = world.host.made.locked()[0].clone();
+    world.end_match(first_ticket, 0);
+    world.advance(Duration::from_secs(2));
+    assert_eq!(world.core.pvb_running(), 0);
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    room_of(&mut world, with_bots(6, 1), None, &["Erin", "Frank"]);
+    world.advance(VOTE_AND_WAIT);
+    assert_eq!(teams(&last_match(&world).1), [(1, 1), (1, 1)]);
+    assert_eq!(world.core.pvb_running(), 1);
+}
+
 /// A movie from before the setting makes a room of no bots: its create
 /// codes are the first of the codes.
 #[test]

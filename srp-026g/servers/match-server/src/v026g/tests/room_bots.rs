@@ -1,10 +1,10 @@
 //! A room's bots (its "Bots per team", the owner's of 2026-10-26;
 //! `game/driven.rs`): a player who comes into the match takes a bot's place
 //! on its team, the bot leaving as a player leaves after the player's entry,
-//! a carried battery dropped first; a bot comes back on its own place when
-//! a player of its team leaves; in the countdown too, for several joiners
-//! at once, and never a bot of a team that can no longer respawn; and a
-//! Blackout room's match with its bots.
+//! a carried battery dropped first, and gone for the match (a player of its
+//! team who leaves brings no bot back); in the countdown too, for several
+//! joiners at once, and never a bot of a team that can no longer respawn;
+//! and a Blackout room's match with its bots.
 
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::Tdm;
@@ -97,10 +97,10 @@ fn assert_clean(bench: &Bench) {
 /// players once those join". A player put on team 0 enters, then team 0's
 /// last bot (place 4) leaves; before it, the bot pressed drop (a battery it
 /// carries goes where it stands) and let every key go. The match has the
-/// joiner's place more, none for the bots. When the player leaves, the
-/// bot comes back on its own place.
+/// joiner's place more, none for the bots. When the player leaves, no bot
+/// comes back.
 #[test]
-fn a_joiner_takes_a_bots_place_on_its_team_and_the_bot_comes_back_when_it_leaves() {
+fn a_joiner_takes_a_bots_place_on_its_team_for_the_rest_of_the_match() {
     let mut bench = started(MAP_BATTERIES);
     bench.run_long(25_000);
     assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
@@ -129,17 +129,17 @@ fn a_joiner_takes_a_bots_place_on_its_team_and_the_bot_comes_back_when_it_leaves
     assert_eq!(bench.clients[0].relays_of(4), relays);
     assert!(bench.game().resyncs(0) == 0 && bench.game().resyncs(1) == 0);
 
-    // The player leaves by its own word: team 0 is a player short, and its
-    // bot comes back, on its own place.
+    // The player leaves by its own word: team 0 plays a player short, as any
+    // room's; the bot that gave way is gone for the match, and no other
+    // leaves.
     bench.clients[joiner].leave();
-    assert!(bench.until(8_000, |bench| changes(&bench.clients[0], 4)
-        == [true, false, true]));
-    assert_eq!(changes(&bench.clients[1], 4), [true, false, true]);
-    assert_eq!(bench.registry.formed(bench.match_id).unwrap().places.len(), 7);
-    // And it plays again: its script's inputs reach the others.
-    let before = bench.clients[0].relays_of(4).len();
-    bench.run_long(6_000);
-    assert!(bench.clients[0].relays_of(4).len() > before);
+    bench.run_long(8_000);
+    assert_eq!(changes(&bench.clients[0], 4), [true, false]);
+    assert_eq!(changes(&bench.clients[1], 4), [true, false]);
+    for bot in [2, 3, 5] {
+        assert_eq!(changes(&bench.clients[0], bot), [true], "bot {bot}");
+    }
+    assert_eq!(bench.clients[0].relays_of(4), relays);
     assert_clean(&bench);
 }
 

@@ -24,13 +24,13 @@
 //!   bots on each team, in the places its players leave of the room's size
 //!   (`matchmaking_policy::start_bots`; a private room's arranged teams
 //!   too, the bots no part of the arrangement), after the players; none on
-//!   a Research map (the bots do not play it). A member who comes into the
-//!   match goes to a side as any late joiner, and on a side with a bot it
-//!   takes that bot's place (`matchmaking_policy::place_joiner`): the match
-//!   server takes the bot out when the player is in, and brings one back
-//!   when a player of the team leaves (`game/driven.rs`). A match with a
-//!   bot in it pays as one against bots (`rewards::MatchResult::
-//!   against_bots`). A private room (a PIN)
+//!   a map they do not play (`BotMaps`), none past `SRP_PVB_MAX_MATCHES`
+//!   matches with bots. A member who comes into the match goes to a side as
+//!   any late joiner, and on a side with a bot it takes that bot's place
+//!   (`matchmaking_policy::place_joiner`): the match server takes the bot
+//!   out when the player is in, for the rest of the match
+//!   (`game/driven.rs`). A match with a bot in it pays as one against bots
+//!   (`rewards::MatchResult::against_bots`). A private room (a PIN)
 //!   counts nothing down: its owner's Start makes the match at once with
 //!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
 //!   2026-10-26).
@@ -1749,8 +1749,18 @@ impl Core<'_> {
         // 2026-10-26), none on a map they do not play (its pool has none
         // with bots, `room_create`; a map file gone since, or Research).
         let unplayed = bots_setting != BotsPerTeam::NONE && !self.settings.rooms.bot_maps.plays(map_id);
+        // As many matches with bots as SRP_PVB_MAX_MATCHES at most, against
+        // bots and rooms' together (their maps in memory, their thinking).
+        let at_limit = bots_setting != BotsPerTeam::NONE
+            && self.pvb_running() >= self.settings.pvb.max_matches;
         let bots = if unplayed {
             log::info!("Room {key}: no bots on map {map_id}: they do not play it");
+            [0, 0]
+        } else if at_limit {
+            log::info!(
+                "Room {key}: no bots: {} matches with bots run, the most (SRP_PVB_MAX_MATCHES)",
+                self.settings.pvb.max_matches
+            );
             [0, 0]
         } else {
             policy::start_bots(bots_setting.places(), size, teams.each_ref().map(Vec::len))
