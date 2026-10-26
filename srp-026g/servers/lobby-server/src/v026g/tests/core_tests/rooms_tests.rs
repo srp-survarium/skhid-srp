@@ -1984,6 +1984,93 @@ fn a_room_with_a_pin_makes_matches_that_pay_nothing() {
         "the next vote"
     );
 }
+/// The owner's of 2026-10-26 ("in private lobbies it should be possible to
+/// start the game 1vs0"): a room with a PIN from 1 v 1 counts down with its
+/// one member and plays 1 v 0, the match server told its minimum is one;
+/// it pays nothing (a PIN's match). A late joiner goes in on the empty side.
+#[test]
+fn a_private_room_from_one_a_side_plays_1_v_0_and_pays_nothing() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), Some(1234));
+    // Its minimum, shown "1 / 1" in the room's banner.
+    let alone = state(&mut world, alice);
+    assert_eq!(header(&alone)[15], "1", "{alone:?}");
+    world.advance(Duration::from_secs(1));
+    assert_eq!(header(&state(&mut world, alice))[PHASE], "3", "the vote");
+    let held = {
+        let account = world.account(alice);
+        (account.generic_money, account.exp_total, account.rating)
+    };
+    world.take(alice);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("Alice plays alone");
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    assert_eq!(setup.players.len(), 1, "1 v 0, no bots");
+    assert_eq!(setup.players[0].profile.team, 0);
+    assert_eq!(setup.room_minimum, Some(1));
+    assert!(setup.private);
+    let (&id, _) = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap();
+
+    // Bob comes with the PIN while it is played: the empty side.
+    world.host.admitting.locked().insert(ticket);
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.take(bob);
+    world.advance(Duration::from_secs(16));
+    world.advance(Duration::from_secs(1));
+    let (sent, _) = sent_to_match(&world.take(bob)).expect("Bob goes in late");
+    assert_eq!(sent, ticket);
+    assert_eq!(seat_of(&world, id, bob).1, 1);
+
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    let report = world.results.find(ticket).expect("its report");
+    assert!(report.private);
+    let reward = &report.players[0].reward;
+    assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
+    assert_eq!(reward.rating_after, reward.rating_before);
+    let account = world.account(alice);
+    assert_eq!(
+        (account.generic_money, account.exp_total, account.rating),
+        held
+    );
+}
+
+/// An open room (Play's too) keeps the rule of two: alone, its member
+/// waits; and a private room from 2 v 2 waits for its four.
+#[test]
+fn an_open_room_and_a_private_one_from_two_a_side_do_not_start_alone() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let open = create(&mut world, alice, spec(6), None);
+    let private = create(
+        &mut world,
+        bob,
+        RoomSpec {
+            min_side: 2,
+            ..spec(6)
+        },
+        Some(4321),
+    );
+    assert_eq!(header(&state(&mut world, alice))[15], "2");
+    assert_eq!(header(&state(&mut world, bob))[15], "4");
+    world.advance(VOTE_AND_WAIT * 2);
+    assert!(world.host.made.locked().is_empty(), "no match");
+    for (player, key) in [(alice, open), (bob, private)] {
+        assert!(sent_to_match(&world.take(player)).is_none());
+        assert_eq!(header(&state(&mut world, player))[KEY], key.to_string());
+        assert_eq!(header(&state(&mut world, player))[PHASE], "0");
+    }
+}
+
 /// Two accounts made friends, both ways, as an accepted request does.
 fn befriend(world: &mut World, a: usize, b: usize) {
     let (a, b) = (world.ids[a].0, world.ids[b].0);

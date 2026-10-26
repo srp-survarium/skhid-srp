@@ -121,6 +121,17 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     too): the match is called off before its countdown, as one that could not be made
     (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,
     quest, wear); its players see the results screen's spinner until they close it.
+- **A private room plays 1 v 0** (the owner's of 2026-10-26: "in private lobbies it should be
+  possible to start the game 1vs0"): private is a room with a PIN.
+  - A room with a PIN from 1 v 1 needs one member: the vote and the countdown start with
+    one, and its match is 1 v 0 (one side empty). From 2 v 2 or 3 v 3 it waits for its 4 or 6.
+  - Rooms without a PIN, and Play's (they have none), need 2 as before.
+  - The match server is told a minimum of 1 (`MatchSetup::room_minimum`): no side needs a
+    player, so the match is called off only with nobody in it (`match.md` §34).
+  - A late joiner (with the PIN) goes to the empty side, as to the side with fewer players.
+  - It pays nothing, as every PIN room's match ("A PIN: no rewards", above): no experience,
+    silver, rating or quest progress, nothing charged either; so a 1 v 0 is no farm.
+  - The room's banner reads "1 / 1"; the list and the create window still say "from 1 v 1".
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.

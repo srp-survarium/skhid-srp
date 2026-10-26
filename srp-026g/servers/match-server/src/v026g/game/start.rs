@@ -12,7 +12,8 @@
 //!
 //! - **Stand-ins.** When the places that can still come cannot make the
 //!   clients' number, or [`START_WAIT_MS`] after the first entry, and the
-//!   room's minimum is in with a player on each side, the server enters
+//!   room's minimum is in with a player on each side (any side with a
+//!   minimum of one, below), the server enters
 //!   as many places as are missing that no game holds (given up first) on
 //!   one tick: every game starts its countdown there, as for players who
 //!   came. Each such place leaves again once every game has played that
@@ -30,6 +31,11 @@
 //!   side, are in or can still come, the match ends before its countdown
 //!   as not made ([`MatchEnd::NotMade`]): nothing of it counts, and the
 //!   lobby gives its room the vote and the wait again.
+//! - **A minimum of one** (a private room from 1 v 1, the owner's of
+//!   2026-10-26): no side needs a player, so a match of one starts 1 v 0
+//!   (its one place is the clients' whole number, `floor(0.8 × 1)` = 0:
+//!   its entry starts the countdown), and a 1 v 1 whose other player gave
+//!   up goes on as 1 v 0.
 
 use super::*;
 
@@ -178,8 +184,11 @@ impl Game {
             }
         }
         let minimum = usize::from(minimum);
+        // A player a side, except in a match of one's minimum (a private
+        // room's 1 v 0): one side may be empty there.
+        let both_sides = minimum > 1;
         let (now_in, could) = (humans_in[0] + humans_in[1], humans_able[0] + humans_able[1]);
-        if could < minimum || humans_able.contains(&0) {
+        if could < minimum || (both_sides && humans_able.contains(&0)) {
             log::warn!(
                 "Match {:#x}: called off at {clock} ms, before its countdown: {now_in} players \
                  in and {} more able to come ({} v {} at most), the room needs {minimum}",
@@ -194,7 +203,7 @@ impl Game {
         let needed = self.rule.params.players_needed() as usize;
         let entered = mask.count_ones() as usize;
         let reachable = entered + able >= needed;
-        if (reachable && !waited) || now_in < minimum || humans_in.contains(&0) {
+        if (reachable && !waited) || now_in < minimum || (both_sides && humans_in.contains(&0)) {
             return;
         }
         let missing = needed.saturating_sub(entered);

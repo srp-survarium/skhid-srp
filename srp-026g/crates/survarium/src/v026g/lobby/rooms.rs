@@ -491,7 +491,8 @@ pub struct RoomView {
     /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
-    /// The players it needs before its vote begins (2, 4 or 6).
+    /// The players it needs before its vote begins (2, 4 or 6; 1 in a
+    /// room with a PIN from 1 v 1, its match 1 v 0).
     pub min_players: u8,
     /// A room with a lower max level the asker may join now, offered as a
     /// one-click switch.

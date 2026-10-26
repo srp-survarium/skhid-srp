@@ -174,6 +174,42 @@ fn a_room_match_everyone_left_before_its_countdown_is_called_off() {
     )));
 }
 
+/// A private room from 1 v 1 needs one player (the owner's of 2026-10-26):
+/// its match of one place starts 1 v 0 (the clients' number for one place
+/// is 0, so its entry starts the countdown), with no stand-in, and plays.
+#[test]
+fn a_room_match_of_one_player_plays_1_v_0() {
+    let mut bench = Bench::room(&[0], MAP_BATTERIES, Settings::default(), 1);
+    bench.join(0);
+    assert!(bench.until(2_000, |b| b.game().rule_state() == state::COUNTDOWN));
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    assert_eq!(client_state(&bench, 0), state::IN_PROCESS);
+    assert!(bench.results.try_recv().is_err(), "not called off");
+    assert!(bench.game().events().iter().all(|(_, who, _)| *who == 0));
+    bench.assert_no_faults();
+}
+
+/// With a minimum of one no side needs a player: a match whose other side
+/// never comes starts with the one who is in once the start wait is over
+/// (stand-ins for the places that did not come), where a minimum of two
+/// calls it off (`a_room_match_its_minimum_cannot_play_is_called_off`).
+#[test]
+fn a_room_match_of_a_minimum_of_one_starts_with_a_side_empty() {
+    let mut bench = Bench::room(&[0, 1, 1], MAP_BATTERIES, Settings::default(), 1);
+    bench.join(0);
+    bench.run_long(20_000);
+    assert_eq!(bench.game().rule_state(), state::WAITING_FOR_PLAYERS);
+    assert!(bench.until(15_000, |b| b.game().rule_state() == state::COUNTDOWN));
+    assert!(bench.results.try_recv().is_err(), "not called off");
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    assert_eq!(client_state(&bench, 0), state::IN_PROCESS);
+    assert!(!client_has(&bench, 0, 1) && !client_has(&bench, 0, 2));
+    bench.assert_no_faults();
+    assert_no_dropped_leaves(&bench);
+}
+
 /// A match with no room (a clan match) keeps the clients' rule alone.
 #[test]
 fn a_match_of_no_room_waits_for_its_players_as_before() {

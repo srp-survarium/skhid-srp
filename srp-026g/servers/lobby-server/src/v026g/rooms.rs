@@ -1483,9 +1483,12 @@ impl Core<'_> {
             sides.map(|side| side.iter().filter_map(player_of).collect());
         // Never fewer than the room's minimum: the match server would call
         // such a match off at once (`MatchSetup::room_minimum`), and the room
-        // make it again.
+        // make it again. A side empty only in a match of one's minimum (a
+        // private room's 1 v 0).
         let seated = teams.iter().map(Vec::len).sum::<usize>();
-        if teams.iter().any(Vec::is_empty) || seated < usize::from(room_minimum) {
+        if seated < usize::from(room_minimum)
+            || (room_minimum > 1 && teams.iter().any(Vec::is_empty))
+        {
             log::info!(
                 "Room {key}: no match yet: {} of {} members are free with a kit Play takes, \
                  {seated} seated, the room needs {room_minimum}",

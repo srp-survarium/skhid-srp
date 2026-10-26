@@ -42,6 +42,9 @@ pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 pub const PIN_LIFE: Duration = Duration::from_secs(60);
 /// The fewest players a vote (and so a match) starts with.
 pub const START_PLAYERS: usize = 2;
+/// The fewest a private room's (a PIN's) vote and match start with when it
+/// is from 1 v 1: one, its match 1 v 0 ([`Room::needs`]).
+pub const PRIVATE_START_PLAYERS: usize = 1;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
 /// The pool entries one piece of a draft carries.
@@ -62,7 +65,8 @@ pub struct Spec {
     pub max_level: u8,
     pub wait: u8,
     pub pin: Option<u16>,
-    /// The players it needs before its vote begins: 2 (1 v 1), 4 or 6.
+    /// The players it needs before its vote begins: 2 (1 v 1), 4 or 6
+    /// (a private room from 1 v 1 starts with 1, [`Room::needs`]).
     pub min_players: u8,
 }
 
@@ -154,9 +158,17 @@ impl Room {
         2 * usize::from(self.spec.size)
     }
 
-    /// The players it needs before its vote begins (two at least).
+    /// The players it needs before its vote begins (two at least); a
+    /// private room (a PIN) from 1 v 1 needs one, its match 1 v 0 (the
+    /// owner's of 2026-10-26: "in private lobbies it should be possible to
+    /// start the game 1vs0"). It pays nothing, as every PIN room's match.
     pub fn needs(&self) -> usize {
-        usize::from(self.spec.min_players).max(START_PLAYERS)
+        let needs = usize::from(self.spec.min_players).max(START_PLAYERS);
+        if self.spec.pin.is_some() && needs == START_PLAYERS {
+            PRIVATE_START_PLAYERS
+        } else {
+            needs
+        }
     }
 
     pub fn is_full(&self) -> bool {
@@ -687,11 +699,13 @@ impl Rooms {
         cards
     }
 
-    /// The pass of the lobby's tick. Two members who count begin the vote,
-    /// which runs [`VOTE`] and the room's own wait together; when it is
-    /// over, with two who count, the room is due to start its match on the
-    /// vote's winner then ([`Due::Start`]), which the lobby answers with
-    /// [`Rooms::started`] or [`Rooms::not_started`]. Fewer than two members stop it; a member who
+    /// The pass of the lobby's tick. The members a room needs who count
+    /// ([`Room::needs`]: two, one in a private room from 1 v 1) begin the
+    /// vote, which runs [`VOTE`] and the room's own wait together; when it
+    /// is over, with as many who count, the room is due to start its match
+    /// on the vote's winner then ([`Due::Start`]), which the lobby answers
+    /// with [`Rooms::started`] or [`Rooms::not_started`]. Fewer members
+    /// than that stop it; a member who
     /// stops counting for a while (changing its kit) does not.
     /// `counts`: whether a member can play the match now (in the lobby, a
     /// kit that can play, equipment within the max level).
@@ -1037,6 +1051,56 @@ mod tests {
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
+    }
+
+    /// The owner's of 2026-10-26: a private room (a PIN) from 1 v 1 starts
+    /// its vote, and its match, with its one member (1 v 0); an open room
+    /// waits for two, and a private one from 2 v 2 for its four.
+    #[test]
+    fn a_private_room_from_one_a_side_starts_with_one_member() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let open = room_of(&mut rooms, 1, 6, None, now);
+        let private = room_of(&mut rooms, 2, 6, Some(1234), now);
+        let four = rooms
+            .create(
+                3,
+                0,
+                Spec {
+                    min_players: 4,
+                    ..spec(6, Some(4321))
+                },
+                &POOL,
+                &POOL,
+                50,
+                now,
+                &mut first,
+            )
+            .unwrap();
+        assert_eq!(
+            [open, private, four].map(|key| rooms.get(key).unwrap().needs()),
+            [2, 1, 4]
+        );
+        rooms.tick(now, &mut first, |_| true);
+        assert_eq!(rooms.get(open).unwrap().stage, Stage::Waiting);
+        assert_eq!(rooms.get(four).unwrap().stage, Stage::Waiting);
+        let wait = Duration::from_secs(30);
+        assert_eq!(
+            rooms.get(private).unwrap().stage,
+            Stage::Vote {
+                until: now + VOTE + wait
+            }
+        );
+        let due = rooms.tick(now + VOTE + wait, &mut first, |_| true);
+        assert!(
+            matches!(due[..], [Due::Start { key, .. }] if key == private),
+            "{due:?}"
+        );
+        // Its one member not able to play: it waits.
+        rooms.not_started(private, now);
+        let due = rooms.tick(now + (VOTE + wait) * 2, &mut first, |_| false);
+        assert!(due.is_empty());
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
     }
 
     #[test]
