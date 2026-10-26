@@ -4663,3 +4663,8 @@ va	name	location	role	basis
 0x0025cd00	survarium::game_world::on_keyboard_action	[ESP+14h] at 0x25CD2C	Tab's byte stored for show_player_list's push (0x25CD28, loaded into ECX at 0x25CD2C); BL the same until 0x25CD39: patch 65's site keyboard.tab_state (BL cleared in a Blackout match)	observed
 0x00245c50	survarium::delayed_callbacks_queue::destroy_range	EAX	begin, the first item to destroy (38h bytes each; its functor at +0, destroyed by its manager with op 2, then 0; nothing is invoked)	observed
 0x00245c50	survarium::delayed_callbacks_queue::destroy_range	entry ESP+4	&end: the loop runs while the item is not [arg] (0x245C51, 0x245C88); plain ret, the caller cleans (~weapon 0x2438C3)	observed
+0x001a8900		ECX	the value: four floats, copied to its own stack (movq from [ecx] and [ecx+8], 0x1A8903); effect_fstage_default_materials::compile and g_stage's compile pass a float4 of their frame (lea ecx at 0x1D930A, 0x1E081B)	observed
+0x001a8900		entry ESP+4	the effect compiler (kept in ebp and returned; compile passes its own first argument [ebp+8], 0x1D92DD)	observed
+0x001a8900		entry ESP+8	the constant's name, a C string made a shared string (0xE0B50 at 0x1A893B)	observed
+0x000e0b50		entry ESP+4	the text, a C string (null reads as ""), looked up in the shared strings' pool or added to it	observed
+0x000e0ae0		entry ESP+4	the shared string whose count went to 0: taken out of the pool and freed (renderer_context's constructor 0x1498FE..0x14990A)	observed

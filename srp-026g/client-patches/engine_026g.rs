@@ -94,6 +94,8 @@ unsafe extern "C" {
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
     /// 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0
     pub fn engine_delayed_sounds_destroy(begin: *mut c_void, end: *mut *mut c_void);
+    /// 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4
+    pub fn engine_register_constant_binding(binding: *const c_void, manager: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -102,6 +104,10 @@ unsafe extern "stdcall" {
     pub fn engine_action_present(handler: *mut c_void, action: u32, state: *mut u32) -> u8;
     /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
     pub fn engine_play_sound(manager: *mut c_void, sound: *const c_void, position: *const f32);
+    /// 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly
+    pub fn engine_shared_string(text: *const u8) -> *mut c_void;
+    /// 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly
+    pub fn engine_shared_string_destroy(string: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -110,6 +116,8 @@ unsafe extern "thiscall" {
     pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
     /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
     pub fn engine_active_player(client: *mut c_void, out: *mut u32, place: u32) -> *mut u32;
+    /// 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+    pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
 }
 
 /// 0x301ca0 survarium::victory_item_core::can_be_spotted_by: spottable ECX, spotter ESP+4; pops 4; AL; through its vtable's slot +0x4 (thiscall; this the model)
@@ -216,6 +224,27 @@ pub mod image {
 
     /// 0xa0422c (u32): a client weapon's item's vtable (weapon+10h; written by its constructor 0x24365C and destructor alone)
     pub const CLIENT_WEAPON_ITEM_VTABLE: u32 = 0xa0422c;
+
+    /// 0x226047c (u32): the renderer's resource manager, a pointer in .data (renderer_context's constructor passes it to every register_constant_binding, 0x1498D8)
+    pub const RESOURCE_MANAGER: u32 = 0x226047c;
+
+    /// 0x9e1c48 (u8): "value", a config key's value node (compile 0x1D90C8)
+    pub const VALUE_KEY: u32 = 0x9e1c48;
+
+    /// 0x9f8e04 (u8): "use_uv_scrolling" (g_stage's compile 0x1DE4F1)
+    pub const USE_UV_SCROLLING_KEY: u32 = 0x9f8e04;
+
+    /// 0x9f971c (u8): "emissive_map_scroll_u_direction"
+    pub const EMISSIVE_SCROLL_U_KEY: u32 = 0x9f971c;
+
+    /// 0x9f973c (u8): "emissive_map_scroll_v_direction"
+    pub const EMISSIVE_SCROLL_V_KEY: u32 = 0x9f973c;
+
+    /// 0x9f975c (u8): "uv_scrolling_parameters0" (g_stage's compile 0x1E0815)
+    pub const UV_SCROLLING_PARAMETERS0_NAME: u32 = 0x9f975c;
+
+    /// 0x9f9778 (u8): "uv_scrolling_parameters1" (g_stage's compile 0x1E0824)
+    pub const UV_SCROLLING_PARAMETERS1_NAME: u32 = 0x9f9778;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -1160,5 +1189,83 @@ pub mod client_weapon_item {
     #[inline(always)]
     pub unsafe fn delayed_sounds_end(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x9f0).cast() }
+    }
+}
+
+/// vostok::configs::binary_config_value's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod binary_config_value {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the value: a float's bits, an integer or a switch (compile reads a switch as a nonzero dword, 0x1D9016, a number by its type, 0x1D9249)
+    ///
+    /// # Safety
+    /// `this` is a vostok::configs::binary_config_value.
+    #[inline(always)]
+    pub unsafe fn value(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x14 (u16): the value's type: 2 a float, else an integer, which compile makes a float (cvtsi2ss, 0x1D9255)
+    ///
+    /// # Safety
+    /// `this` is a vostok::configs::binary_config_value.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u16 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+}
+
+/// vostok::render::shader_configuration's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod shader_configuration {
+    use core::ffi::c_void;
+
+    /// +0x4 (u8): bit 4 use_sequence (effect_fstage_default_materials::compile writes it at 0x1D9075, reads it at 0x1D9228)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::shader_configuration.
+    #[inline(always)]
+    pub unsafe fn sequence(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0xc (u8): bit 6 CONFIG_USE_UV_SCROLLING (fill_shader_configuration_macros 0x3C9F51; g_stage's compile sets it from use_uv_scrolling, 0x1DE51F)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::shader_configuration.
+    #[inline(always)]
+    pub unsafe fn scrolling(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// vostok::render::effect_compile_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod effect_compile_frame {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): compile's first argument by its frame pointer: the effect compiler (0x1D92DD mov eax,[ebp+8])
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::effect_compile_frame.
+    #[inline(always)]
+    pub unsafe fn compiler(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// vostok::shared_string's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod shared_string {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the reference count (lock xadd in renderer_context's constructor, 0x1498D4 and 0x149903; at 0 it is destroyed, 0xE0AE0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::shared_string.
+    #[inline(always)]
+    pub unsafe fn count(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
     }
 }

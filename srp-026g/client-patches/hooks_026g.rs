@@ -81,6 +81,51 @@ pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- forward_scroll (patch 28) ----
+
+/// The entry `forward_scroll_on_switch` (0x1d90dc, effect_fstage_default_materials::compile, after use_angle_depended_attenuation's read, before compile_begin (mov dl,[esp+56h]; mov esi,[ebp+10h]; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_scroll_on_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_scroll_on_switch` calls this, from the game's jump at 0x1d90dc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_scroll::on_switch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_scroll (patch 28) ----
+
+/// The entry `forward_scroll_on_constants` (0x1d94cb, compile, the end of the uv distortion's block, where both its ends meet (mov cl,[esp+57h]; and cl,3; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_scroll_on_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_scroll_on_constants` calls this, from the game's jump at 0x1d94cb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_scroll::on_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_scroll (patch 28) ----
+
+/// The entry `forward_scroll_on_scene_time_bound` (0x14990f, renderer_context's constructor after scene_time's binding, its last register_constant_binding (mov [esp+2Ch],edi; lea esi,[ebx+123Ch])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_scroll_on_scene_time_bound(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_scroll_on_scene_time_bound` calls this, from the game's jump at 0x14990f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_scroll::on_scene_time_bound(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.

@@ -81,7 +81,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
 | `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
-| `forward_scroll_026g.asm`, `forward_scroll_026g.section.bin` | The code of patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0) and that code assembled for 0xB00 of `.srp`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
+| `rust/patches/src/forward_scroll.rs`, `forward_scroll.toml`, `port/equiv/forward_scroll.py` | Patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0), the Rust patch: three lohooks (`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`, `renderer_context.scene_time_bound`) in the block `patches.code`, and its spec for the port-only equivalence gate. Until the Rust port, `forward_scroll_026g.asm` at 0xB00 of `.srp` |
 | `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
 | `shared_upgrades_026g.asm`, `shared_upgrades_026g.section.bin` | The source of patch 30's code (one upgrade on several items: taking it off names the item) and that code assembled for 0x700 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -127,7 +127,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
-| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
+| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time` (needs Unicorn) |
 | `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature, and what the late join adds to the build without it); needs the original exe, nasm (2.16) and, for the arena, gcc (`-m32`) and GNU ld |
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
@@ -1703,24 +1703,30 @@ constants `uv_scrolling_parameters0/1` and the function that sends them.
 Patch 28 adds to `effect_fstage_default_materials::compile` (0x1D8F40) what
 0.29's (0x7F2600 of 0.29a3) does for the switch, and nothing else of 0.29:
 
-- a jump at 0x1D90DC (after `use_angle_depended_attenuation` is read, before
+- at 0x1D90DC (after `use_angle_depended_attenuation` is read, before
   `compile_begin`) sets the bit when the material has `use_uv_scrolling`
   true and `use_sequence` is not on (0.29 ignores the switch for a flipbook);
-- a jump at 0x1D94CB (after the uv distortion's constants) sends, when the
+- at 0x1D94CB (after the uv distortion's constants) it sends, when the
   bit is set, `uv_scrolling_parameters0 = (0, 0, tu, tv)` and
   `uv_scrolling_parameters1 = (eu, ev, 0, 0)` with `set_constant<float4>`
   (0x1A8900), the four values read as compile reads its numbers (a float, or
   an integer made a float), a value the material does not have being 0;
-- a jump at 0x14990F in `renderer_context`'s constructor (after its last
-  `register_constant_binding`, `scene_time`'s) binds `scene_slomo` to a
-  constant 1.0 in `.srp`, with the game's own calls for `scene_time`; the
-  binding only reads it.
+- at 0x14990F in `renderer_context`'s constructor (after its last
+  `register_constant_binding`, `scene_time`'s) it binds `scene_slomo` to a
+  constant 1.0 of the crate's, with the game's own calls for `scene_time`;
+  the binding only reads it.
 
-The code is `forward_scroll_026g.asm` at 0xB00 of `.srp` (540 bytes, after
-the replay's seek code and before the shell_32.dll check; 0xC00..0xE00 alone,
-which revision 12 freed, is 512 bytes). Each jump's two instructions are
-done there after the new work, every register is restored, and the image
-may be rebased (the delta in ebp, as in the other caves).
+The code is the Rust patch `forward_scroll` (`rust/patches/src/forward_scroll.rs`,
+`vostok::config` and `vostok::render`): three lohooks at those sites
+(`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`,
+`renderer_context.scene_time_bound`), each replaying the two instructions it
+replaces after the new work, every register restored. Until the Rust port it
+was `forward_scroll_026g.asm` at 0xB00 of `.srp` (540 bytes); the port
+changed no behaviour (`port/equiv/forward_scroll.py`: 2000 cases against the
+asm, no difference, its 39 basic blocks covered). One thing is not as it
+was: `register_constant_binding` is entered with the stack the arena aligns
+(dword-aligned, as MSVC's code needs; the asm kept the constructor's own
+alignment mod 16).
 
 What it changes for players depends on the data: the game picks a compiled
 shader by a key made of the macros that `shaders/masks` lists for it, and
@@ -1732,9 +1738,9 @@ shader does not have is skipped (`shader_constant_table::apply_bindings`
 to the masks and the scrolling shaders (the London plan, phase 2). Details:
 `../docs/notes/client_patch.md` section 3.26.
 
-Checked: `selftest_026g.py` check 28 (`test_forward_scroll`), check 15's
-layout of `.srp`'s first page, and `check_forward_scroll_026g.py` (Unicorn
-2.1.4, the image as is and rebased): the original's and the build's whole
+Checked: `selftest_026g.py` check 28 (`test_forward_scroll`: the original's
+facts and the Rust lohooks) and `check_forward_scroll_026g.py` (Unicorn
+2.1.4; until the Rust port also rebased): the original's and the build's whole
 compile run on 11 made-up materials (no switch, the switch false, true with
 no values, four floats, integers, two values, with `use_sequence` on and
 off, with uv distortion, angle fade and soft edges, a constant emissive),
@@ -1742,8 +1748,8 @@ the config, compile_begin and the effect compiler's calls being stubs: the
 build makes the original's calls with the original's values, the bit aside,
 and the two constants right after the uv distortion's, every register after
 both hooks as the original's; the third hook against the game's own binding
-of `scene_time` with three made-up name counts. And the byte comparison with
-revision 12 (Revision 13 above). **Not run: a game**; no scrolling shader
+of `scene_time` with three made-up name counts. (Until the Rust port, also
+the byte comparison with revision 12, Revision 13 above.) **Not run: a game**; no scrolling shader
 exists in any `resources.db` yet.
 
 ### 29. "Watch replay" (patch revision 14)

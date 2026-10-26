@@ -166,4 +166,16 @@ void engine_update_skeleton(void *scene_renderer, void *instance, const float *b
 /* 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0 */
 void engine_delayed_sounds_destroy(void *begin, void **end);
 
+/* 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, void *compiler, const char *name);
+
+/* 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly */
+void *__attribute__((stdcall)) engine_shared_string(const char *text);
+
+/* 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(void *string);
+
+/* 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4 */
+void engine_register_constant_binding(const void *binding, void *manager);
+
 #endif

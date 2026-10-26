@@ -54,9 +54,8 @@ USAGE (this script never touches the source exe):
     mount_patches_026g.asm:
         nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
     (checked in; STATE is 0x800 of the late join's state page, checked).
-    The forward effect's UV scrolling comes from forward_scroll_026g.asm:
-        nasm -f bin -DCAVE=0xA425B00 forward_scroll_026g.asm -o forward_scroll_026g.section.bin
-    (checked in). "Watch replay"'s link code comes from replay_link_026g.asm:
+    The forward effect's UV scrolling is the Rust patch forward_scroll, in
+    the arena's block patches.code. "Watch replay"'s link code comes from replay_link_026g.asm:
         nasm -f bin -DCAVE=0xA425220 replay_link_026g.asm -o replay_link_026g.section.bin
     (checked in). One upgrade on several items comes from shared_upgrades_026g.asm:
         nasm -f bin -DCAVE=0xA425700 shared_upgrades_026g.asm -o shared_upgrades_026g.section.bin
@@ -280,8 +279,9 @@ Patches:
   use_sequence is on) and with it sends uv_scrolling_parameters0/1 from the
   four *_map_scroll_*_direction values (a jump at 0x1D94CB); the renderer
   binds scene_slomo, which 0.29's shaders multiply the time by, to a 1.0 (a
-  jump at 0x14990F). The code is forward_scroll_026g.asm at 0xB00 of
-  `.srp`. With the retail resources.db no shader the game loads changes
+  jump at 0x14990F). The code is the Rust patch forward_scroll (the
+  block patches.code; forward_scroll.toml, sites_026g.tsv forward_compile.*
+  and renderer_context.scene_time_bound). With the retail resources.db no shader the game loads changes
   (shaders/masks lists no such macro for forward_base);
 - the sign-in reports a stale shell_32.dll in the temporary folder (patch
   revision 12, written as revision 13, client_patch.md section 3.25): sign_in_on_connected's
@@ -682,7 +682,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # only with a resources.db Skhid's key signed, a 13 that added the
 # shell_32.dll report to it, a 14 with the signature skip and the patches.)
 # 13: the transparent effects (forward_default) scroll their textures as in
-# 0.29 when a material asks for it (FORWARD_SCROLL_HOOKS below). Rendering
+# 0.29 when a material asks for it (the Rust patch forward_scroll). Rendering
 # only, nothing a match computes: 12 and 13 play together.
 # 14: "Watch replay" from the lobby's History (REPLAY_LINK below): the lobby's
 # link callback starts updater_skhid.exe with a link of the one form
@@ -907,10 +907,11 @@ MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
            b"\xE9" + struct.pack("<i", MOUNT_PATCHES_VA + MOUNTED_OFFSET - MOUNTED_VA - 5) + b"\x90")
 
 # UV scrolling for the transparent effects (patch 28, README; client_patch.md
-# section 3.26): forward_scroll_026g.asm at FORWARD_SCROLL_OFFSET of `.srp`,
-# after the warmup camera's limits and before the shell_32.dll check, three
-# entries the three jumps below go to. effect_fstage_default_materials::
-# compile (0x1D8F40): at 0x1D90DC (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`,
+# section 3.26): the Rust patch forward_scroll (rust/patches/src/
+# forward_scroll.rs, its three lohooks the sites forward_compile.switch,
+# forward_compile.constants and renderer_context.scene_time_bound of
+# sites_026g.tsv; until the Rust port, forward_scroll_026g.asm at 0xB00 of
+# `.srp`). effect_fstage_default_materials::compile (0x1D8F40): at 0x1D90DC (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`,
 # after use_angle_depended_attenuation is read, before compile_begin at
 # 0x1D9126) the switch use_uv_scrolling sets bit 6 of the shader
 # configuration's byte 0Ch, unless use_sequence is on; at 0x1D94CB (`mov
@@ -920,18 +921,8 @@ MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
 # renderer_context's constructor (0x148570): at 0x14990F (`mov
 # [esp+2Ch],edi` / `lea esi,[ebx+123Ch]`, after its last
 # register_constant_binding, scene_time's) the constant scene_slomo is bound
-# to a 1.0 in the code. No site holds an address: no base relocation is
-# under them. The .bin ends with the address it was assembled for, which
-# build() checks. Rendering only: nothing a match computes reads any of it.
-FORWARD_SCROLL_OFFSET = 0xB00
-FORWARD_SCROLL_VA = SECTION_VA + FORWARD_SCROLL_OFFSET
-FORWARD_SWITCH_OFFSET, FORWARD_CONSTANTS_OFFSET, SCENE_SLOMO_OFFSET = 0, 0x40, 0x100   # the .asm's entries
-FORWARD_COMPILE_VA = 0x1D8F40
-RENDERER_CONTEXT_VA = 0x148570
-FORWARD_SWITCH_HOOK = (0x1D90DC, bytes.fromhex("8a542456" "8b7510"), FORWARD_SWITCH_OFFSET, 0xE9)
-FORWARD_CONSTANTS_HOOK = (0x1D94CB, bytes.fromhex("8a4c2457" "80e103"), FORWARD_CONSTANTS_OFFSET, 0xE9)
-SCENE_SLOMO_HOOK = (0x14990F, bytes.fromhex("897c242c" "8db33c120000"), SCENE_SLOMO_OFFSET, 0xE9)
-FORWARD_SCROLL_HOOKS = (FORWARD_SWITCH_HOOK, FORWARD_CONSTANTS_HOOK, SCENE_SLOMO_HOOK)
+# to a 1.0 of the crate's. No site holds an address: no base relocation is
+# under them. Rendering only: nothing a match computes reads any of it.
 
 # sign_in_on_connected 0x380800, where it finishes the 12-byte version field
 # (section 6 of client_patch.md): `mov [edi+8],eax` (bytes 8..11, eax 0) /
@@ -2258,9 +2249,6 @@ INSTALLS = {
     # patch 27/49, 28, 29, 30, 33
     0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
     0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
-    0x1D90DC: (JUMP, "the forward compile's switch: use_uv_scrolling", None, None),
-    0x1D94CB: (JUMP, "the forward compile's constants: uv_scrolling_parameters", None, None),
-    0x14990F: (JUMP, "renderer_context: scene_slomo", None, None),
     0x28CDB6: (JUMP, "video_tutorial_link_clicked: replay_link", None, None),
     0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
     0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
@@ -2714,7 +2702,7 @@ APPLIED = []
 # Install tables that hold other named tables' rows: a write in both is the
 # aggregate's (one patch's whole install set) - GATHER is the gather events
 # and the gather lock, the late join's hooks and patches its many parts.
-INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES", "FORWARD_SCROLL_HOOKS")
+INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES")
 _INSTANCE_INDEX = {}
 _BUILDING = [False]                # inside build(): apply() records
 
@@ -3027,7 +3015,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     signature, mounts resources.db's patches (mount_patches_026g.section.bin),
     its sign-in says whether %TEMP%\\shell_32.dll exists
     (stale_dll_026g.section.bin), and its transparent effects scroll as in
-    0.29 (forward_scroll_026g.section.bin), and the lobby's link starts the
+    0.29 (the Rust patch forward_scroll), and the lobby's link starts the
     updater for a replay link alone (replay_link_026g.section.bin), and an
     upgrade taken off names the item it comes off
     (shared_upgrades_026g.section.bin).
@@ -3086,15 +3074,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("mount_patches_026g.section.bin: no zeroed bitmap of the required patches after its "
                      "\"Cannot open\" text (patch 49)")
         mount_patches = mount_patches[:needed] + required_bitmap(required_patches or ()) + mount_patches[-4:]
-        forward_scroll = open(forward_scroll_bin(), "rb").read()
-        if forward_scroll[-4:] != struct.pack("<I", FORWARD_SCROLL_VA):
-            sys.exit(f"forward_scroll_026g.section.bin was assembled for another address: -DCAVE={FORWARD_SCROLL_VA:#x}")
-        # The first instruction of each entry: `test byte [esp+54h],10h`,
-        # `test byte [esp+5Ch],40h`, `pushad`.
-        if forward_scroll[FORWARD_SWITCH_OFFSET:FORWARD_SWITCH_OFFSET + 5] != bytes.fromhex("f644245410") \
-                or forward_scroll[FORWARD_CONSTANTS_OFFSET:FORWARD_CONSTANTS_OFFSET + 5] != bytes.fromhex("f644245c40") \
-                or forward_scroll[SCENE_SLOMO_OFFSET] != 0x60:
-            sys.exit("forward_scroll_026g.section.bin: its entries are not where patch_026g.py jumps to them")
     data = bytearray(original)
     linked = None
     WRITES.clear()
@@ -3377,11 +3356,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
         weapon_draw = open(weapon_draw_bin(), "rb").read()
-        if FORWARD_SCROLL_OFFSET + len(forward_scroll) > WEAPON_DRAW_OFFSET \
+        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET \
                 or WEAPON_DRAW_OFFSET + len(weapon_draw) > WARMUP_LOOK_OFFSET \
                 or WARMUP_LOOK_OFFSET + len(warmup_look) > STALE_DLL_OFFSET:
-            sys.exit("the weapon preview's draw and the warmup look do not fit between the forward effect's "
-                     "scrolling and the shell_32.dll check")
+            sys.exit("the weapon preview's draw and the warmup look do not fit between the warmup camera's "
+                     "limits and the shell_32.dll check")
         if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
@@ -3413,15 +3392,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             patch(data, *site)
             if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
                 sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
-        for va, expected, offset, opcode in FORWARD_SCROLL_HOOKS:
-            patch(data, va, expected, hook_bytes(FORWARD_SCROLL_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the forward effect's scrolling")
-        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > FORWARD_SCROLL_OFFSET \
-                or FORWARD_SCROLL_OFFSET + len(forward_scroll) > STALE_DLL_OFFSET \
+        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > STALE_DLL_OFFSET \
                 or STALE_DLL_OFFSET + len(stale_dll) > LATE_JOIN_OFFSET:
-            sys.exit("the warmup camera's limits, the forward effect's scrolling and the "
-                     "shell_32.dll check do not fit before the late join")
+            sys.exit("the warmup camera's limits and the shell_32.dll check do not fit before the late join")
         if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > PICKUP_OFFSET:
             sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
@@ -3558,7 +3531,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
-            cave = cave + b"\xCC" * (FORWARD_SCROLL_OFFSET - len(cave)) + forward_scroll
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
             cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
             cave = cave + b"\xCC" * (STALE_DLL_OFFSET - len(cave)) + stale_dll
@@ -3726,8 +3698,6 @@ def pickup_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "pickup_below_026g.section.bin")
 
 
-def forward_scroll_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "forward_scroll_026g.section.bin")
 
 
 def read_order_bin():

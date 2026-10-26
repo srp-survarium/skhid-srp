@@ -56,6 +56,10 @@ global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
 global engine_delayed_sounds_destroy
+global engine_set_constant_float4
+global engine_shared_string
+global engine_shared_string_destroy
+global engine_register_constant_binding
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -66,6 +70,9 @@ engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_ac
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_shared_string equ 0xe0b50   ; 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly
+engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -790,6 +797,22 @@ engine_delayed_sounds_destroy:
     mov eax, [esp + 24]   ; begin
     call 0x245c50
     add esp, 4                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_constant_binding:
+    ; 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; manager -> 4
+    mov eax, [esp + 24]   ; binding
+    call 0x3bccc0
     pop edi
     pop esi
     pop ebx

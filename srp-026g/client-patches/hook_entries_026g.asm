@@ -210,6 +210,126 @@ blackout_on_input_end_replay:
     db 0x8b, 0xe5
     jmp 0x2421b5
 
+; 0x1d90dc effect_fstage_default_materials::compile, after use_angle_depended_attenuation's read, before compile_begin (mov dl,[esp+56h]; mov esi,[ebp+10h]; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame): lohook -> forward_scroll_on_switch
+global forward_scroll_on_switch
+extern hook_forward_scroll_on_switch
+forward_scroll_on_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_scroll_on_switch
+    mov edx, forward_scroll_on_switch_replay
+    cmp eax, 0
+    je forward_scroll_on_switch_go
+    mov edx, 0x1d90e3
+    cmp eax, 1
+    je forward_scroll_on_switch_go
+    ud2
+forward_scroll_on_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_scroll_on_switch_replay:
+    db 0x8a, 0x54, 0x24, 0x56
+    db 0x8b, 0x75, 0x10
+    jmp 0x1d90e3
+
+; 0x1d94cb compile, the end of the uv distortion's block, where both its ends meet (mov cl,[esp+57h]; and cl,3; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame): lohook -> forward_scroll_on_constants
+global forward_scroll_on_constants
+extern hook_forward_scroll_on_constants
+forward_scroll_on_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_scroll_on_constants
+    mov edx, forward_scroll_on_constants_replay
+    cmp eax, 0
+    je forward_scroll_on_constants_go
+    mov edx, 0x1d94d2
+    cmp eax, 1
+    je forward_scroll_on_constants_go
+    ud2
+forward_scroll_on_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_scroll_on_constants_replay:
+    db 0x8a, 0x4c, 0x24, 0x57
+    db 0x80, 0xe1, 0x03
+    jmp 0x1d94d2
+
+; 0x14990f renderer_context's constructor after scene_time's binding, its last register_constant_binding (mov [esp+2Ch],edi; lea esi,[ebx+123Ch]): lohook -> forward_scroll_on_scene_time_bound
+global forward_scroll_on_scene_time_bound
+extern hook_forward_scroll_on_scene_time_bound
+forward_scroll_on_scene_time_bound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_scroll_on_scene_time_bound
+    mov edx, forward_scroll_on_scene_time_bound_replay
+    cmp eax, 0
+    je forward_scroll_on_scene_time_bound_go
+    mov edx, 0x149919
+    cmp eax, 1
+    je forward_scroll_on_scene_time_bound_go
+    ud2
+forward_scroll_on_scene_time_bound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_scroll_on_scene_time_bound_replay:
+    db 0x89, 0x7c, 0x24, 0x2c
+    db 0x8d, 0xb3, 0x3c, 0x12, 0x00, 0x00
+    jmp 0x149919
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

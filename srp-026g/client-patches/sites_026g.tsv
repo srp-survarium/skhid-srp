@@ -13,3 +13,6 @@ player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_ico
 keyboard.tab_state	0x25cd2c	lohook	-	7	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
 input_builder.end	0x2421b0	lohook	-	5	-	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
 replay.seek	0x1EE3A3	lohook	-	6	-	the replay's seek 0x1EE2E0 on a user seek alone, after the clock went to the target (lea eax,[edi-3E8h]; ESI the game, EDI the target time)
+forward_compile.switch	0x1D90DC	lohook	-	7	-	effect_fstage_default_materials::compile, after use_angle_depended_attenuation's read, before compile_begin (mov dl,[esp+56h]; mov esi,[ebp+10h]; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame)
+forward_compile.constants	0x1D94CB	lohook	-	7	-	compile, the end of the uv distortion's block, where both its ends meet (mov cl,[esp+57h]; and cl,3; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame)
+renderer_context.scene_time_bound	0x14990F	lohook	-	10	-	renderer_context's constructor after scene_time's binding, its last register_constant_binding (mov [esp+2Ch],edi; lea esi,[ebx+123Ch])

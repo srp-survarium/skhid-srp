@@ -1988,3 +1988,6 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x00245c50	survarium::delayed_callbacks_queue::destroy_range	manual	0	
+0x001a8900		manual	8	EAX: the effect compiler (its first stack argument, kept in ebp)
+0x000e0b50		manual	4	EAX: the shared string of the text (its reference count at +0), found in the pool or made
+0x000e0ae0		manual	4	

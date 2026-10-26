@@ -32,6 +32,7 @@ mod raw {
 pub mod vostok;
 
 pub mod replay_viewer;
+pub mod forward_scroll;
 pub mod spot;
 pub mod ragdoll;
 pub mod blackout;

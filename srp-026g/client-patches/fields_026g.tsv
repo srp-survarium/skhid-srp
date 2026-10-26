@@ -89,3 +89,16 @@ survarium::client_weapon_item	fx_history_oldest	0x81C	u32	the fx history's oldes
 survarium::client_weapon_item	delayed_sounds_begin	0x9EC	u32	the delayed sounds' queue (delayed_callbacks_queue<64>, weapon+9FCh): its first item, 38h bytes each
 survarium::client_weapon_item	delayed_sounds_end	0x9F0	u32	the queue's end (weapon+A00h)
 survarium::image	client_weapon_item_vtable	0xA0422C	u32	a client weapon's item's vtable (weapon+10h; written by its constructor 0x24365C and destructor alone)
+vostok::configs::binary_config_value	value	0x0	u32	the value: a float's bits, an integer or a switch (compile reads a switch as a nonzero dword, 0x1D9016, a number by its type, 0x1D9249)
+vostok::configs::binary_config_value	kind	0x14	u16	the value's type: 2 a float, else an integer, which compile makes a float (cvtsi2ss, 0x1D9255)
+vostok::render::shader_configuration	sequence	0x4	u8	bit 4 use_sequence (effect_fstage_default_materials::compile writes it at 0x1D9075, reads it at 0x1D9228)
+vostok::render::shader_configuration	scrolling	0xC	u8	bit 6 CONFIG_USE_UV_SCROLLING (fill_shader_configuration_macros 0x3C9F51; g_stage's compile sets it from use_uv_scrolling, 0x1DE51F)
+vostok::render::effect_compile_frame	compiler	0x8	u32	compile's first argument by its frame pointer: the effect compiler (0x1D92DD mov eax,[ebp+8])
+vostok::shared_string	count	0x0	u32	the reference count (lock xadd in renderer_context's constructor, 0x1498D4 and 0x149903; at 0 it is destroyed, 0xE0AE0)
+vostok::render::image	resource_manager	0x226047C	u32	the renderer's resource manager, a pointer in .data (renderer_context's constructor passes it to every register_constant_binding, 0x1498D8)
+vostok::configs::image	value_key	0x9E1C48	u8	"value", a config key's value node (compile 0x1D90C8)
+vostok::render::image	use_uv_scrolling_key	0x9F8E04	u8	"use_uv_scrolling" (g_stage's compile 0x1DE4F1)
+vostok::render::image	emissive_scroll_u_key	0x9F971C	u8	"emissive_map_scroll_u_direction"
+vostok::render::image	emissive_scroll_v_key	0x9F973C	u8	"emissive_map_scroll_v_direction"
+vostok::render::image	uv_scrolling_parameters0_name	0x9F975C	u8	"uv_scrolling_parameters0" (g_stage's compile 0x1E0815)
+vostok::render::image	uv_scrolling_parameters1_name	0x9F9778	u8	"uv_scrolling_parameters1" (g_stage's compile 0x1E0824)

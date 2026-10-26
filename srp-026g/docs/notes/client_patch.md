@@ -667,11 +667,16 @@ repository); everything below was read again in 0.26g's code for the patch.
   `masks26.txt`, `sh26.txt`). So with the retail data the bit picks the same
   files. A binding the shader's constant table has no entry for is skipped
   (`shader_constant_table::apply_bindings` 0x3D7F40: no match, next).
-- **The sites** (`FORWARD_SCROLL_HOOKS`, full builds only,
-  `forward_scroll_026g.asm` at `.srp`+B00h, 540 bytes: after the seek code,
-  which ends at +A97h, and before the shell_32.dll check at +E00h):
+- **The sites** (full builds only; since the Rust port the Rust patch
+  `forward_scroll`, `rust/patches/src/forward_scroll.rs`, three lohooks at
+  the sites `forward_compile.switch`, `forward_compile.constants` and
+  `renderer_context.scene_time_bound` of `sites_026g.tsv`, ported with no
+  change of behaviour, proven by `port/equiv/forward_scroll.py`; once
+  `forward_scroll_026g.asm` at `.srp`+B00h, 540 bytes. Each site is a jump
+  to its generated entry and nops, the entry replaying the two instructions
+  after the work, every register and the flags restored):
   - 0x1D90DC `8A 54 24 56 8B 75 10` (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`)
-    becomes `jmp 0A425B00h` and two nops. Both ends of the angle
+    becomes a jump and two nops. Both ends of the angle
     attenuation's read meet there (0x1D90D8, 0x1D90DA; al the switch); esi
     and edi are written again before they are read; the flags are not read
     before `and eax,ecx` (0x1D90FD). The entry: `use_sequence` on, nothing;
@@ -680,39 +685,42 @@ repository); everything below was read again in 0.26g's code for the patch.
     name; it assumes the key, so the check comes first), a non-zero value
     sets the bit; popad, the two instructions, back to 0x1D90E3.
   - 0x1D94CB `8A 4C 24 57 80 E1 03` (`mov cl,[esp+57h]` / `and cl,3`)
-    becomes `jmp 0A425B40h` and two nops. The uv distortion's block ends
+    becomes a jump and two nops. The uv distortion's block ends
     there from both sides (0x1D931E's `jz` and 0x1D94C6, esi 2 on both);
     the flags are written (`cmp cl,2`) before they are read. The entry: with
     the bit, pushad, the four numbers (a float when the value's type word
     +14h is 2, else an integer made a float, as 0x1D9249 reads them; 0 for
     a missing key), two `set_constant<float4>` with [ebp+8], compile's
     first argument, as the compiler; popad, the two instructions, back to
-    0x1D94D2. xmm0 is lost; no xmm register is read after 0x1D94CB before it
-    is written again.
+    0x1D94D2. (The asm lost xmm0, which no code reads after 0x1D94CB before
+    writing it; the Rust entry keeps every xmm register.)
   - 0x14990F `89 7C 24 2C 8D B3 3C 12 00 00` (`mov [esp+2Ch],edi` / `lea
     esi,[ebx+123Ch]`) in `renderer_context::renderer_context` (0x148570)
-    becomes `jmp 0A425C00h` and five nops: right after the last of its 19
+    becomes a jump and five nops: right after the last of its 19
     `register_constant_binding` calls (20 in the exe), `scene_time`'s
     (0x1498A6..0x14990A). The entry makes the binding as the game does:
     {&value, 4, name, 0, 4} on the stack, the name the shared string of
     "scene_slomo" (0xE0B50, `ret 4`) held while
     `register_constant_binding` (0x3BCCC0, eax the binding, the resource
     manager [226047Ch] pushed, `ret 4`) runs, then let go (0xE0AE0 at a
-    count of 0). The value is a 1.0 in `.srp` (read and execute): the
+    count of 0). The value is a 1.0 of the crate's (`.srpx`): the
     binding copies the address and the size into the backend's constant
     host (0x3BCD02..0x3BCD09), which reads it; nothing in 0.26g names
     `scene_slomo`, so nothing writes it [V for the exe's strings; the read
     at every frame is I]. The handle the constructor keeps for its own
-    bindings (+5520h, +5524h) is not kept for this one. The stack keeps the
-    game's alignment at the call (20h of binding space after pushad).
+    bindings (+5520h, +5524h) is not kept for this one. The asm kept the
+    game's stack alignment at the call (20h of binding space after pushad);
+    the Rust entry aligns its own stack, so the call gets a dword-aligned
+    one (all MSVC's x86 code assumes; the constructor aligns its own frame
+    to 8).
   - No site holds an address (no base relocation under them), nothing aims
     inside one but its first byte, the build without the late join keeps
-    them. The .bin ends with the address it was assembled for.
+    them.
 - **Nothing a match computes**: shaders and their constants only. Revisions
   12 and 13 play together; a server need not ask for 13 (one that offers the scrolling shaders
   in a patch does: its minimum revision is at least that patch's number).
-- **Run with Unicorn** (`check_forward_scroll_026g.py`, the image as is and
-  rebased by 1 MiB with its relocations): the original's and the build's
+- **Run with Unicorn** (`check_forward_scroll_026g.py`, the image as is;
+  until the Rust port also rebased by 1 MiB with its relocations): the original's and the build's
   compile from 0x1D8F40 to its `ret 0Ch` on 11 made-up materials (the
   config's two helpers, compile_begin, set_texture, set_constant<float>,
   <float2>, <float4>, the colour conversion, color_write_enable, end_pass
@@ -725,15 +733,16 @@ repository); everything below was read again in 0.26g's code for the patch.
   lookup of a missing key. The third hook against the game's own
   `scene_time` binding (0x1498A6..0x14990F) with the same stubs and three
   made-up name counts: the same calls, the name `scene_slomo`, the value
-  1.0 in `.srp`, the same alignment at the call, every register and
-  [esp+2Ch] after the hook as the original's. With `--rev12=` the build is
-  compared byte by byte with revision 12 (README, Revision 13).
+  1.0 in `.srpx`, a dword-aligned stack at the call (the asm's: the
+  game's alignment), every register and [esp+2Ch] after the hook as the
+  original's. (Until the Rust port, `--rev12=` compared the build byte by
+  byte with revision 12, README, Revision 13.)
 - **Checked** (`selftest_026g.py` check 28, `test_forward_scroll`): the
   sites, the original's instructions around them, the configuration's
   accesses in compile, g_stage's code, the fill function's bit, the
   constructor's bindings, no relocation under and no branch into a site,
-  the code's only calls (0xF6C00, 0xF6B10, 0x1A8900, 0xE0B50, 0xE0AE0,
-  0x3BCCC0) and jumps back, the exe's texts it reads and its own data.
+  the Rust lohooks (the generated entries, their replays, no named exit),
+  the exe's texts the patch names.
 - **Not proven**: a game was not run; no scrolling shader exists in any
   archive yet (London plan, phase 2). That an unbound constant host holds 0
   (why `scene_slomo` is bound at all) is not proven; the binding makes it
