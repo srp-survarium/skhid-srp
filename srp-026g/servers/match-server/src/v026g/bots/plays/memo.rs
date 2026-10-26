@@ -488,6 +488,9 @@ mod tests {
         let mut s = Scenario::field(Mode::Batteries);
         s.bot(0, 0, Vec3::new(45.0, 0.0, 30.0));
         s.tactics = Tactics::new(world, 1.0);
+        // It ships off; this is the switch on.
+        assert!(!crate::v026g::bots::tuning::Tuning::default().floor_paths);
+        s.tuning.floor_paths = true;
         let battery = Vec3::new(50.0, 3.4, 30.0);
         let cx = s.cx(0);
         let walk = cx.storey_walk_dist(battery).expect("a storey apart");
