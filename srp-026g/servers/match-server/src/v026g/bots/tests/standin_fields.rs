@@ -223,10 +223,6 @@ impl FieldGen {
         self.max_active > 0
     }
 
-    pub(crate) fn pace(&self) -> Pace {
-        self.pace
-    }
-
     /// The places a try draws from.
     pub(crate) fn places(&self) -> &[Vec3] {
         &self.places
