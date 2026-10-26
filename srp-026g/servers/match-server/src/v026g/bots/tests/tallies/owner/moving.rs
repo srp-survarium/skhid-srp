@@ -674,6 +674,14 @@ impl OwnerTally {
         // The same, where both bodies are still (under ONE_BODY_STILL_M in the
         // second after): two bots standing on one spot, not walking one path.
         let (mut still_eps, mut still_ticks) = (0u32, 0u32);
+        // And of those, the pairs of plays that stand a bot beside a teammate
+        // by their own spot choice, not by the batteries' stands (Collect), the
+        // spawn (no play) or Retreat's: narrowed after the trace of S1's first
+        // look (`push-record.md`).
+        let (mut moved_eps, mut moved_ticks) = (0u32, 0u32);
+        let counts = |play: u16, names: &[String]| {
+            !matches!(names[usize::from(play)].as_str(), "Collect" | "Retreat" | "none")
+        };
         for a in 0..n {
             for b in a + 1..n {
                 let (ra, rb) = (&self.recs[a], &self.recs[b]);
@@ -707,6 +715,7 @@ impl OwnerTally {
                 }
                 let mut last: Option<usize> = None;
                 let mut last_still: Option<usize> = None;
+                let mut last_moved: Option<usize> = None;
                 for k in 0..len {
                     let (x, y) = (&ra[k], &rb[k]);
                     if x.alive
@@ -728,6 +737,13 @@ impl OwnerTally {
                                 still_eps += 1;
                             }
                             last_still = Some(k);
+                            if counts(x.play, &self.plays) && counts(y.play, &self.plays) {
+                                moved_ticks += 1;
+                                if last_moved.is_none_or(|l| k > l + TPS / 2) {
+                                    moved_eps += 1;
+                                }
+                                last_moved = Some(k);
+                            }
                         }
                     }
                 }
@@ -790,6 +806,8 @@ impl OwnerTally {
             "one_body_s": (f64::from(one_ticks) * tick_s).round(),
             "one_body_still": still_eps,
             "one_body_still_s": (f64::from(still_ticks) * tick_s).round(),
+            "one_body_still_plays": moved_eps,
+            "one_body_still_plays_s": (f64::from(moved_ticks) * tick_s).round(),
         });
         let text = format!(
             "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)",
