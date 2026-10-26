@@ -36,6 +36,7 @@ pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
+pub mod foliage;
 pub mod friends;
 pub mod guns;
 pub mod hazards;
@@ -553,6 +554,8 @@ pub struct Bots {
     /// The human routes of this map and mode (play 17), till the map is
     /// built and they are put on its floors.
     routes: Vec<routes::HumanRoute>,
+    /// The map's bushes a sight line crosses (`foliage.rs`), till the map is built.
+    foliage: foliage::Foliage,
     /// This poll's route searches ([`Searching`]).
     searching: Searching,
     /// Kit choices made since they were last taken
@@ -617,6 +620,7 @@ impl Bots {
             #[cfg(test)]
             bench_camper: None,
             routes: Vec::new(),
+            foliage: foliage::Foliage::none(),
             weapons: Vec::new(),
             searching: Searching {
                 left: SEARCHES_PER_POLL,
@@ -709,6 +713,7 @@ impl Bots {
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
         tactics.escape_ceiling = self.tuning.escape_ceiling;
+        tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
@@ -748,6 +753,11 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.routes = table.for_map(self.level, self.mode);
+    }
+
+    /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
+    pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
+        self.foliage = foliage;
     }
 
     pub fn has_map(&self) -> bool {
@@ -849,6 +859,28 @@ impl Bots {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
         }
+    }
+
+    /// The bodies of the jump test's last asked world as the reckoning's worlds: the game passes an asked world on to
+    /// nobody, and with the test asking all the time the bots would get none.
+    #[cfg(feature = "jump-test")]
+    pub fn fix_from_burst(&mut self) -> Vec<Note> {
+        let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
+        let mut notes = Vec::new();
+        for row in rows {
+            let fix = Fix {
+                time: row.time,
+                alive: row.alive,
+                inserted: row.inserted,
+                feet: row.alive.then_some(row.feet),
+                yaw: row.yaw,
+                pitch: row.pitch,
+                keys: row.keys,
+                speed: Some(row.speed),
+            };
+            notes.extend(self.fixed(row.place, fix, None));
+        }
+        notes
     }
 
     /// A trusted world's word on one place's body.
