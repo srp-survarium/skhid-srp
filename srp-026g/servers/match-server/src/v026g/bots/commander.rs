@@ -14,6 +14,8 @@ pub(super) struct TeamState {
     pub(super) no_way_to: Vec<(Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub(super) spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`stuck::SelfKill`).
+    pub(super) self_kills: Vec<u32>,
     /// The floors of the traps its bots put down, and the list's version it
     /// was built for (`trap_know.rs`).
     pub(super) trap_field: Arc<trap_know::TrapField>,
@@ -259,6 +261,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.weapons, &tuning),
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
@@ -346,6 +349,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.weapons, &tuning),
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,

@@ -31,8 +31,12 @@ use std::collections::VecDeque;
 
 use mapdata::{Vec3, World};
 
+use super::arc::{self, Flight, Mesh};
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
+use super::live_grenades::{
+    LiveGrenade, LAUNCH_MS, Phase, Pocketed, Pockets, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
+};
 use crate::v026g::drive::key;
 
 /// A roster place.
@@ -303,6 +307,9 @@ pub struct MatchView {
     pub can_respawn: [bool; 2],
     /// Timed batteries: when the next battery appears (match ms).
     pub next_battery: Option<u32>,
+    /// The fragmentation grenades thrown and not yet gone off, from the
+    /// throw keys the server saw ([`super::live_grenades`]).
+    pub grenades: Vec<LiveGrenade>,
 }
 
 impl MatchView {
@@ -495,6 +502,11 @@ struct PlaceState {
     stats: (u32, u32, u32),
     /// The last few uses pressed.
     uses: VecDeque<UsePress>,
+    /// A human's pockets (its profile's first kit), for the throw keys; a
+    /// server bot's throw key is always a frag.
+    pockets: Option<Pockets>,
+    /// The press of its last throw ([`SAME_THROW_MS`]).
+    last_throw: Option<u32>,
     last_shot: Option<u32>,
     /// The body's life (`BodyTrack::last_alive`) whose death the kill feed
     /// has a spot for: one spot a life.
@@ -518,6 +530,8 @@ pub struct Tracker {
     points: [u32; 2],
     can_respawn: [bool; 2],
     next_battery: Option<u32>,
+    grenades: Vec<LiveGrenade>,
+    throws: ThrowCounts,
     sounds: VecDeque<Sound>,
     deaths: VecDeque<Death>,
     world_time: u32,
@@ -555,6 +569,8 @@ impl Tracker {
             points: [0, 0],
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
+            throws: ThrowCounts::default(),
             sounds: VecDeque::new(),
             deaths: VecDeque::new(),
             world_time: 0,
@@ -594,6 +610,25 @@ impl Tracker {
         for (state, &level) in self.places.iter_mut().zip(levels) {
             state.body.set_prior_level(level);
         }
+    }
+
+    /// Each place's pockets by place (a human's: its profile's first kit),
+    /// for the throw keys; `None` for a server bot and for a profile that
+    /// did not read.
+    pub fn set_pockets(&mut self, pockets: Vec<Option<Pockets>>) {
+        for (state, pockets) in self.places.iter_mut().zip(pockets) {
+            state.pockets = pockets;
+        }
+    }
+
+    /// The fragmentation grenades in the match now.
+    pub fn live_grenades(&self) -> &[LiveGrenade] {
+        &self.grenades
+    }
+
+    /// What the throw keys came to so far.
+    pub fn throw_counts(&self) -> ThrowCounts {
+        self.throws
     }
 
     /// An input of `place` for the tick `time` (a human's as relayed, a
@@ -651,6 +686,35 @@ impl Tracker {
         if pressed & key::JUMP != 0 {
             heard(SoundKind::Jump);
         }
+        if pressed & THROW_KEYS != 0
+            && state.last_throw.is_none_or(|last| time >= last + SAME_THROW_MS)
+        {
+            let thrown = if state.bot {
+                (pressed & key::GRENADE != 0).then_some(Pocketed::Frag)
+            } else if let Some(pockets) = state.pockets.as_mut() {
+                pockets.throw(pressed)
+            } else {
+                self.throws.no_pockets += 1;
+                None
+            };
+            match thrown {
+                Some(Pocketed::Frag) => {
+                    self.throws.frag += 1;
+                    state.last_throw = Some(time);
+                    self.grenades.push(LiveGrenade {
+                        by: place,
+                        team: state.team,
+                        press: time,
+                        phase: Phase::Pressed,
+                    });
+                }
+                Some(Pocketed::Smoke) => {
+                    self.throws.smoke += 1;
+                    state.last_throw = Some(time);
+                }
+                Some(Pocketed::Other) | None => {}
+            }
+        }
         if pressed & key::USE != 0 {
             let pitch = estimate.view_pitch();
             let speed = estimate.velocity[0].hypot(estimate.velocity[1]);
@@ -691,6 +755,64 @@ impl Tracker {
             if carry.carrier == Some(place) && matches!(battery, BatteryState::Carried(_)) {
                 carry.put_ins.push(press.time);
             }
+        }
+    }
+
+    /// The grenades due to leave the hand at `clock` get their landing: the
+    /// arc model from the thrower's body as reckoned now, over the map's
+    /// bullet mesh (`arc::Flight::landing`); entries past their blast go.
+    /// With no map a grenade stays pressed.
+    pub fn launch_grenades(&mut self, clock: u32, world: Option<&World>) {
+        let grenades = std::mem::take(&mut self.grenades);
+        let mut kept = Vec::with_capacity(grenades.len());
+        for mut grenade in grenades {
+            if !grenade.live_at(clock) {
+                continue;
+            }
+            if grenade.phase == Phase::Pressed
+                && clock >= grenade.press + LAUNCH_MS
+                && let Some(world) = world
+            {
+                match self.launch_of(grenade.by, world) {
+                    Launch::Dead => {
+                        self.throws.died_throwing += 1;
+                        continue;
+                    }
+                    Launch::NoLanding => {
+                        self.throws.unplaced += 1;
+                        continue;
+                    }
+                    Launch::Lands(landing) => {
+                        let launched = grenade.press + LAUNCH_MS;
+                        grenade.phase = Phase::Flying {
+                            launched,
+                            lands: launched + (landing.contact.t * 1000.0) as u32,
+                            rest: landing.rest,
+                        };
+                        self.throws.launched += 1;
+                    }
+                }
+            }
+            kept.push(grenade);
+        }
+        self.grenades = kept;
+    }
+
+    /// Where the grenade `by` let go lands, from its thrower's body now.
+    fn launch_of(&self, by: Place, world: &World) -> Launch {
+        let Some(state) = self.places.get(by).filter(|state| state.alive) else {
+            return Launch::Dead;
+        };
+        let Some(e) = state.body.estimate().copied() else {
+            return Launch::Dead;
+        };
+        let pitch = e.view_pitch();
+        let speed = e.velocity[0].hypot(e.velocity[1]);
+        let up = eye_height(e.keys & key::CROUCH != 0, speed, pitch);
+        let eye = e.feet + Vec3::new(0.0, up, 0.0);
+        match Flight::thrown(eye, e.yaw, pitch).landing(&Mesh(&world.sight)) {
+            Some(landing) => Launch::Lands(landing),
+            None => Launch::NoLanding,
         }
     }
 
@@ -794,6 +916,11 @@ impl Tracker {
             return false;
         };
         state.alive = fix.alive;
+        if state.spawned != fix.inserted
+            && let Some(pockets) = state.pockets.as_mut()
+        {
+            pockets.refill();
+        }
         state.spawned = fix.inserted;
         if let Some(health) = health {
             state.health = health;
@@ -1178,8 +1305,18 @@ impl Tracker {
             world_time: self.world_time,
             can_respawn: self.can_respawn,
             next_battery: self.next_battery,
+            grenades: self.grenades.clone(),
         }
     }
+}
+
+/// What a grenade's launch came to.
+enum Launch {
+    /// The thrower is dead or not placed: nothing was thrown.
+    Dead,
+    /// The throw touches no ground within the flight's time.
+    NoLanding,
+    Lands(arc::Landing),
 }
 
 #[cfg(test)]
