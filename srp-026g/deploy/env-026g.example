@@ -170,6 +170,12 @@ RUST_LOG=info
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.25
 # SRP_PVB_STALL_S=60
+# The kit the rusher bots of the tiers 9-10 and 13-15 wear
+# (docs/notes/pvb-tiers.md, 3.1): smg (the tier's SMG: sr2m, fn_p90; the
+# default), alt (ump45, kriss_vector), slug or helmet (the SPAS-12 with the
+# SMG kit's helmet), or control (the old kit: the SPAS-12 with buckshot).
+# One word for both tiers or 9-10=control,13-15=smg. Read at start.
+# SRP_PVB_RUSHER_KIT=smg
 
 # The bots' decision traces, one JSON file a match with the server's bots
 # (off unless set), and the most MB they keep together, the oldest first.

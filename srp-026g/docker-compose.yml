@@ -149,6 +149,10 @@ services:
       - SRP_PVB_MAX_MATCHES
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
+      # SRP_PVB_RUSHER_KIT: the kit of the rusher bots of the tiers 9-10 and
+      # 13-15, smg when unset; control is the old SPAS-12 kit
+      # (docs/notes/pvb-tiers.md).
+      - SRP_PVB_RUSHER_KIT
       # The bots' decision traces (off unless set; e.g.
       # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
       # 2000) together, the oldest first.

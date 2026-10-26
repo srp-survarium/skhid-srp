@@ -1,7 +1,7 @@
 # Player vs Bots for every level: the bots' equipment tiers
 
 The owner's decisions of 2026-10-23. Code: `survarium::v026g::loadouts` (`BotTier`, `TIER_4_5`,
-`TIER_9_10`, `TIER_13_15`, `bot_kits`, `bot_of`), the lobby's `pvb.rs` and `play::launch` /
+`TIER_9_10`, `TIER_13_15`, `RusherKit`, `bot_kits`, `bot_of`), the lobby's `pvb.rs` and `play::launch` /
 `play::server_bot`, the match server's `bots::guns` (`GUNS`, `Arms`), `bots::recoil` (`KICKS`),
 `bots/mod.rs` (`Bot::pick_kit`, `Bot::new_life`, `Bots::with_tiers`) and `game::driven`. Tags as in
 the other notes: PROVEN (code or data read), LIKELY, GUESS.
@@ -23,13 +23,15 @@ the other notes: PROVEN (code or data read), LIKELY, GUESS.
   a party or a room would take its highest member's) and `BotTier::of_gear`: 0-5 → `Low` (bots of
   level 4-5), 6-10 → `Mid` (9-10), 11-15 → `High` (13-15). The owner's examples: 3 → 4-5, 8 → 9-10,
   12 → 13-15. The log says "N bots with equipment of level <tier>".
-- `play::server_bot(n, team, role, tier)` gives each bot its role's three kits of the tier
-  (`loadouts::bot_kits`) in its profile (`MatchProfile::from_loadouts`).
-- The match server reads the tier and the role back from the profile it has of each place:
-  `loadouts::bot_of` (the bot whose first kit holds exactly the profile's first kit's items; else, a
+- `play::server_bot(n, team, role, equipment)` gives each bot its role's three kits of the tier
+  (`loadouts::bot_kits`) in its profile (`MatchProfile::from_loadouts`). The equipment is the tier and
+  the kit its rusher wears (`BotEquipment`, §3.1): the lobby's setting `SRP_PVB_RUSHER_KIT`.
+- The match server reads the equipment and the role back from the profile it has of each place:
+  `loadouts::bot_equipment_of` (the bot whose kits hold exactly the profile's kits' items; else, a
   profile of an older kit, the lowest tier's role by weapon 1). `game::driven` passes the roles to
-  `Bots::new` and the tiers to `Bots::with_tiers`, which arms each bot with its tier's kits
-  (`guns::Arms::kits_of`). Nothing else travels: the profile is the contract.
+  `Bots::new` and the equipments to `Bots::with_tiers`, which arms each bot with its tier's kits
+  (`guns::Arms::kits_of`). Nothing else travels: the profile is the contract, so what a bot carries is
+  what it fires.
 
 ## 3. The tables
 
@@ -51,12 +53,43 @@ life's ammo. The carry limit is 30 kg with no skills (`default.player`); every k
 | 4-5 | camper | `rem_700` (5) | `ammo_7.62x51_ap` (5), 30 | `bm_helmet_1`, `scav_torso_2` (3), `bm_back_1`, `bm_legs_5` | 19.25, 18.35, 19.4 |
 | 9-10 | flanker | `pp2000` (9) | `ammo_9x19p_7n31` (9), 150 | `edge_helmet_3` (8), `ren_torso_3` (8), `bm_back_1` (3), `edge_legs_2` (9), `edge_gloves_2` (9), `edge_boots_2` (9) | 19.2, 21.4, 22.5 |
 | 9-10 | support | `akmn` (6) | `ammo_7.62x39_7n23` (9), 120 | `ren_helmet_2` (9), `edge_torso_2` (9), `bm_back_1`, `bm_legs_5` (4), `ren_gloves_1` (9), `edge_boots_2` | 24.55, 22.35, 25.95 |
-| 9-10 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 45 | `edge_helmet_3`, `edge_torso_3` (8), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 21.8, 18.5, 20.7 |
+| 9-10 | rusher | `sr2m` (8) | `ammo_9x21` (8), 150 | `ren_helmet_2` (9), `edge_torso_3` (8), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 19.6, 19.8, 22.0 |
 | 9-10 | camper | `sv_98` (9) | `ammo_7.62x54_7n1` (9), 30 | `ren_helmet_2`, `ren_mask_2` (9), `ren_torso_3`, `bm_back_1`, `ren_legs_2` (9), `ren_gloves_1`, `edge_boots_2` | 26.65, 24.95, 22.75 |
 | 13-15 | flanker | `sr3m` (14) | `ammo_sp6` (14), 120 | `edge_helmet_4` (12), `edge_torso_5` (14), `edge_back_5` (14), `ren_legs_5` (14), `edge_gloves_5` (14), `edge_boots_6` (15) | 23.45, 24.25, 26.05 |
 | 13-15 | support | `ak_12` (15) | `ammo_6.5x39` (15), 120 | `edge_helmet_5` (14), `ren_mask_5` (14), `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_5` (14) | 27.6, 26.8, 26.6 |
-| 13-15 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 60 | `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_6` | 25.9, 23.3, 24.1 |
+| 13-15 | rusher | `fn_p90` (14) | `ammo_5.7x28` (9), 200 | `edge_helmet_5` (14), `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_6` | 25.7, 25.3, 26.1 |
 | 13-15 | camper | `vsk_94` (14) | `ammo_sp5` (12), 80 | as the support's | 26.6, 27.6, 26.8 |
+
+### 3.1 The rusher's kit
+
+The shotgun rusher lost its fights (K/D 0.52 at 13-15 and 0.55 at 9-10 against 1.08 to 1.48 for every
+other role in the owner's eight matches); no player of kit level 9-10 carries a shotgun (14 of 10,339
+lives) and the SMG is what 12 and more players of both tiers carry most (41 % of the alive time at 9-10,
+22 % at 13-15). The rusher of the two higher tiers wears an SMG of its tier, the shotgun of the old
+table being one of the other kits (`RusherKit`, the lobby's `SRP_PVB_RUSHER_KIT`, the bench's
+`SRP_BENCH_RUSHER`):
+
+| `RusherKit` | 9-10 | 13-15 |
+|---|---|---|
+| `smg` (the default) | `sr2m` + `ammo_9x21` (150), `ren_helmet_2`: 19.6 kg | `fn_p90` + `ammo_5.7x28` (200), `edge_helmet_5`: 25.7 kg |
+| `alt` | `ump45` + `ammo_45acp` (150): 21.5 kg | `kriss_vector` + `ammo_45acp` (200): 26.6 kg |
+| `slug` | `spas_12` + `ammo_12mm_slug` (45), `ren_helmet_2`: 23.4 kg | the same (60), `edge_helmet_5`: 28.3 kg |
+| `helmet` | `spas_12` + buckshot (45), `ren_helmet_2`: 23.1 kg | the same (60), `edge_helmet_5`: 27.9 kg |
+| `control` | the old kit: `spas_12` + buckshot (45), `edge_helmet_3`: 21.8 kg | the old kit: `spas_12` + buckshot (60), no helmet: 25.9 kg |
+
+`control` is the old table exactly, to switch the change off; `helmet` changes the helmet alone,
+`slug` the ammo on top of it, `smg` the weapon on top of that. The lowest tier has only its table.
+The flanker's third kit is the rusher's weapon with the flanker's armour (`BotRole::kit_roles`: P90 or
+SR-2M, 200 or 150 rounds at its bags). `fn_p90` and `kriss_vector` are 0.29a3 weapons that come with
+the live patches: the repo's test data (`resources/game-026g`) lacks them, so with that data the
+13-15 rusher wears the old kit (a line says so; `RusherKit::worn_in`), and the tests that need them
+run on the server's game data (`SRP_GAME_DATA`, the `on_the_live_data_` tests, each run alone).
+
+Every kit is under the 30 kg a player carries with no skills (the heaviest, `slug` at 13-15, is 28.3
+kg), and the bots' skills lift their capacity to 40 kg, so the weight costs a bot at most 0.415 of the
+20 % of speed a full load costs (`bot_skills`, the rusher's own kit 0.285 at 13-15 and 0 at 9-10 with
+the SMG). The SMG kits are lighter than the old one: 19.6 against 21.8 kg at 9-10, 25.7 against 25.9 kg
+at 13-15 (the 2 kg helmet included).
 
 Why these:
 - **Pockets.** A player has one pocket of one unit (`default.player`); the bots need three of two
@@ -70,12 +103,10 @@ Why these:
   kind. 4-5: the Vityaz (SMG, 4), the MP-153 (semi-automatic shotgun, 4), the Remington 700 (bolt
   action, 5) with `ammo_7.62x51_ap`; the support keeps the AK-74U (the lowest assault rifle, 5). 9-10:
   the AKMN with `ammo_7.62x39_7n23` (the top players' assault rifle there), the PP-2000 (the highest
-  SMG, 9), the SV-98 (the only sniper weapon of 9-10); the rusher keeps the SPAS-12 (the Vityaz would
+  SMG, 9), the SV-98 (the only sniper weapon of 9-10); the rusher the SR-2M (§3.1; the Vityaz would
   share the PP-2000's 9x19). 13-15: the SR-3M (compact assault rifle, 14), the AK-12 (15), the VSK-94
-  (the sniper category's marksman rifle, 14, automatic), the SPAS-12 (the highest shotgun, 7; the
-  kit's armour makes its level). The top players' 13-15 SMGs, the Kriss Vector and the FN P90, are
-  ported items that are not in the tests' game data (`resources/game-026g`), so no test could check
-  those kits; they wait for that data to have them.
+  (the sniper category's marksman rifle, 14, automatic), the rusher the FN P90 (§3.1; ported item, not
+  in the tests' game data (`resources/game-026g`), so its tests run on the server's).
 - **Ammo of its own.** Each kit's ammo differs from the bot's other kits' (four ammo types in each
   tier), so a kit picked when one runs out is full.
 
