@@ -87,13 +87,6 @@ pub(super) fn unstick_step(keys: u32, yaw: f32) -> Vec3 {
     )
 }
 
-/// Whether the reflex's legs replace the play's goal this tick: not in a
-/// use within reach, not for the bench's stand-in camper, and not while a
-/// route jump lines up or is held (with `wait`, `CombatTuning::legs_wait_for_route_jump`).
-fn reflex_legs_allowed(using: bool, held: bool, in_route_jump: bool, wait: bool) -> bool {
-    !using && !held && !(wait && in_route_jump)
-}
-
 pub(super) fn drive_tick(
     bot: &mut Bot,
     me: &PlaceView,
@@ -233,13 +226,7 @@ pub(super) fn drive_tick(
     let held = bot.bench_camper;
     #[cfg(not(test))]
     let held = false;
-    // A route jump lining up or held keeps the legs: the reflex's goal would drop the route in the middle of it
-    // (`CombatTuning::legs_wait_for_route_jump`).
-    let in_jump = bot.motor.lining_up() || bot.jump_hold > 0;
-    if let Some(legs) = over
-        .legs
-        .filter(|_| reflex_legs_allowed(using, held, in_jump, tuning.aim.combat.legs_wait_for_route_jump))
-    {
+    if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {
             at: legs.at,
             within_m: legs.within_m,
@@ -1013,21 +1000,6 @@ mod tests {
 
     fn intent(fire: bool, let_go: bool, zone_ok: bool) -> Intent {
         Intent { fire, let_go, zone_ok, ..Intent::stay() }
-    }
-
-    #[test]
-    fn the_reflex_legs_wait_for_a_route_jump_unless_the_switch_is_off() {
-        assert!(crate::v026g::bots::reflex::CombatTuning::default().legs_wait_for_route_jump, "on by default");
-        // (using, held, in a route jump, switch) -> the legs replace the play's goal.
-        for (using, held, jump, wait, expect) in [
-            (false, false, false, true, true),
-            (false, false, true, true, false),
-            (false, false, true, false, true),
-            (true, false, false, true, false),
-            (false, true, false, true, false),
-        ] {
-            assert_eq!(reflex_legs_allowed(using, held, jump, wait), expect, "{using} {held} {jump} {wait}");
-        }
     }
 
     #[test]
