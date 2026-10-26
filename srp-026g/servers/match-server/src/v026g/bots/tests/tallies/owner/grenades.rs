@@ -21,6 +21,11 @@ const FUSE_MS: u32 = (arc::FUSE_S * 1000.0) as u32;
 /// `CombatTuning::grenade_land_m`).
 const SHORT_M: f32 = 12.0;
 
+/// Two throws of one team at one spot: within these radii (metres, counted in the nearest) and this long
+/// apart, ms (`CombatTuning::grenade_claim_m` and `_ms`; the humans' figures: `grenades-record.md` 9).
+const SAME_SPOT_M: [f32; 3] = [3.0, 5.0, 8.0];
+const SAME_SPOT_MS: u32 = 6_000;
+
 /// A grenade pressed: the thrower, the place it was aimed at, the press.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Throw {
@@ -44,6 +49,10 @@ pub(super) struct GrenadeLogic {
 #[derive(Default)]
 pub(super) struct GrenadeCounts {
     pub(super) logic: GrenadeLogic,
+    /// Throws as (thrower, team, the place, press) for [`SAME_SPOT_M`], and the pairs found: another bot
+    /// of the team threw at a place within 3, 3-5, 5-8 m of this one within [`SAME_SPOT_MS`] before.
+    pub(super) same_spot_log: Vec<(Place, u8, Vec3, u32)>,
+    pub(super) same_spot: [u32; 3],
     pub(super) blasts: Vec<Blast>,
     /// The throws noted, not yet at their launch ([`LAUNCH_MS`] after the
     /// press): the blast is where the thrower's view then sends it.
@@ -187,6 +196,35 @@ pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
     assert!(json.get("grenade_logic").is_none(), "{json}");
 }
 
+/// Throws of one team at one spot: counted by radius for each earlier throw of another bot of the team
+/// within the window; the bot's own volley and the other team's are not.
+#[test]
+pub(crate) fn throws_of_one_team_at_one_spot_are_counted_by_radius() {
+    let (mut game, mut tally) = made_up(&[0, 0, 1]);
+    let note = |place: Place, text: &str| Note {
+        place,
+        time: 0,
+        text: text.to_owned(),
+    };
+    tally.note(&note(0, "throws a grenade at (10.0, 0.0, 20.0), blast at 8000"), &game);
+    tally.note(&note(1, "throws a grenade at (12.0, 0.0, 20.0), blast at 9000"), &game);
+    tally.note(&note(1, "throws a grenade at (16.0, 0.0, 20.0), blast at 11000"), &game);
+    tally.note(&note(2, "throws a grenade at (10.0, 0.0, 20.0), blast at 9000"), &game);
+    tally.note(&note(0, "throws a grenade at (10.0, 0.0, 20.0), blast at 30000"), &game);
+    game.tick = TICK_MS;
+    let thinking = Some(BotNow {
+        play: "Roam".to_owned(),
+        grenades: GrenadeStats {
+            thinks: 1,
+            ..GrenadeStats::default()
+        },
+        ..BotNow::default()
+    });
+    tally.step(&mut game, &[thinking, None, None]);
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["grenade_team_same_spot"], serde_json::json!([1, 0, 1]), "{json}");
+}
+
 #[test]
 pub(crate) fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
     assert!((blast_damage(0.0) - BLAST_MAX).abs() < 1e-6);
@@ -322,7 +360,25 @@ pub(crate) fn the_launch_constants_are_the_arcs() {
 impl OwnerTally {
     /// A throw noted at its let-go: the blast is [`FUSE_MS`] after the press; where it lands is worked out at
     /// the launch ([`Self::grenade_launches`]).
-    pub(super) fn grenade_thrown(&mut self, thrower: Place, aim: Vec3, blast: u32) {
+    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32) {
+        let press = blast.saturating_sub(FUSE_MS);
+        // Teammates' throws at one spot, a throw counted once for each radius it lands within of an
+        // earlier throw of another bot of its team in the last SAME_SPOT_MS (the bot's own volley is not).
+        for earlier in &self.grenades.same_spot_log {
+            if earlier.0 != thrower
+                && earlier.1 == team
+                && press.abs_diff(earlier.3) <= SAME_SPOT_MS
+            {
+                let d = earlier.2.distance_xz(aim);
+                for (k, radius) in SAME_SPOT_M.iter().enumerate() {
+                    if d < *radius {
+                        self.grenades.same_spot[k] += 1;
+                        break;
+                    }
+                }
+            }
+        }
+        self.grenades.same_spot_log.push((thrower, team, aim, press));
         self.grenades.grenades += 1;
         self.grenades.throws.push(Throw {
             thrower,
@@ -507,8 +563,10 @@ impl OwnerTally {
         // Only where bots thought: the made-up match has none, and its golden stays as it was.
         if logic.lives > 0 {
             let s = &logic.sum;
+            json["grenade_team_same_spot"] = serde_json::json!(self.grenades.same_spot);
             json["grenade_logic"] = serde_json::json!({
                 "bot_lives": logic.lives,
+                "claimed": s.claimed,
                 "rolls": s.rolls,
                 "chance_no": s.chance_no,
                 "places": s.places,

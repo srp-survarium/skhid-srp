@@ -323,6 +323,20 @@ pub struct CombatTuning {
     pub grenade_search: bool,
     pub grenade_search_off_m: f32,
     pub grenade_search_traces: u32,
+    /// [G1] A roll skips a place within this of a place a teammate decided
+    /// to throw at (`TeamKnowledge::claim_throw`) in the last
+    /// `grenade_claim_ms` (the throw's own volley is not held against it),
+    /// with `grenade_tracks` (the claim is G1's; 0 m: none). The owner: do
+    /// not make several bots throw at the same spots. Human same-team
+    /// throws land within 8 m of a teammate's landing in the next 5 s in
+    /// 1.7 % of throws (2.9 % in 10 s), twice the level by chance in the
+    /// same match: they neither avoid nor seek it (LIKELY: 229 matches,
+    /// `grenades-record.md` 9); so the bots' rate stays at 0, under the
+    /// humans'. 8 m: the blast's damage at 8 m is 0.3 of a body's health
+    /// (linear to 10 m); 6 s: the fuse (4 s) and what follows. GUESS for
+    /// the exact values.
+    pub grenade_claim_m: f32,
+    pub grenade_claim_ms: u32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -889,6 +903,8 @@ impl Default for CombatTuning {
             grenade_search: false,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
+            grenade_claim_m: 8.0,
+            grenade_claim_ms: 6_000,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1356,6 +1372,8 @@ pub struct GrenadeStats {
     /// The places of those rolls, by source (a place is counted at each
     /// roll it is in).
     pub places: [u32; GRENADE_SOURCES],
+    /// Places dropped from a roll for a teammate's claim.
+    pub claimed: u32,
     /// The places weighed (up to `grenade_places` a roll, nearest first), by
     /// source; of them those refused by reason, and those that passed by arc.
     pub weighed: [u32; GRENADE_SOURCES],
@@ -1384,6 +1402,7 @@ impl GrenadeStats {
             thinks: self.thinks.saturating_sub(before.thinks),
             rolls: self.rolls.saturating_sub(before.rolls),
             chance_no: self.chance_no.saturating_sub(before.chance_no),
+            claimed: self.claimed.saturating_sub(before.claimed),
             places: sub(self.places, before.places),
             weighed: sub(self.weighed, before.weighed),
             refused: std::array::from_fn(|i| sub(self.refused[i], before.refused[i])),
@@ -1404,6 +1423,7 @@ impl GrenadeStats {
         self.thinks += other.thinks;
         self.rolls += other.rolls;
         self.chance_no += other.chance_no;
+        self.claimed += other.claimed;
         plus(&mut self.places, &other.places);
         plus(&mut self.weighed, &other.weighed);
         for (a, b) in self.refused.iter_mut().zip(&other.refused) {
@@ -1934,6 +1954,9 @@ pub struct Reflex {
     next_grenade_roll: u32,
     /// [measure] What the grenade logic did this life ([`GrenadeStats`]).
     grenade_stats: GrenadeStats,
+    /// A grenade decided on at this place, for the team's claim
+    /// ([`Reflex::take_throw_claim`]).
+    throw_claim: Option<Vec3>,
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
@@ -2382,6 +2405,12 @@ impl Reflex {
         std::mem::take(&mut self.throw_notes)
     }
 
+    /// The place a grenade was decided on since the last call: the team's
+    /// claim on it (`TeamKnowledge::claim_throw`).
+    pub fn take_throw_claim(&mut self) -> Option<Vec3> {
+        self.throw_claim.take()
+    }
+
     /// [measure] What the grenade logic has done this life, counted as it
     /// ran; nothing decides by it.
     pub fn grenade_stats(&self) -> GrenadeStats {
@@ -2475,7 +2504,7 @@ impl Reflex {
             self.next_outranged = now + c.outranged_again_ms;
             self.break_sight(me, sit, memory, now, false, false, c, rng);
         }
-        self.grenade_roll(me, sit.view, memory, now, aim, skill, rng);
+        self.grenade_roll(me, sit.view, sit.team, memory, now, aim, skill, rng);
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
@@ -3250,6 +3279,7 @@ impl Reflex {
         &mut self,
         me: &PlaceView,
         view: &MatchView,
+        team: Option<&TeamKnowledge>,
         memory: &Memory,
         now: u32,
         aim: &AimTuning,
@@ -3283,11 +3313,28 @@ impl Reflex {
             view.team(me.team)
                 .any(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
         };
+        // [G1] The places a teammate decided to throw at lately.
+        let claims: Vec<Vec3> = team
+            .filter(|_| c.grenade_tracks && c.grenade_claim_m > 0.0)
+            .map(|team| {
+                team.throws_of_others(me.place, now, c.grenade_claim_ms)
+                    .map(|claim| claim.at)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let claimed = |at: Vec3| claims.iter().any(|k| k.distance_xz(at) < c.grenade_claim_m);
+        let mut dropped = 0;
         let mut places: Vec<(Vec3, PlaceSource)> = held
             .chain(camps)
             .filter(|(at, _)| {
-                (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
-                    && !friend_near(*at)
+                if !((c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
+                    && !friend_near(*at))
+                {
+                    return false;
+                }
+                let hit = claimed(*at);
+                dropped += u32::from(hit);
+                !hit
             })
             .collect();
         if c.grenade_tracks {
@@ -3307,6 +3354,10 @@ impl Reflex {
                 {
                     continue;
                 }
+                if claimed(at) {
+                    dropped += 1;
+                    continue;
+                }
                 let source = if track.sight_since.is_some() || track.source == Source::Seen {
                     PlaceSource::Lost
                 } else {
@@ -3315,6 +3366,7 @@ impl Reflex {
                 places.push((at, source));
             }
         }
+        self.grenade_stats.claimed += dropped;
         if places.is_empty() {
             return;
         }
@@ -3353,6 +3405,7 @@ impl Reflex {
             })
         }) {
             Ok((at, pick)) => {
+                self.throw_claim = Some(at);
                 self.throw = Some(Throw {
                     at,
                     started: now,
@@ -6368,6 +6421,55 @@ mod tests {
         let off = throw_run_keyed(&[at], &[], CombatTuning::default(), None, 6_000, None, 0);
         assert!(off.thrown.is_empty());
         assert_eq!(off.stats.rolls, 0);
+    }
+
+    /// [G1] A teammate's claim within `grenade_claim_m` of the place drops it
+    /// from the roll (counted); the bot's own claim does not; a decision
+    /// leaves a claim for the team.
+    #[test]
+    fn a_teammates_claim_drops_the_place_and_a_decision_makes_one() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut camper = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
+        camper.keys = key::CROUCH | key::AIM;
+        let view = view_of(vec![me.clone(), camper.clone()]);
+        let aim = AimTuning {
+            combat: CombatTuning {
+                grenade_tracks: true,
+                grenade_chance: 1.0,
+                grenade_roll_ms: 500,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        let run = |team: &TeamKnowledge| {
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let sit = Situation {
+                team: Some(team),
+                ..Situation::of(&view)
+            };
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, camper.feet, now, Source::Seen)], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            for now in [1_800, 2_300, 2_800] {
+                sense(&mut memory, &[], now);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
+            }
+            (reflex.grenade_stats(), reflex.take_throw_claim())
+        };
+        let mut team = TeamKnowledge::default();
+        let (stats, claim) = run(&team);
+        assert!(claim.is_some(), "{stats:?}");
+        assert_eq!(stats.claimed, 0);
+        team.claim_throw(7, Vec3::new(2.0, 0.0, 22.0), 1_500);
+        let (stats, claim) = run(&team);
+        assert_eq!(claim, None, "{stats:?}");
+        assert!(stats.claimed > 0, "{stats:?}");
+        let mut own = TeamKnowledge::default();
+        own.claim_throw(0, Vec3::new(2.0, 0.0, 22.0), 1_500);
+        assert!(run(&own).1.is_some(), "his own volley is not held against him");
     }
 
     #[test]

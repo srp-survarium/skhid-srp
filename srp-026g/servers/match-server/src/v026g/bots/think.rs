@@ -419,6 +419,10 @@ pub(super) fn react(
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
     }
+    // A grenade decided on: its place is the team's to skip for a while.
+    if let Some(at) = bot.reflex.take_throw_claim() {
+        state.knowledge.claim_throw(bot.place, at, now);
+    }
     // Hit from a direction alone (the HUD's marker): its callout.
     if let Some((at, bearing)) = bot.reflex.take_hit_note() {
         state.knowledge.shots_from.push(know::ShotFrom {
