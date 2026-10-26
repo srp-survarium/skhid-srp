@@ -32,6 +32,4 @@ libc = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
-# Game data made up for tests (`weapons::with_grenade_patched`, `GameData::laid_over`): what a patched grenade
-# reaches (`bots::arc`).
-survarium = { workspace = true, features = ["fixtures"] }
+survarium ={ workspace = true, features = ["fixtures"] }
