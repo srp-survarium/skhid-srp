@@ -83,6 +83,9 @@ const SETTLE_MAX_MS: u32 = 5_000;
 const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
 const ARRIVED_M: f32 = 0.3;
+/// A walk that has gone on this long ([`NEAR_ACCEPT_AFTER_MS`]) is let off at this distance from its start, m.
+const NEAR_ACCEPT_M: f32 = 0.6;
+const NEAR_ACCEPT_AFTER_MS: u32 = 20_000;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -1215,7 +1218,7 @@ impl JumpTest {
                     self.yielding.remove(&bot.place);
                 }
                 let aim = Vec3::new(start.x + active.shift[0], start.y, start.z + active.shift[1]);
-                if me.feet.distance_xz(aim) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
+                if arrived_at(me.feet.distance_xz(aim), me.velocity[0].hypot(me.velocity[1]), now.saturating_sub(*since)) {
                     active.phase = if active.def.speed.is_motor() {
                         let plan = Plan {
                             rest: me.feet,
@@ -1540,6 +1543,14 @@ impl JumpTest {
             .unwrap_or_default();
         summarize(def, n, place, plan, began, redone, &rows, &self.uploads)
     }
+}
+
+/// Whether a walk has come to its start: within [`ARRIVED_M`] and still, or, once it has walked
+/// [`NEAR_ACCEPT_AFTER_MS`], within [`NEAR_ACCEPT_M`] and still (a start the body cannot be closer to than that: the
+/// J0 on Chemical Plant, two bodies 0.30-0.31 m off the pipes' start, struck two ledges). The Settle then judges the rest
+/// by the world, and a misfit aims the redo ([`shift_of`]).
+fn arrived_at(distance_m: f32, speed: f32, walked_ms: u32) -> bool {
+    speed < 0.6 && (distance_m <= ARRIVED_M || (distance_m <= NEAR_ACCEPT_M && walked_ms >= NEAR_ACCEPT_AFTER_MS))
 }
 
 /// How far to aim the reckoning off the start after a rest that did not fit: the reckoning's lead over the body
@@ -2312,6 +2323,15 @@ s100_3 14.2 16.32 138.72 1 0 1.009 0.25 0.50 7.01
         assert_eq!(sites["s100_3"].kind(2.5, Speed::Sprint), Kind::Climb);
         assert_eq!(sites["s100_3"].kind(3.0, Speed::Sprint), Kind::Over);
         assert_eq!(sites["c060_x"].kind(0.3, Speed::Walk), Kind::Unknown);
+    }
+
+    #[test]
+    fn a_walk_that_cannot_get_closer_than_a_third_of_a_metre_is_let_off_after_twenty_seconds() {
+        assert!(arrived_at(0.25, 0.0, 0), "within 0.3 m and still: at once");
+        assert!(!arrived_at(0.31, 0.0, 5_000), "0.31 m: not yet");
+        assert!(arrived_at(0.31, 0.0, 20_000), "0.31 m after 20 s");
+        assert!(!arrived_at(0.7, 0.0, 60_000), "0.7 m is not near enough ever");
+        assert!(!arrived_at(0.2, 1.5, 60_000), "moving is not arrived");
     }
 
     #[test]
