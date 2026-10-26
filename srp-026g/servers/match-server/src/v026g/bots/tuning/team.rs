@@ -91,6 +91,56 @@ impl Default for ThreatTuning {
 /// 3-10 ms.
 pub const SEARCH_FLOORS_PER_POLL: u32 = 10_000;
 
+/// Stepping out of a live grenade (`grenade_threat.rs`, `grenades-record/avoid-design.md`).
+///
+/// Every number but the switch is a GUESS and a sweep arm: the live matches show no human reaction to a
+/// landed grenade at all (mates and enemies leave the radius as often as they do 20 s earlier or later,
+/// `docs/notes/grenade_visibility.md`), so no delay can be copied from them; the defaults are the
+/// published reaction times (Rabin, Game AI Pro 2 ch. 5: 0.16-0.22 s simple, 0.38 s recognition).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AvoidTuning {
+    /// A bot steps out of the blast of every grenade it knows of (below). Off: no bot knows of one, the
+    /// list is not read.
+    pub grenade_avoid: bool,
+    /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
+    /// human team can call it, few do); they step out after this long, ms, drawn.
+    pub told_ms: (u32, u32),
+    /// The other team's bots know of a grenade once it lies on the ground and they hear or see it; they
+    /// step out after this long, ms, drawn.
+    pub notice_ms: (u32, u32),
+    /// An enemy sees a grenade on the ground within this, metres, in its view cone, with a line to it.
+    /// The client's draw distance for the 0.05 x 0.10 m model is not known.
+    pub see_m: f32,
+    /// The view cone of that, degrees (the whole angle).
+    pub cone_deg: f32,
+    /// An enemy within this of a landing hears the first bounce, metres (the live bounce sound is silent
+    /// from 20 m; at 8 m it is 0.07 of full).
+    pub hear_m: f32,
+    /// A bot is out of the blast this far past its radius, metres.
+    pub margin_m: f32,
+    /// A bot whose walk would take it into the blast within this, ms, counts as in it.
+    pub ahead_ms: u32,
+    /// How often a bot that is not stepping looks again at the grenades, ms.
+    pub look_ms: u32,
+}
+
+impl Default for AvoidTuning {
+    fn default() -> Self {
+        Self {
+            grenade_avoid: false,
+            told_ms: (200, 400),
+            notice_ms: (400, 900),
+            see_m: 30.0,
+            cone_deg: 100.0,
+            hear_m: 8.0,
+            margin_m: 0.5,
+            ahead_ms: 1_000,
+            look_ms: 200,
+        }
+    }
+}
+
 /// How often what runs (research B5).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -179,6 +229,17 @@ impl Personality {
             p("camper", 0.15, 1.8, 0.6, 0.8, 1.0, 0.2),
         ]
     }
+}
+
+/// The avoidance's ranges in order.
+pub(super) fn validate_avoid(avoid: &AvoidTuning) -> Result<(), String> {
+    check(avoid.told_ms.0 <= avoid.told_ms.1, "avoid.told_ms")?;
+    check(avoid.notice_ms.0 <= avoid.notice_ms.1, "avoid.notice_ms")?;
+    check(avoid.see_m >= 0.0 && avoid.hear_m >= 0.0, "avoid.see_m, hear_m")?;
+    check((0.0..=360.0).contains(&avoid.cone_deg), "avoid.cone_deg")?;
+    check(avoid.margin_m >= 0.0, "avoid.margin_m")?;
+    check(avoid.look_ms >= 20, "avoid.look_ms")?;
+    Ok(())
 }
 
 /// The think rates' ranges in order.

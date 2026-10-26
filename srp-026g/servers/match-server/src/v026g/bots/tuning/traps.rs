@@ -56,6 +56,49 @@ pub struct TrapTuning {
     pub look_ms: u32,
     /// Seconds before another try after a placement or a give-up.
     pub cooldown_s: f32,
+    /// The response to a trap that is not the team's (`bots/trap_react.rs`).
+    pub react: ReactTuning,
+}
+
+/// How a bot notices a trap of the other team or a human's (C18), and what is
+/// done about it. **Off** (`on` false) the bots are as before, bit for bit;
+/// a train turns it on by a tuning patch (`traps.react.on`). Every number is
+/// a GUESS: the recordings show no measurable reaction of the players to an
+/// armed trap, so the chance and the distances are tuned by the bench against
+/// the players' numbers (about 10 % of traps end disarmed; a walk-through
+/// share of passers of 28-35 %).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ReactTuning {
+    /// Whether a bot rolls for the traps it comes near, and counts its passes.
+    pub on: bool,
+    /// The chance of noticing a trap within `near_m` (once a roll).
+    pub p0: f32,
+    /// Within this the chance is `p0`, metres.
+    pub near_m: f32,
+    /// Beyond this a trap is not rolled for, metres; the chance falls
+    /// linearly from `near_m` to it.
+    pub far_m: f32,
+    /// The view the trap must lie in, degrees wide (`sense::in_view`).
+    pub cone_deg: f32,
+    /// Seconds before a missed trap is rolled for again.
+    pub roll_s: f32,
+    /// The chance is divided by this while the bot is in a fight.
+    pub fight_div: f32,
+}
+
+impl Default for ReactTuning {
+    fn default() -> Self {
+        Self {
+            on: false,
+            p0: 0.05,
+            near_m: 3.0,
+            far_m: 8.0,
+            cone_deg: 140.0,
+            roll_s: 20.0,
+            fight_div: 3.0,
+        }
+    }
 }
 
 impl Default for TrapTuning {
@@ -82,6 +125,7 @@ impl Default for TrapTuning {
             tolerance_rad: 0.07,
             look_ms: 900,
             cooldown_s: 20.0,
+            react: ReactTuning::default(),
         }
     }
 }
@@ -104,5 +148,16 @@ pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
         "traps.chance",
     )?;
     check(t.tolerance_rad > 0.0 && t.look_ms > 0, "traps.look")?;
+    let r = &t.react;
+    check(
+        (0.0..=1.0).contains(&r.p0)
+            && r.near_m >= 0.0
+            && r.far_m > r.near_m
+            && r.cone_deg > 0.0
+            && r.cone_deg <= 360.0
+            && r.roll_s >= 0.0
+            && r.fight_div >= 1.0,
+        "traps.react",
+    )?;
     Ok(())
 }
