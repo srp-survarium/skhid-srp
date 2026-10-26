@@ -1,6 +1,6 @@
 use crate::v026g::bots::arc;
 use crate::v026g::bots::tests::standin_grenade;
-use crate::v026g::bots::view::{EYE_CROUCHED, EYE_STANDING};
+use crate::v026g::bots::view::{eye_height, still_eye};
 
 use super::*;
 
@@ -172,7 +172,7 @@ pub(crate) fn a_throw_that_lands_near_the_thrower_though_aimed_far_is_short() {
     let level = thrown_with_pitch(0.0);
     assert_eq!(level["grenade_short"], 1, "{level}");
     // The pitch that lands it at 20 m: not short.
-    let pitch = arc::pitch_for(20.0, EYE_STANDING - arc::HAND_DOWN_M).unwrap();
+    let pitch = arc::pitch_for(20.0, still_eye(Vec3::ZERO, false).y - arc::HAND_DOWN_M).unwrap();
     let aimed = thrown_with_pitch(pitch);
     assert_eq!(aimed["grenade_short"], 0, "{aimed}");
 }
@@ -333,7 +333,7 @@ impl OwnerTally {
             let Some(rec) = bodies.get(throw.thrower).copied().flatten().filter(|r| r.alive) else {
                 continue;
             };
-            let up = if rec.keys & key::CROUCH != 0 { EYE_CROUCHED } else { EYE_STANDING };
+            let up = eye_height(rec.keys & key::CROUCH != 0, rec.speed, rec.pitch);
             let eye = rec.feet + Vec3::new(0.0, up, 0.0);
             let Some(landing) =
                 arc::Flight::thrown(eye, rec.yaw, rec.pitch).landing(&arc::Mesh(&game.world.sight))
