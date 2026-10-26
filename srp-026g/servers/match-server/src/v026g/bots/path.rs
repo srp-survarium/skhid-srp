@@ -59,13 +59,24 @@ pub const FELL_FROM_M: f32 = 3.0;
 /// under [`OFF_ROUTE_HEIGHT_M`], and a ramp of 30 m keeps a few dozen.
 const FLOOR_SAMPLE_M: f32 = 0.1;
 
+/// How a route's jump is pressed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Leap {
+    /// Up a jump link: the motor presses as it walks over the take-off.
+    Ledge,
+    /// Across a gap link (`mapdata::grid::gap`): pressed this far before the
+    /// take-off, along the way to the landing, where the grid found the
+    /// client's jump comes down on it.
+    Gap(mapdata::PressLead),
+}
+
 /// A corner of a route.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Waypoint {
     pub at: Vec3,
     pub node: NodeId,
-    /// Reached by a jump from the waypoint before.
-    pub jump: bool,
+    /// Reached by a jump from the waypoint before, and how it is pressed.
+    pub jump: Option<Leap>,
     /// The leg to it from the waypoint before goes over a floor a standing
     /// body does not fit under (`WalkGrid::can_stand`): walked crouched.
     pub low: bool,
@@ -498,13 +509,14 @@ fn pull_straight(
     // and the edge floors before it to it).
     let mut to_drop = vec![false; nodes.len()];
     for k in (0..nodes.len().saturating_sub(1)).rev() {
-        to_drop[k] = edge(nodes[k])
-            && (into[k + 1] == LinkKind::Drop || (into[k + 1] == LinkKind::Walk && to_drop[k + 1]));
+        // A gap link's take-off is at an edge too.
+        let leaves_edge = matches!(into[k + 1], LinkKind::Drop | LinkKind::GapDrop | LinkKind::GapJump);
+        to_drop[k] = edge(nodes[k]) && (leaves_edge || (into[k + 1] == LinkKind::Walk && to_drop[k + 1]));
     }
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
-        jump: false,
+        jump: None,
         low: false,
     }];
     // The floors of the leg from node `from` to node `to`, by distance
@@ -537,7 +549,12 @@ fn pull_straight(
             points.push(Waypoint {
                 at: grid.position(nodes[i]),
                 node: nodes[i],
-                jump: into[i] == LinkKind::Jump,
+                jump: match into[i] {
+                    LinkKind::Jump => Some(Leap::Ledge),
+                    // A gap link (`mapdata::grid::gap`): at its own press.
+                    kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).map(|l| Leap::Gap(l.press)),
+                    _ => None,
+                },
                 low: low(i - 1, i),
             });
             leg(i - 1, i, &mut floors);
@@ -559,7 +576,7 @@ fn pull_straight(
         points.push(Waypoint {
             at: grid.position(nodes[i]),
             node: nodes[i],
-            jump: false,
+            jump: None,
             low: low(from, i),
         });
         leg(from, i, &mut floors);
@@ -664,7 +681,7 @@ impl Route {
         points.push(Waypoint {
             at: to,
             node,
-            jump: true,
+            jump: Some(Leap::Ledge),
             low: false,
         });
         floors.push((along + last.at.distance_xz(to), to.y));
@@ -713,7 +730,7 @@ impl Route {
         self.points
             .iter()
             .zip(&self.along)
-            .any(|(point, &a)| point.jump && a >= s0 && a <= s1)
+            .any(|(point, &a)| point.jump.is_some() && a >= s0 && a <= s1)
     }
 
     /// A route by its corners and the floors' heights along it
@@ -794,7 +811,7 @@ impl Route {
     /// How far under the floor of leg `segment` a body is still on it:
     /// [`Self::below_walk_m`] on a walked leg, [`OFF_ROUTE_HEIGHT_M`] on a jump.
     fn below_m(&self, segment: usize) -> f32 {
-        if self.points[segment + 1].jump {
+        if self.points[segment + 1].jump.is_some() {
             OFF_ROUTE_HEIGHT_M
         } else {
             self.below_walk_m
@@ -890,7 +907,7 @@ impl Route {
     pub fn straight_ahead(&self, s: f32, angle: f32) -> (f32, Option<usize>) {
         let first = self.along.partition_point(|&a| a <= s);
         for k in first..self.points.len().saturating_sub(1) {
-            if self.points[k + 1].jump || self.turn_at(k) > angle {
+            if self.points[k + 1].jump.is_some() || self.turn_at(k) > angle {
                 return (self.along[k] - s, Some(k));
             }
         }
@@ -915,8 +932,19 @@ impl Route {
     pub fn next_jump(&self, s: f32) -> Option<(usize, f32)> {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
-            .find(|&k| self.points[k].jump)
+            .find(|&k| self.points[k].jump.is_some())
             .map(|k| (k, self.along[k - 1] - s))
+    }
+
+    /// The landings of the drops of a lip's height or more the route makes from `s` to `within` metres on (a
+    /// planned fall: the body walks off the edge there).
+    pub fn drop_landings(&self, s: f32, within: f32) -> Vec<Vec3> {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .filter(|&k| self.points[k].jump.is_none() && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+            .map(|k| self.points[k].at)
+            .collect()
     }
 
     /// Whether the route from `s` to `within` metres on goes over a floor
@@ -954,7 +982,7 @@ mod tests {
 
     #[test]
     fn a_stretch_of_a_route_is_replaced_by_a_detour_and_the_rest_is_kept() {
-        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
         let plain = Route::new(vec![wp(0.0, 0.0), wp(30.0, 0.0), wp(60.0, 0.0), wp(90.0, 0.0)]);
         // The stretch 20-70 m goes round by z = 10.
         let mid = Route::new(vec![wp(20.0, 0.0), wp(30.0, 10.0), wp(60.0, 10.0), wp(70.0, 0.0)]);
@@ -1102,7 +1130,7 @@ mod tests {
         let p = |x, z| Waypoint {
             at: Vec3::new(x, 0.0, z),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
@@ -1122,6 +1150,34 @@ mod tests {
         assert!(s >= 10.0, "{s}");
     }
 
+    /// The landings of the route's drops of a metre or more within reach, and no step, jump or short drop.
+    #[test]
+    fn the_landings_of_a_routes_drops_are_found_within_reach() {
+        let p = |x, y, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        // Along, down 0.5 m (a curb), along, down 2 m (a drop), along, up 1.2 m by a jump, along.
+        let route = Route::new(vec![
+            p(0.0, 3.0, false),
+            p(4.0, 3.0, false),
+            p(4.5, 2.5, false),
+            p(8.0, 2.5, false),
+            p(9.0, 0.5, false),
+            p(14.0, 0.5, false),
+            p(15.0, 1.7, true),
+        ]);
+        assert_eq!(route.drop_landings(0.0, 20.0), vec![Vec3::new(9.0, 0.5, 0.0)]);
+        // The drop's leg starts about 8 m along: out of reach from the start, in reach from 3 m.
+        assert!(route.drop_landings(0.0, 6.0).is_empty());
+        assert_eq!(route.drop_landings(3.0, 6.0).len(), 1);
+        // On the drop's leg, and past it, none behind it.
+        assert_eq!(route.drop_landings(8.5, 1.0).len(), 1);
+        assert!(route.drop_landings(10.0, 20.0).is_empty());
+    }
+
     /// A body that fell off a walkway its route goes on along is off the
     /// route, though the walkway is right over it on the ground plane; one
     /// a step under it or a jump's rise over it is on it.
@@ -1130,7 +1186,7 @@ mod tests {
         let p = |x, y, z| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         // Up a ramp from x 20 to x 12, then along a walkway 3 m up to x 0.
@@ -1166,7 +1222,7 @@ mod tests {
         let p = |x, y, z| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         // Along a walkway 3 m up to x 10, down to the ground at x 10.5, on
@@ -1209,10 +1265,10 @@ mod tests {
     /// leg (on the lower of two stairs) is on it.
     #[test]
     fn a_body_a_step_and_more_under_a_walked_leg_is_off_it() {
-        let p = |x, y, z, jump| Waypoint {
+        let p = |x, y, z, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let walked = Route::new(vec![p(0.0, 1.1, 0.0, false), p(10.0, 1.1, 0.0, false)]);
