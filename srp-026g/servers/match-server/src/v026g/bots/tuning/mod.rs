@@ -33,6 +33,7 @@ pub struct Tuning {
     pub think: ThinkTuning,
     /// The bear-trap habit (`bots/traps.rs`).
     pub traps: TrapTuning,
+    pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// Whether a bot's way out of a zone stays under the strength of the
@@ -58,6 +59,7 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             traps: TrapTuning::default(),
+            threat: ThreatTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
             plays: PlayKind::ALL
@@ -83,7 +85,7 @@ mod traps;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
+pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
 pub use traps::TrapTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
