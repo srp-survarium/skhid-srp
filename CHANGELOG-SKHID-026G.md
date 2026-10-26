@@ -632,3 +632,20 @@ kept and can be put back).
 - TODO: #456 SVD at equipment level 15
 - TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
 - TODO: #458 Revert Research HUD markers (#367) for rev 34
+
+## 26 Oct, 15:08 — TODO: the owner's words (update required)
+
+<!-- Revision 35 (026g-rev35), released 2026-10-26 15:08 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #459 Crash reporter: crash details even when the dump fails
+- TODO: #462 hud: keep a hidden minimap hidden when a match's map loads
+- TODO: #512 Kill feed: the ported weapons show their own icons (hud icons 53-68, combat_log_icon edit list)
+- TODO: #518 Crash reporter: game logs in the game's code page are transcoded, not dropped
+- TODO: #475 Rust patches: the framework (workspace, hook ABI, bindings, types, panics and log, the equivalence gate, one example)
+- TODO: #529 HUD: the view fades over the respawn countdown
+- TODO: #527 Rooms: a private room's owner arranges the teams and starts the match (1 v 0 too)
+- TODO: #464 Ragdoll on death: patch 76 on the Rust framework, the solver and the Bodycam look
+- TODO: #538 Self-test: the hud's stage also holds the death fade (#529)
+- TODO: #540 AGENTS.md: quick checks while iterating, the full run before pushing
+- TODO: #537 Blackout on main: a battery mode with no interface (patch 65 in Rust)
+- TODO: #439 London: remove anomalies and use the editor's spawn placements
