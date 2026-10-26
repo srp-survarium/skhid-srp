@@ -72,6 +72,11 @@ pub struct WeaponParams {
     pub bullet_damage: f32,
     pub max_damage_distance: f32,
     pub min_damage_distance: f32,
+    /// `bullet_pierce` (the armour piercing, before the ammo's `k_arp`) and
+    /// `min_damage_amount` (the share of the damage and the piercing left
+    /// from `min_damage_distance` on): [`super::damage`].
+    pub bullet_pierce: f32,
+    pub min_damage_amount: f32,
     /// `recoil`: `min/max_top_recoil`, `min/max_left_recoil`,
     /// `min/max_right_recoil` (the config's degrees), `recoil_power`, and
     /// the controller's gains (proportional, integral, derivational).
@@ -315,6 +320,8 @@ impl WeaponParams {
             bullet_damage: number(Some(p), "bullet_damage")?,
             max_damage_distance: number(Some(p), "max_damage_distance")?,
             min_damage_distance: number(Some(p), "min_damage_distance")?,
+            bullet_pierce: number(Some(p), "bullet_pierce")?,
+            min_damage_amount: number(Some(p), "min_damage_amount")?,
             top_recoil: range("top")?,
             left_recoil: range("left")?,
             right_recoil: range("right")?,
