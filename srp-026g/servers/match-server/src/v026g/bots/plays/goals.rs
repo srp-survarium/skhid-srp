@@ -315,12 +315,28 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     perch_count_n(2, in_range.len());
     let mut candidates: Vec<(Vec3, f32)> = Vec::new();
     for p in in_range {
-        if !(cx.tactics.fine_goal(p.at, cx.now, cx.bot.side)
-            && !cx.tactics.in_spawn_area(p.at, None)
-            && grid.locate(p.at, 0.5).is_some_and(|n| !grid.near_fall(n) && !grid.near_lip(n)))
-        {
+        if !cx.tactics.fine_goal(p.at, cx.now, cx.bot.side) {
             perch_count(3);
             continue;
+        }
+        if cx.tactics.in_spawn_area(p.at, None) {
+            perch_count(10);
+            continue;
+        }
+        match grid.locate(p.at, 0.5) {
+            None => {
+                perch_count(11);
+                continue;
+            }
+            Some(n) if grid.near_fall(n) => {
+                perch_count(12);
+                continue;
+            }
+            Some(n) if grid.near_lip(n) => {
+                perch_count(13);
+                continue;
+            }
+            Some(_) => {}
         }
         if !cx.tactics.sees(p.at + eye, target) {
             perch_count(4);
@@ -364,7 +380,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 10]> = const { std::cell::Cell::new([0; 10]) };
+    static PERCHED: std::cell::Cell<[u64; 14]> = const { std::cell::Cell::new([0; 14]) };
 }
 
 #[cfg(test)]
@@ -389,7 +405,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 10] {
+pub fn perch_counts() -> [u64; 14] {
     PERCHED.with(|c| c.get())
 }
 
