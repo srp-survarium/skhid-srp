@@ -136,6 +136,8 @@ def _typed(name, kind, patch, row, functions):
                      "function": row["function"], "handler": row["handler"], "args": args,
                      "returns": row["returns"], "orig": row["original_name"], "what": row["what"],
                      "target": f["va"], "pops": f["cleanup"], "params": f["params"],
+                     "raw_params": [engine_026g.rust_type(ckind) for ckind, _ in f["params"]],
+                     "raw_ret": None if engine_026g.return_kind(f["ret"]) is None else engine_026g.rust_type(f["ret"]),
                      "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
 
 
@@ -180,6 +182,56 @@ def convention_hook(patch, row, functions, kind):
     return h
 
 
+BRANCH = set(range(0x70, 0x80)) | {0xE8, 0xE9, 0xEB, 0xE0, 0xE1, 0xE2, 0xE3}
+
+
+def splice_hook(patch, row, functions):
+    """A `[[splice]]`: the game's function start jumps to our entry (which
+    the game calls in the function's convention), and the `Original` is a
+    trampoline, the relocated prologue then a jump past it. The prologue
+    (`original`, >= 5 bytes) must have no relative branch to relocate."""
+    name = patch["name"]
+    if "original" not in row:
+        raise Bad(f"{name}: a [[splice]] needs `original` (the prologue it relocates)")
+    prologue = bytes.fromhex(row["original"])
+    if len(prologue) < 5:
+        raise Bad(f"{name} at {row['at']:#x}: the prologue is {len(prologue)} bytes; a jump needs 5")
+    if any(b in BRANCH for b in prologue):
+        raise Bad(f"{name} at {row['at']:#x}: the prologue has a relative branch; it cannot be relocated into a "
+                  "trampoline (use a code hook)")
+    f, args, h = _typed(name, "splice", patch, row, functions)
+    convention = f["call"]
+    if convention not in ("stdcall", "cdecl", "thiscall"):
+        raise Bad(f"{name}: {row['function']} is {convention}; a splice needs stdcall, cdecl or thiscall")
+    this = convention == "thiscall"
+    nargs = len(args) - (1 if this else 0)
+    if this and nargs < 0:
+        raise Bad(f"{name}: a thiscall splice takes `this` as its first argument")
+    macro = {"stdcall": ("RUST_CALL", nargs, f["cleanup"]), "cdecl": ("RUST_CDECL", nargs),
+             "thiscall": ("RUST_THISCALL", nargs)}[convention]
+    h.update(original=prologue, convention=convention, this=this, entry_macro=macro, install=("splice", 0xE9),
+             orig_kind="trampoline", trampoline=(prologue, row["at"] + len(prologue)))
+    return h
+
+
+def code_hook(patch, row):
+    """A `[[code]]`: hand-written NASM (the escape hatch), linked into
+    patches.code and installed by a jump or call (opcode) from `at`, with a
+    byte limit the link checks. No shim, no Original."""
+    name = patch["name"]
+    for key in ("at", "original", "source", "symbol", "what"):
+        if key not in row:
+            raise Bad(f"{name}: a [[code]] needs `{key}`")
+    opcode = row.get("opcode", 0xE9)
+    if opcode not in (0xE8, 0xE9):
+        raise Bad(f"{name}: a [[code]] `opcode` is 0xE8 (call) or 0xE9 (jmp)")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", row["symbol"]) or not str(row["source"]).endswith(".asm"):
+        raise Bad(f"{name}: a [[code]] `symbol` is an identifier and `source` a .asm file")
+    return {"patch": name, "patch_no": patch["patch"], "kind": "code", "site": row["at"],
+            "original": bytes.fromhex(row["original"]), "entry": row["symbol"], "source": row["source"],
+            "install": ("code", opcode), "limit": row.get("limit"), "what": row["what"]}
+
+
 def hooks(tomls=None, functions=None):
     tomls = read_tomls() if tomls is None else tomls
     functions = engine_026g.every_function() if functions is None else functions
@@ -190,10 +242,13 @@ def hooks(tomls=None, functions=None):
         for kind in ("pointer", "vtable", "callback"):
             for row in patch.get(kind, ()):
                 out.append(convention_hook(patch, row, functions, kind))
-        for kind in ("splice", "lohook", "code"):
-            if patch.get(kind):
-                raise Bad(f"{patch['name']}: `{kind}` hooks are the design's but not generated yet "
-                          "(rust_patches.md); the first patch that needs one adds it")
+        for row in patch.get("splice", ()):
+            out.append(splice_hook(patch, row, functions))
+        for row in patch.get("code", ()):
+            out.append(code_hook(patch, row))
+        if patch.get("lohook"):
+            raise Bad(f"{patch['name']}: `lohook` hooks are the design's but not generated yet "
+                      "(rust_patches.md); the first patch that needs one adds the Context entry")
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
@@ -216,14 +271,30 @@ def rs_text(hs):
              "// site's arguments. The shim builds the typed arguments and calls the",
              "// patch's function (rust_patches.md)."]
     for h in hs:
+        if h["kind"] == "code":
+            continue                                   # raw NASM, no shim or Original
         result = RESULTS[h["returns"]]
-        raw_call = f"raw::{h['function']}(" + ", ".join(TYPES[v]["orig_raw"].format(n=n) for n, v in h["args"]) + ")"
+        # the function to call: itself (`call`, convention entries) or the
+        # splice trampoline (its start now jumps to us, so calling it would
+        # recurse); the trampoline runs the relocated prologue and the rest.
+        if h["orig_kind"] == "trampoline":
+            target_fn, abi = f"{h['entry']}_tramp", h["convention"]
+        else:
+            target_fn, abi = h["function"], None
+        raw_call = f"{target_fn}(" + ", ".join(TYPES[v]["orig_raw"].format(n=n) for n, v in h["args"]) + ")"
+        if abi is None:
+            raw_call = "raw::" + raw_call
         orig_body = result["from_raw"].format(x=raw_call)
         orig_params = ", ".join(f"{n}: {TYPES[v]['orig_type']}" for n, v in h["args"])
+        lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
+        if h["orig_kind"] == "trampoline":
+            ret = "" if h["raw_ret"] is None else f" -> {h['raw_ret']}"
+            lines += [f"/// The splice trampoline for {h['function']} ({h['target']:#x}): its relocated prologue,",
+                      "/// then a jump past the start our entry replaced (hook_entries_026g.asm).",
+                      f'unsafe extern "{abi}" {{ fn {h["entry"]}_tramp('
+                      + ", ".join(f"a{i}: {t}" for i, t in enumerate(h["raw_params"])) + f"){ret}; }}",
+                      ""]
         lines += [
-            "",
-            f"// ---- {h['patch']} (patch {h['patch_no']}) ----",
-            "",
             f"/// {h['function']} ({h['target']:#x}), as the {h['kind']} hook at {h['site']:#x} wraps it.",
             f"pub struct {h['orig']};",
             "",
@@ -244,8 +315,8 @@ def rs_text(hs):
             f"    // {h['site']:#x}, on the game's thread; a0.. are {h['function']}'s arguments.",
             "    let thread = unsafe { Thread::new() };",
         ]
-        null = (f"unsafe {{ raw::{h['function']}("
-                + ", ".join(TYPES[v]["null"].format(a=f"a{i}") for i, (_, v) in enumerate(h["args"])) + ") }")
+        null_args = ", ".join(TYPES[v]["null"].format(a=f"a{i}") for i, (_, v) in enumerate(h["args"]))
+        null = f"unsafe {{ {'raw::' if abi is None else ''}{target_fn}({null_args}) }}"
         null_ret = result["to_u32"].format(v=result["from_raw"].format(x=null))
         for i, (n, v) in enumerate(h["args"]):
             t = TYPES[v]
@@ -277,6 +348,8 @@ def asm_text(hs):
              "section .text",
              '%include "rust_hook_026g.inc"']
     for h in hs:
+        if h["kind"] == "code":
+            continue                                   # its own .asm source, not generated here
         macro = h["entry_macro"]
         lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
                   f"{h['target']:#x})"]
@@ -284,6 +357,10 @@ def asm_text(hs):
             lines += [f"global {h['entry']}", f"{h['entry']}:", f"    RUST_CALL {h['shim']}, {macro[1]}, {macro[2]}"]
         else:                                          # RUST_THISCALL / RUST_CDECL define the label themselves
             lines.append(f"    {macro[0]} {h['entry']}, {h['shim']}, {macro[1]}")
+        if h.get("trampoline"):                        # splice: the relocated prologue, then a jump past it
+            prologue, past = h["trampoline"]
+            lines += [f"global {h['entry']}_tramp", f"{h['entry']}_tramp:",
+                      "    db " + ", ".join(f"0x{b:02x}" for b in prologue), f"    jmp {past:#x}"]
     return "\n".join(lines) + "\n"
 
 
@@ -307,9 +384,11 @@ def installs(tomls=None, functions=None):
     return out
 
 
-def arena_sources():
-    """The sources of the arena's block patches.code."""
-    return ("rust/patches/Cargo.toml", ASM.name)
+def arena_sources(tomls=None, functions=None):
+    """The sources of the arena's block patches.code: the crate, the
+    generated entries, and each code hook's hand-written .asm."""
+    code = [h["source"] for h in hooks(tomls, functions) if h["kind"] == "code"]
+    return ("rust/patches/Cargo.toml", ASM.name, *dict.fromkeys(code))
 
 
 def stale():

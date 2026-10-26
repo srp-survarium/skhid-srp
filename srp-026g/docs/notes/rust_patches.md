@@ -122,13 +122,23 @@ args = ["handler: InputHandler", "action: Action", "state: Out<u32>"]
 Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
 ECX delivered in order, the result passed back, the callee-saved registers
-kept, the right bytes cleaned): `call` (the example), and `pointer`,
-`vtable` and `callback` (the convention entries, `RUST_THISCALL` /
-`RUST_CDECL`). `splice`, `lohook` and `code`, and `write`, are the design
-above and the `Context`/`Flow`/`Exit` API in `vostok`; hooks_026g.py refuses
-the three hook kinds until their first patch adds the entry (the trampoline
-`splice` needs, the register/FPU save-restore `lohook` needs). A register-ABI
-`call` still needs its reverse thunk.
+kept, the right bytes cleaned):
+- `call` (the example): `RUST_CALL`;
+- `pointer`, `vtable`, `callback` (the convention entries): `RUST_THISCALL`
+  / `RUST_CDECL`, the handler's `Original` the function the slot or callback
+  used to name;
+- `splice`: the function's convention entry plus a trampoline (the relocated
+  prologue, checked branch-free, then a jump past the start our jump
+  replaced), which the handler's `Original` calls;
+- `code`: a hand-written cave the site jumps to, linked into `patches.code`
+  with a byte limit (the escape hatch for what no typed kind fits).
+
+`lohook` and `write` are the design above and the `Context`/`Flow`/`Exit`
+API in `vostok`; hooks_026g.py refuses `lohook` until its first patch adds
+the register/FPU save-restore entry. A register-ABI `call` still needs its
+reverse thunk. Only `call` ships today (the suicide-key example); the other
+kinds' generators are proven by check_hooks_026g.py and wait for their first
+patch to wire the install into patch_026g.py.
 
 ## 4. Writing a patch, by the example
 

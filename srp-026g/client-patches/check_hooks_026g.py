@@ -58,7 +58,7 @@ def run_checks(original):
     ORIGINAL = original
     QUIET = True
     RESULTS.clear()
-    for fn in (test_pointer, test_callback, test_vtable):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code):
         fn()
     return list(RESULTS)
 
@@ -182,6 +182,90 @@ def test_vtable():
     convention_entry("vtable slot (2 dwords)", "thiscall", 2)
 
 
+def test_splice():
+    # a splice over a cdecl function with a 5-byte branch-free prologue:
+    # the start jumps to our entry; the handler calls the Original (the
+    # trampoline, the relocated prologue then a jump to the rest), so the
+    # whole runs as the unhooked function. The stub shim stands for the real
+    # one (it calls the trampoline). orig: `mov eax,0x11110000` (the prologue)
+    # then `add eax,[esp+4]; ret` (the rest).
+    entry_src = ("extern orig_rest\n"
+                 "RUST_CDECL entry, stub, 1\n"
+                 "global entry_tramp\nentry_tramp:\n"
+                 "    db 0xb8, 0x00, 0x00, 0x11, 0x11\n"      # mov eax, 0x11110000 (relocated prologue)
+                 "    jmp orig_rest\n")
+    stub_src = ("extern entry_tramp\nglobal stub\nstub:\n"
+                "    push dword [esp+4]\n    call entry_tramp\n    add esp, 4\n    ret\n"
+                "global orig\norig:\n    mov eax, 0x11110000\n"
+                "global orig_rest\norig_rest:\n    add eax, [esp+4]\n    ret\n")
+    blob, labels = assemble(entry_src, stub_src)
+    m = Machine(bytes(ORIGINAL), blob, TEST_VA)
+    through = m.run(labels["entry"], args=(0x42,))
+    direct = Machine(bytes(ORIGINAL), blob, TEST_VA).run(labels["orig"], args=(0x42,))
+    ok = (through["eax"] == direct["eax"] == 0x11110042 and all(through[r] == SENTINELS[r] for r in SAVED)
+          and through["popped"] == 0)
+    check(ok, f"splice: the entry and trampoline run the function whole (eax {through['eax']:#x}), callee-saved "
+          "kept, caller cleans (cdecl)")
+    # the generator relocates a real branch-free prologue (network_client's
+    # destructor 0x219E60: push ebp / mov ebp,esp / and esp,-8 / sub esp,0x28)
+    import hooks_026g
+    row = {"at": 0x219E60, "original": "8bec83e4f883ec28", "function": "engine_dtor", "handler": "h",
+           "original_name": "O", "args": [], "returns": "u32", "what": "x"}
+    fns = [{"symbol": "engine_dtor", "va": 0x219E60, "args": [], "params": [], "ret": "unsigned int",
+            "cleanup": 0, "result": "EAX", "name": "dtor", "prototype": "", "call": "cdecl"}]
+    try:
+        hooks_026g.splice_hook({"name": "fix", "patch": 0}, row, fns)
+        check(True, "splice: a real branch-free prologue (0x219E60's) is accepted and relocated")
+    except hooks_026g.Bad as e:
+        check(False, f"splice prologue rejected: {e}")
+    # a prologue with a relative branch is refused
+    bad = dict(row, original="eb00" + "90" * 4)
+    try:
+        hooks_026g.splice_hook({"name": "fix", "patch": 0}, bad, fns)
+        check(False, "splice must refuse a prologue with a branch")
+    except hooks_026g.Bad:
+        check(True, "splice refuses a prologue with a relative branch (cannot relocate)")
+
+
+def test_code():
+    # a code hook (the escape hatch): a hand-written cave the site jumps to,
+    # which does its work and jumps back. Here it adds a constant and returns,
+    # as the site's `add eax,0x11111111 / ret` would.
+    cave = ("bits 32\nsection .text\nglobal cave\ncave:\n    add eax, 0x11111111\n    jmp done\n"
+            "global site\nsite:\n    jmp cave\nglobal done\ndone:\n    ret\n"
+            "global orig_site\norig_site:\n    add eax, 0x11111111\n    ret\n")
+    with tempfile.TemporaryDirectory() as folder:
+        f = lambda n: str(Path(folder) / n)
+        Path(f("c.asm")).write_text(cave)
+        subprocess.run(["nasm", "-f", "elf32", f("c.asm"), "-o", f("c.o")], check=True)
+        subprocess.run(["ld", "-m", "elf_i386", "-Ttext", hex(TEST_VA), "-e", "cave", "--no-warn-rwx-segments",
+                        "-o", f("c.elf"), f("c.o")], check=True, capture_output=True)
+        subprocess.run(["objcopy", "-O", "binary", "-j", ".text", f("c.elf"), f("c.bin")], check=True)
+        blob = Path(f("c.bin")).read_bytes()
+        labels = {}
+        for line in subprocess.run(["nm", f("c.elf")], capture_output=True, text=True).stdout.splitlines():
+            p = line.split()
+            if len(p) == 3:
+                labels[p[2]] = int(p[0], 16)
+    m = Machine(bytes(ORIGINAL), blob, TEST_VA)
+    m.uc.reg_write(UC_X86_REG_EAX, 0)
+    through = m.run(labels["site"])
+    direct = Machine(bytes(ORIGINAL), blob, TEST_VA)
+    direct.uc.reg_write(UC_X86_REG_EAX, 0)
+    base_run = direct.run(labels["orig_site"])
+    check(through["eax"] == base_run["eax"] and all(through[r] == SENTINELS[r] for r in SAVED),
+          f"code: the cave the site jumps to runs and returns as the replaced bytes would (eax {through['eax']:#x})")
+    # the generator includes the source and installs a jump; an over-limit
+    # body is for the link to catch (limit carried on the hook).
+    import hooks_026g
+    hs = hooks_026g.hooks([{"name": "fix", "patch": 0, "code": [{"at": 0x100000, "original": "9090909090",
+                           "source": "x.asm", "symbol": "cave", "what": "x", "limit": 0x40}]}], [])
+    ok = (hs[0]["install"] == ("code", 0xE9) and "x.asm" in hooks_026g.arena_sources(
+        [{"name": "fix", "patch": 0, "code": [{"at": 0x100000, "original": "9090909090", "source": "x.asm",
+         "symbol": "cave", "what": "x"}]}], []))
+    check(ok, "code: the generator installs a jump to the cave and links its .asm source")
+
+
 ORIGINAL = b""
 
 
@@ -189,7 +273,7 @@ def main():
     global ORIGINAL
     ORIGINAL = open(sys.argv[1], "rb").read()
     print("hook entry kinds against the original exe")
-    for fn in (test_pointer, test_callback, test_vtable):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code):
         fn()
     print(f"\n{passed} ok, {failed} failed")
     raise SystemExit(1 if failed else 0)
