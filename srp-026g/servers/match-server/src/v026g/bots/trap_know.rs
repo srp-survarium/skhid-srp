@@ -20,7 +20,7 @@
 //!   to know: a human's, or another team's. It stays out of the list until a
 //!   bot has seen it (a later change).
 //!
-//! The team's bots keep off the floors within [`AVOID_M`] of a standing trap
+//! The team's bots keep off the floors within [`FIELD_M`] of a standing trap
 //! ([`TrapField`]): the route searches shut them (`RouteFilter::with_floors`)
 //! and a route that runs over a disc is dropped to be searched again
 //! (`traps::keep_off`). Sharing the list among the bots is the ledger's C-T1:
@@ -29,7 +29,7 @@
 use mapdata::{NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::traps::{PlacedTrap, TrapState};
 
-use super::traps::{AVOID_M, off_route_m};
+use super::traps::{FIELD_M, off_route_m};
 use super::view::Place;
 
 /// A world's trap is the bot's promise if it lies this near, metres.
@@ -40,6 +40,20 @@ pub const MATCH_MS: u32 = 2_000;
 pub const CONFIRM_MS: u32 = 20_000;
 /// A trap a world keeps is the same one if it is this near, metres.
 const SAME_M: f32 = 0.3;
+/// A body of the team with a broken leg this near a trap of the team's that
+/// went off was probably its victim, metres.
+pub const CAUGHT_NEAR_M: f32 = 8.0;
+
+/// How the teams' own traps went off: the bench counter "own trap caught an
+/// own-team body".
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OwnTrapCounts {
+    /// Traps of the teams that went off (to *fired*).
+    pub fired: u32,
+    /// Of them, those with a broken-legged body of the same team near (a
+    /// proxy: bots only).
+    pub own_team_caught: u32,
+}
 
 /// Where a team's trap is in its life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,8 +124,10 @@ impl TrapList {
         self.version += 1;
     }
 
-    /// A world of `world_ms` showed `found`.
-    pub fn sync(&mut self, world_ms: u32, found: &[PlacedTrap]) {
+    /// A world of `world_ms` showed `found`. Returns where the team's traps
+    /// went off since the last world (to *fired*).
+    pub fn sync(&mut self, world_ms: u32, found: &[PlacedTrap]) -> Vec<Vec3> {
+        let mut fired = Vec::new();
         let mut used = vec![false; found.len()];
         let mut changed = false;
         // The confirmed ones first: followed, or gone.
@@ -131,6 +147,9 @@ impl TrapList {
             used[i] = true;
             let phase = phase_of(found[i].state);
             if phase != trap.phase {
+                if phase == Phase::Fired {
+                    fired.push(trap.at);
+                }
                 trap.phase = phase;
                 changed = true;
             }
@@ -161,6 +180,9 @@ impl TrapList {
                 trap.at = Vec3::from_array(f.position);
                 trap.placed_ms = f.placed_ms;
                 trap.phase = phase_of(f.state);
+                if trap.phase == Phase::Fired {
+                    fired.push(trap.at);
+                }
                 confirmed += 1;
                 changed = true;
                 return true;
@@ -177,6 +199,7 @@ impl TrapList {
         if changed {
             self.version += 1;
         }
+        fired
     }
 }
 
@@ -198,11 +221,11 @@ pub struct TrapField {
 
 impl TrapField {
     /// The field of the standing traps in `list`: the floors whose centre is
-    /// within [`AVOID_M`] and half a cell of a trap (so a leg between two
-    /// open floors stays about [`AVOID_M`] off the trap), at about its height.
+    /// within [`FIELD_M`] of a trap, at about its height; a leg between
+    /// two open floors is tested by [`Self::hits`] against the same.
     pub fn of(list: &TrapList, grid: &WalkGrid) -> Self {
         let discs: Vec<Vec3> = list.standing().map(|trap| trap.at).collect();
-        let reach = AVOID_M + 0.5 * grid.cell_size();
+        let reach = FIELD_M;
         let mut shut: Vec<NodeId> = discs
             .iter()
             .flat_map(|disc| {
@@ -242,7 +265,7 @@ impl TrapField {
     pub fn hits(&self, points: &[Vec3]) -> bool {
         self.discs
             .iter()
-            .any(|disc| off_route_m(points, *disc) < AVOID_M - 0.05)
+            .any(|disc| off_route_m(points, *disc) < FIELD_M - 0.05)
     }
 }
 
@@ -367,7 +390,71 @@ mod tests {
             "the route round it does not: {:?}",
             points(&around)
         );
-        assert!(off_route_m(&points(&around), trap) >= AVOID_M - 0.05);
+        assert!(off_route_m(&points(&around), trap) >= FIELD_M - 0.05);
+    }
+
+    #[test]
+    fn the_field_is_the_triggers_reach_and_the_routes_tolerance_not_a_metre_and_more() {
+        // 0.6 m (PROVEN) and 0.15 m: a corridor of 1.6 m keeps a lane.
+        assert!((FIELD_M - 0.75).abs() < 1e-6);
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let grid = &s.tactics.world.grid;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(0, trap, 1_000);
+        let field = TrapField::of(&list, grid);
+        let near = |r0: f32, r1: f32| -> Vec<NodeId> {
+            let area = [trap.x - r1, trap.z - r1, trap.x + r1, trap.z + r1];
+            grid.floors_in(area)
+                .filter(|&n| {
+                    let d = grid.position(n).distance_xz(trap);
+                    d > r0 && d <= r1 && (grid.position(n).y - trap.y).abs() < 1.0
+                })
+                .collect()
+        };
+        let inside = near(0.0, FIELD_M);
+        let outside = near(FIELD_M, 1.2);
+        assert!(!inside.is_empty() && !outside.is_empty());
+        assert!(
+            inside.iter().all(|&n| !field.open(n)),
+            "every floor within 0.75 m is shut"
+        );
+        assert!(
+            outside.iter().all(|&n| field.open(n)),
+            "every floor beyond is open"
+        );
+        // A leg 0.7 m off the trap hits, one 0.8 m off does not.
+        let leg = |z: f32| [Vec3::new(20.0, 0.0, z), Vec3::new(30.0, 0.0, z)];
+        assert!(field.hits(&leg(10.0 + 0.6)));
+        assert!(!field.hits(&leg(10.0 + 0.8)));
+    }
+
+    #[test]
+    fn a_sync_says_which_of_the_teams_traps_went_off() {
+        let at = Vec3::new(30.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(3, at, 100_000);
+        assert!(
+            list.sync(103_000, &[world_trap(at, TrapState::Armed, 100_300)])
+                .is_empty()
+        );
+        assert_eq!(
+            list.sync(110_000, &[world_trap(at, TrapState::Fired, 100_300)]),
+            vec![at]
+        );
+        // Once: the next world still showing it fired says nothing.
+        assert!(
+            list.sync(112_000, &[world_trap(at, TrapState::Fired, 100_300)])
+                .is_empty()
+        );
+        // A promise first shown already fired is a trap that went off.
+        let mut list = TrapList::default();
+        list.promise(3, at, 100_000);
+        assert_eq!(
+            list.sync(105_000, &[world_trap(at, TrapState::Fired, 100_200)])
+                .len(),
+            1
+        );
     }
 
     #[test]

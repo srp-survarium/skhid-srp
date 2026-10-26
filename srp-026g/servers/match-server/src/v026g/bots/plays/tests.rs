@@ -115,6 +115,7 @@ impl Scenario {
             world_time: 299_000,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         };
         let mut tuning = Tuning::default();
         tuning.cheats.batteries = true;

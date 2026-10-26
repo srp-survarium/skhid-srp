@@ -35,6 +35,8 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    /// Stepping out of live grenades (`grenade_threat.rs`).
+    pub avoid: AvoidTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// `Ctx::path_dist` is the regions' walk between floors when a target
@@ -75,6 +77,7 @@ impl Default for Tuning {
             traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
+            avoid: AvoidTuning::default(),
             hazard_margin: 1.0,
             floor_paths: false,
             escape_ceiling: true,
@@ -103,8 +106,10 @@ mod traps;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
-pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use sense::{CheatTuning, HearingRanges, SenseTuning};
+pub use team::{
+    AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
+};
 pub use traps::{ReactTuning, TrapTuning};
 
 /// `Ok` if `ok`, else the name of what is wrong.
@@ -140,6 +145,7 @@ impl Tuning {
     pub fn validate(&self) -> Result<(), String> {
         sense::validate(&self.sense)?;
         team::validate_think(&self.think)?;
+        team::validate_avoid(&self.avoid)?;
         motion::validate_feel(&self.feel)?;
         traps::validate(&self.traps)?;
         aim::validate_skill(&self.skill)?;
@@ -233,6 +239,10 @@ mod tests {
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
         assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
+        assert_eq!(
+            wrong(|t| t.sense.ranges = HearingRanges::Game { crouch_step_m: t.sense.step_m + 1.0 }),
+            "sense.ranges.game.crouch_step_m"
+        );
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.hop_every_s = 0.0), "feel.hop_*");

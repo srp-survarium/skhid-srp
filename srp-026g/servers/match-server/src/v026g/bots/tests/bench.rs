@@ -311,6 +311,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
@@ -685,7 +686,7 @@ pub(crate) fn real_bot_cost() {
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
-            owner.camper = bots.bench_camper.map(|(place, _)| place);
+            owner.set_camper(bots.bench_camper.map(|(place, _)| place));
             if let Some((place, _)) = bots.bench_camper
                 && camper::CamperOptions::from_env().long_gun
             {
