@@ -813,6 +813,7 @@ impl Game {
         self.shoot(tick);
         standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
+        self.resupply(&pressed);
         if let Some((m, next)) = self.nudge
             && tick >= next
         {
@@ -1204,6 +1205,12 @@ impl Game {
         else {
             return false;
         };
+        self.uses_shape(body, shape)
+    }
+
+    /// Whether the view's ray from `body`'s eye meets `shape` by the game's
+    /// use rule ([`Self::uses_container_box`]).
+    pub(crate) fn uses_shape(&self, body: &Body, shape: &mapdata::Shape) -> bool {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
@@ -1341,6 +1348,27 @@ impl Game {
                     }
                 }
             }
+        }
+    }
+
+    /// The bodies' use of their own team's resupply box
+    /// ([`standin_weapon::Stock::resupply`]).
+    pub(crate) fn resupply(&mut self, pressed: &[u32]) {
+        let tick = self.tick;
+        for place in 0..self.bodies.len() {
+            let body = &self.bodies[place];
+            let team = i32::from(body.team);
+            let shape = self
+                .world
+                .map
+                .zones
+                .iter()
+                .find(|z| z.kind == mapdata::ZoneKind::Resupply && z.team == team)
+                .and_then(|z| z.shapes.first());
+            let meets = shape.is_some_and(|shape| self.uses_shape(body, shape));
+            let free = body.alive && body.carrying.is_none();
+            let (edge, held) = (pressed[place] & key::USE != 0, body.keys & key::USE != 0);
+            self.bodies[place].stock.resupply(tick, edge, held, meets, free);
         }
     }
 
