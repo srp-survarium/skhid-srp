@@ -768,6 +768,16 @@ impl OwnerTally {
             self.fight.switches,
             self.fight.switches_off_hurter,
         );
+        let w = self.walk_stats;
+        let text = format!(
+            "{text}
+  owner-test walk cache: {} hits {} misses ({:.1} % hit), {} goals kept, {} KB",
+            w.hits,
+            w.misses,
+            100.0 * w.hits as f64 / (w.hits + w.misses).max(1) as f64,
+            w.kept,
+            w.bytes / 1024
+        );
         Part::new(json, text)
     }
 }
