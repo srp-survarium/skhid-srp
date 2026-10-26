@@ -104,6 +104,13 @@ void bo_input(u32 *mask) {
     *mask &= ~bo_held;
 }
 
+/* 1 while Tab is held (the last show_player_list call said so): patch 62's
+ * hide_ui_icons tells the player icons, whose players' markers a forced match
+ * shows only then. */
+u32 bo_tab_held(void) {
+    return bo_tab_down;
+}
+
 /* 1 when the options last read are a Blackout match's. */
 u32 bo_match(void) {
     return bo_blackout;

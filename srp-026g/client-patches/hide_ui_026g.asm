@@ -31,8 +31,8 @@
 ; Forced (patch 65, Blackout; ../docs/notes/blackout.md): hide_ui_force is the
 ; one place that forces the state (hide_ui_forced): forced, each movie hides
 ; its interface but for what a forced one keeps (root.force_interface_hidden:
-; the hud the pre-match countdown, the player icons the players' markers and
-; names) and F11 does nothing in the match (the case 19h goes on to 0x25CF0D,
+; the hud the pre-match countdown, the player icons nothing; while Tab is held
+; the hud its Tab view, the player icons the players' markers and names) and F11 does nothing in the match (the case 19h goes on to 0x25CF0D,
 ; the replay's controls still toggled); not forced, both are shown and F11
 ; works. The reset calls it with bo_match's answer (the match's static info
 ; said Blackout), so a Blackout match is forced from its first frame to its
@@ -78,6 +78,7 @@ global hide_ui_match, hide_ui_lobby, hide_ui_reset, hide_ui_force
 global hide_ui_icons
 global hide_ui_forced                ; the forced state (the self-test reads it)
 extern bo_match                    ; patch 65 (blackout_026g.c): 1 for a Blackout match
+extern bo_tab_held                 ; patch 65: 1 while Tab is held
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
@@ -249,36 +250,57 @@ hide_ui_force:
     ret
 
 ; update_player_icons' frame ([esp+4] the hud, game_world_ui): the player
-; icons' movie the hud holds is told the forced state
-; (root.force_interface_hidden(hide_ui_forced): forced, its players' markers
-; and names stay and its objects' are hidden, player_icons' MainTimeline)
-; when it is another movie, or the state another, than the one last told; a
-; movie that does not take it yet (no root) is told at the next frame. Every
-; register but eax, ecx and edx kept.
+; icons' movie the hud holds is told the forced state and Tab's
+; (root.force_interface_hidden(hide_ui_forced), root.force_interface_tab(Tab
+; held, bo_tab_held): forced, its objects' markers hidden and its players'
+; shown only while Tab is held, player_icons' MainTimeline) when it is
+; another movie, or the state another, than the one last told; a movie that
+; does not take them yet (no root) is told at the next frame. Every register
+; but eax, ecx and edx kept.
 hide_ui_icons:
     push ebx
     push edi
-    mov edi, [esp+12]
+    push esi
+    mov edi, [esp+16]
     mov ecx, ICONS_MOVIE
     call movie_of
     test eax, eax
     jz .out
-    movzx ebx, byte [hide_ui_forced]
-    cmp eax, [icons_told]
+    mov esi, eax                   ; the movie
+    call bo_tab_held
+    test eax, eax
+    setnz al
+    movzx eax, al
+    add eax, eax
+    or al, [hide_ui_forced]        ; the state: bit 0 forced, bit 1 Tab held
+    cmp esi, [icons_told]
     jne .tell
-    cmp bl, [icons_told_state]
+    cmp al, [icons_told_state]
     je .out
 .tell:
     push eax
+    mov ebx, eax
+    and ebx, 1
     mov ecx, ICONS_MOVIE
     mov edx, force_interface_hidden
     call invoke_bool
-    pop ecx
     test al, al
-    jz .out                        ; not taken: again at the next frame
-    mov [icons_told], ecx
-    mov [icons_told_state], bl
+    jz .refused
+    mov ebx, [esp]
+    shr ebx, 1
+    mov ecx, ICONS_MOVIE
+    mov edx, force_interface_tab
+    call invoke_bool
+    test al, al
+    jz .refused
+    pop eax
+    mov [icons_told], esi
+    mov [icons_told_state], al
+    jmp .out
+.refused:                          ; not taken: again at the next frame
+    pop eax
 .out:
+    pop esi
     pop edi
     pop ebx
     ret
@@ -373,6 +395,8 @@ hide_interface:
     db "root.hide_interface", 0
 force_interface_hidden:
     db "root.force_interface_hidden", 0
+force_interface_tab:
+    db "root.force_interface_tab", 0
 
 hide_interface_label:
     db "st_hide_interface_action", 0

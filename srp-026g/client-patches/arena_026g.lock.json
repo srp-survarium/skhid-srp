@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 74076,
-  "sha256": "b7ba7b303899bb44068bb291e6dadcb1a4677dda9e1b3c5867fdc3499b3b22c6",
+  "sha256": "5824dbee64af7fcc43852954cc313c9e5f0bc358095f4baf4cfa177d83f24816",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,7 +62,7 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43c000",
-      "size": 769
+      "size": 842
     },
     "hide_ui.data": {
       "kind": "data",
@@ -72,7 +72,7 @@
     "blackout.code": {
       "kind": "code",
       "va": "0xa43f000",
-      "size": 330
+      "size": 336
     },
     "blackout.state": {
       "kind": "state",
@@ -89,10 +89,11 @@
     "artefacts_unlink": "0xa43100a",
     "bo_input": "0xa43f0f8",
     "bo_input_entry": "0xa43f025",
-    "bo_match": "0xa43f144",
+    "bo_match": "0xa43f14a",
     "bo_options": "0xa43f040",
     "bo_tab": "0xa43f0e0",
     "bo_tab_entry": "0xa43f000",
+    "bo_tab_held": "0xa43f144",
     "chat_variable": "0xa434000",
     "controls": "0xa43d008",
     "engine_accept_decal_edit": "0xa432460",
@@ -173,7 +174,7 @@
     "hide_ui_force": "0xa43c135",
     "hide_ui_forced": "0xa43d000",
     "hide_ui_icons": "0xa43c175",
-    "hide_ui_lobby": "0xa43c1c4",
+    "hide_ui_lobby": "0xa43c1f5",
     "hide_ui_match": "0xa43c000",
     "hide_ui_reset": "0xa43c105",
     "match_keys_chat": "0xa4330c3",

@@ -865,8 +865,8 @@ package
       // Forced hidden for a whole match (Blackout, exe patch 65's hide_ui_force; docs/notes/blackout.md):
       // the interface hidden as by the key, except what a forced match keeps: always the pre-match
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
-      // while the Tab list is asked for (show_player_list) the match's time left and, alive, the ammo
-      // and the quick-use slots or, while the game shows the kits (the death screen, before the
+      // while the Tab list is asked for (show_player_list) the match's time left and, alive, the ammo,
+      // the quick-use slots and the body's state (critInd: the parts, bleeding, radiation, toxins) or, while the game shows the kits (the death screen, before the
       // start), the kits to pick from (keptOnTab), not the list. A kept part is in _keptLayer
       // (KeptLayer: on the stage over the root, placed as the root is), so the hidden root leaves it,
       // and works there as in the root; back at its place in the root when not.
@@ -905,7 +905,7 @@ package
          {
             return [this._profilePanel,this.matchTime()];
          }
-         return [this.ammoInd,this.quick_slots,this.matchTime()];
+         return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime()];
       }
 
       // Tab down or up (the game tells the movie at a change, game_world_ui::show_player_list): what

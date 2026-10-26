@@ -27,10 +27,12 @@ is a stub that records each call and answers root.interface_hidden):
   match is free again);
 - the markers' feed: update_ui's call of update_player_icons (0x23B207, a
   stub) runs once a frame in any match; before it the icons' movie is told
-  the forced state (root.force_interface_hidden: 1 in a Blackout match, its
-  players' markers kept and its objects' hidden, 0 in another) at the first
-  frame after a reset, after the hud holds another icons' movie, and again
-  at the next frame while the movie does not take it (Invoke answering 0);
+  the forced state and Tab's (root.force_interface_hidden: 1 in a Blackout
+  match, its objects' markers hidden and its players' shown only while Tab
+  is held, root.force_interface_tab; 0 in another) at the first frame after
+  a reset, at a Tab down or up, after the hud holds another icons' movie,
+  and again at the next frame while the movie does not take it (Invoke
+  answering 0);
   else nothing; no movie, nothing; the original feeds alike and invokes
   nothing;
 - Tab: show_player_list's call (0x25CD34) keeps Tab's state, and the input
@@ -230,36 +232,45 @@ def main():
 
     print("the markers' movie's feed (update_ui's update_player_icons, 0x23B207)")
     on = srpx((2, b"\x01"))
-    told = lambda movie, flag: [(movie, "root.force_interface_hidden", (flag,))]
+    told = lambda movie, flag, tab: [(movie, "root.force_interface_hidden", (flag,)),
+                                     (movie, "root.force_interface_tab", (tab,))]
+    M, OTHER = hide.ICONS_MOVIE, OTHER_ICONS
     frames = [
-        # (what, a reset after this static info first or not, the icons' movie, it refuses, the Invokes wanted)
-        ("a match without, its first frame after the reset", b"", True, hide.ICONS_MOVIE, False,
-         told(hide.ICONS_MOVIE, 0)),
-        ("its next frame", None, False, hide.ICONS_MOVIE, False, []),
-        ("a Blackout match, its first frame after the reset", on, True, hide.ICONS_MOVIE, False,
-         told(hide.ICONS_MOVIE, 1)),
-        ("its next frame", None, False, hide.ICONS_MOVIE, False, []),
-        ("the hud holding another icons' movie (a new game world's)", None, False, OTHER_ICONS, False,
-         told(OTHER_ICONS, 1)),
-        ("its next frame", None, False, OTHER_ICONS, False, []),
-        ("a Blackout match again, its movie without a root yet (Invoke answers 0)", on, True, hide.ICONS_MOVIE,
-         True, told(hide.ICONS_MOVIE, 1)),
-        ("the next frame, the movie taking it", None, False, hide.ICONS_MOVIE, False, told(hide.ICONS_MOVIE, 1)),
-        ("the frame after", None, False, hide.ICONS_MOVIE, False, []),
-        ("no icons' movie", None, False, 0, False, []),
-        ("the next match without, after its reset", b"", True, hide.ICONS_MOVIE, False, told(hide.ICONS_MOVIE, 0)),
+        # (what, a reset after this static info first or not, Tab down (1), up (0) or as it is (None), the
+        # icons' movie, it refuses, the Invokes wanted)
+        ("a match without, its first frame after the reset", b"", True, None, M, False, told(M, 0, 0)),
+        ("its next frame", None, False, None, M, False, []),
+        ("Tab down in it", None, False, 1, M, False, told(M, 0, 1)),
+        ("Tab up", None, False, 0, M, False, told(M, 0, 0)),
+        ("a Blackout match, its first frame after the reset: no players' markers", on, True, None, M, False,
+         told(M, 1, 0)),
+        ("its next frame", None, False, None, M, False, []),
+        ("Tab down: the players' markers", None, False, 1, M, False, told(M, 1, 1)),
+        ("Tab still held", None, False, 1, M, False, []),
+        ("Tab up: none again", None, False, 0, M, False, told(M, 1, 0)),
+        ("the hud holding another icons' movie (a new game world's)", None, False, None, OTHER, False,
+         told(OTHER, 1, 0)),
+        ("its next frame", None, False, None, OTHER, False, []),
+        ("a Blackout match again, its movie without a root yet (Invoke answers 0)", on, True, None, M, True,
+         told(M, 1, 0)[:1]),
+        ("the next frame, the movie taking it", None, False, None, M, False, told(M, 1, 0)),
+        ("the frame after", None, False, None, M, False, []),
+        ("no icons' movie", None, False, None, 0, False, []),
+        ("the next match without, after its reset", b"", True, None, M, False, told(M, 0, 0)),
     ]
-    for name, block, reset, icons, refuses, want in frames:
+    for name, block, reset, tab, icons, refuses, want in frames:
         if block is not None:
             patched.options(empty_options(block))
             stock.options(empty_options(block))
         if reset:
             patched.reset(1, 1)
+        if tab is not None:
+            patched.tab(tab)
         patched.refused, patched.refusing = ((b"root.force_interface_hidden",), (icons,)) if refuses else ((), ())
         calls, back, kept, invoked = patched.icons_fed(icons)
         report(back and kept and calls == 1 and invoked == want,
                f"{name}: update_player_icons run {calls} time(s); "
-               + (f"the icons' root.force_interface_hidden({want[0][2][0]})" if want else "nothing invoked")
+               + (", ".join(f"the icons' {w[1]}({w[2][0]})" for w in want) if want else "nothing invoked")
                + ", back at 0x23b20c with the ui popped, the registers kept")
     patched.refused = ()
     calls, back, kept, invoked = stock.icons_fed()
