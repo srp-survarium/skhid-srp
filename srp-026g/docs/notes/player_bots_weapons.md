@@ -745,9 +745,12 @@ p95, m. Hit runs in brackets: runs that hit one enemy, at his distance.
   the class's range, by class; the yardstick is `CLASS_RANGE_M`, the same
   numbers whatever the tuning), `hits_past_class_range`,
   `hit_rate_in_class_range` / `hit_rate_past_class_range` (hits a fire tick
-  within and past it), and `fire_held_by_class_range` (ticks the range was the
-  only gate that failed: the rounds the cut saved, an upper bound unless
-  `SRP_BENCH_GATES` is on).
+  within and past it), `fire_past_class_range_at_target` (the same count by the
+  distance of the bot's own target, which is what the gate cuts) and
+  `fire_held_by_class_range` (reflex ticks at which the range was the only
+  cheap gate that failed, a bot at a time: NOT rounds saved, since a held bot
+  would also have paused between bursts or had a wall in the line; the shots
+  saved are the fire ticks past the range by target, off against on).
 - **Flag off** (`range_by_weapon=false`): the trigger is as before X1 (80 m, 120 m
   for a bolt action); return fire changes nothing then.
 - **The Cologne report's 80-106 m fire with a Vityaz** cannot come from the
