@@ -167,11 +167,14 @@ pub enum NoRoute {
     Searched,
     /// Its route ended this tick: arrived, or off it.
     Ended,
+    /// Given up in its pocket (`think.shut_in_gate`): no search is asked for a goal outside
+    /// it, and `NoWay` stays the count of failed searches.
+    ShutIn,
 }
 
 #[cfg(test)]
 thread_local! {
-    static NO_ROUTE: std::cell::Cell<[u64; 5]> = const { std::cell::Cell::new([0; 5]) };
+    static NO_ROUTE: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
 }
 
 /// A tick of a bot with a goal and no route, counted by why.
@@ -189,7 +192,7 @@ pub fn no_route(_: NoRoute) {}
 
 /// The ticks counted by [`no_route`] so far, by [`NoRoute`] in order.
 #[cfg(test)]
-pub fn no_routes() -> [u64; 5] {
+pub fn no_routes() -> [u64; 6] {
     NO_ROUTE.with(|c| c.get())
 }
 
@@ -352,7 +355,7 @@ pub fn plan_in(
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, from, to, allowed, region_ok, &mut iters) {
+    match plan_start(grid, regions, from, to, allowed, region_ok, None, &mut iters) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }
@@ -368,12 +371,13 @@ pub struct Planning {
     slices: u64,
 }
 
-/// [`plan_in`] for at most `iters` floors expanded (taken off it): the
+/// [`plan_in`] for a body whose jumps rise at most `max_rise` metres
+/// (`None`: the grid's own), for at most `iters` floors expanded (taken off it): the
 /// route, or none, once the search ends within them; else the search,
 /// to go on with the same `allowed` and `region_ok`. A search that ends
 /// within them gives what [`plan_in`] gives.
 // The Err is the search under way, which the bot keeps: not an error to box.
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
 pub fn plan_start(
     grid: &WalkGrid,
     regions: &Regions,
@@ -381,11 +385,12 @@ pub fn plan_start(
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
     region_ok: impl Fn(u32) -> bool,
+    max_rise: Option<f32>,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
     #[cfg(test)]
     let started = std::time::Instant::now();
-    match regions.start_route_search(grid, from, to, &allowed, &region_ok, usize::MAX) {
+    match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, max_rise) {
         Err((found, _stage)) => {
             #[cfg(test)]
             count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);

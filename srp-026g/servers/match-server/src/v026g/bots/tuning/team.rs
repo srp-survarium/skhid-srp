@@ -218,23 +218,63 @@ impl Personality {
     }
 }
 
-/// The avoidance's ranges in order.
-pub(super) fn validate_avoid(avoid: &AvoidTuning) -> Result<(), String> {
-    check(avoid.told_ms.0 <= avoid.told_ms.1, "avoid.told_ms")?;
-    check(avoid.notice_ms.0 <= avoid.notice_ms.1, "avoid.notice_ms")?;
-    check(avoid.see_m >= 0.0 && avoid.hear_m >= 0.0, "avoid.see_m, hear_m")?;
-    check((0.0..=360.0).contains(&avoid.cone_deg), "avoid.cone_deg")?;
-    check(avoid.margin_m >= 0.0, "avoid.margin_m")?;
-    check(avoid.look_ms >= 20, "avoid.look_ms")?;
-    Ok(())
+/// The personalities and their share of the bots (play 14). In a file, a list of them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Personalities(pub Vec<Personality>);
+
+impl Default for Personalities {
+    fn default() -> Self {
+        Self(Personality::defaults())
+    }
 }
 
-/// The think rates' ranges in order.
-pub(super) fn validate_think(think: &ThinkTuning) -> Result<(), String> {
-    check(
-        think.think_ms.0 > 0 && think.think_ms.0 <= think.think_ms.1,
-        "think.think_ms",
-    )?;
-    check(think.commander_ms >= 50, "think.commander_ms")?;
-    Ok(())
+impl std::ops::Deref for Personalities {
+    type Target = Vec<Personality>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Personalities {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Check for Personalities {
+    /// At least one, their shares summing to about 1.
+    fn check(&self) -> Result<(), String> {
+        let shares: f32 = self.0.iter().map(|p| p.share).sum();
+        check(
+            !self.0.is_empty() && (shares - 1.0).abs() < 0.05,
+            "personalities: shares must sum to 1",
+        )
+    }
+}
+
+impl Check for AvoidTuning {
+    /// The avoidance's ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(self.told_ms.0 <= self.told_ms.1, "avoid.told_ms")?;
+        check(self.notice_ms.0 <= self.notice_ms.1, "avoid.notice_ms")?;
+        check(self.see_m >= 0.0 && self.hear_m >= 0.0, "avoid.see_m, hear_m")?;
+        check((0.0..=360.0).contains(&self.cone_deg), "avoid.cone_deg")?;
+        check(self.margin_m >= 0.0, "avoid.margin_m")?;
+        check(self.look_ms >= 20, "avoid.look_ms")?;
+        Ok(())
+    }
+}
+
+impl Check for ThinkTuning {
+    /// The think rates' ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.think_ms.0 > 0 && self.think_ms.0 <= self.think_ms.1,
+            "think.think_ms",
+        )?;
+        check(self.commander_ms >= 50, "think.commander_ms")?;
+        Ok(())
+    }
 }

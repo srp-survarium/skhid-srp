@@ -6,7 +6,7 @@
 use session::v026g::account::KitSlot;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::item_params::item_params;
-use survarium::v026g::loadouts::{BotTier, bot_of};
+use survarium::v026g::loadouts::{BotRole, BotTier, RusherKit, RusherKits, bot_of};
 use survarium::v026g::lobby::{PVB_CHOOSE_BASE, PVB_STATUS_START, pvb_choice_start};
 use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
 
@@ -223,6 +223,108 @@ fn bots_gear(gear: u8) -> (Vec<u8>, Vec<BotTier>) {
         .map(|bot| bot_of(&bot.profile).expect("a bot of a tier").0)
         .collect();
     (levels, tiers)
+}
+
+/// The weapon in slot 7 of the first kit of each rusher bot of a match
+/// against bots made for a player of equipment level `gear`, with the
+/// lobby's rusher setting `kits` (`SRP_PVB_RUSHER_KIT`).
+fn rusher_weapons(gear: u8, kits: RusherKits) -> Vec<String> {
+    let mut world = world_with(5);
+    world.core.settings.pvb.rusher_kits = kits;
+    let player = world.connect("Alice");
+    with_gear(&mut world, player, gear);
+    let (ticket, _) = play_vs_bots(&mut world, player, 8, 61);
+    let made = world.host.made.locked();
+    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+    let dictionary = Dictionary::shared();
+    setup
+        .players
+        .iter()
+        .filter(|player| player.driven)
+        .filter(|bot| bot_of(&bot.profile).is_some_and(|(_, role)| role == BotRole::Rusher))
+        .map(|bot| {
+            let (index, _) = bot.profile.kits[0].slots[7].expect("a weapon");
+            let item = &bot.profile.items[usize::from(index)];
+            dictionary.item(item.dict_id).unwrap().name.clone()
+        })
+        .collect()
+}
+
+/// The rusher bots wear the kit the lobby's setting says: the old SPAS-12
+/// kit by default (the switch is off until a bench train turns it on) and
+/// when it says `control`; `sr2m` / `fn_p90` (where the game data has it,
+/// else the old kit) for `smg`, `ump45` for `alt`, a kit a tier in the
+/// per-tier form; the lowest tier's rusher is the same whatever it says.
+#[test]
+fn the_rusher_bots_wear_the_kit_the_lobby_says() {
+    let all = |weapon: &str, count: usize| vec![weapon.to_owned(); count];
+    let rushers = rusher_weapons(8, RusherKits::default()).len();
+    assert!(rushers >= 3, "{rushers} rushers");
+    assert_eq!(
+        rusher_weapons(8, RusherKits::default()),
+        all("spas_12", rushers),
+        "off by default"
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Control)),
+        all("spas_12", rushers)
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Smg)),
+        all("sr2m", rushers)
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Alt)),
+        all("ump45", rushers)
+    );
+    // A kit per tier: the other tier's is not touched.
+    let high_only = RusherKits {
+        mid: RusherKit::Control,
+        high: RusherKit::Smg,
+    };
+    assert_eq!(rusher_weapons(8, high_only), all("spas_12", rushers));
+    let smg_at_13_15 = if Dictionary::shared().item_named("fn_p90").is_some() {
+        "fn_p90"
+    } else {
+        "spas_12"
+    };
+    assert_eq!(
+        rusher_weapons(12, RusherKits::both(RusherKit::Smg)),
+        all(smg_at_13_15, rushers)
+    );
+    assert_eq!(
+        rusher_weapons(12, RusherKits::default()),
+        all("spas_12", rushers)
+    );
+    // The bench's pick, in the setting's per-tier form.
+    let picked = RusherKits::parse("9-10=alt,13-15=smg").unwrap();
+    assert_eq!(rusher_weapons(8, picked), all("ump45", rushers));
+    assert_eq!(rusher_weapons(12, picked), all(smg_at_13_15, rushers));
+    for kits in [RusherKits::default(), RusherKits::both(RusherKit::Control), picked] {
+        assert_eq!(rusher_weapons(3, kits), all("mp_153", rushers));
+    }
+}
+
+/// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's test
+/// data lacks `fn_p90` and `kriss_vector`) the rusher bots of 13-15 wear the
+/// P90 or the Kriss, and the bots keep the equipment of the player's tier.
+/// Run alone:
+/// `SRP_GAME_DATA=<server-game-data.db> cargo test -p lobby-server --lib
+/// -- --ignored on_the_live_data_the_rusher_bots`
+#[test]
+#[ignore = "needs SRP_GAME_DATA, the server's game data"]
+fn on_the_live_data_the_rusher_bots_wear_the_smg_kits() {
+    survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+    the_rusher_bots_wear_the_kit_the_lobby_says();
+    the_bots_wear_the_equipment_of_the_players_tier();
+    let rushers = rusher_weapons(12, RusherKits::both(RusherKit::Smg));
+    assert!(rushers.len() >= 3);
+    assert!(
+        rushers.iter().all(|weapon| weapon == "fn_p90"),
+        "{rushers:?}"
+    );
+    let alt = rusher_weapons(15, RusherKits::both(RusherKit::Alt));
+    assert!(alt.iter().all(|weapon| weapon == "kriss_vector"), "{alt:?}");
 }
 
 /// The owner's of 2026-10-23: every level plays against bots, and the
