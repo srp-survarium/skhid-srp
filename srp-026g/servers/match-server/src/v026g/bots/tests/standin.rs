@@ -1018,6 +1018,18 @@ impl Game {
                 let (d, off) = fight_tally::aim_off(eye, dir, Self::chest(&self.bodies[t]));
                 (t, d, off)
             });
+        // [counts only] Where the shot line passed the target's chest, for the owner counts' `shot_offsets`.
+        let offset = aimed_at.map(|(t, distance, _)| {
+            let target = &self.bodies[t];
+            super::tallies::shot_offset::ShotOffset::of(
+                eye,
+                dir,
+                Self::chest(target),
+                distance,
+                super::tallies::shot_offset::ShotClass::of(gun.class()),
+                target.keys & key::CROUCH != 0,
+            )
+        });
         self.shot_facts.push(fight_tally::ShotFact {
             shooter,
             tick,
@@ -1030,6 +1042,7 @@ impl Game {
             crouched,
             aim_state,
             cone,
+            offset,
         });
         let Some((target, along)) = best else {
             return;

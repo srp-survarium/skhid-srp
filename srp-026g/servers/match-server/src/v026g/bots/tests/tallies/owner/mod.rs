@@ -53,6 +53,7 @@ mod moving;
 mod pre;
 mod resupply;
 mod run;
+mod shot_offsets;
 mod stock;
 mod topic;
 
@@ -65,6 +66,7 @@ use moving::*;
 use pre::*;
 use resupply::*;
 use run::*;
+use shot_offsets::*;
 use stock::*;
 use topic::*;
 
