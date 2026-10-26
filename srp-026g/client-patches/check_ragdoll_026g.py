@@ -76,6 +76,8 @@ APPLY_SITE, APPLY_NEXT = 0x247716, 0x24771C
 EYE_SITE, EYE_NEXT = 0x1F3643, 0x1F3649
 BULLET_SITE, BULLET_NEXT = 0x32D627, 0x32D631
 RAY_TEST, QPC_SLOT, QPF_SLOT = 0x75E20, 0x870158, 0x870150
+CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
+CHANGE_TRAJECTORY = 0x32EE20
 PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
 CLIENT_VTABLE = 0x9FFB14
 ZF = 1 << 6
@@ -171,6 +173,16 @@ class Game:
         emu.mem_write(STUBS + 0x10, b"\xC2\x04\x00")
         emu.hook_add(UC_HOOK_CODE, self.counter, begin=STUBS, end=STUBS)
         emu.hook_add(UC_HOOK_CODE, self.frequency, begin=STUBS + 0x10, end=STUBS + 0x10)
+        # the trace's file: CreateFileA, WriteFile (stdcall 7 and 5), the user data folder
+        self.files, self.written = [], b""
+        emu.mem_write(CREATE_FILE_SLOT, struct.pack("<I", STUBS + 0x20))
+        emu.mem_write(WRITE_FILE_SLOT, struct.pack("<I", STUBS + 0x30))
+        emu.mem_write(STUBS + 0x20, b"\xC2\x1C\x00")
+        emu.mem_write(STUBS + 0x30, b"\xC2\x14\x00")
+        emu.mem_write(STUBS + 0x40, b"c:\\users\\test\\documents\\survarium\0")
+        emu.hook_add(UC_HOOK_CODE, self.create_file, begin=STUBS + 0x20, end=STUBS + 0x20)
+        emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0x30, end=STUBS + 0x30)
+        emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA, end=USER_DATA)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
         self.particles, self.sounds = [], []
         emu.hook_add(UC_HOOK_CODE, self.play_particle, begin=PLAY_PARTICLE, end=PLAY_PARTICLE)
@@ -212,6 +224,25 @@ class Game:
         return struct.unpack(f"<{count}f", self.emu.mem_read(at, 4 * count))
 
     # -- stubs ---------------------------------------------------------------
+    def create_file(self, emu, *_):
+        name = bytes(emu.mem_read(self.u32(emu.reg_read(UC_X86_REG_ESP) + 4), 120)).split(b"\0")[0]
+        self.files.append(name.decode())
+        emu.reg_write(UC_X86_REG_EAX, 0x7E57)
+
+    def write_file(self, emu, *_):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        handle, text, size, out = (self.u32(esp + 4 * i) for i in range(1, 5))
+        assert handle == 0x7E57, "WriteFile on the trace's file"
+        self.written += bytes(emu.mem_read(text, size))
+        self.u32(out, size)
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+    def user_data(self, emu, *_):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_EAX, STUBS + 0x40)
+        emu.reg_write(UC_X86_REG_ESP, esp + 4)
+        emu.reg_write(UC_X86_REG_EIP, self.u32(esp))
+
     def counter(self, emu, *_):
         out = self.u32(emu.reg_read(UC_X86_REG_ESP) + 4)
         emu.mem_write(out, struct.pack("<q", self.ticks))
@@ -517,7 +548,9 @@ def main():
     # the ragdoll falls and settles on the floor
     rays = len(game.rays)
     lowest = []
-    for _ in range(240):
+    # (no bullet: a standing body that only tips over, the clip held standing;
+    # the 5 s cap at the latest)
+    for _ in range(330):
         game.step()
         drawn, _ = game.draw(a)
         lowest.append(min(m[13] for m in drawn))
@@ -633,6 +666,64 @@ def main():
     check(hips[pushed][0] > 0.25 and abs(hips[calm][0]) < hips[pushed][0],
           f"the killing shot knocks its body along it (+x): the hip {hips[pushed][0]:+.2f} m, the "
           f"unshot death's {hips[calm][0]:+.2f} m")
+    check(not game.files and not game.written, "the build's diagnostics are off: no file opened, nothing written")
+
+    # the bullet's +1Ch: its segment's velocity (the original exe's change_trajectory
+    # writes a pierce's new one there and to +34h, as the bullet's ctor does)
+    emu = stock.emu
+    probe = HEAP + 0x900000
+    emu.mem_write(probe, bytes(0x100))
+    emu.mem_write(probe + 0xC0, struct.pack("<3f3f", 1.0, 2.0, 3.0, 610.0, -20.0, 35.0))
+    esp = STACK - 0x2000
+    emu.mem_write(esp, struct.pack("<If", RET, 0.25))
+    emu.reg_write(UC_X86_REG_ESP, esp)
+    emu.reg_write(UC_X86_REG_ESI, probe)
+    emu.reg_write(UC_X86_REG_ECX, probe + 0xC0)
+    emu.reg_write(UC_X86_REG_EAX, probe + 0xCC)
+    emu.mem_write(RET, b"\xF4")
+    emu.emu_start(CHANGE_TRAJECTORY, RET, count=1_000_000)
+    check(stock.floats(probe + 0x1C, 3) == (610.0, -20.0, 35.0) and stock.floats(probe + 0x34, 3) == (610.0, -20.0, 35.0)
+          and stock.u32(probe + 0x84) == 1,
+          "the bullet's +1Ch is its segment's velocity: the original exe's change_trajectory (0x32EE20) writes a "
+          "pierce's new velocity to +1Ch and +34h and counts the segment (+84h)")
+
+    # the diagnostics build: a living hit's line, then its death's
+    traced = Game(base.with_ragdoll_trace(built))
+    runner = traced.add_player(0, 0.0, 0.0)
+    traced.set_local(runner)
+    traced.step()
+    traced.u32(BULLET + 0x4, 6000)
+    traced.shoot((-3.0, 1.3, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(-0.12, 1.3, 0.0), body=traced.hit_body(runner))
+    traced.step()
+    traced.set_alive(runner, False, 1000)
+    for _ in range(4):
+        traced.step()
+        traced.draw(runner)
+    lines = traced.written.decode().splitlines()
+    hit = [line.split(",") for line in lines if line.startswith("hit,")]
+    death = [line.split(",") for line in lines if line.startswith("death,")]
+    check(traced.files == ["c:\\users\\test\\documents\\survarium\\srp_ragdoll.csv"] and lines[0].startswith("# srp ragdoll")
+          and len(hit) == 1 and hit[0][2:5] == ["0", "0.0200", "800.0"] and abs(float(hit[0][5]) - 12.8) < 0.01
+          and len(death) == 1 and death[0][2:5] == ["0", "1", "1"] and abs(float(death[0][5]) - 12.8) < 0.01
+          and float(death[0][6]) > 0.2,
+          f"the diagnostics build writes srp_ragdoll.csv in the user data folder: the hit (place 0, mass 0.02, "
+          f"speed 800, push 12.8 N s) and its death (a body shot, one hit, the push, the knock): {lines[1:]}")
+
+    # a running player's death carries its speed: 5 m/s along +z while alive
+    runner, calm = game.add_player(6, 50.0, 0.0), game.add_player(7, 60.0, 0.0)
+    for k in range(12):
+        game.emu.mem_write(runner + TRANSFORM, struct.pack("<16f", *matrix((50.0, 0, 5.0 * k / 60.0))))
+        game.step()
+    for player in (runner, calm):
+        game.set_alive(player, False, 1000)
+    for _ in range(40):
+        game.step()
+        for player in (runner, calm):
+            drawn, _ = game.draw(player)
+            hips[player] = drawn[1][12:15]
+    check(hips[runner][2] > 0.5 and abs(hips[calm][2]) < 0.2,
+          f"a running player's death carries its speed: the hip {hips[runner][2]:+.2f} m ahead (in its model's "
+          f"space), a standing one's {hips[calm][2]:+.2f} m")
     print("all checks passed")
 
 

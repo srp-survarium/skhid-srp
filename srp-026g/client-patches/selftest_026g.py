@@ -4629,6 +4629,14 @@ def test_ragdoll(original, image, before):
           "check_collision: the bullet's ray through the world's vtable+48h (ray_test: the result, &[esp+90h] the "
           "origin, &[esp+20h] the direction, the length, group 10h, mask 48h, the bullet, 1), then its result's "
           "copy from EAX at 0x32D627")
+    check(rows(stock, 0x32BA8E, 0x12)[:4] == ["movq xmm0,[eax]", "movq [esi+0x1c],xmm0", "mov edx,[eax+0x8]",
+                                         "mov [esi+0x24],edx"]
+          and rows(stock, 0x32BAAC, 0x0D)[:3] == ["movq xmm0,[eax]", "mov ecx,[esp+0x28]", "movq [esi+0x34],xmm0"],
+          "the bullet's ctor writes its fire velocity (EAX) to +1Ch and +34h: the speed patch 76 reads for a push")
+    trace = P.arena().symbols["RAGDOLL_TRACE"]
+    check(image.read(trace, 4) == struct.pack("<I", 0x4F464600),
+          f"the build's ragdoll diagnostics are off (RAGDOLL_TRACE at {trace:#x} 0x4F464600: only --ragdoll-trace "
+          "makes it 1, a local build)")
     linked = P.arena()
     block = linked.blocks["ragdoll.code"]
     data = linked.blocks["ragdoll.data"]
@@ -4678,11 +4686,12 @@ def test_ragdoll(original, image, before):
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
     allowed = {sym["engine_ray_test"], sym["engine_release_object"], sym["engine_material_pair"],
-               sym["engine_play_particle"], sym["engine_play_sound"], sym["memcpy"], sym["memset"]}
+               sym["engine_play_particle"], sym["engine_play_sound"], sym["engine_user_data_directory"],
+               sym["memcpy"], sym["memset"]}
     check(outside and set(outside) <= allowed,
           "its direct calls out of the block: the engine library's ray_test, object release, material pair, "
-          "play_particle and play_sound, the arena's memcpy and memset (the rest are the network client's "
-          "vtable and the two imports, by pointer)"
+          "play_particle, play_sound and the user data folder, the arena's memcpy and memset (the rest are the "
+          "network client's vtable and the imports, by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]

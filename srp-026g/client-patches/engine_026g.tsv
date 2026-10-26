@@ -39,3 +39,4 @@ engine_release_object	0x0e0210	ECX:instance EAX:count	void engine_release_object
 engine_material_pair	0x306d50	ECX:manager EDX:first EDI:second	const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second)
 engine_play_particle	0x3223e0	EAX:position ESP+4:manager ESP+8:particle ESP+12:direction ESP+16:normal ESP+20:parameter	void engine_play_particle(const float *position, void *manager, const void *particle, const float *direction, const float *normal, unsigned int parameter)
 engine_play_sound	0x3222f0	ESP+4:manager ESP+8:sound ESP+12:position	void engine_play_sound(void *manager, const void *sound, const float *position)
+engine_user_data_directory	0x018bd0	-	const char *engine_user_data_directory(void)

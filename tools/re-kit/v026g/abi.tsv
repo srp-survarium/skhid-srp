@@ -1979,3 +1979,4 @@ va	name	source	ret_cleanup	result
 0x00301cb0	survarium::victory_item_core::activate_physics	manual	0	none; the battery's dynamic body (+2A8h, made by create_dynamic_rigid_body 0x357100) into the physics world (vtable+2Ch) with group 0A18h, mask 418h: bullets (10h/48h) hit it, the foot IK's level rays (24h/2) do not
 0x00332440		manual	4	none; reads an ammo config's `data` block into the struct (its fields in abi_inputs)
 0x002fc6e0	survarium::inventory::update_weight	manual	0	AL: 1 when it summed (only while +184h is set): +180h := the sum over the 23 slots of the item's +218h (kg a piece) x its count (+260h, u16, when its entry +25Ch has +22Ah set) plus a weapon's loaded ammo
+0x00018bd0	vostok::engine::engine_world::get_user_data_directory	manual	0	EAX: the folder (Documents\survarium, lower case, no last backslash; made once with SHGetFolderPathA and kept at [0xA264568])

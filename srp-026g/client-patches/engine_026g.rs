@@ -88,4 +88,6 @@ unsafe extern "C" {
     pub fn engine_play_particle(position: *const f32, manager: *mut c_void, particle: *const c_void, direction: *const f32, normal: *const f32, parameter: u32);
     /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12
     pub fn engine_play_sound(manager: *mut c_void, sound: *const c_void, position: *const f32);
+    /// 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
+    pub fn engine_user_data_directory() -> *const u8;
 }

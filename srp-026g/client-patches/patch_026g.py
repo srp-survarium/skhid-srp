@@ -30,6 +30,12 @@ USAGE (this script never touches the source exe):
         Only the bitmap at the end of the patches' mount and the PE
         checksum differ; each <n> is 1 to 255. Not with --no-late-join,
         --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --ragdoll-trace
+        the default build with patch 76's diagnostics on: every living hit
+        and every death's ragdoll start as a line of srp_ragdoll.csv in the
+        user data folder. A local build for us (never a release's:
+        release/build-zip does not pass it); only RAGDOLL_TRACE and the PE
+        checksum differ
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -3820,11 +3826,30 @@ def late_join_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "late_join_026g.section.bin")
 
 
+def with_ragdoll_trace(data):
+    """The build with patch 76's opt-in diagnostics on (README patch 76): its
+    data's RAGDOLL_TRACE, 0x4F464600 in every build, made 1. A local build
+    only: release/build-zip never passes --ragdoll-trace."""
+    va = arena().symbols["RAGDOLL_TRACE"]
+    data = bytearray(data)
+    at = next((raw + va - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
+               if IMAGE_BASE + rva <= va < IMAGE_BASE + rva + min(vsize, rsize)), None)
+    if at is None:
+        raise SystemExit(f"RAGDOLL_TRACE at {va:#x} is in no section of the build")
+    if bytes(data[at:at + 4]) != struct.pack("<I", 0x4F464600):
+        raise SystemExit(f"RAGDOLL_TRACE at {va:#x} is not the build's off value")
+    data[at:at + 4] = struct.pack("<I", 1)
+    headers = Headers(data)
+    struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
+    return bytes(data)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server = "section", None, None
     late_join, late_join_path, revision, required = True, None, None, None
+    ragdoll_trace = False
     for option in options:
         if option == "--cert-only":
             mode = "cert-only"
@@ -3842,6 +3867,8 @@ def main():
             revision = parse_revision(option[11:])
         elif option.startswith("--required-patches="):
             required = parse_required_patches(option[len("--required-patches="):])
+        elif option == "--ragdoll-trace":
+            ragdoll_trace = True
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -3864,6 +3891,11 @@ def main():
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
     data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
                               required_patches=required)
+    if ragdoll_trace:
+        if late_join_code is None:
+            sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
+        data = with_ragdoll_trace(data)
+        description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

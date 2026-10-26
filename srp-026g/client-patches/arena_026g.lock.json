@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 379612,
-  "sha256": "22ac2cce01d7063222f571595ce1a913f753ed43b6a6501a1d736e268e1fa6bc",
+  "size": 385944,
+  "sha256": "4ddd2d8dd94d55d80ff1cc36715a3fad4b6df0c38aaa534ea149ced5dac96d8b",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1434
+      "size": 1454
     },
     "match_keys.code": {
       "kind": "code",
@@ -62,20 +62,21 @@
     "ragdoll.code": {
       "kind": "code",
       "va": "0xa454000",
-      "size": 65808
+      "size": 70872
     },
     "ragdoll.data": {
       "kind": "data",
-      "va": "0xa465000",
-      "size": 150236
+      "va": "0xa466000",
+      "size": 152472
     }
   },
   "symbols": {
+    "RAGDOLL_TRACE": "0xa466000",
     "__rodata_bake_cache_code": "0xa43a0e9",
     "__rodata_hide_ui_code": "0xa4351e2",
     "__rodata_kill_feed_code": "0xa438178",
     "__rodata_match_keys_code": "0xa4330f1",
-    "__rodata_ragdoll_code": "0xa463646",
+    "__rodata_ragdoll_code": "0xa4648c2",
     "__rodata_research_code": "0xa42f2f9",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
@@ -140,6 +141,7 @@
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
     "engine_unpack_decal_value": "0xa432400",
+    "engine_user_data_directory": "0xa4325a0",
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
@@ -155,11 +157,11 @@
     "memcpy": "0xa42ebbf",
     "memmove": "0xa4540a2",
     "memset": "0xa42e65c",
-    "ragdoll_apply": "0xa45843e",
-    "ragdoll_bullet": "0xa458afa",
-    "ragdoll_draws": "0xa459c86",
-    "ragdoll_eye": "0xa459ca0",
-    "ragdoll_step": "0xa459ce6",
+    "ragdoll_apply": "0xa458726",
+    "ragdoll_bullet": "0xa458de2",
+    "ragdoll_draws": "0xa45a04c",
+    "ragdoll_eye": "0xa45a066",
+    "ragdoll_step": "0xa45a0ac",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",

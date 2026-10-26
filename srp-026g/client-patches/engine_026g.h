@@ -130,4 +130,7 @@ void engine_play_particle(const float *position, void *manager, const void *part
 /* 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12 */
 void engine_play_sound(void *manager, const void *sound, const float *position);
 
+/* 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX */
+const char *engine_user_data_directory(void);
+
 #endif

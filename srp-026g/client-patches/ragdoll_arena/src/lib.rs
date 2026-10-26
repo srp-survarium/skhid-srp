@@ -98,8 +98,10 @@ const SHOOTER_PLACE: usize = 0x4;
 /// +14h its `mass` (kg, a gameplay scale), +3Ch its `muzzle_speed`.
 const BULLET_AMMO: usize = 0x40;
 const AMMO_MASS: usize = 0x14;
-/// The bullet's velocity now (its segment's; LIKELY, the tracer's length
-/// at 0x32C449 is its length).
+/// The bullet's velocity, its segment's start (PROVEN: the ctor 0x32BA60
+/// writes the fire velocity to +1Ch and +34h, change_trajectory 0x32EE20 a
+/// pierce's or a ricochet's new one to both; check_ragdoll_026g.py runs
+/// change_trajectory); +34h is what compute_trajectory_velocity reads.
 const BULLET_VELOCITY: usize = 0x1C;
 const BULLET_MANAGER: usize = 0x44;
 const BULLET_MATERIAL: usize = 0x48;
@@ -307,7 +309,38 @@ struct Shots {
     pushes: [Option<Push>; PUSHES],
     /// Bullets in living players' hit models: the hit model's body, the
     /// hit (the step finds the place by the body).
-    living: [Option<(u32, Hit)>; LIVING_HITS],
+    living: [Option<(u32, Hit, f32, f32)>; LIVING_HITS],
+}
+
+/// A place's motion while its player is alive: its transform's place and
+/// velocity, the last frame's (the death carries it).
+#[derive(Clone, Copy)]
+struct Moving {
+    at: Vec3,
+    velocity: Vec3,
+    known: bool,
+}
+
+/// The opt-in diagnostics (README patch 76): 1 in a build made with
+/// `--ragdoll-trace` (patch_026g.py writes it), never in a release; then
+/// every living hit and every death's start goes as a line to
+/// `<user data folder>\srp_ragdoll.csv`.
+#[unsafe(no_mangle)]
+pub static mut RAGDOLL_TRACE: u32 = TRACE_OFF;
+/// (not 0: a zero static would go in no block the arena has)
+const TRACE_OFF: u32 = 0x4F46_4600;
+/// The imports: CreateFileA, WriteFile.
+const CREATE_FILE: usize = 0x870048;
+const WRITE_FILE: usize = 0x870108;
+type CreateFile = unsafe extern "stdcall" fn(*const u8, u32, u32, *mut c_void, u32, u32, *mut c_void) -> isize;
+type WriteFile = unsafe extern "stdcall" fn(isize, *const u8, u32, *mut u32, *mut c_void) -> i32;
+
+/// The trace's file: not opened yet, open, or failed (no more tries).
+#[derive(Clone, Copy)]
+enum TraceFile {
+    Closed,
+    Open(isize),
+    Failed,
 }
 
 struct State {
@@ -320,6 +353,9 @@ struct State {
     time: f32,
     /// Each place's hits lately (the next death's push).
     recent: [Recent; MAX_PLACES],
+    /// Each place's motion while alive (the next death's carried velocity).
+    moving: [Moving; MAX_PLACES],
+    trace: TraceFile,
     shots: Shots,
     /// Set by the step when some place has a ragdoll a bullet could meet:
     /// the bullets' trace returns at once otherwise.
@@ -339,6 +375,8 @@ static mut STATE: State = State {
     clock: Clock::Unstarted,
     time: 0.0,
     recent: [Recent::new(); MAX_PLACES],
+    moving: [Moving { at: Vec3::ZERO, velocity: Vec3::ZERO, known: false }; MAX_PLACES],
+    trace: TraceFile::Closed,
     shots: Shots {
         log: ShotLog::new(),
         pushes: [None; PUSHES],
@@ -503,7 +541,13 @@ unsafe fn load_of(player: Addr) -> [f32; PARTS] {
 /// What the world shows of a player: alive, or dead with its death (and
 /// the skeleton's bones of ours). A player not inserted, or with another
 /// skeleton, is `Alive` here: nothing of ours is drawn.
-unsafe fn seen(player: Addr, mappings: &mut [Mapping; 4], recent: &Recent, now: f32) -> (Seen, Option<BoneIndex>) {
+unsafe fn seen(
+    player: Addr,
+    mappings: &mut [Mapping; 4],
+    recent: &Recent,
+    moving: &Moving,
+    now: f32,
+) -> (Seen, Option<BoneIndex>) {
     unsafe {
         if player.u8(INSERTED) == 0 || player.u8(ALIVE) != 0 {
             return (Seen::Alive, None);
@@ -517,6 +561,7 @@ unsafe fn seen(player: Addr, mappings: &mut [Mapping; 4], recent: &Recent, now: 
         let mut death = Death::new(DeathKey(player.u32(SPAWNED)), Cause::Unknown, gun, stood_on);
         (death.hits, death.hit_count) = recent.of_death(now);
         death.load = load_of(player);
+        death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
         (Seen::Dead(death), Some(index))
     }
 }
@@ -560,12 +605,36 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
                 physics = physics.or(player.pointer(PHYSICS_WORLD));
                 // this frame's bullets in this player (its hit model's body)
                 let body = player.pointer(HIT_MODEL).and_then(|m| m.pointer(HIT_MODEL_BODY));
-                for (object, hit) in living.iter().flatten() {
+                for (object, hit, mass, speed) in living.iter().flatten() {
                     if body == Some(Addr(*object)) {
                         state.recent[place].record(state.time, *hit);
+                        trace_line(&mut state.trace, |w| {
+                            w.text("hit,");
+                            w.fields(&[(state.time, 3), (place as f32, 0), (*mass, 4), (*speed, 1), (hit.impulse.length(), 2)]);
+                        });
                     }
                 }
-                let (s, index) = seen(player, &mut state.mappings, &state.recent[place], state.time);
+                // its motion while alive (its transform's place)
+                if player.u8(INSERTED) != 0 && player.u8(ALIVE) != 0 {
+                    let at = player.matrix(TRANSFORM);
+                    let at = Vec3::new(at[12], at[13], at[14]);
+                    let m = &mut state.moving[place];
+                    let step = at - m.at;
+                    m.velocity = if m.known && dt > 1e-4 && step.length() < 2.0 && at.is_finite() {
+                        (m.velocity + step * (1.0 / dt)) * 0.5
+                    } else {
+                        Vec3::ZERO
+                    };
+                    m.at = at;
+                    m.known = at.is_finite();
+                }
+                let (s, index) = seen(
+                    player,
+                    &mut state.mappings,
+                    &state.recent[place],
+                    &state.moving[place],
+                    state.time,
+                );
                 seen_places[place] = s;
                 players[place] = Some((player, index));
                 if local_place == Some(place) {
@@ -576,6 +645,25 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
         let frame = Frame { dt, up: UP, places: &seen_places[..count], local: local.map(|(p, _)| p) };
         let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME };
         state.corpses.step(&frame, &mut level);
+        for (place, r) in state.corpses.started() {
+            trace_line(&mut state.trace, |w| {
+                w.text("death,");
+                w.fields(&[
+                    (state.time, 3),
+                    (place as f32, 0),
+                    (r.cause as f32, 0),
+                    (r.hits as f32, 0),
+                    (r.push, 2),
+                    (r.knock, 2),
+                    (r.mass, 1),
+                    (r.speed, 2),
+                    (r.strengths[0], 2),
+                    (r.strengths[1], 2),
+                    (r.strengths[2], 2),
+                    (r.strengths[3], 2),
+                ]);
+            });
+        }
         for place in 0..MAX_PLACES {
             state.draws[place] = match (state.corpses.place(place), players[place]) {
                 (Corpse::Body { death, slot }, Some((player, Some(index)))) => {
@@ -589,6 +677,138 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
             _ => EyeView::Off,
         };
         state.any_bodies.store(state.corpses.any_bodies(), Ordering::Release);
+    }
+}
+
+/// A line of the opt-in trace (nothing unless the build turned it on): the
+/// file opened at the first line (its column names first), the line
+/// written at once.
+fn trace_line(file: &mut TraceFile, line: impl FnOnce(&mut Line)) {
+    if unsafe { read_volatile(&raw const RAGDOLL_TRACE) } != 1 {
+        return;
+    }
+    unsafe {
+        if let TraceFile::Closed = file {
+            let mut path = Line::new();
+            let folder = engine::engine_user_data_directory() as *const u8;
+            let mut n = 0;
+            while !folder.is_null() && n < 260 && read_volatile(folder.add(n)) != 0 {
+                path.push(read_volatile(folder.add(n)));
+                n += 1;
+            }
+            for &b in b"\\srp_ragdoll.csv\0" {
+                path.push(b);
+            }
+            let create: CreateFile = core::mem::transmute(read_volatile(CREATE_FILE as *const usize));
+            // FILE_APPEND_DATA, shared for reading and writing, OPEN_ALWAYS
+            let handle = create(path.bytes.as_ptr(), 4, 3, core::ptr::null_mut(), 4, 0x80, core::ptr::null_mut());
+            *file = if folder.is_null() || handle == -1 || handle == 0 {
+                TraceFile::Failed
+            } else {
+                let mut head = Line::new();
+                head.text(
+                    "# srp ragdoll trace: hit,time s,place,mass kg,speed m/s,push N s | death,time s,place,cause \
+                     (0 none 1 body 2 head 3 blast),hits,push N s,knock m/s,mass kg,speed m/s,legs,waist,neck,arms (the \
+                     muscles' strength at the start; the death clip is the game's, captured)\r\n",
+                );
+                put(handle, &head);
+                TraceFile::Open(handle)
+            };
+        }
+        if let TraceFile::Open(handle) = *file {
+            let mut text = Line::new();
+            line(&mut text);
+            text.text("\r\n");
+            put(handle, &text);
+        }
+    }
+}
+
+unsafe fn put(handle: isize, line: &Line) {
+    unsafe {
+        let write: WriteFile = core::mem::transmute(read_volatile(WRITE_FILE as *const usize));
+        let mut written = 0u32;
+        write(handle, line.bytes.as_ptr(), line.used as u32, &mut written, core::ptr::null_mut());
+    }
+}
+
+/// A line of text (an ASCII path or a trace line), at most 400 bytes.
+struct Line {
+    bytes: [u8; 400],
+    used: usize,
+}
+
+impl Line {
+    fn new() -> Line {
+        Line { bytes: [0; 400], used: 0 }
+    }
+
+    fn push(&mut self, b: u8) {
+        if self.used < self.bytes.len() {
+            self.bytes[self.used] = b;
+            self.used += 1;
+        }
+    }
+}
+
+impl Line {
+    fn text(&mut self, text: &str) {
+        for &b in text.as_bytes() {
+            self.push(b);
+        }
+    }
+
+    /// A number with `decimals` places (core's float formatting needs a
+    /// 64-bit division the arena has not; a value past 10^6 is shown so).
+    fn number(&mut self, value: f32, decimals: u32) {
+        if !value.is_finite() {
+            self.text("nan");
+            return;
+        }
+        let scale = [1.0, 10.0, 100.0, 1000.0, 10000.0][decimals.min(4) as usize];
+        let v = if value < 0.0 { self.push(b'-'); -value } else { value };
+        let v = if v > 1.0e6 { 1.0e6 } else { v };
+        let scaled = (v * scale + 0.5) as u32;
+        let (whole, part) = (scaled / scale as u32, scaled % scale as u32);
+        self.int(whole);
+        if decimals > 0 {
+            self.push(b'.');
+            let mut digits = [b'0'; 4];
+            let mut p = part;
+            for d in (0..decimals.min(4) as usize).rev() {
+                digits[d] = b'0' + (p % 10) as u8;
+                p /= 10;
+            }
+            for &d in &digits[..decimals.min(4) as usize] {
+                self.push(d);
+            }
+        }
+    }
+
+    fn int(&mut self, mut n: u32) {
+        let mut digits = [0u8; 10];
+        let mut k = 0;
+        loop {
+            digits[k] = b'0' + (n % 10) as u8;
+            k += 1;
+            n /= 10;
+            if n == 0 {
+                break;
+            }
+        }
+        for i in (0..k).rev() {
+            self.push(digits[i]);
+        }
+    }
+
+    /// Comma-separated numbers.
+    fn fields(&mut self, values: &[(f32, u32)]) {
+        for (i, &(v, d)) in values.iter().enumerate() {
+            if i > 0 {
+                self.push(b',');
+            }
+            self.number(v, d);
+        }
     }
 }
 
@@ -630,8 +850,7 @@ pub unsafe extern "C" fn ragdoll_bullet(
             death,
         };
         let push = |direction: Vec3| {
-            let mass = bullet.pointer(BULLET_AMMO).map_or(f32::NAN, |a| f32::from_bits(a.u32(AMMO_MASS)));
-            let speed = vec3(bullet.at(BULLET_VELOCITY) as *const [f32; 3]).length();
+            let (mass, speed) = round(bullet);
             impulse(direction, mass, speed)
         };
         // a living player hit: kept for its death's push, once a shot
@@ -641,7 +860,8 @@ pub unsafe extern "C" fn ragdoll_bullet(
             && let Some(unit) = direction.direction()
         {
             let hit = Hit { point: vec3(result.0 as *const [f32; 3]), impulse: push(unit) };
-            take_living(key(LIVING, object.0), object.0, hit);
+            let (mass, speed) = round(bullet);
+            take_living(key(LIVING, object.0), object.0, hit, mass, speed);
         }
         // (the atomics alone are shared: the step's `&mut` is not alive now)
         if !(&*(&raw const STATE.any_bodies)).load(Ordering::Acquire) {
@@ -684,14 +904,25 @@ fn with_shots<R>(f: impl FnOnce(&mut Shots) -> R) -> R {
 }
 
 /// A living player's hit kept for the step, if it is the shot's first trace.
-fn take_living(key: ShotKey, object: u32, hit: Hit) {
+fn take_living(key: ShotKey, object: u32, hit: Hit, mass: f32, speed: f32) {
     with_shots(|shots| {
         if let Some(free) = shots.living.iter_mut().find(|h| h.is_none())
             && shots.log.first(key)
         {
-            *free = Some((object, hit));
+            *free = Some((object, hit, mass, speed));
         }
     })
+}
+
+/// The bullet's round: its ammo's mass (kg) and its speed now (m/s, its
+/// segment's: the velocity +1Ch that the bullet's ctor 0x32BA8E and
+/// change_trajectory 0x32EE55 write, as +34h).
+unsafe fn round(bullet: Addr) -> (f32, f32) {
+    unsafe {
+        let mass = bullet.pointer(BULLET_AMMO).map_or(f32::NAN, |a| f32::from_bits(a.u32(AMMO_MASS)));
+        let speed = vec3(bullet.at(BULLET_VELOCITY) as *const [f32; 3]).length();
+        (mass, speed)
+    }
 }
 
 /// The shot's push queued for the next step, if it is the shot's first

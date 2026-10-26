@@ -43,6 +43,7 @@ global engine_release_object
 global engine_material_pair
 global engine_play_particle
 global engine_play_sound
+global engine_user_data_directory
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -734,6 +735,20 @@ engine_play_sound:
     push dword [esp + 28]   ; sound -> 8
     push dword [esp + 28]   ; manager -> 4
     call 0x3222f0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_user_data_directory:
+    ; 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x18bd0
     pop edi
     pop esi
     pop ebx
