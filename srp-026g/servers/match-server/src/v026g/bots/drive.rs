@@ -101,7 +101,7 @@ pub(super) fn drive_tick(
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time);
     // Only this tick's walk to the play's own exact spot sets it (below).
-    bot.motor.exact_end = false;
+    bot.motor.exact_end = None;
     let me = &PlaceView {
         pitch: (me.pitch + kick).clamp(-1.0, 1.0),
         ..me.clone()
@@ -690,7 +690,7 @@ pub(super) fn drive_tick(
                     // `route_at` is the goal's `at`, copied unchanged where
                     // the route was planned, so the two compare exactly (a
                     // replan that snapped it to a floor would turn this off).
-                    bot.motor.exact_end = exact_at == Some(*route_at);
+                    bot.motor.exact_end = (exact_at == Some(*route_at)).then(|| intent.exact_arrive_m.unwrap_or(bot.motor.feel.arrive_m));
                     let side = bot.side;
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
