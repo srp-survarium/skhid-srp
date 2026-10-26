@@ -40,7 +40,7 @@ use mapdata::Vec3;
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::path::Route;
+use super::path::{Leap, Route};
 use super::rng::Rng;
 use crate::v026g::drive::key;
 
@@ -121,6 +121,11 @@ pub struct Feel {
     pub hop_every_s: f32,
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
+    /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
+    /// to a stop on a lip's floors; 0 is off (the default: it is switched on by the bench's trains).
+    pub lip_guard_ticks: u32,
+    /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
+    pub lip_look_ahead_m: f32,
 }
 
 impl Default for Feel {
@@ -151,6 +156,8 @@ impl Default for Feel {
             hop_max_turn: 0.35,
             hop_every_s: 4.0,
             hop_after_jump_s: 2.0,
+            lip_guard_ticks: 0,
+            lip_look_ahead_m: 0.0,
         }
     }
 }
@@ -357,6 +364,9 @@ pub struct Motor {
     /// (the play's own, else [`Feel::arrive_m`]). Cleared each tick before the
     /// walk sets it.
     pub exact_end: Option<f32>,
+    /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
+    /// lip's floors, where a line to a point further on cuts a corner over the rim).
+    pub ahead_cap: Option<f32>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -427,6 +437,8 @@ struct Ahead {
     going: bool,
     /// Given up on: the take-off.
     failed: Option<Vec3>,
+    /// How it is pressed.
+    leap: Leap,
 }
 
 /// Why the motor pressed jump.
@@ -455,6 +467,7 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: None,
+            ahead_cap: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -618,6 +631,7 @@ impl Motor {
             None => {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
+                ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
@@ -713,7 +727,7 @@ impl Motor {
     /// ([`ARRIVE_ABOVE_M`]).
     fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
         let end = route.end();
-        let below = if route.points().last().is_some_and(|p| p.jump) {
+        let below = if route.points().last().is_some_and(|p| p.jump.is_some()) {
             ARRIVE_ON_LANDING_M
         } else {
             ARRIVE_BELOW_M
@@ -764,7 +778,7 @@ impl Motor {
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
-                let mut ahead = self.feel.look_ahead_m;
+                let mut ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
                     #[cfg(test)]
@@ -834,6 +848,7 @@ impl Motor {
         }
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
+        let leap = points[k].jump.unwrap_or(Leap::Ledge);
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
@@ -883,13 +898,23 @@ impl Motor {
                 before: 0.0,
                 going: false,
                 failed: Some(take_off),
+                leap,
             });
         }
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
-        let run_up = [RUN_UP_M, 0.5 * RUN_UP_M]
-            .into_iter()
-            .find(|&m| clear(at(m)))
-            .unwrap_or(0.0);
+        // A gap link is pressed at its own point: the run-up starts
+        // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
+        // walked into from wherever the line is clear (it presses there).
+        let run_up = match leap {
+            Leap::Ledge => [RUN_UP_M, 0.5 * RUN_UP_M]
+                .into_iter()
+                .find(|&m| clear(at(m)))
+                .unwrap_or(0.0),
+            Leap::Gap(press) => {
+                let m = press.metres() + mapdata::grid::gap::GAP_RUN_UP_M;
+                if clear(at(m)) { m } else { press.metres() }
+            }
+        };
         let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
@@ -901,11 +926,13 @@ impl Motor {
         }
         let lined = in_the_air || (on_line && !jump.back);
         let aim = if lined {
-            // Along the jump's way, past the landing.
+            // Along the jump's way, past the landing (a gap link's lands
+            // up to 2 m on).
+            let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
             Vec3::new(
-                take_off.x + way[0] * 3.0,
+                take_off.x + way[0] * past,
                 landing.y,
-                take_off.z + way[1] * 3.0,
+                take_off.z + way[1] * past,
             )
         } else if clear(at(run_up)) {
             at(run_up)
@@ -942,6 +969,7 @@ impl Motor {
             before: -along,
             going,
             failed: None,
+            leap,
         })
     }
 
@@ -965,7 +993,12 @@ impl Motor {
         let rested = jump
             .pressed
             .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
-        let near = ahead.before <= JUMP_LEAD_S * speed + PRESS_M;
+        // A jump link as it walks over the take-off; a gap link at its own
+        // point (where the grid found the client's jump lands it).
+        let near = match ahead.leap {
+            Leap::Ledge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
+            Leap::Gap(press) => ahead.before <= press.metres(),
+        };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
             return 0;
         }
@@ -1003,7 +1036,7 @@ impl Motor {
         let leg = route
             .points()
             .iter()
-            .position(|point| point.jump && (point.at - jump.landing).length() < 0.3);
+            .position(|point| point.jump.is_some() && (point.at - jump.landing).length() < 0.3);
         if let Some(k) = leg.filter(|&k| k >= 1 && route.segment() >= k) {
             route.back_to(k - 1);
         }
@@ -1262,7 +1295,7 @@ pub fn keys_toward(relative: f32) -> u32 {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1282,6 +1315,11 @@ pub mod counts {
 
     pub fn side_step(clear: bool) {
         add(if clear { 4 } else { 5 });
+    }
+
+    /// The lip guard: a tick's keys changed to ones that stop on the floor, and one with none that does.
+    pub fn lip_guard(changed: bool) {
+        add(if changed { 6 } else { 7 });
     }
 
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
@@ -1306,8 +1344,8 @@ pub mod counts {
     }
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
-    /// steps clear, side steps refused).
-    pub fn counts() -> [u64; 6] {
+    /// steps clear, side steps refused, lip guard changed, lip guard none).
+    pub fn counts() -> [u64; 8] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1341,7 +1379,7 @@ mod tests {
                 .map(|&(x, z)| Waypoint {
                     at: Vec3::new(x, 0.0, z),
                     node: 0,
-                    jump: false,
+                    jump: None,
                     low: false,
                 })
                 .collect(),
@@ -1351,10 +1389,10 @@ mod tests {
     /// A route along x with waypoint 1 (at x = 5) up a ledge, and the leg
     /// to waypoint 2 low (from x = 5 to 10).
     fn ledge_then_low() -> Route {
-        let p = |x: f32, jump, low| Waypoint {
+        let p = |x: f32, jump: bool, low| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low,
         };
         Route::new(vec![
@@ -1590,10 +1628,10 @@ mod tests {
     /// and on along x up there; with the take-off at `(x, z)` and the
     /// jump's way turned to +z if `turned`.
     fn up_a_ledge(turned: bool) -> (Route, Ledge) {
-        let p = |x: f32, y: f32, z: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let (points, way) = if turned {
@@ -1634,10 +1672,10 @@ mod tests {
     /// is arrived at as before.
     #[test]
     fn a_near_low_jump_at_a_routes_end_is_pressed() {
-        let p = |x: f32, y: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let ledge = Ledge {
@@ -1665,6 +1703,26 @@ mod tests {
         let (decision, walked) = motor.walk(&mut walk, &facing_x(Vec3::ZERO), 5.0, |_| true);
         assert_eq!(walked, Walked::Arrived);
         assert_eq!(decision.keys & key::JUMP, 0);
+    }
+
+    /// A cap on the look-ahead (on a lip's floors) keeps the walk to the leg it is on: a corner 0.5 m on is
+    /// turned at, not cut by a heading to a point past it.
+    #[test]
+    fn a_capped_look_ahead_turns_at_the_corner_not_across_it() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let corner = || Route::new(vec![p(0.0, 0.0), p(3.0, 0.0), p(3.0, 4.0)]);
+        let pose = Pose { feet: Vec3::new(2.5, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let heading = |cap: Option<f32>| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.ahead_cap = cap;
+            let (decision, walked) = motor.walk(&mut corner(), &pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0.abs()
+        };
+        // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
+        // the corner's, straight ahead.
+        assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
     }
 
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
@@ -1834,10 +1892,10 @@ mod tests {
     #[test]
     fn an_end_up_a_ledge_is_arrived_at_only_up_it() {
         let mut rng = Rng::new(19);
-        let p = |x: f32, y: f32, jump| Waypoint {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low: false,
         };
         let route = || {
@@ -1872,7 +1930,7 @@ mod tests {
         let p = |x: f32| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         let route = || Route::new(vec![p(0.0), p(5.0)]);
@@ -2213,10 +2271,10 @@ mod tests {
     #[test]
     fn no_hop_under_a_low_floor_or_by_a_planned_jump() {
         let mut rng = Rng::new(14);
-        let point = |x: f32, jump, low| Waypoint {
+        let point = |x: f32, jump: bool, low| Waypoint {
             at: Vec3::new(x, 0.0, 0.0),
             node: 0,
-            jump,
+            jump: jump.then_some(Leap::Ledge),
             low,
         };
         for aiming in [false, true] {

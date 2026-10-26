@@ -94,6 +94,12 @@ pub struct ThinkTuning {
     pub search_floors_per_poll: u32,
     /// A trace line at least this often per bot, ms.
     pub trace_every_ms: u32,
+    /// A bot that gave up the tries to leave its pocket (`escape::Trapped::gave_up`)
+    /// asks no search and takes no goal outside the pocket (`Ctx::reachable`,
+    /// `drive`): it is the escape's, and `stuck::SelfKill`'s at the end. Off (the default
+    /// until a train turns it on): it asks again for every goal the plays give it, every
+    /// 0.5 s, as it did.
+    pub shut_in_gate: bool,
 }
 
 impl Default for ThinkTuning {
@@ -104,6 +110,7 @@ impl Default for ThinkTuning {
             rays_per_poll: 400,
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
             trace_every_ms: 5_000,
+            shut_in_gate: false,
         }
     }
 }

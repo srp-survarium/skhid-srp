@@ -59,6 +59,8 @@ impl Bots {
         let Some(step_name) = decide(&due, bot, state, &self.memo, notes) else {
             return;
         };
+        // [traps] A bot that carries traps may start to put one down.
+        traps::think(bot, &due, state);
         if self.trace.enabled() && now >= bot.last_trace + tuning.think.trace_every_ms {
             bot.last_trace = now;
             let line = serde_json::json!({
@@ -511,6 +513,8 @@ pub(super) fn decide(
             partner: bot.partner,
             paired: bot.paired,
             medkits_used: bot.medkits_used,
+            pantry: &bot.pantry,
+            pools: bot.pools,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,

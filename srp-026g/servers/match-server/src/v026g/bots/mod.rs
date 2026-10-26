@@ -48,6 +48,7 @@ pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod pools;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
@@ -56,11 +57,14 @@ pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
+pub mod stock;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
 pub mod threat;
 pub mod trace;
+pub mod trap_know;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
@@ -83,6 +87,7 @@ use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
 use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
+use pools::Pools;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
 use route_end::RouteEnd;
@@ -157,12 +162,37 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
+    lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// Which reflex play had the legs at that tick (the falls probe).
+    #[cfg(test)]
+    pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
+    /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
+    #[cfg(test)]
+    pub(crate) bench_stepped: u8,
+    /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
+    #[cfg(test)]
+    pub(crate) bench_guard: u8,
+    #[cfg(test)]
+    pub(crate) bench_guard_dbg: u8,
+    /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
+    #[cfg(test)]
+    pub(crate) bench_walk: u8,
+    /// The velocity and feet the last guard check was made from.
+    #[cfg(test)]
+    pub(crate) bench_guard_at: ([f32; 2], Vec3),
+    /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
+    #[cfg(test)]
+    pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
+    /// The time of its last route search, for the bench's counts of asks (`search::asks`).
+    #[cfg(test)]
+    pub(crate) bench_asked: search::asks::Asked,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -205,8 +235,20 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
-    /// Medkits used this life.
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
     medkits_used: u8,
+    /// The bear-trap habit (`traps.rs`), and the point of the trap it let go
+    /// of since the last think.
+    traps: traps::Habit,
+    trap_placed: Option<(Vec3, u32)>,
+    /// The floors of its team's traps it keeps off (`trap_know.rs`), shared
+    /// at each commander tick.
+    trap_field: Arc<trap_know::TrapField>,
+    /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
+    pantry: stock::Pantry,
+    /// Its health pools as the last trusted world showed them
+    /// ([`Bots::pools`]); none before the first.
+    pools: Option<Pools>,
     /// The answer of its route search that went on over several polls
     /// ([`Pending`]): the goal, the route or none, and whether the route is
     /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
@@ -306,8 +348,25 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_legs_why: None,
+            #[cfg(test)]
+            bench_stepped: 0,
+            #[cfg(test)]
+            bench_guard: 0,
+            #[cfg(test)]
+            bench_guard_dbg: 0,
+            #[cfg(test)]
+            bench_walk: 0,
+            #[cfg(test)]
+            bench_guard_at: ([0.0; 2], Vec3::ZERO),
+            #[cfg(test)]
+            bench_est: std::collections::VecDeque::new(),
+            #[cfg(test)]
+            bench_asked: Default::default(),
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
@@ -334,6 +393,11 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            traps: traps::Habit::none(),
+            trap_placed: None,
+            trap_field: Arc::new(trap_know::TrapField::default()),
+            pantry: stock::Pantry::standard(),
+            pools: None,
             found: None,
             crossing: None,
             long_kept: None,
@@ -497,6 +561,8 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.traps.new_life();
+        self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -585,6 +651,8 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            trap_field: Arc::new(trap_know::TrapField::default()),
+            trap_field_version: 0,
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
@@ -860,6 +928,29 @@ impl Bots {
         }
     }
 
+    /// What the bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
+        self.bots.get(place)?.as_ref().map(|bot| &bot.pantry)
+    }
+
+    /// A trusted world's word on one place's health pools (with its body's,
+    /// [`Self::fixed`]): the consumables' need.
+    pub fn pools(&mut self, place: Place, pools: Pools) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pools = Some(pools);
+        }
+    }
+
+    /// A trusted world's word on what one place's kits hold of drugs
+    /// ([`stock::readings`], from `players::Supplies`): the bot's own count
+    /// follows it.
+    pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.pantry.read(time, readings);
+        }
+    }
+
     /// The bodies of the jump test's last asked world as the reckoning's worlds: the game passes an asked world on to
     /// nobody, and with the test asking all the time the bots would get none.
     #[cfg(feature = "jump-test")]
@@ -1044,6 +1135,23 @@ impl Bots {
             let report = tactics.hazards.sync_from_world(objects, time);
             (report.synced.len(), report.missed.len())
         })
+    }
+
+    /// A trusted world's objects section: the bear traps the teams' bots
+    /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
+    /// the traps the world shows (0 while no bot has put one down).
+    pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        if self.teams.iter().all(|team| team.knowledge.traps.all().is_empty()) {
+            return 0;
+        }
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        for team in &mut self.teams {
+            team.knowledge.traps.sync(time, &found);
+            if let Some(tactics) = self.tactics.as_ref() {
+                team.refresh_traps(&tactics.world.grid);
+            }
+        }
+        found.len()
     }
 
     /// The inputs due with the clock at `clock`.

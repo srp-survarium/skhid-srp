@@ -283,6 +283,7 @@ impl MatchProfile {
                     } else {
                         FULL_CONDITION
                     },
+                    modifications: item.mods.iter().map(|&id| (id, false)).collect(),
                     ..MatchItem::default()
                 });
             }

@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn exposure_is_the_metres_a_route_runs_through_seen_ground_and_where() {
         use crate::v026g::bots::path::Waypoint;
-        let wp = |x: f32| Waypoint { at: at(x), node: 0, jump: false, low: false };
+        let wp = |x: f32| Waypoint { at: at(x), node: 0, jump: None, low: false };
         let route = Route::new(vec![wp(0.0), wp(30.0), wp(60.0)]);
         let seen = |p: Vec3| (20.0..35.0).contains(&p.x);
         // Samples every 3 m: 21, 24, 27, 30, 33 are seen.
@@ -754,7 +754,7 @@ mod tests {
     #[test]
     fn hits_finds_a_small_disc_the_sampling_would_step_over() {
         use crate::v026g::bots::path::Waypoint;
-        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let wp = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
         let route = Route::new(vec![wp(0.0, 0.0), wp(30.0, 0.0), wp(30.0, 30.0)]);
         // A 0.5 m disc on the first leg at x 10.1, z 0.2: the chord is 2 * sqrt(0.25 - 0.04).
         let e = hits(&route, &[(Vec3::new(10.1, 0.0, 0.2), 0.5)]);
