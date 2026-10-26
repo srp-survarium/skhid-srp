@@ -57,7 +57,7 @@ impl Bots {
         if bench_camper(&due, bot, &mut self.bench_camper) {
             return;
         }
-        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.weapons, notes) else {
+        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
             return;
         };
         // [traps] A bot that carries traps may start to put one down.

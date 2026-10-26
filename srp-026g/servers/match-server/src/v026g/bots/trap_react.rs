@@ -692,9 +692,13 @@ impl React {
         }
         self.registered = Some(key);
         state
+            .features
+            .traps
             .shooters
             .retain(|&(_, _, at)| now.saturating_sub(at) <= SHOOTER_KEEP_MS);
         if state
+            .features
+            .traps
             .shooters
             .iter()
             .any(|&(other, who, _)| other == key && who != place)
