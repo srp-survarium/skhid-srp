@@ -29,7 +29,7 @@ use std::time::{Duration, Instant};
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState};
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
@@ -136,9 +136,10 @@ fn server_bot_name(n: usize) -> String {
     survarium::v026g::loadouts::bot_name(n)
 }
 
-/// The match server's own bot of `role` on `team` with the equipment of
-/// `tier`, number `n` of its match (1 on): a place with no account, its
-/// player with the role's three kits of the tier (`loadouts::bot_kits`):
+/// The match server's own bot of `role` on `team` with `equipment` (a
+/// tier's and the kit its rusher wears), number `n` of its match (1 on): a
+/// place with no account, its player with the role's three kits of the
+/// tier (`loadouts::bot_kits`):
 /// each another weapon in slot 7 with its own ammo, as much as the kit's
 /// ammo bags hold and six lives of it in storage (`BOT_AMMO_LIVES`); the
 /// role's armour, which opens three or four pockets of two, and in them
@@ -146,15 +147,15 @@ fn server_bot_name(n: usize) -> String {
 /// support) and the radio where a pocket is left
 /// (`loadouts::bot_pockets`). Its kits carry the skills of
 /// its kits' gear level (`bot_skills::BOT_SKILL_TIERS`), as a player's
-/// carry the player's. The match server reads the tier and the role back
-/// from the profile (`loadouts::bot_of`). The profile is
+/// carry the player's. The match server reads the equipment and the role
+/// back from the profile (`loadouts::bot_equipment_of`). The profile is
 /// `loadouts::bot_profile`, which the real-map bench builds its bots' from
 /// too; so are their roles (`loadouts::bot_roles`).
-pub fn server_bot(n: usize, team: u8, role: BotRole, tier: BotTier) -> MatchPlayer {
+pub fn server_bot(n: usize, team: u8, role: BotRole, equipment: BotEquipment) -> MatchPlayer {
     MatchPlayer {
         session_id: 0,
         account_id: 0,
-        profile: survarium::v026g::loadouts::bot_profile(n, team, role, tier),
+        profile: survarium::v026g::loadouts::bot_profile(n, team, role, equipment),
         bot: false,
         driven: true,
     }
@@ -910,9 +911,11 @@ impl Core<'_> {
         let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
         let bot_roles = survarium::v026g::loadouts::bot_roles(&bot_teams);
         let bot_tier = BotTier::of_gear(gear);
+        let bot_equipment = BotEquipment::of(bot_tier, self.settings.pvb.rusher_kits);
         if bots > 0 {
             log::info!(
-                "Match {match_id:#x}: {bots} bots with equipment of level {bot_tier} (the players' highest equipment level is {gear})"
+                "Match {match_id:#x}: {bots} bots with equipment of level {bot_tier} (the players' highest equipment level is {gear}), their rusher in the `{}` kit",
+                bot_equipment.rusher.name()
             );
         }
         let players = players.map(|mut players| {
@@ -921,7 +924,7 @@ impl Core<'_> {
                     .iter()
                     .zip(&bot_roles)
                     .enumerate()
-                    .map(|(n, (&team, &role))| server_bot(n + 1, team, role, bot_tier)),
+                    .map(|(n, (&team, &role))| server_bot(n + 1, team, role, bot_equipment)),
             );
             players
         });
@@ -1265,17 +1268,31 @@ mod tests {
     #[test]
     fn a_server_bot_wears_its_roles_kit_and_a_client_reads_it() {
         use survarium::v026g::dictionary::Dictionary;
-        use survarium::v026g::loadouts::{self, BOT_AMMO_LIVES, bot_kit_items, bot_of};
+        use survarium::v026g::loadouts::{
+            self, BOT_AMMO_LIVES, bot_equipment_of, bot_kit_items, bot_of,
+        };
         use survarium::v026g::match_msgs::static_info::{
             KIT_USABLE, MatchOptions, SCORE_WEIGHTS, StaticInfo, parse_payload,
         };
 
         let dictionary = Dictionary::shared();
-        for tier in BotTier::ALL {
+        // Every tier with each kit its rusher can wear in the data in use.
+        let equipments: Vec<BotEquipment> = BotTier::ALL
+            .into_iter()
+            .flat_map(|tier| {
+                tier.rusher_kits()
+                    .iter()
+                    .copied()
+                    .filter(move |&kit| kit.worn_in(tier) == kit)
+                    .map(move |rusher| BotEquipment { tier, rusher })
+            })
+            .collect();
+        for equipment in equipments {
+            let tier = equipment.tier;
             let bots: Vec<MatchPlayer> = BotRole::ALL
                 .iter()
                 .enumerate()
-                .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, role, tier))
+                .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, role, equipment))
                 .collect();
             for (bot, role) in bots.iter().zip(BotRole::ALL) {
                 let profile = &bot.profile;
@@ -1285,7 +1302,7 @@ mod tests {
                 // Every kit carries the skills of its kits' gear level:
                 // the carry path at its most, 40 kg.
                 let skills = survarium::v026g::bot_skills::BotSkillTier::for_kits(
-                    &loadouts::bot_kits(tier, role),
+                    &loadouts::bot_kits(equipment, role),
                 );
                 for kit in &profile.kits {
                     assert_eq!(kit.modifiers, skills.modifiers(), "{tier} {role}");
@@ -1303,7 +1320,7 @@ mod tests {
                 for (k, kit) in profile.kits.iter().enumerate() {
                     assert_eq!(kit.id, k as u32 + 1);
                     assert_eq!(kit.state, KIT_USABLE);
-                    let items = bot_kit_items(tier, role, k);
+                    let items = bot_kit_items(equipment, role, k);
                     // Every piece of the kit in its slot, the count as
                     // given; nothing else.
                     assert_eq!(
@@ -1330,7 +1347,7 @@ mod tests {
                 // The pockets' things (medkits, the radio and the grenades,
                 // or with the owner's kit bandages, traps or a grenade and
                 // the radio) in the open pockets, whichever kit is on.
-                let (pockets, _) = loadouts::pockets(loadouts::bot_kit(tier, role));
+                let (pockets, _) = loadouts::pockets(loadouts::bot_kit(equipment, role));
                 let held = if loadouts::new_kit() {
                     loadouts::bot_pockets(role, pockets)
                 } else {
@@ -1356,8 +1373,25 @@ mod tests {
                 assert_eq!(read.kits, bot.profile.kits);
                 assert_eq!(read.items, bot.profile.items);
                 assert_eq!(bot_of(read), Some((tier, role)));
+                if role == BotRole::Rusher {
+                    let (read, _) = bot_equipment_of(read).unwrap();
+                    assert_eq!(read, equipment, "{tier}");
+                }
             }
         }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's
+    /// test data lacks the 0.29a3 weapons) the same holds for every rusher
+    /// kit of both higher tiers, the P90 and the Kriss among them. Run
+    /// alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p lobby-server --lib
+    /// -- --ignored on_the_live_data_a_server_bot`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_a_server_bot_wears_every_rusher_kit() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        a_server_bot_wears_its_roles_kit_and_a_client_reads_it();
     }
 
     /// A scope on a weapon reaches the match as its record: the owned scope

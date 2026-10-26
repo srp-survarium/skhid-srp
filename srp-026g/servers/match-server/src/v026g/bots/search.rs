@@ -231,7 +231,7 @@ pub(super) fn long_kept(kept: Option<(Vec3, u32)>, goal: Vec3, now: u32) -> bool
 /// The bench's counts of the route searches a drive makes ([`asks::searched`]):
 /// all, those from a start floor in a pocket, those within a second of the
 /// bot's last, and the asks a bot given up in its pocket was spared
-/// ([`Ask::Skipped`]).
+/// ([`Ask::Skipped`], in drive ticks) and the episodes of a bot shut in ([`Ask::Episodes`]).
 #[cfg(test)]
 pub(super) mod asks {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -242,6 +242,7 @@ pub(super) mod asks {
         Pocket,
         Again,
         Skipped,
+        Episodes,
     }
 
     /// One bot's own: when its last search was, and how many it made.
@@ -251,13 +252,13 @@ pub(super) mod asks {
         pub(crate) total: u32,
     }
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub(crate) fn count(kind: Ask) {
         COUNTS[kind as usize].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub(crate) fn counts() -> [u64; 4] {
+    pub(crate) fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 

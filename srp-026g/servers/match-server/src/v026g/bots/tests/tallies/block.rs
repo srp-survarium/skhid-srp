@@ -142,6 +142,7 @@ pub(crate) fn measure_view(game: &Game, places: Vec<PlaceView>) -> MatchView {
         world_time: 0,
         can_respawn: [true, true],
         next_battery: None,
+        grenades: Vec::new(),
     }
 }
 
@@ -429,6 +430,7 @@ impl BlockTally {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         };
         for &(shooter, victim, _eye, dir, cone, view_dir) in &game.team_hit_shots {
             let (a, b) = (&game.bodies[shooter], &game.bodies[victim]);

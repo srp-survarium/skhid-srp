@@ -47,6 +47,9 @@ pub const LOOK_DOWN: f32 = 1.0;
 /// floor within 2.0 m from the standing eye only so steep (1.6 / sin 0.96 =
 /// 1.98).
 pub const PRESS_PITCH: f32 = 0.96;
+/// The head ray that puts a trap down is this long, metres (PROVEN: 2.0 m
+/// from the head along the view, `try_to_place_trap` 0x305EA0).
+pub const PLACE_RAY_M: f32 = 2.0;
 /// The metres round a trap's centre kept clear of the bot's own steps and of
 /// a mate's: the sensor reaches 0.6 m from a foot point (PROVEN) and a body
 /// has a margin.
@@ -543,6 +546,27 @@ pub fn choose(s: &Search) -> Option<Chosen> {
     best.map(|(chosen, _)| chosen)
 }
 
+/// Where a trap let go of lands: the client puts it where the head ray of
+/// the frame the key came up meets the floor (`floor_y`, the level of the
+/// spot the habit planned), [`PLACE_RAY_M`] at most. The habit looks down
+/// and presses while the bot goes on walking (about 0.6 s), so this is
+/// not the planned spot; `None` where the ray is too short to reach the
+/// floor (nothing is put down).
+pub fn landing(eye: Vec3, yaw: f32, pitch: f32, floor_y: f32) -> Option<Vec3> {
+    let down = -pitch.sin();
+    let rise = eye.y - floor_y;
+    if down <= 1e-3 || rise <= 0.0 {
+        return None;
+    }
+    let length = rise / down;
+    if length > PLACE_RAY_M {
+        return None;
+    }
+    let run = length * pitch.cos();
+    let d = dir(yaw);
+    Some(Vec3::new(eye.x + d[0] * run, floor_y, eye.z + d[1] * run))
+}
+
 /// The point to look at for a yaw: along it and steeply down, as far as the
 /// head ray goes.
 pub fn look_point(eye: Vec3, yaw: f32) -> Vec3 {
@@ -753,8 +777,18 @@ pub(super) fn drive(
         },
         t,
     );
-    if let Some(at) = out.placed {
-        bot.trap_placed = Some((at, now));
+    if let Some(planned) = out.placed {
+        // The promise is where the head ray of this frame meets the floor,
+        // not the spot planned before the look down and the steps taken
+        // since (1.8 m off at 3 m/s); a ray too short puts nothing down.
+        let landed = landing(me.eye(), me.yaw, me.pitch, planned.y);
+        bot.trap_placed = landed.map(|at| (at, now));
+        if bot.tracing {
+            bot.traced.push(serde_json::json!({
+                "t": now, "bot": bot.place, "trap_promise": landed.map(Vec3::to_array),
+                "planned": planned.to_array(),
+            }));
+        }
     }
     Some(TrapDrive {
         look: out.look_yaw.map(|yaw| look_point(me.eye(), yaw)),

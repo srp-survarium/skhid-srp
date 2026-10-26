@@ -38,12 +38,14 @@ pub mod encode;
 pub mod escape;
 pub mod foliage;
 pub mod friends;
+pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod live_grenades;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -77,35 +79,74 @@ mod think;
 
 use std::sync::Arc;
 
-use mapdata::{NodeId, Vec3, World};
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use mapdata::NodeId;
+use mapdata::Vec3;
+use mapdata::World;
+use survarium::v026g::loadouts::BotEquipment;
+use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::loadouts::BotTier;
+use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
 
-use crate::v026g::drive::{half_value, key};
+use crate::v026g::drive::half_value;
+use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
-use encode::{Decision, Encoder};
-use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
-use path::Route;
-use pools::Pools;
-use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
-use reflex::Reflex;
-use route_end::RouteEnd;
-use route_filter::RouteFilter;
-use rng::Rng;
-use sense::RayBudget;
-use signals::{Duel, MatchSignals, Mods, Skill};
-use stuck::{Recovery, Stuck, TeamSpots};
-use tactics::Tactics;
-use team::{Asking, Assignment};
-use trace::Trace;
-use tuning::Tuning;
-use view::{BatteryState, Clock, MatchView, Place, PlaceView, Tracker, WorldFacts};
 use commander::*;
 use drive::*;
+use encode::Decision;
+use encode::Encoder;
+use know::DangerSpot;
+use know::LookSpot;
+use know::Loss;
+use know::Memory;
+use know::Percept;
+use know::Source;
+use know::TeamKnowledge;
+use know::Theft;
+use motor::Hurt;
+use motor::JumpBy;
+use motor::Motor;
+use motor::Pose;
+use motor::RoutePress;
+use motor::Walked;
+use path::Route;
+use plays::BotFacts;
+use plays::Ctx;
+use plays::Go;
+use plays::Intent;
+use plays::Look;
+use plays::Pace;
+use plays::PlayKind;
+use plays::Running;
+use plays::Step;
 use plays::goals::goal_shut;
+use pools::Pools;
+use reflex::Reflex;
+use rng::Rng;
+use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use search::*;
+use sense::RayBudget;
+use signals::Duel;
+use signals::MatchSignals;
+use signals::Mods;
+use signals::Skill;
+use stuck::Recovery;
+use stuck::Stuck;
+use stuck::TeamSpots;
+use tactics::Tactics;
+use team::Asking;
+use team::Assignment;
+use trace::Trace;
+use tuning::Tuning;
+use view::BatteryState;
+use view::Clock;
+use view::MatchView;
+use view::Place;
+use view::PlaceView;
+use view::Tracker;
+use view::WorldFacts;
 
 /// From a bot's entry to its first move, ms.
 const START_AFTER_MS: u32 = 2_000;
@@ -136,6 +177,10 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
+    /// when it last used it (any life).
+    self_kill: stuck::SelfKill,
+    self_killed_at: Option<u32>,
     /// The regions the team's held threat spots see ([`threat`]), told at
     /// the commander's ticks; its routes keep out of them where they can.
     threat: Arc<threat::Covered>,
@@ -194,6 +239,9 @@ pub struct Bot {
     /// The time of its last route search, for the bench's counts of asks (`search::asks`).
     #[cfg(test)]
     pub(crate) bench_asked: search::asks::Asked,
+    /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
+    #[cfg(test)]
+    pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -291,6 +339,9 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// Its state towards the live grenades it knows of, and what it did
+    /// ([`grenade_threat`]).
+    avoid: grenade_threat::Avoid,
     /// The resupply holds it finished this match (`Intent::resupplied`).
     resupplies: u32,
 }
@@ -318,7 +369,7 @@ impl Bot {
         // What it carries: its role's gear (the lowest tier's until
         // `Bots::with_tiers` says another), else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits = Self::kits_of(role, BotTier::Low);
+        let kits = Self::kits_of(role, BotEquipment::of(BotTier::Low, RusherKits::default()));
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
                 .personalities
@@ -339,6 +390,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            self_kill: stuck::SelfKill::default(),
+            self_killed_at: None,
             threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -373,6 +426,8 @@ impl Bot {
             bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_asked: Default::default(),
+            #[cfg(test)]
+            bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
@@ -417,25 +472,26 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            avoid: grenade_threat::Avoid::default(),
             resupplies: 0,
         }
     }
 
-    /// The kits of a bot of `role` (a personality's name) in `tier`, each
-    /// with its whole storage; none for no role.
-    fn kits_of(role: Option<&str>, tier: BotTier) -> Vec<(&'static guns::Arms, u32)> {
+    /// The kits of a bot of `role` (a personality's name) with `equipment`,
+    /// each with its whole storage; none for no role.
+    fn kits_of(role: Option<&str>, equipment: BotEquipment) -> Vec<(&'static guns::Arms, u32)> {
         role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role))
-            .map(|role| guns::Arms::kits_of(tier, role))
+            .map(|role| guns::Arms::kits_of(equipment, role))
             .unwrap_or_default()
             .into_iter()
             .map(|arms| (arms, arms.reserve))
             .collect()
     }
 
-    /// Its kits are those of `tier` (its role's): each full, the first in
-    /// hand. For a bot made before its life begins.
-    fn arm(&mut self, tier: BotTier) {
-        let kits = Self::kits_of(self.role.map(BotRole::name), tier);
+    /// Its kits are those of `equipment` (its role's): each full, the first
+    /// in hand. For a bot made before its life begins.
+    fn arm(&mut self, equipment: BotEquipment) {
+        let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
         }
@@ -531,6 +587,21 @@ impl Bot {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
     }
 
+    /// The kind of its weapon 1: the one the match gave its place
+    /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
+    /// personality's name as a role (the tests' bots, whose place has none).
+    fn weapon(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+    ) -> Option<reflex::WeaponKind> {
+        weapons
+            .get(self.place)
+            .copied()
+            .flatten()
+            .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
+    }
+
     /// The commander gave it play `next`: the running play stops, and its
     /// cooldown counts from now. A switch to another target of the same
     /// play goes on with it, so the cooldown counts from the play's own end
@@ -574,9 +645,11 @@ impl Bot {
         self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
+        self.avoid.died();
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).
@@ -688,6 +761,7 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            self_kills: Vec::new(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
             world_traps: Arc::new(Vec::new()),
@@ -760,19 +834,25 @@ impl Bots {
         self
     }
 
-    /// The tier of each bot's gear (`tiers[place]`, read from its profile:
-    /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
-    /// that tier (`Bots::new` gives the lowest tier's), and the skill
-    /// starts at the highest of them ([`Bots::with_tier`]; the lobby gives
-    /// a match's bots one tier). Before play.
-    pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
-        for (bot, tier) in self.bots.iter_mut().zip(tiers) {
-            if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
-                bot.arm(*tier);
+    /// The equipment of each bot's gear (`equipments[place]`, read from its
+    /// profile: `survarium::v026g::loadouts::bot_equipment_of`): its kits
+    /// are its role's of that tier and of the kit that tier's rusher wears
+    /// (`Bots::new` gives the lowest tier's), and the skill starts at the
+    /// highest tier among them ([`Bots::with_tier`]; the lobby gives a
+    /// match's bots one tier). Before play.
+    pub fn with_tiers(mut self, equipments: &[Option<BotEquipment>]) -> Self {
+        for (bot, equipment) in self.bots.iter_mut().zip(equipments) {
+            if let (Some(bot), Some(equipment)) = (bot.as_mut(), equipment) {
+                bot.arm(*equipment);
             }
         }
-        match tiers.iter().flatten().max() {
-            Some(&tier) => self.with_tier(tier),
+        match equipments
+            .iter()
+            .flatten()
+            .map(|equipment| equipment.tier)
+            .max()
+        {
+            Some(tier) => self.with_tier(tier),
             None => self,
         }
     }
@@ -789,6 +869,12 @@ impl Bots {
     /// move at it until a world shows a life's own.
     pub fn set_speed_levels(&mut self, levels: &[Option<f32>]) {
         self.tracker.set_prior_levels(levels);
+    }
+
+    /// Every place's pockets (a human's), for the throw keys
+    /// ([`live_grenades`]).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+        self.tracker.set_pockets(pockets);
     }
 
     /// Every place's weapon 1 kind (the matchup, play 11).
@@ -809,16 +895,16 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tuning.hazard_margin);
+        let tactics = Tactics::new(world, self.tuning.hazard.margin_m.get());
         self.tactics_ready(tactics)
     }
 
     /// [`Self::map_ready`] with the tactics built ([`Tactics::new`] with
-    /// this match's `tuning.hazard_margin`): the routes, the anomalies'
+    /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
-        tactics.escape_ceiling = self.tuning.escape_ceiling;
+        tactics.escape_ceiling = self.tuning.hazard.escape == tuning::EscapeRule::UnderStartZone;
         tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
@@ -1260,6 +1346,7 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
+        self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }

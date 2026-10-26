@@ -301,9 +301,15 @@ fn a_bot_in_a_pit_with_no_exit_gives_up() {
 /// What a bot shut in a pit with no exit did in a run: when it died and came
 /// back, what it said, and where it ended.
 struct PitRun {
+    died: Vec<u32>,
+    back: Vec<u32>,
+    said: Vec<String>,
     end: Vec3,
+    world: Arc<World>,
     /// The route searches the bot made.
     asked: u32,
+    /// Whether the bot ended the run counted as shut in (`think.shut_in_gate`).
+    shut_in: bool,
 }
 
 /// The bot of `pit(1.6)`, shut in it with a goal outside, run to `until` ms
@@ -328,7 +334,8 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
     game.bodies[0].feet = start;
     bots.entered(0, true, 0);
     let (mut clock, mut next_world, mut next_think) = (0u32, 1_000u32, 0u32);
-    let mut notes = Vec::new();
+    let (mut died, mut back, mut notes) = (Vec::new(), Vec::new(), Vec::new());
+    let mut was_alive = true;
     while clock < until {
         clock += 25;
         while game.tick + TICK_MS <= clock {
@@ -378,10 +385,27 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
             let gun = Arms::fallback().primary.0;
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
         }
+        let alive = game.bodies[0].alive;
+        if was_alive && !alive {
+            died.push(clock);
+        }
+        if !was_alive && alive {
+            back.push(clock);
+        }
+        was_alive = alive;
     }
     PitRun {
+        died,
+        back,
+        said: notes
+            .iter()
+            .map(|n| n.text.clone())
+            .filter(|t| t.starts_with("self_kill"))
+            .collect(),
         end: game.bodies[0].feet,
+        world,
         asked: bots.bots[0].as_ref().map_or(0, |bot| bot.bench_asked.total),
+        shut_in: bots.bots[0].as_ref().is_some_and(|bot| bot.bench_shut_in),
     }
 }
 
@@ -392,13 +416,51 @@ fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
     let asks = |gate: bool| {
         let mut tuning = Tuning::default();
         tuning.think.shut_in_gate = gate;
+        tuning.unstick.suicide_after_ms = None;
         run_pit(tuning, 100_000)
     };
     let (gated, ungated) = (asks(true), asks(false));
     eprintln!("gated {} ungated {}", gated.asked, ungated.asked);
     assert!(ungated.asked >= 100, "it asks every 0.5 s: {}", ungated.asked);
     assert!(gated.asked <= 10, "it gave up and asks no more: {}", gated.asked);
+    // Its skipped ticks carry their own no-route reason, and the episode is the bot's, once.
+    assert!(gated.shut_in && !ungated.shut_in, "{} {}", gated.shut_in, ungated.shut_in);
     assert_eq!(gated.end.y, ungated.end.y, "both stay in the pit");
+}
+
+/// The last resort, whole: a bot shut in a pit with no exit gives up its
+/// tries at once and stands, aiming; 60 s after it found itself in the pit it
+/// kills itself with the suicide bit (not a second before, and not twice), the
+/// stand-in's body dies like the game's (a death, no one's kill), it respawns
+/// at its side's spawn after the mode's delay and goes on to its goal.
+#[test]
+fn a_bot_shut_in_a_pit_kills_itself_after_the_minute_and_comes_back() {
+    let mut tuning = Tuning::default();
+    tuning.unstick.suicide_after_ms = Some(60_000);
+    let PitRun { died, back, said, end, world, .. } = run_pit(tuning, 100_000);
+    eprintln!("died {died:?} back {back:?} said {said:?}");
+    assert_eq!(died.len(), 1, "once: {died:?}");
+    assert!(died[0] >= 60_000, "not before the minute: {died:?}");
+    assert!(died[0] <= 66_000, "soon after it: {died:?}");
+    assert_eq!(back.len(), 1, "it came back: {back:?}");
+    assert!(
+        (died[0] + 5_000..=died[0] + 12_000).contains(&back[0]),
+        "after the mode's respawn delay: {died:?} {back:?}"
+    );
+    assert_eq!(said.len(), 1, "{said:?}");
+    // Back at its spawn side, out of the pit.
+    assert!(
+        world.grid.locate(end, 1.0).is_some_and(|n| !world.grid.in_pocket(n)),
+        "{end:?}"
+    );
+}
+
+/// With the setting at 0 (the default, the switch off) the same bot stands in the pit to the end.
+#[test]
+fn with_the_setting_at_zero_a_bot_in_a_pit_stays_there() {
+    let PitRun { died, said, end, world, .. } = run_pit(Tuning::default(), 75_000);
+    assert!(died.is_empty() && said.is_empty(), "{died:?} {said:?}");
+    assert!(world.grid.locate(end, 1.0).is_some_and(|n| world.grid.in_pocket(n)), "{end:?}");
 }
 
 /// A pit with no way out is shut: no route is planned into it from the

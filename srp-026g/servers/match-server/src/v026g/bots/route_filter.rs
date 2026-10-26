@@ -44,6 +44,9 @@ pub struct RouteFilter {
     soft_floors: Option<FloorRule>,
     /// A rule over regions, true for open (hard).
     regions: Option<RegionRule>,
+    /// The highest jump link the body takes, metres (hard): a body that
+    /// cannot sprint clears [`mapdata::grid::STANDING_JUMP_M`] at most.
+    max_jump_rise: Option<f32>,
     /// The regions a held threat spot sees (soft, K1): kept out but near
     /// the route's ends.
     threat: Option<Arc<Threat>>,
@@ -81,6 +84,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("floors", &self.floors.is_some())
             .field("soft_floors", &self.soft_floors.is_some())
             .field("regions", &self.regions.is_some())
+            .field("max_jump_rise", &self.max_jump_rise)
             .field("threat", &self.threat.is_some())
             .finish()
     }
@@ -133,6 +137,18 @@ impl RouteFilter {
     pub fn with_floors(mut self, open: impl Fn(NodeId) -> bool + Send + Sync + 'static) -> Self {
         self.floors = Some(Arc::new(open));
         self
+    }
+
+    /// With the jump links above `rise` metres kept out (hard): the
+    /// body cannot take them.
+    pub fn with_max_jump_rise(mut self, rise: f32) -> Self {
+        self.max_jump_rise = Some(rise);
+        self
+    }
+
+    /// The highest jump link the body takes, if limited.
+    pub fn max_jump_rise(&self) -> Option<f32> {
+        self.max_jump_rise
     }
 
     /// Keeps out the regions `shut` gives true for, and every floor of
@@ -207,6 +223,10 @@ impl RouteFilter {
     pub fn and(mut self, other: &Self) -> Self {
         self.landings.extend(other.landings.iter().copied());
         self.spots.extend(other.spots.iter().copied());
+        self.max_jump_rise = match (self.max_jump_rise, other.max_jump_rise) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         if self.threat.is_none() {
             self.threat = other.threat.clone();
         }
@@ -270,6 +290,18 @@ mod tests {
         assert!(!filter.has_soft());
         assert!(nodes(&world.grid).all(|n| filter.floor_open(&world.grid, n)));
         assert!(filter.region_open(0) && filter.region_open(7));
+    }
+
+    #[test]
+    fn two_filters_keep_the_lower_jump() {
+        let high = RouteFilter::open().with_max_jump_rise(1.0);
+        let low = RouteFilter::open().with_max_jump_rise(0.8);
+        assert_eq!(RouteFilter::open().max_jump_rise(), None);
+        assert_eq!(high.clone().and(&RouteFilter::open()).max_jump_rise(), Some(1.0));
+        assert_eq!(RouteFilter::open().and(&low).max_jump_rise(), Some(0.8));
+        assert_eq!(high.and(&low).max_jump_rise(), Some(0.8));
+        // Not a soft part: the second search without the spots keeps it.
+        assert_eq!(low.without_soft().max_jump_rise(), Some(0.8));
     }
 
     #[test]
