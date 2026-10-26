@@ -14,8 +14,13 @@
 //! The test is a little stricter than the game's scan (which stops once the
 //! walkable and hittable groups were both hit), and a stand holds only when
 //! the ray passes at **both** eye heights of a pose ([`EYE_STANDING`],
-//! [`EYE_CROUCHED`]): the eye's exact height is not read from the client
-//! (LIKELY 1.6 and 0.95 m, bounded by the capsule), so a stand has a margin.
+//! [`EYE_CROUCHED`]). The ray starts at the player's head matrix, an
+//! animated bone (PROVEN, 0x2D84C0); its height over the feet was measured
+//! on live bullets, which start at the same matrix: standing 1.47 m (sd
+//! 0.03, 1.42-1.51 for the 10th to 90th percentile), crouched 1.04 m still
+//! and 1.14 m (sd 0.06) on the move, and it moves 0.16-0.22 m with the sine
+//! of the view's pitch. The two heights of a pose bound that, so a stand
+//! has a margin (`bots::view::eye_height` gives the bots' own).
 
 use crate::{Container, RayTree, Rotation, Shape, Vec3, World};
 
@@ -24,10 +29,19 @@ use crate::{Container, RayTree, Rotation, Shape, Vec3, World};
 pub const USE_RAY_M: f32 = 2.0;
 /// The view's pitch limit, radians (LIKELY; `kin.rs`).
 pub const PITCH_MAX_RAD: f32 = 1.0;
-/// The two eye heights over the feet a standing stand must pass at, metres.
-pub const EYE_STANDING: [f32; 2] = [1.5, 1.7];
-/// The two eye heights over the feet a crouched stand must pass at, metres.
-pub const EYE_CROUCHED: [f32; 2] = [0.9, 1.0];
+/// The two eye heights over the feet a standing stand must pass at, metres:
+/// the bullet's 1.46 m with the view's pitch within a quarter radian
+/// (1.42-1.50) and the spread of live bullets (sd 0.03) round it.
+pub const EYE_STANDING: [f32; 2] = [1.40, 1.52];
+/// The two eye heights over the feet a crouched stand must pass at, metres:
+/// 1.04 m still and 1.14 m moving, the same pitch round them (0.99-1.19)
+/// and the spread (sd 0.06).
+pub const EYE_CROUCHED: [f32; 2] = [0.97, 1.25];
+/// The ranges before the measurement (the eye's height was not read from the
+/// client), for [`UseStands::build_with`]: the bench's off switch of the
+/// fix.
+pub const GUESSED_EYE_STANDING: [f32; 2] = [1.5, 1.7];
+pub const GUESSED_EYE_CROUCHED: [f32; 2] = [0.9, 1.0];
 /// How far from the box's bounds a floor is looked at, metres.
 pub const SEARCH_M: f32 = 3.5;
 /// The floors looked at lie from this far under the box's middle...
@@ -83,11 +97,16 @@ impl UseStands {
     /// asked [`SAMPLES`]^3 aims at four eye heights; a few milliseconds a
     /// map, once.
     pub fn build(world: &World) -> Self {
+        Self::build_with(world, EYE_STANDING, EYE_CROUCHED)
+    }
+
+    /// [`Self::build`] with other pairs of eye heights.
+    pub fn build_with(world: &World, standing: [f32; 2], crouched: [f32; 2]) -> Self {
         let lists = world
             .map
             .containers
             .iter()
-            .map(|c| stands_of(world, c))
+            .map(|c| stands_of(world, c, standing, crouched))
             .collect();
         let ids = world.map.containers.iter().map(|c| c.id).collect();
         Self { lists, ids }
@@ -104,7 +123,12 @@ impl UseStands {
     }
 }
 
-fn stands_of(world: &World, container: &Container) -> Vec<UseStand> {
+fn stands_of(
+    world: &World,
+    container: &Container,
+    eye_standing: [f32; 2],
+    eye_crouched: [f32; 2],
+) -> Vec<UseStand> {
     let Some(shape) = container.use_shapes.first() else {
         return Vec::new();
     };
@@ -130,8 +154,8 @@ fn stands_of(world: &World, container: &Container) -> Vec<UseStand> {
             press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape)?;
             Some(first)
         };
-        let standing = at(EYE_STANDING);
-        let crouched = at(EYE_CROUCHED);
+        let standing = at(eye_standing);
+        let crouched = at(eye_crouched);
         if let Some((aim, pitch)) = standing.or(crouched) {
             out.push(UseStand {
                 feet,
