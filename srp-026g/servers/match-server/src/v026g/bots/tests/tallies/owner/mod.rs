@@ -36,26 +36,39 @@ use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::reflex::gate;
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
+use crate::v026g::bots::Bot;
 use crate::v026g::drive::key;
 
 mod campers;
 mod fight;
 mod golden;
 mod grenades;
+mod heal;
 mod jumps;
 mod moving;
 mod pre;
+mod resupply;
+mod run;
 mod stamina;
 mod stock;
+mod topic;
 
 use campers::*;
 use fight::*;
 use grenades::*;
+use heal::*;
 use jumps::*;
 use moving::*;
 use pre::*;
+use resupply::*;
+use run::*;
+use stamina::*;
+use stock::*;
+use topic::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
@@ -85,222 +98,152 @@ struct Rec {
     past_band: bool,
 }
 
-/// What the bench reads of a bot at a tick: out of rounds with nothing
-/// to load, its last reload (start, end), the jump it pressed (why, and
-/// the route's take-off and landing for a route jump), its play, its
-/// play's step (once a second: none between), and how far its goal is.
-#[derive(Clone, Debug, Default)]
-struct BotNow {
-    dry: bool,
-    reload: Option<(u32, u32)>,
-    jump: Option<(&'static str, Option<(Vec3, Vec3)>)>,
-    play: String,
-    step: Option<String>,
-    goal_m: Option<f32>,
-}
-
-#[derive(Default)]
+/// The owner counts: the run's record ([`Run`]) and the topics that count from it ([`Topic`], [`topics`]).
 pub(crate) struct OwnerTally {
-    first_tick: u32,
-    recs: Vec<Vec<Rec>>,
-    is_bot: Vec<bool>,
-    plays: Vec<String>,
-    play_index: BTreeMap<String, u16>,
-    /// By place: in a designed hold, in a step with a goal (the last
-    /// step read).
-    status: Vec<(bool, bool)>,
-    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are
-    /// also given apart.
-    pub(crate) camper: Option<Place>,
-    metric_rays: u64,
-    /// The fight counts ([`FightCounts`], `fight.rs`).
-    fight: FightCounts,
-    /// The jumps counts ([`JumpCounts`], `jumps.rs`).
-    jumps: JumpCounts,
-    /// The moving counts ([`MoveCounts`], `moving.rs`).
-    moving: MoveCounts,
-    /// The grenades counts ([`GrenadeCounts`], `grenades.rs`).
-    grenades: GrenadeCounts,
-    /// The campers counts ([`CamperCounts`], `campers.rs`).
-    campers: CamperCounts,
+    run: Run,
+    topics: Vec<Box<dyn Topic>>,
 }
 
 impl OwnerTally {
     pub(crate) fn new(n: usize) -> Self {
         Self {
-            recs: vec![Vec::new(); n],
-            is_bot: vec![false; n],
-            status: vec![(false, false); n],
-            fight: FightCounts::new(n),
-            jumps: JumpCounts::default(),
-            moving: MoveCounts::new(n),
-            grenades: GrenadeCounts::default(),
-            campers: CamperCounts::default(),
-            ..Self::default()
+            run: Run::new(n),
+            topics: topics(n),
         }
     }
 
-    fn play_id(&mut self, name: String) -> u16 {
-        if let Some(&id) = self.play_index.get(&name) {
-            return id;
-        }
-        let id = self.plays.len() as u16;
-        self.plays.push(name.clone());
-        self.play_index.insert(name, id);
-        id
+    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
+    pub(crate) fn set_camper(&mut self, camper: Option<Place>) {
+        self.run.camper = camper;
     }
 
-    /// After a game step, before the hit tally takes the game's hits: the
-    /// bots' state as [`BotNow`], then [`Self::step`].
+    /// After a game step, before the hit tally takes the game's hits: each topic reads the bots, then
+    /// [`Self::step`].
     pub(crate) fn tick(&mut self, game: &mut Game, bots: &Bots) {
         let tick = game.tick;
         // The step once a second, at the stuck detector's samples.
-        let sample = self.first_tick == 0
-            || ((tick.saturating_sub(self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS);
-        let nows: Vec<Option<BotNow>> = bots
-            .bots
-            .iter()
-            .enumerate()
-            .map(|(place, bot)| {
-                let bot = bot.as_ref()?;
-                let feet = game.bodies[place].feet;
-                let goal_m = match bot.intent.go {
-                    Go::To { at, .. } => Some(feet.distance_xz(at)),
-                    Go::Stay => None,
-                };
-                let watch = bot
-                    .jump_watch
-                    .filter(|w| w.at.abs_diff(tick) <= TICK_MS * 2);
-                Some(BotNow {
-                    dry: bot.reflex.dry(),
-                    reload: bot.reflex.reload_note().map(|r| (r.at, r.until)),
-                    jump: watch.map(|w| (w.by, w.route.map(|r| (r.take_off, r.landing)))),
-                    play: bot
-                        .assignment
-                        .as_ref()
-                        .map_or("none".to_owned(), |a| format!("{:?}", a.kind)),
-                    step: sample.then(|| {
-                        bot.running
-                            .as_ref()
-                            .map_or_else(String::new, |r| r.step_name())
-                    }),
-                    goal_m,
-                })
-            })
-            .collect();
-        self.step(game, &nows);
+        let sample = self.run.first_tick == 0
+            || ((tick.saturating_sub(self.run.first_tick) / TICK_MS) as usize).is_multiple_of(TPS);
+        for topic in &mut self.topics {
+            topic.bots(bots, game);
+        }
+        let mut doing = Vec::with_capacity(game.bodies.len());
+        for place in 0..game.bodies.len() {
+            let bot = bots.bots.get(place).and_then(Option::as_ref);
+            for topic in &mut self.topics {
+                topic.read(place, bot, tick);
+            }
+            doing.push(bot.map(|bot| Doing::of(bot, game, place, sample)));
+        }
+        self.step(game, &doing);
     }
 
-    /// One tick of the counts with the bots' state `nows` (none: not a
-    /// bot): records the bodies; the bots' ammunition, reloads, jumps and
-    /// targets; fire by range, movement and line; hits; kills and held
-    /// lines; reloads in a line; the grenades going off. Takes the game's
-    /// landings.
-    fn step(&mut self, game: &mut Game, nows: &[Option<BotNow>]) {
+    /// One tick of the counts with what the bots were doing (none: not a bot): the topics' `begin`, each body
+    /// recorded and given to the topics, their `end`. Takes the game's logs.
+    fn step(&mut self, game: &mut Game, doing: &[Option<Doing>]) {
         let tick = game.tick;
-        let n = game.bodies.len();
-        if self.first_tick == 0 {
-            self.first_tick = tick;
+        if self.run.first_tick == 0 {
+            self.run.first_tick = tick;
         }
         let mut rays = 0u64;
-        self.fight_hits_taken(game, tick);
-        self.jumps_landings(game);
+        self.run.read_game(game);
+        for topic in &mut self.topics {
+            topic.begin(&self.run, game);
+        }
         let sight = game.world.sight.clone();
-        for place in 0..n {
-            let body = &game.bodies[place];
-            let now = nows.get(place).and_then(Option::as_ref);
-            let prev = self.recs[place].last().copied().unwrap_or_default();
-            if let Some(now) = now {
-                self.is_bot[place] = true;
-                if let Some(step) = &now.step {
-                    self.status[place] = status_of(&now.play, step, now.goal_m);
-                }
+        for place in 0..game.bodies.len() {
+            let (rec, prev) = self.run.push(game, place, doing.get(place).and_then(Option::as_ref));
+            let at = BodyAt { game, place, tick, rec: &rec, prev: &prev, sight: &sight };
+            for topic in &mut self.topics {
+                topic.body(&self.run, &at, &mut rays);
             }
-            self.fight_death(place, tick, &prev, body);
-            let enemy_near = game.bodies.iter().any(|b| {
-                b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
-            });
-            let play = self.play_id(now.map_or("human".to_owned(), |b| b.play.clone()));
-            let (hold, travel) = self.status[place];
-            let rec = Rec {
-                alive: body.alive,
-                keys: body.keys,
-                feet: body.feet,
-                yaw: body.yaw,
-                pitch: body.pitch,
-                speed: body.step_m / TICK_S,
-                calm: body.keys & (key::AIM | key::FIRE) == 0 && !enemy_near,
-                carrying: body.carrying.is_some(),
-                air: body.flight.is_some() || body.air_until > tick,
-                play,
-                hold,
-                travel,
-                past_band: target_past_band(game, place, body),
-            };
-            self.recs[place].push(rec);
-            let Some(now) = now else {
-                continue;
-            };
-            self.grenades_keys(place, tick, body, &prev);
-            self.fight_ammo(place, tick, body, now);
-            self.jumps_press(place, tick, body, &prev, now, &rec);
-            self.fight_fire(game, place, body, &rec, &sight, &mut rays);
-            self.fight_switch(game, place, body, &sight, &mut rays);
         }
-        self.fight_hits_scored(game);
-        self.campers_kills(game, &sight, &mut rays, tick);
-        self.fight_reloads(game, &sight, &mut rays, tick);
-        self.grenades_off(game, &sight, &mut rays, tick);
-        game.metric_rays += std::mem::take(&mut self.metric_rays) + rays;
+        for topic in &mut self.topics {
+            topic.end(&self.run, game, &sight, &mut rays);
+        }
+        game.metric_rays += rays;
     }
 
-    /// The record index of `tick`.
-    fn index(&self, tick: u32) -> usize {
-        (tick.saturating_sub(self.first_tick) / TICK_MS) as usize
+    /// A bot's note: what the topics count of it (takes, stuck watches, plays ended for no way to the goal,
+    /// grenades thrown). The note is read once here, into its [`NoteKind`].
+    pub(crate) fn note(&mut self, note: &Note, game: &Game) {
+        let kind = NoteKind::of(&note.text);
+        if matches!(kind, NoteKind::Stuck)
+            && let Some(t) = self.run.stuck_notes.get_mut(note.place)
+        {
+            t.push(note.time);
+        }
+        for topic in &mut self.topics {
+            topic.note(&self.run, note, &kind, game);
+        }
     }
 
-    /// The tick of record index `k`, ms.
-    fn time_of(&self, k: usize) -> u32 {
-        self.first_tick + k as u32 * TICK_MS
+    /// A fabricated bot's state for a test: the run's record of what it was doing, and what each topic reads.
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        for topic in &mut self.topics {
+            topic.inject(place, now);
+        }
     }
 
-    /// The counts, as the `owner-test` lines and the sums' `owner` object: each topic works out its own
-    /// ([`Self::fight_part`], ...); what they share is the bots' minutes and the rounding ([`Scale`]).
+    /// [`Self::step`] with fabricated bots: `nows[place]` (none: not a bot, and a place past the end is none).
+    #[cfg(test)]
+    fn step_with(&mut self, game: &mut Game, nows: &[Option<BotNow>]) {
+        let mut doing = Vec::new();
+        for place in 0..game.bodies.len() {
+            let now = nows.get(place).and_then(Option::as_ref);
+            self.inject(place, now);
+            doing.push(now.map(BotNow::doing));
+        }
+        self.step(game, &doing);
+    }
+
+    /// A topic by its type, for a test that reaches into one.
+    #[cfg(test)]
+    fn topic<T: Topic>(&mut self) -> &mut T {
+        self.topics
+            .iter_mut()
+            .find_map(|t| t.as_any_mut().downcast_mut::<T>())
+            .expect("a topic of that type")
+    }
+
+    /// The counts, as the `owner-test` lines and the sums' `owner` object: each topic works out its own; what
+    /// they share is the bots' minutes and the rounding ([`Scale`]).
     pub(crate) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
-        for r in std::mem::take(&mut self.fight.reloads) {
-            self.reload_done(&r);
-        }
-        let n = self.recs.len();
-        let ticks = self.recs.first().map_or(0, Vec::len);
-        let tick_s = TICK_S as f64;
-        let bot_alive_ticks: u64 = (0..n)
-            .filter(|&p| self.is_bot[p])
-            .map(|p| self.recs[p].iter().filter(|r| r.alive).count() as u64)
-            .sum();
-        let bot_min = bot_alive_ticks as f64 * tick_s / 60.0;
-        let scale = Scale { tick_s, bot_min };
-        let mut presses = self.jumps.presses.clone();
-        presses.sort_by_key(|p| (p.place, p.t));
-        let parts = [
-            self.fight_part(&scale),
-            self.jumps_part(game, &presses),
-            self.moving_part(game, &presses, &scale),
-            self.vertical_part(game),
-            self.grenades_part(game),
-            self.stock_part(game),
-            self.stamina_part(game),
-            self.campers_part(),
-        ];
-        let mut json = serde_json::Map::new();
-        json.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
-        json.insert("ticks".to_owned(), serde_json::json!(ticks));
+        let Topics { core, parts } = self.finish_topics(game);
+        let mut json = core;
         let mut text = Vec::new();
-        for part in parts {
+        for (_, part) in parts {
             json.extend(part.json);
             text.push(part.text);
         }
-        (text.join("\n  "), serde_json::Value::Object(json))
+        (text.join("
+  "), serde_json::Value::Object(json))
     }
+
+    /// [`Self::finish`] before it joins the topics: what the run shares (`bot_min`, `ticks`) and each topic's
+    /// [`Part`]s under their names (the golden counts keep one file a name).
+    pub(super) fn finish_topics(&mut self, game: &Game) -> Topics {
+        let ticks = self.run.recs.first().map_or(0, Vec::len);
+        let bot_min = self.run.bot_min();
+        let scale = Scale { tick_s: TICK_S as f64, bot_min };
+        let mut parts = Vec::new();
+        let mut shared = Shared::new();
+        for topic in &mut self.topics {
+            parts.extend(topic.parts(&self.run, game, &scale, &shared));
+            shared.extend(topic.publish());
+        }
+        let mut core = serde_json::Map::new();
+        core.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
+        core.insert("ticks".to_owned(), serde_json::json!(ticks));
+        Topics { core, parts }
+    }
+}
+
+/// The counts before they are joined: the keys the run shares, and each topic's part by name.
+pub(super) struct Topics {
+    pub(super) core: serde_json::Map<String, serde_json::Value>,
+    pub(super) parts: Vec<(&'static str, Part)>,
 }
 
 /// What the counts share of the whole run: its length in the bots' minutes, and how rates and shares are rounded.
@@ -360,7 +303,7 @@ fn play(
     for k in 0..ticks {
         game.tick = (k as u32 + 1) * TICK_MS;
         let nows = set(k, game);
-        tally.step(game, &nows);
+        tally.step_with(game, &nows);
         game.hit_log.clear();
     }
 }

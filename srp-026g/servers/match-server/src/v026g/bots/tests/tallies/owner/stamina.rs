@@ -4,11 +4,25 @@
 use super::*;
 use crate::v026g::bots::tests::standin_stamina;
 
-impl OwnerTally {
+/// The stand-in's stamina: it counts nothing as the match runs (the bars keep their own counts), only sums
+/// them at the end.
+pub(super) struct StaminaCounts;
+
+impl Topic for StaminaCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("stamina", self.part(game))]
+    }
+}
+
+impl StaminaCounts {
     /// The world's counts: times the low flag was set, the seconds a living body had it, the seconds of those
     /// its sprint keys were held (a lockout lasts as long as the key does), the sprint keys held by a body that could
     /// not sprint (low or overburdened), and the jump presses refused for the bar.
-    pub(super) fn stamina_part(&self, game: &Game) -> Part {
+    fn part(&self, game: &Game) -> Part {
         let c = standin_stamina::counts_of(game.bodies.iter().map(|b| &b.stamina));
         let secs = |ticks: u32| (10.0 * f64::from(ticks) * f64::from(TICK_S)).round() / 10.0;
         let json = serde_json::json!({

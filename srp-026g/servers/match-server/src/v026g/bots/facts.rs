@@ -88,6 +88,26 @@ impl Bots {
                     spawner,
                 });
             }
+            // Threat spots (K1): the killer the team sensed lately, if the
+            // kill feed gave one (one enemy's kills rose), is where this
+            // death adds to a spot; a dead shooter's spots keep half.
+            if self.tuning.threat.spots {
+                self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
+                let killers: Vec<Place> = after
+                    .places
+                    .iter()
+                    .zip(&before.places)
+                    .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
+                    .map(|(now, _)| now.place)
+                    .collect();
+                if let [killer] = killers[..]
+                    && let Some(death) = new_deaths.iter().find(|d| d.place == a.place)
+                    && let Some((_, sensed, at)) = self.last_sensed(killer, team, &[])
+                    && sensed + threat::SENSED_MS >= time
+                {
+                    self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time);
+                }
+            }
             // An enemy known to carry a battery died: his team's HUD shows
             // where it fell, ours does not. The team looks where it last
             // sensed him itself (never the thief cheat's place).

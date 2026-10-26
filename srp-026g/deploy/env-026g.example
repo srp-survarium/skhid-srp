@@ -158,18 +158,25 @@ RUST_LOG=info
 # SRP_CLAN_MAX_MEMBERS=30
 
 # "Player vs Bots": one player against the server's own bots, chosen in
-# the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On with
-# the compose default; `off` switches it off. The highest equipment level
+# the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On by
+# default (in the code and the compose file); `off` switches it off. The highest equipment level
 # let in, the most such matches at once (the server keeps a bots' map in
 # memory for each, 35-150 MB: with 5, give SRP26_MEMORY about 750 MB
 # more), the share of silver, experience and drop chance they give (only
 # a match played to its own end pays at all), and the seconds after which
 # a match whose player uploads no world it is asked for is over.
-# SRP_PVB=on
+# SRP_PVB=off  (on when unset)
 # SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.25
 # SRP_PVB_STALL_S=60
+# The kit the rusher bots of the tiers 9-10 and 13-15 wear
+# (docs/notes/pvb-tiers.md, 3.1): control (the old kit: the SPAS-12 with
+# buckshot; the default), smg (the tier's SMG: sr2m, fn_p90), alt (ump45,
+# kriss_vector), slug or helmet (the SPAS-12 with the SMG kit's helmet).
+# One word for both tiers or 9-10=alt,13-15=smg (the bench's pick). Read at
+# start.
+# SRP_PVB_RUSHER_KIT=control
 
 # The bots' decision traces, one JSON file a match with the server's bots
 # (off unless set), and the most MB they keep together, the oldest first.

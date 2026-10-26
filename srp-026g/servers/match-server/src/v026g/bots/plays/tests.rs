@@ -45,9 +45,15 @@ pub struct Scenario {
     /// Whether the partner has it for partner too (`BotFacts::paired`).
     pub paired: bool,
     pub personality: usize,
+    /// The kind of the bot's weapon 1; none: its personality's name as a role.
+    pub weapon: Option<WeaponKind>,
     pub medkits_used: u8,
+    pub pantry: Pantry,
+    pub pools: Option<Pools>,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
+    /// `BotFacts::ammo`.
+    pub ammo: crate::v026g::bots::guns::Ammo,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
     /// `BotFacts::crossing`.
@@ -109,6 +115,7 @@ impl Scenario {
             world_time: 299_000,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         };
         let mut tuning = Tuning::default();
         tuning.cheats.batteries = true;
@@ -128,9 +135,13 @@ impl Scenario {
             partner: None,
             paired: true,
             personality: 0,
+            weapon: None,
             medkits_used: 0,
+            pantry: Pantry::standard(),
+            pools: None,
             no_way_to: Vec::new(),
             dry: false,
+            ammo: Default::default(),
             failed_stands: Vec::new(),
             crossing: None,
         };
@@ -267,16 +278,22 @@ impl Scenario {
             me: &self.view.places[place],
             bot: BotFacts {
                 personality: &self.tuning.personalities[self.personality],
+                weapon: self.weapon.or_else(|| {
+                    WeaponKind::of_role(&self.tuning.personalities[self.personality].name)
+                }),
                 side: self.side,
                 current: self.current,
                 last_ran: &self.last_ran,
                 partner: self.partner,
                 paired: self.paired,
                 medkits_used: self.medkits_used,
+                pantry: &self.pantry,
+                pools: self.pools,
                 no_way_to: &self.no_way_to,
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                ammo: self.ammo,
                 crossing: self.crossing,
             },
             memory: &self.memory,

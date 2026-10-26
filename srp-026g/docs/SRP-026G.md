@@ -230,11 +230,12 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
+| `SRP_PVB` | on (the compose file sets it too) | `off`: the mode is not offered |
 | `SRP_PVB_MAX_GEAR` | 15 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15. 15: every level (since 2026-10-23; the bots wear the equipment of the player's tier, `docs/notes/pvb-tiers.md`) |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
 | `SRP_PVB_PAY` | 0.25 | The share of a match's silver, experience and drop chance such a match gives, 0 to 1. Only a match that came to its own end (the mode's rule or the time limit) with its player in it pays at all: one left, lost or stalled pays nothing. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |
+| `SRP_PVB_RUSHER_KIT` | control | The kit the rusher bots of the tiers 9-10 and 13-15 wear (`docs/notes/pvb-tiers.md` §3.1): `control` (the old kit: the SPAS-12 with buckshot; the default), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` or `helmet` (the SPAS-12 with slugs or buckshot and the SMG kit's helmet). One word for both tiers or `9-10=alt,13-15=smg`; read when the server starts. A kit whose items the game data lacks is the old kit |
 | `SRP_BOT_TRACE_DIR` | unset (off) | Where each match's bots write their decision trace, one JSON line a decision (`bots_<match>.jsonl`, `servers/match-server/src/v026g/bots/trace.rs`): what a stuck or odd bot was doing and why |
 | `SRP_BOT_TRACE_MAX_MB` | 2000 | The traces over this many MB together go, the oldest first, when a match opens its own |
 
