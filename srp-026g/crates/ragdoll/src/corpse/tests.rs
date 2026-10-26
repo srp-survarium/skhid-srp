@@ -5,16 +5,17 @@ use super::*;
 use crate::math::Quat;
 use crate::ragdoll::tests::{Ground, standing};
 use crate::shot::Shot;
+use crate::skeleton::BONE_COUNT;
 
 const UP: Vec3 = Vec3::Y;
 
 fn dead(key: u32) -> Seen {
-    Seen::Dead(Death {
-        key: DeathKey(key),
-        cause: Cause::Unknown,
-        gun: None,
-        stood_on: Some((Vec3::ZERO, UP)),
-    })
+    Seen::Dead(Death::new(
+        DeathKey(key),
+        Cause::Unknown,
+        None,
+        Some((Vec3::ZERO, UP)),
+    ))
 }
 
 /// A frame: the step, then each place's draw of the given skeleton.
@@ -253,12 +254,12 @@ fn cost_of_twenty_ragdolls() {
             direction: Vec3::new(s, 0.0, c),
             heavy: false,
         };
-        seen[p] = Seen::Dead(Death {
-            key: DeathKey(1000 + p as u32),
+        seen[p] = Seen::Dead(Death::new(
+            DeathKey(1000 + p as u32),
             cause,
-            gun: None,
-            stood_on: Some((Vec3::ZERO, UP)),
-        });
+            None,
+            Some((Vec3::ZERO, UP)),
+        ));
     }
     for _ in 0..3 {
         corpses.step(
@@ -416,7 +417,7 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     );
     let head = part_pose(&corpses, 0, Part::Head).position;
     let pelvis = part_pose(&corpses, 0, Part::Pelvis).position;
-    let j = crate::shot::impulse(along, Some(0.4));
+    let j = crate::shot::impulse(along, 0.02, 800.0);
     assert!(corpses.push(0, DeathKey(7), hit.hit.part, hit.hit.point, j));
     assert_eq!(stage(&corpses, 0), "ragdoll", "woken");
     for _ in 0..20 {
@@ -475,7 +476,7 @@ fn a_shot_pushes_a_moving_ragdoll_and_a_miss_does_nothing() {
         DeathKey(7),
         hit.hit.part,
         hit.hit.point,
-        crate::shot::impulse(along, None),
+        crate::shot::impulse(along, 0.02, 800.0),
     );
     for _ in 0..10 {
         frame(&mut pushed, &d, None, &mut ground);
@@ -511,7 +512,7 @@ fn the_same_shot_traced_again_pushes_once() {
                 hit.death,
                 hit.hit.part,
                 hit.hit.point,
-                impulse(shot.direction, None),
+                impulse(shot.direction, 0.02, 800.0),
             )
     };
     let mut ground = Ground::flat();
@@ -597,7 +598,7 @@ fn cost_of_shots_at_twenty_ragdolls() {
                     hit.death,
                     hit.hit.part,
                     hit.hit.point,
-                    crate::shot::impulse(along, None),
+                    crate::shot::impulse(along, 0.02, 800.0),
                 );
             }
         }
@@ -660,5 +661,145 @@ fn frame20(corpses: &mut Corpses, places: &[Seen], ground: &mut Ground) {
             let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
             corpses.slot_mut(slot).draw(&mut skeleton);
         }
+    }
+}
+
+/// The owner's report on 464b (2026-10-26): "on the ground the bodies often
+/// start to dance". On a floor, a slope, stairs, against a wall and on a
+/// battery, with the frame time the game has (it varies every frame): the
+/// body comes to rest and is frozen, shows not one bone moved for 60 s
+/// with no shot, and after a burst of shots settles again.
+#[test]
+fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
+    extern crate std;
+    use crate::ragdoll::scenes::scenes;
+    let frame_times = [1.0 / 30.0, 1.0 / 144.0, 1.0 / 60.0, 1.0 / 45.0, 1.0 / 75.0];
+    for mut scene in scenes() {
+        let mut corpses = Corpses::new();
+        // shot in the back: it falls forward, onto the stairs, the wall, the
+        // battery (the scenes have them ahead of the body, +z)
+        let mut death = Death::new(DeathKey(7), Cause::Unknown, None, Some((Vec3::ZERO, UP)));
+        death.hits[0] = crate::shot::Hit {
+            point: Vec3::new(0.0, 1.3, -0.12),
+            impulse: crate::shot::impulse(Vec3::Z, 0.02, 800.0),
+        };
+        death.hit_count = 1;
+        let d = [Seen::Dead(death)];
+        let mut n = 0usize;
+        let mut t = 0.0f32;
+        let step = |corpses: &mut Corpses,
+                    scene: &mut crate::ragdoll::scenes::Scene,
+                    n: &mut usize,
+                    t: &mut f32| {
+            let dt = frame_times[*n % frame_times.len()];
+            *n += 1;
+            *t += dt;
+            corpses.step(
+                &Frame {
+                    dt,
+                    up: UP,
+                    places: &d,
+                    local: None,
+                },
+                scene,
+            );
+            let Corpse::Body { slot, .. } = corpses.place(0) else {
+                panic!("no body")
+            };
+            let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
+            corpses.slot_mut(slot).draw(&mut skeleton);
+            skeleton
+        };
+        let mut last = step(&mut corpses, &mut scene, &mut n, &mut t);
+        // to rest: settled within 4 s of the death, and no dance on the way:
+        // a bone that moves back (against the last frame's move, both over
+        // 5 mm) four times within 0.4 s shakes (the old dance did it frame
+        // after frame for seconds); a fall or a tumble down stairs bounces
+        // a limb once or twice
+        let mut previous_moves = [Vec3::ZERO; BONE_COUNT];
+        let mut reversals: [[f32; 4]; BONE_COUNT] = [[-9.0; 4]; BONE_COUNT];
+        let mut shakes = 0;
+        while stage(&corpses, 0) != "settled" {
+            // (down stairs it slides and tumbles to the bottom first; the 5 s cap)
+            let most = if scene.name == "stairs" { 5.2 } else { 4.0 };
+            assert!(t < most, "{}: still moving at {t:.2} s", scene.name);
+            let now = step(&mut corpses, &mut scene, &mut n, &mut t);
+            for b in 0..BONE_COUNT {
+                let m = now[b].position - last[b].position;
+                let p = previous_moves[b];
+                if m.length() > 0.005 && p.length() > 0.005 && m.dot(p) < 0.0 {
+                    reversals[b] = [reversals[b][1], reversals[b][2], reversals[b][3], t];
+                    if t - reversals[b][0] < 0.4 {
+                        shakes += 1;
+                    }
+                }
+                previous_moves[b] = m;
+            }
+            last = now;
+        }
+        let settled_at = t;
+        // (down the stairs the body slides from step to step, its arms
+        // knocked about by the edges: a tumble, it ends at rest below)
+        if scene.name != "stairs" {
+            assert_eq!(shakes, 0, "{}: bones shook", scene.name);
+        }
+        // 60 s with no shot: not one bone moves
+        let frozen = last;
+        for _ in 0..(60 * 60) {
+            let now = step(&mut corpses, &mut scene, &mut n, &mut t);
+            assert_eq!(now, frozen, "{}: a settled body moved", scene.name);
+        }
+        // a burst: five rifle rounds at the torso, 0.1 s apart; then rest again
+        let mut log = crate::shot::ShotLog::new();
+        for k in 0..5u32 {
+            let target = part_pose(&corpses, 0, Part::Torso).position;
+            let along = Vec3::new(0.3, -0.5, 1.0).direction().unwrap();
+            let shot = Shot::new(target - along * 2.0, along, 4.0).unwrap();
+            if let Some(hit) = corpses.trace(&shot) {
+                let key = crate::shot::ShotKey {
+                    shooter: 1,
+                    bullet: k,
+                    segment: 0,
+                    place: 0,
+                    death: 7,
+                };
+                if log.first(key) {
+                    corpses.push(
+                        hit.place,
+                        hit.death,
+                        hit.hit.part,
+                        hit.hit.point,
+                        crate::shot::impulse(along, 0.02, 800.0),
+                    );
+                }
+            }
+            for _ in 0..6 {
+                step(&mut corpses, &mut scene, &mut n, &mut t);
+            }
+        }
+        let burst_end = t;
+        while stage(&corpses, 0) != "settled" {
+            assert!(
+                t - burst_end < 4.0,
+                "{}: still moving {:.2} s after the burst",
+                scene.name,
+                t - burst_end
+            );
+            step(&mut corpses, &mut scene, &mut n, &mut t);
+        }
+        let frozen = step(&mut corpses, &mut scene, &mut n, &mut t);
+        for _ in 0..(10 * 60) {
+            assert_eq!(
+                step(&mut corpses, &mut scene, &mut n, &mut t),
+                frozen,
+                "{}: moved after resettling",
+                scene.name
+            );
+        }
+        std::println!(
+            "{}: at rest {settled_at:.2} s after the death ({shakes} shakes), {:.2} s after the burst",
+            scene.name,
+            t - burst_end - 10.0
+        );
     }
 }

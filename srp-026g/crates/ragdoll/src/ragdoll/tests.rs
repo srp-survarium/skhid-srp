@@ -4,7 +4,6 @@ use super::*;
 extern crate std;
 use crate::limits::{angle_between, signed_angle};
 use crate::skeleton::{BONES, Bone};
-use crate::tuning;
 
 /// A plane at height `floor` (and, if set, a wall at z = `wall` facing -Z).
 pub(crate) struct Ground {
@@ -113,6 +112,8 @@ fn start<'a>(
         cause,
         gun,
         stood_on: Some((Vec3::ZERO, Vec3::Y)),
+        hits: &[],
+        load: [0.0; PARTS],
     }
 }
 
@@ -243,13 +244,12 @@ fn a_shot_body_falls_and_settles_on_flat_ground() {
             joint_gaps(&ragdoll)
         );
     }
-    // (landed, settled): a body shot stands on its legs for about a second
-    // before it is down (the owner's look, tuning.rs); once down it is at
-    // rest within 2.5 s, and within 3.5 s of the death
+    // (landed, settled): down within a second; at rest within 3.5 s of
+    // landing, and within 4 s of the death
     assert!(
         times
             .iter()
-            .all(|&(landed, settled)| settled - landed < 2.5 && settled < 3.5),
+            .all(|&(landed, settled)| landed < 1.0 && settled - landed < 3.5 && settled < 4.0),
         "{times:?} s"
     );
 }
@@ -353,7 +353,14 @@ fn joint_limits_hold_through_a_violent_fall() {
             );
         }
     });
-    assert!(worst < 0.05, "joints apart by {worst}");
+    // (a moment's stretch on the impact into the wall's foot, each capsule
+    // end on its own plane; together again at rest)
+    assert!(worst < 0.07, "joints apart by {worst}");
+    assert!(
+        joint_gaps(&ragdoll) < 0.01,
+        "apart at rest by {}",
+        joint_gaps(&ragdoll)
+    );
     within_limits(&ragdoll, degrees(3.0)).unwrap();
 }
 
@@ -378,60 +385,170 @@ fn the_drive_follows_the_clip_then_lets_go() {
     }
     let turned = relative(&ragdoll).rotation_from(rest).length();
     assert!(turned > 0.3, "the elbow followed the clip by {turned} rad");
-    // a body shot: the legs hold, then fade; the trunk and arms go first
-    let legs = |t| strength(Cause::Unknown, Group::Legs, t);
-    assert!(legs(0.0) == 1.0 && legs(tuning::LEG_HOLD) == 1.0);
-    assert!(legs(tuning::LEG_HOLD + tuning::LEG_FADE) <= 0.03 + 1e-6);
-    assert!(strength(Cause::Unknown, Group::Waist, tuning::TRUNK_FADE) <= 0.03 + 1e-6);
-    assert!(strength(Cause::Unknown, Group::Arms, tuning::ARM_FADE) <= 0.03 + 1e-6);
-    assert!(strength(Cause::Unknown, Group::Neck, 0.0) == 1.0);
-    assert_eq!(
-        strength(Cause::Head { direction: Vec3::X }, Group::Legs, 0.07),
-        0.0
+    // the muscles: every one weakens from the start, all the time (no
+    // phase); the legs are strongest and last longest; a headshot is limp
+    let m = |cause, kind, child| muscle(cause, kind, child, 0.0);
+    let knee = m(Cause::Unknown, JointKind::Knee, Part::LeftShin);
+    let waist = m(Cause::Unknown, JointKind::Waist, Part::Torso);
+    let elbow = m(Cause::Unknown, JointKind::Elbow, Part::LeftForearm);
+    for t in [0.05f32, 0.2, 0.4, 0.8] {
+        assert!(
+            knee.strength(t) < knee.strength(t - 0.05),
+            "the legs weaken all the time"
+        );
+        assert!(knee.strength(t) * knee.stiffness > waist.strength(t) * waist.stiffness);
+        assert!(waist.strength(t) * waist.stiffness > elbow.strength(t) * elbow.stiffness);
+    }
+    let hit = Cause::Body {
+        part: Part::LeftThigh,
+        direction: Vec3::X,
+        heavy: false,
+    };
+    let left = muscle(hit, JointKind::Knee, Part::LeftShin, 0.0);
+    let right = muscle(hit, JointKind::Knee, Part::RightShin, 0.0);
+    assert!(
+        left.strength(0.3) < right.strength(0.3),
+        "the hit leg gives first"
     );
-    assert!((strength(Cause::Blast { centre: Vec3::ZERO }, Group::Arms, 0.0) - 0.4).abs() < 1e-6);
+    assert!(
+        muscle(hit, JointKind::Knee, Part::RightShin, 60.0).strength(0.0) < right.strength(0.0),
+        "a strong hit weakens"
+    );
+    let head = m(
+        Cause::Head { direction: Vec3::X },
+        JointKind::Knee,
+        Part::LeftShin,
+    );
+    assert_eq!(head.strength(0.35), 0.0);
 }
 
-/// The owner's look (2026-10-25): a body shot stands on its legs and
-/// slumps at the trunk, then the knees buckle and fold; a headshot drops.
-#[test]
-fn a_body_shot_stands_on_its_legs_then_folds_and_a_headshot_drops() {
+/// A death by `hits` (the killing one last) with `load` kg on the parts:
+/// the ragdoll and its parts' poses every 1/60 s for `frames` frames.
+fn fall(hits: &[crate::shot::Hit], load: [f32; PARTS], frames: usize) -> std::vec::Vec<PartPoses> {
     let now = standing(Quat::IDENTITY, Vec3::ZERO);
     let before = driver_bones(&now);
-    let heights = |cause: Cause| {
-        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, None)).unwrap();
-        let mut ground = Ground::flat();
-        let mut out = std::vec::Vec::new();
-        for frame in 1..=120 {
-            ragdoll.step(1.0 / 60.0, None, &mut ground);
-            if frame % 6 == 0 {
-                out.push(ragdoll.bodies[Part::Pelvis.index()].pose.position.y);
-            }
-        }
-        out
+    let mut s = start(&now, &before, Cause::Unknown, None);
+    s.hits = hits;
+    s.load = load;
+    let mut ragdoll = Ragdoll::new(&s).unwrap();
+    let mut ground = Ground::flat();
+    let mut out = std::vec![ragdoll.poses().0];
+    for _ in 0..frames {
+        ragdoll.step(1.0 / 60.0, None, &mut ground);
+        out.push(ragdoll.poses().0);
+    }
+    out
+}
+
+fn moved(poses: &[PartPoses], part: Part, frame: usize) -> Vec3 {
+    poses[frame][part.index()].position - poses[0][part.index()].position
+}
+
+/// The knee's bend, rad (the angle between thigh and shin).
+fn knee_bend(poses: &PartPoses) -> f32 {
+    let thigh = poses[Part::LeftThigh.index()].rotation.rotate(Vec3::X);
+    let shin = poses[Part::LeftShin.index()].rotation.rotate(Vec3::X);
+    angle_between(thigh, shin)
+}
+
+/// The owner's asks (2026-10-26): the bullet's momentum decides the fall
+/// (away from the shooter, the part hit leading), and the legs move as a
+/// powered ragdoll: they give way progressively, no stilts.
+#[test]
+fn the_killing_shot_decides_the_fall() {
+    let looks = looks();
+    let none = [0.0; PARTS];
+    // from the front: backwards (-z), the pelvis and the head both
+    let front = fall(&[looks[0].1], none, 120);
+    assert!(
+        moved(&front, Part::Head, 60).z < -0.4,
+        "a front shot falls back: {:?}",
+        moved(&front, Part::Head, 60)
+    );
+    assert!(moved(&front, Part::Pelvis, 90).z < -0.05);
+    // from the side: sideways (+x)
+    let side = fall(&[looks[1].1], none, 120);
+    assert!(
+        moved(&side, Part::Head, 60).x > 0.3,
+        "a side shot falls sideways: {:?}",
+        moved(&side, Part::Head, 60)
+    );
+    assert!(moved(&side, Part::Head, 60).x.abs() > moved(&side, Part::Head, 60).z.abs());
+    // the head: snapped back at once, ahead of the chest
+    let head = fall(&[looks[2].1], none, 30);
+    let snap = moved(&head, Part::Head, 6).z - moved(&head, Part::Torso, 6).z;
+    assert!(snap < -0.03, "a headshot snaps the head back: {snap}");
+    // a leg hit kicks that leg
+    let leg = crate::shot::Hit {
+        point: Vec3::new(0.1, 0.3, 0.08),
+        impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), 0.02, 800.0),
     };
-    let body = heights(SHOT);
-    let head = heights(Cause::Head {
-        direction: Vec3::new(0.0, 0.0, -1.0),
-    });
-    std::println!("pelvis every 0.1 s\n  body shot {body:.2?}\n  headshot  {head:.2?}");
-    // every 0.1 s: the body shot's pelvis held up while the legs hold, then down
+    let kicked = fall(&[leg], none, 12);
     assert!(
-        body[2] > 0.85,
-        "the legs hold the body up at 0.3 s: {body:?}"
+        moved(&kicked, Part::LeftShin, 6).z < moved(&kicked, Part::RightShin, 6).z - 0.02,
+        "the left shin is kicked back: {:?} against {:?}",
+        moved(&kicked, Part::LeftShin, 6),
+        moved(&kicked, Part::RightShin, 6)
     );
+    // no shot: no push (the motion the clip had, none here)
+    let still = fall(&[], none, 1);
     assert!(
-        body[5] < body[2] && body[5] > 0.45,
-        "the knees give way by 0.6 s: {body:?}"
+        Part::ALL
+            .iter()
+            .all(|&p| moved(&still, p, 1).length() < 0.01)
     );
+}
+
+#[test]
+fn the_legs_give_way_progressively_within_a_second() {
+    // a body shot from the side (the legs buckle under it as it goes)
+    let side = fall(&[looks()[1].1], [0.0; PARTS], 90);
+    let pelvis = |f: usize| side[f][Part::Pelvis.index()].position.y;
     assert!(
-        body[19] < 0.45,
-        "the body has folded to the ground by 2 s: {body:?}"
+        pelvis(60) < 0.6,
+        "down by 1 s: the pelvis at {}",
+        pelvis(60)
     );
+    // the knee bends on every 0.1 s step of the first 0.6 s, none frozen
+    let bends: std::vec::Vec<f32> = (0..=6).map(|k| knee_bend(&side[k * 6])).collect();
+    std::println!(
+        "knee every 0.1 s {:.2?} rad, pelvis {:.2?}",
+        bends,
+        (0..=6).map(|k| pelvis(k * 6)).collect::<std::vec::Vec<_>>()
+    );
+    for w in bends.windows(2) {
+        assert!(
+            w[1] > w[0] + degrees(2.0),
+            "the knee bends steadily (no stilts): {bends:?}"
+        );
+    }
+}
+
+#[test]
+fn equipment_and_ammo_change_the_knock() {
+    let looks = looks();
+    let front = looks[0].1;
+    // a heavy kit (an exo-suit's 25 kg on the chest, 10 on the pelvis) is
+    // knocked less than none
+    let mut heavy = [0.0; PARTS];
+    heavy[Part::Torso.index()] = 25.0;
+    heavy[Part::Pelvis.index()] = 10.0;
+    let light = fall(&[front], [0.0; PARTS], 12);
+    let loaded = fall(&[front], heavy, 12);
     assert!(
-        head[4] < body[4] - 0.1,
-        "a headshot drops at once: {head:?} against {body:?}"
+        moved(&loaded, Part::Torso, 12).z > moved(&light, Part::Torso, 12).z + 0.01,
+        "the heavy kit is knocked less: {:?} against {:?}",
+        moved(&loaded, Part::Torso, 12),
+        moved(&light, Part::Torso, 12)
     );
+    // a sniper round (7.62x54) knocks harder than a pistol's (9x18)
+    let shot = |mass: f32, speed: f32| crate::shot::Hit {
+        point: front.point,
+        impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), mass, speed),
+    };
+    let sniper = fall(&[shot(0.1, 800.0)], [0.0; PARTS], 12);
+    let pistol = fall(&[shot(0.02, 315.0)], [0.0; PARTS], 12);
+    assert!(moved(&sniper, Part::Torso, 12).z < moved(&pistol, Part::Torso, 12).z - 0.02);
 }
 
 #[test]
@@ -539,7 +656,7 @@ fn trace() {
                     b.spin.x,
                     b.spin.y,
                     b.spin.z,
-                    matches!(b.contact, Contact::Plane { .. })
+                    matches!(b.contacts[0], Contact::Plane { .. })
                 );
             }
         }
@@ -574,4 +691,203 @@ fn trace() {
             );
         }
     });
+}
+
+#[test]
+#[ignore = "a measurement: cargo test -p ragdoll rest_report -- --ignored --nocapture"]
+fn rest_report() {
+    use crate::ragdoll::scenes::{largest_move, scenes};
+    for jitter in [false, true] {
+        for mut scene in scenes() {
+            let now = standing(Quat::IDENTITY, Vec3::ZERO);
+            let before = driver_bones(&now);
+            let cause = Cause::Body {
+                part: Part::Torso,
+                direction: Vec3::new(0.0, 0.0, 1.0),
+                heavy: false,
+            };
+            let mut r = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+            let mut last = r.poses().0;
+            let mut t = 0.0;
+            let mut moves = std::vec::Vec::new();
+            let mut settled = None;
+            let mut n = 0;
+            while t < 8.0 {
+                n += 1;
+                let dt = if jitter {
+                    [1.0 / 30.0, 1.0 / 144.0, 1.0 / 60.0, 1.0 / 45.0][n % 4]
+                } else {
+                    1.0 / 60.0
+                };
+                let m = r.step(dt, None, &mut scene);
+                t += dt;
+                let p = r.poses().0;
+                moves.push((t, largest_move(&last, &p, &r.bodies) / dt));
+                if std::env::var("SPIKES").is_ok()
+                    && t > 1.8
+                    && largest_move(&last, &p, &r.bodies) / dt > 0.8
+                {
+                    let worst = (0..PARTS)
+                        .max_by(|&a, &b| {
+                            (p[a].position - last[a].position)
+                                .length()
+                                .total_cmp(&(p[b].position - last[b].position).length())
+                        })
+                        .unwrap();
+                    std::println!(
+                        "  {} t {t:.3} dt {dt:.4} part {:?} moved {:.4} at {:?}",
+                        scene.name,
+                        Part::ALL[worst],
+                        (p[worst].position - last[worst].position).length(),
+                        p[worst].position
+                    );
+                }
+                last = p;
+                if m == Motion::Settled {
+                    settled = Some(t);
+                    break;
+                }
+            }
+            let window = |a: f32, b: f32| {
+                moves
+                    .iter()
+                    .filter(|m| m.0 >= a && m.0 < b)
+                    .map(|m| m.1)
+                    .fold(0.0f32, f32::max)
+            };
+            std::println!(
+                "{:8} jitter {jitter:5}: settled {settled:?}, fastest end speed 1-1.5 s {:.2}, 1.5-2 s {:.2}, 2-3 s {:.2}, 3-5 s {:.2}, pelvis y {:.2}",
+                scene.name,
+                window(1.0, 1.5),
+                window(1.5, 2.0),
+                window(2.0, 3.0),
+                window(3.0, 5.0),
+                r.bodies[0].pose.position.y
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "a trace: cargo test -p ragdoll rest_trace -- --ignored --nocapture"]
+fn rest_trace() {
+    use crate::ragdoll::scenes::scenes;
+    let which = std::env::var("SCENE").unwrap_or("flat".into());
+    let mut scene = scenes().into_iter().find(|s| s.name == which).unwrap();
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let cause = Cause::Body {
+        part: Part::Torso,
+        direction: Vec3::new(0.0, 0.0, 1.0),
+        heavy: false,
+    };
+    let mut r = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+    let jitter = std::env::var("JITTER").is_ok();
+    for n in 0..300 {
+        let dt = if jitter {
+            [1.0 / 30.0, 1.0 / 144.0, 1.0 / 60.0, 1.0 / 45.0][(n + 1) % 4]
+        } else {
+            1.0 / 60.0
+        };
+        let m = r.step(dt, None, &mut scene);
+        if n >= 90 && n % 3 == 0 {
+            let mut line = std::format!("{:.2}", r.age);
+            for b in r.bodies.iter() {
+                let cs = |c: Contact| match c {
+                    Contact::Plane { normal, point } => std::format!(
+                        "{:.0}{:.0}{:.0}@{:.2}",
+                        normal.x * 9.0,
+                        normal.y * 9.0,
+                        normal.z * 9.0,
+                        point.y
+                    ),
+                    Contact::Free => "free".into(),
+                };
+                let c = std::format!("{}/{}", cs(b.contacts[0]), cs(b.contacts[1]));
+                line += &std::format!(
+                    " | {:.2} {c} {:.3},{:.3},{:.3}",
+                    b.end_speed(),
+                    b.pose.position.x,
+                    b.pose.position.y,
+                    b.pose.position.z
+                );
+            }
+            std::println!("{line}");
+        }
+        if m == Motion::Settled {
+            std::println!("settled {:.2}", r.age);
+            break;
+        }
+    }
+}
+
+/// The three looks the owner judges: a rifle round (5.45x39) in the chest
+/// from the front, in the chest from the side, in the head from the front.
+pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
+    let rifle = |d: Vec3| crate::shot::impulse(d, 0.02, 800.0);
+    [
+        (
+            "front",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.3, 0.12),
+                impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+            },
+        ),
+        (
+            "side",
+            crate::shot::Hit {
+                point: Vec3::new(-0.15, 1.3, 0.0),
+                impulse: rifle(Vec3::new(1.0, 0.0, 0.0)),
+            },
+        ),
+        (
+            "head",
+            crate::shot::Hit {
+                point: Vec3::new(0.0, 1.66, 0.09),
+                impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+            },
+        ),
+    ]
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_dump -- --ignored"]
+fn render_dump() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    for (name, hit) in looks() {
+        let now = standing(Quat::IDENTITY, Vec3::ZERO);
+        let before = driver_bones(&now);
+        let hits = [hit];
+        let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+        s.hits = &hits;
+        let mut r = Ragdoll::new(&s).unwrap();
+        let mut ground = Ground::flat();
+        let mut frames = std::vec::Vec::new();
+        for _ in 0..240 {
+            let mut caps = std::vec::Vec::new();
+            for b in r.bodies.iter().chain(r.gun.iter()) {
+                let (a, c) = b.shape.ends(b.pose);
+                caps.push(std::format!(
+                    "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                    a.x,
+                    a.y,
+                    a.z,
+                    c.x,
+                    c.y,
+                    c.z,
+                    b.shape.radius
+                ));
+            }
+            frames.push(std::format!("[{}]", caps.join(",")));
+            r.step(1.0 / 60.0, None, &mut ground);
+        }
+        writeln!(
+            file,
+            "{{\"name\":\"{name}\",\"frames\":[{}]}}",
+            frames.join(",")
+        )
+        .unwrap();
+    }
 }

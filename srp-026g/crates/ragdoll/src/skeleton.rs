@@ -187,6 +187,19 @@ impl Part {
         }
     }
 
+    /// The side of the body the part is on (the trunk and the head: none).
+    pub const fn side(self) -> Option<Side> {
+        match self {
+            Part::LeftThigh | Part::LeftShin | Part::LeftUpperArm | Part::LeftForearm => {
+                Some(Side::Left)
+            }
+            Part::RightThigh | Part::RightShin | Part::RightUpperArm | Part::RightForearm => {
+                Some(Side::Right)
+            }
+            Part::Pelvis | Part::Torso | Part::Head => None,
+        }
+    }
+
     /// The body's mass in kg (the Bodycam study's table, given for an 80 kg
     /// player; its parts sum to 69.1 kg).
     pub const fn mass(self) -> f32 {
@@ -215,6 +228,12 @@ impl Part {
             Part::LeftForearm | Part::RightForearm => 0.05,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    Left,
+    Right,
 }
 
 /// The ten joints: (parent, child, the bone at the joint, its kind).

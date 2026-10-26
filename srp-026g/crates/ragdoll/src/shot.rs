@@ -150,19 +150,115 @@ pub fn hit_on_capsule(shot: &Shot, a: Vec3, b: Vec3, distance: f32, part: Part) 
     }
 }
 
-/// The push of a shot along its direction, N s: [`tuning::SHOT_IMPULSE`] for
-/// a weapon of [`tuning::SHOT_STOPPING_POWER`], scaled by the weapon's own
-/// `stopping_power` when the bullet has one (the configs' 0.1 to 0.8).
-pub fn impulse(direction: Vec3, stopping_power: Option<f32>) -> Vec3 {
-    let scale = match stopping_power {
-        Some(p) if p.is_finite() && p > 0.0 => clamp(
-            p / tuning::SHOT_STOPPING_POWER,
-            tuning::SHOT_SCALE_MIN,
-            tuning::SHOT_SCALE_MAX,
-        ),
-        _ => 1.0,
+/// A bullet's push along its direction, N s: its momentum at the hit, the
+/// ammo's `mass` (kg, the config's) times its speed then (m/s), times
+/// [`tuning::SHOT_MOMENTUM`]; [`tuning::SHOT_DEFAULT`] when the bullet gives
+/// no sane mass or speed. So a pistol round pushes less than a rifle's, a
+/// sniper's most, and each buckshot pellet a little.
+pub fn impulse(direction: Vec3, mass: f32, speed: f32) -> Vec3 {
+    let momentum = mass * speed;
+    let size = if mass.is_finite()
+        && speed.is_finite()
+        && mass > 0.0
+        && mass < 1.0
+        && speed > 0.0
+        && speed < 3000.0
+    {
+        momentum * tuning::SHOT_MOMENTUM
+    } else {
+        tuning::SHOT_DEFAULT
     };
-    direction * (tuning::SHOT_IMPULSE * scale)
+    direction * size
+}
+
+/// A bullet that hit a living player: where, and its push (N s).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hit {
+    pub point: Vec3,
+    pub impulse: Vec3,
+}
+
+/// The hits a place took lately (a ring of [`RECENT`] a place, the time of
+/// each), for the push of the death that follows.
+pub const RECENT: usize = 4;
+/// The hits of a death: the killing one (the last) and those within this
+/// time before it, s.
+pub const HIT_WINDOW: f32 = 0.15;
+/// A hit older than this is no death's.
+pub const HIT_KEPT: f32 = 1.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Recent {
+    hits: [Option<(f32, Hit)>; RECENT],
+}
+
+impl Recent {
+    pub const fn new() -> Recent {
+        Recent {
+            hits: [None; RECENT],
+        }
+    }
+
+    /// A hit at `time` (s, any clock that only goes on), the oldest dropped.
+    pub fn record(&mut self, time: f32, hit: Hit) {
+        let slot = match self.hits.iter().position(Option::is_none) {
+            Some(i) => i,
+            None => (0..RECENT)
+                .min_by(|&a, &b| {
+                    let t = |i: usize| self.hits[i].map_or(f32::MIN, |h| h.0);
+                    t(a).total_cmp(&t(b))
+                })
+                .unwrap_or(0),
+        };
+        self.hits[slot] = Some((time, hit));
+    }
+
+    /// The hits of a death seen at `now`: the latest (the killing one,
+    /// kept at most HIT_KEPT) and those within HIT_WINDOW before it, oldest
+    /// first; their count.
+    pub fn of_death(&self, now: f32) -> ([Hit; RECENT], usize) {
+        let mut out = [Hit {
+            point: Vec3::ZERO,
+            impulse: Vec3::ZERO,
+        }; RECENT];
+        let latest = self
+            .hits
+            .iter()
+            .flatten()
+            .map(|h| h.0)
+            .filter(|&t| now - t <= HIT_KEPT)
+            .fold(None, |m: Option<f32>, t| Some(m.map_or(t, |m| m.max(t))));
+        let Some(latest) = latest else {
+            return (out, 0);
+        };
+        let mut chosen: [Option<(f32, Hit)>; RECENT] = [None; RECENT];
+        let mut n = 0;
+        for h in self.hits.iter().flatten() {
+            if h.0 <= latest && latest - h.0 <= HIT_WINDOW {
+                chosen[n] = Some(*h);
+                n += 1;
+            }
+        }
+        let chosen = &mut chosen[..n];
+        chosen.sort_unstable_by(|a, b| {
+            let t = |x: &Option<(f32, Hit)>| x.map_or(0.0, |h| h.0);
+            t(a).total_cmp(&t(b))
+        });
+        for (o, c) in out.iter_mut().zip(chosen.iter()) {
+            *o = c.map_or(*o, |h| h.1);
+        }
+        (out, n)
+    }
+
+    pub fn clear(&mut self) {
+        self.hits = [None; RECENT];
+    }
+}
+
+impl Default for Recent {
+    fn default() -> Recent {
+        Recent::new()
+    }
 }
 
 /// One shot through one corpse: the bullet (its shooter's place, its id,
@@ -182,7 +278,7 @@ pub struct ShotKey {
 /// The shots applied lately: a ring of [`SHOT_LOG`] keys. A shot is pushed
 /// only the first time it is seen; a rollback re-simulates at most a few
 /// seconds, far fewer hits on corpses than the ring holds.
-pub const SHOT_LOG: usize = 128;
+pub const SHOT_LOG: usize = 256;
 
 pub struct ShotLog {
     keys: [Option<ShotKey>; SHOT_LOG],
@@ -287,14 +383,44 @@ mod tests {
     }
 
     #[test]
-    fn the_push_scales_with_stopping_power_within_bounds() {
+    fn the_push_is_the_rounds_momentum() {
         let d = Vec3::new(0.0, 0.0, 1.0);
-        assert!((impulse(d, None).z - tuning::SHOT_IMPULSE).abs() < 1e-6);
+        // (the configs' mass and muzzle speed)
+        let pistol = impulse(d, 0.02, 315.0).z; // 9x18 Makarov
+        let rifle = impulse(d, 0.02, 800.0).z; // 5.45x39
+        let sniper = impulse(d, 0.1, 800.0).z; // 7.62x54
+        let pellet = impulse(d, 0.01, 250.0).z; // 12 mm buckshot, one of ten
         assert!(
-            (impulse(d, Some(tuning::SHOT_STOPPING_POWER)).z - tuning::SHOT_IMPULSE).abs() < 1e-6
+            pistol < rifle && rifle < sniper,
+            "{pistol} {rifle} {sniper}"
         );
-        assert!(impulse(d, Some(0.8)).z > impulse(d, Some(0.4)).z);
-        assert!(impulse(d, Some(100.0)).z <= tuning::SHOT_IMPULSE * tuning::SHOT_SCALE_MAX + 1e-5);
-        assert!((impulse(d, Some(f32::NAN)).z - tuning::SHOT_IMPULSE).abs() < 1e-6);
+        assert!(pellet > 0.0 && pellet < pistol, "{pellet}");
+        assert!((impulse(d, f32::NAN, 800.0).z - tuning::SHOT_DEFAULT).abs() < 1e-6);
+        assert!((impulse(d, 0.02, 0.0).z - tuning::SHOT_DEFAULT).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_death_takes_its_killing_hit_and_those_just_before() {
+        let hit = |z: f32| Hit {
+            point: Vec3::new(0.0, 1.0, z),
+            impulse: Vec3::Z,
+        };
+        let mut recent = Recent::new();
+        assert_eq!(recent.of_death(5.0).1, 0, "no hit: no push");
+        recent.record(1.0, hit(1.0)); // long before
+        recent.record(2.0, hit(2.0));
+        recent.record(2.1, hit(3.0));
+        recent.record(2.2, hit(4.0)); // the killing one
+        let (hits, n) = recent.of_death(2.3);
+        assert_eq!(n, 2, "within 0.15 s of the last: {hits:?}");
+        assert_eq!(
+            (hits[0].point.z, hits[1].point.z),
+            (3.0, 4.0),
+            "oldest first, the killing one last"
+        );
+        assert_eq!(recent.of_death(9.0).1, 0, "a hit long ago is no death's");
+        // the ring drops the oldest
+        recent.record(2.25, hit(5.0));
+        assert!(recent.hits.iter().flatten().all(|h| h.0 > 1.5));
     }
 }

@@ -26,7 +26,7 @@ use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
     Cause, DriverBones, GunShape, Level, Motion, Ragdoll, Skeleton, Start, driver_bones,
 };
-use crate::shot::{Shot, ShotHit};
+use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
 
 /// The places a match has at most (the ragdoll draws none beyond).
@@ -52,6 +52,10 @@ impl SlotId {
 /// What the current world shows of a place this frame (an empty place is
 /// `Alive`: nothing to draw of it).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a frame's places, on the stack, no allocation (the arena has none)"
+)]
 pub enum Seen {
     Alive,
     Dead(Death),
@@ -66,6 +70,35 @@ pub struct Death {
     pub gun: Option<GunShape>,
     /// The ground the player stood on (its transform's place, up).
     pub stood_on: Option<(Vec3, Vec3)>,
+    /// The bullets that hit the player just before its death, the killing
+    /// one last (`hit_count` of them).
+    pub hits: [Hit; RECENT],
+    pub hit_count: usize,
+    /// What the player wore and carried, kg on each part.
+    pub load: [f32; PARTS],
+}
+
+impl Death {
+    /// A death with no bullet known and nothing worn.
+    pub fn new(
+        key: DeathKey,
+        cause: Cause,
+        gun: Option<GunShape>,
+        stood_on: Option<(Vec3, Vec3)>,
+    ) -> Death {
+        Death {
+            key,
+            cause,
+            gun,
+            stood_on,
+            hits: [Hit {
+                point: Vec3::ZERO,
+                impulse: Vec3::ZERO,
+            }; RECENT],
+            hit_count: 0,
+            load: [0.0; PARTS],
+        }
+    }
 }
 
 /// A place's corpse.
@@ -483,6 +516,8 @@ impl Corpses {
                     cause: death.cause,
                     gun: death.gun,
                     stood_on: death.stood_on,
+                    hits: &death.hits[..death.hit_count.min(RECENT)],
+                    load: death.load,
                 };
                 let since = *age + frame.dt;
                 Some(match Ragdoll::new(&start) {

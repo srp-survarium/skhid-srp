@@ -21,9 +21,11 @@ impl Capsule {
     }
 }
 
-/// What a body touches of the level: the plane of its last swept query,
-/// kept for the substeps of a frame and the frames after while the body
-/// does not move away from it.
+/// What a capsule end touches of the level: the plane of its last query,
+/// kept for the substeps of a frame and the frames after while the end
+/// does not move away from it. Each end has its own (a body lying across a
+/// step, a battery or a wall's foot rests on two surfaces: one plane for the
+/// whole body flipped between them as the body rocked, and it danced).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Contact {
     Free,
@@ -42,7 +44,8 @@ pub struct Body {
     /// The inverse of the diagonal inertia in the body's frame.
     pub inverse_inertia: Vec3,
     pub shape: Capsule,
-    pub contact: Contact,
+    /// The planes under the capsule's two ends ([`Capsule::ends`]' order).
+    pub contacts: [Contact; 2],
 }
 
 impl Body {
@@ -63,7 +66,7 @@ impl Body {
             inverse_mass: 1.0 / mass,
             inverse_inertia: Vec3::new(1.0 / axial, 1.0 / across, 1.0 / across),
             shape,
-            contact: Contact::Free,
+            contacts: [Contact::Free; 2],
         }
     }
 
