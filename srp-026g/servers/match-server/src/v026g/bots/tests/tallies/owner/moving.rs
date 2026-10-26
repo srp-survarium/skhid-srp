@@ -112,6 +112,10 @@ pub(crate) const CLOSE_GAP_S: u32 = 2;
 
 pub(crate) const ONE_BODY_M: f32 = 0.5;
 
+/// Two bodies on one spot are still when neither moves this far in the
+/// second after, metres.
+pub(crate) const ONE_BODY_STILL_M: f32 = 0.25;
+
 /// The stuck detector (`navigation/stuck.py`, `navigation.md` §2d, final).
 /// A designed hold's steps (and the Heal play); the steps with a goal to
 /// walk to; the Follow-type steps, a goal only with the leader (the goal)
@@ -667,6 +671,9 @@ impl OwnerTally {
         // Close pairs (teammates, from the seconds) and one body (any two,
         // every tick).
         let (mut close_eps, mut close_s, mut one_eps, mut one_ticks) = (0u32, 0u32, 0u32, 0u32);
+        // The same, where both bodies are still (under ONE_BODY_STILL_M in the
+        // second after): two bots standing on one spot, not walking one path.
+        let (mut still_eps, mut still_ticks) = (0u32, 0u32);
         for a in 0..n {
             for b in a + 1..n {
                 let (ra, rb) = (&self.recs[a], &self.recs[b]);
@@ -699,6 +706,7 @@ impl OwnerTally {
                     end(ep);
                 }
                 let mut last: Option<usize> = None;
+                let mut last_still: Option<usize> = None;
                 for k in 0..len {
                     let (x, y) = (&ra[k], &rb[k]);
                     if x.alive
@@ -711,6 +719,16 @@ impl OwnerTally {
                             one_eps += 1;
                         }
                         last = Some(k);
+                        let later = (k + TPS).min(len - 1);
+                        if x.feet.distance_xz(ra[later].feet) < ONE_BODY_STILL_M
+                            && y.feet.distance_xz(rb[later].feet) < ONE_BODY_STILL_M
+                        {
+                            still_ticks += 1;
+                            if last_still.is_none_or(|l| k > l + TPS / 2) {
+                                still_eps += 1;
+                            }
+                            last_still = Some(k);
+                        }
                     }
                 }
             }
@@ -770,6 +788,8 @@ impl OwnerTally {
             "close_pair_s": close_s,
             "one_body": one_eps,
             "one_body_s": (f64::from(one_ticks) * tick_s).round(),
+            "one_body_still": still_eps,
+            "one_body_still_s": (f64::from(still_ticks) * tick_s).round(),
         });
         let text = format!(
             "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)",
