@@ -32,13 +32,29 @@ pub struct Tuning {
     pub mods: ModTuning,
     pub think: ThinkTuning,
     pub unstick: UnstickTuning,
+    /// The bear-trap habit (`bots/traps.rs`).
+    pub traps: TrapTuning,
+    pub heal: HealTuning,
     pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// `Ctx::path_dist` is the regions' walk between floors when a target
+    /// is a storey off; off (the default: merged switched off), the straight
+    /// ground distance whatever the floor, with Collect's batteries a storey
+    /// off priced by the walk as before (the bench's switch,
+    /// `SRP_BENCH_FLOOR_PATHS=1` on).
+    pub floor_paths: bool,
     /// Whether a bot's way out of a zone stays under the strength of the
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
     pub escape_ceiling: bool,
+    /// Whether the maps' walk grids have the gap links (a walking jump
+    /// across a gap, up or down: `mapdata::grid::gap`), which bots then
+    /// route over and jump. A grid is the map's, built once for every
+    /// match on it: the server's grids take this default (`maps.rs`), the
+    /// bench's this run's tuning (`SRP_BENCH_TUNING`); a tuning file of one
+    /// match does not rebuild them.
+    pub gap_links: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -58,9 +74,13 @@ impl Default for Tuning {
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
             unstick: UnstickTuning::default(),
+            traps: TrapTuning::default(),
+            heal: HealTuning::default(),
             threat: ThreatTuning::default(),
             hazard_margin: 1.0,
+            floor_paths: false,
             escape_ceiling: true,
+            gap_links: false,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))
@@ -75,17 +95,21 @@ impl Default for Tuning {
 pub use survarium::v026g::loadouts::BotTier;
 
 mod aim;
+mod heal;
 mod motion;
 mod play;
 mod sense;
 mod team;
 mod unstick;
+mod traps;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
+pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
 pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
 pub use unstick::{SUICIDE_AFTER_OWNER_MS, UnstickTuning};
+pub use traps::{ReactTuning, TrapTuning};
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -93,6 +117,15 @@ fn check(ok: bool, what: &str) -> Result<(), String> {
 }
 
 impl Tuning {
+    /// The off-mesh links of the maps' grids ([`Self::gap_links`]).
+    pub fn off_mesh_links(&self) -> mapdata::OffMeshLinks {
+        if self.gap_links {
+            mapdata::OffMeshLinks::Gaps
+        } else {
+            mapdata::OffMeshLinks::None
+        }
+    }
+
     /// The defaults with the file's changes.
     pub fn load(path: &Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -113,8 +146,10 @@ impl Tuning {
         team::validate_think(&self.think)?;
         motion::validate_feel(&self.feel)?;
         unstick::validate_unstick(&self.unstick)?;
+        traps::validate(&self.traps)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
+        heal::validate(&self.heal)?;
         check(self.hazard_margin >= 0.0, "hazard_margin")?;
         let shares: f32 = self.personalities.iter().map(|p| p.share).sum();
         check(
@@ -202,6 +237,7 @@ mod tests {
         };
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
+        assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.hop_every_s = 0.0), "feel.hop_*");

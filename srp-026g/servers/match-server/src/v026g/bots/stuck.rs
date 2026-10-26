@@ -910,7 +910,7 @@ mod tests {
                     .map(|&(x, z)| Waypoint {
                         at: Vec3::new(x, 0.0, z),
                         node: 0,
-                        jump: false,
+                        jump: None,
                         low: false,
                     })
                     .collect(),
@@ -943,7 +943,7 @@ mod tests {
                     .map(|&x| Waypoint {
                         at: Vec3::new(x, y, 0.0),
                         node: 0,
-                        jump: false,
+                        jump: None,
                         low: false,
                     })
                     .collect(),

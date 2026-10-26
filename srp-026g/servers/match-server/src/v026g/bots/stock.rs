@@ -1,0 +1,613 @@
+//! What a bot has to use: the drugs of its kits, read as the HUD shows a
+//! player (`player_bots_behaviour.md` §3 play 22; the record's §8.8).
+//!
+//! A kit's pocket holds a stack (the bots' kits: two medkits). The game
+//! keeps it twice (`inventory::setup_from_profile` 0x2FCB70, PROVEN, see
+//! `survarium::v026g::loadouts::BOT_AMMO_LIVES`): the stack in the slot
+//! (`m_amount`, what a quick-use key takes from) and the item's storage;
+//! a spawn fills the slot from the storage, a use takes one from the slot
+//! at once, a death puts the slot back. So a kit's drugs are a count for
+//! the match, not for a life, and a bot that counted them per life pressed
+//! the third medkit of a kit into an empty slot.
+//!
+//! [`Pantry`] is that count, a bot's own. A press takes one out of it
+//! ([`Pantry::pressed`]); a trusted world corrects it ([`Pantry::read`]),
+//! from the player's block as `players::Supplies` reads it ([`readings`]):
+//! the stack in the slot and the storage of each drug of each kit, and the
+//! quick-use key the kit's slot order gives it. A world made before the
+//! game could have applied a press says nothing of that press
+//! ([`PRESS_LAG_MS`]), and one made before the bot's first world of a life
+//! is no word on that life's slot ([`Pantry::new_life`] fills it from the
+//! count).
+
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::loadouts::{
+    BOT_BANDAGES, BOT_MEDKIT, BOT_POCKETS, BotKitItem, QUICK_USE_FIRST_BIT, QUICK_USE_ORDER, new_kit,
+};
+use survarium::v026g::match_msgs::players::Supplies;
+use survarium::v026g::match_msgs::static_info::MatchProfile;
+
+/// A press is in a world made this long after it, ms: the input goes a
+/// tick or two ahead of the match clock to the client, which applies it at
+/// its tick (`game/driven.rs`, inputs 50 to 100 ms ahead).
+pub const PRESS_LAG_MS: u32 = 500;
+
+/// The quick-use keys there are (`key::QUICK`).
+const QUICK_KEYS: usize = 6;
+
+/// What a pocket's item does for the body (the client's `drugs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Drug {
+    Medkit,
+    Bandages,
+    Antitoxin,
+}
+
+impl Drug {
+    pub const ALL: [Self; 3] = [Self::Medkit, Self::Bandages, Self::Antitoxin];
+
+    /// The dictionary's name of the item.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Medkit => "medkit",
+            Self::Bandages => "bandages",
+            Self::Antitoxin => "antitoxin",
+        }
+    }
+
+    pub fn of_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|drug| drug.name() == name)
+    }
+}
+
+/// A drug of a kit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Held {
+    pub drug: Drug,
+    /// Its quick-use key, 0 on (`key::QUICK[quick]`): the kit's filled
+    /// slots in `QUICK_USE_ORDER`, this one's place among them.
+    pub quick: usize,
+    /// Units a life's slot starts with (the pocket's).
+    pub slot: u16,
+    /// Units left for the match, in the slot and in store.
+    pub total: u16,
+    /// Units in the slot now (this life).
+    pub hand: u16,
+    /// The last press of this life, ms.
+    pub pressed: Option<u32>,
+}
+
+/// One drug of one kit in a world, as [`readings`] has it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reading {
+    pub kit: usize,
+    pub drug: Drug,
+    pub quick: usize,
+    /// The pocket's count.
+    pub slot: u16,
+    /// The kit is the one in use.
+    pub in_use: bool,
+    /// The stack in the slot, when the kit is in use and the slot was
+    /// found.
+    pub in_hand: Option<u16>,
+    /// The item's storage.
+    pub stored: u32,
+}
+
+/// What a world says of a player's drugs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Readings {
+    /// The kit in use, and how many kits the profile has.
+    pub kit: usize,
+    pub kits: usize,
+    /// `m_is_alive`: a dead player's slots are back in store.
+    pub alive: bool,
+    pub drugs: Vec<Reading>,
+}
+
+/// The drugs each of a player's kits holds in `supplies`, with the keys of
+/// the kit's own slot order. Only what the profile's kits have.
+pub fn readings(supplies: &Supplies, profile: &MatchProfile, dictionary: &Dictionary) -> Readings {
+    let mut out = Vec::new();
+    for (k, kit) in profile.kits.iter().enumerate() {
+        let filled: Vec<u8> = QUICK_USE_ORDER
+            .iter()
+            .copied()
+            .filter(|&slot| kit.slots[usize::from(slot)].is_some_and(|(_, count)| count > 0))
+            .collect();
+        for (quick, &slot) in filled.iter().enumerate().take(QUICK_KEYS) {
+            let Some((index, count)) = kit.slots[usize::from(slot)] else {
+                continue;
+            };
+            let Some(item) = profile.items.get(usize::from(index)) else {
+                continue;
+            };
+            let Some(drug) = dictionary
+                .item(item.dict_id)
+                .and_then(|row| Drug::of_name(&row.name))
+            else {
+                continue;
+            };
+            let Some(left) = supplies.items.get(usize::from(index)) else {
+                continue;
+            };
+            let in_use = usize::from(supplies.kit) == k;
+            out.push(Reading {
+                kit: k,
+                drug,
+                quick,
+                slot: count,
+                in_use,
+                in_hand: (in_use && supplies.alive && supplies.inventory_read)
+                    .then_some(left.in_hand)
+                    .flatten(),
+                stored: left.stored,
+            });
+        }
+    }
+    Readings {
+        kit: usize::from(supplies.kit),
+        kits: profile.kits.len(),
+        alive: supplies.alive,
+        drugs: out,
+    }
+}
+
+/// A bot's drugs, by kit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pantry {
+    kits: Vec<Vec<Held>>,
+    /// The kit in use.
+    kit: usize,
+}
+
+impl Default for Pantry {
+    fn default() -> Self {
+        Self::standard()
+    }
+}
+
+/// The pockets of a bot's kit before a world says what it holds: the owner's kit's drugs (the medkits, then the
+/// bandages: [`BOT_BANDAGES`], quick use 2) when the bots carry it (`SRP_BOT_KIT`, [`new_kit`]), else the
+/// tip's [`BOT_POCKETS`]. The bench's stand-in builds its bodies' kits from the same list.
+pub(crate) fn standard_pockets() -> Vec<BotKitItem> {
+    if new_kit() {
+        vec![BOT_MEDKIT, BOT_BANDAGES]
+    } else {
+        BOT_POCKETS.to_vec()
+    }
+}
+
+impl Pantry {
+    /// What every server bot's kit holds ([`BOT_POCKETS`]: two medkits),
+    /// until a world says what its kits hold.
+    pub fn standard() -> Self {
+        Self {
+            kits: vec![Self::standard_kit()],
+            kit: 0,
+        }
+    }
+
+    fn standard_kit() -> Vec<Held> {
+        standard_pockets()
+            .iter()
+            .filter_map(|item| {
+                let drug = Drug::of_name(item.name)?;
+                let quick = usize::from(item.input_bit? - QUICK_USE_FIRST_BIT);
+                let count = item.count as u16;
+                Some(Held {
+                    drug,
+                    quick,
+                    slot: count,
+                    total: count,
+                    hand: count,
+                    pressed: None,
+                })
+            })
+            .collect()
+    }
+
+    fn kit_at(&mut self, kit: usize) -> &mut Vec<Held> {
+        while self.kits.len() <= kit {
+            self.kits.push(Self::standard_kit());
+        }
+        &mut self.kits[kit]
+    }
+
+    /// A new life in `kit`: the slot is filled from what the match has
+    /// left of it (the client's spawn), and nothing is active.
+    pub fn new_life(&mut self, kit: usize) {
+        self.kit = kit;
+        for held in self.kit_at(kit) {
+            held.hand = held.slot.min(held.total);
+            held.pressed = None;
+        }
+    }
+
+    /// The drugs of the kit in use.
+    pub fn held(&self) -> &[Held] {
+        self.kits.get(self.kit).map_or(&[], Vec::as_slice)
+    }
+
+    /// Units of `drug` in the slots now.
+    pub fn in_hand(&self, drug: Drug) -> u16 {
+        self.held()
+            .iter()
+            .filter(|held| held.drug == drug)
+            .map(|held| held.hand)
+            .sum()
+    }
+
+    /// Units of `drug` left for the match in the kit in use.
+    pub fn total(&self, drug: Drug) -> u16 {
+        self.held()
+            .iter()
+            .filter(|held| held.drug == drug)
+            .map(|held| held.total)
+            .sum()
+    }
+
+    /// The drug a press of quick-use key `quick` (0 on) uses, if its slot
+    /// holds one.
+    pub fn at_key(&self, quick: usize) -> Option<&Held> {
+        self.held()
+            .iter()
+            .find(|held| held.quick == quick && held.hand > 0)
+    }
+
+    /// The first held `drug` with a unit in its slot.
+    pub fn first(&self, drug: Drug) -> Option<&Held> {
+        self.held()
+            .iter()
+            .find(|held| held.drug == drug && held.hand > 0)
+    }
+
+    /// Quick-use key `quick` (0 on) was pressed at `now`: a unit leaves
+    /// the slot and the match's count. False if the slot held none (the
+    /// game does nothing then).
+    pub fn pressed(&mut self, quick: usize, now: u32) -> bool {
+        let kit = self.kit;
+        let Some(held) = self
+            .kit_at(kit)
+            .iter_mut()
+            .find(|held| held.quick == quick && held.hand > 0)
+        else {
+            return false;
+        };
+        held.hand -= 1;
+        held.total = held.total.saturating_sub(1);
+        held.pressed = Some(now);
+        true
+    }
+
+    /// A trusted world made at `time` showed `readings`: the kits hold what
+    /// it says, and the counts are its own unless a press of this life is
+    /// too new for the world to show.
+    pub fn read(&mut self, time: u32, readings: &Readings) {
+        self.kit = readings.kit;
+        for kit in 0..readings.kits.max(readings.kit + 1) {
+            let held = self.kit_at(kit);
+            held.retain(|h| {
+                readings
+                    .drugs
+                    .iter()
+                    .any(|r| r.kit == kit && r.drug == h.drug && r.quick == h.quick)
+            });
+            for r in readings.drugs.iter().filter(|r| r.kit == kit) {
+                let at = held
+                    .iter()
+                    .position(|h| h.drug == r.drug && h.quick == r.quick)
+                    .unwrap_or_else(|| {
+                        held.push(Held {
+                            drug: r.drug,
+                            quick: r.quick,
+                            slot: r.slot,
+                            total: r.slot,
+                            hand: r.slot,
+                            pressed: None,
+                        });
+                        held.len() - 1
+                    });
+                let h = &mut held[at];
+                h.slot = r.slot;
+                if h.pressed.is_some_and(|p| time < p + PRESS_LAG_MS) {
+                    continue;
+                }
+                let stored = r.stored.min(u32::from(u16::MAX)) as u16;
+                match r.in_hand {
+                    Some(n) => {
+                        h.hand = n;
+                        h.total = n.saturating_add(stored);
+                    }
+                    // In store: a kit not in use, or a body dead.
+                    None if !(r.in_use && readings.alive) => h.total = stored,
+                    None => {}
+                }
+            }
+        }
+    }
+}
+
+/// A live player's kit and player-state bytes, cut from a recording of a
+/// match of 20 places (`tests/data/live_kit_20_players_2_medkits_2_bandages.txt`):
+/// the profile's items and kit slots, and the state the client uploaded in a
+/// world, as `players::Supplies` reads it. Masked: no name, no account; the
+/// bytes of the state are the client's own. The kit in use holds a medkit
+/// and bandages, 2 of each in the slots and the rest in store.
+#[cfg(test)]
+pub(crate) mod live_kit {
+    use survarium::v026g::match_msgs::static_info::{
+        MatchItem, MatchKit, MatchProfile, NO_PROTECTION,
+    };
+
+    pub(crate) struct LiveKit {
+        pub(crate) place: u8,
+        pub(crate) profile: MatchProfile,
+        pub(crate) state: Vec<u8>,
+    }
+
+    pub(crate) fn live_kit() -> LiveKit {
+        const TEXT: &str =
+            include_str!("../../../tests/data/live_kit_20_players_2_medkits_2_bandages.txt");
+        let (mut place, mut state) = (0u8, Vec::new());
+        let mut items: Vec<MatchItem> = Vec::new();
+        let mut kits: Vec<MatchKit> = Vec::new();
+        for line in TEXT.lines().filter(|line| !line.starts_with('#')) {
+            let words: Vec<&str> = line.split(' ').collect();
+            let number = |at: usize| words[at].parse::<u32>().expect("a number");
+            match words[0] {
+                "place" => place = number(1) as u8,
+                "item" => items.push(MatchItem {
+                    dict_id: number(2) as u16,
+                    condition_or_stack: number(3),
+                    ..MatchItem::default()
+                }),
+                "slot" => {
+                    let kit = number(1) as usize;
+                    while kits.len() <= kit {
+                        kits.push(MatchKit::empty(kits.len() as u32, ""));
+                    }
+                    kits[kit].slots[number(2) as usize] =
+                        Some((number(3) as u16, number(4) as u16));
+                }
+                "state" => {
+                    state = (0..words[1].len() / 2)
+                        .map(|i| u8::from_str_radix(&words[1][2 * i..2 * i + 2], 16).expect("hex"))
+                        .collect();
+                }
+                other => panic!("the fixture has a line `{other}`"),
+            }
+        }
+        LiveKit {
+            place,
+            profile: MatchProfile {
+                team: 0,
+                name: String::new(),
+                clan_tag: String::new(),
+                protection: NO_PROTECTION,
+                kits,
+                items,
+                squad: 0,
+            },
+            state,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    use survarium::v026g::match_msgs::players::ItemLeft;
+
+    /// A bot's block as the game shows it: each item of the profile in
+    /// store as given, and the slots of kit `kit` holding `hand` of the
+    /// medkit.
+    fn supplies(profile: &MatchProfile, kit: u8, alive: bool, hand: u16, stored: u32) -> Supplies {
+        let dictionary = Dictionary::shared();
+        let items = profile
+            .items
+            .iter()
+            .map(|item| {
+                let medkit = dictionary
+                    .item(item.dict_id)
+                    .is_some_and(|row| row.name == "medkit");
+                ItemLeft {
+                    dict_id: item.dict_id,
+                    stack: dictionary.is_stack(item.dict_id),
+                    stored: if medkit { stored } else { 0 },
+                    in_hand: (medkit && alive).then_some(hand),
+                    condition: None,
+                    magazine: None,
+                    slot: None,
+                }
+            })
+            .collect();
+        Supplies {
+            alive,
+            kit,
+            inventory_read: alive,
+            items,
+        }
+    }
+
+    fn profile() -> MatchProfile {
+        bot_profile(1, 0, BotRole::ALL[0], BotTier::Low)
+    }
+
+    #[test]
+    fn a_bots_kit_holds_two_medkits_on_quick_use_1_and_the_count_is_the_matchs() {
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 2);
+        assert_eq!(pantry.first(Drug::Medkit).map(|h| h.quick), Some(0));
+        assert!(pantry.pressed(0, 1_000));
+        assert!(pantry.pressed(0, 9_000));
+        assert_eq!(pantry.in_hand(Drug::Medkit), 0);
+        // The third press of the kit finds an empty slot ...
+        assert!(!pantry.pressed(0, 20_000));
+        assert!(pantry.first(Drug::Medkit).is_none());
+        // ... and a new life does not give the kit its medkits back: the
+        // storage is empty (the old per-life count did).
+        pantry.new_life(0);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 0);
+        assert_eq!(pantry.total(Drug::Medkit), 0);
+        assert!(!pantry.pressed(0, 40_000));
+        // Another kit has its own two.
+        pantry.new_life(1);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 2);
+        assert!(pantry.pressed(0, 60_000));
+        pantry.new_life(1);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 1, "one left for the match");
+    }
+
+    #[test]
+    fn the_readings_are_the_slot_and_the_store_with_the_kits_own_quick_key() {
+        let profile = profile();
+        let dictionary = Dictionary::shared();
+        let read = readings(&supplies(&profile, 0, true, 2, 0), &profile, dictionary);
+        // Three kits, each with its medkit on quick use 1.
+        let medkits: Vec<_> = read
+            .drugs
+            .iter()
+            .filter(|r| r.drug == Drug::Medkit)
+            .collect();
+        assert_eq!(medkits.len(), 3);
+        for (k, r) in medkits.iter().enumerate() {
+            assert_eq!((r.kit, r.quick, r.slot), (k, 0, 2));
+            assert_eq!(r.in_use, k == 0);
+        }
+        assert_eq!(medkits[0].in_hand, Some(2));
+        assert_eq!(medkits[1].in_hand, None, "a kit not in use has its store");
+        // Dead: the slot is not read.
+        let read = readings(&supplies(&profile, 0, false, 0, 2), &profile, dictionary);
+        assert!(read.drugs.iter().all(|r| r.in_hand.is_none()));
+        assert_eq!(read.drugs[0].stored, 2);
+    }
+
+    #[test]
+    fn a_world_corrects_the_count_unless_a_press_is_too_new_for_it() {
+        let profile = profile();
+        let dictionary = Dictionary::shared();
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        // A world just after the press: it cannot show it yet.
+        let read = readings(&supplies(&profile, 0, true, 2, 0), &profile, dictionary);
+        pantry.read(10_200, &read);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 1);
+        // A world after the game applied it: the slot holds one.
+        let read = readings(&supplies(&profile, 0, true, 1, 0), &profile, dictionary);
+        pantry.read(11_000, &read);
+        assert_eq!(
+            (pantry.in_hand(Drug::Medkit), pantry.total(Drug::Medkit)),
+            (1, 1)
+        );
+        // The game ignored a press (a medkit already active): the world
+        // has the slot as it was, and the count follows it.
+        assert!(pantry.pressed(0, 12_000));
+        let read = readings(&supplies(&profile, 0, true, 1, 0), &profile, dictionary);
+        pantry.read(13_000, &read);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 1);
+        // Dead, the slot goes back to the store; the next life fills from it.
+        let read = readings(&supplies(&profile, 0, false, 0, 1), &profile, dictionary);
+        pantry.read(20_000, &read);
+        pantry.new_life(0);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 1);
+    }
+
+    #[test]
+    fn a_world_names_the_kit_in_use_and_what_every_kit_holds() {
+        let profile = profile();
+        let dictionary = Dictionary::shared();
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        // The game says kit 2 is in use, with one medkit left of its two.
+        let read = readings(&supplies(&profile, 2, true, 1, 0), &profile, dictionary);
+        pantry.read(5_000, &read);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 1);
+        assert!(pantry.pressed(0, 6_000));
+        assert!(!pantry.pressed(0, 7_000));
+        // Kits with no medkit at all: the world's word, not the standard's.
+        let mut bare = profile.clone();
+        for kit in &mut bare.kits {
+            kit.slots[13] = None;
+        }
+        let read = readings(&supplies(&bare, 0, true, 0, 0), &bare, dictionary);
+        assert!(read.drugs.iter().all(|r| r.drug != Drug::Medkit));
+        pantry.read(9_000, &read);
+        pantry.new_life(0);
+        assert_eq!(pantry.in_hand(Drug::Medkit), 0);
+    }
+
+    /// A block a live client uploaded in a match of 20 places: the kit in use
+    /// (kit 1) holds a medkit on quick use 1 and bandages on quick use 2,
+    /// two of each in the slots, 20 and 18 more in store.
+    #[test]
+    fn a_live_players_block_reads_two_medkits_and_two_bandages() {
+        use super::live_kit::live_kit;
+        use survarium::v026g::match_msgs::players::{PlayerBlock, PlayerState};
+        let live = live_kit();
+        let dictionary = Dictionary::shared();
+        assert!(PlayerState::read(&live.state, live.profile.items.len()).is_some_and(|s| s.alive));
+        let block = PlayerBlock {
+            place: live.place,
+            state: &live.state,
+            animation: None,
+        };
+        let supplies = Supplies::read(&block, &live.profile, dictionary).unwrap();
+        assert!(supplies.alive && supplies.inventory_read);
+        assert_eq!(supplies.kit, 1);
+        let of = |name: &str| {
+            supplies
+                .items
+                .iter()
+                .find(|item| {
+                    dictionary
+                        .item(item.dict_id)
+                        .is_some_and(|row| row.name == name)
+                })
+                .unwrap()
+        };
+        let (medkit, bandages) = (of("medkit"), of("bandages"));
+        assert_eq!((medkit.in_hand, medkit.stored), (Some(2), 20));
+        assert_eq!((bandages.in_hand, bandages.stored), (Some(2), 18));
+        // `Supplies::left`: the slots and the store.
+        let left = supplies.left();
+        assert_eq!(left[&medkit.dict_id], 22);
+        assert_eq!(left[&bandages.dict_id], 20);
+        // The readings, with the key of the kit's own slot order.
+        let read = readings(&supplies, &live.profile, dictionary);
+        assert_eq!((read.kit, read.kits, read.alive), (1, 3, true));
+        let in_use: Vec<_> = read.drugs.iter().filter(|r| r.in_use).collect();
+        assert_eq!(in_use.len(), 2);
+        assert_eq!(
+            (in_use[0].drug, in_use[0].quick, in_use[0].in_hand),
+            (Drug::Medkit, 0, Some(2))
+        );
+        assert_eq!(
+            (in_use[1].drug, in_use[1].quick, in_use[1].in_hand),
+            (Drug::Bandages, 1, Some(2))
+        );
+        // The pantry follows it.
+        let mut pantry = Pantry::standard();
+        pantry.read(109_550, &read);
+        assert_eq!(
+            (pantry.in_hand(Drug::Medkit), pantry.total(Drug::Medkit)),
+            (2, 22)
+        );
+        assert_eq!(
+            (pantry.in_hand(Drug::Bandages), pantry.total(Drug::Bandages)),
+            (2, 20)
+        );
+        assert_eq!(pantry.first(Drug::Bandages).map(|h| h.quick), Some(1));
+        // Bandages used up: the third press has no slot to find.
+        assert!(pantry.pressed(1, 110_000) && pantry.pressed(1, 111_000));
+        assert!(pantry.first(Drug::Bandages).is_none());
+        assert_eq!(
+            pantry.total(Drug::Bandages),
+            18,
+            "the store is for the next life"
+        );
+    }
+}

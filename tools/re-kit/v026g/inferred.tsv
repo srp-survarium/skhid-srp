@@ -1921,7 +1921,6 @@ va	status	ref_021d	name
 0x002dbb50	inferred-medium		survarium::base_player::movement_speed
 0x002dbca0	inferred-high	0x001d6606	survarium::base_player::on_pain_regenerated
 0x002dbe90	inferred-medium	0x001d6638	survarium::base_player::unsubscribe_from_actions
-0x002dbf40	inferred-medium	0x001d6747	survarium::base_player::can_sprint
 0x002dd110	inferred-medium	0x001d6d38	boost::detail::function::functor_manager<boost::_bi::bind_t<unsigned short,unsigned short (__cdecl*)(survarium::animations_registry &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &),boost::_bi::list3<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1>,boost::arg<2> > > >::manager
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
@@ -2000,6 +1999,7 @@ va	status	ref_021d	name
 0x002fc2a0	inferred-high	0x001e0f03	survarium::weapon_user_animations_selector::is_going_to_aim
 0x002febc0	inferred-medium	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
 0x002fffd0	inferred-medium	0x001e70bb	survarium::inventory_item::register_in_game_world
+0x002fffe0	inferred-medium		survarium::inventory_item::inventory_item
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_fire_state>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_reload_state>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::pistol_weapon_core_fire_state>::fake_callback
@@ -2012,6 +2012,7 @@ va	status	ref_021d	name
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_shotgun_reload_one_round_substate>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_shotgun_reload_start_substate>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_show_state>::fake_callback
+0x003000a0	inferred-medium		survarium::victory_item_core::victory_item_core
 0x00300b00	inferred-medium	0x001e7565	survarium::victory_item_core::set_user
 0x00301270	inferred-medium	0x001e793c	survarium::victory_item_core::is_ready_to_be_deactivated
 0x003012a0	inferred-medium	0x001e7966	survarium::victory_item_core::selected_animations

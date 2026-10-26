@@ -16,6 +16,13 @@ pub(super) struct TeamState {
     pub(super) spots: TeamSpots,
     /// When its bots killed themselves in the last minute (`stuck::SelfKill`).
     pub(super) self_kills: Vec<u32>,
+    /// The floors of the traps its bots put down, and the list's version it
+    /// was built for (`trap_know.rs`).
+    pub(super) trap_field: Arc<trap_know::TrapField>,
+    pub(super) trap_field_version: u64,
+    /// The armed traps the last world showed, for the bots' notice
+    /// (`trap_react.rs`); empty while the switch is off.
+    pub(super) world_traps: Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Where a shooter killed its bots from, and the regions his line
     /// covers now ([`threat`]).
     pub(super) threat: threat::ThreatSpots,
@@ -109,6 +116,11 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
+        state.refresh_traps(&tactics.world.grid);
+        let field = state.trap_field.clone();
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.trap_field = field.clone();
+        }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
         state.no_way_to.retain(|&(_, until)| now < until);
@@ -252,10 +264,13 @@ impl Bots {
                     partner: bot.partner,
                     paired: bot.paired,
                     medkits_used: bot.medkits_used,
+                    pantry: &bot.pantry,
+                    pools: bot.pools,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
+                    ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,
@@ -336,10 +351,13 @@ impl Bots {
                     partner: bot.partner,
                     paired: bot.paired,
                     medkits_used: bot.medkits_used,
+                    pantry: &bot.pantry,
+                    pools: bot.pools,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
+                    ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,
