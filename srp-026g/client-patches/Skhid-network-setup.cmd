@@ -30,6 +30,10 @@ if defined SKHID_CP set "SKHID_CP=%SKHID_CP: =%"
 if defined SKHID_CP set "SKHID_CP=%SKHID_CP:.=%"
 chcp 866 >nul 2>&1
 set "RC=0"
+rem The script's own path and folder, before any shift (a shift moves %0 too).
+set "SKHID_SELF=%~f0"
+set "TOP=%~dp0"
+set "TOP=%TOP:~0,-1%"
 cd /d "%~dp0"
 set "MODE=add"
 set "DRY="
@@ -47,10 +51,9 @@ shift
 goto args
 :args_done
 
-set "TOP=%~dp0"
-set "TOP=%TOP:~0,-1%"
 set "X86=%TOP%\game\binaries\x86"
 set "MARKER=%TOP%\Skhid-network-setup.defender"
+set "SKHID_MARKER=%MARKER%"
 set "PROGRAMS=launcher_skhid.exe survarium_skhid.exe updater_skhid.exe"
 if not exist "%X86%\survarium_skhid.exe" goto wrong_place
 
@@ -79,9 +82,10 @@ echo.
 if defined DRY if not defined ELEVATED call :elevation
 if defined DRY goto main
 
-rem Windows Firewall rules need administrator rights.
+rem Windows Firewall rules need administrator rights: fltmc ends with 0 only
+rem with them (not "errorlevel 1", which a negative exit code passes).
 fltmc >nul 2>&1
-if not errorlevel 1 goto main
+if %errorlevel% equ 0 goto main
 if defined ELEVATED goto not_admin
 echo Для правил брандмауэра нужны права администратора. Сейчас Windows
 echo спросит разрешение (контроль учётных записей): нажмите "Да". Тогда этот
@@ -97,7 +101,6 @@ rem quotes off what follows it, so the script's quoted path and its options
 rem are in one more pair (a folder with a space and a bracket or an &).
 rem With --dry-run it is printed, and is a dry run's.
 :elevation
-set "SKHID_SELF=%~f0"
 set "SKHID_ARGS=--elevated"
 if "%MODE%"=="undo" set "SKHID_ARGS=%SKHID_ARGS% --undo"
 if "%DEFENDER%"=="yes" set "SKHID_ARGS=%SKHID_ARGS% --defender-yes"
@@ -199,11 +202,13 @@ echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
 echo [dry-run] write "%MARKER%":
 call :marker_line
 exit /b 0
+rem PowerShell writes the marker (the path excluded, UTF-8 with a byte order
+rem mark): every letter of the path is kept, Ukrainian or Polish too, which
+rem code page 866 has not.
 :defender_exclude
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop } catch { exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop; [IO.File]::WriteAllText($env:SKHID_MARKER, $env:SKHID_EXCLUDED, [Text.Encoding]::UTF8) } catch { exit 1 }"
 if errorlevel 3 goto defender_had
 if errorlevel 1 goto defender_failed
-call :marker_line > "%MARKER%"
 echo Defender: папка game\binaries\x86 исключена из проверки.
 exit /b 0
 :defender_had
@@ -217,32 +222,30 @@ exit /b 0
 echo Defender: исключение не добавлено.
 exit /b 0
 
-rem The marker's one line: the path excluded, as it is. A FOR variable is not
-rem parsed again (an & in it is no command) and, without delayed expansion,
-rem a ! stays a !. (A Windows path has no * or ?, which FOR would match.) It
-rem is written and read in code page 866, which this script runs in.
+rem A dry run's picture of the marker's line: the path, as it is. A FOR
+rem variable is not parsed again (an & in it is no command) and, without
+rem delayed expansion, a ! stays a !. (A Windows path has no * or ?, which
+rem FOR would match.)
 :marker_line
 for %%A in ("%SKHID_EXCLUDED%") do echo(%%~A
 exit /b 0
 
+rem PowerShell reads the marker and says what it removed. ReadAllText takes
+rem the byte order mark's UTF-8; a marker without one is of the earlier
+rem script (#453), written by cmd in the console's code page: 866 here.
 :defender_remove
 if exist "%MARKER%" goto defender_unexclude
 echo Defender: этот файл не добавлял здесь исключений, удалять нечего.
 exit /b 0
 :defender_unexclude
-set /p "SKHID_EXCLUDED=" < "%MARKER%"
 if not defined DRY goto defender_unexclude_run
-echo [dry-run] powershell Remove-MpPreference -ExclusionPath "%SKHID_EXCLUDED%"
+echo [dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "%MARKER%")
 echo [dry-run] delete "%MARKER%"
 exit /b 0
 :defender_unexclude_run
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Remove-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop } catch { exit 1 }"
-if not errorlevel 1 goto defender_unexcluded
-echo Defender: исключение "%SKHID_EXCLUDED%" удалить не удалось.
-exit /b 0
-:defender_unexcluded
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = ''; try { $p = [IO.File]::ReadAllText($env:SKHID_MARKER, [Text.Encoding]::GetEncoding(866)).Trim(); Remove-MpPreference -ExclusionPath $p -ErrorAction Stop; Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалено.') } catch { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалить не удалось.'); exit 1 }"
+if errorlevel 1 exit /b 0
 del "%MARKER%"
-echo Defender: исключение "%SKHID_EXCLUDED%" удалено.
 exit /b 0
 
 rem A command, or with --dry-run its words.
