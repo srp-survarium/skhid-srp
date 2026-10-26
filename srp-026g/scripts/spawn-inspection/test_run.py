@@ -16,18 +16,26 @@ class SpawnInspection(unittest.TestCase):
             root = Path(folder)
             binary = root / 'srp-bot'
             binary.touch()
+            game_data = root / 'server-game-data.db'
+            game_data.touch()
             config = root / 'config.json'
             cfg = {'ports': [2234, 2235, 2236, 18088], 'server': {
                 'binary': str(root / 'srp'), 'env': {
-                    'SRP_BOT_ACCOUNTS': ','.join(run.NAMES), 'SRP_MIN_PATCH_REVISION': '35'}}}
+                    'SRP_BOT_ACCOUNTS': ','.join(run.NAMES), 'SRP_MIN_PATCH_REVISION': '35',
+                    'SRP_GAME_DATA': str(game_data)}}}
             for ports in (cfg['ports'], {'login': 2234}):
                 cfg['ports'] = ports
                 config.write_text(json.dumps(cfg))
                 argv = ['run.py', '--config', str(config), 'run', '4746', '--pin', '1234']
-                with patch('sys.argv', argv), patch('run.os.execv') as execute, contextlib.redirect_stdout(io.StringIO()):
+                with patch('sys.argv', argv), patch('run.os.execve') as execute, contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(run.main(), 0)
-                execute.assert_called_once_with(str(binary), [str(binary), '--server', '127.0.0.1:2234',
+                execute.assert_called_once()
+                invoked_binary, args, child_env = execute.call_args.args
+                self.assertEqual(invoked_binary, str(binary))
+                self.assertEqual(args, [str(binary), '--server', '127.0.0.1:2234',
                     '--name', 'Spawn1', '--count', '19', '--revision', '35', '--room', '4746', '--pin', '1234'])
+                self.assertEqual(child_env['SRP_GAME_DATA'], str(game_data))
+                self.assertEqual(child_env.get('PATH'), run.os.environ.get('PATH'))
 
     def test_configure_preserves_accounts_and_existing_bot_names(self):
         with tempfile.TemporaryDirectory() as folder:

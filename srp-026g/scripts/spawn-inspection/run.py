@@ -108,12 +108,17 @@ def main():
         binary = args.bot_bin or Path(cfg["server"]["binary"]).with_name("srp-bot")
         if not binary.is_file():
             parser.error("build srp-bot and provide --bot-bin (or install beside the local srp)")
+        game_data = Path(env.get("SRP_GAME_DATA", ""))
+        if not game_data.is_file():
+            parser.error("local server SRP_GAME_DATA must name its current server-game-data.db")
+        child_env = os.environ.copy()
+        child_env["SRP_GAME_DATA"] = str(game_data.resolve())
         print("Joining with 19 stationary clients. Wait for 20/20 in your private room, then press Start.", flush=True)
         print("Ctrl+C disconnects the test clients. This does not open game windows.", flush=True)
         argv = [str(binary), "--server", f"127.0.0.1:{login_port(cfg)}",
                 "--name", "Spawn1", "--count", "19", "--revision", str(env.get("SRP_MIN_PATCH_REVISION", 35)),
                 "--room", str(args.room), "--pin", str(args.pin)]
-        os.execv(str(binary), argv)
+        os.execve(str(binary), argv, child_env)
     return 0
 
 
