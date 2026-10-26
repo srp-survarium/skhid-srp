@@ -205,6 +205,36 @@ pub(crate) fn the_thrower_dying_before_the_launch_and_a_shot_in_the_hold_are_cou
 }
 
 #[test]
+pub(crate) fn a_shot_after_the_throw_was_given_up_is_not_a_shot_in_the_hold() {
+    // The key goes down at tick 5; a mate walks in and the bot notes the throw held back at tick 8 (the key
+    // let go); it fires at tick 12 (the stand-in's key). Fired at tick 7 it was in the hold.
+    let run = |fire_at: usize, given_up: bool| {
+        let (mut game, mut tally) = made_up(&[0, 1]);
+        for k in 0..60usize {
+            game.tick = (k as u32 + 1) * TICK_MS;
+            if given_up && k == 8 {
+                let note = Note {
+                    place: 0,
+                    time: game.tick,
+                    text: "holds a grenade back at (1.0, 0.0, 2.0): teammate 3".to_owned(),
+                };
+                tally.note(&note, &game);
+            }
+            let grenade = if (5..8).contains(&k) { key::GRENADE } else { 0 };
+            let fire = if k == fire_at { key::FIRE } else { 0 };
+            put(&mut game, 0, 10.0, 10.0, grenade | fire);
+            put(&mut game, 1, 40.0, 40.0, 0);
+            tally.step(&mut game, &[bot_now(), bot_now()]);
+            game.hit_log.clear();
+        }
+        tally.finish(&game).1
+    };
+    assert_eq!(run(12, true)["grenade_fired_after_held"], 0);
+    assert_eq!(run(7, true)["grenade_fired_after_held"], 1);
+    assert_eq!(run(12, false)["grenade_fired_after_held"], 1);
+}
+
+#[test]
 pub(crate) fn the_refusals_are_counted_by_their_reason() {
     let (game, mut tally) = made_up(&[0, 1]);
     for why in [
@@ -261,6 +291,11 @@ impl OwnerTally {
             3
         };
         self.grenades.refused[at] += 1;
+    }
+
+    /// The bot let go of the key and gave the throw up: no hold is open for it.
+    pub(super) fn grenade_given_up(&mut self, thrower: Place) {
+        self.grenades.holds.remove(&thrower);
     }
 
     /// A bot's grenade key at this tick: a press opens a hold of [`HELD_MS`]; in it, the thrower dying before

@@ -258,6 +258,8 @@ impl OwnerTally {
             self.grenade_thrown(note.place, aim, time);
         } else if let Some(why) = held_back(&note.text) {
             self.grenade_refused(why);
+            // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
+            self.grenade_given_up(note.place);
         }
     }
 
