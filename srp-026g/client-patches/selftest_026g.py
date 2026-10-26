@@ -4601,7 +4601,8 @@ def test_hide_ui(original, image, before):
     texts = [text for va, _, text in ndisasm(code[:names], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke", "bo_match")}
+    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke", "bo_match",
+                                                 "bo_tab_held")}
     pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
     named = lambda text: f"mov edx,{block.va + code.index(text + bytes(1)):#x}" in texts
     forced = linked.symbols["hide_ui_forced"]
@@ -4611,13 +4612,14 @@ def test_hide_ui(original, image, before):
           and f"cmp byte [dword {forced:#x}],0x0" in texts and f"mov [{forced:#x}],al" in texts
           and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
           and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden"))
-          and all(named(t) for t in (b"root.hide_interface", b"root.force_interface_hidden"))
+          and all(named(t) for t in (b"root.hide_interface", b"root.force_interface_hidden",
+                                     b"root.force_interface_tab"))
           and "hide_ui.state" not in linked.blocks,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
           "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and patch 65's bo_match and "
-          "nothing else (not the game world's show_ui: its hidden movies stand still); it invokes "
-          "root.toggle_interface, root.interface_hidden, root.hide_interface and (forced) the hud's "
-          "root.force_interface_hidden; its one state is "
+          "bo_tab_held and nothing else (not the game world's show_ui: its hidden movies stand still); it "
+          "invokes root.toggle_interface, root.interface_hidden, root.hide_interface and (forced) "
+          "root.force_interface_hidden and the icons' root.force_interface_tab; its one state is "
           "hide_ui_force's byte `hide_ui_forced` (hide_ui.data), which the case 19h reads")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
