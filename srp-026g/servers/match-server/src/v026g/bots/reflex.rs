@@ -1277,6 +1277,15 @@ struct Throw {
     pick: ArcPick,
 }
 
+/// [play 20] What a grenade roll looks at: the bot, its situation (the
+/// match view, the team's claims), its memory of the enemies, the time.
+struct RollView<'a, 'b> {
+    me: &'a PlaceView,
+    sit: &'a Situation<'b>,
+    memory: &'a Memory,
+    now: u32,
+}
+
 /// [play 20] Why a throw is not made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Refuse {
@@ -1351,20 +1360,23 @@ impl PlaceSource {
     }
 }
 
-/// [G2] The arc a throw at a place takes: the flat one to it, or the one the
-/// search found, as an offset of the view from the bearing to the place.
+/// [G2] The arc a throw at a place takes: the flat one to it, another pitch
+/// at the yaw of the place (a lob, or an arc under what is in the way), or
+/// another yaw (an offset of the view from the bearing to the place) with a
+/// pitch: what the search found.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum ArcPick {
     Flat,
-    Chosen { dyaw: f32, pitch: f32 },
+    Pitch { pitch: f32 },
+    Yawed { dyaw: f32, pitch: f32 },
 }
 
 impl ArcPick {
     /// The yaw offset of the view from the bearing to the place.
     fn dyaw(self) -> f32 {
         match self {
-            Self::Flat => 0.0,
-            Self::Chosen { dyaw, .. } => dyaw,
+            Self::Flat | Self::Pitch { .. } => 0.0,
+            Self::Yawed { dyaw, .. } => dyaw,
         }
     }
 
@@ -1373,8 +1385,8 @@ impl ArcPick {
     fn kind(self) -> usize {
         match self {
             Self::Flat => 0,
-            Self::Chosen { dyaw, .. } if dyaw == 0.0 => 1,
-            Self::Chosen { .. } => 2,
+            Self::Pitch { .. } => 1,
+            Self::Yawed { .. } => 2,
         }
     }
 }
@@ -1489,6 +1501,12 @@ fn throw_view(me: &PlaceView, at: Vec3, c: &CombatTuning) -> Option<(f32, f32)> 
     Some((yaw, pitch))
 }
 
+/// The yaw from `me`'s eye to `at`.
+fn bearing_to(me: &PlaceView, at: Vec3) -> f32 {
+    let eye = me.eye();
+    yaw_of([at.x - eye.x, at.z - eye.z])
+}
+
 /// [G2] The view of `pick` at `at`: the flat arc's ([`throw_view`]), or the
 /// search's pitch with its yaw offset from the bearing to the place.
 fn throw_view_of(
@@ -1499,10 +1517,8 @@ fn throw_view_of(
 ) -> Option<(f32, f32)> {
     match pick {
         ArcPick::Flat => throw_view(me, at, c),
-        ArcPick::Chosen { dyaw, pitch } => {
-            let eye = me.eye();
-            Some((yaw_of([at.x - eye.x, at.z - eye.z]) + dyaw, pitch))
-        }
+        ArcPick::Pitch { pitch } => Some((bearing_to(me, at), pitch)),
+        ArcPick::Yawed { dyaw, pitch } => Some((bearing_to(me, at) + dyaw, pitch)),
     }
 }
 
@@ -1674,6 +1690,11 @@ fn search_arc(
             traces += 1;
             let dyaw = dyaw_deg.to_radians();
             let pitch = pitch_deg.to_radians();
+            let pick = if dyaw_deg == 0.0 {
+                ArcPick::Pitch { pitch }
+            } else {
+                ArcPick::Yawed { dyaw, pitch }
+            };
             if weigh_view(
                 me,
                 view,
@@ -1687,7 +1708,7 @@ fn search_arc(
             )
             .is_ok()
             {
-                return Some(ArcPick::Chosen { dyaw, pitch });
+                return Some(pick);
             }
         }
     }
@@ -2539,7 +2560,13 @@ impl Reflex {
             self.next_outranged = now + c.outranged_again_ms;
             self.break_sight(me, sit, memory, now, false, false, c, rng);
         }
-        self.grenade_roll(me, sit.view, sit.team, memory, now, aim, skill, rng);
+        let look = RollView {
+            me,
+            sit,
+            memory,
+            now,
+        };
+        self.grenade_roll(look, aim, skill, rng);
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
@@ -3310,17 +3337,14 @@ impl Reflex {
     /// throw is weighed ([`weigh_throw`]) once the chance has said yes; one
     /// that fails is not made, and the next place is weighed
     /// ([`pick_place`]), up to `grenade_places` of them, nearest first.
-    fn grenade_roll(
-        &mut self,
-        me: &PlaceView,
-        view: &MatchView,
-        team: Option<&TeamKnowledge>,
-        memory: &Memory,
-        now: u32,
-        aim: &AimTuning,
-        skill: f32,
-        rng: &mut Rng,
-    ) {
+    fn grenade_roll(&mut self, look: RollView, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        let RollView {
+            me,
+            sit,
+            memory,
+            now,
+        } = look;
+        let (view, team) = (sit.view, sit.team);
         let c = &aim.combat;
         self.grenade_stats.thinks += 1;
         if self.throw.is_some()
@@ -3528,7 +3552,7 @@ impl Reflex {
         let weigh = |mates: bool| {
             over_ground(mesh.as_deref(), throw.at.y, |ground| match throw.pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
-                ArcPick::Chosen { .. } => throw_view_of(me, throw.at, c, throw.pick)
+                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, throw.pick)
                     .ok_or(Refuse::Reach)
                     .and_then(|v| {
                         weigh_view(
@@ -6383,12 +6407,10 @@ mod tests {
             grenade_search: true,
             ..CombatTuning::default()
         };
-        let Ok(ArcPick::Chosen { dyaw, pitch }) =
-            weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
+        let Ok(ArcPick::Pitch { pitch }) = weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
         else {
             panic!("a lob over the wall is found");
         };
-        assert_eq!(dyaw, 0.0);
         assert!((19.0..32.0).contains(&pitch.to_degrees()), "{}", pitch.to_degrees());
         let capped = CombatTuning {
             grenade_search_traces: 1,
@@ -6425,12 +6447,13 @@ mod tests {
             grenade_search_off_m: 8.0,
             ..CombatTuning::default()
         };
-        let Ok(ArcPick::Chosen { dyaw, .. }) = weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
+        let Ok(pick @ ArcPick::Yawed { dyaw, .. }) =
+            weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
         else {
             panic!("another yaw is found");
         };
         assert_ne!(dyaw, 0.0);
-        assert_eq!(ArcPick::Chosen { dyaw, pitch: 0.0 }.kind(), 2);
+        assert_eq!(pick.kind(), 2);
         // Off: refused, as before.
         assert_eq!(
             weigh_place(&me, &view, place, (0.0, 0.0), &CombatTuning::default(), &wall),
@@ -7095,6 +7118,7 @@ mod tests {
         let _ = pick_place_noting(&me, &view, &places, (0.0, 0.0), &c, &wall, |i, v| {
             told.push((i, v));
         });
+        let told: Vec<_> = told.into_iter().map(|(i, v)| (i, v.map(|_| ()))).collect();
         assert_eq!(told, vec![(0, Err(Refuse::Wall)), (1, Ok(()))]);
         // None passes: no throw, and the nearest is named with its reason.
         places = blocked.to_vec();
