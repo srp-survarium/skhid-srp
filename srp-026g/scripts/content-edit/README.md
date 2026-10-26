@@ -495,31 +495,40 @@ differences. Not a simulation change.
 |---|---|
 | `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
 
-## london-1.json (2026-10-25)
+## london-1.json (2026-10-26)
 
-| change | why |
-|---|---|
-| London's 7 anomalies out of its four projects (`projects/level_09/day_2` to `day_5`, every mode it is played in: batteries, batteries with chargers, Team Deathmatch, Research): per anomaly (`terrain/random_anomaly*`: 3 lifebone, 2 spring, 2 onyx) its `generic_anomaly_core`, `artefact_container`, `damage_zone` (whose idle particle and sound are the zone's own) and the two `collision_geometry` of its zone and artefact, `remove_entry` by `full_name` and `game_object_type`: 35 entries a project | the owner, 2026-10-25: "let's remove anomalies from London". Nothing else names them (the projects' other objects, `server_objects`, London's mode configs); no artefact spawns on London. The `level/09/anomaly_voroh` rock piles stay: level art, no damage, no artefact |
-| The spawns: `server_objects/respawn_points`, 10 a team, each moved (`add_entry` of a copy with the new `position` and `rotation` after it, then `remove_entry` of the old one: order, count and every other value kept). Team 0: the room just inside the west building's east door (in its south-east wall, about (-46.6, 12.3), 2.3 m wide), beside the door's line, on its flat floor (5.70-5.75). Team 1: inside the church's west door (about (72.8, -34.0), open from z -35.5 to -31.0), along the wall north of it, on the rubble slope there (5.75-6.92). Each point faces its door: rotation (-3.141, a, -3.141) | the owner: "move spawns closer to bases like in newer Londons", then, in the map editor: "they are too far, I expect them to be closer to the exit of the building". 0.31a2 (patch 14's source) spawns both teams outside the map's ends; 0.46c2 and 0.69d0 spawn them in the base buildings, deep inside (team 0 by its resupply box). Each door is its building's exit toward the map: every route walked on the bots' walk grid (`mapdata`) from the base to the centre or to the other base goes out through it. Every new point: walkable floor with standing room (walk grid), at least 1.3 m from the next and 2 m from the doorway, reaching its door, container and resupply box on foot, and out of sight through its door from in front of it (from 3 to 40 m out, within 45 degrees of straight out; bullet mesh, a spawn's head and chest from a standing eye) |
-| The battery modes' `inv_zone` effect zones and their `inv_collision` boxes (`logic/modes/items_random/` in day_2, `items_charger/` in day_3, one a team) | they covered the old outdoor spawns; 0.46c2 and 0.69d0 have none. The points' own `invulnerability_time` (6 s) stays |
+London has no anomalies in any of its four modes (`projects/level_09/day_2` to `day_5`:
+batteries, batteries with chargers, Team Deathmatch and Research). Each of the seven anomalies
+loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
+project. The damage zones own their idle sound and particles. The decorative rock piles stay.
+The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
+spawn point keeps its own 6 seconds of invulnerability.
 
-Distances on the ground (every project; walked on the walk grid in brackets; before: 0.31a2's
-outdoor spawns):
+The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
+positions and rotations, retaining their names, order, teams and other properties. All four
+projects use the same placements:
 
-| team | to its door, before | after | to its container, before | after | to its resupply box, before | after |
-|---|---|---|---|---|---|---|
-| 0 (west) | 55.2-62.1 m (63-71) | 4.9-9.2 m (6-11) | 23.8-36.3 m (35-44) | 32.2-36.5 m (37-42) | 28.6-35.9 m (34-41) | 18.6-22.6 m (21-26) |
-| 1 (east) | 32.7-39.8 m (41-50) | 3.5-10.1 m (4-11) | 43.3-50.6 m (53-62) | 7.9-10.8 m (13-20) | 20.5-28.1 m (41-49) | 13.5-17.3 m (14-17) |
+| team in the project (server team) | placement | walking distance to its battery container |
+|---|---|---|
+| team1 (0, west) | building_06_1's first floor, y = 9.25; 10 points placed to match team2 | 44–65 m |
+| team2 (1, east) | building_10's first floor, y = 9.52–9.56; the owner's eight points plus two beside them | 68–74 m |
 
-Team 0's container and resupply box are deep in its building, by the closed courtyard behind it;
-the spawns are at the other end. The church is a ruin open in several places (two south doors, a
-north door, windows): from somewhere outside every team 1 point can be seen through one of those,
-not through the west door.
+Team1's points are 13–26.5 m on foot from the door with stairs to the street. A point moved
+without being turned keeps its original facing. These placements replace the earlier proposed
+spawns beside the ground-floor doors. The owner's accidental prop moves are excluded.
 
-Applied to revision 34's live projects (London's from patch 14, day_5 from pack research-mode@3):
-4 files edited, 0 unexpected differences. The simulation changes (the `next` row of
-`simulation_changes.tsv`); srp still counts 20 respawn points in each mode. The Maps tab shows
-the new spawns and no artefacts after its rebuild (`release/build-site`); the bots' map files of
-London need dumping again (`mapdata-dump`, testing only). `feat/dynamic-anomalies` (not shipped)
-removes the same 7 anomalies for its timed ones, and PR #369's `sponge/spots.tsv` picks all 7
-London containers for the Sponge: both need London taken out (or re-placed) after this list.
+Checks compare the built projects with the live projects and the editor's placements: 10 + 10
+points per mode, every position and rotation as placed, no remaining anomaly objects or old
+spawn zones, and every unrelated value unchanged. `release/build-content` also checks the
+complete manifest against the live patches. The simulation change is recorded by the `next`
+row in `simulation_changes.tsv`; the release resolves it to its revision.
+
+The server reads the updated spawn table from the generated `server-game-data.db`. For bots,
+regenerate all four `level_09_day_*.mapdata` files with `mapdata-dump` over the release's complete
+patch list and new content patch. These files then contain the same 20 points and no anomaly
+zones; they are generated game data, not repository sources. The Maps tab is rebuilt from the
+same content by `release/build-site`.
+
+`feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
+PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
+before they can ship on top of this list.

@@ -805,17 +805,18 @@ def main():
             grown.setdefault(p, {}).setdefault(table, 0)
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
-    appended = {}  # file -> table path (after the adds) -> values add_item put there
     for e in edits.get('add_item', []):
         at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
-        appended.setdefault(e['file'], {}).setdefault('%s[%d]/%s' % (e['list'], at, e['key']), []).append(e['value'])
         table = '/%s[%d]/%s' % (e['list'], at, e['key'])
         added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
         grown.setdefault(e['file'], {}).setdefault(table, 0)
         grown[e['file']][table] += 1
         print('item %s += %s' % (table, json.dumps(e['value'], ensure_ascii=False)))
     removed = {}
+    before_removals = {}  # includes newly copied tables and appended items
     for e in edits.get('remove_item', []):
+        before_removals.setdefault(e['file'], {}).setdefault(
+            e['path'], items_of(buf(e['file']), e['path']))
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
     dropped = {}
@@ -863,15 +864,17 @@ def main():
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
         for lst, values in removed.get(p, {}).items():
-            # `lst` is a path after the adds: the live file's before them, the result's after the
-            # removed entries (old and new are in the result's order by now)
-            src, end = '/' + lst, '/' + lst
-            for l2, at in reversed(shifts.get(p, ())):
-                src = unshifted(src, l2, at)
+            # A copied entry has no path in the original file. Compare with its
+            # table just before removals, then follow any removed parent entries.
+            end = '/' + lst
             for l2, at in dropped.get(p, ()):
                 end = unshifted(end, l2, at)
-            was, now = items_of(source, src[1:]), items_of(b, end[1:])
-            want = list(was) + appended.get(p, {}).get(lst, [])
+                if end is None:
+                    break
+            if end is None:
+                continue
+            was, now = before_removals[p][lst], items_of(b, end[1:])
+            want = list(was)
             for v in values:
                 want.remove(v)
             ok = now == want
