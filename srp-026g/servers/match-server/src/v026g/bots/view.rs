@@ -860,6 +860,8 @@ impl Tracker {
             kind: SoundKind::Trap,
             at,
             time,
+            // A trap's snap has no weapon reach.
+            reach_m: None,
         });
     }
 

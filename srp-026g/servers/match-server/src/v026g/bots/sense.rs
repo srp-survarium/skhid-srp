@@ -517,6 +517,7 @@ mod tests {
                 kind: SoundKind::Trap,
                 at: victim.feet,
                 time: 900,
+                reach_m: None,
             };
             let view = view(vec![me.clone(), victim], vec![snap]);
             sense(
