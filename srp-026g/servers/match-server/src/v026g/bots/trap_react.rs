@@ -4,8 +4,14 @@
 //! **A noticed trap is shot** (`traps.react.shot`, off): the bot stops, looks
 //! at the trap's centre and takes single, aimed shots at it with its own
 //! aim model (no aim boost: the cone, the kick and the hit chance are the
-//! reflex's and the client's). The step and the jump follow, each behind its
-//! own switch.
+//! reflex's and the client's).
+//!
+//! **A noticed trap is kept off, or jumped** (`traps.react.pass`, `.jump`,
+//! off): the traps the bot noticed and does not shoot make the floors round
+//! them a *soft* part of its route filter (a way round them where that is not
+//! much longer, else over them), and a route that still runs over one is
+//! jumped with the motor's own jump a little before it. Private: nothing is
+//! shared with the team's field.
 //!
 //! - **Private.** A bot's notice is its own: [`Seen`] lives in the `Bot`,
 //!   nothing goes to `TeamKnowledge` (the ledger: a rule, not a cheat). The
@@ -27,12 +33,17 @@
 //!   measure the recordings were read with (`trap_notice.py`), split by what
 //!   the bot had rolled: noticed, missed, never rolled.
 
+use std::sync::Arc;
+
 use mapdata::Vec3;
 use survarium::v026g::match_msgs::traps::{PlacedTrap, TrapState};
 
 use super::aimpoint::sight_line;
+use super::route_end::RouteEnd;
 use super::sense::in_view;
 use super::think::Due;
+use super::trap_know::TrapField;
+use super::traps::{FIELD_M, TRIGGER_M};
 use super::tuning::ReactTuning;
 use super::view::{PlaceView, Sound, SoundKind};
 use super::{Bot, Place, TeamState};
@@ -127,6 +138,13 @@ pub struct ReactCounts {
     pub gave_up: u32,
     pub held_for_mate: u32,
     pub double_shooters: u32,
+    /// The step and the jump: passes of a noticed trap that ended beyond the
+    /// sensor with the trap still armed, jumps pressed for a noticed trap,
+    /// and noticed traps that went off with the bot's pass within the foot's
+    /// reach of them (a proxy: the world shows no name of who stood on it).
+    pub trap_passed: u32,
+    pub trap_jumped: u32,
+    pub trap_caught_after_notice: u32,
 }
 
 impl ReactCounts {
@@ -140,6 +158,9 @@ impl ReactCounts {
         self.gave_up += other.gave_up;
         self.held_for_mate += other.held_for_mate;
         self.double_shooters += other.double_shooters;
+        self.trap_passed += other.trap_passed;
+        self.trap_jumped += other.trap_jumped;
+        self.trap_caught_after_notice += other.trap_caught_after_notice;
         for k in 0..3 {
             self.passes[k] += other.passes[k];
             self.through[k] += other.through[k];
@@ -219,6 +240,13 @@ pub struct React {
     tried: Vec<TrapKey>,
     /// The trap of the shot the team's record has the bot at.
     registered: Option<TrapKey>,
+    /// The traps the bot noticed, that stand and are not its target: kept off
+    /// (`pass`) and jumped (`jump`).
+    private: Vec<(TrapKey, Vec3)>,
+    /// Their floors, for the route filter.
+    field: Arc<TrapField>,
+    /// Traps the bot has jumped.
+    jumped: Vec<TrapKey>,
 }
 
 impl React {
@@ -325,7 +353,7 @@ impl React {
             }
             (current, near) => {
                 if let Some(p) = current {
-                    self.finish(p);
+                    self.finish(p, false);
                 }
                 self.passing = near.map(|(key, d)| Passing {
                     key,
@@ -336,15 +364,34 @@ impl React {
         }
     }
 
-    fn finish(&mut self, p: Passing) {
+    /// A pass ends: the bot left the trap's 1.5 m, or the trap is `gone`
+    /// (fired, disarmed).
+    fn finish(&mut self, p: Passing, gone: bool) {
         let k = p.class.index();
         self.counts.passes[k] += 1;
         self.counts.through[k] += u32::from(p.closest <= THROUGH_M);
+        if p.class == Class::Noticed {
+            self.counts.trap_passed += u32::from(!gone && p.closest > THROUGH_M);
+            self.counts.trap_caught_after_notice += u32::from(gone && p.closest <= TRIGGER_M);
+        }
+    }
+
+    /// The noticed traps the bot keeps off or jumps.
+    pub fn private(&self) -> &[(TrapKey, Vec3)] {
+        &self.private
+    }
+
+    /// Their floors.
+    pub fn field(&self) -> &Arc<TrapField> {
+        &self.field
     }
 
     /// A new life: a pass in the making ends with it, the rolls are forgotten.
     pub fn new_life(&mut self) {
         self.reaction = Reaction::Idle;
+        self.private.clear();
+        self.field = Arc::default();
+        self.jumped.clear();
         self.tried.clear();
         self.seen.clear();
         self.passing = None;
@@ -359,7 +406,7 @@ impl React {
         if let Some(p) = self.passing
             && !armed.iter().any(|(key, _)| *key == p.key)
         {
-            self.finish(p);
+            self.finish(p, true);
             self.passing = None;
         }
     }
@@ -681,6 +728,100 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     if t.shot && bot.react.reaction == Reaction::Idle && !fighting {
         start_shot(bot, due, &others);
     }
+    refresh_private(bot, due, &others);
+}
+
+/// The traps the bot keeps off or jumps: the noticed, armed ones it is not
+/// shooting. A route that runs over one that is new to the set is let go of,
+/// to be searched again round it.
+fn refresh_private(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) {
+    let t = &due.tuning.traps.react;
+    let target = bot.react.reaction.target().map(|(key, _)| key);
+    let want: Vec<(TrapKey, Vec3)> = if t.pass || t.jump {
+        others
+            .iter()
+            .filter(|(_, key, _)| bot.react.noticed(*key, due.now) && Some(*key) != target)
+            .map(|&(_, key, at)| (key, at))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if want == bot.react.private {
+        return;
+    }
+    bot.react
+        .jumped
+        .retain(|key| want.iter().any(|(k, _)| k == key));
+    let discs = want.iter().map(|&(_, at)| at).collect();
+    bot.react.private = want;
+    bot.react.field = Arc::new(TrapField::round(discs, &due.tactics.world.grid));
+    if t.pass && !bot.react.field.is_empty() {
+        let field = bot.react.field.clone();
+        if super::traps::route_hits(bot, &field, due.me.feet) {
+            bot.end_route(RouteEnd::TrapAhead, due.now);
+        }
+    }
+}
+
+/// A bot slower than this does not jump a trap, m/s (the jump carries it
+/// over by its run).
+const JUMP_MIN_SPEED: f32 = 1.5;
+/// The jump is not pressed closer than this to the trap, metres along the
+/// route.
+const JUMP_LATEST_M: f32 = 0.3;
+
+/// Whether to press the jump this tick for a noticed trap on the route: the
+/// trap's closest point on the route lies `jump_before_m` to
+/// [`JUMP_LATEST_M`] ahead and within [`FIELD_M`] of it. Once a trap.
+pub(super) fn jump_due(bot: &mut Bot, me: &PlaceView, now: u32, t: &ReactTuning) -> bool {
+    if !t.on
+        || !t.jump
+        || bot.react.private.is_empty()
+        || bot.jump_hold > 0
+        || me.speed() < JUMP_MIN_SPEED
+        || !bot.hurt.may_jump(now)
+    {
+        return false;
+    }
+    let reach = t.jump_before_m + 1.0;
+    let near: Vec<(TrapKey, Vec3)> = bot
+        .react
+        .private
+        .iter()
+        .filter(|(key, at)| {
+            !bot.react.jumped.contains(key)
+                && at.distance_xz(me.feet) < reach
+                && (at.y - me.feet.y).abs() < SAME_FLOOR_M
+        })
+        .copied()
+        .collect();
+    if near.is_empty() {
+        return false;
+    }
+    let Some((route, _)) = bot.route.as_ref() else {
+        return false;
+    };
+    // A copy: the motor's own progress along the route is not touched.
+    let mut route = route.clone();
+    let (s, _) = route.progress(me.feet);
+    for (key, at) in near {
+        let mut best = (f32::INFINITY, s);
+        let mut along = s;
+        while along <= (s + reach).min(route.length()) {
+            let d = route.point_at(along).distance_xz(at);
+            if d < best.0 {
+                best = (d, along);
+            }
+            along += 0.1;
+        }
+        let ahead = best.1 - s;
+        if best.0 < FIELD_M && (JUMP_LATEST_M..=t.jump_before_m).contains(&ahead) {
+            bot.react.jumped.push(key);
+            bot.react.counts.trap_jumped += 1;
+            return true;
+        }
+    }
+    false
 }
 
 impl React {

@@ -541,7 +541,11 @@ pub(super) fn drive_tick(
                 // (a fact about this body, not a preference like the spots).
                 let landings = bot.stuck.shut_landings(time).collect();
                 let hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
-                let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
+                let filter = traps::soften(
+                    bot,
+                    hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
+                    grid.locate(me.feet, 1.5),
+                );
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
@@ -1018,6 +1022,8 @@ pub(super) fn drive_tick(
         JumpBy::Route => "route",
         JumpBy::Hop => "hop",
     });
+    // [trap_react] A noticed trap on the route, a little ahead: the same jump.
+    let by = by.or_else(|| trap_react::jump_due(bot, me, time, &tuning.traps.react).then_some("trap"));
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }

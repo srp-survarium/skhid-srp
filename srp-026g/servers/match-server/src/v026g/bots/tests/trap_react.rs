@@ -512,3 +512,116 @@ pub(crate) fn a_noticed_trap_is_shot_a_few_times_and_given_up() {
     assert!(sent.iter().any(|s| s.1 & key::AIM != 0), "the aim is held");
     assert!(sent.iter().any(|s| s.1 & key::FIRE != 0), "a shot goes out");
 }
+
+/// The place of a trap on the first bot's route, `ahead` metres on, frozen
+/// at the first world that finds the bot with a route.
+fn on_the_route(ahead: f32) -> impl FnMut(&Bots) -> Option<Vec3> {
+    let mut at: Option<Vec3> = None;
+    move |bots| {
+        if at.is_none()
+            && let Some((route, _)) = bots.bots[0].as_ref().and_then(|b| b.route.as_ref())
+        {
+            at = Some(route.point_at(ahead.min(route.length())));
+        }
+        at
+    }
+}
+
+fn noticing() -> Tuning {
+    let mut on = Tuning::default();
+    on.traps.react.on = true;
+    on.traps.react.p0 = 1.0;
+    on.traps.react.cone_deg = 360.0;
+    on.traps.react.far_m = 20.0;
+    on
+}
+
+/// A trap on a noticing bot's own route: with only the notice the bot walks
+/// over it; with `pass` it takes a way round (the floors round the trap are a
+/// soft part of its filter); with only `jump` it walks the route and jumps
+/// once, a little before the trap; the same bot with both goes round and has
+/// no use for the jump. Counters: `trap_passed`, `trap_jumped`.
+#[test]
+pub(crate) fn a_noticed_trap_on_the_route_is_gone_round_or_jumped() {
+    use super::traps::run_on;
+    let run = |pass: bool, jump: bool| {
+        let mut on = noticing();
+        on.traps.react.pass = pass;
+        on.traps.react.jump = jump;
+        let (_, bots) = run_on(None, on, 40, on_the_route(5.0));
+        bots
+    };
+    let counts = |bots: &Bots| bots.react_counts();
+    let plain = run(false, false);
+    let c = counts(&plain);
+    assert_eq!(
+        (
+            c.through[Class::Noticed as usize],
+            c.trap_passed,
+            c.trap_jumped
+        ),
+        (1, 0, 0),
+        "{c:?}"
+    );
+    assert!(plain.bots[0].as_ref().unwrap().react.private().is_empty());
+
+    let round = run(true, false);
+    let c = counts(&round);
+    assert_eq!(
+        (c.through_all(), c.trap_passed, c.trap_jumped),
+        (0, 1, 0),
+        "{c:?}"
+    );
+    let bot = round.bots[0].as_ref().unwrap();
+    assert_eq!(bot.react.private().len(), 1);
+    assert!(!bot.react.field().is_empty());
+
+    let hop = run(false, true);
+    let c = counts(&hop);
+    assert_eq!((c.trap_jumped, c.trap_passed), (1, 0), "{c:?}");
+
+    let both = run(true, true);
+    let c = counts(&both);
+    assert_eq!((c.through_all(), c.trap_jumped), (0, 0), "{c:?}");
+}
+
+/// A trap that went off right after a pass within a foot of it is counted as
+/// caught after the notice; one that was left behind with the trap standing is
+/// counted as passed; one that goes with the bot far off is neither.
+#[test]
+pub(crate) fn a_noticed_trap_that_goes_off_at_the_pass_is_counted_as_caught() {
+    let t = t();
+    let at = Vec3::new(0.0, 0.0, 3.0);
+    let placed = trap(at.x, at.z);
+    let key = TrapKey::of(&placed);
+    let armed = [(key, at)];
+    let mut look = look(0);
+    look.yaw = facing(look.feet, at);
+    let walk = |react: &mut React, x: f32| {
+        for (now, z) in [(100u32, -1.0f32), (600, 2.0), (1100, 3.0)] {
+            react.walk(now, Vec3::new(x, 0.0, z), &armed);
+        }
+    };
+    let noticed = || {
+        let mut react = React::default();
+        react.roll(&look, &placed, &t, || 0.0, |_, _| true);
+        react
+    };
+    let mut caught = noticed();
+    walk(&mut caught, 0.1);
+    caught.prune(&[]);
+    let c = caught.counts();
+    assert_eq!((c.trap_caught_after_notice, c.trap_passed), (1, 0));
+    let mut beside = noticed();
+    walk(&mut beside, 1.2);
+    for (now, z) in [(1600u32, 7.0f32), (2100, 12.0)] {
+        beside.walk(now, Vec3::new(1.2, 0.0, z), &armed);
+    }
+    beside.prune(&[]);
+    let c = beside.counts();
+    assert_eq!((c.trap_caught_after_notice, c.trap_passed), (0, 1));
+    let mut far = noticed();
+    walk(&mut far, 1.2);
+    far.prune(&[]);
+    assert_eq!(far.counts().trap_caught_after_notice, 0);
+}

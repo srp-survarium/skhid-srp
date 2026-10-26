@@ -110,6 +110,16 @@ pub struct ReactTuning {
     pub claim_ms: u32,
     pub claim_m: f32,
     pub claim_yaw_deg: f32,
+    /// Whether a bot's routes keep off the traps it noticed: round them where
+    /// that is not much longer, else over them (needs `on`).
+    pub pass: bool,
+    /// Whether a bot whose route runs over a trap it noticed jumps it, with
+    /// the motor's jump (needs `on`).
+    pub jump: bool,
+    /// The jump is pressed this far before the trap, metres along the route
+    /// (a GUESS: the body clears 0.22 m for about 0.6 m beyond the trap at a
+    /// run).
+    pub jump_before_m: f32,
 }
 
 impl Default for ReactTuning {
@@ -134,6 +144,9 @@ impl Default for ReactTuning {
             claim_ms: 1500,
             claim_m: 6.0,
             claim_yaw_deg: 40.0,
+            pass: false,
+            jump: false,
+            jump_before_m: 1.1,
         }
     }
 }
@@ -199,7 +212,8 @@ pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
             && r.max_shots >= 1
             && r.max_shoot_s > 0.0
             && r.claim_m >= 0.0
-            && r.claim_yaw_deg > 0.0,
+            && r.claim_yaw_deg > 0.0
+            && r.jump_before_m > 0.4,
         "traps.react",
     )?;
     Ok(())

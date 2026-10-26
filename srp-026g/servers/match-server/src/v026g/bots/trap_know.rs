@@ -224,7 +224,11 @@ impl TrapField {
     /// within [`FIELD_M`] of a trap, at about its height; a leg between
     /// two open floors is tested by [`Self::hits`] against the same.
     pub fn of(list: &TrapList, grid: &WalkGrid) -> Self {
-        let discs: Vec<Vec3> = list.standing().map(|trap| trap.at).collect();
+        Self::round(list.standing().map(|trap| trap.at).collect(), grid)
+    }
+
+    /// The field of traps at `discs`.
+    pub fn round(discs: Vec<Vec3>, grid: &WalkGrid) -> Self {
         let reach = FIELD_M;
         let mut shut: Vec<NodeId> = discs
             .iter()

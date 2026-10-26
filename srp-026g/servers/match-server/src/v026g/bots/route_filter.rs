@@ -39,6 +39,9 @@ pub struct RouteFilter {
     spots: Vec<Vec3>,
     /// A rule over floors, true for open (hard).
     floors: Option<FloorRule>,
+    /// A rule over floors, true for open (soft): the floors of the traps the
+    /// body noticed ([`super::trap_react`]).
+    soft_floors: Option<FloorRule>,
     /// A rule over regions, true for open (hard).
     regions: Option<RegionRule>,
     /// The regions a held threat spot sees (soft, K1): kept out but near
@@ -76,6 +79,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("landings", &self.landings.len())
             .field("spots", &self.spots.len())
             .field("floors", &self.floors.is_some())
+            .field("soft_floors", &self.soft_floors.is_some())
             .field("regions", &self.regions.is_some())
             .field("threat", &self.threat.is_some())
             .finish()
@@ -100,6 +104,12 @@ impl RouteFilter {
     /// With the floors near `spots` kept out as a preference (soft).
     pub fn avoiding(mut self, spots: Vec<Vec3>) -> Self {
         self.spots = spots;
+        self
+    }
+
+    /// With the floors `open` gives false kept out as a preference (soft).
+    pub fn avoiding_floors(mut self, open: impl Fn(NodeId) -> bool + Send + Sync + 'static) -> Self {
+        self.soft_floors = Some(Arc::new(open));
         self
     }
 
@@ -148,7 +158,7 @@ impl RouteFilter {
     /// Whether any of the filter is soft (a second search without it is
     /// worth making).
     pub fn has_soft(&self) -> bool {
-        !self.spots.is_empty() || self.threat.is_some()
+        !self.spots.is_empty() || self.threat.is_some() || self.soft_floors.is_some()
     }
 
     /// This filter without its soft part.
@@ -156,6 +166,7 @@ impl RouteFilter {
         RouteFilter {
             spots: Vec::new(),
             threat: None,
+            soft_floors: None,
             ..self.clone()
         }
     }
@@ -168,6 +179,7 @@ impl RouteFilter {
                 !self.spots.iter().any(|&spot| stuck::near(spot, at))
             })
             && self.threat.as_ref().is_none_or(|t| t.floor_open(grid, node))
+            && self.soft_floors.as_ref().is_none_or(|f| f(node))
     }
 
     /// Whether floor `node` is open to a search that drops the soft part
@@ -197,6 +209,12 @@ impl RouteFilter {
         self.spots.extend(other.spots.iter().copied());
         if self.threat.is_none() {
             self.threat = other.threat.clone();
+        }
+        if let Some(theirs) = other.soft_floors.clone() {
+            let mine = self.soft_floors.take();
+            self.soft_floors = Some(Arc::new(move |node| {
+                mine.as_ref().is_none_or(|f| f(node)) && theirs(node)
+            }));
         }
         if let Some(theirs) = other.floors.clone() {
             let mine = self.floors.take();
@@ -228,6 +246,21 @@ mod tests {
 
     fn nodes(grid: &WalkGrid) -> impl Iterator<Item = NodeId> {
         0..grid.len() as NodeId
+    }
+
+    #[test]
+    fn soft_floors_are_kept_out_by_the_plain_search_and_dropped_with_the_soft_part() {
+        let (world, _) = field();
+        let one = nodes(&world.grid).nth(10).unwrap();
+        let filter = RouteFilter::open().avoiding_floors(move |n| n != one);
+        assert!(filter.has_soft());
+        assert!(!filter.floor_open(&world.grid, one));
+        assert!(filter.floor_open(&world.grid, one + 1));
+        assert!(filter.hard_open(&world.grid, one));
+        let hard = filter.without_soft();
+        assert!(!hard.has_soft() && hard.floor_open(&world.grid, one));
+        let both = filter.and(&RouteFilter::open().avoiding_floors(move |n| n != one + 1));
+        assert!(!both.floor_open(&world.grid, one) && !both.floor_open(&world.grid, one + 1));
     }
 
     #[test]
