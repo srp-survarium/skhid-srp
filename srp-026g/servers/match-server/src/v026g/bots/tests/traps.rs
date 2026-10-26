@@ -6,6 +6,16 @@ use crate::v026g::bots::traps::{Habit, TrapKit};
 /// for `seconds`. `kit`: the traps it carries. Returns the bot's tick-by-tick
 /// actions, the pitch its body had at each, and the bots.
 fn run(kit: Option<TrapKit>, tuning: Tuning, seconds: u32) -> (Vec<(u32, u32, f32)>, Bots) {
+    run_with(kit, tuning, seconds, None)
+}
+
+/// [`run`], with an armed trap at `armed` in every world's objects section.
+pub(super) fn run_with(
+    kit: Option<TrapKit>,
+    tuning: Tuning,
+    seconds: u32,
+    armed: Option<Vec3>,
+) -> (Vec<(u32, u32, f32)>, Bots) {
     let world = soak_world();
     let teams = [0u8, 1];
     let mut bots = Bots::new(
@@ -61,6 +71,9 @@ fn run(kit: Option<TrapKit>, tuning: Tuning, seconds: u32) -> (Vec<(u32, u32, f3
                     bots.fixed(place, fix, Some(health));
                 }
                 bots.facts(facts);
+            }
+            if let Some(at) = armed {
+                bots.traps_from_world(&objects_with(at, 1, 1_000), clock);
             }
         }
         let (made, _) = bots.poll(Clock {
@@ -123,7 +136,7 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
 
 /// A world's objects section with one placed trap in it (the record
 /// `survarium::v026g::match_msgs::traps` reads) among other bytes.
-fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {
+pub(super) fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {
     let mut b = vec![0u8; 12];
     b.push(state);
     b.extend_from_slice(&u32::MAX.to_le_bytes());

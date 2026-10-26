@@ -22,7 +22,7 @@
 //! of the view's pitch. The two heights of a pose bound that, so a stand
 //! has a margin (`bots::view::eye_height` gives the bots' own).
 
-use crate::{Container, RayTree, Rotation, Shape, Vec3, World};
+use crate::{RayTree, Rotation, Shape, Vec3, World, ZoneKind};
 
 /// The use ray's length, metres (`usable_objects_detection_distance`,
 /// PROVEN, 0xA710D8).
@@ -85,11 +85,15 @@ impl UseStand {
 }
 
 /// The stands of every container of a map, by the container's index in
-/// `MapData::containers`, nearest the box's middle (across) first.
+/// `MapData::containers`, nearest the box's middle (across) first; and of
+/// every resupply zone's box, by the zone's index in `MapData::zones` (the
+/// zone is a `usable_object` of the same kind, `resupply_zone_core`, found by
+/// the same ray: 0x2D84C0, 0x2F8080).
 #[derive(Clone, Debug, Default)]
 pub struct UseStands {
     lists: Vec<Vec<UseStand>>,
     ids: Vec<i32>,
+    zones: Vec<Vec<UseStand>>,
 }
 
 impl UseStands {
@@ -106,10 +110,25 @@ impl UseStands {
             .map
             .containers
             .iter()
-            .map(|c| stands_of(world, c, standing, crouched))
+            .map(|c| stands_of(world, c.use_shapes.first(), standing, crouched))
             .collect();
         let ids = world.map.containers.iter().map(|c| c.id).collect();
-        Self { lists, ids }
+        let zones = world
+            .map
+            .zones
+            .iter()
+            .map(|z| match z.kind {
+                ZoneKind::Resupply => stands_of(world, z.shapes.first(), standing, crouched),
+                _ => Vec::new(),
+            })
+            .collect();
+        Self { lists, ids, zones }
+    }
+
+    /// The stands of the resupply zone at `index` of `MapData::zones` (empty
+    /// for any other zone or an unknown one).
+    pub fn of_zone(&self, index: usize) -> &[UseStand] {
+        self.zones.get(index).map_or(&[], |list| list)
     }
 
     /// The stands of the container with this `id` (empty for an unknown
@@ -125,11 +144,11 @@ impl UseStands {
 
 fn stands_of(
     world: &World,
-    container: &Container,
+    shape: Option<&Shape>,
     eye_standing: [f32; 2],
     eye_crouched: [f32; 2],
 ) -> Vec<UseStand> {
-    let Some(shape) = container.use_shapes.first() else {
+    let Some(shape) = shape else {
         return Vec::new();
     };
     let grid = &world.grid;
@@ -274,7 +293,7 @@ pub fn is_stand(stands: &[UseStand], feet: Vec3) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Body, MapData, ShapeKind, Triangle, WalkGrid, WalkerBehaviour};
+    use crate::{Body, Container, MapData, ShapeKind, Triangle, WalkGrid, WalkerBehaviour, Zone};
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {
         let v = |x, z| Vec3::new(x, y, z);
@@ -388,6 +407,26 @@ mod tests {
         };
         assert!(behind(&open) > 0, "stands east of x 2.7 on an open floor");
         assert_eq!(behind(&walled), 0, "none behind the wall");
+    }
+
+    #[test]
+    fn a_resupply_zones_box_has_stands_by_the_zones_index_and_other_zones_none() {
+        let (mut world, shape) = world(false);
+        let zone = |kind| Zone {
+            kind,
+            name: String::new(),
+            team: 0,
+            position: shape.center,
+            damage_type: String::new(),
+            damage: None,
+            shapes: vec![shape],
+        };
+        world.map.zones = vec![zone(ZoneKind::Damage), zone(ZoneKind::Resupply)];
+        let stands = UseStands::build(&world);
+        assert!(stands.of_zone(0).is_empty(), "a damage zone is not used");
+        assert_eq!(stands.of_zone(1), stands.of(0u8), "the same box, the same list");
+        assert!(!stands.of_zone(1).is_empty());
+        assert!(stands.of_zone(5).is_empty(), "no such zone");
     }
 
     #[test]

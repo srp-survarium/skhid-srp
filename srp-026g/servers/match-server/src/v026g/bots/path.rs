@@ -193,6 +193,55 @@ pub fn no_routes() -> [u64; 5] {
     NO_ROUTE.with(|c| c.get())
 }
 
+/// How far apart in height a search's start floor and goal floor are, for
+/// the tests' counts ([`request_gap`]): a storey or more
+/// (`plays::memo::STOREY_GAP_M`) above or below, or one level.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gap {
+    Same,
+    Above,
+    Below,
+}
+
+#[cfg(test)]
+impl Gap {
+    /// The gap from a start floor to a goal floor `dy` metres above it.
+    pub fn of(dy: f32) -> Gap {
+        if dy >= super::plays::memo::STOREY_GAP_M {
+            Gap::Above
+        } else if dy <= -super::plays::memo::STOREY_GAP_M {
+            Gap::Below
+        } else {
+            Gap::Same
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static REQUEST_GAP: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
+}
+
+/// A route request that ended in its own poll (a search made and finished
+/// there, with both ends on floors and the bot not escaping), counted by
+/// whether it found a route and by the [`Gap`] between its floors.
+#[cfg(test)]
+pub fn request_gap(found: bool, gap: Gap) {
+    REQUEST_GAP.with(|c| {
+        let mut n = c.get();
+        n[usize::from(!found) * 3 + gap as usize] += 1;
+        c.set(n);
+    });
+}
+
+/// The requests counted by [`request_gap`] so far: found (same level,
+/// above, below), then failed (same, above, below).
+#[cfg(test)]
+pub fn request_gaps() -> [u64; 6] {
+    REQUEST_GAP.with(|c| c.get())
+}
+
 /// How often at most a bot notes that its searches were dropped (its goal
 /// moved on before the search over several polls came to an answer). GUESS:
 /// a carrier chasing a moving teammate drops one a second or so; one note in

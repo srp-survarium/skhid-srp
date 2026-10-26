@@ -34,6 +34,8 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("stay_min_s", 5.0),
     ("stay_max_s", 8.0),
     ("give_up_s", 45.0),
+    // USE held this long on the box, ms: the client's 3000 plus a margin.
+    ("hold_ms", 3200.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -53,6 +55,14 @@ pub fn tuning() -> PlayTuning {
 
 fn num(cx: &Ctx, name: &str) -> f32 {
     cx.num(PlayKind::Retreat, name)
+}
+
+/// Whether the resupply zone `index` is used by its box's stands: the
+/// Resupply play's switch is on (`resupply::NUMBERS` "on", off by default)
+/// and the box has stands. Else Retreat goes to the zone's pivot and holds
+/// USE with its chest inside the box, as before the play.
+fn on_stands(cx: &Ctx, index: usize) -> bool {
+    cx.num(PlayKind::Resupply, "on") > 0.0 && !cx.zone_stands(index).is_empty()
 }
 
 /// Under fire: an enemy seen now, or seen or heard within `under_fire_s`.
@@ -84,19 +94,30 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 pub fn goal(cx: &Ctx) -> Option<(Vec3, Option<usize>)> {
     let side = cx.bot.side?;
     let map = &cx.tactics.world.map;
+    // The zone's pivot is 1-28 m from its box, and the use needs the ray on
+    // the box: the goal is a stand of the box's own list
+    // (`resupply`), the pivot only for a zone with no box or stand.
     let zone = map
         .zones
         .iter()
         .enumerate()
         .filter(|(_, z)| z.kind == ZoneKind::Resupply && z.team == side)
-        .filter(|(_, z)| cx.tactics.fine_goal(z.position, cx.now, Some(side)))
+        .map(|(index, z)| {
+            let at = if cx.num(PlayKind::Resupply, "on") > 0.0 {
+                cx.nearest_zone_stand(index, &[])
+                    .map_or(z.position, |stand| stand.feet)
+            } else {
+                z.position
+            };
+            (index, at)
+        })
+        .filter(|&(_, at)| cx.tactics.fine_goal(at, cx.now, Some(side)))
         .min_by(|a, b| {
-            a.1.position
-                .distance_xz(cx.me.feet)
-                .total_cmp(&b.1.position.distance_xz(cx.me.feet))
+            a.1.distance_xz(cx.me.feet)
+                .total_cmp(&b.1.distance_xz(cx.me.feet))
         });
-    if let Some((index, zone)) = zone {
-        return Some((zone.position, Some(index)));
+    if let Some((index, at)) = zone {
+        return Some((at, Some(index)));
     }
     // The edge of its own spawn area, on its side of it.
     let spawn = map
@@ -182,6 +203,10 @@ pub enum State {
     Staying {
         until: u32,
         zone: Option<usize>,
+        /// How the use of the box goes (a zone with a box and stands).
+        press: Press,
+        /// When it began staying.
+        since: u32,
     },
     /// No place to fall back to.
     Nowhere,
@@ -197,11 +222,27 @@ pub fn start(_target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
     }
 }
 
-/// Whether the bot stands in the resupply zone `index`.
+/// The use of a resupply box in a stay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Press {
+    /// The key is not held yet (the view is turning to the box).
+    Idle,
+    /// Held since this time, ms.
+    Holding(u32),
+    /// The top-up was given.
+    Given,
+}
+
+/// Whether the bot stands in the resupply zone `index`: the game's use ray
+/// from its eye can meet the zone's box (a zone with a box and stands), else
+/// its chest is inside the shape, else it is near the zone's pivot.
 fn in_zone(cx: &Ctx, index: usize) -> bool {
     let Some(zone) = cx.tactics.world.map.zones.get(index) else {
         return false;
     };
+    if on_stands(cx, index) {
+        return cx.zone_press(cx.me.eye(), index).is_some();
+    }
     let chest = cx.me.feet + Vec3::new(0.0, 0.9, 0.0);
     if zone.shapes.is_empty() {
         cx.me.feet.distance_xz(zone.position) <= num(cx, "zone_m")
@@ -240,19 +281,30 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
         }
         State::Going { goal, zone } => {
             let (goal, zone) = (*goal, *zone);
-            let there = cx.me.feet.distance_xz(goal) <= num(cx, "arrive_m")
+            // A box with stands: there is where the ray meets the box (the
+            // stand itself at the latest), not near the stand.
+            let stands = zone.is_some_and(|zone| on_stands(cx, zone));
+            let arrive = if stands { 0.2 } else { num(cx, "arrive_m") };
+            let there = cx.me.feet.distance_xz(goal) <= arrive
                 || zone.is_some_and(|zone| in_zone(cx, zone));
             if there {
                 let stay = rng.range(num(cx, "stay_min_s"), num(cx, "stay_max_s"));
                 *state = State::Staying {
                     until: cx.now + (stay * 1000.0) as u32,
                     zone,
+                    press: Press::Idle,
+                    since: cx.now,
                 };
                 return step(state, _target, cx, rng);
             }
-            Step::Continue(going(goal))
+            Step::Continue(if stands { going(goal).within(0.15) } else { going(goal) })
         }
-        State::Staying { until, zone } => {
+        State::Staying {
+            until,
+            zone,
+            press,
+            since,
+        } => {
             if cx.now >= *until {
                 return Step::Done("fell back and resupplied");
             }
@@ -260,7 +312,36 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             if carrying {
                 intent = intent.hold_fire();
             }
-            if zone.is_some_and(|zone| in_zone(cx, zone)) {
+            let Some(index) = *zone else {
+                return Step::Continue(intent);
+            };
+            // A box with stands: the view on the box, then USE held for
+            // the client's time (`resupply`); the pivot-only zones keep the
+            // old hold.
+            if on_stands(cx, index) {
+                let Some(aim) = cx.zone_press(cx.me.eye(), index) else {
+                    *press = Press::Idle;
+                    return Step::Continue(intent);
+                };
+                intent = intent.looking(Look::Use(aim));
+                match *press {
+                    Press::Idle => {
+                        if collect::aimed_at(cx, aim) || cx.now >= *since + 1_500 {
+                            *press = Press::Holding(cx.now);
+                            intent.hold |= key::USE;
+                        }
+                    }
+                    Press::Holding(from) => {
+                        if cx.now >= from + num(cx, "hold_ms") as u32 {
+                            intent.resupplied = Some(index);
+                            *press = Press::Given;
+                        } else {
+                            intent.hold |= key::USE;
+                        }
+                    }
+                    Press::Given => {}
+                }
+            } else if in_zone(cx, index) {
                 intent.hold |= key::USE;
             }
             Step::Continue(intent)
@@ -378,6 +459,86 @@ mod tests {
         let enemy = Vec3::new(45.0, 0.0, 30.0);
         assert!(via.distance_xz(enemy) >= 7.0, "{via:?}");
         assert!(via.z > enemy.z, "{via:?}");
+    }
+
+    #[test]
+    fn with_the_resupply_switch_off_retreat_goes_to_the_pivot_and_never_gives_a_top_up() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let mut world = Arc::try_unwrap(crate::v026g::bots::tactics::tests::field())
+            .ok()
+            .unwrap();
+        world.map.zones.push(mapdata::Zone {
+            kind: ZoneKind::Resupply,
+            name: "resupply_0".into(),
+            team: 0,
+            position: Vec3::new(26.0, 0.0, 20.0),
+            damage_type: String::new(),
+            damage: None,
+            shapes: vec![mapdata::Shape {
+                kind: mapdata::ShapeKind::Box,
+                center: Vec3::new(20.0, 0.5, 20.0),
+                rotation: mapdata::Rotation::IDENTITY,
+                half: Vec3::new(0.85, 0.5, 0.65),
+            }],
+        });
+        s.tactics = Tactics::new(Arc::new(world), 1.0);
+        s.bot(0, 0, Vec3::new(35.0, 0.0, 22.0)).health = 0.3;
+        s.enemy(1, 1, Vec3::new(65.0, 0.0, 33.0), Some(Source::Seen));
+        let steps = s.run(0, PlayKind::Retreat, TargetRef::None, 200, 100, 4.0);
+        let me = s.view.places[0].feet;
+        assert!(me.distance_xz(Vec3::new(26.0, 0.0, 20.0)) < 2.5, "the pivot: {me:?}");
+        assert!(
+            steps
+                .iter()
+                .all(|s| !matches!(s, Step::Continue(i) if i.resupplied.is_some())),
+            "no top-up with the play off"
+        );
+    }
+
+    #[test]
+    fn to_a_zone_with_a_box_it_goes_to_a_stand_and_holds_use_on_the_box_once_to_the_end() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let mut world = Arc::try_unwrap(crate::v026g::bots::tactics::tests::field())
+            .ok()
+            .unwrap();
+        // The pivot 6 m off the box, as on most maps.
+        world.map.zones.push(mapdata::Zone {
+            kind: ZoneKind::Resupply,
+            name: "resupply_0".into(),
+            team: 0,
+            position: Vec3::new(26.0, 0.0, 20.0),
+            damage_type: String::new(),
+            damage: None,
+            shapes: vec![mapdata::Shape {
+                kind: mapdata::ShapeKind::Box,
+                center: Vec3::new(20.0, 0.5, 20.0),
+                rotation: mapdata::Rotation::IDENTITY,
+                half: Vec3::new(0.85, 0.5, 0.65),
+            }],
+        });
+        s.tactics = Tactics::new(Arc::new(world), 1.0);
+        s.tuning
+            .plays
+            .entry(PlayKind::Resupply)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Resupply))
+            .numbers
+            .insert("on".into(), 1.0);
+        s.bot(0, 0, Vec3::new(35.0, 0.0, 22.0)).health = 0.3;
+        s.enemy(1, 1, Vec3::new(65.0, 0.0, 33.0), Some(Source::Seen));
+        let steps = s.run(0, PlayKind::Retreat, TargetRef::None, 200, 100, 4.0);
+        let me = s.view.places[0].feet;
+        assert!(me.distance_xz(Vec3::new(20.0, 0.0, 20.0)) < 3.6, "{me:?}");
+        assert!(s.cx(0).zone_press(s.view.places[0].eye(), 0).is_some());
+        let held = steps
+            .iter()
+            .filter(|s| matches!(s, Step::Continue(i) if i.hold & key::USE != 0))
+            .count();
+        assert!((28..=36).contains(&held), "{held}");
+        let given = steps
+            .iter()
+            .filter(|s| matches!(s, Step::Continue(i) if i.resupplied == Some(0)))
+            .count();
+        assert_eq!(given, 1);
     }
 
     /// The rework on: the kit's medkits counted for the match (`stock.rs`) take the place of the tip's count a life.
