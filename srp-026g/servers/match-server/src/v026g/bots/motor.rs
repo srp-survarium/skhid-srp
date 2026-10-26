@@ -1852,7 +1852,7 @@ mod tests {
             other => panic!("{other:?}"),
         }
         // On: a clear point of the route, back of the progress.
-        let mut on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..Feel::default() }, &mut rng);
+        let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..Feel::default() }, &mut rng);
         match on.aim_point(&route, s, 2.4, &clear) {
             Aim::Clear(point) => assert!(clear(point) && point.z < 183.0, "{point:?}"),
             Aim::None => {}
