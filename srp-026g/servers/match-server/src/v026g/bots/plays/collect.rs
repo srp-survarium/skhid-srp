@@ -612,8 +612,11 @@ fn battery_candidate_given(
 ) -> Option<Candidate> {
     let mut given = [(Input::PathDist, 0.0); 2];
     let mut n = 0;
-    // A battery a storey off is as far as the way between the floors.
-    if let TargetRef::Battery(battery) = target
+    // The floor paths off (`Tuning::floor_paths`, off by default): only a
+    // battery a storey off is as far as the way between the floors, as
+    // before every play's `path_dist` was.
+    if !cx.tuning.floor_paths
+        && let TargetRef::Battery(battery) = target
         && let Some(walk) = cx
             .battery_lying(battery)
             .and_then(|at| cx.storey_walk_dist(at))
