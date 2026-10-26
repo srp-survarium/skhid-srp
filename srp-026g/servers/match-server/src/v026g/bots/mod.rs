@@ -38,12 +38,14 @@ pub mod encode;
 pub mod escape;
 pub mod foliage;
 pub mod friends;
+pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod live_grenades;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -291,6 +293,9 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// Its state towards the live grenades it knows of, and what it did
+    /// ([`grenade_threat`]).
+    avoid: grenade_threat::Avoid,
     /// The resupply holds it finished this match (`Intent::resupplied`).
     resupplies: u32,
 }
@@ -417,6 +422,7 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            avoid: grenade_threat::Avoid::default(),
             resupplies: 0,
         }
     }
@@ -577,6 +583,7 @@ impl Bot {
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
+        self.avoid.died();
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).
@@ -785,6 +792,12 @@ impl Bots {
     /// move at it until a world shows a life's own.
     pub fn set_speed_levels(&mut self, levels: &[Option<f32>]) {
         self.tracker.set_prior_levels(levels);
+    }
+
+    /// Every place's pockets (a human's), for the throw keys
+    /// ([`live_grenades`]).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+        self.tracker.set_pockets(pockets);
     }
 
     /// Every place's weapon 1 kind (the matchup, play 11).
@@ -1218,6 +1231,7 @@ impl Bots {
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
+        self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }

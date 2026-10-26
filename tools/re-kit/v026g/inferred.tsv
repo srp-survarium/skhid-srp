@@ -1327,8 +1327,12 @@ va	status	ref_021d	name
 0x00246b80	inferred-medium	0x0018679f	survarium::victory_item::taken_from_container
 0x00246d80	inferred-medium	0x00186978	vostok::buffer_vector<vostok::math::float4x4>::resize
 0x002474a0	inferred-medium	0x00186da9	survarium::player::mt_draw
+0x00248310	inferred-medium		survarium::grenade_core_client::grenade_core_client
 0x00248460	inferred-medium		survarium::grenade_core_client::start_fuse
+0x002484a0	inferred-medium		survarium::grenade_core_client::stop_fuse_list_node_and_hide_hand_model
 0x00248520	inferred-medium		survarium::grenade_core_client::launch
+0x00248600	inferred-high		survarium::grenade_core_client::remove_model_and_body
+0x00248650	inferred-high		survarium::grenade_core_client::update
 0x00248720	inferred-medium		survarium::grenade_core_client::explode
 0x00248980	inferred-medium		survarium::grenade_core_client::on_contact
 0x0024a3e0	inferred-high	0x00208510	survarium::weapon_core_show_state_base::on_animation_end_impl
@@ -2025,8 +2029,10 @@ va	status	ref_021d	name
 0x00303770	inferred-medium	0x001ec241	survarium::grenade_core::~grenade_core
 0x00303890	inferred-medium	0x001ec2a7	survarium::grenade_core::load
 0x00303a60	inferred-medium	0x001ec3d1	survarium::grenade_core::tick
+0x00303b60	inferred-medium		survarium::grenade_core::explode_base
 0x00303b90	inferred-high		survarium::grenade_core::start_fuse
 0x00303c10	inferred-high		survarium::grenade_core::add_to_physics_world
+0x003041b0	inferred-medium		survarium::grenade_core::on_contact_base
 0x003045a0	inferred-medium	0x001e9c22	survarium::booby_trap_core::`scalar deleting destructor'
 0x00304a40	inferred-high	0x001e9e2b	survarium::booby_trap_core::apply_damage
 0x00304bd0	inferred-high	0x001e9ed0	survarium::booby_trap_core::on_enter
@@ -2044,6 +2050,7 @@ va	status	ref_021d	name
 0x00306720	inferred-high	0x001e98a9	survarium::booby_trap_set_core::action
 0x003067a0	inferred-high	0x001e98da	survarium::booby_trap_set_core::register_in_game_world
 0x003068e0	inferred-medium	0x001e9358	survarium::booby_trap_set_core::find_oldest_placed_trap
+0x00306d50	inferred-high		survarium::game_materials::pair_for
 0x003076a0	inferred-high	0x001eae06	survarium::collision_sensor::~collision_sensor
 0x00307700	inferred-high	0x001eae3f	survarium::collision_sensor::load
 0x00307790	inferred-high	0x001eaea1	survarium::collision_sensor::resolve_links
@@ -3079,6 +3086,8 @@ va	status	ref_021d	name
 0x0086ec40	inferred-medium	0x00284b61	stlp_std::basic_istream<char,stlp_std::char_traits<char> >::`vbase destructor'
 0x0007f5c0	inferred-medium		vostok::physics::bullet_character_controller::get_transform
 0x002d1ea0	inferred-medium		survarium::game_world_core::rules_on_event
+0x002d2d70	inferred-high		survarium::game_object_tick_lists::push_back
+0x002d2db0	inferred-high		survarium::game_object_tick_lists::erase
 0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x0001ddb0	inferred-high		vostok::console_commands::cc_value<bool>::cc_value
