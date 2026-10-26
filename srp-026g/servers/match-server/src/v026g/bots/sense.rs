@@ -42,7 +42,7 @@ fn sound_range(ranges: HearingRanges, kind: SoundKind, base: f32, hearing: f32) 
     let range = hearing * base;
     match (ranges, kind) {
         (HearingRanges::Flat, _) => range,
-        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump) => range.min(STEP_CULL_M),
+        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump | SoundKind::Trap) => range.min(STEP_CULL_M),
         (HearingRanges::Game { .. }, SoundKind::Reload) => range.min(RELOAD_CULL_M),
         (HearingRanges::Game { .. }, _) => range,
     }
