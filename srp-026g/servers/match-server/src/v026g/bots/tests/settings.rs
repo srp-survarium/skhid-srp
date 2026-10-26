@@ -87,6 +87,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
+    s("SRP_BENCH_OFF_WALK_BELOW_M", "the tuning's (0.9)", "Feel::off_walk_below_m: how far under a walked leg a body is still on its route, m; `1.5` the old rule"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),

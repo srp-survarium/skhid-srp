@@ -219,6 +219,11 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
     }
+    // How far under a walked leg a body is still on its route
+    // (`Feel::off_walk_below_m`): `1.5` the old rule.
+    if let Some(m) = bench_settings().number("SRP_BENCH_OFF_WALK_BELOW_M") {
+        tuning.feel.off_walk_below_m = m;
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
