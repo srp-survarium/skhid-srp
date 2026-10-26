@@ -1456,8 +1456,7 @@ def late_join_sites():
         [(P.RUN_UNFOCUSED_VA, len(P.RUN_UNFOCUSED[1])), (P.REMOVE_MODEL_VA, len(P.REMOVE_MODEL[1])),
          (P.PREGAME_PROGRESS_VA, len(P.PREGAME_PROGRESS[1])), (P.TDM_DEATHS[0], len(P.TDM_DEATHS[1])),
          (P.REPLAY_REATTACH_THUNK[0], len(P.REPLAY_REATTACH_THUNK[1])),
-         (P.SOUND_QUEUE_CAVE_SITE[0], len(P.SOUND_QUEUE_CAVE_SITE[1])),
-         (P.SOUND_QUEUE_HOOK[0], len(P.SOUND_QUEUE_HOOK[1])),
+         (P.SOUND_QUEUE_HOOK_VA, 5),
          ] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
@@ -3071,23 +3070,14 @@ def branches_into(original, lo, hi):
 
 def test_sound_queue(original, image, before):
     """A weapon's full sound queue drops the new sound (patch revision 11,
-    SOUND_QUEUE): delayed_callbacks_queue::add 0x2454A0 jumps after its
-    drain to a cave in int3 padding, which goes to the game's own drop exit
-    when the queue is full; the build without the late join keeps both."""
+    SOUND_QUEUE): delayed_callbacks_queue::add 0x2454A0 after its drain is
+    the Rust patch replay_viewer's lohook (weapon_sounds.added), which goes
+    to the game's own drop exit when the queue is full; the build without
+    the late join keeps the site. check_sound_queue_026g.py runs it."""
     stock = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
-    for va, old, new in (P.SOUND_QUEUE_HOOK, P.SOUND_QUEUE_CAVE_SITE):
-        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
-              f"{va:#x}: the original's bytes in the original and the build without the late join, the new ones in this one")
-    check(rows(image, P.SOUND_QUEUE_HOOK_VA, 5) == ["jmp 0x835a20"], "0x2454C1: `jmp 0x835a20`")
-    check(rows(image, P.SOUND_QUEUE_CAVE_VA, len(P.SOUND_QUEUE_CAVE)) ==
-          ["mov ecx,[esi+0x4]", "cmp ecx,[esi+0x8]", "jnc 0x835a2f", "mov eax,[esi]", "jmp 0x2454c6", "jmp 0x24569a"],
-          "the cave: the queue's end against its capacity end; full -> 0x24569A, else the two instructions and back")
-    start, size = P.SOUND_QUEUE_PADDING
-    run = stock.read(start - 1, size + 2)
-    check(run[0] == 0xC3 and run[1:-1] == bytes.fromhex("cc") * size and run[-1] == 0x55
-          and start <= P.SOUND_QUEUE_CAVE_VA and P.SOUND_QUEUE_CAVE_VA + len(P.SOUND_QUEUE_CAVE) <= start + size,
-          "the cave lies in 42 int3 between a `ret` and a `push ebp`")
+    rust_lohooks(original, image, before, "replay_viewer",
+                 {P.SOUND_QUEUE_HOOK_VA: ["mov eax,[esi]", "mov ecx,[esi+0x4]"]}, exits={P.SOUND_QUEUE_DROP})
     check(rows(stock, 0x2454B0, 0x18) == ["mov esi,[esp+0x19c]", "push edi", "push ebx", "push esi", "mov edi,eax",
                                           "call 0x245860", "mov eax,[esi]", "mov ecx,[esi+0x4]", "xor edx,edx"],
           "add: esi = the queue, its drain (which takes its two arguments off), then the queue's begin and end")
@@ -3108,12 +3098,7 @@ def test_sound_queue(original, image, before):
           "the sound player 0x297E20 looks at its flag first")
     check(rows(stock, 0x245AD5, 0x9) == ["mov eax,[ebx+0x4]", "push esi", "cmp eax,[ebx+0x8]", "jc 0x245b33"],
           "push_back 0x245AD0 asserts on the same two fields, end against capacity end")
-    hits = branches_into(original, P.SOUND_QUEUE_HOOK_VA + 1, P.SOUND_QUEUE_HOOK_VA + 5) + \
-        branches_into(original, start, start + size)
-    check(not hits, "no branch bytes or pointer values aim inside the hook or into the padding" + "".join(", " + h for h in hits))
-    for va, old, _ in (P.SOUND_QUEUE_HOOK, P.SOUND_QUEUE_CAVE_SITE):
-        under = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
-        check(not under, f"no base relocation under {va:#x}")
+
 
 
 def test_seek_clear(original, image, before):
@@ -3671,10 +3656,11 @@ def rust_lohooks(original, image, before, patch, sites, exits=(), relocs=()):
     linked = P.arena()
     block = linked.blocks["patches.code"]
     sym = linked.symbols
-    # its lohooks (a jump to the entry; a `call` hook of the patch is its own check's)
-    hooks = [h for h in P.rust_hooks(original) if h[2].startswith(patch + "_") and h[3] == 0xE9]
+    # its lohooks at `sites` (a jump to the entry; a `call` hook of the patch
+    # is its own check's; a patch's other lohooks, their own test's)
+    hooks = [h for h in P.rust_hooks(original) if h[2].startswith(patch + "_") and h[3] == 0xE9 and h[0] in sites]
     check(sorted(h[0] for h in hooks) == sorted(sites),
-          f"the Rust patch {patch}'s lohooks are at {', '.join(f'{va:#x}' for va in sorted(sites))} "
+          f"the Rust patch {patch} has lohooks at {', '.join(f'{va:#x}' for va in sorted(sites))} "
           f"(rust/patches/src/{patch}.toml, sites_026g.tsv)")
     named = set()
     for va, old, symbol, opcode in hooks:

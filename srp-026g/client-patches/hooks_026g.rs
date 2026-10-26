@@ -439,6 +439,26 @@ pub extern "C" fn hook_replay_viewer_on_seek(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 26) ----
+
+/// The named exits of replay_viewer::on_sound_added (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnSoundAddedExit { Drop }
+/// The entry `replay_viewer_on_sound_added` (0x2454c1, delayed_callbacks_queue::add 0x2454A0 after its drain (mov eax,[esi]; mov ecx,[esi+4]; ESI the queue); drop: the game's own exit for a sound past its chain's cap (the functor told not to play)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_sound_added(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_sound_added` calls this, from the game's jump at 0x2454c1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_sound_added(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- shared_upgrades (patch 30) ----
 
 /// The entry `shared_upgrades_on_drop_sent` (0x29aad5, drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame)) calls this with the saved machine.

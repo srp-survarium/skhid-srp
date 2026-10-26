@@ -158,3 +158,5 @@ vostok::resources::query_result	file_node	0xA8	u32	the query's file node (0: the
 vostok::resources::query_result	parent	0x158	u32	the parent query (0: none)
 vostok::resources::query_result	priority	0x2B8	u32	the query's priority (the higher read first)
 vostok::vfs::vfs_node	flags	0x30	u8	a vfs node's flags: 4 in an archive (get_physical_path 0x4BC39), 1 a file
+survarium::delayed_callbacks_queue	end	0x4	u32	a weapon's delayed sounds queue (delayed_callbacks_queue<64>, weapon+9FCh: begin, end, capacity end; 38h an item): its end (push_back 0x245AD0 asserts at the capacity)
+survarium::delayed_callbacks_queue	capacity_end	0x8	u32	the queue's capacity end (64 items)

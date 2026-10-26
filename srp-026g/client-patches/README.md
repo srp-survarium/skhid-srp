@@ -85,6 +85,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
 | `rust/patches/src/shared_upgrades.rs`, `shared_upgrades.toml`, `port/equiv/shared_upgrades.py` | Patch 30 (one upgrade on several items: taking it off names the item) as the Rust patch `shared_upgrades` (four lohooks), and its equivalence spec against the asm it replaced |
+| `check_sound_queue_026g.py` | Runs the original's and the build's delayed sounds' add after its drain on queues up to and past their capacity: the build drops the new sound at it (needs Unicorn) |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -1555,8 +1556,9 @@ of them changes what a match computes, so they have no revision of their own.
   the camera re-attaches as a live game's does.
 - **25. A weapon with a full sound queue drops the new sound.** A weapon's
   delayed sounds (64 items) asserted when full, which killed a replay about
-  50 s after a seek. A cave in int3 padding (0x835A20) checks for a full
-  queue and takes the game's own drop exit. This is in live games too, where
+  50 s after a seek. The Rust patch `replay_viewer`'s lohook at 0x2454C1
+  (`weapon_sounds.added`; once a cave in int3 padding at 0x835A20) checks
+  for a full queue and takes the game's own drop exit. This is in live games too, where
   a full queue also killed the game.
 - **26. A replay's seek empties the weapons' sound queues.** After a seek,
   sounds waited behind the old timeline's (late reloads) and the

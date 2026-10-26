@@ -10,3 +10,8 @@ patch = 26
 [[hook]]
 site = "replay.seek"
 handler = "on_seek"
+
+# 25: a weapon's full sound queue drops the new sound
+[[hook]]
+site = "weapon_sounds.added"
+handler = "on_sound_added"

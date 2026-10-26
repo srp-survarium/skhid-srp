@@ -102,3 +102,30 @@ impl ClientWeapon<'_> {
         }
     }
 }
+
+/// A weapon's delayed sounds queue (delayed_callbacks_queue<64>) at
+/// `weapon_sounds.added` (sites_026g.tsv; add 0x2454A0 after its drain):
+/// ESI the queue.
+pub struct SoundQueue<'t> {
+    queue: Object,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> SoundQueue<'t> {
+    pub fn at_added(ctx: &'t Context<'_>) -> Option<SoundQueue<'t>> {
+        Object::at(ctx.reg(Reg::Esi)).map(|queue| SoundQueue { queue, thread: PhantomData })
+    }
+
+    /// Its end, as the code after the site loads it (ECX).
+    pub fn end(&self) -> u32 {
+        // SAFETY: a live queue (the site's ESI): its end.
+        unsafe { read(raw::delayed_callbacks_queue::end(self.queue.ptr())) }
+    }
+
+    /// Whether it is full: its end at its capacity's or past it (unsigned,
+    /// as push_back's assert compares them).
+    pub fn full(&self) -> bool {
+        // SAFETY: as end.
+        self.end() >= unsafe { read(raw::delayed_callbacks_queue::capacity_end(self.queue.ptr())) }
+    }
+}

@@ -33,3 +33,4 @@ inventory_action.detach_answer	0x275756	lohook	-	15	-	process_succeeded_inventor
 inventory_action.detach_first	0x275589	lohook	-	7	-	the 83 46 01 case's detach_first (push edi; push ebp; call process_detach_upgrade; EBX the item, EDI the upgrade, EBP the lobby client)
 detach_upgrade.find_holder	0x27534D	lohook	-	5	-	process_detach_upgrade's search of the item holding the upgrade (call find_item_holding_upgrade 0x277CF0, cdecl: [esp] the items, [esp+4] their end, [esp+8] &the id)
 read_order.predicate	0x10BCC0	lohook	-	6	done@ret:4	hdd_manager_sorting_predicate::operator() 0x10BCC0 at its start (sub esp,250h; EAX the first query_result, [esp+4] the second; AL: the first before the second, ret 4); done: its return
+weapon_sounds.added	0x2454C1	lohook	-	5	drop@0x24569A	delayed_callbacks_queue::add 0x2454A0 after its drain (mov eax,[esi]; mov ecx,[esi+4]; ESI the queue); drop: the game's own exit for a sound past its chain's cap (the functor told not to play)

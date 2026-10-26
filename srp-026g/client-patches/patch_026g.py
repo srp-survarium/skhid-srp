@@ -803,15 +803,10 @@ REPLAY_REATTACH_SLOT = (0x9FF398, struct.pack("<I", 0x54E10), struct.pack("<I", 
 # queue is not touched); otherwise it does the two instructions and goes
 # back to 0x2454C6. A weapon with a full queue drops its new sounds until it
 # drains, where the game died. Sounds only: nothing a match computes.
+# Since the Rust port the site 0x2454C1 is the Rust patch replay_viewer's
+# lohook (sites_026g.tsv weapon_sounds.added, its exit drop 0x24569A); until
+# then 20 bytes of machine code written into int3 padding at 0x835A20.
 SOUND_QUEUE_HOOK_VA, SOUND_QUEUE_RETURN, SOUND_QUEUE_DROP = 0x2454C1, 0x2454C6, 0x24569A
-SOUND_QUEUE_CAVE_VA = 0x835A20
-SOUND_QUEUE_PADDING = (0x835A16, 42)          # the int3 run the cave is in
-SOUND_QUEUE_CAVE = (bytes.fromhex("8b4e04" "3b4e08" "7307" "8b06")
-                    + bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_RETURN - (SOUND_QUEUE_CAVE_VA + 15))
-                    + bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_DROP - (SOUND_QUEUE_CAVE_VA + 20)))
-SOUND_QUEUE_CAVE_SITE = (SOUND_QUEUE_CAVE_VA, bytes.fromhex("cc") * len(SOUND_QUEUE_CAVE), SOUND_QUEUE_CAVE)
-SOUND_QUEUE_HOOK = (SOUND_QUEUE_HOOK_VA, bytes.fromhex("8b068b4e04"),
-                    bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_CAVE_VA - (SOUND_QUEUE_HOOK_VA + 5)))
 
 # vfs::mounter::finish 0x469F0, the last step of every mount: `mov
 # eax,[eax+34h]` (the mount's root) / `test eax,eax` / `jnz 46B0Fh`, then
@@ -2232,7 +2227,6 @@ INSTALLS = {
     # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
     REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
                               "the thunk to is_player_current", None, None),
-    SOUND_QUEUE_HOOK_VA: (JUMP, "a weapon's delayed sound: the full queue's cave", None, None),
     # Research, patch 53 (in `.srpx`)
     0x1E9B4C: (INLINE, "the game's constructor, `mov eax,ebx / call 0x1EC170`: register (it does both, the call "
                        "as a tail jump with the return address moved past the nops)", None, None),
@@ -3133,9 +3127,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
         # An address: its relocation stays.
         patch_section_value(data, *REPLAY_REATTACH_SLOT)
-        for site in (SOUND_QUEUE_CAVE_SITE, SOUND_QUEUE_HOOK):
-            patch(data, *site)
-            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REMOVE_MODEL)
         # The one address in what is replaced: the loader must not add to it.
         if neutralize_relocs(data, [(REMOVE_MODEL_VA, REMOVE_MODEL_VA + len(REMOVE_MODEL[1]))]) != [REMOVE_MODEL_VA + 2]:

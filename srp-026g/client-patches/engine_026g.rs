@@ -1967,3 +1967,27 @@ pub mod vfs_node {
         unsafe { this.byte_add(0x30).cast() }
     }
 }
+
+/// survarium::delayed_callbacks_queue's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod delayed_callbacks_queue {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): a weapon's delayed sounds queue (delayed_callbacks_queue<64>, weapon+9FCh: begin, end, capacity end; 38h an item): its end (push_back 0x245AD0 asserts at the capacity)
+    ///
+    /// # Safety
+    /// `this` is a survarium::delayed_callbacks_queue.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): the queue's capacity end (64 items)
+    ///
+    /// # Safety
+    /// `this` is a survarium::delayed_callbacks_queue.
+    #[inline(always)]
+    pub unsafe fn capacity_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}

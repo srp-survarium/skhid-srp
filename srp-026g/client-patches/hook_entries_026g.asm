@@ -1026,6 +1026,49 @@ replay_viewer_on_seek_replay:
     db 0x8d, 0x87, 0x18, 0xfc, 0xff, 0xff
     jmp 0x1ee3a9
 
+; 0x2454c1 delayed_callbacks_queue::add 0x2454A0 after its drain (mov eax,[esi]; mov ecx,[esi+4]; ESI the queue); drop: the game's own exit for a sound past its chain's cap (the functor told not to play): lohook -> replay_viewer_on_sound_added
+global replay_viewer_on_sound_added
+extern hook_replay_viewer_on_sound_added
+replay_viewer_on_sound_added:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_sound_added
+    mov edx, replay_viewer_on_sound_added_replay
+    cmp eax, 0
+    je replay_viewer_on_sound_added_go
+    mov edx, 0x2454c6
+    cmp eax, 1
+    je replay_viewer_on_sound_added_go
+    mov edx, 0x24569a
+    cmp eax, 2
+    je replay_viewer_on_sound_added_go
+    ud2
+replay_viewer_on_sound_added_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_sound_added_replay:
+    db 0x8b, 0x06
+    db 0x8b, 0x4e, 0x04
+    jmp 0x2454c6
+
 ; 0x29aad5 drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame): lohook -> shared_upgrades_on_drop_sent
 global shared_upgrades_on_drop_sent
 extern hook_shared_upgrades_on_drop_sent
