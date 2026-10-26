@@ -1843,7 +1843,7 @@ mod tests {
         let (s, off) = route.progress(feet);
         assert!(off < 2.0, "{off}");
         let mut rng = Rng::new(3);
-        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        let motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
         // The body is on the far leg's nearest segment: past the doorway by the progress.
         assert!(s > 5.0, "{s}");
         // Off (the default): the point it steers at is one the wall is across.
