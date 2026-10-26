@@ -1921,12 +1921,32 @@ va	status	ref_021d	name
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
 0x002dee00	inferred-medium	0x001e11da	vostok::animation::mixing::binary_tree_binary_operation_node::binary_tree_binary_operation_node
+0x002df780	inferred-high		survarium::weapon_core_cook::add_weapon_state_transitions
 0x002e25c0	inferred-high	0x001e395c	survarium::weapon_core::on_sprint_animation_ended
 0x002e2650	inferred-medium	0x001e3b06	survarium::weapon_core::set_next_ammo_type
 0x002e30f0	inferred-high	0x001e4284	survarium::weapon_core::register_in_game_world
 0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_vertical_recoil_time
+0x002e3b00	inferred-high		survarium::weapon_core::state_ended_pred
+0x002e3b10	inferred-high		survarium::weapon_core::switch_pending
+0x002e3b40	inferred-high		survarium::weapon_core::hide_to_show_pred
+0x002e3b80	inferred-high		survarium::weapon_core::hide_wanted_pred
+0x002e3be0	inferred-high		survarium::weapon_core::hide_wanted_and_ended_pred
 0x002e3c10	inferred-medium	0x001e4a4b	survarium::weapon_core::chamber_a_round_pred
+0x002e3c80	inferred-high		survarium::weapon_core::chamber_pred_and_ended
 0x002e3cb0	inferred-medium	0x001e4ac4	survarium::weapon_core::fire_pred
+0x002e3d30	inferred-high		survarium::weapon_core::fire_pred_and_ended
+0x002e3d60	inferred-high		survarium::weapon_core::reload_wanted
+0x002e3da0	inferred-high		survarium::weapon_core::can_reload
+0x002e3ef0	inferred-high		survarium::weapon_core::reload_pred
+0x002e3f40	inferred-high		survarium::weapon_core::reload_pred_and_ended
+0x002e3f70	inferred-high		survarium::weapon_core::reload_or_empty_pred_and_ended
+0x002e3fc0	inferred-high		survarium::weapon_core::user_not_alive_pred
+0x002e3fe0	inferred-high		survarium::weapon_core::show_to_idle_pred
+0x002e4010	inferred-high		survarium::weapon_core::reload_to_idle_pred
+0x002e4090	inferred-high		survarium::weapon_core::throw_grenade_pred
+0x002e4100	inferred-high		survarium::weapon_core::melee_pred
+0x002e4140	inferred-medium		survarium::weapon_core::jump_blocks_reload
+0x002e4170	inferred-medium		survarium::weapon_core::sprint_blocks_reload
 0x002e5bb0	inferred-medium		survarium::game_effect_ptr_wrapper::serialize_root_emitter
 0x002e5c90	inferred-medium		survarium::game_effect_ptr_wrapper::serialize
 0x002e5d70	inferred-medium	0x00200dd3	survarium::loose_ptr<survarium::game_effect,survarium::loose_ptr_data,vostok::threading::single_threading_policy>::c_ptr
@@ -2074,9 +2094,11 @@ va	status	ref_021d	name
 0x0030ef40	inferred-medium	0x001f2085	survarium::weapon_core_shotgun_reload_one_round_substate::`scalar deleting destructor'
 0x0030ef60	inferred-high	0x001f2317	survarium::weapon_core_shotgun_reload_one_round_substate::initialize
 0x0030ef60	inferred-high	0x001f2529	survarium::weapon_core_shotgun_reload_finish_substate::initialize
+0x0030ef80	inferred-high		survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl
 0x0030efb0	inferred-high	0x001f24dd	survarium::weapon_core_shotgun_reload_finish_substate::weapon_core_shotgun_reload_finish_substate
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_finish_substate::finalize
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_one_round_substate::finalize
+0x0030f070	inferred-high		survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl
 0x0030f0b0	inferred-high	0x001f2710	survarium::double_barreled_weapon_core_idle_state::double_barreled_weapon_core_idle_state
 0x0030f1f0	inferred-medium	0x001f27d0	survarium::double_barreled_weapon_core_idle_state::`scalar deleting destructor'
 0x0030f260	inferred-high	0x001f2818	survarium::double_barreled_weapon_core_idle_state::get_weapon_lexeme
@@ -2260,6 +2282,9 @@ va	status	ref_021d	name
 0x00339cf0	inferred-high	0x001f87c7	survarium::weapon_core_shotgun_reload_state::serialize
 0x00339d30	inferred-high	0x001f87ee	survarium::weapon_core_shotgun_reload_state::deserialize
 0x00339db0	inferred-high	0x001f8815	survarium::weapon_core_shotgun_reload_state::weapon_and_hands_expression
+0x00339de0	inferred-high		survarium::weapon_core_shotgun_reload_state::finish_reload_pred
+0x00339ea0	inferred-high		survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred
+0x00339ee0	inferred-high		survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred
 0x0033a900	inferred-medium	0x00209520	boost::detail::function::function_obj_invoker0<boost::_bi::bind_t<bool,boost::_mfi::cmf1<bool,survarium::weapon_core_throw_grenade_state,bool>,boost::_bi::list2<boost::_bi::value<survarium::weapon_core_throw_grenade_state *>,boost::_bi::value<bool> > >,bool>::invoke
 0x0033acf0	inferred-medium		survarium::artefact_spring_core::config::config
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
