@@ -64,6 +64,7 @@ mod bench;
 mod bench_spread;
 mod camper;
 mod driving;
+mod eye;
 mod fights;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
