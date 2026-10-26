@@ -782,3 +782,12 @@ mod tests {
         assert_eq!(covered.regions(), &[2, 5]);
     }
 }
+
+/// A team's threat state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamThreat {
+    /// Where a shooter killed its bots from ([`ThreatSpots`]).
+    pub spots: ThreatSpots,
+    /// The regions his line covers now.
+    pub covered: Option<std::sync::Arc<Covered>>,
+}
