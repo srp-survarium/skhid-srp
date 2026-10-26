@@ -1302,13 +1302,14 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  push: {}", push.line(&bots));
             let perched = super::plays::goals::perch_counts();
             eprintln!(
-                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {} spawn {} no_floor {} fall {} lip {} arrived {} on_perch_ticks {}",
+                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {} spawn {} no_floor {} fall {} lip {} arrived {} on_perch_ticks {} repicked {} died {} ticks_to_arrive {}",
                 perched[0] - perch_before[0], perched[1] - perch_before[1], perched[2] - perch_before[2],
                 perched[3] - perch_before[3], perched[4] - perch_before[4], perched[5] - perch_before[5],
                 perched[6] - perch_before[6], perched[7] - perch_before[7], perched[8] - perch_before[8],
                 perched[9] - perch_before[9], perched[10] - perch_before[10], perched[11] - perch_before[11],
                 perched[12] - perch_before[12], perched[13] - perch_before[13],
-                perched[14] - perch_before[14], perched[15] - perch_before[15]
+                perched[14] - perch_before[14], perched[15] - perch_before[15],
+                perched[16] - perch_before[16], perched[17] - perch_before[17], perched[18] - perch_before[18]
             );
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());

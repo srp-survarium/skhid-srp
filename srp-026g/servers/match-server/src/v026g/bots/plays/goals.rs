@@ -366,7 +366,10 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     perch_count(9);
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
-        g.borrow_mut().remove(&cx.me.place);
+        // a new offer before the last one was reached
+        if g.borrow_mut().remove(&cx.me.place).is_some_and(|(_, reached, _)| !reached) {
+            perch_count(16);
+        }
     });
     let mut keyed: Vec<(f32, Vec3)> = candidates
         .into_iter()
@@ -379,7 +382,8 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     let out: Vec<Vec3> = keyed.into_iter().map(|(_, at)| at).collect();
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
-        g.borrow_mut().insert(cx.me.place, (out[0], false));
+        // the plays take one of the first three at random
+        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0));
     });
     out
 }
@@ -390,15 +394,22 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
 pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
     PERCH_GOALS.with(|g| {
         let mut g = g.borrow_mut();
-        let Some((at, reached)) = g.get_mut(&place) else { return };
+        let Some((spots, reached, age)) = g.get_mut(&place) else { return };
         if !alive {
+            if !*reached {
+                perch_count(17);
+            }
             g.remove(&place);
             return;
         }
-        if feet.distance_xz(*at) <= 2.0 && (feet.y - at.y).abs() < 1.5 {
+        if !*reached {
+            *age += 1;
+        }
+        if spots.iter().any(|at| feet.distance_xz(*at) <= 2.0 && (feet.y - at.y).abs() < 1.5) {
             if !*reached {
                 *reached = true;
                 perch_count(14);
+                perch_count_n(18, *age as usize);
             }
             perch_count(15);
         }
@@ -410,8 +421,8 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 16]> = const { std::cell::Cell::new([0; 16]) };
-    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec3, bool)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    static PERCHED: std::cell::Cell<[u64; 19]> = const { std::cell::Cell::new([0; 19]) };
+    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
 #[cfg(test)]
@@ -436,7 +447,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 16] {
+pub fn perch_counts() -> [u64; 19] {
     PERCHED.with(|c| c.get())
 }
 
