@@ -150,6 +150,10 @@ pub struct ThinkTuning {
     /// until a train turns it on): it asks again for every goal the plays give it, every
     /// 0.5 s, as it did.
     pub shut_in_gate: bool,
+    /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
+    /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off (the default until a train turns
+    /// it on): the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
+    pub fall_lock: bool,
 }
 
 impl Default for ThinkTuning {
@@ -161,6 +165,7 @@ impl Default for ThinkTuning {
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
             trace_every_ms: 5_000,
             shut_in_gate: false,
+            fall_lock: false,
         }
     }
 }

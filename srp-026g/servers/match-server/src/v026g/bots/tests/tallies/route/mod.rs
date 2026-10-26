@@ -103,6 +103,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         below_walk(),
         foliage(),
         self_kills(),
+        fall_locks(),
         asks(),
         route_ends(),
         Box::new(probe::Probe::new(bodies)),

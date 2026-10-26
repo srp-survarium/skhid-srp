@@ -155,6 +155,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
     }
+    // The stuck watch keeps quiet while a body that landed from 6 m or more cannot move (`ThinkTuning::fall_lock`; off by default).
+    if settings.var("SRP_BENCH_FALL_LOCK").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/fall_lock", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
