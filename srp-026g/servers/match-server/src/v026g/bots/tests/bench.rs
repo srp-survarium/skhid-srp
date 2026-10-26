@@ -219,6 +219,11 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
     }
+    // A way out of a zone stays under its start's strength
+    // (`Tuning::escape_ceiling`): `0` off.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
+        tuning.escape_ceiling = v != "0";
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX

@@ -78,6 +78,10 @@ const ESCAPE_IN_WEIGHT: f32 = 3.0;
 /// A body walks out of a zone at least this fast, m/s: a walk aiming
 /// forward (`kin`: 3.0).
 const ESCAPE_WALK_MPS: f32 = 3.0;
+/// A zone's hit a second is read at most this, of a body's health, where
+/// ways out are compared by it ([`Tactics::escape`]): a zone the map file
+/// gives no hit for is infinite (`Hazard::hit_per_s`).
+const ESCAPE_HIT_CAP: f32 = 1.0;
 /// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
 /// as `BodyView::health` and the zones' hits), may be walked on through to a
 /// way out further on while on. GUESS: under a tenth of a body's health in a
@@ -155,6 +159,9 @@ pub struct Tactics {
     /// The teams' escapes from pockets that worked, and their trapped bots
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
+    /// Whether a way out stays under its start's zone strength
+    /// (`Tuning::escape_ceiling`, [`Self::escape`]).
+    pub escape_ceiling: bool,
 }
 
 /// [`Tactics::exit_of`]'s field: each marked floor's way out.
@@ -571,6 +578,7 @@ impl Tactics {
             spot_lists: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
+            escape_ceiling: true,
             base,
         }
     }
@@ -1087,9 +1095,19 @@ impl Tactics {
     /// The way out for a body on `from`, a floor it may not walk on now
     /// (inside a zone it was pushed or stepped into, or one about to come
     /// on): to a floor at least [`ESCAPE_MIN_M`] off that it may walk on
-    /// and every floor next to it too (clear of the zone's edge), over any
-    /// floors. No route to any goal starts there, so without it the body
-    /// would stand in the fire.
+    /// and every floor next to it too (clear of the zone's edge). No route
+    /// to any goal starts there, so without it the body would stand in the
+    /// fire.
+    ///
+    /// The search never goes down into a zone stronger than the body's own
+    /// (`Tactics::escape_ceiling`): the floors open to it are those no zone
+    /// marks, those of the start's own zones, those it may walk on, and
+    /// those whose hit a second is not above the start's. From a mild zone
+    /// the nearest way out may be over a strong one beside it (the 0.90
+    /// stretch of the zone-damage bench); this goes round it, a few metres
+    /// more. When that finds no way (nested zones, deep in a big zone) the
+    /// ceiling is lifted and the nearest way over any floors is taken, as
+    /// it was; so is the route to the way out when none stays under it.
     ///
     /// Which way out: the ways out within [`ESCAPE_BAND_M`] of the nearest,
     /// one a metre round the zone ([`ESCAPE_SPACING_M`]).
@@ -1118,36 +1136,58 @@ impl Tactics {
     ) -> Option<Route> {
         let grid = &self.world.grid;
         let shut = |n: NodeId| !filter.hard_open(grid, n);
-        let mut seen = std::collections::HashSet::from([from]);
-        let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
-        let start = grid.position(from);
         let ok = |n: NodeId| self.allowed(n, time, side, objective);
-        let mut first: Option<f32> = None;
-        // The ways out, each with the way to it.
-        let mut outs: Vec<(NodeId, f32)> = Vec::new();
-        while let Some((a, d)) = queue.pop_front() {
-            if first.is_some_and(|first| d > first + ESCAPE_BAND_M) {
-                break;
+        let (start_hit, start_set) = (
+            self.hazards.hit_per_s(from).min(ESCAPE_HIT_CAP),
+            self.hazards.set_of(from),
+        );
+        // Floors open to the search under a ceiling on a zone's hit.
+        let open_under = |ceiling: f32| {
+            move |n: NodeId| {
+                self.hazards.set_of(n) == 0
+                    || self.hazards.set_of(n) == start_set
+                    || ok(n)
+                    || self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) <= ceiling
             }
-            let at = grid.position(a);
-            if at.distance_xz(start) >= ESCAPE_MIN_M && ok(a) && grid.links(a).all(|(b, _)| ok(b)) {
-                first.get_or_insert(d);
-                if !outs
-                    .iter()
-                    .any(|&(out, _)| grid.position(out).distance_xz(at) < ESCAPE_SPACING_M)
-                {
-                    outs.push((a, d));
+        };
+        let start = grid.position(from);
+        let search = |open: &dyn Fn(NodeId) -> bool| {
+            let mut seen = std::collections::HashSet::from([from]);
+            let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
+            let mut first: Option<f32> = None;
+            // The ways out, each with the way to it.
+            let mut outs: Vec<(NodeId, f32)> = Vec::new();
+            while let Some((a, d)) = queue.pop_front() {
+                if first.is_some_and(|first| d > first + ESCAPE_BAND_M) {
+                    break;
                 }
-                continue;
-            }
-            if seen.len() > ESCAPE_FLOORS {
-                break;
-            }
-            for (b, _) in grid.links(a) {
-                if grid.plans(a, b) && !shut(b) && seen.insert(b) {
-                    queue.push_back((b, d + grid.position(b).distance_xz(at)));
+                let at = grid.position(a);
+                if at.distance_xz(start) >= ESCAPE_MIN_M && ok(a) && grid.links(a).all(|(b, _)| ok(b)) {
+                    first.get_or_insert(d);
+                    if !outs
+                        .iter()
+                        .any(|&(out, _)| grid.position(out).distance_xz(at) < ESCAPE_SPACING_M)
+                    {
+                        outs.push((a, d));
+                    }
+                    continue;
+                }
+                if seen.len() > ESCAPE_FLOORS {
+                    break;
+                }
+                for (b, _) in grid.links(a) {
+                    if grid.plans(a, b) && !shut(b) && open(b) && seen.insert(b) {
+                        queue.push_back((b, d + grid.position(b).distance_xz(at)));
+                    }
                 }
             }
+            outs
+        };
+        let mut ceiling = if self.escape_ceiling { start_hit } else { f32::INFINITY };
+        let mut outs = search(&open_under(ceiling));
+        if outs.is_empty() && ceiling.is_finite() {
+            ceiling = f32::INFINITY;
+            outs = search(&open_under(ceiling));
         }
         let nearest = outs.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1));
         // Out of a spawn area (no zone there): the nearest way, as ever.
@@ -1173,7 +1213,46 @@ impl Tactics {
         #[cfg(test)]
         escapes::count(out.is_some(), out.is_some() && out != nearest.map(|n| n.0));
         let out = out.or_else(|| self.exit_of(from))?;
-        path::plan_where(grid, from, out, |n| !shut(n))
+        let open = open_under(ceiling);
+        let route = path::plan_where(grid, from, out, |n| !shut(n) && open(n))
+            .or_else(|| path::plan_where(grid, from, out, |n| !shut(n)));
+        #[cfg(test)]
+        if let Some(route) = &route {
+            self.count_escape_route(route, from, time, side, objective);
+        }
+        route
+    }
+
+    /// The bench's counts of what a way out passes ([`escapes::counts`]): a
+    /// zone stronger than the one it starts in (sampled every half metre
+    /// along the route), and a drop that lands on a floor a zone marks.
+    #[cfg(test)]
+    fn count_escape_route(
+        &self,
+        route: &Route,
+        from: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+    ) {
+        let grid = &self.world.grid;
+        let start_hit = self.hazards.hit_per_s(from).min(ESCAPE_HIT_CAP);
+        let bad = |n: NodeId| {
+            self.hazards.set_of(n) != 0
+                && !self.allowed(n, time, side, objective)
+                && self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) > start_hit + 1e-6
+        };
+        let mut s = 0.0;
+        let mut crossed = false;
+        while s <= route.length() {
+            crossed |= grid.locate(route.point_at(s), 1.0).is_some_and(bad);
+            s += 0.5;
+        }
+        let dropped = route
+            .points()
+            .windows(2)
+            .any(|w| w[0].at.y - w[1].at.y >= 1.0 && bad(w[1].node));
+        escapes::count_route(crossed, dropped);
     }
 
     /// The floor no zone marks that the exit field leads to from `from`, a
@@ -1733,15 +1812,23 @@ fn line_ends(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<(NodeId, NodeId)> {
 pub mod escapes {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+
+    /// A way out passed a stronger zone than its start's, or dropped onto a
+    /// floor a zone marks.
+    pub fn count_route(crossed: bool, dropped: bool) {
+        COUNTS[3].fetch_add(u64::from(crossed), Ordering::Relaxed);
+        COUNTS[4].fetch_add(u64::from(dropped), Ordering::Relaxed);
+    }
 
     pub fn count(found: bool, on: bool) {
         let k = if !found { 2 } else { usize::from(on) };
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// (back the nearest way, on toward the goal, none in the search).
-    pub fn counts() -> [u64; 3] {
+    /// (back the nearest way, on toward the goal, none in the search, over
+    /// a stronger zone, a drop onto a zone's floor).
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2027,6 +2114,118 @@ pub(super) mod tests {
 
     fn end_node_y(tactics: &Tactics, node: NodeId) -> f32 {
         tactics.world.grid.position(node).y
+    }
+
+    /// A box zone on the flat field of [`field_with`] that always hits
+    /// `per_s` of a body's health a second (a continuous hit on two parts).
+    fn box_zone(name: &str, centre: Vec3, half: Vec3, per_s: f32) -> mapdata::Zone {
+        use mapdata::{Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        Zone {
+            kind: ZoneKind::Damage,
+            name: name.into(),
+            team: -1,
+            position: centre,
+            damage_type: "fire".into(),
+            damage: Some(mapdata::Damage {
+                max_hit: per_s / 2.0,
+                parts: 2,
+                continuous: true,
+                ..mapdata::Damage::default()
+            }),
+            shapes: vec![Shape {
+                kind: ShapeKind::Box,
+                center: Vec3::new(centre.x, 1.0, centre.z),
+                rotation: Rotation::IDENTITY,
+                half,
+            }],
+        }
+    }
+
+    /// The hit a second of the zones on the floor a point of `route` is on.
+    fn hits_along(tactics: &Tactics, route: &Route) -> Vec<f32> {
+        let grid = &tactics.world.grid;
+        let mut hits = Vec::new();
+        let mut s = 0.0;
+        while s <= route.length() {
+            if let Some(node) = grid.locate(route.point_at(s), 1.0) {
+                hits.push(tactics.hazards.hit_per_s(node));
+            }
+            s += 0.5;
+        }
+        hits
+    }
+
+    /// From a mild zone the way out costs what it takes: not the nearest
+    /// way, over a strong zone beside it, but the longer way out round it
+    /// (the 0.90 stretch: a way out of a mild zone led down into a strong
+    /// one).
+    #[test]
+    fn a_way_out_of_a_mild_zone_does_not_cross_a_strong_one() {
+        let world = field_with(|map| {
+            // The mild zone x 8-20, z 0-20, the strong one x 20-24 on its east
+            // side: out east is the nearest (8.5 m) but 4 m of it in the strong
+            // zone; out west is 9.5 m, north or south 11 m, in the mild one.
+            map.zones.push(box_zone("mild", Vec3::new(14.0, 0.0, 10.0), Vec3::new(6.0, 3.0, 10.0), 0.02));
+            map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
+        });
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let inside = grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
+        assert!(!tactics.allowed(inside, 0, Some(0), false));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .unwrap();
+        let end = out.point_at(out.length());
+        assert!(end.x < 20.0, "not east through the strong zone: {end:?}");
+        let hits = hits_along(&tactics, &out);
+        assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
+    }
+
+    /// With the ceiling off (`escape_ceiling` false) the way out is the old one:
+    /// the nearest, east through the strong zone.
+    #[test]
+    fn with_the_ceiling_off_the_way_out_is_the_nearest() {
+        let world = field_with(|map| {
+            map.zones.push(box_zone("mild", Vec3::new(14.0, 0.0, 10.0), Vec3::new(6.0, 3.0, 10.0), 0.02));
+            map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
+        });
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        tactics.escape_ceiling = false;
+        let inside = world.grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .unwrap();
+        let end = out.point_at(out.length());
+        assert!(end.x > 24.0, "east, the nearest: {end:?}");
+    }
+
+    /// A body in a zone that every way out of crosses a stronger one of
+    /// still gets out, the cheapest way: the ceiling is lifted.
+    #[test]
+    fn a_body_shut_in_by_a_stronger_zone_still_walks_out_the_cheapest_way() {
+        let world = field_with(|map| {
+            map.zones.push(box_zone("weak", Vec3::new(12.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 2.0), 0.1));
+            // A ring of strong zones about it, close enough that no floor
+            // between is clear of both.
+            for (x, z, hx, hz) in [
+                (7.1, 10.0, 1.1, 5.0),
+                (16.9, 10.0, 1.1, 5.0),
+                (12.0, 12.9, 6.0, 1.1),
+                (12.0, 7.1, 6.0, 1.1),
+            ] {
+                map.zones.push(box_zone("ring", Vec3::new(x, 0.0, z), Vec3::new(hx, 3.0, hz), 0.8));
+            }
+        });
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let inside = grid.locate(Vec3::new(12.0, 0.0, 10.0), 1.0).unwrap();
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out, over the ring");
+        let end = out.point_at(out.length());
+        let end_node = grid.locate(end, 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false));
+        assert!(end.distance_xz(Vec3::new(12.0, 0.0, 10.0)) > 5.0, "{end:?}");
     }
 
     /// A body inside a zone (always on) has no route to anywhere, but a
