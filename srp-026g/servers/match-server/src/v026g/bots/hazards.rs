@@ -30,11 +30,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use mapdata::{Damage, NodeId, Shape, Vec3, WalkGrid, World, ZoneKind};
-use survarium::v026g::match_msgs::anomaly_fields::WorldField;
 
 use super::anomalies::{Anomalies, Control, Schedule, SyncReport};
 pub use super::live_zones::ZoneSet;
-use super::live_zones::FieldBoard;
+use super::live_zones::{FieldBoard, WorldField};
 
 /// A switching zone counts as on this long before it switches on and
 /// after it switches off, ms: the client's off-grid ticks (≤ 50 ms) and a
