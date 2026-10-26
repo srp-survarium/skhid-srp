@@ -103,8 +103,8 @@ mod motion;
 mod play;
 mod sense;
 mod team;
-mod unstick;
 mod traps;
+mod unstick;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
