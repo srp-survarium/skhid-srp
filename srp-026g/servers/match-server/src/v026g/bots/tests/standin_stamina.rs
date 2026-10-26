@@ -35,7 +35,11 @@
 //! counts stay at zero.
 
 use survarium::v026g::bot_skills;
-use survarium::v026g::loadouts::{BotRole, BotTier, bot_kits};
+use survarium::v026g::loadouts::BotEquipment;
+use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::loadouts::BotTier;
+use survarium::v026g::loadouts::RusherKits;
+use survarium::v026g::loadouts::bot_kits;
 use survarium::v026g::skills::modifier_index;
 
 use crate::v026g::bots::guns::Arms;
@@ -90,10 +94,11 @@ impl Rates {
     /// the camper's first), else [`Rates::LIGHT`].
     pub(crate) fn of(tier: BotTier, item: &str) -> Self {
         let roles = [BotRole::Camper, BotRole::Flanker, BotRole::Support, BotRole::Rusher];
+        let equipment = BotEquipment::of(tier, RusherKits::default());
         for role in roles {
-            let kits = bot_kits(tier, role);
+            let kits = bot_kits(equipment, role);
             for (k, kit) in kits.iter().enumerate() {
-                if Arms::of_kit(tier, role, k).is_none_or(|arms| arms.primary.0.item != item) {
+                if Arms::of_kit(equipment, role, k).is_none_or(|arms| arms.primary.0.item != item) {
                     continue;
                 }
                 let modifiers = bot_skills::bot_modifiers(&kits);
@@ -419,7 +424,7 @@ mod tests {
     fn the_bots_kits_have_rates_and_none_is_overburdened() {
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
-                for arms in Arms::kits_of(tier, role) {
+                for arms in Arms::kits_of(BotEquipment::of(tier, RusherKits::default()), role) {
                     let rates = Rates::of(tier, arms.primary.0.item);
                     assert!(rates.can_sprint, "{tier:?} {role:?}");
                     // 5 a second at the lightest, 2.5 times at the capacity, less the skills.
