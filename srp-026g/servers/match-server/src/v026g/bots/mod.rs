@@ -72,6 +72,8 @@ pub mod tuning;
 pub mod view;
 
 mod commander;
+#[cfg(test)]
+pub mod hold_trace;
 mod drive;
 mod facts;
 mod search;
@@ -621,6 +623,14 @@ impl Bot {
 
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
+        #[cfg(test)]
+        if let Some(a) = self.assignment.as_ref() {
+            let dist = match self.intent.go {
+                Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
+                _ => None,
+            };
+            hold_trace::ended(a.kind, a.target, now.saturating_sub(a.since), why, dist);
+        }
         if let Some(running) = self.running.take() {
             let kind = running.kind();
             self.last_ran.retain(|(k, _)| *k != kind);
@@ -725,6 +735,9 @@ pub struct Bots {
     /// The human routes of this map and mode (play 17), till the map is
     /// built and they are put on its floors.
     routes: Vec<routes::HumanRoute>,
+    /// The humans' perches of the match's map and their share of time
+    /// (V-S2b), till the tactics are built.
+    perches: (Vec<routes::Perch>, Option<routes::PerchShare>),
     /// The map's bushes a sight line crosses (`foliage.rs`), till the map is built.
     foliage: foliage::Foliage,
     /// This poll's route searches ([`Searching`]).
@@ -799,6 +812,7 @@ impl Bots {
             #[cfg(test)]
             bench_camper: None,
             routes: Vec::new(),
+            perches: (Vec::new(), None),
             foliage: foliage::Foliage::none(),
             weapons: Vec::new(),
             searching: Searching {
@@ -904,6 +918,8 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
+        let (perches, share) = std::mem::take(&mut self.perches);
+        tactics.set_perches(perches, share);
         tactics.escape_ceiling = self.tuning.hazard.escape == tuning::EscapeRule::UnderStartZone;
         tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
@@ -945,6 +961,7 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.routes = table.for_map(self.level, self.mode);
+        self.perches = (table.perches_for(self.level), table.perch_share(self.level, self.mode));
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].

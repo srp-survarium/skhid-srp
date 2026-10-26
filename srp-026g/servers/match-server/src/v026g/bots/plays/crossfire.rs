@@ -270,7 +270,7 @@ fn is_fine(cx: &Ctx, choke: Vec3, apart: f32, others: &[(Place, Vec3)], at: Vec3
 
 /// A spot for the choke, `apart_deg` from every teammate in its ring.
 fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
-    let fine = fine_spots(cx, choke);
+    let fine = super::goals::perch_first(cx, choke, rng, fine_spots(cx, choke));
     // Among the best three, any (not always the best: hard to read).
     let n = fine.len().min(3);
     (n > 0).then(|| fine[rng.below(n)])

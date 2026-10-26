@@ -67,6 +67,33 @@ pub struct ThreatTuning {
 impl Default for ThreatTuning {
     fn default() -> Self {
         Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
+
+    }
+}
+
+/// The humans' perches in the hold plays (V-S2b, `plays::goals::perch_first`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PerchTuning {
+    /// A hold's spot pick may take a perch of the routes table; off, none.
+    pub on: bool,
+    /// The holds' share of a bot's time, GUESS from the live play mix
+    /// (27-63 %): the humans' share of time on perches over this is the
+    /// share of the holds' picks that take one.
+    pub hold_share: f32,
+    /// A multiplier on that share, for the bench to sweep (1: as designed).
+    pub p_scale: f32,
+    /// The most that share of picks may be.
+    pub p_max: f32,
+    /// A perch is taken at least this far from the anchor it holds, m, and at
+    /// most this far.
+    pub min_m: f32,
+    pub max_m: f32,
+}
+
+impl Default for PerchTuning {
+    fn default() -> Self {
+        Self { on: true, hold_share: 0.4, p_scale: 1.0, p_max: 0.5, min_m: 10.0, max_m: 45.0 }
     }
 }
 

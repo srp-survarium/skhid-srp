@@ -47,6 +47,7 @@ pub struct Tuning {
     pub threat: ThreatTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
+    pub perch: PerchTuning,
     pub grid: GridTuning,
     pub hazard: HazardTuning,
     pub personalities: Personalities,
@@ -89,6 +90,7 @@ pub use sense::SenseTuning;
 pub use team::AvoidTuning;
 pub use team::ModTuning;
 pub use team::Personalities;
+pub use team::PerchTuning;
 pub use team::Personality;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::ThinkTuning;

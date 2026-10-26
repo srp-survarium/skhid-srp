@@ -287,6 +287,22 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            if let Some(a) = bot.assignment.as_ref()
+                && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
+            {
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::dropped(
+                    a.kind,
+                    a.target,
+                    now.saturating_sub(a.since),
+                    &cx.drop_reason(a.kind, a.target),
+                    dist,
+                );
+            }
             // Collect's answers read, not asked again (`take_blocks`).
             blocks.push((bot.place, plays::collect::take_blocks(&cx, &candidates)));
             #[cfg(test)]
@@ -339,6 +355,35 @@ impl Bots {
                 && bot.assignment.as_ref().is_some_and(|a| a.slot.is_some())
             {
                 escape::counts::handed();
+            }
+            #[cfg(test)]
+            if let Some(old) = bot.assignment.as_ref() {
+                let incumbent = asked
+                    .iter()
+                    .find(|(p, _, _)| *p == place)
+                    .and_then(|(_, c, _)| c.iter().find(|c| c.kind == old.kind && c.target == old.target))
+                    .map(|c| (c.rank, c.score.get()));
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::switched(
+                    old.kind,
+                    old.target,
+                    now.saturating_sub(old.since),
+                    incumbent,
+                    assignment.kind,
+                    asked
+                        .iter()
+                        .find(|(p, _, _)| *p == place)
+                        .and_then(|(_, c, _)| {
+                            c.iter().find(|c| c.kind == assignment.kind && c.target == assignment.target)
+                        })
+                        .map(|c| c.rank),
+                    assignment.score,
+                    assignment.reason,
+                    dist,
+                );
             }
             // The new play starts.
             bot.give_way(assignment.kind, now);
