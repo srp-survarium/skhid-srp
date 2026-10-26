@@ -718,6 +718,16 @@ pub fn self_kill_step(
     }
 }
 
+/// What a note's text says without the evidence tags the notes above end with (they are for the reader of the log,
+/// not decisions: the bench's decision digest leaves them out).
+pub fn without_evidence(text: &str) -> &str {
+    [" [meant ", " [fix gap ", " [beside "]
+        .iter()
+        .filter_map(|tag| text.find(tag))
+        .min()
+        .map_or(text, |at| &text[..at])
+}
+
 /// The note of how far a stuck body's keys meant to move it, when the reckoned watch told (not the held keys alone).
 pub fn meant_note(by_keys: bool, meant: Option<f32>) -> String {
     if by_keys {
@@ -786,6 +796,16 @@ mod tests {
     /// searches for as long as the motor refuses the jump, and a floor within
     /// the motor's "same jump" of it is shut with it; no other floor, nor
     /// after the lockout.
+    #[test]
+    fn the_evidence_tags_of_a_note_are_cut_off() {
+        let plain = "is stuck at [1.0, 0.0, 2.0]: BackOff";
+        assert_eq!(without_evidence(plain), plain);
+        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m]");
+        assert_eq!(without_evidence(&tagged), plain);
+        let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
+        assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
+    }
+
     #[test]
     fn a_failed_jumps_landing_is_shut_for_the_motors_lockout() {
         let (take_off, landing) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 1.0, 1.5));
