@@ -637,7 +637,7 @@ mod tests {
             at: Vec3::new(0.0, 0.0, z),
             time: 600,
         };
-        let view = |sounds: Vec<Sound>| view(vec![place(0, 0, Vec3::ZERO, 0.0), place(1, 1, Vec3::new(0.0, 0.0, 50.0), 0.0)], sounds);
+        let view = |sounds: Vec<Sound>| view(vec![place(0, 0, Vec3::ZERO, 0.0), place(1, 1, Vec3::new(0.0, 0.0, -50.0), 0.0)], sounds);
         let game = HearingRanges::Game { crouch_step_m: 4.5 };
         let heard = |ranges, kind, z| !heard_by(ranges, 1.25, &view(vec![sound(kind, z)]), &[1]).is_empty();
         // A sprint at 16.5 m is heard (15 x 1.25 = 18.75 flat, 17 under the game's), one at 17.5 only flat.
