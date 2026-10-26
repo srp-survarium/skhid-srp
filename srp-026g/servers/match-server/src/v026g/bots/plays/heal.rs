@@ -255,7 +255,7 @@ pub fn choose_of<'a>(
     heal: &HealTuning,
     now: u32,
 ) -> Option<(&'a Held, f32)> {
-    let w = &heal.weights;
+    let w = &heal.weights_in_use();
     let total = |held: &Held| {
         let it = item(held.drug);
         it.delay_s + it.active_s
@@ -931,5 +931,100 @@ mod tests {
         assert!(heals(&s).is_none(), "the reflex presses, no play is taken");
         s.tuning.heal.interrupt = false;
         assert!(heals(&s).is_some());
+    }
+
+    /// A kit as the owner's: two medkits (quick use 1) and two bandages (quick use 2), all in hand.
+    fn kit_with_bandages() -> Pantry {
+        let mut pantry = Pantry::standard();
+        pantry.read(
+            1_000,
+            &Readings {
+                kit: 0,
+                kits: 1,
+                alive: true,
+                drugs: [(Drug::Medkit, 0), (Drug::Bandages, 1)]
+                    .into_iter()
+                    .map(|(drug, quick)| Reading {
+                        kit: 0,
+                        drug,
+                        quick,
+                        slot: 2,
+                        in_use: true,
+                        in_hand: Some(2),
+                        stored: 0,
+                    })
+                    .collect(),
+            },
+        );
+        pantry
+    }
+
+    fn bandage_habit(on: bool) -> HealTuning {
+        HealTuning {
+            bandages: on,
+            ..self::on()
+        }
+    }
+
+    fn pools(body: f32, pain: f32) -> Pools {
+        Pools {
+            body,
+            pain,
+            ..Pools::FULL
+        }
+    }
+
+    #[test]
+    fn the_bandage_habit_is_off_by_default_and_a_low_pain_pool_alone_is_never_a_need() {
+        let defaults = HealTuning::default();
+        assert!(!defaults.bandages, "merged switched off");
+        assert_eq!(defaults.weights_in_use(), defaults.weights);
+        assert_eq!(bandage_habit(true).weights_in_use().pain, 0.4);
+        assert_eq!(bandage_habit(true).weights_in_use().body, defaults.weights.body);
+        let pantry = kit_with_bandages();
+        // The rework on, the bandage habit off: a body whole with a pain pool at 0.3 wishes nothing.
+        assert_eq!(
+            wish(Some(pools(1.0, 0.3)), 1.0, 10_000, false, &pantry, &bandage_habit(false), 10_000),
+            None
+        );
+    }
+
+    #[test]
+    fn with_the_bandage_habit_on_a_low_pain_pool_alone_wishes_the_bandages_key() {
+        let pantry = kit_with_bandages();
+        let heal = bandage_habit(true);
+        // A body whole, the pain at 0.5: the bandages (quick use 2), a walk of the 1 s delay.
+        let w = wish(Some(pools(1.0, 0.5)), 1.0, 10_000, false, &pantry, &heal, 10_000).expect("pain 0.5");
+        assert_eq!(w.key, key::QUICK[1]);
+        assert_eq!(w.reach_m, 3.5);
+        // The pain at 0.7 is not low: nothing. A carrier: nothing.
+        assert_eq!(wish(Some(pools(1.0, 0.7)), 1.0, 10_000, false, &pantry, &heal, 10_000), None);
+        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, true, &pantry, &heal, 10_000), None);
+        // A kit without bandages (the tip's): a low pain pool wishes nothing, the habit on or not.
+        let mut medkits_only = Pantry::standard();
+        medkits_only.new_life(0);
+        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, false, &medkits_only, &heal, 10_000), None);
+    }
+
+    #[test]
+    fn a_hurt_body_with_a_low_pain_pool_uses_the_medkit_and_the_bandages_and_is_not_answered_twice() {
+        let mut pantry = kit_with_bandages();
+        let heal = bandage_habit(true);
+        // The world shows the same pools throughout (the bot's own presses are projected): the medkit and the bandages go
+        // out in the first two asks, 100 ms apart, and nothing a third time: one hurt is not answered twice.
+        let mut keys = Vec::new();
+        for step in 0..3 {
+            let now = 10_000 + step * 100;
+            let got = wish(Some(pools(0.4, 0.4)), 0.4, 10_000, false, &pantry, &heal, now);
+            if let Some(w) = got {
+                let quick = key::QUICK.iter().position(|&k| k == w.key).expect("a quick key");
+                assert!(pantry.pressed(quick, now));
+                keys.push(w.key);
+            } else {
+                assert_eq!(step, 2, "the third ask is the empty one");
+            }
+        }
+        keys.sort_unstable();
+        assert_eq!(keys, [key::QUICK[0], key::QUICK[1]], "the medkit and the bandages, once each");
     }
 }

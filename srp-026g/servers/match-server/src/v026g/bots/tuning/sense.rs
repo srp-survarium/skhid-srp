@@ -45,6 +45,15 @@ pub struct SenseTuning {
     /// within reach engaged within 1 s rose 8.6 ± 2.5 points a seed.
     pub step_m: f32,
     pub step_speed: f32,
+    /// The sprint sound follows the body (H1a). `None` (the default, off): a
+    /// bot or player holding SPRINT and FORWARD makes the sprint sound, as it
+    /// was. `Some(m/s)`: only when the body also moves that fast, so a body
+    /// the client keeps out of the sprint state (`base_player::can_sprint`
+    /// 0x2DBF40: a battery in hand, overburdened, low stamina) is heard as
+    /// the walking step it plays (3.5 m/s walk, 5.0 sprint, `kin`; the gap
+    /// between them is the threshold). PROVEN rule, the threshold a GUESS in
+    /// 4.25 (the middle) to 4.6; a body slowed by its kit can sprint under it.
+    pub sprint_body_mps: Option<f32>,
     /// A heard position's error per metre of distance.
     pub heard_error: f32,
     /// What one bot senses its teammates know this much later, ms.
@@ -87,6 +96,7 @@ impl Default for SenseTuning {
             use_m: 8.0,
             step_m: 8.0,
             step_speed: 1.5,
+            sprint_body_mps: None,
             heard_error: 0.15,
             callout_ms: 1_000,
             forget_ms: 3_000,
@@ -148,5 +158,6 @@ pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
         "sense.notice_*_ms",
     )?;
     check(sense.bush_notice >= 0.0 && sense.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
+    check(sense.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
     Ok(())
 }
