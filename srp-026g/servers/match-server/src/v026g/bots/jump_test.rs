@@ -55,7 +55,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use mapdata::Vec3;
+use mapdata::{Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
@@ -70,12 +70,13 @@ use crate::v026g::drive::key;
 
 /// Worlds are asked for this often around a try, ms (`SRP_JUMP_TEST_BURST_MS`).
 const BURST_MS: u32 = 120;
-/// The settle: still, facing the heading, at least this long, ms.
+/// The settle: still, facing the heading, at least this long, ms (a sprint try rests
+/// [`REST_BEFORE_SPRINT_MS`]: the walk to the start was at a run).
 const SETTLE_MS: u32 = 1_200;
 /// The settle is given up after this long, ms (the try is redone from Go).
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
-const GO_MAX_MS: u32 = 90_000;
+const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
 const ARRIVED_M: f32 = 0.6;
 /// Worlds are recorded this long after the press, ms.
@@ -92,10 +93,26 @@ const REST_BEFORE_SPRINT_MS: u32 = 3_000;
 const ROWS_KEPT: usize = 900;
 /// A request not answered after this long is forgotten, ms.
 const OUTSTANDING_MS: u32 = 600;
+/// An upload that took longer than this (ms) makes the next request wait as long again.
+const SLOW_UPLOAD_MS: u32 = 250;
 /// A motor-driven try is given up after this long on its way to the top, ms.
 const MOTOR_MAX_MS: u32 = 25_000;
+/// A ledge within this of one whose start was not reached is given up with it, m.
+const BAD_SITE_M: f32 = 1.0;
 /// How far past the face, along its normal, a motor-driven try's top point is, m.
 const TOP_BEYOND_M: f32 = 1.2;
+/// The respawn delay of every mode's config (`respawn_time`), ms (`docs/notes/modes_maps.md`).
+const RESPAWN_MS: f32 = 8_000.0;
+/// The sprint speed of the budget's straight walk from a spawn, m/s (the `Kinematics` default), and the
+/// slack on it (the route is longer than the line, and the walk is slower than a sprint).
+const SPRINT_MPS: f32 = 5.0;
+const BUDGET_SLACK: f32 = 1.3;
+/// The suicide bit is sent this many ticks.
+const SUICIDE_TICKS: u32 = 3;
+/// A bot still alive this long after the suicide bit goes on walking, ms.
+const SUICIDE_WAIT_MS: u32 = 1_500;
+/// The keys a bot of the test may press: walking, sprinting, crouching and jumping.
+const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT | key::SUICIDE;
 
 /// One row of a world: what the owner's client says of one body at one tick.
 #[derive(Clone, Debug, PartialEq)]
@@ -151,6 +168,8 @@ type SiteRow = (&'static str, [f32; 3], [f32; 2], f32, f32, f32);
 /// The sites of `grid-record.md` J0 section 2: name, deck floor, direction to the ledge, rise, face
 /// distance (half the gap to the lip). `gridtool ledges` of the F1 branch's grid.
 pub const SITES: &[SiteRow] = &[
+    // chem125a/b/c and vect090a: UNREACHABLE (no path from any spawn, found 2026-10-26; `gridtool ledges` now
+    // prints `reach`): kept for the tests' geometry only.
     ("chem125a", [-78.9, 4.35, 47.1], [0.0, -1.0], 1.259, 0.25, 6.10),
     ("chem125b", [-79.9, 4.35, 70.4], [0.0, 1.0], 1.274, 0.25, 5.00),
     ("chem125c", [-84.9, 4.35, 58.9], [-1.0, 0.0], 1.259, 0.25, 11.75),
@@ -232,6 +251,8 @@ pub struct TryDef {
     pub speed: Speed,
     pub mid: Mid,
     pub repeat: u32,
+    /// How many times the bot killed itself on the way to this try's start (one at most).
+    pub suicides: u8,
 }
 
 fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
@@ -333,6 +354,7 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
             },
             mid: parse_mid(f[8]).map_err(fail)?,
             repeat: f[9].parse().map_err(|e| fail(format!("repeat {:?}: {e}", f[9])))?,
+            suicides: 0,
         });
     }
     Ok(tries)
@@ -587,8 +609,34 @@ impl Plan {
     }
 }
 
+/// How long a walk to a start may take before the bot does better to die and respawn: the respawn
+/// delay plus a sprint over the straight line from the nearest spawn of its team to the start, with
+/// slack, ms.
+fn budget_ms(spawn_to_start_m: f32) -> u32 {
+    (RESPAWN_MS + spawn_to_start_m / SPRINT_MPS * BUDGET_SLACK * 1_000.0) as u32
+}
+
+/// [`budget_ms`] for a team's bot and the start of `def`.
+fn suicide_budget_ms(world: &World, team: u8, def: &TryDef) -> u32 {
+    let start = start_of(def);
+    let nearest = |own: bool| {
+        world
+            .map
+            .spawns
+            .iter()
+            .filter(|s| !own || s.team == i32::from(team))
+            .map(|s| s.position.distance_xz(start))
+            .fold(f32::MAX, f32::min)
+    };
+    let own = nearest(true);
+    budget_ms(if own < f32::MAX { own } else { nearest(false) })
+}
+
 #[derive(Clone, Debug)]
 enum Phase {
+    /// The bit of the suicide is sent; the next world should show the body dead. The walk had taken
+    /// `walked_ms` of its `budget_ms`.
+    Suicide { since: u32, walked_ms: u32, budget_ms: u32 },
     /// Walking to the start by the ordinary route.
     Go { since: u32 },
     /// Standing still facing the heading.
@@ -617,6 +665,9 @@ struct Active {
     /// Motor-driven tries: each press the motor made, and whether the top was reached.
     presses: Vec<serde_json::Value>,
     reached: Option<bool>,
+    /// The team of the bot working it (enemies collide, teammates pass through each other: a ledge takes
+    /// one team's tries at a time).
+    team: u8,
 }
 
 #[derive(Default)]
@@ -636,6 +687,8 @@ pub struct JumpTest {
     runners: HashMap<Place, Runner>,
     /// The tries of any bot, with repeats left, in file order.
     pool: VecDeque<TryDef>,
+    /// Ledges whose start no bot reached twice: no try is taken on them (their base, before any lane).
+    bad_sites: Vec<Vec3>,
     /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
     idle_others: bool,
     /// At most this many tries under way at once (`SRP_JUMP_TEST_MAX_ACTIVE`).
@@ -649,6 +702,10 @@ pub struct JumpTest {
     table: RunTable,
     rows: HashMap<Place, VecDeque<Row>>,
     tries_log: Option<fs::File>,
+    /// Every alive body of every world (place, x, y, z): who stood near a runner.
+    bodies_log: Option<fs::File>,
+    /// After a slow upload the next request waits this long at least, ms.
+    backoff_ms: u32,
     worlds_log: Option<fs::File>,
     /// The last world request and whether it is answered; upload times of the burst.
     last_request: Option<u32>,
@@ -689,6 +746,7 @@ impl JumpTest {
             modified: None,
             runners: HashMap::new(),
             pool: VecDeque::new(),
+            bad_sites: Vec::new(),
             idle_others: true,
             max_active: usize::MAX,
             done: HashMap::new(),
@@ -697,6 +755,8 @@ impl JumpTest {
             table: RunTable::default(),
             rows: HashMap::new(),
             tries_log: None,
+            bodies_log: None,
+            backoff_ms: 0,
             worlds_log: None,
             last_request: None,
             outstanding: None,
@@ -770,6 +830,7 @@ impl JumpTest {
                         }
                     }
                 }
+                pool.retain(|d| self.bad_sites.iter().all(|bad| base_of(d).distance_xz(*bad) > BAD_SITE_M));
                 self.pool = pool;
                 for (place, runner) in &mut self.runners {
                     runner.pending = by_bot.remove(place).unwrap_or_default();
@@ -780,6 +841,7 @@ impl JumpTest {
                 if self.tries_log.is_none() {
                     self.tries_log = self.open("tries");
                     self.worlds_log = self.open("worlds");
+                    self.bodies_log = self.open("bodies");
                 }
             }
         }
@@ -801,18 +863,18 @@ impl JumpTest {
 
     /// The next pool try a free bot can take: the first with a free lane on its face (the lane is set
     /// and the site shifted along the face); a try whose faces are all taken waits.
-    fn take_from_pool(&mut self) -> Option<TryDef> {
-        let taken: Vec<(Vec3, f32)> = self
+    fn take_from_pool(&mut self, team: u8) -> Option<TryDef> {
+        let taken: Vec<(Vec3, f32, u8)> = self
             .runners
             .values()
             .filter_map(|r| r.active.as_ref())
-            .map(|a| (base_of(&a.def), a.def.lane))
+            .map(|a| (base_of(&a.def), a.def.lane, a.team))
             .collect();
         let (index, lane) = self
             .pool
             .iter()
             .enumerate()
-            .find_map(|(i, def)| free_lane(def, &taken).map(|lane| (i, lane)))?;
+            .find_map(|(i, def)| free_lane(def, &taken, team).map(|lane| (i, lane)))?;
         let mut def = self.pool[index].clone();
         self.pool[index].repeat -= 1;
         if self.pool[index].repeat == 0 {
@@ -825,6 +887,15 @@ impl JumpTest {
         Some(def)
     }
 
+    /// Only the keys of moving for a bot of the test (and for the others while they rest): whatever the
+    /// ordinary drive decided while the bot walked to a start (its reflex aims and fires at anyone in
+    /// sight), nothing is fired, aimed, thrown, used, dropped or switched.
+    pub fn quiet(&self, place: Place, decision: &mut Decision) {
+        if self.runners.contains_key(&place) || self.idle_others {
+            decision.keys &= MOVING_KEYS;
+        }
+    }
+
     /// Whether this bot's place is in the test.
     pub fn owns(&self, place: Place) -> bool {
         self.runners.contains_key(&place)
@@ -832,7 +903,7 @@ impl JumpTest {
 
     /// The think of a bot in the mode: the intent (a walk to the start while going, else standing).
     /// Returns whether the bot is the test's.
-    pub fn think(&mut self, bot: &mut Bot, view: &MatchView) -> bool {
+    pub fn think(&mut self, bot: &mut Bot, view: &MatchView, world: &World) -> bool {
         self.reload();
         let now = view.clock;
         if !self.runners.contains_key(&bot.place) {
@@ -848,7 +919,7 @@ impl JumpTest {
         let free = self.runners.get(&bot.place).is_some_and(|r| r.active.is_none() && r.pending.is_empty());
         if free
             && self.active_count() < self.max_active
-            && let Some(def) = self.take_from_pool()
+            && let Some(def) = self.take_from_pool(bot.team)
             && let Some(runner) = self.runners.get_mut(&bot.place)
         {
             runner.pending.push_back(def);
@@ -859,6 +930,12 @@ impl JumpTest {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             // Dead: the try is lost with the life; it is redone from the start.
             if let Some(active) = runner.active.take() {
+                if let Phase::Suicide { walked_ms, budget_ms, .. } = active.phase {
+                    let line = serde_json::json!({
+                        "id": active.def.id, "bot": bot.place, "team": active.team, "suicide": true, "elapsed_ms": walked_ms, "budget_ms": budget_ms,
+                    });
+                    Self::line(&mut self.tries_log, &line);
+                }
                 let def = TryDef { repeat: 1, ..active.def };
                 runner.pending.push_front(def);
             }
@@ -881,15 +958,24 @@ impl JumpTest {
                 *started += 1;
                 *started
             };
-            let sprints = matches!(def.speed, Speed::Sprint | Speed::MotorRun);
-            let rest = if sprints { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
-            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None });
+            let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
+            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
         }
         let Some(active) = runner.active.as_mut() else {
             return true;
         };
         let start = start_of(&active.def);
         match &mut active.phase {
+            Phase::Suicide { since, walked_ms, budget_ms } => {
+                if now > *since + SUICIDE_WAIT_MS {
+                    // Still alive (a helmet took the hit): no second try, the bot walks.
+                    let line = serde_json::json!({
+                        "id": active.def.id, "bot": bot.place, "team": active.team, "suicide_failed": true, "elapsed_ms": *walked_ms, "budget_ms": *budget_ms,
+                    });
+                    Self::line(&mut self.tries_log, &line);
+                    active.phase = Phase::Go { since: now };
+                }
+            }
             Phase::Rest { until } => {
                 if now >= *until {
                     active.phase = Phase::Go { since: now };
@@ -913,13 +999,33 @@ impl JumpTest {
                     } else {
                         Phase::Settle { since: now, asked: false }
                     };
+                } else if active.def.suicides == 0 && now - *since > 8_000 && now - *since > suicide_budget_ms(world, bot.team, &active.def) {
+                    // The walk takes longer than dying and walking from a spawn: once.
+                    let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def));
+                    active.def.suicides += 1;
+                    active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
-                    *since = now;
+                    active.redone += 1;
+                    if active.redone >= 2 {
+                        // Not reached twice: the try is void, and so is every try on that ledge.
+                        let line = serde_json::json!({
+                            "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start not reached",
+                            "start": start.to_array(), "from": me.feet.to_array(),
+                        });
+                        Self::line(&mut self.tries_log, &line);
+                        *self.done.entry(active.def.id.clone()).or_default() += 1;
+                        let bad = base_of(&active.def);
+                        forget_site(&mut self.pool, &mut self.bad_sites, bad);
+                        runner.pending.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
+                        runner.active = None;
+                    } else {
+                        *since = now;
+                    }
                 } else {
                     bot.intent = Intent {
                         go: Go::To { at: start, within_m: 0.3 },
-                        pace: Pace::Walk,
+                        pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
                         fire: false,
                         ..Intent::stay()
                     };
@@ -956,13 +1062,17 @@ impl JumpTest {
         let me = view.place(bot.place).filter(|p| p.alive)?;
         match &mut active.phase {
             Phase::Rest { .. } => Some(Decision::default()),
+            Phase::Suicide { since, .. } => Some(Decision {
+                keys: if time >= *since && time < *since + SUICIDE_TICKS * TICK_MS { key::SUICIDE } else { 0 },
+                turn: (0.0, 0.0),
+            }),
             Phase::Go { .. } | Phase::Motor { .. } => None,
             Phase::Settle { since, asked } => {
                 let heading = heading_of(&active.def);
                 let turn = wrap(heading - me.yaw).clamp(-0.35, 0.35);
                 let elapsed = time.saturating_sub(*since);
                 // Worlds while still, from 0.4 s on.
-                if elapsed >= 400 {
+                if elapsed >= 600 {
                     *asked = true;
                 }
                 // The rest position: the last world of this place at rest, after the settle began.
@@ -973,7 +1083,7 @@ impl JumpTest {
                         .cloned()
                 });
                 if let Some(row) = rest
-                    && elapsed >= SETTLE_MS
+                    && elapsed >= if active.def.speed == Speed::Sprint { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
                     match plan_from(&active.def, row.feet, row.yaw, first, &self.table) {
@@ -987,7 +1097,7 @@ impl JumpTest {
                                 active.phase = Phase::Go { since: now };
                             } else {
                                 let line = serde_json::json!({
-                                    "id": active.def.id, "n": active.n, "bot": bot.place, "void": "start does not fit",
+                                    "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start does not fit",
                                     "rest": row.feet.to_array(),
                                 });
                                 Self::line(&mut self.tries_log, &line);
@@ -1017,7 +1127,7 @@ impl JumpTest {
                 if time >= *until {
                     let plan = plan.clone();
                     let def = active.def.clone();
-                    let (n, began, redone) = (active.n, active.began, active.redone);
+                    let (n, began, redone, team) = (active.n, active.began, active.redone, active.team);
                     let motor = def.speed.is_motor().then(|| {
                         serde_json::json!({
                             "route_end": top_of(&def).to_array(), "reached": active.reached,
@@ -1026,8 +1136,11 @@ impl JumpTest {
                     });
                     let place = bot.place;
                     let mut line = self.summary(place, &def, n, &plan, began, redone);
-                    if let (Some(motor), Some(obj)) = (motor, line.as_object_mut()) {
-                        obj.insert("motor".into(), motor);
+                    if let Some(obj) = line.as_object_mut() {
+                        obj.insert("team".into(), team.into());
+                        if let Some(motor) = motor {
+                            obj.insert("motor".into(), motor);
+                        }
                     }
                     Self::line(&mut self.tries_log, &line);
                     *self.done.entry(def.id.clone()).or_default() += 1;
@@ -1077,7 +1190,8 @@ impl JumpTest {
         {
             self.outstanding = None;
         }
-        if self.outstanding.is_some() || self.last_request.is_some_and(|at| clock < at + self.burst_ms) {
+        let gap = self.burst_ms.max(self.backoff_ms);
+        if self.outstanding.is_some() || self.last_request.is_some_and(|at| clock < at + gap) {
             return false;
         }
         let active = self.runners.values().filter_map(|r| r.active.as_ref()).any(|a| match &a.phase {
@@ -1103,6 +1217,16 @@ impl JumpTest {
         let burst = self.outstanding.take().is_some();
         if let Some(sent) = self.last_request {
             self.uploads.push((sent, clock, bytes));
+            let took = clock.saturating_sub(sent);
+            self.backoff_ms = if took > SLOW_UPLOAD_MS { took } else { 0 };
+        }
+        if self.bodies_log.is_some() {
+            let alive: Vec<serde_json::Value> = rows
+                .iter()
+                .filter(|r| r.alive)
+                .map(|r| serde_json::json!([r.place, (r.feet.x * 100.0).round() / 100.0, (r.feet.y * 100.0).round() / 100.0, (r.feet.z * 100.0).round() / 100.0]))
+                .collect();
+            Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
@@ -1127,6 +1251,12 @@ impl JumpTest {
     }
 }
 
+/// Gives a ledge up: its tries leave the pool and no later one is taken.
+fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3) {
+    bad_sites.push(bad);
+    pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
+}
+
 /// The gap between two lanes of the same face, m.
 const LANE_GAP_M: f32 = 2.0;
 
@@ -1136,14 +1266,19 @@ fn base_of(def: &TryDef) -> Vec3 {
     Vec3::new(def.site.lower.x - perp[0] * def.lane, def.site.lower.y, def.site.lower.z - perp[1] * def.lane)
 }
 
-/// The nearest free lane for a try on its face, given the (face, lane) of the tries under way: 0,
+/// The nearest free lane for a try of `team` on its face, given the (face, lane, team) of the tries under
+/// way; none while the other team has a try on the face (enemies collide: a ledge and its lanes take one
+/// team at a time). Lanes: 0,
 /// then 2.5 m either side, and so on, as far as the ledge is wide minus what the approach drifts
 /// sideways; none when every lane of the face within reach is taken.
-fn free_lane(def: &TryDef, taken: &[(Vec3, f32)]) -> Option<f32> {
+fn free_lane(def: &TryDef, taken: &[(Vec3, f32, u8)], team: u8) -> Option<f32> {
     let drift = (def.runup + def.edge.max(0.0)) * def.angle.to_radians().sin().abs();
     let reach = def.site.half - 1.0 - drift;
     let base = base_of(def);
-    let busy = |lane: f32| taken.iter().any(|(b, l)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
+    if taken.iter().any(|(b, _, other)| *other != team && b.distance_xz(base) < 0.5) {
+        return None;
+    }
+    let busy = |lane: f32| taken.iter().any(|(b, l, _)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
     (0..)
         .map(|k| {
             let step = 2.5 * ((k + 1) / 2) as f32;
@@ -1235,6 +1370,10 @@ pub fn summarize(
     rows: &[&Row],
     uploads: &[(u32, u32, usize)],
 ) -> serde_json::Value {
+    // Worlds arrive out of order now and then (an older upload after a newer): by their own ticks.
+    let mut sorted: Vec<&Row> = rows.to_vec();
+    sorted.sort_by_key(|r| r.time);
+    let rows = &sorted[..];
     let t = def.site.toward;
     let a = approach(def);
     let [cx, cz] = def.site.centre();
@@ -1322,8 +1461,9 @@ pub fn summarize(
     }
     // Quality: the largest gap between worlds from 300 ms before the press to 2 s after it, and the
     // uploads' times of the burst.
-    let window: Vec<u32> = rows.iter().map(|r| r.time).filter(|&t| t + 300 >= from && t <= from + 2_000).collect();
-    let gap = window.windows(2).map(|w| w[1] - w[0]).max().unwrap_or(0);
+    let mut window: Vec<u32> = rows.iter().map(|r| r.time).filter(|&t| t + 300 >= from && t <= from + 2_000).collect();
+    window.sort_unstable();
+    let gap = window.windows(2).map(|w| w[1].saturating_sub(w[0])).max().unwrap_or(0);
     obj.insert("world_gap_ms".into(), gap.into());
     let times: Vec<u32> = uploads.iter().filter(|u| u.1 >= plan.first && u.1 <= from + RECORD_AFTER_MS).map(|u| u.1.saturating_sub(u.0)).collect();
     let bytes: Vec<usize> = uploads.iter().filter(|u| u.1 >= plan.first && u.1 <= from + RECORD_AFTER_MS).map(|u| u.2).collect();
@@ -1353,7 +1493,7 @@ mod tests {
     }
 
     fn def(edge: f32, angle: f32, face: Face, runup: f32, speed: Speed, mid: Mid) -> TryDef {
-        TryDef { id: "t".into(), who: Who::Bot(3), lane: 0.0, site: site(), edge, angle, face, runup, speed, mid, repeat: 1 }
+        TryDef { id: "t".into(), who: Who::Bot(3), lane: 0.0, site: site(), edge, angle, face, runup, speed, mid, repeat: 1, suicides: 0 }
     }
 
     #[test]
@@ -1373,7 +1513,57 @@ mod tests {
 
     fn wide_def(angle: f32, runup: f32) -> TryDef {
         let site = named_site("chem125c", &HashMap::new()).expect("a site");
-        TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3 }
+        TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3, suicides: 0 }
+    }
+
+    #[test]
+    fn a_bot_of_the_test_presses_no_fire_aim_grenade_or_use_while_it_walks() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        jt.runners.entry(3).or_default();
+        let noisy = key::FORWARD | key::SPRINT | key::FIRE | key::AIM | key::GRENADE | key::RELOAD | key::USE | key::DROP | key::SPOT | key::WEAPON_1 | key::QUICK[0];
+        let mut decision = Decision { keys: noisy, turn: (0.1, 0.0) };
+        jt.quiet(3, &mut decision);
+        assert_eq!(decision.keys, key::FORWARD | key::SPRINT);
+        assert_eq!(decision.turn, (0.1, 0.0));
+        // A bot of the match with no try rests: the same.
+        let mut other = Decision { keys: noisy, turn: (0.0, 0.0) };
+        jt.quiet(9, &mut other);
+        assert_eq!(other.keys, key::FORWARD | key::SPRINT);
+        // With the others allowed to play they keep their keys.
+        jt.idle_others = false;
+        let mut free = Decision { keys: noisy, turn: (0.0, 0.0) };
+        jt.quiet(9, &mut free);
+        assert_eq!(free.keys, noisy);
+        jt.quiet(3, &mut free);
+        assert_eq!(free.keys, key::FORWARD | key::SPRINT);
+    }
+
+    #[test]
+    fn the_budget_is_the_respawn_and_a_slack_sprint_from_the_nearest_spawn() {
+        assert_eq!(budget_ms(0.0), 8_000);
+        // 50 m at 5 m/s is 10 s, with the slack 13 s.
+        assert_eq!(budget_ms(50.0), 21_000);
+    }
+
+    #[test]
+    fn the_quiet_keys_let_the_suicide_through() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        jt.runners.entry(3).or_default();
+        let mut d = Decision { keys: key::SUICIDE | key::FIRE, turn: (0.0, 0.0) };
+        jt.quiet(3, &mut d);
+        assert_eq!(d.keys, key::SUICIDE);
+    }
+
+    #[test]
+    fn a_ledge_given_up_takes_all_its_pool_tries_with_it() {
+        let mut pool = VecDeque::from([wide_def(0.0, 5.5), TryDef { id: "q".into(), ..wide_def(30.0, 5.5) }]);
+        pool.push_back(TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) });
+        let mut bad = Vec::new();
+        let site = base_of(&pool[0]);
+        forget_site(&mut pool, &mut bad, site);
+        assert_eq!(pool.len(), 1);
+        assert_eq!(pool[0].site.name, "chem060a");
+        assert_eq!(bad.len(), 1);
     }
 
     #[test]
@@ -1391,30 +1581,35 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     fn lanes_on_a_wide_face_are_two_and_a_half_metres_apart_and_a_narrow_ledge_has_one() {
         let d = wide_def(0.0, 5.5);
         let base = base_of(&d);
-        assert_eq!(free_lane(&d, &[]), Some(0.0));
-        assert_eq!(free_lane(&d, &[(base, 0.0)]), Some(2.5));
-        assert_eq!(free_lane(&d, &[(base, 0.0), (base, 2.5)]), Some(-2.5));
+        assert_eq!(free_lane(&d, &[], 0), Some(0.0));
+        assert_eq!(free_lane(&d, &[(base, 0.0, 0)], 0), Some(2.5));
+        assert_eq!(free_lane(&d, &[(base, 0.0, 0), (base, 2.5, 0)], 0), Some(-2.5));
+        // The other team on the face locks it, whatever the lane.
+        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 0), None);
+        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 1), Some(0.0));
         // Another face is not in the way.
         let far = Vec3::new(base.x + 40.0, base.y, base.z);
-        assert_eq!(free_lane(&d, &[(far, 0.0)]), Some(0.0));
+        assert_eq!(free_lane(&d, &[(far, 0.0, 1)], 0), Some(0.0));
         // A 60 degree run-up drifts 4.8 m sideways: the lanes of a 12 m wall are one.
         let wall = TryDef { site: named_site("chem125a", &HashMap::new()).expect("a site"), ..wide_def(60.0, 5.5) };
-        assert_eq!(free_lane(&wall, &[]), Some(0.0));
-        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0)]), None);
+        assert_eq!(free_lane(&wall, &[], 0), Some(0.0));
+        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0, 0)], 0), None);
         // A 1.2 m ledge has no lane but the middle.
         let narrow = TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) };
-        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0)]), None);
+        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0, 0)], 0), None);
     }
 
     #[test]
     fn a_free_bot_takes_the_next_pool_try_on_a_free_lane_and_the_site_moves_along_the_face() {
         let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
         jt.pool.push_back(wide_def(0.0, 5.5));
-        let first = jt.take_from_pool().expect("a try");
+        let first = jt.take_from_pool(0).expect("a try");
         assert_eq!(first.lane, 0.0);
         assert_eq!(jt.pool[0].repeat, 2);
-        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None });
-        let second = jt.take_from_pool().expect("a try");
+        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        let second = jt.take_from_pool(0).expect("a try");
+        // An enemy bot finds the ledge locked.
+        assert!(jt.take_from_pool(1).is_none());
         assert_eq!(second.lane, 2.5);
         // The shift is along the face: chem125c faces -x, so the lane moves z.
         assert!((second.site.lower.x - first.site.lower.x).abs() < 1e-4);
@@ -1565,6 +1760,12 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert_eq!(v["jump_type"], 5);
         assert!(v["landed"].as_bool().unwrap());
         assert_eq!(v["burst"]["worlds"], 0);
+        // Worlds in the order they arrived, the newest first: the same result, and a small gap (not an underflow).
+        let mut shuffled: Vec<&Row> = up.iter().collect();
+        shuffled.reverse();
+        let v = summarize(&d, 1, 3, &plan, 0, 0, &shuffled, &[]);
+        assert_eq!(v["outcome"], "landed", "{v}");
+        assert!(v["world_gap_ms"].as_u64().unwrap() <= 1_200, "{v}");
         // Back down: up to the apex and onto the deck again, short of the face.
         let down: Vec<Row> = vec![
             row(press - 100, 4.35, 48.5, false, 0),
@@ -1589,7 +1790,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(!jt.wants_world(1_000), "no try, no request");
         let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
         let plan = plan_from(&d, Vec3::new(-78.9, 4.35, 51.15), heading_of(&d), 10_000, &RunTable::default()).unwrap();
-        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None });
+        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
         assert!(jt.wants_world(9_500));
         // One at a time: not again until answered or forgotten.
         assert!(!jt.wants_world(9_700));

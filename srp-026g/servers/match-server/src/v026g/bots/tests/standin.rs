@@ -362,6 +362,17 @@ pub(crate) fn soak_world() -> Arc<World> {
     soak_world_with(&[])
 }
 
+/// A container's use box as the maps have them: a metre over its use
+/// point (`Container::use_point`), about 2 m by 1.7 m by 1.3 m.
+pub(crate) fn use_box(position: Vec3) -> mapdata::Shape {
+    mapdata::Shape {
+        kind: mapdata::ShapeKind::Box,
+        center: position + USE_BOX_UP,
+        rotation: mapdata::Rotation::IDENTITY,
+        half: Vec3::new(1.0, 0.85, 0.65),
+    }
+}
+
 /// [`soak_world`] with `solids` (more triangles) in its geometry.
 pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
     super::tactics::tests::field_with_solids(solids, |map| {
@@ -369,7 +380,7 @@ pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
             position: Vec3::new(x, 0.0, z),
             team,
             id,
-            use_shapes: Vec::new(),
+            use_shapes: vec![use_box(Vec3::new(x, 0.0, z))],
         };
         map.containers = vec![container(0, 0, 12.0, 30.0), container(1, 1, 68.0, 30.0)];
         map.stations = vec![Vec3::new(40.0, 0.0, 33.0), Vec3::new(30.0, 0.0, 5.0)];
@@ -1105,6 +1116,28 @@ impl Game {
         (eye + dir * along - point).length()
     }
 
+    /// Whether the view's ray from `body`'s eye meets container `id`'s use
+    /// box by the game's rule: within the use's 2 m, nothing of the bullet
+    /// mesh short of it ([`mapdata::stands::ray_meets`]). A container with
+    /// no use box cannot be used.
+    pub(crate) fn uses_container_box(&self, body: &Body, id: usize) -> bool {
+        let Some(shape) = self
+            .world
+            .map
+            .containers
+            .iter()
+            .find(|c| c.id == id as i32)
+            .and_then(|c| c.use_shapes.first())
+        else {
+            return false;
+        };
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let dir = Vec3::new(fx * c, s, fz * c);
+        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape)
+    }
+
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up
     /// to it when [`Game::use_line`].
     pub(crate) fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
@@ -1167,7 +1200,7 @@ impl Game {
                     let was_putting = self.putting[place].is_some();
                     let began = !was_putting
                         && home.is_some_and(|id| {
-                            Self::uses(&body, self.containers[id].1 + USE_BOX_UP, USE_BOX_M)
+                            self.uses_container_box(&body, id)
                         });
                     if began && let Some(id) = home {
                         if self.put_ms == 0 {

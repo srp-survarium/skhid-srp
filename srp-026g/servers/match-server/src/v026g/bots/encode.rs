@@ -56,7 +56,11 @@ impl Encoder {
         debug_assert!(self.handled.is_none_or(|handled| time > handled));
         debug_assert_eq!(time % TICK_MS, 0);
         self.handled = Some(time);
-        let keys = decision.keys & !key::NEVER;
+        let never = key::NEVER;
+        // TEST ONLY: the jump test's bots may kill themselves to respawn.
+        #[cfg(feature = "jump-test")]
+        let never = never & !key::SUICIDE;
+        let keys = decision.keys & !never;
         let clamp = |turn: f32| {
             if turn.abs() < MIN_TURN || !turn.is_finite() {
                 0
@@ -91,6 +95,23 @@ impl Encoder {
 mod tests {
     use super::*;
 
+    /// The jump test's bots may send the suicide (bit 24) and nothing else of the held-back bits; any
+    /// other build strips all of them.
+    #[test]
+    fn only_the_jump_test_lets_the_suicide_through() {
+        let mut encoder = Encoder::default();
+        let all = Decision {
+            keys: key::NEVER | key::FORWARD,
+            turn: (0.0, 0.0),
+        };
+        let (input, _) = encoder.encode(1_050, all);
+        let sent = input.map_or(0, |input| input.actions);
+        #[cfg(feature = "jump-test")]
+        assert_eq!(sent, key::FORWARD | key::SUICIDE);
+        #[cfg(not(feature = "jump-test"))]
+        assert_eq!(sent, key::FORWARD);
+    }
+
     #[test]
     fn ticks_lead_the_clock_once_each_and_only_changes_are_sent() {
         let mut encoder = Encoder::default();
@@ -122,11 +143,11 @@ mod tests {
             half_value(u16::from_le_bytes([input.rotation[0], input.rotation[1]])),
             turn.0
         );
-        // Never a bit no bot sends; a tiny turn is none.
+        // Never a bit no bot sends (the wheel's, bit 25; the suicide is the jump test's); a tiny turn is none.
         let (input, turn) = encoder.encode(
             2_100,
             Decision {
-                keys: key::FORWARD | 0x0100_0000,
+                keys: key::FORWARD | 0x0200_0000,
                 turn: (1e-5, 0.0),
             },
         );

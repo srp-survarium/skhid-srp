@@ -25,6 +25,7 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::view;
+use mapdata::{UsePose, UseStand};
 use crate::v026g::drive::key;
 
 /// How far over a lying battery's position a bot aims to take it: inside
@@ -134,6 +135,10 @@ const PUT_TIME_MS: u32 = 600;
 /// the next use need not wait for one. GUESS: the box's size is not known
 /// (the bench's stand-in takes 0.6 m); 1 m is well outside it.
 const PUT_MISS_M: f32 = 1.0;
+/// The bot is at a stand within this of its floor, metres.
+const STAND_AT_M: f32 = 0.6;
+/// At a stand this long with no press possible, it tries the next stand.
+const STAND_STILL_MS: u32 = 3_000;
 /// The client's use ray, metres (`base_player::detect_usable_object`).
 const USE_RAY_M: f32 = 2.0;
 
@@ -318,6 +323,32 @@ fn over_goal(cx: &Ctx, at: Vec3) -> bool {
     let grid = &cx.tactics.world.grid;
     crate::v026g::bots::path::goal_floor(grid, at)
         .is_some_and(|node| cx.me.feet.y - grid.position(node).y > ARRIVE_ABOVE_M)
+}
+
+/// A Take over its battery's floor this near across, metres, for this long,
+/// ms, with the route down not taking it there, is a battery out of its
+/// reach for now (a drop route of 15 m at a bot's pace is 5 s; GUESS, to
+/// bench).
+const WRONG_FLOOR_ACROSS_M: f32 = 3.0;
+const WRONG_FLOOR_MS: u32 = 8_000;
+/// The failure that says so: set aside whenever it comes, not only when
+/// the play was quick ([`fails_aside`]).
+pub const WRONG_FLOOR: &str = "no way down to its floor";
+
+/// Whether a play that failed for `why` sets its target aside however long
+/// it had run: it proved the target out of reach for now.
+pub fn fails_aside(why: &str) -> bool {
+    why == WRONG_FLOOR
+}
+
+/// The time the walk to `to` needs when it is a storey off the bot's floor
+/// ([`Ctx::storey_walk_dist`], at [`CROSS_MPS`]), ms: a stand's clock
+/// (`stand_walk_s`) runs from when the walk should be done, not from when
+/// it starts (School's battery 3: two plays ended "could not take it" 28
+/// and 34 m off, still climbing). 0 on one level.
+fn storey_walk_ms(cx: &Ctx, to: Vec3) -> u32 {
+    cx.storey_walk_dist(to)
+        .map_or(0, |walk| (walk / CROSS_MPS * 1000.0) as u32)
 }
 
 /// Where a body right over a battery lying at `at` steps back to: a metre
@@ -531,16 +562,25 @@ fn battery_candidate_given(
     on_it: bool,
     near: f32,
 ) -> Option<Candidate> {
+    let mut given = [(Input::PathDist, 0.0); 2];
+    let mut n = 0;
+    // A battery a storey off is as far as the way between the floors.
+    if let TargetRef::Battery(battery) = target
+        && let Some(walk) = cx
+            .battery_lying(battery)
+            .and_then(|at| cx.storey_walk_dist(at))
+    {
+        given[n] = (Input::PathDist, walk);
+        n += 1;
+    }
     if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
-        let read = near - COLLECT_ENEMY_MARGIN;
-        cx.candidate_given(
-            PlayKind::Collect,
-            target,
-            slot,
-            &[(Input::EnemiesNearTarget, read)],
-        )
-    } else {
+        given[n] = (Input::EnemiesNearTarget, near - COLLECT_ENEMY_MARGIN);
+        n += 1;
+    }
+    if n == 0 {
         cx.candidate(PlayKind::Collect, target, slot)
+    } else {
+        cx.candidate_given(PlayKind::Collect, target, slot, &given[..n])
     }
 }
 
@@ -1107,6 +1147,10 @@ pub enum State {
         /// A crossing's dry edge (`Crossing`): the battery lies in zones on
         /// all match, walked into in lines.
         crossing: Option<Vec3>,
+        /// Since when it has stood within [`WRONG_FLOOR_ACROSS_M`] across of
+        /// the battery's stand over that stand's floor ([`over_goal`]) with
+        /// the route down not taking it there.
+        over_since: Option<u32>,
     },
     /// Home with the battery; `via`: the points of a safer way home along
     /// a human route (`way_home`), chosen at the first step.
@@ -1127,6 +1171,13 @@ pub enum State {
         /// Its last use's ray provably passed the box ([`PUT_MISS_M`]): no
         /// put began, so no put is waited for.
         missed: bool,
+        /// The stand it walks to: a floor from which the game's use ray
+        /// meets the box ([`Ctx::nearest_use_stand`]).
+        stand: Option<UseStand>,
+        /// Since when it has stood at the stand with no press possible.
+        still_since: Option<u32>,
+        /// Stands it stood on that long and could not press from.
+        passed: Vec<Vec3>,
     },
 }
 
@@ -1232,12 +1283,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     tries: 0,
                     last_use: 0,
                     stand: None,
-                    since: cx.now,
+                    since: cx.now + storey_walk_ms(cx, stand),
                     arrived: None,
                     tried: Vec::new(),
                     from: (cx.me.feet.distance_xz(at) >= FROM_M).then_some(cx.me.feet),
                     backing: None,
                     crossing,
+                    over_since: None,
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
@@ -1249,11 +1301,42 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
         State::Take {
-            tried, crossing, ..
+            tried,
+            crossing,
+            over_since,
+            ..
         } => {
             // On a crossing, the zone's floor is the play's choice
             // (`Intent::zone_ok`): no way out of it is walked meanwhile.
             let crossing = crossing.is_some();
+            // Over the battery's floor (an overhang, a box top, the level
+            // above): not a take from there, whatever the believed height
+            // was when it began (`over_goal`, as the Fetch's gate), down by
+            // the route to the stand at its floor's height. A Take over a
+            // battery a storey below stepped forward and back for 81 s on
+            // Vector Laboratory (`hover`), the only end the 120 s give-up.
+            if !crossing
+                && let TargetRef::Battery(battery) = target
+                && let Some(stand) = cx
+                    .battery_lying(battery)
+                    .and_then(|at| cx.tactics.stand_to_take(at))
+                && over_goal(cx, stand)
+            {
+                // Over it, within reach across, for [`WRONG_FLOOR_MS`] with
+                // the route down not taking it there: the battery is out of
+                // its reach for now (a drop it cannot make), set aside by
+                // the think step ([`WRONG_FLOOR`]), for another to take.
+                if cx.me.feet.distance_xz(stand) <= WRONG_FLOOR_ACROSS_M {
+                    let since = *over_since.get_or_insert(cx.now);
+                    if cx.now >= since + WRONG_FLOOR_MS {
+                        return Step::Failed(WRONG_FLOOR);
+                    }
+                } else {
+                    *over_since = None;
+                }
+                return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
+            }
+            *over_since = None;
             // Under its floor (fallen, or under an overhang), a stand there
             // failed: up by the route, however near across (a goal within
             // reach across is no goal); the take goes on once up.
@@ -1313,6 +1396,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     last_use: 0,
                     arrived: None,
                     missed: false,
+                    stand: None,
+                    still_since: None,
+                    passed: Vec::new(),
                 };
             } else {
                 let points = via.get_or_insert_with(|| way_home(cx, home));
@@ -1363,6 +1449,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             last_use,
             arrived,
             missed,
+            stand,
+            still_since,
+            passed,
         } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "put it in"));
@@ -1373,31 +1462,53 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if *n >= tries && seen {
                 return Step::Failed("could not put it in");
             }
+            let container = cx.view.container_of(cx.me.team).map(|c| c.id);
             let mut intent = Intent::stay().hold_fire();
-            let mut aimed = home.is_none();
-            if let Some(home) = home {
-                // Its use box's middle is a metre over `home`
-                // (`Container::use_point`).
-                let aim = home + Vec3::new(0.0, 1.0, 0.0);
-                let eye = cx.me.feet + Vec3::new(0.0, view::EYE_STANDING, 0.0);
-                if (aim - eye).length() > USE_NEAR_M {
-                    intent = Intent::to(home, Pace::Walk).within(0.5).hold_fire();
-                    *arrived = None;
-                } else {
+            let mut aimed = container.is_none();
+            let mut aim = None;
+            if let Some(container) = container {
+                // The game's rule decides: the use ray from the eye meets
+                // the box. Out of it, the bot walks to the nearest stand
+                // that meets it; at one with no press possible for
+                // `STAND_STILL_MS` (its eye is not where the list put it),
+                // the next.
+                aim = cx.use_press(cx.me.eye(), container);
+                if let Some(aim) = aim {
                     // Pressed once the view is on the box, as a take's
                     // (or after a while there anyway): a use pressed while
                     // still turning to it missed it.
+                    *still_since = None;
                     let since = *arrived.get_or_insert(cx.now);
                     aimed = aimed_at(cx, aim) || cx.now >= since + SETTLE_MS;
+                    intent = intent.looking(Look::Use(aim));
+                } else {
+                    *arrived = None;
+                    if stand.is_none() {
+                        *stand = cx.nearest_use_stand(container, UsePose::Standing, passed);
+                    }
+                    let Some(at) = *stand else {
+                        return Step::Failed("no stand to put it in from");
+                    };
+                    if cx.me.feet.distance_xz(at.feet) <= STAND_AT_M {
+                        let since = *still_since.get_or_insert(cx.now);
+                        if cx.now >= since + STAND_STILL_MS {
+                            passed.push(at.feet);
+                            *stand = None;
+                            *still_since = None;
+                        }
+                    } else {
+                        *still_since = None;
+                    }
+                    intent = Intent::to(at.feet, Pace::Walk)
+                        .within(0.4)
+                        .hold_fire()
+                        .looking(Look::Use(at.aim));
                 }
-                intent = intent.looking(Look::use_box(home));
             }
             if cx.now >= *last_use + every && seen && *n < tries && aimed {
                 *n += 1;
                 *last_use = cx.now;
-                *missed = home.is_some_and(|home| {
-                    use_ray_miss(cx, home + Vec3::new(0.0, 1.0, 0.0)) > PUT_MISS_M
-                });
+                *missed = aim.is_some_and(|aim| use_ray_miss(cx, aim) > PUT_MISS_M);
                 intent = intent.pressing(key::USE);
             }
             Step::Continue(intent)
@@ -1529,6 +1640,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         from,
         backing,
         crossing,
+        ..
     } = state
     else {
         unreachable!("a take's state");
@@ -1741,7 +1853,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     let intent = match next_stand(cx, at, aim, tried, steep, &gave_up, through) {
         Some(s) => {
             *stand = Some(s);
-            *since = cx.now;
+            *since = cx.now + storey_walk_ms(cx, s.feet);
             *arrived = None;
             *tries = 0;
             *last_use = 0;
@@ -2938,6 +3050,7 @@ mod tests {
             from,
             backing: None,
             crossing: None,
+            over_since: None,
         }
     }
 
@@ -3315,6 +3428,9 @@ mod tests {
                 last_use: s.view.clock,
                 arrived: None,
                 missed: false,
+                stand: None,
+                still_since: None,
+                passed: Vec::new(),
             };
             assert_eq!(
                 step(&mut state, target, &s.cx(0), &mut rng),
@@ -3413,6 +3529,205 @@ mod tests {
         // That one may have begun a put: the next waits for it.
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "the put waited for");
+    }
+
+    /// A raised box (its middle 3 m over the floor, which the old 1.6 m
+    /// sphere to the middle never reached from the floor): the carrier
+    /// walks to the nearest stand of the game's use test, presses from it,
+    /// and a stand it stood on for [`STAND_STILL_MS`] with no press possible
+    /// is given up for the next.
+    #[test]
+    fn a_put_in_walks_to_a_stand_of_the_games_use_test_and_gives_one_up() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, home + Vec3::new(1.0, 0.0, 0.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::PutIn { .. }), "{state:?}");
+        // Pushed back out of the box's reach.
+        s.view.places[0].feet = home + Vec3::new(3.0, 0.0, 0.0);
+        let used = |step: Step| intent_of(step).press & key::USE != 0;
+        // Beside the box, out of the use ray's reach: a stand to go to.
+        let step1 = step(&mut state, target, &s.cx(0), &mut rng);
+        let State::PutIn {
+            stand: Some(stand), ..
+        } = state.clone()
+        else {
+            panic!("a stand was chosen: {state:?}");
+        };
+        assert!(stand.feet.distance_xz(home) < 3.5, "{stand:?}");
+        assert!(
+            matches!(&step1, Step::Continue(i) if matches!(i.go, Go::To { at, .. } if at == stand.feet)),
+            "{step1:?}"
+        );
+        assert!(!used(step1), "no press out of the ray's reach");
+        // At the stand, its view on the box: the use goes.
+        s.view.places[0].feet = stand.feet;
+        let eye = s.view.places[0].eye();
+        let aim = s.cx(0).use_press(eye, 0).expect("the stand presses");
+        let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
+        s.view.places[0].yaw = crate::v026g::bots::kin::yaw_of([dx, dz]);
+        s.view.places[0].pitch = (aim.y - eye.y).atan2(dx.hypot(dz));
+        s.view.clock += 100;
+        assert!(
+            used(step(&mut state, target, &s.cx(0), &mut rng)),
+            "pressed from the stand"
+        );
+        // A stand with no press possible from it (a floor far from the
+        // box, the bot on it): after STAND_STILL_MS the next stand.
+        let far = Vec3::new(30.0, 0.0, 10.0);
+        s.view.places[0].feet = far;
+        s.view.clock += 5_000;
+        s.view.world_time = s.view.clock;
+        let mut state = State::PutIn {
+            tries: 0,
+            last_use: 0,
+            arrived: None,
+            missed: false,
+            stand: Some(UseStand { feet: far, ..stand }),
+            still_since: None,
+            passed: Vec::new(),
+        };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(&state, State::PutIn { stand: Some(_), passed, .. } if passed.is_empty()));
+        s.view.clock += STAND_STILL_MS;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        let State::PutIn { passed, .. } = &state else {
+            panic!("{state:?}");
+        };
+        assert_eq!(passed, &vec![far]);
+    }
+
+    /// A battery a storey up whose only way up is a far ramp scores below
+    /// one on the ground the same straight distance off (the floor-blind
+    /// guess made it look near to everyone under it), and a Take that
+    /// began over a battery's floor goes back to the route to the stand
+    /// instead of stepping over it.
+    #[test]
+    fn a_storey_up_is_far_and_a_take_over_the_floor_goes_back_to_the_route() {
+        use mapdata::{Triangle, WalkerBehaviour};
+        let tri = |v: [Vec3; 3]| Triangle {
+            v,
+            walker: WalkerBehaviour::BySlope,
+        };
+        let mut solids: Vec<Triangle> =
+            crate::v026g::bots::body::tests::floor(40.0, 0.0, 60.0, 40.0, 3.4).into();
+        let (a, b, c, d) = (
+            Vec3::new(78.0, 0.0, 0.0),
+            Vec3::new(78.0, 0.0, 10.0),
+            Vec3::new(60.0, 3.4, 10.0),
+            Vec3::new(60.0, 3.4, 0.0),
+        );
+        solids.extend([tri([a, b, c]), tri([a, c, d])]);
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {}),
+            1.0,
+        );
+        let up = Vec3::new(50.0, 3.4, 30.0);
+        let flat = Vec3::new(35.0, 0.0, 30.0);
+        s.battery(BatteryState::Free(up));
+        s.battery(BatteryState::Free(flat));
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 30.0));
+        let score = |s: &Scenario, battery| {
+            battery_candidate(&s.cx(0), battery).map_or(0.0, |c| c.score.get())
+        };
+        assert!(
+            score(&s, 0) < score(&s, 1),
+            "up {} against flat {}",
+            score(&s, 0),
+            score(&s, 1)
+        );
+        // On the platform it is the nearer: the straight guess stands.
+        s.view.places[0].feet = Vec3::new(45.0, 3.4, 30.0);
+        assert!(score(&s, 0) > score(&s, 1), "{} {}", score(&s, 0), score(&s, 1));
+        // A Take begun over the floor (the level above, on a flat field):
+        // back to the route to the stand, no use.
+        let mut s = Scenario::field(Mode::Batteries);
+        let at = Vec3::new(20.0, 0.0, 20.0);
+        s.battery(BatteryState::Free(at));
+        s.bot(0, 0, Vec3::new(20.0, 1.5, 20.5));
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut state = State::Take {
+            tries: 0,
+            last_use: 0,
+            stand: None,
+            since: s.view.clock,
+            arrived: None,
+            tried: Vec::new(),
+            from: None,
+            backing: None,
+            crossing: None,
+            over_since: None,
+        };
+        let mut rng = Rng::new(1);
+        let step = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(
+            matches!(&step, Step::Continue(i) if i.press & key::USE == 0
+                && matches!(i.go, Go::To { at: to, within_m } if to.distance_xz(at) < 0.01 && within_m == 0.0)),
+            "{step:?}"
+        );
+    }
+
+    /// A Take over its battery's floor, near across, whose route down does
+    /// not take it there for [`WRONG_FLOOR_MS`] fails with [`WRONG_FLOOR`]
+    /// (the think step sets the battery aside); one far across is not
+    /// timed.
+    #[test]
+    fn a_take_stuck_over_its_floor_gives_the_battery_up_after_eight_seconds() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let at = Vec3::new(20.0, 0.0, 20.0);
+        s.battery(BatteryState::Free(at));
+        s.bot(0, 0, Vec3::new(20.0, 1.5, 20.5));
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut state = fresh_take(&s, None);
+        let mut rng = Rng::new(1);
+        assert!(matches!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Continue(_)
+        ));
+        s.view.clock += WRONG_FLOOR_MS - 1;
+        assert!(matches!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Continue(_)
+        ));
+        s.view.clock += 1;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Failed(WRONG_FLOOR)
+        );
+        assert!(fails_aside(WRONG_FLOOR));
+        // Far across: not timed.
+        s.bot(0, 0, Vec3::new(30.0, 1.5, 20.5));
+        let mut state = fresh_take(&s, None);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        s.view.clock += 2 * WRONG_FLOOR_MS;
+        assert!(matches!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Continue(_)
+        ));
     }
 
     /// A carrier trapped in a pocket, its escape given up: its Collect has

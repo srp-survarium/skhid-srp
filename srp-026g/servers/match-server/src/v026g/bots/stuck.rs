@@ -408,6 +408,19 @@ impl Stuck {
     }
 }
 
+/// The keys of one stuck recovery: a forward jump up the ledge the body is
+/// held by (`Tactics::ledge_ahead`), else the escape keys. The first stop at
+/// a spot backs off with no jump, the second keeps the old back-diagonal
+/// jump (`jump` is `key::JUMP` when the body may jump, else 0), the third
+/// none.
+pub fn unstick_keys(recovery: Recovery, ledge: bool, escape: u32, jump: u32) -> u32 {
+    match (recovery, ledge) {
+        (Recovery::BackOff | Recovery::Sidestep, true) => key::FORWARD | key::JUMP,
+        (Recovery::BackOff | Recovery::GiveUp, _) => escape,
+        (Recovery::Sidestep, false) => escape | jump,
+    }
+}
+
 /// Whether `point` is near the spot `spot`: within [`SPOT_M`] across and
 /// [`SPOT_HEIGHT_M`] up or down.
 pub fn near(spot: Vec3, point: Vec3) -> bool {
@@ -496,6 +509,27 @@ impl TeamSpots {
 mod tests {
     use super::*;
     use crate::v026g::bots::path::Waypoint;
+
+    /// F4: a forward jump up the ledge a stuck body is held by, else the
+    /// escape keys: no jump on the first stop at a spot, the old
+    /// back-diagonal jump on the second, none on the third.
+    #[test]
+    fn a_stop_at_a_ledge_jumps_forward_and_any_other_backs_off() {
+        let (escape, jump) = (key::BACK | key::LEFT, key::JUMP);
+        let forward_jump = key::FORWARD | key::JUMP;
+        for recovery in [Recovery::BackOff, Recovery::Sidestep] {
+            assert_eq!(unstick_keys(recovery, true, escape, jump), forward_jump);
+        }
+        assert_eq!(unstick_keys(Recovery::GiveUp, true, escape, jump), escape);
+        assert_eq!(unstick_keys(Recovery::BackOff, false, escape, jump), escape);
+        assert_eq!(
+            unstick_keys(Recovery::Sidestep, false, escape, jump),
+            escape | jump
+        );
+        assert_eq!(unstick_keys(Recovery::GiveUp, false, escape, jump), escape);
+        // A body that may not jump (a hit's stagger) gets no jump at all.
+        assert_eq!(unstick_keys(Recovery::Sidestep, false, escape, 0), escape);
+    }
 
     /// [`Stuck::walking`] with no walk key shown held: the reckoned watch.
     fn walk(stuck: &mut Stuck, time: u32, feet: Vec3, meant: Option<f32>) -> Option<Recovery> {

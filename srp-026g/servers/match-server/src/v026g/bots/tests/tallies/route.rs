@@ -60,6 +60,7 @@ pub(crate) struct RouteTally {
     pub(crate) pocket_deaths: u32,
     pub(crate) pocket_escapes: [u64; 7],
     pub(crate) motor_counts: [u64; 6],
+    pub(crate) route_ends: [(u64, u64); super::route_end::RouteEnd::ALL.len()],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -86,6 +87,7 @@ impl RouteTally {
             pocket_in: vec![false; bodies],
             pocket_escapes: super::escape::counts::counts(),
             motor_counts: super::motor::counts::counts(),
+            route_ends: super::route_end::counts::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
             ..Default::default()
@@ -291,6 +293,20 @@ impl RouteTally {
             .collect();
         let motor = super::motor::counts::counts();
         let moved: Vec<u64> = (0..6).map(|k| motor[k] - self.motor_counts[k]).collect();
+        // Each ending of a route: how many, and their mean age in ms.
+        let ends = super::route_end::counts::counts();
+        let mut route_ends = String::new();
+        for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
+            let n = ends[k].0 - self.route_ends[k].0;
+            let age = ends[k].1 - self.route_ends[k].1;
+            route_ends += &format!(
+                " route_end_{} {} route_end_{}_age_ms {}",
+                why.name(),
+                n,
+                why.name(),
+                age / n.max(1)
+            );
+        }
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
             "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {}",
@@ -338,6 +354,6 @@ impl RouteTally {
             moved[3],
             moved[4],
             moved[5],
-        )
+        ) + &route_ends
     }
 }

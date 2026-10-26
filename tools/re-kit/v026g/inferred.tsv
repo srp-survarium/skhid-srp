@@ -3080,3 +3080,4 @@ va	status	ref_021d	name
 0x002d7990	inferred-high		survarium::base_player::get_air_control_vector
 0x002d6510	inferred-high		survarium::base_player::get_move_direction
 0x00337040	inferred-high		survarium::jump_state::initialize
+0x00075550	inferred-medium		vostok::physics::bullet_physics_world::resolve_character_pairs
