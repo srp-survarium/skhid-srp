@@ -849,6 +849,12 @@ impl Tactics {
         (dx.hypot(dz), fx.hypot(fz))
     }
 
+    /// The regions of the floors as a shared lookup (the threat spots').
+    pub fn region_lookup(&self) -> super::threat::RegionOf {
+        let base = self.base.clone();
+        std::sync::Arc::new(move |node| base.regions.of(node))
+    }
+
     /// The regions the routes go by.
     pub fn regions(&self) -> &Regions {
         &self.base.regions

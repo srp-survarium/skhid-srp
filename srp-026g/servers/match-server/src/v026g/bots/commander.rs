@@ -14,6 +14,67 @@ pub(super) struct TeamState {
     pub(super) no_way_to: Vec<(Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub(super) spots: TeamSpots,
+    /// Where a shooter killed its bots from, and the regions his line
+    /// covers now ([`threat`]).
+    pub(super) threat: threat::ThreatSpots,
+    pub(super) covered: Option<Arc<threat::Covered>>,
+}
+
+/// A team's threat spots at its commander tick ([`threat`]): the
+/// shooters its bots sense now, spots cleared where a bot sees them
+/// empty, a held spot cast at, and the regions his line covers told to
+/// the team's bots when they changed.
+fn threat_tick(
+    tactics: &Tactics,
+    bots: &mut [Option<Bot>],
+    state: &mut TeamState,
+    team: u8,
+    view: &MatchView,
+    now: u32,
+    notes: &mut Vec<Note>,
+) {
+    if state.threat.is_empty() && state.covered.is_none() {
+        return;
+    }
+    let eye = Vec3::new(0.0, view::EYE_STANDING, 0.0);
+    let watchers: Vec<Vec3> = view.team(team).map(|p| p.feet + eye).collect();
+    let mut enemies = Vec::new();
+    for bot in bots.iter().flatten().filter(|b| b.team == team) {
+        for track in bot.memory.tracks() {
+            if let Some((at, time)) = track.own
+                && now.saturating_sub(time) <= threat::NOW_MS
+            {
+                enemies.push(at);
+                state.threat.shooter_sensed(track.who, at, time);
+            }
+        }
+    }
+    state.threat.tick(now, &watchers, &enemies, tactics);
+    let mut regions = state.threat.covered_regions(now);
+    regions.sort_unstable();
+    regions.dedup();
+    let same = match &state.covered {
+        Some(covered) => covered.regions() == &regions[..],
+        None => regions.is_empty(),
+    };
+    if same {
+        return;
+    }
+    notes.push(Note {
+        place: usize::MAX,
+        time: now,
+        text: format!(
+            "team {team}: threat spots keep {} regions out of the routes ({} held)",
+            regions.len(),
+            state.threat.held(now).count()
+        ),
+    });
+    state.covered = (!regions.is_empty())
+        .then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())));
+    let shared = state.covered.clone().unwrap_or_default();
+    for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+        bot.threat = shared.clone();
+    }
 }
 
 impl Bots {
@@ -156,6 +217,11 @@ impl Bots {
         self.teams[usize::from(team)]
             .knowledge
             .learn_humans(team, view, tracks, now);
+        // Where a shooter kills from, and the regions his line covers
+        // (K1).
+        if tuning.threat.spots {
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, notes);
+        }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();

@@ -31,6 +31,7 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// By play; a play missing here runs on its defaults
@@ -51,6 +52,7 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            threat: ThreatTuning::default(),
             hazard_margin: 1.0,
             plays: PlayKind::ALL
                 .iter()
@@ -74,7 +76,7 @@ mod team;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
+pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
