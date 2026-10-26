@@ -29,7 +29,10 @@ pub fn table() -> &'static [(&'static str, f32)] {
             .lines()
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .map(|line| {
-                let (name, metres) = line.split_once('\t').expect("a row of shot_reach.tsv");
+                // name, the general metres, and the with-environment metres where they differ.
+                let mut fields = line.split('\t');
+                let name = fields.next().expect("a row of shot_reach.tsv");
+                let metres = fields.next().expect("metres in shot_reach.tsv");
                 (name, metres.parse().expect("metres in shot_reach.tsv"))
             })
             .collect()

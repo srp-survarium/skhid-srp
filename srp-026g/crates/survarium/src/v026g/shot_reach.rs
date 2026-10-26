@@ -55,6 +55,12 @@ pub struct Layer {
 }
 
 impl Layer {
+    /// Whether the layer is one of a map's environment sounds (`weapons/environments/<level>/...`:
+    /// the 0.29a3 weapons carry Rudnya's, and no other level's exists).
+    pub fn is_environment(&self) -> bool {
+        self.collection.starts_with("weapons/environments/")
+    }
+
     /// How far the layer is heard: the smaller of its own distance and its cull; `None` when the
     /// chain is broken.
     pub fn heard_m(&self) -> Option<f32> {
@@ -117,18 +123,36 @@ pub fn layers(options: &[u8], read: Read) -> Result<Vec<Layer>, String> {
     Ok(out)
 }
 
-/// The reach of a shot of `layers`: the farthest any layer is heard; `None` when no layer's chain
-/// is whole.
-pub fn farthest(layers: &[Layer]) -> Option<f32> {
-    layers
-        .iter()
-        .filter_map(Layer::heard_m)
-        .fold(None, |best: Option<f32>, m| Some(best.map_or(m, |b| b.max(m))))
+/// How far a shot of `layers` is heard.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Reach {
+    /// On any map: the farthest any layer but a map's environment sound is heard (the table's
+    /// number). With no other layer whole, the environment's.
+    pub general_m: f32,
+    /// With the environment layers (the Rudnya ones): the farthest any layer is heard. Where the
+    /// client plays them on every map this is the reach; nothing in the executable or the data
+    /// selects them by level (LIKELY), so the table keeps `general_m` and says this for the owner.
+    pub with_environment_m: f32,
 }
 
-/// The reach in metres of the shot of the weapon whose config is `options`, if its sound chain
-/// gives one.
-pub fn reach(options: &[u8], read: Read) -> Result<Option<f32>, String> {
+/// The reach of a shot of `layers`; `None` when no layer's chain is whole.
+pub fn farthest(layers: &[Layer]) -> Option<Reach> {
+    let best = |keep: &dyn Fn(&Layer) -> bool| {
+        layers
+            .iter()
+            .filter(|l| keep(l))
+            .filter_map(Layer::heard_m)
+            .fold(None, |best: Option<f32>, m| Some(best.map_or(m, |b| b.max(m))))
+    };
+    let with_environment_m = best(&|_| true)?;
+    Some(Reach {
+        general_m: best(&|l| !l.is_environment()).unwrap_or(with_environment_m),
+        with_environment_m,
+    })
+}
+
+/// The reach of the shot of the weapon whose config is `options`, if its sound chain gives one.
+pub fn reach(options: &[u8], read: Read) -> Result<Option<Reach>, String> {
     Ok(farthest(&layers(options, read)?))
 }
 
@@ -188,14 +212,22 @@ fn cull_of(collection: &str, read: Read) -> Result<Cull, String> {
     Ok(cull.map_or(Cull::Never, Cull::At))
 }
 
-/// The table's rows, `name<TAB>metres`, one a line, sorted by name; a name with no reach is left
-/// out. The metres are whole when they are.
-pub fn rows(weapons: &[(String, Option<f32>)]) -> String {
-    let mut rows: Vec<&(String, Option<f32>)> = weapons.iter().filter(|(_, r)| r.is_some()).collect();
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
+/// The table's rows, `name<TAB>general metres`, and `<TAB>with-environment metres` where that
+/// differs, one a line, sorted by name; a name with no reach is left out. The metres are whole
+/// when they are.
+pub fn rows(weapons: &[(String, Option<Reach>)]) -> String {
+    let mut rows: Vec<(&String, Reach)> = weapons
+        .iter()
+        .filter_map(|(name, reach)| Some((name, (*reach)?)))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(b.0));
     let mut out = String::new();
     for (name, reach) in rows {
-        out.push_str(&format!("{name}\t{}\n", reach.unwrap_or_default()));
+        out.push_str(&format!("{name}\t{}", reach.general_m));
+        if reach.with_environment_m != reach.general_m {
+            out.push_str(&format!("\t{}", reach.with_environment_m));
+        }
+        out.push('\n');
     }
     out
 }
@@ -279,7 +311,7 @@ mod tests {
 
     fn reach_in(weapon: &[u8], files: &BTreeMap<String, Vec<u8>>) -> Option<f32> {
         let mut read = |path: &str| Ok::<_, String>(files.get(path).cloned());
-        reach(weapon, &mut read).unwrap()
+        reach(weapon, &mut read).unwrap().map(|r| r.general_m)
     }
 
     #[test]
@@ -351,12 +383,33 @@ mod tests {
     }
 
     #[test]
+    fn a_maps_environment_layer_counts_only_in_the_with_environment_reach() {
+        let files = files(&[
+            (
+                "sounds/composite/w/m.composite_sound",
+                composite(&[("loud", true, 21), ("weapons/environments/level_01/x", true, 2000)]),
+            ),
+            ("sounds/collections/loud.sound_collection", collection("a")),
+            ("sounds/collections/weapons/environments/level_01/x.sound_collection", collection("e")),
+            ("sounds/single/a.raw_options", raw_options("near")),
+            ("sounds/single/e.raw_options", raw_options("echo")),
+            ("sounds/spl/near.spl", spl(&[(0.0, 1.0), (50.0, 0.0)])),
+            ("sounds/spl/echo.spl", spl(&[(0.0, 1.0), (240.0, 0.0)])),
+        ]);
+        let mut read = |path: &str| Ok::<_, String>(files.get(path).cloned());
+        let reach = reach(&weapon("w/m"), &mut read).unwrap().unwrap();
+        assert_eq!(reach, Reach { general_m: 21.0, with_environment_m: 240.0 });
+    }
+
+    #[test]
     fn rows_are_sorted_and_leave_out_the_silent() {
+        let same = |m| Some(Reach { general_m: m, with_environment_m: m });
         let weapons = [
-            ("wpn_b".to_owned(), Some(150.0)),
-            ("wpn_a".to_owned(), Some(55.5)),
+            ("wpn_b".to_owned(), same(150.0)),
+            ("wpn_a".to_owned(), same(55.5)),
             ("wpn_c".to_owned(), None),
+            ("wpn_d".to_owned(), Some(Reach { general_m: 21.0, with_environment_m: 240.0 })),
         ];
-        assert_eq!(rows(&weapons), "wpn_a\t55.5\nwpn_b\t150\n");
+        assert_eq!(rows(&weapons), "wpn_a\t55.5\nwpn_b\t150\nwpn_d\t21\t240\n");
     }
 }

@@ -80,7 +80,7 @@ fn run() -> Result<bool, String> {
             (stem.starts_with("wpn_") && !stem.contains('/')).then(|| stem.to_owned())
         })
         .collect();
-    let mut weapons: Vec<(String, Option<f32>)> = Vec::new();
+    let mut weapons: Vec<(String, Option<shot_reach::Reach>)> = Vec::new();
     let mut partial: Vec<(String, usize, usize)> = Vec::new();
     for stem in stems {
         if explain.as_ref().is_some_and(|e| *e != stem) {
@@ -119,24 +119,38 @@ fn run() -> Result<bool, String> {
         return Ok(true);
     };
     let text = std::fs::read_to_string(&check).map_err(|e| format!("{}: {e}", check.display()))?;
-    let mut have: BTreeMap<&str, &str> = BTreeMap::new();
+    // name -> (general metres, with-environment metres if the row has them)
+    let mut have: BTreeMap<&str, (&str, Option<&str>)> = BTreeMap::new();
     for line in text.lines().filter(|l| !l.is_empty() && !l.starts_with('#')) {
-        let (name, metres) = line.split_once('\t').ok_or_else(|| format!("{line}?"))?;
-        have.insert(name, metres);
+        let mut fields = line.split('\t');
+        let (Some(name), Some(general)) = (fields.next(), fields.next()) else {
+            return Err(format!("{line}?"));
+        };
+        have.insert(name, (general, fields.next()));
     }
     let mut ok = true;
     for (name, whole, all) in &partial {
         println!("partial {name} {whole}/{all}");
     }
     for (name, reach) in &weapons {
-        match (reach, have.get(name.as_str())) {
-            (None, _) => println!("silent {name}"),
-            (Some(r), None) => {
-                println!("missing {name} {r}");
+        let Some(r) = reach else {
+            println!("silent {name}");
+            continue;
+        };
+        let wanted_env = (r.with_environment_m != r.general_m).then_some(r.with_environment_m);
+        match have.get(name.as_str()) {
+            None => {
+                println!("missing {name} {}", r.general_m);
                 ok = false;
             }
-            (Some(r), Some(file)) if file.parse::<f32>().ok() != Some(*r) => {
-                println!("differs {name} {file} {r}");
+            Some(&(general, env))
+                if general.parse::<f32>().ok() != Some(r.general_m)
+                    || env.and_then(|e| e.parse::<f32>().ok()) != wanted_env =>
+            {
+                println!(
+                    "differs {name} {general} {} (with environment {wanted_env:?})",
+                    r.general_m
+                );
                 ok = false;
             }
             _ => {}
