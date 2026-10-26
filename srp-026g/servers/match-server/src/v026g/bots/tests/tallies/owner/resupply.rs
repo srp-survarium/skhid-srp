@@ -83,12 +83,13 @@ impl OwnerTally {
     /// dryness is the last tick's).
     pub(super) fn resupply_step(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body, now: &BotNow) {
         let counts = &mut self.resupply;
-        if prev.alive && !body.alive {
-            if let Some(mut life) = counts.life[place].take() {
-                life.end = tick;
-                life.died = true;
-                counts.lives_done.push(life);
-            }
+        if prev.alive
+            && !body.alive
+            && let Some(mut life) = counts.life[place].take()
+        {
+            life.end = tick;
+            life.died = true;
+            counts.lives_done.push(life);
         }
         if body.alive {
             let life = counts.life[place].get_or_insert(Life {
