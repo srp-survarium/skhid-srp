@@ -1,4 +1,5 @@
 use super::super::standin_heal::{DrugPress, Pressed};
+use crate::v026g::bots::stock::Drug;
 use crate::v026g::bots::reflex::HealNote;
 use super::*;
 
@@ -39,6 +40,8 @@ pub(super) struct HealRec {
     /// Medkits in the slot of the kit in use.
     hand: u16,
     infection: f32,
+    /// The pain pool.
+    pain: f32,
     /// The bot has a target (the reflex's).
     target: bool,
     /// An enemy within 40 m has a clear line to the body, or the body to him.
@@ -57,6 +60,8 @@ const LINE_M: f32 = 40.0;
 const NOTE_BEFORE_TICKS: usize = 4;
 /// A heal cover walk begun this many ticks after a press (0.8 s) belongs to it.
 const WALK_AFTER_TICKS: usize = 16;
+/// A pain pool under this is low (the owner's line for the bandages).
+const PAIN_LOW: f32 = 0.6;
 /// A hurt body: under this (the record's 0.995).
 const HURT: f32 = 0.995;
 /// Healed: from this (the record's 0.99).
@@ -114,6 +119,7 @@ impl OwnerTally {
                 body: body.health,
                 hand,
                 infection: body.rest.infection,
+                pain: body.pools.pain,
                 target: now.is_some_and(|n| n.target),
                 line,
                 walking: now.is_some_and(|n| n.heal_walking),
@@ -134,6 +140,8 @@ impl OwnerTally {
         let (mut alive_stock, mut alive_none, mut hurt_stock) = (0u64, 0u64, 0u64);
         let (mut deaths_stock, mut deaths_unused, mut deaths_no_press) = (0u32, 0u32, 0u32);
         let mut infection_deaths = 0u32;
+        // Deaths with the pain pool at zero after the fatal hit (it kills), and with it under 0.6 before.
+        let (mut deaths_pain_zero, mut deaths_pain_low) = (0u32, 0u32);
         let mut deaths: Vec<(Place, usize)> = Vec::new();
         for place in (0..self.recs.len()).filter(|&p| self.is_bot[p]) {
             let recs = &self.heal.recs[place];
@@ -186,6 +194,8 @@ impl OwnerTally {
                     episodes.extend(episode.take());
                     deaths.push((place, k));
                     infection_deaths += u32::from(rec.infection <= 0.1);
+                    deaths_pain_zero += u32::from(recs.get(k + 1).is_some_and(|r| r.pain <= 1e-3));
+                    deaths_pain_low += u32::from(rec.pain < PAIN_LOW);
                     if let Some((stock, began)) = life
                         && stock
                     {
@@ -398,6 +408,24 @@ impl OwnerTally {
                     .count() as u32
             })
             .sum();
+        let count_of = |drug: Drug| {
+            used.iter()
+                .filter(|p| p.2 == Pressed::Used(drug))
+                .count()
+        };
+        // The team hits by the victim's pain pool before them (the bandage habit's target): how many were on a low
+        // pain pool, how many lethal ones were, and the mean pain pool.
+        let hits = &game.team_hit_pains;
+        let team_low = (
+            hits.iter().filter(|h| h.0 < PAIN_LOW).count(),
+            hits.iter().filter(|h| h.1 && h.0 < PAIN_LOW).count(),
+        );
+        let team_pain_kills = (hits.iter().filter(|h| h.1).count(),);
+        let team_mean = if hits.is_empty() {
+            0.0
+        } else {
+            (100.0 * f64::from(hits.iter().map(|h| h.0).sum::<f32>()) / hits.len() as f64).round() / 100.0
+        };
         let by_depth: Vec<f64> = bands.iter().map(|&(a, b)| Scale::pct(a, b)).collect();
         let json = serde_json::json!({
             "heal_fatal_fights": fights,
@@ -419,6 +447,16 @@ impl OwnerTally {
             "heal_dead_no_press_pct": pct(deaths_no_press, deaths_stock),
             "heal_full_3_9s_after_pct": pct(full_ok, full_of),
             "heal_infection_deaths": infection_deaths,
+            "heal_deaths_pain_zero": deaths_pain_zero,
+            "heal_deaths_pain_low": deaths_pain_low,
+            "heal_presses_medkit": count_of(Drug::Medkit),
+            "heal_presses_bandages": count_of(Drug::Bandages),
+            "heal_presses_antitoxin": count_of(Drug::Antitoxin),
+            "heal_team_hits": game.team_hit_pains.len(),
+            "heal_team_hits_pain_low": team_low.0,
+            "heal_team_kills": team_pain_kills.0,
+            "heal_team_kills_pain_low": team_low.1,
+            "heal_team_hit_pain_mean": team_mean,
             "heal_cover_walks": walks,
             "heal_plays_displaced": displaced,
             "heal_situations": situations,
