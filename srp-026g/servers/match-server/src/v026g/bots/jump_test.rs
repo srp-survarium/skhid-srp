@@ -254,6 +254,8 @@ pub enum Face {
 pub enum Speed {
     Walk,
     Sprint,
+    /// A standing jump: the press is the first key tick, with no move key (`edge` is where the body stands).
+    Stand,
     /// The ordinary drive at a walk (the motor presses the jumps).
     Motor,
     /// The ordinary drive at a run.
@@ -318,6 +320,8 @@ pub enum Mid {
     /// (about the landing: the clip ends 0.9-1.2 s after it): what carries the body after a sprint jump lands, and what
     /// stops it (`land_back_1100`).
     Land { keys: Landing, after_ms: u32 },
+    /// Forward from `after_ms` after the press (a standing jump that steps on once it is in the air; 0: from the press).
+    Step { after_ms: u32 },
 }
 
 /// Who works a try: a named bot, or whichever bot of the match is free (the pool).
@@ -401,6 +405,13 @@ fn parse_mid(text: &str) -> Result<Mid, String> {
         "crouch" => Mid::Crouch,
         "crouch_jump" => Mid::CrouchJump,
         "crouch_pre" => Mid::CrouchPre,
+        other if other.starts_with("step_") => {
+            let after_ms = other["step_".len()..].parse::<u32>().map_err(|e| format!("mid {other:?}: {e}"))?;
+            if after_ms > 1_000 {
+                return Err(format!("mid {other:?}: forward 0-1000 ms after the press"));
+            }
+            Mid::Step { after_ms }
+        }
         other if other.starts_with("land_") => {
             let (keys, ms) = other["land_".len()..].split_once('_').ok_or_else(|| format!("mid {other:?}"))?;
             let keys = match keys {
@@ -459,6 +470,7 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
             speed: match f[7] {
                 "walk" => Speed::Walk,
                 "sprint" => Speed::Sprint,
+                "stand" => Speed::Stand,
                 "motor" => Speed::Motor,
                 "motor_run" => Speed::MotorRun,
                 other => return Err(fail(format!("speed {other:?}"))),
@@ -593,6 +605,9 @@ pub struct Plan {
 
 /// The base keys of a try: forward, with sprint, and the diagonal of a `normal` face.
 fn base_keys(def: &TryDef) -> u32 {
+    if def.speed == Speed::Stand {
+        return 0;
+    }
     let mut keys = key::FORWARD;
     if def.speed == Speed::Sprint {
         keys |= key::SPRINT;
@@ -650,6 +665,9 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
     let to_face = ((cx - rest.x) * t[0] + (cz - rest.z) * t[1]) / cos;
     let (run, press) = if def.edge < 0.0 {
         (def.runup, None)
+    } else if def.speed == Speed::Stand {
+        // The rest is the start (it fits within the settle's tolerance): the press is the first tick.
+        (0.0, Some(()))
     } else {
         let run = to_face - def.edge / cos;
         if run < 0.4 {
@@ -657,7 +675,7 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
         }
         (run, Some(()))
     };
-    let ticks = table.ticks_for(def.speed, run);
+    let ticks = if def.speed == Speed::Stand { 0 } else { table.ticks_for(def.speed, run) };
     let press_at = first + ticks * TICK_MS;
     let end = match press {
         Some(()) => press_at + if let Mid::Land { after_ms, .. } = def.mid { after_ms + LAND_KEYS_MS } else { KEYS_AFTER_MS },
@@ -694,6 +712,11 @@ impl Plan {
         if matches!(self.mid, Mid::CrouchJump | Mid::CrouchPre) {
             keys |= key::CROUCH;
         }
+        if let Mid::Step { after_ms } = self.mid
+            && time >= press + after_ms
+        {
+            keys |= key::FORWARD;
+        }
         if time < press + 2 * TICK_MS {
             keys |= key::JUMP;
         }
@@ -708,7 +731,7 @@ impl Plan {
                 Mid::Right => keys |= key::RIGHT,
                 Mid::Back => keys = (keys & !(key::FORWARD | key::SPRINT)) | key::BACK,
                 Mid::Crouch => keys |= key::CROUCH,
-                Mid::CrouchJump | Mid::CrouchPre => {}
+                Mid::CrouchJump | Mid::CrouchPre | Mid::Step { .. } => {}
                 Mid::Land { keys: land, after_ms } => {
                     keys = if time >= press + after_ms { land.keys() } else { 0 };
                 }
@@ -2409,6 +2432,26 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(plan.press.is_none());
         assert_eq!(plan.at(plan.first + TICK_MS).keys, key::FORWARD);
         assert_eq!(plan.at(plan.end - TICK_MS).keys, 0);
+    }
+
+    #[test]
+    fn a_standing_jump_presses_on_the_first_tick_with_no_move_key() {
+        let table = RunTable::default();
+        assert_eq!(parse_mid("step_200"), Ok(Mid::Step { after_ms: 200 }));
+        assert!(parse_mid("step_2000").is_err());
+        for (mid, forward_after) in [(Mid::Step { after_ms: 0 }, Some(0)), (Mid::Step { after_ms: 200 }, Some(200)), (Mid::Hold, None)] {
+            let d = def(0.2, 0.0, Face::Along, 0.0, Speed::Stand, mid);
+            assert_eq!(base_keys(&d), 0);
+            let plan = plan_from(&d, start_of(&d), heading_of(&d), 10_000, &table).unwrap();
+            assert_eq!(plan.press, Some(10_000), "{mid:?}");
+            let keys = |after: u32| plan.at(10_000 + after).keys;
+            assert_eq!(keys(0) & key::JUMP, key::JUMP, "{mid:?}");
+            assert_eq!(keys(2 * TICK_MS) & key::JUMP, 0, "{mid:?}");
+            for after in [0, 100, 150, 200, 300, 600] {
+                let want = forward_after.is_some_and(|from| after >= from);
+                assert_eq!(keys(after) & key::FORWARD != 0, want, "{mid:?} at {after}");
+            }
+        }
     }
 
     #[test]
