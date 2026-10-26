@@ -7,7 +7,7 @@
 //! srp's changed lobby movie asks with the ranking page's request at the
 //! rooms' reserved starts, as "Player vs Bots" does: the
 //! list of the rooms, the asker's own room, the maps a pool may hold, and
-//! the actions (create, join, leave, vote, kick). Every action is answered
+//! the actions (create, join, leave, vote, kick, start). Every action is answered
 //! with the asker's room as it is after it ([`lobby::rooms::room_state`]).
 //!
 //! What the lobby does for a room:
@@ -19,7 +19,10 @@
 //!   seated in a match of teams that are not fixed
 //!   (`Matchmaking::seat_sides_in_pool`), on the map the vote chose and
 //!   with none of the server's bots; then "match found" and `82`
-//!   as for any Play. Its rewards are any match's.
+//!   as for any Play. Its rewards are any match's. A private room (a PIN)
+//!   counts nothing down: its owner's Start makes the match at once with
+//!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
+//!   2026-10-26).
 //! - **Late.** A member in the lobby while the room's match is played sees
 //!   the room first and goes into it `LATE_JOIN_WAIT` later (or at once on
 //!   its ask) if the match admits players (from its countdown until
@@ -344,6 +347,10 @@ impl Core<'_> {
                 self.send_made(who.addr, wire::pin_answer());
             }
             RoomRequest::Play => self.room_play_pressed(who, now),
+            RoomRequest::Start => {
+                self.room_start_pressed(who, now);
+                self.send_room_state(who, RoomCode::None, now);
+            }
             RoomRequest::Leave => {
                 if let Some(key) = self.rooms.leave(who.account_id) {
                     log::info!("{}: left room {key}", who.name);
@@ -435,7 +442,7 @@ impl Core<'_> {
                     Err(code) => code,
                     Ok(()) => match self.room_create(who, spec, now) {
                         Ok(key) => {
-                            self.room_remember(who, key);
+                            self.room_remember(who, key, spec);
                             RoomCode::None
                         }
                         Err(refused) => code_of(refused),
@@ -469,6 +476,24 @@ impl Core<'_> {
             self.room_quick(who, now);
         }
         self.send_room_state(who, RoomCode::None, now);
+    }
+
+    /// The owner's Start in its private room (the owner's of 2026-10-26):
+    /// its match now, on the vote's winner, with whoever can play
+    /// (`room_start`; one is enough). Anyone else's, an open room's, or one
+    /// while its match is played does nothing; nor while a maintenance is
+    /// near (`room_start`).
+    fn room_start_pressed(&mut self, who: &Who, now: Instant) {
+        let rng = &mut self.rng;
+        match self.rooms.start(who.account_id, &mut |bound| {
+            rng.below(bound as u32) as usize
+        }) {
+            Ok(Due::Start { key, map_id }) => {
+                log::info!("{}: started its room {key}'s match", who.name);
+                self.room_start(key, map_id, now);
+            }
+            Err(refused) => log::info!("{}: Start in a room: refused ({refused:?})", who.name),
+        }
     }
 
     /// Join the room with that key; the state answers it.
@@ -605,31 +630,44 @@ impl Core<'_> {
             &mut |bound| rng.below(bound as u32) as usize,
         )?;
         let pool = self.rooms.get(key).map_or(0, |room| room.pool.len());
-        log::info!(
-            "{}: made room {key}: {} v {}, from {} v {}, max level {}, wait {} s, {}PIN, {pool} maps",
-            who.name,
-            spec.size,
-            spec.size,
-            spec.min_side,
-            spec.min_side,
-            spec.max_level,
-            spec.wait,
-            if spec.pin { "" } else { "no " }
-        );
+        if spec.pin {
+            log::info!(
+                "{}: made room {key}: private (PIN), {} v {}, started by its owner, max level {}, \
+                 {pool} maps",
+                who.name,
+                model::PRIVATE_SIZE,
+                model::PRIVATE_SIZE,
+                spec.max_level
+            );
+        } else {
+            log::info!(
+                "{}: made room {key}: {} v {}, from {} v {}, max level {}, wait {} s, no PIN, \
+                 {pool} maps",
+                who.name,
+                spec.size,
+                spec.size,
+                spec.min_side,
+                spec.min_side,
+                spec.max_level,
+                spec.wait
+            );
+        }
         Ok(key)
     }
 
     /// A room made by hand: its settings are its maker's create window's
     /// start from now on, kept with the account (the owner's of
-    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing.
-    fn room_remember(&self, who: &Who, key: u32) {
+    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing. The
+    /// settings as the window sent them (`spec`): a private room's size and
+    /// players to start are not its own (it has none), but the window's,
+    /// kept for its next open room.
+    fn room_remember(&self, who: &Who, key: u32, spec: RoomSpec) {
         let Some(room) = self.rooms.get(key) else {
             return;
         };
-        let spec = room.spec;
         let settings = RoomSettings::of_room(
             spec.size,
-            spec.min_players / 2,
+            spec.min_side,
             spec.max_level,
             spec.wait,
             &room.pool,

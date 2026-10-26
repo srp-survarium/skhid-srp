@@ -174,7 +174,7 @@ fn a_room_match_everyone_left_before_its_countdown_is_called_off() {
     )));
 }
 
-/// A private room from 1 v 1 needs one player (the owner's of 2026-10-26):
+/// A private room needs one player (its owner starts it; the owner's of 2026-10-26):
 /// its match of one place starts 1 v 0 (the clients' number for one place
 /// is 0, so its entry starts the countdown), with no stand-in, and plays.
 #[test]

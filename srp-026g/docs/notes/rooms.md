@@ -10,7 +10,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
   Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots
   and clan-team matches stay (clan matches: a uniform random map, no bots).
-- **Making one:** team size 6 v 6 to 10 v 10; players to start 1 v 1 to 3 v 3; max level
+- **Making one:** team size 6 v 6 to 10 v 10 and players to start 1 v 1 to 3 v 3 (an open
+  room's; a private one has neither, "A private room is started by its owner"); max level
   (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
   1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
   Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
@@ -121,17 +122,28 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     too): the match is called off before its countdown, as one that could not be made
     (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,
     quest, wear); its players see the results screen's spinner until they close it.
-- **A private room plays 1 v 0** (the owner's of 2026-10-26: "in private lobbies it should be
-  possible to start the game 1vs0"): private is a room with a PIN.
-  - A room with a PIN from 1 v 1 needs one member: the vote and the countdown start with
-    one, and its match is 1 v 0 (one side empty). From 2 v 2 or 3 v 3 it waits for its 4 or 6.
-  - Rooms without a PIN, and Play's (they have none), need 2 as before.
+- **A private room is started by its owner** (the owner's of 2026-10-26: "in private lobbies
+  it should be possible to start the game 1vs0"; then no "from N v N", no countdown, no team
+  size). Private is a room with a PIN.
+  - No team size and no players to start: it takes the most a match has, 20 (10 v 10, every
+    map and mode). The create window hides Team size, Players to start and Time to start once
+    a PIN is typed (their values kept for the next open room) and says "Private room: up to 20
+    players; you start the match."
+  - No countdown: it waits however many are in. Its owner (its maker, or the member who came
+    first after it left) has Start beside Leave; the others read "Waiting for the creator to
+    start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
+    winner then: the 3 cards are there and voted for as in any room, Start ends the vote.
+  - The sides as in any room (as even as can be, squads together): 3 players 2 v 1, 5 3 v 2.
+    A late joiner (with the PIN) goes to the side with fewer players: the empty one of a 1 v 0.
+  - The server refuses (does nothing) a Start of anyone but the owner, in an open room, while
+    the room plays its match, or with a maintenance near (`2 060 000 041`, `lobby.md`).
+  - After the match it waits for its owner's Start again: no vote or countdown of its own, so
+    a lone member left idle plays no match after match.
   - The match server is told a minimum of 1 (`MatchSetup::room_minimum`): no side needs a
-    player, so the match is called off only with nobody in it (`match.md` §34).
-  - A late joiner (with the PIN) goes to the empty side, as to the side with fewer players.
-  - It pays nothing, as every PIN room's match ("A PIN: no rewards", above): no experience,
-    silver, rating or quest progress, nothing charged either; so a 1 v 0 is no farm.
-  - The room's banner reads "1 / 1"; the list and the create window still say "from 1 v 1".
+    player; called off only with nobody in it (`match.md` §34).
+  - It pays nothing, as every PIN room's match ("A PIN: no rewards", above).
+  - Its info line and banner say no "N v N" (the banner: members / 20); the list never did.
+  - Open rooms and Play keep their size, players to start and countdown.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.

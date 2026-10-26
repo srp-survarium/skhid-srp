@@ -31,8 +31,8 @@
 //!   side, are in or can still come, the match ends before its countdown
 //!   as not made ([`MatchEnd::NotMade`]): nothing of it counts, and the
 //!   lobby gives its room the vote and the wait again.
-//! - **A minimum of one** (a private room from 1 v 1, the owner's of
-//!   2026-10-26): no side needs a player, so a match of one starts 1 v 0
+//! - **A minimum of one** (a private room, started by its owner with whoever
+//!   is in; the owner's of 2026-10-26): no side needs a player, so a match of one starts 1 v 0
 //!   (its one place is the clients' whole number, `floor(0.8 × 1)` = 0:
 //!   its entry starts the countdown), and a 1 v 1 whose other player gave
 //!   up goes on as 1 v 0.

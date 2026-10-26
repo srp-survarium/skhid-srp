@@ -28,6 +28,12 @@
 //!   (the owner's of 2026-10-20, [`Rooms::match_over`]).
 //! - Play with nothing else chosen puts a player into an open room (no
 //!   PIN, a place free; [`Rooms::open_rooms`]), or makes a new one.
+//! - A private room (a PIN; the owner's of 2026-10-26) has no team size
+//!   and no players to start: it takes the most a match has (10 v 10), and
+//!   nothing counts down in it. Its owner starts its match when it wants,
+//!   with whoever is in, 1 v 0 too ([`Rooms::start`]): on the vote's
+//!   winner then (its cards are there, and voted for, as in any room).
+//!   After the match it waits for its owner again.
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -40,11 +46,11 @@ use std::time::{Duration, Instant};
 pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 /// How long a PIN given before a JOIN waits for that JOIN.
 pub const PIN_LIFE: Duration = Duration::from_secs(60);
-/// The fewest players a vote (and so a match) starts with.
+/// The fewest players an open room's vote (and so its match) starts with.
 pub const START_PLAYERS: usize = 2;
-/// The fewest a private room's (a PIN's) vote and match start with when it
-/// is from 1 v 1: one, its match 1 v 0 ([`Room::needs`]).
-pub const PRIVATE_START_PLAYERS: usize = 1;
+/// A private room's team size: the most a match has, 10 v 10 (the owner's
+/// of 2026-10-26: no size to choose).
+pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
 /// The pool entries one piece of a draft carries.
@@ -65,8 +71,8 @@ pub struct Spec {
     pub max_level: u8,
     pub wait: u8,
     pub pin: Option<u16>,
-    /// The players it needs before its vote begins: 2 (1 v 1), 4 or 6
-    /// (a private room from 1 v 1 starts with 1, [`Room::needs`]).
+    /// The players an open room needs before its vote begins: 2 (1 v 1), 4
+    /// or 6. A private room has none: its owner starts it ([`Room::needs`]).
     pub min_players: u8,
 }
 
@@ -158,16 +164,14 @@ impl Room {
         2 * usize::from(self.spec.size)
     }
 
-    /// The players it needs before its vote begins (two at least); a
-    /// private room (a PIN) from 1 v 1 needs one, its match 1 v 0 (the
-    /// owner's of 2026-10-26: "in private lobbies it should be possible to
-    /// start the game 1vs0"). It pays nothing, as every PIN room's match.
+    /// The players its match needs: an open room's before its vote begins
+    /// (two at least); a private room's one, its owner starting it with
+    /// whoever is in ([`Rooms::start`]).
     pub fn needs(&self) -> usize {
-        let needs = usize::from(self.spec.min_players).max(START_PLAYERS);
-        if self.spec.pin.is_some() && needs == START_PLAYERS {
-            PRIVATE_START_PLAYERS
+        if self.is_open() {
+            usize::from(self.spec.min_players).max(START_PLAYERS)
         } else {
-            needs
+            1
         }
     }
 
@@ -225,6 +229,19 @@ pub enum Due {
     /// The room's vote and wait are over: its match is to start on `map_id`,
     /// the vote's winner then.
     Start { key: u32, map_id: u8 },
+}
+
+/// Why an owner's Start did nothing ([`Rooms::start`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartRefused {
+    /// The asker is in no room (or its room has no cards).
+    NoRoom,
+    /// Only its owner starts a room's match.
+    NotOwner,
+    /// An open room starts by its countdown, not by a Start.
+    Open,
+    /// Its match is being played.
+    Playing,
 }
 
 /// A pool being sent in pieces before its create.
@@ -366,12 +383,14 @@ impl Rooms {
     /// new one. `entries` are the maps a pool may hold; the room's pool is
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within the room's max level.
+    /// A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
+    /// says.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         &mut self,
         owner: u32,
         gear: u8,
-        spec: Spec,
+        mut spec: Spec,
         entries: &[u8],
         default: &[u8],
         most_rooms: usize,
@@ -383,6 +402,9 @@ impl Rooms {
             .unwrap_or_else(|| default.to_vec());
         if pool.is_empty() || spec.size == 0 {
             return Err(Refused::Bad);
+        }
+        if spec.pin.is_some() {
+            spec.size = PRIVATE_SIZE;
         }
         if spec.max_level != 0 && gear > spec.max_level {
             return Err(Refused::GearTooHigh);
@@ -686,6 +708,33 @@ impl Rooms {
         true
     }
 
+    /// The owner of a private room starts its match now, on the vote's
+    /// winner then (the owner's of 2026-10-26: no countdown, its owner's
+    /// Start with whoever is in). The lobby makes the match as for a
+    /// [`Due::Start`] of [`Rooms::tick`], with as many members as can play
+    /// (one at the least, [`Room::needs`]).
+    pub fn start(
+        &self,
+        account_id: u32,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Result<Due, StartRefused> {
+        let room = self.of(account_id).ok_or(StartRefused::NoRoom)?;
+        if room.owner != account_id {
+            return Err(StartRefused::NotOwner);
+        }
+        if room.is_open() {
+            return Err(StartRefused::Open);
+        }
+        if room.stage != Stage::Waiting {
+            return Err(StartRefused::Playing);
+        }
+        let map_id = room.winner(below).ok_or(StartRefused::NoRoom)?;
+        Ok(Due::Start {
+            key: room.key,
+            map_id,
+        })
+    }
+
     /// Three cards from the pool, all different while the pool has as many.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
@@ -699,14 +748,13 @@ impl Rooms {
         cards
     }
 
-    /// The pass of the lobby's tick. The members a room needs who count
-    /// ([`Room::needs`]: two, one in a private room from 1 v 1) begin the
-    /// vote, which runs [`VOTE`] and the room's own wait together; when it
-    /// is over, with as many who count, the room is due to start its match
-    /// on the vote's winner then ([`Due::Start`]), which the lobby answers
-    /// with [`Rooms::started`] or [`Rooms::not_started`]. Fewer members
-    /// than that stop it; a member who
-    /// stops counting for a while (changing its kit) does not.
+    /// The pass of the lobby's tick. Two members who count begin the vote,
+    /// which runs [`VOTE`] and the room's own wait together; when it is
+    /// over, with two who count, the room is due to start its match on the
+    /// vote's winner then ([`Due::Start`]), which the lobby answers with
+    /// [`Rooms::started`] or [`Rooms::not_started`]. Fewer than two members stop it; a member who
+    /// stops counting for a while (changing its kit) does not. A private
+    /// room counts nothing down: its owner starts it ([`Rooms::start`]).
     /// `counts`: whether a member can play the match now (in the lobby, a
     /// kit that can play, equipment within the max level).
     pub fn tick(
@@ -731,7 +779,7 @@ impl Rooms {
             }
             let present = room.members.len() >= room.needs();
             match room.stage {
-                Stage::Waiting if enough => {
+                Stage::Waiting if enough && room.is_open() => {
                     let extra = if room.after_match {
                         AFTER_MATCH
                     } else {
@@ -1053,54 +1101,55 @@ mod tests {
         assert_eq!(room.votes.get(&2), Some(&1));
     }
 
-    /// The owner's of 2026-10-26: a private room (a PIN) from 1 v 1 starts
-    /// its vote, and its match, with its one member (1 v 0); an open room
-    /// waits for two, and a private one from 2 v 2 for its four.
+    /// The owner's of 2026-10-26: a private room is 10 v 10, counts nothing
+    /// down, and its owner starts its match when it wants, on the vote's
+    /// winner then; nobody else, never an open room, never while its match
+    /// is played. After the match it waits for its owner again.
     #[test]
-    fn a_private_room_from_one_a_side_starts_with_one_member() {
+    fn a_private_room_starts_by_its_owner_only() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let open = room_of(&mut rooms, 1, 6, None, now);
         let private = room_of(&mut rooms, 2, 6, Some(1234), now);
-        let four = rooms
-            .create(
-                3,
-                0,
-                Spec {
-                    min_players: 4,
-                    ..spec(6, Some(4321))
-                },
-                &POOL,
-                &POOL,
-                50,
-                now,
-                &mut first,
-            )
-            .unwrap();
-        assert_eq!(
-            [open, private, four].map(|key| rooms.get(key).unwrap().needs()),
-            [2, 1, 4]
-        );
-        rooms.tick(now, &mut first, |_| true);
-        assert_eq!(rooms.get(open).unwrap().stage, Stage::Waiting);
-        assert_eq!(rooms.get(four).unwrap().stage, Stage::Waiting);
-        let wait = Duration::from_secs(30);
-        assert_eq!(
-            rooms.get(private).unwrap().stage,
-            Stage::Vote {
-                until: now + VOTE + wait
-            }
-        );
-        let due = rooms.tick(now + VOTE + wait, &mut first, |_| true);
-        assert!(
-            matches!(due[..], [Due::Start { key, .. }] if key == private),
-            "{due:?}"
-        );
-        // Its one member not able to play: it waits.
-        rooms.not_started(private, now);
-        let due = rooms.tick(now + (VOTE + wait) * 2, &mut first, |_| false);
-        assert!(due.is_empty());
+        assert_eq!(rooms.get(private).unwrap().spec.size, PRIVATE_SIZE);
+        assert_eq!(rooms.get(private).unwrap().capacity(), 20);
+        assert_eq!(rooms.get(open).unwrap().spec.size, 6);
+        assert_eq!(rooms.get(private).unwrap().needs(), 1);
+        rooms.give_pin(3, 1234, now);
+        rooms.join(3, 0, private, now).unwrap();
+        rooms.join(4, 0, open, now).unwrap();
+        // Two in each: the open room votes, the private one waits.
+        assert!(rooms.tick(now, &mut first, |_| true).is_empty());
+        assert!(matches!(rooms.get(open).unwrap().stage, Stage::Vote { .. }));
         assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+        let later = now + Duration::from_secs(600);
+        let due = rooms.tick(later, &mut first, |_| true);
+        assert!(matches!(due[..], [Due::Start { key, .. }] if key == open));
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+
+        assert_eq!(rooms.start(3, &mut first), Err(StartRefused::NotOwner));
+        assert_eq!(rooms.start(1, &mut first), Err(StartRefused::Open));
+        assert_eq!(rooms.start(9, &mut first), Err(StartRefused::NoRoom));
+        // The member's vote decides the map.
+        assert!(rooms.vote(3, 2));
+        let cards = rooms.get(private).unwrap().cards.clone();
+        assert_eq!(
+            rooms.start(2, &mut first),
+            Ok(Due::Start {
+                key: private,
+                map_id: cards[2]
+            })
+        );
+        rooms.started(private, 77, cards[2], &[2, 3], later);
+        assert_eq!(rooms.start(2, &mut first), Err(StartRefused::Playing));
+        rooms.match_over(77);
+        rooms.tick(later, &mut first, |_| true);
+        rooms.tick(later + Duration::from_secs(600), &mut first, |_| true);
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+        assert!(rooms.start(2, &mut first).is_ok());
+        // Its owner gone, the next member owns it and starts it.
+        rooms.leave(2);
+        assert!(rooms.start(3, &mut first).is_ok());
     }
 
     #[test]

@@ -50,8 +50,9 @@ package survarium.rooms
         internal function render():void
         {
             var room:Object = win._room;
+            // A private room has no size of its own (the owner's of 2026-10-26).
             var info:String = win.say("level") + " " + String(room.level) + "  ·  " + win.say("max") + " "
-                + win.levelText(room.max) + "  ·  " + room.size + " v " + room.size + "  ·  " + win.say("pool") + " "
+                + win.levelText(room.max) + (room.pin ? "" : "  ·  " + room.size + " v " + room.size) + "  ·  " + win.say("pool") + " "
                 + room.pool + "  ·  " + win.say("code") + " " + room.key + (room.pin ? "  ·  PIN" : "");
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.
@@ -200,6 +201,9 @@ package survarium.rooms
             // A room of a lower max level that takes us: one click there
             // (the server offers it only while we play no match).
             var buttons:Array = [[win.say("leave"), onLeave, null]];
+            // A private room waits for its owner's Start (no countdown).
+            if (startsByOwner())
+                buttons.push([win.say("startMatch"), onStart, null]);
             if (room.joinIn >= 0)
                 buttons.push([win.say("joinMatch"), onJoinMatch, null]);
             if (room.switchTo != null)
@@ -222,6 +226,14 @@ package survarium.rooms
             }
             else
                 look.footer(buttons);
+        }
+
+        // Whether the asker may start its room's match now: it owns a private
+        // room (a PIN) that is not playing one (the server checks it too).
+        internal function startsByOwner():Boolean
+        {
+            var room:Object = win._room;
+            return room != null && room.pin && room.owner && room.phase == RoomPhase.WAITING;
         }
 
         private function myFit():int
@@ -279,6 +291,13 @@ package survarium.rooms
                     : RoomsText.known(why) ? win.say(why)
                     : unfit != "" ? unfit : win.say("lateHint");
             }
+            else if (win._room.pin)
+            {
+                // A private room: its owner's Start, nobody's count.
+                _bannerLabel.text = win.say("waitingShort").toUpperCase();
+                _banner.text = win._room.members.length + " / " + win._room.size * 2;
+                _bannerHint.text = unfit != "" ? unfit : win._room.owner ? win.say("startHint") : win.say("waitingOwner");
+            }
             else
             {
                 _bannerLabel.text = win.say("waitingShort").toUpperCase();
@@ -302,6 +321,16 @@ package survarium.rooms
                 return;
             win.busy(e);
             win.ask(RoomsWire.JOIN_MATCH, 1);
+            win._fastUntil = getTimer() + 5000;
+        }
+
+        // A private room's owner starts its match now, with whoever is in.
+        private function onStart(e:Event):void
+        {
+            if (win._steps.length > 0 || !startsByOwner())
+                return;
+            win.busy(e);
+            win.ask(RoomsWire.START, 1);
             win._fastUntil = getTimer() + 5000;
         }
 

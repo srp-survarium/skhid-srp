@@ -34,6 +34,11 @@ pub const ROOM_POOL_BASE: u32 = ROOMS_FIRST + 10;
 /// friend's right-click menu offers "Join room" by it (the owner's of
 /// 2026-10-20).
 pub const ROOM_FRIENDS: u32 = ROOMS_FIRST + 40;
+/// The owner of a private room (a PIN) starts its match now, with whoever
+/// is in (the owner's of 2026-10-26: no countdown in a private room).
+/// Nothing is done for anyone else, an open room, or a room playing its
+/// match. Answered with the state.
+pub const ROOM_START: u32 = ROOMS_FIRST + 41;
 /// `ROOM_KICK_BASE + place + 20 × check` ([`kick_start`]): the owner takes
 /// the member at that place of the state's list out of the room; `check` is
 /// that state's serial modulo [`KICK_CHECKS`], so a kick made from an older
@@ -191,6 +196,8 @@ pub enum RoomRequest {
     Form,
     Chat,
     Friends,
+    /// [`ROOM_START`].
+    Start,
     Bits {
         chunk: u8,
         bits: u32,
@@ -253,6 +260,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_FORM => R::Form,
         ROOM_CHAT => R::Chat,
         ROOM_FRIENDS => R::Friends,
+        ROOM_START => R::Start,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -492,7 +500,7 @@ pub struct RoomView {
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
     /// The players it needs before its vote begins (2, 4 or 6; 1 in a
-    /// room with a PIN from 1 v 1, its match 1 v 0).
+    /// private room (a PIN): its owner starts its match with whoever is in).
     pub min_players: u8,
     /// A room with a lower max level the asker may join now, offered as a
     /// one-click switch.
@@ -981,7 +989,9 @@ mod tests {
         const { assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_FRIENDS && ROOM_FRIENDS < ROOM_KICK_BASE) };
         assert_eq!(room_request(ROOM_FRIENDS, 1), Some(RoomRequest::Friends));
         assert_eq!(room_request(ROOM_FRIENDS - 1, 1), None);
-        assert_eq!(room_request(ROOM_FRIENDS + 1, 1), None);
+        assert_eq!(ROOM_FRIENDS + 1, ROOM_START);
+        assert_eq!(room_request(ROOM_START, 1), Some(RoomRequest::Start));
+        assert_eq!(room_request(ROOM_START + 1, 1), None);
         assert_eq!(
             room_request(kick_start(19, 1000), 1),
             Some(RoomRequest::Kick {

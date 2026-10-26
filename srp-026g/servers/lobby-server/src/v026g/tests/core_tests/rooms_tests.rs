@@ -7,8 +7,8 @@ use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
-    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE,
-    ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
+    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_START, ROOM_STATE, ROOM_UNQUEUE,
+    ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
 };
 
 use super::pvb_tests::with_gear;
@@ -1946,129 +1946,154 @@ fn a_room_makes_no_match_below_its_minimum() {
     }
 }
 
-/// A room with a PIN makes private matches (the owner's of 2026-10-20):
-/// the match server is told, and its result pays nobody anything; the
-/// room goes on after it as any other.
-#[test]
-fn a_room_with_a_pin_makes_matches_that_pay_nothing() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(6), Some(1234));
-    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
-    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    let held = [alice, bob].map(|player| {
-        let account = world.account(player);
-        (account.generic_money, account.exp_total)
-    });
-    world.advance(VOTE_AND_WAIT);
-    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
-    let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert!(setup.private);
-    world.end_match(ticket, 0);
-    world.advance(Duration::from_secs(2));
-    let report = world.results.find(ticket).expect("its report");
-    assert!(report.private);
-    for player in &report.players {
-        let reward = &player.reward;
-        assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
-        assert_eq!(reward.rating_after, reward.rating_before);
+/// A private room (a PIN; the owner's of 2026-10-26) members join with its
+/// PIN; `count` members in all, the first its owner: the room's key and the
+/// members.
+fn private_room(world: &mut World, count: usize) -> (u32, Vec<usize>) {
+    let names = ["Alice", "Bob", "Carol", "Dave", "Erin"];
+    let members: Vec<usize> = names[..count]
+        .iter()
+        .map(|name| world.connect(name))
+        .collect();
+    let key = create(world, members[0], spec(6), Some(1234));
+    for &member in &members[1..] {
+        rows(world, member, ROOM_PIN_BASE + 1234, 1);
+        rows(world, member, ROOM_JOIN_BASE + key, 1);
     }
-    for (player, held) in [alice, bob].into_iter().zip(held) {
-        let account = world.account(player);
-        assert_eq!((account.generic_money, account.exp_total), held);
+    for &member in &members {
+        world.take(member);
     }
-    assert_eq!(
-        header(&state(&mut world, alice))[PHASE],
-        "3",
-        "the next vote"
-    );
+    (key, members)
 }
-/// The owner's of 2026-10-26 ("in private lobbies it should be possible to
-/// start the game 1vs0"): a room with a PIN from 1 v 1 counts down with its
-/// one member and plays 1 v 0, the match server told its minimum is one;
-/// it pays nothing (a PIN's match). A late joiner goes in on the empty side.
+
+/// The asker presses Start in its room: what it is sent (its state; "match
+/// found" too when its match is made).
+fn press_start(world: &mut World, index: usize) -> Vec<Decoded> {
+    let addr = world.clients[index].0;
+    let now = world.now;
+    world.core.handle(
+        addr,
+        ClientMessage::QueryRanking {
+            start: ROOM_START,
+            count: 1,
+        },
+        now,
+    );
+    world.advance(Duration::from_millis(100));
+    world.take(index)
+}
+
+/// The owner's of 2026-10-26: a private room has no team size (10 v 10, the
+/// most a match has) and no countdown; its owner's Start makes its match at
+/// once with whoever is in, 1 v 0 too, the sides drawn as in any room. The
+/// match server is told a minimum of one (an empty side plays) and that it
+/// pays nothing; its result pays nobody anything.
 #[test]
-fn a_private_room_from_one_a_side_plays_1_v_0_and_pays_nothing() {
+fn a_private_rooms_owner_starts_its_match_with_one_three_or_five() {
+    for (count, sides) in [(1, [1, 0]), (3, [2, 1]), (5, [3, 2])] {
+        let mut world = World::new();
+        let (key, members) = private_room(&mut world, count);
+        let owner = members[0];
+        let waiting = state(&mut world, owner);
+        assert_eq!(header(&waiting)[5], "10", "10 v 10: {waiting:?}");
+        assert_eq!(header(&waiting)[15], "1");
+        // No countdown, however long.
+        world.advance(VOTE_AND_WAIT * 3);
+        assert!(world.host.made.locked().is_empty(), "{count}: no match");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "0");
+        let held: Vec<_> = members
+            .iter()
+            .map(|&member| {
+                let account = world.account(member);
+                (account.generic_money, account.exp_total, account.rating)
+            })
+            .collect();
+        let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("the owner plays");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "2");
+        for &member in &members[1..] {
+            let (sent, _) = sent_to_match(&world.take(member)).expect("each member plays");
+            assert_eq!(sent, ticket);
+        }
+        let setup = world.host.made.locked().last().unwrap().1.clone();
+        assert_eq!(setup.players.len(), count, "no bots");
+        let team = |side: u8| {
+            setup
+                .players
+                .iter()
+                .filter(|player| player.profile.team == side)
+                .count()
+        };
+        assert_eq!([team(0), team(1)], sides, "{count}");
+        assert_eq!(setup.room_minimum, Some(1));
+        assert!(setup.private);
+
+        world.end_match(ticket, 0);
+        world.advance(Duration::from_secs(2));
+        let report = world.results.find(ticket).expect("its report");
+        assert!(report.private);
+        for player in &report.players {
+            let reward = &player.reward;
+            assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
+            assert_eq!(reward.rating_after, reward.rating_before);
+        }
+        for (&member, held) in members.iter().zip(held) {
+            let account = world.account(member);
+            assert_eq!(
+                (account.generic_money, account.exp_total, account.rating),
+                held
+            );
+        }
+        // After it the room waits for its owner again: no vote, no match.
+        world.advance(VOTE_AND_WAIT * 3);
+        assert_eq!(world.host.made.locked().len(), 1, "{count}: one match");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "0");
+        assert_eq!(world.core.rooms.get(key).unwrap().members.len(), count);
+    }
+}
+
+/// Only the owner of a private room starts it, never while its match is
+/// played; an open room's owner has no Start (its countdown starts it).
+#[test]
+fn start_is_refused_to_a_member_an_open_room_and_a_room_playing() {
     let mut world = World::new();
-    let alice = world.connect("Alice");
+    let (_, members) = private_room(&mut world, 2);
+    let (owner, bob) = (members[0], members[1]);
+    let carol = world.connect("Carol");
+    create(&mut world, carol, spec(6), None);
+    assert!(sent_to_match(&press_start(&mut world, bob)).is_none());
+    assert!(sent_to_match(&press_start(&mut world, carol)).is_none());
+    world.advance(Duration::from_secs(2));
+    assert!(world.host.made.locked().is_empty(), "nobody started");
+    assert_eq!(header(&state(&mut world, carol))[PHASE], "0");
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_some());
+    assert_eq!(world.host.made.locked().len(), 1);
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_none());
+    world.advance(Duration::from_secs(2));
+    assert_eq!(world.host.made.locked().len(), 1, "not twice");
+}
+
+/// A private room's 1 v 0 takes a member who comes while it is played
+/// (with the PIN) on its empty side.
+#[test]
+fn a_private_rooms_1_v_0_takes_a_late_joiner_on_its_empty_side() {
+    let mut world = World::new();
+    let (key, members) = private_room(&mut world, 1);
     let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(6), Some(1234));
-    // Its minimum, shown "1 / 1" in the room's banner.
-    let alone = state(&mut world, alice);
-    assert_eq!(header(&alone)[15], "1", "{alone:?}");
-    world.advance(Duration::from_secs(1));
-    assert_eq!(header(&state(&mut world, alice))[PHASE], "3", "the vote");
-    let held = {
-        let account = world.account(alice);
-        (account.generic_money, account.exp_total, account.rating)
-    };
-    world.take(alice);
-    world.advance(VOTE_AND_WAIT);
-    let (ticket, _) = sent_to_match(&world.take(alice)).expect("Alice plays alone");
-    let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert_eq!(setup.players.len(), 1, "1 v 0, no bots");
-    assert_eq!(setup.players[0].profile.team, 0);
-    assert_eq!(setup.room_minimum, Some(1));
-    assert!(setup.private);
+    let (ticket, _) = sent_to_match(&press_start(&mut world, members[0])).expect("a match");
     let (&id, _) = world
         .core
         .matches
         .iter()
         .find(|(_, running)| running.ticket.match_id == ticket)
         .unwrap();
-
-    // Bob comes with the PIN while it is played: the empty side.
     world.host.admitting.locked().insert(ticket);
     rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
     rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
     world.take(bob);
-    world.advance(Duration::from_secs(16));
-    world.advance(Duration::from_secs(1));
+    world.advance(Duration::from_secs(17));
     let (sent, _) = sent_to_match(&world.take(bob)).expect("Bob goes in late");
     assert_eq!(sent, ticket);
     assert_eq!(seat_of(&world, id, bob).1, 1);
-
-    world.end_match(ticket, 0);
-    world.advance(Duration::from_secs(2));
-    let report = world.results.find(ticket).expect("its report");
-    assert!(report.private);
-    let reward = &report.players[0].reward;
-    assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
-    assert_eq!(reward.rating_after, reward.rating_before);
-    let account = world.account(alice);
-    assert_eq!(
-        (account.generic_money, account.exp_total, account.rating),
-        held
-    );
-}
-
-/// An open room (Play's too) keeps the rule of two: alone, its member
-/// waits; and a private room from 2 v 2 waits for its four.
-#[test]
-fn an_open_room_and_a_private_one_from_two_a_side_do_not_start_alone() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let open = create(&mut world, alice, spec(6), None);
-    let private = create(
-        &mut world,
-        bob,
-        RoomSpec {
-            min_side: 2,
-            ..spec(6)
-        },
-        Some(4321),
-    );
-    assert_eq!(header(&state(&mut world, alice))[15], "2");
-    assert_eq!(header(&state(&mut world, bob))[15], "4");
-    world.advance(VOTE_AND_WAIT * 2);
-    assert!(world.host.made.locked().is_empty(), "no match");
-    for (player, key) in [(alice, open), (bob, private)] {
-        assert!(sent_to_match(&world.take(player)).is_none());
-        assert_eq!(header(&state(&mut world, player))[KEY], key.to_string());
-        assert_eq!(header(&state(&mut world, player))[PHASE], "0");
-    }
 }
 
 /// Two accounts made friends, both ways, as an accepted request does.
@@ -2117,7 +2142,8 @@ fn a_friends_menu_knows_which_friends_are_in_a_room_and_joins_it_as_the_list() {
         friend_rooms(&mut world, me),
         [
             "S1;Y;2".to_owned(),
-            format!("{alice_id};{pinned};1;8;1"),
+            // A private room is 10 v 10 whatever was asked.
+            format!("{alice_id};{pinned};1;10;1"),
             format!("{erin_id};{full};12;6;0"),
         ]
     );
@@ -2154,7 +2180,7 @@ fn a_friends_menu_knows_which_friends_are_in_a_room_and_joins_it_as_the_list() {
     let me_id = world.ids[me].0;
     assert_eq!(
         friend_rooms(&mut world, bob),
-        ["S1;Y;1".to_owned(), format!("{me_id};{pinned};2;8;1")]
+        ["S1;Y;1".to_owned(), format!("{me_id};{pinned};2;10;1")]
     );
 }
 
