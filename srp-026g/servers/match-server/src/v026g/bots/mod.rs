@@ -125,6 +125,10 @@ pub struct Bot {
     memory: Memory,
     /// Its target sights that ended, for the match-end log line.
     sight_counts: polls::SightCounts,
+    /// By place, when a ray test of that enemy last came to an answer
+    /// (seen or no part showing; one the rays ran out on did not): the
+    /// longest unchecked is looked at first (`sense::look_order`).
+    tested: Vec<u32>,
     stuck: Stuck,
     personality: usize,
     /// The skill it took at its last spawn.
@@ -275,6 +279,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             sight_counts: Default::default(),
+            tested: Vec::new(),
             stuck: Stuck::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -979,6 +984,7 @@ impl Bots {
             }
         }
         let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
+        rays.thinks_left = self.thinks_due(&view);
         self.searching.left = SEARCHES_PER_POLL;
         self.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();
@@ -1019,6 +1025,22 @@ impl Bots {
         }
         self.polls.record(now, &rays);
         (made, notes)
+    }
+
+    /// The thinks that run in a poll at `view`: the bots that have entered,
+    /// are alive and whose next think has come, counted before any ray is
+    /// cast (`sense::fair_share`). None before play begins or the map is
+    /// ready.
+    pub(super) fn thinks_due(&self, view: &MatchView) -> u32 {
+        if self.tactics.is_none() {
+            return 0;
+        }
+        let due = self.bots.iter().flatten().filter(|bot| {
+            bot.entered.is_some()
+                && view.clock >= bot.next_think
+                && view.place(bot.place).is_some_and(|p| p.alive)
+        });
+        due.count() as u32
     }
 
     /// The tuning team `team` plays by: the match's (the bench's one-sided

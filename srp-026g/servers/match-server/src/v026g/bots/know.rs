@@ -98,11 +98,19 @@ pub const SIGHT_GRACE_MS: u32 = 250;
 // The default grace covers the look gap and a tick.
 const _: () = assert!(SIGHT_GRACE_MS >= super::aimpoint::LOOK_AGAIN_MS + 50);
 
-/// The two sight windows a [`Memory`] reads ([`SenseTuning`]'s numbers).
+/// The default of `CheatTuning::sight_hold_ms`, ms: how long a sight that is
+/// not the target's goes on with no test (the target is looked at every
+/// tick). The measured human release curve.
+pub const SIGHT_HOLD_MS: u32 = 250;
+
+/// The sight windows a [`Memory`] reads ([`SenseTuning`]'s numbers).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SightWindow {
     pub grace_ms: u32,
     pub untested_ms: u32,
+    /// A sight that is not the target's goes on this long without a test
+    /// (`CheatTuning::sight_hold_ms`), at most `untested_ms`.
+    pub hold_ms: u32,
 }
 
 impl Default for SightWindow {
@@ -110,6 +118,7 @@ impl Default for SightWindow {
         Self {
             grace_ms: SIGHT_GRACE_MS,
             untested_ms: SIGHT_UNTESTED_MS,
+            hold_ms: SIGHT_HOLD_MS,
         }
     }
 }
@@ -185,9 +194,16 @@ impl Track {
     }
 
     /// Whether the sight is up at `sight_now`: [`Self::unbroken`] and last
-    /// tested within [`SIGHT_UNTESTED_MS`]. What is read as a sight.
-    fn sighted(&self, sight_now: u32, window: SightWindow) -> bool {
-        self.unbroken(sight_now, window) && self.time + window.untested_ms >= sight_now
+    /// tested within the untested bound ([`SIGHT_UNTESTED_MS`]), or for an
+    /// enemy that is not `target` within the hold ([`SIGHT_HOLD_MS`]).
+    /// What is read as a sight.
+    fn sighted(&self, sight_now: u32, window: SightWindow, target: Option<Place>) -> bool {
+        let bound = if target == Some(self.who) {
+            window.untested_ms
+        } else {
+            window.hold_ms.min(window.untested_ms)
+        };
+        self.unbroken(sight_now, window) && self.time + bound >= sight_now
     }
 }
 
@@ -217,12 +233,29 @@ impl SeenTrack {
 pub struct Memory {
     tracks: Vec<Track>,
     window: SightWindow,
+    /// The reflex's target, which is looked at every tick and so is never
+    /// held ([`SightWindow::hold_ms`]).
+    target: Option<Place>,
 }
 
 impl Memory {
     /// The sight windows to read from now on (the tuning's).
     pub fn set_sight_window(&mut self, window: SightWindow) {
         self.window = window;
+    }
+
+    /// The reflex's target: the one sight no hold applies to.
+    pub fn set_sight_target(&mut self, target: Option<Place>) {
+        self.target = target;
+    }
+
+    /// The sights begun and not ended or failed past the grace: who, and
+    /// since when (the enemies a think looks at first).
+    pub fn live_sights(&self) -> impl Iterator<Item = (Place, u32)> + '_ {
+        self.tracks.iter().filter_map(|track| {
+            let since = track.sight_since?;
+            (track.source == Source::Seen).then_some((track.who, since))
+        })
     }
 
     /// Takes in a think's percepts. `notice_ms(percept)` is the noticing
@@ -235,7 +268,7 @@ impl Memory {
         forget_ms: u32,
         drop_ms: u32,
     ) {
-        let window = self.window;
+        let (window, target) = (self.window, self.target);
         for percept in percepts {
             let notice = notice_ms(percept);
             match self.tracks.iter_mut().find(|t| t.who == percept.who) {
@@ -270,7 +303,7 @@ impl Memory {
                         if replaces {
                             track.missed = None;
                         }
-                    } else if !track.sighted(percept.time, window) {
+                    } else if !track.sighted(percept.time, window, target) {
                         track.sight_since = None;
                     }
                     // When it was last sensed by a report it took: a weaker
@@ -295,7 +328,7 @@ impl Memory {
         }
         for track in &mut self.tracks {
             // Out of sight now.
-            if !track.sighted(now, window) {
+            if !track.sighted(now, window, target) {
                 track.sight_since = None;
             }
             // Not sensed for a while: a last known position, fading.
@@ -322,7 +355,7 @@ impl Memory {
         let since = track.sight_since?;
         (track.source == Source::Seen
             && now >= since + track.notice_ms
-            && track.sighted(sight_now, self.window))
+            && track.sighted(sight_now, self.window, self.target))
         .then_some(SeenTrack(*track))
     }
 
@@ -335,7 +368,7 @@ impl Memory {
     /// which noticed him already.
     pub(super) fn in_sight(&self, who: Place, sight_now: u32) -> Option<SeenTrack> {
         let track = self.tracks.iter().find(|t| t.who == who)?;
-        (track.source == Source::Seen && track.sighted(sight_now, self.window))
+        (track.source == Source::Seen && track.sighted(sight_now, self.window, self.target))
             .then_some(SeenTrack(*track))
     }
 
@@ -1629,9 +1662,11 @@ mod tests {
         assert_eq!(lanes.get(2).unwrap().kills, vec![(Vec3::new(5.0, 0.0, 5.0), 9_000)]);
     }
 
-    /// A memory with `who` seen at `time`, noticed at once.
+    /// A memory with `who` seen at `time`, noticed at once, the reflex's
+    /// target (a target is looked at, never held).
     fn sighted(who: Place, time: u32) -> Memory {
         let mut memory = Memory::default();
+        memory.set_sight_target(Some(who));
         memory.update(&[seen(who, time)], time, |_| 0, 3_000, 20_000);
         memory
     }
@@ -1798,7 +1833,57 @@ mod tests {
 
     fn sighted_with(who: Place, time: u32, notice: u32) -> Memory {
         let mut memory = Memory::default();
+        memory.set_sight_target(Some(who));
         memory.update(&[seen(who, time)], time, |_| notice, 3_000, 20_000);
         memory
+    }
+
+    /// A sight that is not the target's is held at the last tested place for
+    /// the hold and no longer, and never past the untested bound; the
+    /// target's is not held, it goes to the bound (it is looked at every
+    /// tick).
+    #[test]
+    fn a_sight_that_is_not_the_targets_is_held_at_its_last_tested_place_only() {
+        let at = Vec3::new(11.0, 0.0, 0.0);
+        let mut memory = sighted(3, 1_000);
+        memory.set_sight_target(None);
+        memory.refresh_sight(3, at, 1_100);
+        let hold = SightWindow::default().hold_ms;
+        assert!(memory.seen(3, 1_100 + hold, 1_100 + hold).is_some());
+        assert!(memory.seen(3, 1_101 + hold, 1_101 + hold).is_none());
+        // The place is the last tested one, however long it is held.
+        assert_eq!(memory.tracks()[0].at, at);
+        // The same sight as the target's goes to the untested bound.
+        memory.set_sight_target(Some(3));
+        assert!(memory.seen(3, 1_100 + 450, 1_100 + 450).is_some());
+        assert!(memory.seen(3, 1_101 + 450, 1_101 + 450).is_none());
+        // The hold is the tuning's and never longer than the bound.
+        memory.set_sight_target(None);
+        memory.set_sight_window(SightWindow {
+            hold_ms: 2_000,
+            ..SightWindow::default()
+        });
+        assert!(memory.seen(3, 1_100 + 450, 1_100 + 450).is_some());
+        assert!(memory.seen(3, 1_101 + 450, 1_101 + 450).is_none());
+        memory.set_sight_window(SightWindow {
+            hold_ms: 0,
+            ..SightWindow::default()
+        });
+        assert!(memory.seen(3, 1_100, 1_100).is_some(), "up at the test");
+        assert!(memory.seen(3, 1_101, 1_101).is_none());
+    }
+
+    /// The live sights are the begun ones of `Seen` tracks.
+    #[test]
+    fn the_live_sights_are_those_begun_and_seen() {
+        let mut memory = sighted(3, 1_000);
+        let heard = Percept {
+            source: Source::Heard,
+            ..seen(4, 1_000)
+        };
+        memory.update(&[heard], 1_000, |_| 0, 3_000, 20_000);
+        assert_eq!(memory.live_sights().collect::<Vec<_>>(), vec![(3, 1_000)]);
+        memory.fail_sight(3, Miss::Dead, 1_010);
+        assert_eq!(memory.live_sights().count(), 0);
     }
 }

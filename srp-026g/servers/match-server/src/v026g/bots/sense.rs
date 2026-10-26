@@ -30,6 +30,10 @@ pub const STARVED_PLACES: usize = 32;
 #[derive(Clone, Copy, Debug)]
 pub struct RayBudget {
     pub left: u32,
+    /// The thinks due in this poll that have not run, the one in turn
+    /// included: counted before any ray is cast ([`fair_share`]); 0: not
+    /// counted, no limit.
+    pub thinks_left: u32,
     /// What the think in turn may still take (`allow`); none: all that is
     /// left.
     allowance: Option<u32>,
@@ -44,6 +48,7 @@ impl RayBudget {
     pub fn new(left: u32) -> Self {
         Self {
             left,
+            thinks_left: 0,
             allowance: None,
             starved_by_team: [0; 2],
             starved_by_place: [0; STARVED_PLACES],
@@ -197,8 +202,22 @@ pub fn in_view(from: Vec3, yaw: f32, to: Vec3, view_deg: f32) -> bool {
     angle <= view_deg.to_radians() * 0.5
 }
 
+/// The enemies to look at in turn: those whose sight is live first (a
+/// re-test of what is seen comes before a search for a new enemy), and each
+/// group the longest unchecked first (`tested`: when a ray test of him last
+/// came to an answer; 0 for one never tested), ties in the order given.
+pub fn look_order(
+    enemies: &[Place],
+    live: impl Fn(Place) -> bool,
+    tested: impl Fn(Place) -> u32,
+) -> Vec<Place> {
+    let mut order = enemies.to_vec();
+    order.sort_by_key(|&who| (!live(who), tested(who)));
+    order
+}
+
 /// The percepts of the bot `me` at `now`, the sounds since `since`.
-/// `order` gives the enemies to look at first (stalest first).
+/// `order` gives the enemies to look at first ([`look_order`]).
 #[allow(clippy::too_many_arguments)]
 pub fn sense(
     me: &PlaceView,
@@ -211,26 +230,62 @@ pub fn sense(
     rays: &mut RayBudget,
     rng: &mut Rng,
 ) -> Vec<Percept> {
+    sense_looks(me, view, sight, tuning, cheats, since, order, rays, rng).0
+}
+
+/// [`sense`], and with the percepts what each enemy looked at came to: seen,
+/// failed (past the sight's range, outside the view, dead, or no part
+/// showing), or untested because the rays ran out. An enemy of the bot's own
+/// team is not looked at.
+#[allow(clippy::too_many_arguments)]
+pub fn sense_looks(
+    me: &PlaceView,
+    view: &MatchView,
+    sight: &RayTree,
+    tuning: &SenseTuning,
+    cheats: &CheatTuning,
+    since: u32,
+    order: &[Place],
+    rays: &mut RayBudget,
+    rng: &mut Rng,
+) -> (Vec<Percept>, Vec<(Place, LookOutcome)>) {
     let mut out = Vec::new();
+    let mut looks = Vec::new();
     if !me.alive {
-        return out;
+        return (out, looks);
     }
     let eye = me.eye();
     for &who in order {
         let Some(enemy) = view.place(who) else {
             continue;
         };
-        if !enemy.alive || !enemy.present || enemy.team == me.team {
+        if enemy.team == me.team {
             continue;
         }
-        if reach(me, enemy, tuning).is_err() {
+        if !enemy.alive || !enemy.present {
+            looks.push((who, LookOutcome::Failed(Miss::Dead)));
+            continue;
+        }
+        if let Err(miss) = reach(me, enemy, tuning) {
+            looks.push((who, LookOutcome::Failed(miss)));
             continue;
         }
         // [aimpoint] Seen when some part of him shows, not only the eyes
         // or the chest: legs on a stair, a head over a wall.
+        let mut starved = false;
         let seen = super::aimpoint::any_part_visible(eye, enemy, sight, || {
-            rays.take(me.place, me.team)
+            let given = rays.take(me.place, me.team);
+            starved |= !given;
+            given
         });
+        looks.push((
+            who,
+            match (seen, starved) {
+                (true, _) => LookOutcome::Seen,
+                (false, true) => LookOutcome::Untested,
+                (false, false) => LookOutcome::Failed(Miss::Blocked),
+            },
+        ));
         if seen {
             out.push(Percept {
                 who,
@@ -303,7 +358,7 @@ pub fn sense(
             });
         }
     }
-    out
+    (out, looks)
 }
 
 /// Where a lying battery is looked at, metres over its position: the top
@@ -1100,5 +1155,95 @@ mod tests {
         assert_eq!(plain, fair);
         assert_eq!((left_plain.left, left_plain.starved()), (left_fair.left, 0));
         assert_eq!(left_fair.starved(), 0);
+    }
+
+    /// The enemies to look at: the live sights first, then the longest
+    /// unchecked, ties in the order given; and the order changes nothing
+    /// when the budget does not bind (the same percepts, whatever the
+    /// order).
+    #[test]
+    fn the_longest_unchecked_go_first_and_the_order_matters_only_when_rays_run_out() {
+        let tested = |who: Place| [0, 900, 500, 0, 700][who];
+        assert_eq!(look_order(&[1, 2, 3, 4], |_| false, tested), vec![3, 2, 4, 1]);
+        // A live sight is a re-test, before a search for a new enemy.
+        assert_eq!(look_order(&[1, 2, 3, 4], |who| who == 1, tested), vec![1, 3, 2, 4]);
+        assert_eq!(look_order(&[3, 1], |_| false, |_| 0), vec![3, 1], "ties as given");
+        // Two enemies in view in the open: the same percepts in any order.
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let view = view(
+            vec![me.clone(), enemy_ahead(20.0), place(2, 1, Vec3::new(2.0, 0.0, 25.0), 0.0)],
+            vec![],
+        );
+        let seen = |order: &[Place], left: u32| {
+            let mut rays = RayBudget::new(left);
+            let percepts = sense(
+                &me,
+                &view,
+                &RayTree::build(&[]),
+                &SenseTuning::default(),
+                &CheatTuning::default(),
+                0,
+                order,
+                &mut rays,
+                &mut Rng::new(1),
+            );
+            let mut who: Vec<Place> = percepts.iter().map(|p| p.who).collect();
+            who.sort_unstable();
+            who
+        };
+        assert_eq!(seen(&[1, 2], 400), seen(&[2, 1], 400));
+        // One ray only: the one looked at first is seen, and only he.
+        assert_eq!(seen(&[1, 2], 1), vec![1]);
+        assert_eq!(seen(&[2, 1], 1), vec![2]);
+    }
+
+    /// What each enemy looked at came to, with the percepts: seen, out of
+    /// range, behind the bot, dead, blocked, and untested when the rays
+    /// ran out; an enemy of its own team is not looked at.
+    #[test]
+    fn a_think_knows_what_each_enemy_it_looked_at_came_to() {
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let dead = PlaceView {
+            alive: false,
+            ..place(3, 1, Vec3::new(0.0, 0.0, 10.0), 0.0)
+        };
+        let places = vec![
+            me.clone(),
+            enemy_ahead(20.0),
+            place(2, 1, Vec3::new(0.0, 0.0, 300.0), 0.0),
+            dead,
+            place(4, 1, Vec3::new(0.0, 0.0, -20.0), 0.0),
+            place(5, 0, Vec3::new(0.0, 0.0, 15.0), 0.0),
+        ];
+        let view = view(places, vec![]);
+        let look = |sight: &RayTree, left: u32| {
+            sense_looks(
+                &me,
+                &view,
+                sight,
+                &SenseTuning::default(),
+                &CheatTuning::default(),
+                0,
+                &[1, 2, 3, 4, 5],
+                &mut RayBudget::new(left),
+                &mut Rng::new(1),
+            )
+        };
+        let (percepts, looks) = look(&RayTree::build(&[]), 400);
+        assert_eq!(percepts.iter().map(|p| p.who).collect::<Vec<_>>(), vec![1]);
+        assert_eq!(
+            looks,
+            vec![
+                (1, LookOutcome::Seen),
+                (2, LookOutcome::Failed(Miss::Range)),
+                (3, LookOutcome::Failed(Miss::Dead)),
+                (4, LookOutcome::Failed(Miss::Cone)),
+            ]
+        );
+        let (percepts, looks) = look(&wall(), 400);
+        assert!(percepts.is_empty());
+        assert_eq!(looks[0], (1, LookOutcome::Failed(Miss::Blocked)));
+        let (_, looks) = look(&wall(), 3);
+        assert_eq!(looks[0], (1, LookOutcome::Untested));
     }
 }

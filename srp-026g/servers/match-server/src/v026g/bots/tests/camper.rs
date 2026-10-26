@@ -80,10 +80,11 @@ pub(crate) fn the_stand_in_campers_spot_sees_most_of_the_other_sides_routes() {
     assert_eq!(camper_spot(&walled, 0), None);
 }
 
-/// In a Team Deathmatch on the soak field, the stand-in camper (bot 0)
-/// goes to its spot and holds it; its teammate (the near miss) roams.
-#[test]
-pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
+/// 120 s of a Team Deathmatch on the soak field with the game's seed
+/// `seed`: for the stand-in camper (bot 0) and its teammate (the near miss)
+/// the living ticks they were at the camper's spot in the life they reached
+/// it in, of them those within 2 m of it, and their living ticks in all.
+fn stand_in_camper_run(seed: u64) -> [(u32, u32, u32); 2] {
     let world = soak_world();
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
@@ -101,7 +102,7 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
         tactics.set_routes(camper_routes());
     }
     bots.bench_camper = Some((0, None));
-    let mut game = Game::new(world, &teams, 1, Some(1_000), None);
+    let mut game = Game::new(world, &teams, seed, Some(1_000), None);
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
     }
@@ -155,9 +156,27 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     }
     let found = bots.bench_camper.and_then(|(_, spot)| spot.flatten());
     assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
+    held
+}
+
+/// In a Team Deathmatch on the soak field, the stand-in camper (bot 0)
+/// goes to its spot and holds it; its teammate (the near miss) roams. The
+/// time at the spot is what a life lasts there against the enemy that sees
+/// it, which varies from seed to seed (in 240 s, from 7 to 930 ticks of 50
+/// ms; over 16 seeds 6,321 ticks before the sight refresh and 5,928 after,
+/// a difference the seeds' own spread explains), so what is asked for is the
+/// sum of four seeds.
+#[test]
+pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
+    let (mut camper, mut mate) = ((0, 0, 0), (0, 0, 0));
+    for seed in 1..=4 {
+        let [c, m] = stand_in_camper_run(seed);
+        camper = (camper.0 + c.0, camper.1 + c.1, camper.2 + c.2);
+        mate = (mate.0 + m.0, mate.1 + m.1, mate.2 + m.2);
+    }
     // The camper got there and held it while alive (the reflex never moves
-    // it off); its mate spent little of its life there.
-    let [camper, mate] = held;
-    assert!(camper.0 >= 100 && camper.1 == camper.0, "camper {camper:?}, mate {mate:?}");
+    // it off, bar a push by a body); its mate spent little of its life there.
+    assert!(camper.0 >= 100, "camper {camper:?}, mate {mate:?}");
+    assert!(f64::from(camper.1) >= 0.95 * f64::from(camper.0), "camper {camper:?}, mate {mate:?}");
     assert!(f64::from(mate.1) <= 0.2 * f64::from(mate.2), "camper {camper:?}, mate {mate:?}");
 }

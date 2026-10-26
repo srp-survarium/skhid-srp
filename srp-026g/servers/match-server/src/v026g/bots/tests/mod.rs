@@ -68,6 +68,7 @@ mod kits;
 mod no_way;
 mod pocket_runs;
 mod settings;
+mod sight;
 mod soak;
 mod soaks;
 mod standin;

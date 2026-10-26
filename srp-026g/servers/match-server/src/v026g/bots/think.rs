@@ -1,4 +1,5 @@
 use super::*;
+use know::{LookOutcome, Miss};
 
 impl Bots {
     /// A bot's think, when due: senses, memory, reflex, the play's step.
@@ -42,10 +43,23 @@ impl Bots {
             tactics,
             tuning: &tuning,
         };
+        // A poll that binds (a late one has six or seven thinks due) shares
+        // its rays among them, not by bot index (`sense::fair_share`).
+        let thinks_left = rays.thinks_left;
+        rays.thinks_left = thinks_left.saturating_sub(1);
+        let enemies = view.enemies_of(bot.team).count();
+        let fair = sense::fair_share(
+            rays.left,
+            thinks_left,
+            sense::think_most(enemies, tuning.sense.battery_rays),
+        );
+        rays.allow(fair.map(|share| share.enemies));
         let sensed = sense(&due, bot, rays);
+        rays.allow_more(fair.map_or(0, |share| share.batteries));
         let state = &mut self.teams[team];
         let percepts = share(&due, bot, state, &self.tracker, sensed);
         sense_batteries(&due, bot, state, rays, notes);
+        rays.allow(None);
         remember(&due, bot, &percepts);
         react(&due, bot, state, &self.weapons, notes);
         if now < bot.pause_until {
@@ -195,12 +209,16 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         tactics,
         tuning,
     } = *due;
-    let mut order: Vec<Place> = view.enemies_of(bot.team).map(|p| p.place).collect();
-    if !order.is_empty() {
-        let k = (now / 100) as usize % order.len();
-        order.rotate_left(k);
-    }
-    let percepts = sense::sense(
+    // The sights it has are looked at again first, then the enemies it has
+    // not looked at the longest (research B5).
+    let enemies: Vec<Place> = view.enemies_of(bot.team).map(|p| p.place).collect();
+    let live: Vec<(Place, u32)> = bot.memory.live_sights().collect();
+    let order = sense::look_order(
+        &enemies,
+        |who| live.iter().any(|&(live, _)| live == who),
+        |who| bot.tested.get(who).copied().unwrap_or(0),
+    );
+    let (percepts, looks) = sense::sense_looks(
         me,
         view,
         &tactics.world.sight,
@@ -212,8 +230,45 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         &mut bot.rng,
     );
     bot.heard_until = now;
+    for &(who, outcome) in &looks {
+        if matches!(outcome, LookOutcome::Seen | LookOutcome::Failed(Miss::Blocked)) {
+            if bot.tested.len() <= who {
+                bot.tested.resize(who + 1, 0);
+            }
+            bot.tested[who] = now;
+        }
+    }
+    tell_looks(&mut bot.memory, &live, &looks, view, me.feet);
     let quiet = percepts.is_empty() && bot.memory.all_seen(now, view.clock).is_empty();
     Sensed { percepts, quiet }
+}
+
+/// What a think's looks tell the memory of the sights it had (`live`: who,
+/// since when): one a look found gone ends after its grace (at once when he
+/// died or is another life), one the rays ran out on keeps its state to the
+/// bound, and one found is the percept's, not told here. A sight with no
+/// look this think (not an enemy in the order) is left as it is.
+pub(super) fn tell_looks(
+    memory: &mut Memory,
+    live: &[(Place, u32)],
+    looks: &[(Place, LookOutcome)],
+    view: &MatchView,
+    feet: Vec3,
+) {
+    for &(who, since) in live {
+        let outcome = match view.place(who) {
+            None => LookOutcome::Failed(Miss::Dead),
+            Some(enemy) if enemy.spawned > since => LookOutcome::Failed(Miss::Dead),
+            Some(_) => match looks.iter().find(|look| look.0 == who) {
+                Some(&(_, outcome)) => outcome,
+                None => continue,
+            },
+        };
+        if outcome != LookOutcome::Seen {
+            let at = view.place(who).map_or(feet, |enemy| enemy.feet);
+            memory.looked(who, at, outcome, view.clock);
+        }
+    }
 }
 
 /// Whether the bot's think is due: it has entered the match and its next think has come. If so, the next one is drawn
@@ -393,6 +448,7 @@ pub(super) fn react(
         tuning,
     } = *due;
     let skill = bot.skill;
+    bot.memory.set_sight_target(bot.reflex.target());
     let sit = reflex::Situation {
         view,
         tactics: Some(tactics),
@@ -548,6 +604,118 @@ pub(super) fn decide(
 #[cfg(test)]
 mod phase_tests {
     use super::*;
+
+    use crate::v026g::bots::know::{Percept, SIGHT_GRACE_MS};
+    use crate::v026g::bots::view::Mode;
+
+    fn enemy(place: Place, spawned: u32) -> PlaceView {
+        PlaceView {
+            place,
+            team: 1,
+            bot: true,
+            present: true,
+            alive: true,
+            feet: Vec3::new(0.0, 0.0, 20.0),
+            yaw: 0.0,
+            pitch: 0.0,
+            velocity: [0.0, 0.0],
+            keys: 0,
+            health: 1.0,
+            spawned,
+            kills: 0,
+            deaths: 0,
+            streak: 0,
+            carrying: None,
+            seen_at: 0,
+            known_at: 0,
+        }
+    }
+
+    /// The bot itself, place 0 (the view is indexed by place).
+    fn us() -> PlaceView {
+        PlaceView {
+            team: 0,
+            ..enemy(0, 0)
+        }
+    }
+
+    fn view_at(clock: u32, places: Vec<PlaceView>) -> MatchView {
+        MatchView {
+            clock,
+            mode: Mode::TeamDeathmatch,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            points: [0, 0],
+            places,
+            batteries: vec![],
+            marks: vec![],
+            containers: vec![],
+            sounds: vec![],
+            deaths: vec![],
+            world_time: 0,
+            can_respawn: [true, true],
+            next_battery: None,
+        }
+    }
+
+    /// Two enemies seen at 1 s, neither the target.
+    fn two_sights() -> Memory {
+        let mut memory = Memory::default();
+        let seen = |who| Percept {
+            who,
+            at: Vec3::new(0.0, 0.0, 20.0),
+            error_m: 0.0,
+            time: 1_000,
+            source: Source::Seen,
+            busy: false,
+        };
+        memory.update(&[seen(1), seen(2)], 1_000, |_| 0, 3_000, 20_000);
+        memory
+    }
+
+    /// A think whose look found a non-target gone ends his sight after the
+    /// grace, not at once; one the rays ran out on keeps it to the hold; one
+    /// found is left to the percept; and the one that died, or is another
+    /// life, ends at once.
+    #[test]
+    fn a_thinks_failed_look_ends_a_sight_after_its_grace_and_an_untested_one_does_not() {
+        let mut memory = two_sights();
+        let live: Vec<_> = memory.live_sights().collect();
+        assert_eq!(live, vec![(1, 1_000), (2, 1_000)]);
+        let view = view_at(1_100, vec![us(), enemy(1, 0), enemy(2, 0)]);
+        let looks = [
+            (1, LookOutcome::Failed(Miss::Blocked)),
+            (2, LookOutcome::Untested),
+        ];
+        tell_looks(&mut memory, &live, &looks, &view, Vec3::ZERO);
+        let missed = |memory: &Memory, who| {
+            memory.tracks().iter().find(|t| t.who == who).unwrap().missed
+        };
+        assert_eq!(missed(&memory, 1), Some((1_100, Miss::Blocked)));
+        assert_eq!(missed(&memory, 2), None, "untested is not a negative");
+        // (The grace is the target's: a non-target is held to the hold.)
+        memory.set_sight_target(Some(1));
+        let last = 1_100 + SIGHT_GRACE_MS;
+        assert!(memory.seen(1, last, last).is_some());
+        assert!(memory.seen(1, last + 1, last + 1).is_none());
+        // The untested one is held for the hold from his last test, no more.
+        let hold = 1_000 + crate::v026g::bots::know::SIGHT_HOLD_MS;
+        assert!(memory.seen(2, hold, hold).is_some());
+        assert!(memory.seen(2, hold + 1, hold + 1).is_none());
+        // A look that found him is the percept's.
+        let before = memory.tracks().to_vec();
+        tell_looks(&mut memory, &live, &[(2, LookOutcome::Seen)], &view, Vec3::ZERO);
+        assert_eq!(memory.tracks()[1], before[1]);
+        // One that died or lives another life ends at once; one the order
+        // did not hold is left as it is.
+        let mut memory = two_sights();
+        let gone = view_at(1_100, vec![us(), enemy(1, 1_050)]);
+        tell_looks(&mut memory, &live, &[(1, LookOutcome::Seen)], &gone, Vec3::ZERO);
+        assert_eq!(memory.live_sights().count(), 0, "another life, and absent");
+        let mut memory = two_sights();
+        tell_looks(&mut memory, &live, &[], &view, Vec3::ZERO);
+        assert_eq!(memory.live_sights().count(), 2);
+    }
 
     fn bot(entered: Option<u32>, next_think: u32) -> (Bot, Tuning) {
         let tuning = Tuning::default();

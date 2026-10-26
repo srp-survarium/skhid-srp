@@ -120,6 +120,14 @@ pub struct CheatTuning {
     pub hearing: f32,
     /// The forgetting time instead of the sense's.
     pub forget_ms: u32,
+    /// An enemy that is not the target and was seen at a test stays seen
+    /// this long, ms on the information clock, with no test, at the last
+    /// tested place only (never his live one): what a player has of an
+    /// enemy he saw a moment ago, in place of a look at every non-target
+    /// at every tick. At most `SenseTuning::sight_untested_ms`; the
+    /// target is always looked at, never held. The measured human release
+    /// curve says 250; 0: the sight of a non-target is up at the test only.
+    pub sight_hold_ms: u32,
 }
 
 impl Default for CheatTuning {
@@ -132,6 +140,7 @@ impl Default for CheatTuning {
             radar_every_ms: 5_000,
             hearing: 1.25,
             forget_ms: 5_000,
+            sight_hold_ms: 250,
         }
     }
 }

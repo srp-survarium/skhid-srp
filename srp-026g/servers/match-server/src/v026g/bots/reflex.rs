@@ -1850,6 +1850,7 @@ impl Reflex {
         now: u32,
     ) {
         self.new_life(me);
+        memory.set_sight_target(self.target);
         let looked = self.sight.update(me, self.target, view, world, now);
         self.sight_tick(me, view, memory, sense, looked);
     }
