@@ -1658,6 +1658,7 @@ pub(super) mod tests {
                 }
             }
             matches += 1;
+            let mut know = crate::v026g::bots::artefact_know::ArtefactKnow::of(&map);
             let mut pure = anomalies.clone();
             for (&ms, path) in times {
                 let body = std::fs::read(path).unwrap();
@@ -1665,7 +1666,10 @@ pub(super) mod tests {
                     continue;
                 };
                 anomalies.advance(ms + 3_000);
+                let predicted = crate::v026g::bots::artefact_know::ArtefactKnow::predicted(&anomalies);
                 let report = anomalies.sync_from_world(sections.objects, ms);
+                let synced: Vec<usize> = report.synced.iter().map(|s| s.core).collect();
+                know.observe(&predicted, &anomalies, &synced, ms + 3_000);
                 pure.advance(ms - 1);
                 for synced in &report.synced {
                     let (world, sim) = (
@@ -1713,6 +1717,21 @@ pub(super) mod tests {
                         .or_default()
                         .2 += 1;
                 }
+            }
+            // `artefact_know`: the artefact state of the cores with artefacts, simulated against
+            // each world (a pick-up is unseen, so a core can differ after one).
+            let counts = know.counts();
+            if counts.cores > 0 {
+                eprintln!(
+                    "{id} {project}: artefacts of {} cores read: alike {} ({:.1} %), off by time {} (by <=tick/1s/5s/more {:?}), re-armed by a pick-up {}, spawn missed {}",
+                    counts.cores,
+                    counts.agree,
+                    100.0 * counts.agree_share(),
+                    counts.off,
+                    counts.due_error,
+                    counts.rearmed,
+                    counts.spawned
+                );
             }
         }
         eprintln!("{matches} matches");
