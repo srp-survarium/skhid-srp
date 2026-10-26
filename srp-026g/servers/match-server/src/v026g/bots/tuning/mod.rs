@@ -40,6 +40,7 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    pub unstick: UnstickTuning,
     /// The bear-trap habit (`bots/traps.rs`).
     pub traps: TrapTuning,
     pub heal: HealTuning,
@@ -67,6 +68,7 @@ mod play;
 mod sense;
 mod team;
 mod traps;
+mod unstick;
 
 pub use aim::AimTuning;
 pub use aim::SkillTuning;
@@ -93,6 +95,8 @@ pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use traps::ReactTuning;
 pub use traps::TrapTuning;
+pub use unstick::SUICIDE_AFTER_OWNER_MS;
+pub use unstick::UnstickTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -147,6 +151,7 @@ impl Tuning {
         self.skill.check()?;
         self.think.check()?;
         self.traps.check()?;
+        self.unstick.check()?;
         Ok(())
     }
 

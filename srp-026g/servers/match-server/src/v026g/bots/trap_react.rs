@@ -1,8 +1,11 @@
 //! A bot and a trap that is not its team's: the chance to notice it, and what
 //! the bots' passes by one come to (`docs/notes/bear_traps.md`, C18).
 //!
-//! **This change only notices and counts; no bot acts on a noticed trap yet**
-//! (the shot, the step and the jump follow, each behind its own switch).
+//! **A noticed trap is shot** (`traps.react.shot`, off): the bot stops, looks
+//! at the trap's centre and takes single, aimed shots at it with its own
+//! aim model (no aim boost: the cone, the kick and the hit chance are the
+//! reflex's and the client's). The step and the jump follow, each behind its
+//! own switch.
 //!
 //! - **Private.** A bot's notice is its own: [`Seen`] lives in the `Bot`,
 //!   nothing goes to `TeamKnowledge` (the ledger: a rule, not a cheat). The
@@ -31,7 +34,8 @@ use super::aimpoint::sight_line;
 use super::sense::in_view;
 use super::think::Due;
 use super::tuning::ReactTuning;
-use super::{Bot, TeamState};
+use super::view::{PlaceView, Sound, SoundKind};
+use super::{Bot, Place, TeamState};
 
 /// Rolls remembered at most.
 const SEEN_KEEP: usize = 8;
@@ -45,6 +49,9 @@ const CENTRE_UP: f32 = 0.12;
 const SAME_FLOOR_M: f32 = 1.5;
 /// A noticed trap stays noticed this long, ms (while it stands).
 const NOTICED_KEEP_MS: u32 = 600_000;
+/// A trap the world shows disarmed this soon after the bot's last shot is
+/// credited to the shot, ms (the worlds are up to 5 s apart).
+pub const SHOT_CREDIT_MS: u32 = 6_000;
 
 /// Which trap: the placing time and the place to a tenth of a metre (the
 /// world's record; a recycled trap is another).
@@ -109,6 +116,17 @@ pub struct ReactCounts {
     /// [`Class`], and those of them through the sensor.
     pub passes: [u32; 3],
     pub through: [u32; 3],
+    /// The shot: begun, single shots fired, traps the world then showed
+    /// disarmed within [`SHOT_CREDIT_MS`] of the bot's last shot, given up
+    /// (shots or time spent, a fight, the weapon empty), held for a mate
+    /// already shooting, and a second bot starting on a trap another was
+    /// already shooting.
+    pub shoot_started: u32,
+    pub shots_fired: u32,
+    pub disarmed_by_shot: u32,
+    pub gave_up: u32,
+    pub held_for_mate: u32,
+    pub double_shooters: u32,
 }
 
 impl ReactCounts {
@@ -116,6 +134,12 @@ impl ReactCounts {
         self.rolls += other.rolls;
         self.noticed += other.noticed;
         self.missed += other.missed;
+        self.shoot_started += other.shoot_started;
+        self.shots_fired += other.shots_fired;
+        self.disarmed_by_shot += other.disarmed_by_shot;
+        self.gave_up += other.gave_up;
+        self.held_for_mate += other.held_for_mate;
+        self.double_shooters += other.double_shooters;
         for k in 0..3 {
             self.passes[k] += other.passes[k];
             self.through[k] += other.through[k];
@@ -187,11 +211,23 @@ pub struct React {
     passing: Option<Passing>,
     prev: Option<(u32, Vec3)>,
     counts: ReactCounts,
+    reaction: Reaction,
+    /// Whether the trap of the reaction is still shown armed (set at each
+    /// think from the world).
+    target_armed: bool,
+    /// Traps the bot has shot at and given up: not started on again.
+    tried: Vec<TrapKey>,
+    /// The trap of the shot the team's record has the bot at.
+    registered: Option<TrapKey>,
 }
 
 impl React {
     pub fn counts(&self) -> ReactCounts {
         self.counts
+    }
+
+    pub fn reaction(&self) -> Reaction {
+        self.reaction
     }
 
     /// What the bot has rolled for `key` and still stands.
@@ -308,6 +344,8 @@ impl React {
 
     /// A new life: a pass in the making ends with it, the rolls are forgotten.
     pub fn new_life(&mut self) {
+        self.reaction = Reaction::Idle;
+        self.tried.clear();
         self.seen.clear();
         self.passing = None;
         self.prev = None;
@@ -327,6 +365,245 @@ impl React {
     }
 }
 
+/// What a bot does about a trap it has noticed.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Reaction {
+    #[default]
+    Idle,
+    /// Turning to the trap, the legs still, the aim coming on.
+    Aim { key: TrapKey, at: Vec3, since: u32 },
+    /// The aimed shots: `shots` fired, `last` the time of the last, `down`
+    /// the fire key is down this tick (it goes up the next).
+    Shoot {
+        key: TrapKey,
+        at: Vec3,
+        since: u32,
+        shots: u8,
+        last: u32,
+        down: bool,
+    },
+}
+
+impl Reaction {
+    pub fn target(&self) -> Option<(TrapKey, Vec3)> {
+        match *self {
+            Reaction::Idle => None,
+            Reaction::Aim { key, at, .. } | Reaction::Shoot { key, at, .. } => Some((key, at)),
+        }
+    }
+}
+
+/// What a tick of the body tells the reaction.
+#[derive(Clone, Copy, Debug)]
+pub struct Tick {
+    pub now: u32,
+    /// The angle between the view and the trap's centre, radians.
+    pub err_rad: f32,
+    /// Nothing calls the bot away: no target, no shot, no use.
+    pub calm: bool,
+    /// The weapon in hand has a round in it and is not being reloaded.
+    pub ready: bool,
+    /// A mate is seen shooting at the trap ([`mate_firing`]).
+    pub mate_firing: bool,
+}
+
+/// What the reaction asks of the body this tick.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Out {
+    /// Look at this point (the trap's centre), hold aim, keep the legs still.
+    pub look: Option<Vec3>,
+    /// The fire key is down this tick.
+    pub fire: bool,
+    /// How the reaction ended this tick, if it did.
+    pub ended: Option<End>,
+    /// A shot was fired this tick.
+    pub shot: bool,
+}
+
+/// How a reaction ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum End {
+    /// The trap is no longer shown armed (disarmed by anyone, or fired).
+    Gone { shots: u8, last: u32 },
+    /// Given up: too many shots or too long, a fight, the weapon empty.
+    GaveUp,
+    /// A mate was shooting at it: held for them.
+    HeldForMate,
+}
+
+/// The reaction's one transition: total over the ticks.
+pub fn step(state: Reaction, tick: Tick, armed: bool, t: &ReactTuning) -> (Reaction, Out) {
+    let idle = |ended| {
+        (
+            Reaction::Idle,
+            Out {
+                ended,
+                ..Out::default()
+            },
+        )
+    };
+    let looking = |at: Vec3| Some(at + Vec3::new(0.0, CENTRE_UP, 0.0));
+    match state {
+        Reaction::Idle => idle(None),
+        Reaction::Aim { key, at, since } => {
+            if !armed {
+                return idle(Some(End::Gone { shots: 0, last: 0 }));
+            }
+            if !tick.calm || !tick.ready {
+                return idle(Some(End::GaveUp));
+            }
+            let waited = tick.now.saturating_sub(since);
+            if tick.mate_firing {
+                // Hold for the mate for a while, then leave it to them.
+                return if waited > t.hold_ms {
+                    idle(Some(End::HeldForMate))
+                } else {
+                    (
+                        state,
+                        Out {
+                            look: looking(at),
+                            ..Out::default()
+                        },
+                    )
+                };
+            }
+            if waited > t.aim_timeout_ms {
+                return idle(Some(End::GaveUp));
+            }
+            if waited >= t.aim_settle_ms && tick.err_rad <= t.aim_ok_rad {
+                // On it: the first shot goes this tick.
+                return (
+                    Reaction::Shoot {
+                        key,
+                        at,
+                        since: tick.now,
+                        shots: 1,
+                        last: tick.now,
+                        down: true,
+                    },
+                    Out {
+                        look: looking(at),
+                        fire: true,
+                        shot: true,
+                        ..Out::default()
+                    },
+                );
+            }
+            (
+                state,
+                Out {
+                    look: looking(at),
+                    ..Out::default()
+                },
+            )
+        }
+        Reaction::Shoot {
+            key,
+            at,
+            since,
+            shots,
+            last,
+            down,
+        } => {
+            if !armed {
+                return idle(Some(End::Gone { shots, last }));
+            }
+            if !tick.calm || !tick.ready {
+                return idle(Some(End::GaveUp));
+            }
+            if tick.mate_firing {
+                return idle(Some(End::HeldForMate));
+            }
+            let spent = tick.now.saturating_sub(since) as f32 / 1000.0;
+            if (shots >= t.max_shots && !down) || spent > t.max_shoot_s {
+                return idle(Some(End::GaveUp));
+            }
+            let look = looking(at);
+            if down {
+                // The key goes up the tick after it went down.
+                return (
+                    Reaction::Shoot {
+                        key,
+                        at,
+                        since,
+                        shots,
+                        last,
+                        down: false,
+                    },
+                    Out {
+                        look,
+                        ..Out::default()
+                    },
+                );
+            }
+            if tick.now.saturating_sub(last) >= t.shot_gap_ms && tick.err_rad <= t.aim_ok_rad * 2.0
+            {
+                return (
+                    Reaction::Shoot {
+                        key,
+                        at,
+                        since,
+                        shots: shots + 1,
+                        last: tick.now,
+                        down: true,
+                    },
+                    Out {
+                        look,
+                        fire: true,
+                        shot: true,
+                        ..Out::default()
+                    },
+                );
+            }
+            (
+                state,
+                Out {
+                    look,
+                    ..Out::default()
+                },
+            )
+        }
+    }
+}
+
+/// Whether a mate of the bot is seen shooting at the trap: a shot sound of
+/// a mate within `claim_ms`, the mate within `claim_m` of the bot or of the
+/// trap, and its view within `claim_yaw_deg` of the trap's bearing. Only
+/// what a player sees and hears.
+pub fn mate_firing(
+    sounds: &[Sound],
+    mates: &[&PlaceView],
+    me: Place,
+    trap: Vec3,
+    me_at: Vec3,
+    now: u32,
+    t: &ReactTuning,
+) -> bool {
+    sounds.iter().any(|sound| {
+        sound.kind == SoundKind::Shot
+            && sound.from != me
+            && now.saturating_sub(sound.time) <= t.claim_ms
+            && mates.iter().any(|mate| {
+                mate.place == sound.from
+                    && (mate.feet.distance_xz(me_at) <= t.claim_m
+                        || mate.feet.distance_xz(trap) <= t.claim_m)
+                    && in_view(mate.eye(), mate.yaw, trap, t.claim_yaw_deg)
+            })
+    })
+}
+
+/// The angle between the view (`yaw`, `pitch`) and the point seen from `eye`.
+pub fn view_error(eye: Vec3, yaw: f32, pitch: f32, point: Vec3) -> f32 {
+    let (dx, dz) = (point.x - eye.x, point.z - eye.z);
+    let want_yaw = super::kin::yaw_of([dx, dz]);
+    let want_pitch = (point.y - eye.y).atan2(dx.hypot(dz));
+    let wrap = |a: f32| {
+        let tau = std::f32::consts::TAU;
+        (a + std::f32::consts::PI).rem_euclid(tau) - std::f32::consts::PI
+    };
+    wrap(want_yaw - yaw).hypot(want_pitch - pitch)
+}
+
 /// The armed traps of a world (those not fired or disarmed).
 pub fn armed_of(found: &[PlacedTrap]) -> Vec<PlacedTrap> {
     found
@@ -340,10 +617,15 @@ pub fn armed_of(found: &[PlacedTrap]) -> Vec<PlacedTrap> {
 const OWN_M: f32 = 1.0;
 /// Hit this lately, ms, or an enemy seen: the bot is in a fight.
 const FIGHT_HIT_MS: u32 = 3_000;
+/// A bot hurt below this health leaves the trap alone.
+const SHOOT_HEALTH: f32 = 0.4;
+/// A shooter is remembered this long, ms (a second one starting on the same
+/// trap within it is a double shooter).
+const SHOOTER_KEEP_MS: u32 = 1_500;
 
-/// A think of a bot: its pass against the armed traps of others, and the
-/// roll for the nearest one in range. Nothing is done with the result yet.
-pub(super) fn think(bot: &mut Bot, due: &Due, state: &TeamState) {
+/// A think of a bot: its pass against the armed traps of others, the roll
+/// for the nearest one in range, and the start of a shot at a noticed one.
+pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let t = &due.tuning.traps.react;
     let me = due.me;
     if !t.on || !me.alive {
@@ -365,32 +647,170 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &TeamState) {
     let keyed: Vec<(TrapKey, Vec3)> = others.iter().map(|&(_, key, at)| (key, at)).collect();
     bot.features.traps.react.prune(&keyed);
     bot.features.traps.react.walk(due.now, me.feet, &keyed);
-    let nearest = others
-        .iter()
-        .map(|(trap, _, at)| (trap, me.feet.distance_xz(*at)))
-        .filter(|&(_, d)| d < t.far_m)
-        .min_by(|a, b| a.1.total_cmp(&b.1));
-    let Some((trap, _)) = nearest else {
-        return;
-    };
+    if let Some((key, _)) = bot.features.traps.react.reaction.target() {
+        bot.features.traps.react.target_armed = keyed.iter().any(|(k, _)| *k == key);
+        bot.features.traps.react.register(key, bot.place, due.now, state);
+    }
     let fighting = !bot.memory.all_seen(due.now).is_empty()
         || bot
             .hurt
             .last_hit_ms
             .is_some_and(|hit| due.now < hit.saturating_add(FIGHT_HIT_MS));
-    let look = Look {
-        now: due.now,
-        feet: me.feet,
-        eye: me.eye(),
-        yaw: me.yaw,
-        fighting,
+    let nearest = others
+        .iter()
+        .map(|(trap, _, at)| (trap, me.feet.distance_xz(*at)))
+        .filter(|&(_, d)| d < t.far_m)
+        .min_by(|a, b| a.1.total_cmp(&b.1));
+    if let Some((trap, _)) = nearest {
+        let look = Look {
+            now: due.now,
+            feet: me.feet,
+            eye: me.eye(),
+            yaw: me.yaw,
+            fighting,
+        };
+        let rng = &mut bot.rng;
+        bot.features.traps.react.roll(
+            &look,
+            trap,
+            t,
+            || rng.unit(),
+            |from, to| sight_line(&due.tactics.world.sight, from, to),
+        );
+    }
+    if t.shot && bot.features.traps.react.reaction == Reaction::Idle && !fighting {
+        start_shot(bot, due, &others);
+    }
+}
+
+impl React {
+    /// A bot that has begun shooting is put in the team's record; a second
+    /// one starting on the same trap soon after is counted.
+    fn register(&mut self, key: TrapKey, place: Place, now: u32, state: &mut TeamState) {
+        if !matches!(self.reaction, Reaction::Shoot { .. }) || self.registered == Some(key) {
+            return;
+        }
+        self.registered = Some(key);
+        state
+            .shooters
+            .retain(|&(_, _, at)| now.saturating_sub(at) <= SHOOTER_KEEP_MS);
+        if state
+            .shooters
+            .iter()
+            .any(|&(other, who, _)| other == key && who != place)
+        {
+            self.counts.double_shooters += 1;
+        }
+        state.features.traps.shooters.push((key, place, now));
+    }
+}
+
+/// Whether to begin a shot at the nearest noticed trap in reach: a clear
+/// line, the weapon ready, the bot unhurt and carrying nothing, and no mate
+/// already at it.
+fn start_shot(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) {
+    let t = &due.tuning.traps.react;
+    let me = due.me;
+    if me.carrying.is_some() || me.health < SHOOT_HEALTH || !weapon_ready(bot, due.now) {
+        return;
+    }
+    let react = &bot.features.traps.react;
+    let target = others
+        .iter()
+        .filter(|(_, key, _)| react.noticed(*key, due.now) && !react.tried.contains(key))
+        .map(|&(_, key, at)| (key, at, me.feet.distance_xz(at)))
+        .filter(|&(_, _, d)| d <= t.shoot_m)
+        .min_by(|a, b| a.2.total_cmp(&b.2));
+    let Some((key, at, _)) = target else {
+        return;
     };
-    let rng = &mut bot.rng;
-    bot.features.traps.react.roll(
-        &look,
-        trap,
-        t,
-        || rng.unit(),
-        |from, to| sight_line(&due.tactics.world.sight, from, to),
-    );
+    let centre = at + Vec3::new(0.0, CENTRE_UP, 0.0);
+    let mates: Vec<&PlaceView> = due
+        .view
+        .team(me.team)
+        .filter(|p| p.place != me.place)
+        .collect();
+    if mate_firing(&due.view.sounds, &mates, me.place, at, me.feet, due.now, t)
+        || !sight_line(&due.tactics.world.sight, me.eye(), centre)
+    {
+        return;
+    }
+    bot.features.traps.react.reaction = Reaction::Aim {
+        key,
+        at,
+        since: due.now,
+    };
+    bot.features.traps.react.target_armed = true;
+    bot.features.traps.react.registered = None;
+    bot.features.traps.react.counts.shoot_started += 1;
+}
+
+/// The weapon in hand has a round in it and is not being reloaded.
+fn weapon_ready(bot: &Bot, now: u32) -> bool {
+    !bot.reflex.dry()
+        && !bot
+            .reflex
+            .reload_note()
+            .is_some_and(|reload| now < reload.until)
+}
+
+/// What the reaction asks of a drive tick.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ReactDrive {
+    /// Look at this point.
+    pub look: Option<Vec3>,
+    /// The keys to hold this tick (aim, and fire on the tick of a shot).
+    pub keys: u32,
+}
+
+/// A tick of the body: the reaction's step. `calm` is false when an enemy
+/// is seen or the reflex aims at one.
+pub(super) fn drive(
+    bot: &mut Bot,
+    me: &PlaceView,
+    view: &super::view::MatchView,
+    now: u32,
+    calm: bool,
+    t: &ReactTuning,
+) -> Option<ReactDrive> {
+    let (key, at) = bot.features.traps.react.reaction.target()?;
+    let centre = at + Vec3::new(0.0, CENTRE_UP, 0.0);
+    let mates: Vec<&PlaceView> = view.team(me.team).filter(|p| p.place != me.place).collect();
+    let tick = Tick {
+        now,
+        err_rad: view_error(me.eye(), me.yaw, me.pitch, centre),
+        calm: calm && me.carrying.is_none(),
+        ready: weapon_ready(bot, now),
+        mate_firing: mate_firing(&view.sounds, &mates, me.place, at, me.feet, now, t),
+    };
+    let (state, out) = step(bot.features.traps.react.reaction, tick, bot.features.traps.react.target_armed, t);
+    bot.features.traps.react.reaction = state;
+    if out.shot {
+        bot.features.traps.react.counts.shots_fired += 1;
+    }
+    match out.ended {
+        Some(End::GaveUp) => {
+            bot.features.traps.react.counts.gave_up += 1;
+            bot.features.traps.react.tried.push(key);
+        }
+        Some(End::HeldForMate) => {
+            bot.features.traps.react.counts.held_for_mate += 1;
+            bot.features.traps.react.tried.push(key);
+        }
+        Some(End::Gone { shots, last })
+            if shots > 0 && now.saturating_sub(last) <= SHOT_CREDIT_MS =>
+        {
+            bot.features.traps.react.counts.disarmed_by_shot += 1;
+        }
+        Some(End::Gone { .. }) | None => {}
+    }
+    let look = out.look?;
+    let mut keys = crate::v026g::drive::key::AIM;
+    if out.fire {
+        keys |= crate::v026g::drive::key::FIRE;
+    }
+    Some(ReactDrive {
+        look: Some(look),
+        keys,
+    })
 }

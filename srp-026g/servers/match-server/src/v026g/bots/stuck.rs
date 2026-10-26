@@ -58,6 +58,7 @@
 use mapdata::Vec3;
 
 use super::path::Route;
+use super::tuning::UnstickTuning;
 use crate::v026g::drive::key;
 
 /// Worlds this far apart in time…
@@ -140,6 +141,27 @@ pub const ZONE_CHECK_MS: u32 = 500;
 /// before it is looked for again. GUESS: a few metres at a walk.
 pub const ZONE_OUT_KEPT_MS: u32 = 2_000;
 
+/// The ladder's last step ([`Recovery::GiveUp`]) taken this many times at one
+/// spot is nothing left to try ([`Stuck::hopeless`]): BackOff and Sidestep,
+/// then three GiveUps.
+pub const HOPELESS_GIVE_UPS: u32 = 3;
+const HOPELESS_TIMES: u32 = 2 + HOPELESS_GIVE_UPS;
+
+/// A bot with nothing left to try (`Stuck::hopeless`): since when, and why.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hopeless {
+    pub since: u32,
+    pub why: HopelessWhy,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum HopelessWhy {
+    /// Every exit of its pocket tried (`escape.rs`).
+    Pocket,
+    /// Caught again and again at this spot.
+    Ladder(Vec3),
+}
+
 /// What a stuck bot does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Recovery {
@@ -186,6 +208,9 @@ pub struct Stuck {
 #[derive(Clone, Copy, Debug)]
 struct Spot {
     at: Vec3,
+    /// The first time the body was caught here in this run of stucks
+    /// ([`Stuck::hopeless`]).
+    first: u32,
     last: u32,
     times: u32,
     /// A body fell off its route from here ([`Stuck::fell`]).
@@ -234,6 +259,7 @@ impl Stuck {
             None => {
                 self.spots.push(Spot {
                     at: feet,
+                    first: time,
                     last: time,
                     times: 1,
                     fell: false,
@@ -345,11 +371,46 @@ impl Stuck {
             }
             None => self.spots.push(Spot {
                 at,
+                first: time,
                 last: time,
                 times: 1,
                 fell: true,
             }),
         }
+    }
+
+    /// Whether it has nothing left to try, and since when: in a pocket
+    /// whose every exit it tried ([`super::escape::Trapped::gave_up`]), or
+    /// caught at one spot [`HOPELESS_GIVE_UPS`] times in a row (the ladder
+    /// at its last step each time, each within [`AGAIN_MS`] of the one
+    /// before). `since` is the first stuck of the run, or when it found itself
+    /// in the pocket; a pocket of an earlier life (before `life_from`) is not
+    /// this one's.
+    pub fn hopeless(&self, now: u32, life_from: u32) -> Option<Hopeless> {
+        let pocket = self
+            .escape
+            .as_ref()
+            .map(super::escape::Escape::trapped)
+            .filter(|trapped| trapped.gave_up && trapped.since >= life_from)
+            .map(|trapped| Hopeless {
+                since: trapped.since,
+                why: HopelessWhy::Pocket,
+            });
+        let ladder = self
+            .spots
+            .iter()
+            .filter(|spot| {
+                !spot.fell
+                    && spot.first >= life_from
+                    && spot.times >= HOPELESS_TIMES
+                    && spot.last + AGAIN_MS > now
+            })
+            .map(|spot| Hopeless {
+                since: spot.first,
+                why: HopelessWhy::Ladder(spot.at),
+            })
+            .min_by_key(|hopeless| hopeless.since);
+        [pocket, ladder].into_iter().flatten().min_by_key(|h| h.since)
     }
 
     /// A jump of its route from `at` (the take-off) that did not get the
@@ -546,6 +607,118 @@ impl TeamSpots {
             .filter(|spot| spot.avoided())
             .map(|spot| spot.at)
             .collect()
+    }
+}
+
+/// The last resort: a bot with nothing left to try ([`Stuck::hopeless`])
+/// kills itself with the game's own suicide input (bit 24, the hit on one's
+/// own head every game applies from the relayed input, PROVEN by 8 deaths of
+/// 8 in the jump test's run), so it respawns instead of standing in its
+/// pocket until the match ends. The owner's rule (2026-10-24, 26): only after
+/// every fix and every try, 60 s, never in a fight, never carrying.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SelfKill {
+    /// Nothing sent in this life.
+    #[default]
+    Ready,
+    /// The bit was sent at `at` (the `tries`th time, 1 or 2): the world must
+    /// show the body dead by `at` + [`UnstickTuning::suicide_wait_ms`].
+    Sent { at: u32, tries: u8 },
+    /// Sent twice and the body lived: no more in this life.
+    Barred,
+}
+
+/// What a bot's think knows, read once from the match (`think.rs`
+/// `self_kill_facts`): nothing in the transition looks at anything else.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Facts {
+    pub now: u32,
+    /// Nothing left to try since, and what ([`Stuck::hopeless`]).
+    pub hopeless: Option<Hopeless>,
+    /// Since the bot last sensed an enemy or took a hit, ms (`u32::MAX`:
+    /// not in this life).
+    pub quiet_ms: u32,
+    /// The life's and the match's age, ms.
+    pub life_ms: u32,
+    pub match_ms: u32,
+    /// Whether it carries a battery or an artefact (it would drop it where
+    /// it dies, in the pocket).
+    pub carrying: bool,
+    /// Its team's tickets in Team Deathmatch (a suicide costs one).
+    pub tickets: Option<u32>,
+    /// Since its last self-kill (any life), ms.
+    pub since_last_ms: Option<u32>,
+    /// Self-kills its team made in the last minute.
+    pub team_last_minute: u32,
+}
+
+/// What the transition asks the bot to do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelfKillAct {
+    /// Send the suicide bit; `again`: the second time in the life (the
+    /// first one's death was not shown).
+    Send { again: bool },
+}
+
+impl Facts {
+    /// Whether every rule lets it, [`UnstickTuning`]'s numbers. `again`
+    /// (a second try in the life) is not counted against the bot's and the
+    /// team's caps a second time.
+    fn allowed(&self, rule: &UnstickTuning, again: bool) -> bool {
+        rule.suicide_after_ms.is_some_and(|after| {
+            self.hopeless
+                .is_some_and(|h| self.now.saturating_sub(h.since) >= after)
+        })
+            && self.quiet_ms >= rule.suicide_quiet_ms
+            && !self.carrying
+            && self.life_ms >= rule.suicide_life_ms
+            && self.match_ms >= rule.suicide_match_ms
+            && self.tickets.is_none_or(|t| t > rule.suicide_min_tickets)
+            && (again
+                || (self.since_last_ms.is_none_or(|s| s >= rule.suicide_bot_gap_ms)
+                    && self.team_last_minute < rule.suicide_team_per_min))
+    }
+}
+
+/// One tick of a bot's self-kill: from the state and the facts to the new
+/// state and what to do. Total over both.
+pub fn self_kill_step(
+    state: SelfKill,
+    facts: &Facts,
+    rule: &UnstickTuning,
+) -> (SelfKill, Option<SelfKillAct>) {
+    match state {
+        SelfKill::Ready if facts.allowed(rule, false) => (
+            SelfKill::Sent { at: facts.now, tries: 1 },
+            Some(SelfKillAct::Send { again: false }),
+        ),
+        SelfKill::Ready | SelfKill::Barred => (state, None),
+        SelfKill::Sent { at, .. } if facts.now < at.saturating_add(rule.suicide_wait_ms) => (state, None),
+        SelfKill::Sent { tries: 1, .. } if facts.allowed(rule, true) => (
+            SelfKill::Sent { at: facts.now, tries: 2 },
+            Some(SelfKillAct::Send { again: true }),
+        ),
+        // The first did not show, and a fight or a carried battery has come
+        // since: it may be asked again later.
+        SelfKill::Sent { tries: 1, .. } => (SelfKill::Ready, None),
+        SelfKill::Sent { .. } => (SelfKill::Barred, None),
+    }
+}
+
+/// The bench's counts of the self-kills ([`SelfKillAct`]): sent, sent again,
+/// barred after two.
+#[cfg(test)]
+pub mod self_kills {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -915,6 +1088,137 @@ mod tests {
         assert!(!may_be_long(40.0, from, to));
         assert!(may_be_long(41.0, from, to));
     }
+
+    /// Nothing left to try on the ladder: the last step ([`Recovery::GiveUp`])
+    /// taken [`HOPELESS_GIVE_UPS`] times at one spot, each within
+    /// [`AGAIN_MS`] of the one before; since the first stuck there. Not at
+    /// another spot, not after a break in the run, not before the life.
+    #[test]
+    fn three_give_ups_at_one_spot_are_nothing_left_to_try() {
+        let mut stuck = Stuck::default();
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let t0 = 10_000;
+        assert_eq!(stuck.hopeless(t0, 0), None);
+        for k in 0..5 {
+            let at = t0 + k * 3_000;
+            assert_eq!(walk(&mut stuck, at, spot, None), None);
+            assert!(walk(&mut stuck, at + 1_600, spot, None).is_some());
+            let hopeless = stuck.hopeless(at + 1_600, 0);
+            if k < 4 {
+                assert_eq!(hopeless, None, "stuck {} times: BackOff, Sidestep, GiveUp, GiveUp", k + 1);
+            } else {
+                assert_eq!(
+                    hopeless,
+                    Some(Hopeless { since: t0 + 1_600, why: HopelessWhy::Ladder(spot) })
+                );
+            }
+        }
+        let last = t0 + 4 * 3_000 + 1_600;
+        // The run ends when it is not caught again within AGAIN_MS.
+        assert!(stuck.hopeless(last + AGAIN_MS - 1, 0).is_some());
+        assert_eq!(stuck.hopeless(last + AGAIN_MS, 0), None);
+        // A run of an earlier life is not this one's.
+        assert_eq!(stuck.hopeless(last, last), None);
+        // A spot a fall marked is no ladder.
+        let mut fallen = Stuck::default();
+        for k in 0..5 {
+            fallen.fell(t0 + k * 3_000, spot);
+        }
+        assert_eq!(fallen.hopeless(t0 + 12_000, 0), None);
+    }
+
+    /// The owner's rule: the defaults with the 60 s on.
+    fn rule() -> UnstickTuning {
+        UnstickTuning { suicide_after_ms: Some(crate::v026g::bots::tuning::SUICIDE_AFTER_OWNER_MS), ..UnstickTuning::default() }
+    }
+
+    fn facts() -> Facts {
+        Facts {
+            now: 100_000,
+            hopeless: Some(Hopeless { since: 30_000, why: HopelessWhy::Pocket }),
+            quiet_ms: u32::MAX,
+            life_ms: 90_000,
+            match_ms: 200_000,
+            carrying: false,
+            tickets: None,
+            since_last_ms: None,
+            team_last_minute: 0,
+        }
+    }
+
+    fn sends(state: SelfKill, facts: &Facts) -> bool {
+        matches!(
+            self_kill_step(state, facts, &rule()),
+            (SelfKill::Sent { tries: 1, .. }, Some(SelfKillAct::Send { again: false }))
+        )
+    }
+
+    /// The owner's rule: 60 s of nothing left to try, no enemy or hit in
+    /// 15 s, nothing carried, the life 20 s and the match 120 s old, in
+    /// Team Deathmatch above 5 tickets, one a bot in 3 minutes, two a team a
+    /// minute: each one alone stops it, and all of them together let it.
+    #[test]
+    fn a_bot_kills_itself_only_when_every_rule_lets_it() {
+        let ok = facts();
+        assert_eq!(
+            self_kill_step(SelfKill::Ready, &ok, &rule()),
+            (SelfKill::Sent { at: 100_000, tries: 1 }, Some(SelfKillAct::Send { again: false }))
+        );
+        let hopeless = |since| Facts { hopeless: Some(Hopeless { since, why: HopelessWhy::Pocket }), ..ok };
+        let stops: Vec<(&str, Facts)> = vec![
+            ("no run", Facts { hopeless: None, ..ok }),
+            ("59.9 s", hopeless(40_001)),
+            ("a hit or an enemy 14.9 s ago", Facts { quiet_ms: 14_999, ..ok }),
+            ("carrying", Facts { carrying: true, ..ok }),
+            ("a life of 19.9 s", Facts { life_ms: 19_999, ..ok }),
+            ("a match of 119.9 s", Facts { match_ms: 119_999, ..ok }),
+            ("5 tickets", Facts { tickets: Some(5), ..ok }),
+            ("the last one 179.9 s ago", Facts { since_last_ms: Some(179_999), ..ok }),
+            ("two a minute already", Facts { team_last_minute: 2, ..ok }),
+        ];
+        for (what, facts) in &stops {
+            assert!(!sends(SelfKill::Ready, facts), "{what}");
+        }
+        for (what, facts) in [
+            ("60 s", hopeless(40_000)),
+            ("an enemy 15 s ago", Facts { quiet_ms: 15_000, ..ok }),
+            ("a life of 20 s", Facts { life_ms: 20_000, ..ok }),
+            ("a match of 120 s", Facts { match_ms: 120_000, ..ok }),
+            ("6 tickets", Facts { tickets: Some(6), ..ok }),
+            ("the last one 180 s ago", Facts { since_last_ms: Some(180_000), ..ok }),
+            ("one a minute", Facts { team_last_minute: 1, ..ok }),
+        ] {
+            assert!(sends(SelfKill::Ready, &facts), "{what}");
+        }
+        // The setting at 0 is never.
+        let off = UnstickTuning { suicide_after_ms: None, ..rule() };
+        assert_eq!(self_kill_step(SelfKill::Ready, &ok, &off), (SelfKill::Ready, None));
+    }
+
+    /// After the bit the world has 4 s to show the body dead; if it does not,
+    /// the bit goes once more (the caps are not counted twice), and then the
+    /// bot is barred for the life. A fight or a battery since the first try
+    /// gives the second up: it may ask again later.
+    #[test]
+    fn the_bit_is_sent_again_once_and_then_the_bot_is_barred() {
+        let rule = rule();
+        let sent = SelfKill::Sent { at: 100_000, tries: 1 };
+        let at = |now| Facts { now, since_last_ms: Some(now - 100_000), team_last_minute: 2, ..facts() };
+        assert_eq!(self_kill_step(sent, &at(103_999), &rule), (sent, None), "the world is not due");
+        assert_eq!(
+            self_kill_step(sent, &at(104_000), &rule),
+            (SelfKill::Sent { at: 104_000, tries: 2 }, Some(SelfKillAct::Send { again: true }))
+        );
+        let second = SelfKill::Sent { at: 104_000, tries: 2 };
+        assert_eq!(self_kill_step(second, &at(107_999), &rule), (second, None));
+        assert_eq!(self_kill_step(second, &at(108_000), &rule), (SelfKill::Barred, None));
+        assert_eq!(self_kill_step(SelfKill::Barred, &at(900_000), &rule), (SelfKill::Barred, None));
+        // An enemy came in view meanwhile: no second try.
+        let fight = Facts { quiet_ms: 1_000, ..at(104_000) };
+        assert_eq!(self_kill_step(sent, &fight, &rule), (SelfKill::Ready, None));
+        let carrying = Facts { carrying: true, ..at(104_000) };
+        assert_eq!(self_kill_step(sent, &carrying, &rule), (SelfKill::Ready, None));
+    }
 }
 
 /// A team's stuck state, by feature ([`super::features`]).
@@ -925,4 +1229,6 @@ pub struct TeamStuck {
     pub no_way_to: Vec<(mapdata::Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`SelfKill`).
+    pub self_kills: Vec<u32>,
 }

@@ -55,6 +55,7 @@ use serde::{Deserialize, Serialize};
 
 use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
+use super::reflex::WeaponKind;
 use super::rng::Rng;
 use super::pools::Pools;
 use super::signals::{MatchSignals, Mods};
@@ -434,6 +435,8 @@ pub enum Step {
 #[derive(Clone, Debug)]
 pub struct BotFacts<'a> {
     pub personality: &'a Personality,
+    /// The kind of its weapon 1 (`Bot::weapon`), where known.
+    pub weapon: Option<WeaponKind>,
     /// Its map side (spawn team), if known.
     pub side: Option<i32>,
     /// Its present play, target and when it started.

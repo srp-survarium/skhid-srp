@@ -216,3 +216,28 @@ pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_te
     bots.count_own_traps(5_000, &[(0, at + Vec3::new(30.0, 0.0, 0.0))]);
     assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (4, 1));
 }
+
+/// A trap lands where the head ray of the release frame meets the floor, not
+/// where the habit planned it: the bot goes on walking while it looks down.
+#[test]
+pub(crate) fn a_trap_lands_where_the_head_ray_meets_the_floor() {
+    use crate::v026g::bots::traps::{PLACE_RAY_M, landing};
+    let eye = Vec3::new(10.0, 1.6, 4.0);
+    let yaw = crate::v026g::bots::kin::yaw_of([1.0, 0.0]);
+    // At the press pitch the ray meets the floor 1.12 m out along the yaw.
+    let at = landing(eye, yaw, -0.96, 0.0).expect("lands");
+    assert!((at.x - (eye.x + 1.6 / 0.96_f32.tan())).abs() < 1e-3, "{at:?}");
+    assert!((at.z - eye.z).abs() < 1e-3 && at.y == 0.0);
+    assert!((at - Vec3::new(eye.x, 0.0, eye.z)).length() < PLACE_RAY_M);
+    // Walking on 1.8 m before the release moves it 1.8 m: the planned spot
+    // (1 m from where the bot stood) is no longer the place.
+    let walked = landing(eye + Vec3::new(1.8, 0.0, 0.0), yaw, -0.96, 0.0).unwrap();
+    assert!((walked.x - at.x - 1.8).abs() < 1e-3);
+    // Too shallow a look: the ray ends in the air (the pitch of 1.6 / sin
+    // = 2.0 m is the limit), a look up or level, a floor above the eye.
+    assert!(landing(eye, yaw, -0.80, 0.0).is_none());
+    assert!(landing(eye, yaw, 0.2, 0.0).is_none());
+    assert!(landing(eye, yaw, 0.0, 0.0).is_none());
+    assert!(landing(eye, yaw, -1.0, 1.7).is_none());
+    assert!(landing(eye, yaw, -1.0, 0.0).is_some());
+}
