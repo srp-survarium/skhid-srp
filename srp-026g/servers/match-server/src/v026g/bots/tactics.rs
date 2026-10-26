@@ -126,6 +126,9 @@ pub struct Tactics {
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
     past_fixed: std::sync::Mutex<Option<PastFixed>>,
+    /// [`Self::walk_estimate`]'s distances by goal region, once made: they
+    /// depend on the map alone.
+    walks: std::sync::Mutex<std::collections::HashMap<u32, Arc<Vec<f32>>>>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
     /// [`Self::exit_of`]'s field, once made.
@@ -150,6 +153,41 @@ const SPAWN_BITS: u32 = 8;
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
 pub const TACTICS_ALGO: u32 = 3;
+
+/// The grid's own A* over the regions' costs, in metres: the mean of its
+/// length over the regions' sum, measured on School's walks to a battery a
+/// storey up (1.10, 1.14, 1.00, 1.04, 1.18).
+pub const REGION_WALK_FACTOR: f32 = 1.1;
+
+/// The cost of a walk from each region to `goal` along the directed links:
+/// a Dijkstra on the reversed graph, infinite where no way leads.
+fn region_walks_to(regions: &Regions, goal: u32) -> Vec<f32> {
+    use std::cmp::Reverse;
+    let mut dist = vec![f32::INFINITY; regions.len()];
+    dist[goal as usize] = 0.0;
+    let mut heap = std::collections::BinaryHeap::new();
+    heap.push(Reverse((0f32.to_bits(), goal)));
+    while let Some(Reverse((bits, r))) = heap.pop() {
+        let d = f32::from_bits(bits);
+        if d > dist[r as usize] {
+            continue;
+        }
+        for &p in regions.into(r) {
+            let cost = regions
+                .out(p)
+                .iter()
+                .filter(|&&(to, _)| to == r)
+                .map(|&(_, cost)| cost)
+                .fold(f32::INFINITY, f32::min);
+            let next = d + cost;
+            if next < dist[p as usize] {
+                dist[p as usize] = next;
+                heap.push(Reverse((next.to_bits(), p)));
+            }
+        }
+    }
+    dist
+}
 
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -503,6 +541,7 @@ impl Tactics {
             hazards: base.hazards.clone(),
             routes: Vec::new(),
             past_fixed: Default::default(),
+            walks: Default::default(),
             spot_lists: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
@@ -596,6 +635,27 @@ impl Tactics {
         let bits = Arc::new(bits);
         *cache = Some((fixed, bits.clone()));
         bits
+    }
+
+    /// The walk from floor `from` to floor `to` in metres, over the
+    /// regions' directed links (a drop is short one way and long the
+    /// other), times [`REGION_WALK_FACTOR`]: coarse (a region is a block of
+    /// 32 cells), for telling a battery a storey up from one on the ground,
+    /// not for a route. `None`: no way over the regions.
+    pub fn walk_estimate(&self, from: NodeId, to: NodeId) -> Option<f32> {
+        let regions = &self.base.regions;
+        let goal = regions.of(to);
+        let walks = {
+            let mut kept = self
+                .walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            kept.entry(goal)
+                .or_insert_with(|| Arc::new(region_walks_to(regions, goal)))
+                .clone()
+        };
+        let d = walks[regions.of(from) as usize];
+        d.is_finite().then_some(d * REGION_WALK_FACTOR)
     }
 
     /// Whether a walk over the regions from `from`'s to `to`'s gets there
