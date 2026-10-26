@@ -30,8 +30,8 @@ use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ragdoll::math::{Pose, Quat, Vec3, abs};
 use ragdoll::ragdoll::{Cause, GunShape, Level, Skeleton, Sweep};
-use ragdoll::shot::{Shot, ShotKey, ShotLog, impulse};
-use ragdoll::skeleton::{BONE_COUNT, BONES, Part};
+use ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
+use ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
 mod engine {
     include!("../../engine_026g.rs");
@@ -94,10 +94,13 @@ const BULLET_ID: usize = 0x4;
 /// The shooter (0: none; the game then plays no hit effects): +4 its place.
 const BULLET_SHOOTER: usize = 0x8;
 const SHOOTER_PLACE: usize = 0x4;
-/// The weapon's damage parameters: +0Ch its stopping_power (hit_impl's
-/// stagger, 0x2D9D7E).
-const BULLET_DAMAGE: usize = 0x40;
-const STOPPING_POWER: usize = 0xC;
+/// The bullet's ammo data (the ammo config's `data`, loaded by 0x332440):
+/// +14h its `mass` (kg, a gameplay scale), +3Ch its `muzzle_speed`.
+const BULLET_AMMO: usize = 0x40;
+const AMMO_MASS: usize = 0x14;
+/// The bullet's velocity now (its segment's; LIKELY, the tracer's length
+/// at 0x32C449 is its length).
+const BULLET_VELOCITY: usize = 0x1C;
 const BULLET_MANAGER: usize = 0x44;
 const BULLET_MATERIAL: usize = 0x48;
 /// The game's own condition for a hit's sound (process_front_face_piercing
@@ -121,6 +124,28 @@ const PAIR_PARTICLES_END: usize = 0x28;
 const PAIR_PARAMETER: usize = 0x74;
 /// The ray's result (ray_test's): the object, 0 when nothing was hit.
 const RESULT_OBJECT: usize = 0x1C;
+/// A living player's hit model in the physics world: a
+/// bt_animated_rigid_body (vtable 0x9E2AF4) whose material (+38h, u16) is
+/// actor, 10 (its ctor 0x70E70); the player's is [[player+498h]+12Ch]
+/// (activate_physics 0x2D9930 adds that to the world).
+const ANIMATED_BODY_VTABLE: u32 = 0x9E2AF4;
+const BODY_MATERIAL: usize = 0x38;
+const HIT_MODEL: usize = 0x498;
+const HIT_MODEL_BODY: usize = 0x12C;
+/// player: its inventory; inventory: its 23 slots (item pointers, profile
+/// slots 0..6 helmet, mask, torso, back, legs, gloves, boots, then the
+/// weapons and the rest); an item: its weight a piece (kg, f32), its
+/// dictionary entry (+22Ah set: a stack, its count u16 +260h): what
+/// inventory::update_weight 0x2FC6E0 sums into m_carried_weight (+180h).
+const INVENTORY: usize = 0x10C;
+const INVENTORY_SLOTS: usize = 0x10C;
+const SLOTS: usize = 23;
+const ITEM_WEIGHT: usize = 0x218;
+const ITEM_ENTRY: usize = 0x25C;
+const ENTRY_STACK: usize = 0x22A;
+const ITEM_COUNT: usize = 0x260;
+/// The living hits kept between a frame's bullets and its step.
+const LIVING_HITS: usize = 32;
 /// The pushes kept between a frame's bullets and its step.
 const PUSHES: usize = 32;
 
@@ -280,6 +305,9 @@ struct Push {
 struct Shots {
     log: ShotLog,
     pushes: [Option<Push>; PUSHES],
+    /// Bullets in living players' hit models: the hit model's body, the
+    /// hit (the step finds the place by the body).
+    living: [Option<(u32, Hit)>; LIVING_HITS],
 }
 
 struct State {
@@ -288,6 +316,10 @@ struct State {
     eye: EyeView,
     mappings: [Mapping; 4],
     clock: Clock,
+    /// The step's time, s (the frames' real times summed).
+    time: f32,
+    /// Each place's hits lately (the next death's push).
+    recent: [Recent; MAX_PLACES],
     shots: Shots,
     /// Set by the step when some place has a ragdoll a bullet could meet:
     /// the bullets' trace returns at once otherwise.
@@ -305,9 +337,12 @@ static mut STATE: State = State {
     eye: EyeView::Off,
     mappings: [Mapping::Empty; 4],
     clock: Clock::Unstarted,
+    time: 0.0,
+    recent: [Recent::new(); MAX_PLACES],
     shots: Shots {
         log: ShotLog::new(),
         pushes: [None; PUSHES],
+        living: [None; LIVING_HITS],
     },
     any_bodies: AtomicBool::new(false),
     shots_lock: AtomicBool::new(false),
@@ -429,10 +464,46 @@ unsafe fn mapping(mappings: &mut [Mapping; 4], skeleton: Addr) -> Option<BoneInd
     read
 }
 
+/// What the player wears and carries, kg on each part: each inventory
+/// slot's weight (a piece's times a stack's count) on the parts it sits on
+/// (the helmet and the mask on the head, the torso's armour on the chest,
+/// the arms and the pelvis, the back's on the chest, the legs' on the pelvis
+/// and the legs, the gloves on the forearms, the boots on the shins, the
+/// weapons and the rest half on the chest, half on the pelvis).
+unsafe fn load_of(player: Addr) -> [f32; PARTS] {
+    use Part::*;
+    let mut load = [0.0f32; PARTS];
+    let Some(inventory) = (unsafe { player.pointer(INVENTORY) }) else { return load };
+    let shares: [&[(Part, f32)]; 8] = [
+        &[(Head, 1.0)],
+        &[(Head, 1.0)],
+        &[(Torso, 0.7), (LeftUpperArm, 0.1), (RightUpperArm, 0.1), (Pelvis, 0.1)],
+        &[(Torso, 1.0)],
+        &[(Pelvis, 0.3), (LeftThigh, 0.25), (RightThigh, 0.25), (LeftShin, 0.1), (RightShin, 0.1)],
+        &[(LeftForearm, 0.5), (RightForearm, 0.5)],
+        &[(LeftShin, 0.5), (RightShin, 0.5)],
+        &[(Torso, 0.5), (Pelvis, 0.5)],
+    ];
+    for slot in 0..SLOTS {
+        let Some(item) = (unsafe { inventory.pointer(INVENTORY_SLOTS + 4 * slot) }) else { continue };
+        let piece = f32::from_bits(unsafe { item.u32(ITEM_WEIGHT) });
+        let stack = unsafe { item.pointer(ITEM_ENTRY) }.is_some_and(|e| unsafe { e.u8(ENTRY_STACK) } != 0);
+        let count = if stack { (unsafe { item.u32(ITEM_COUNT) } & 0xFFFF) as f32 } else { 1.0 };
+        let weight = piece * count;
+        if !weight.is_finite() || !(0.0..=50.0).contains(&weight) {
+            continue;
+        }
+        for &(part, share) in shares[slot.min(7)] {
+            load[part.index()] += weight * share;
+        }
+    }
+    load
+}
+
 /// What the world shows of a player: alive, or dead with its death (and
 /// the skeleton's bones of ours). A player not inserted, or with another
 /// skeleton, is `Alive` here: nothing of ours is drawn.
-unsafe fn seen(player: Addr, mappings: &mut [Mapping; 4]) -> (Seen, Option<BoneIndex>) {
+unsafe fn seen(player: Addr, mappings: &mut [Mapping; 4], recent: &Recent, now: f32) -> (Seen, Option<BoneIndex>) {
     unsafe {
         if player.u8(INSERTED) == 0 || player.u8(ALIVE) != 0 {
             return (Seen::Alive, None);
@@ -443,7 +514,9 @@ unsafe fn seen(player: Addr, mappings: &mut [Mapping; 4]) -> (Seen, Option<BoneI
         let transform = player.matrix(TRANSFORM);
         let stood_on = pose_of(&transform).map(|p| (p.position, UP));
         let gun = (player.u32(HELD_ITEM) != 0).then_some(GunShape::RIFLE);
-        let death = Death { key: DeathKey(player.u32(SPAWNED)), cause: Cause::Unknown, gun, stood_on };
+        let mut death = Death::new(DeathKey(player.u32(SPAWNED)), Cause::Unknown, gun, stood_on);
+        (death.hits, death.hit_count) = recent.of_death(now);
+        death.load = load_of(player);
         (Seen::Dead(death), Some(index))
     }
 }
@@ -458,6 +531,8 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
     unsafe {
         let state = &mut *(&raw mut STATE);
         let dt = frame_time(&mut state.clock);
+        state.time += dt;
+        let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
         // the pushes of the shots since the last step (the bullets' threads
         // are done: the simulation's move has returned)
         for push in state.shots.pushes.iter_mut() {
@@ -483,7 +558,14 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
             for place in 0..count {
                 let Some(player) = place_player(client, place as u32) else { continue };
                 physics = physics.or(player.pointer(PHYSICS_WORLD));
-                let (s, index) = seen(player, &mut state.mappings);
+                // this frame's bullets in this player (its hit model's body)
+                let body = player.pointer(HIT_MODEL).and_then(|m| m.pointer(HIT_MODEL_BODY));
+                for (object, hit) in living.iter().flatten() {
+                    if body == Some(Addr(*object)) {
+                        state.recent[place].record(state.time, *hit);
+                    }
+                }
+                let (s, index) = seen(player, &mut state.mappings, &state.recent[place], state.time);
                 seen_places[place] = s;
                 players[place] = Some((player, index));
                 if local_place == Some(place) {
@@ -534,15 +616,37 @@ pub unsafe extern "C" fn ragdoll_bullet(
     length: f32,
     result: *const u8,
 ) {
-    // (the atomics alone are shared: the step's `&mut` is not alive now)
-    if !unsafe { &*(&raw const STATE.any_bodies) }.load(Ordering::Acquire) {
-        return;
-    }
     unsafe {
         let bullet = Addr(bullet as u32);
         let from = vec3(from);
         let direction = vec3(direction);
         let result = Addr(result as u32);
+        let shooter = bullet.pointer(BULLET_SHOOTER);
+        let key = |place: u8, death: u32| ShotKey {
+            shooter: shooter.map_or(u8::MAX, |s| s.u8(SHOOTER_PLACE)),
+            bullet: bullet.u32(BULLET_ID),
+            segment: bullet.u32(BULLET_SEGMENT),
+            place,
+            death,
+        };
+        let push = |direction: Vec3| {
+            let mass = bullet.pointer(BULLET_AMMO).map_or(f32::NAN, |a| f32::from_bits(a.u32(AMMO_MASS)));
+            let speed = vec3(bullet.at(BULLET_VELOCITY) as *const [f32; 3]).length();
+            impulse(direction, mass, speed)
+        };
+        // a living player hit: kept for its death's push, once a shot
+        if let Some(object) = result.pointer(RESULT_OBJECT)
+            && object.u32(0) == ANIMATED_BODY_VTABLE
+            && object.u32(BODY_MATERIAL) & 0xFFFF == ACTOR
+            && let Some(unit) = direction.direction()
+        {
+            let hit = Hit { point: vec3(result.0 as *const [f32; 3]), impulse: push(unit) };
+            take_living(key(LIVING, object.0), object.0, hit);
+        }
+        // (the atomics alone are shared: the step's `&mut` is not alive now)
+        if !(&*(&raw const STATE.any_bodies)).load(Ordering::Acquire) {
+            return;
+        }
         // the game's ray stops at what it hit: the living, a wall
         let reach = match result.u32(RESULT_OBJECT) {
             0 => length,
@@ -552,18 +656,7 @@ pub unsafe extern "C" fn ragdoll_bullet(
         // the step changes the corpses only after the move: a read here
         let corpses = &*(&raw const STATE.corpses);
         let Some(hit) = corpses.trace(&shot) else { return };
-        let shooter = bullet.pointer(BULLET_SHOOTER);
-        let key = ShotKey {
-            shooter: shooter.map_or(u8::MAX, |s| s.u8(SHOOTER_PLACE)),
-            bullet: bullet.u32(BULLET_ID),
-            segment: bullet.u32(BULLET_SEGMENT),
-            place: hit.place as u8,
-            death: hit.death.0,
-        };
-        let stopping_power = bullet
-            .pointer(BULLET_DAMAGE)
-            .map(|d| f32::from_bits(d.u32(STOPPING_POWER)));
-        if !take_shot(key, &hit, impulse(shot.direction, stopping_power)) {
+        if !take_shot(key(hit.place as u8, hit.death.0), &hit, push(shot.direction)) {
             return;
         }
         if shooter.is_some() {
@@ -572,10 +665,11 @@ pub unsafe extern "C" fn ragdoll_bullet(
     }
 }
 
-/// The shot's push queued for the next step, if it is the shot's first
-/// trace (a rollback's re-simulated tick traces it again) and a push is
-/// free. True if taken.
-fn take_shot(key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
+/// A living hit's key's place (no corpse's: a place is below MAX_PLACES).
+const LIVING: u8 = 0xFE;
+
+/// The shots' lock taken for `f`.
+fn with_shots<R>(f: impl FnOnce(&mut Shots) -> R) -> R {
     let lock = unsafe { &*(&raw const STATE.shots_lock) };
     while lock
         .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -584,8 +678,27 @@ fn take_shot(key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
         core::hint::spin_loop();
     }
     // the lock is held: the only user of the shots
-    let shots = unsafe { &mut *(&raw mut STATE.shots) };
-    let taken = match shots.pushes.iter_mut().find(|p| p.is_none()) {
+    let out = f(unsafe { &mut *(&raw mut STATE.shots) });
+    lock.store(false, Ordering::Release);
+    out
+}
+
+/// A living player's hit kept for the step, if it is the shot's first trace.
+fn take_living(key: ShotKey, object: u32, hit: Hit) {
+    with_shots(|shots| {
+        if let Some(free) = shots.living.iter_mut().find(|h| h.is_none())
+            && shots.log.first(key)
+        {
+            *free = Some((object, hit));
+        }
+    })
+}
+
+/// The shot's push queued for the next step, if it is the shot's first
+/// trace (a rollback's re-simulated tick traces it again) and a push is
+/// free. True if taken.
+fn take_shot(key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
+    with_shots(|shots| match shots.pushes.iter_mut().find(|p| p.is_none()) {
         Some(free) if shots.log.first(key) => {
             *free = Some(Push {
                 place: hit.place,
@@ -597,9 +710,7 @@ fn take_shot(key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
             true
         }
         _ => false,
-    };
-    lock.store(false, Ordering::Release);
-    taken
+    })
 }
 
 /// The game's own effects of a bullet in a living body, at the corpse's

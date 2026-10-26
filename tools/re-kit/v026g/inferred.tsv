@@ -3101,3 +3101,4 @@ va	status	ref_021d	name
 0x001e8da0	inferred-high		survarium::delete_folder
 0x00301cb0	inferred-medium		survarium::victory_item_core::activate_physics
 0x00306d50	inferred-medium		survarium::game_material_manager::material_pair
+0x00332440	inferred-medium		survarium::ammo_data::load

@@ -4647,7 +4647,7 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "ragdoll.code")
-    check(image.read(block.va, len(code)) == code and data.size <= 0x20000,
+    check(image.read(block.va, len(code)) == code and data.size <= 0x30000,
           f"the code at {block.va:#x} is the link's ragdoll.code ({len(code)} bytes: the entries and the Rust "
           f"crate), its state ragdoll.data ({data.size} bytes)")
     entry = lambda symbol, count: rows(image, linked.symbols[symbol], 0x40)[:count]

@@ -512,8 +512,12 @@ Patches:
   the part hit is pushed (once a shot: the bullet's shooter, id and
   segment and the corpse's death, so a re-simulated tick pushes no
   more), a settled body wakes, and the game's body-hit particle and
-  sound play there. Drawn only: nothing a match computes, keeps or
-  hashes changes, the bullet goes on as before;
+  sound play there; a bullet in a living player's hit model is kept
+  (once a shot) and its death starts with its push (the round's
+  momentum: the ammo's mass times the bullet's speed), the body a
+  powered ragdoll (muscles that weaken from the death, the kit's
+  weight from the inventory on its parts). Drawn only: nothing a match
+  computes, keeps or hashes changes, the bullet goes on as before;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2117,7 +2121,8 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 #   xmm0` at 0x32D627 (the bullet's ray just traced through the level and
 #   the living, its result in EAX): rg_bullet, the segment tested against
 #   the ragdolls; a corpse hit is pushed (once a shot) and shows the game's
-#   body-hit particle and sound (the material pair bullet x actor).
+#   body-hit particle and sound (the material pair bullet x actor); a hit
+#   on a living player's hit model is kept for that death's push.
 # No base relocation is under a site and no branch aims inside one.
 RAGDOLL_HOOKS = (
     (0x1F7C3C, bytes.fromhex("807c240f00"), "rg_step", 0xE8),          # the simulation moved

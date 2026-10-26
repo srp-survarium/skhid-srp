@@ -51,7 +51,13 @@ Checked:
   the body, along the ray, the body's normal, the pair's parameter) and its
   sound, and the next step wakes the corpse, whose bones then move; the
   same ray traced again (a rollback's re-simulated tick) plays and pushes
-  nothing more; another bullet does; and the corpse settles again.
+  nothing more; another bullet does; and the corpse settles again;
+- a body that falls onto batteries rests on them (the stub's filter is
+  Bullet's: the batteries' group 0A18h, mask 418h);
+- a bullet in a living player's hit model (its body a bt_animated_rigid_body,
+  actor) is kept by the hook (registers, frame and XMM0 the original exe's)
+  once, and the death that follows falls along it; the players' inventories
+  (a torso armour, a stack) are read for the kit's weight.
 """
 import math
 import struct
@@ -85,6 +91,9 @@ PLAYERS = HEAP + 0x400000                      # 0x10000 each
 BULLET, SHOOTER, DAMAGE, MANAGER, BULLET_MAT, ACTOR_MAT = (HEAP + 0x800000 + 0x400 * i for i in range(6))
 MATERIALS, PAIR, RESULT, SHOT_FRAME = HEAP + 0x810000, HEAP + 0x830000, HEAP + 0x831000, HEAP + 0x840000
 PARTICLE_SLOTS, SOUND_RESOURCE = HEAP + 0x832000, 0x50D50000
+# what the game's bullet ray hit: a wall (a static body) or a living player's hit model
+WALL_OBJECT, HIT_BODIES, HIT_MODELS, INVENTORIES = HEAP + 0x833000, HEAP + 0x834000, HEAP + 0x835000, HEAP + 0x836000
+ANIMATED_BODY_VTABLE = 0x9E2AF4
 STUBS, STACK, RET = 0x48000000, 0x48300000, 0x48400000
 PHYSICS = 0x5A5A0000                           # a made-up physics world (ray_test's ECX)
 
@@ -266,8 +275,9 @@ class Game:
         self.u32(BULLET + 0x4, 4242)
         self.u32(BULLET + 0x8, SHOOTER)
         self.u8(SHOOTER + 0x4, 1)
-        self.u32(BULLET + 0x40, DAMAGE)
-        self.emu.mem_write(DAMAGE + 0xC, struct.pack("<f", 0.4))
+        self.u32(BULLET + 0x40, DAMAGE)                  # the ammo's data: +14h mass (a 5.45 mm round's)
+        self.emu.mem_write(DAMAGE + 0x14, struct.pack("<f", 0.02))
+        self.emu.mem_write(BULLET + 0x1C, struct.pack("<3f", 800.0, 0.0, 0.0))  # its velocity
         self.u32(BULLET + 0x44, MANAGER)
         self.u32(BULLET + 0x48, BULLET_MAT)
         self.u8(BULLET + 0x80, 0)
@@ -283,7 +293,7 @@ class Game:
         self.u32(PAIR + 0x28, PARTICLE_SLOTS + 4)
         self.u32(PAIR + 0x74, 1)
 
-    def shoot(self, origin, direction, length, hit=None, exe=None):
+    def shoot(self, origin, direction, length, hit=None, exe=None, body=None):
         """check_collision at 0x32D627 with the ray (origin, unit direction,
         length) just traced: `hit` the point the game's own ray hit, if any.
         Returns the registers, the frame, XMM0 and the bullet's and the
@@ -298,7 +308,7 @@ class Game:
             result = struct.pack("<3ff3fIIB3x", 0, 0, 0, 0.0, 0, 0, 0, 0, 0xFFFFFFFF, 0)
         else:
             result = struct.pack("<3ff3fIIB3x", *hit, 0.5, -direction[0], -direction[1], -direction[2],
-                                 0x77770000, 3, 0)
+                                 WALL_OBJECT if body is None else body, 3, 0)
         emu.mem_write(RESULT, result)
         emu.mem_write(SHOT_FRAME, bytes(frame))
         regs = {UC_X86_REG_EAX: RESULT, UC_X86_REG_EBX: 0, UC_X86_REG_ECX: 0xC1, UC_X86_REG_EDX: 0xD1,
@@ -325,6 +335,23 @@ class Game:
         self.u32(player + MODEL_FIELD, model)
         self.u32(player + INPUT, 0x1A2B3C4D)
         self.u8(player + INSERTED, 1)
+        # its hit model's body in the physics world (actor), and its inventory:
+        # a 9 kg torso armour (slot 2) and a stack of 3 x 0.5 kg (slot 9)
+        index = len(self.players) - 1
+        body, hit_model, inventory = HIT_BODIES + 0x40 * index, HIT_MODELS + 0x200 * index, INVENTORIES + 0x1000 * index
+        self.u32(body, ANIMATED_BODY_VTABLE)
+        self.emu.mem_write(body + 0x38, struct.pack("<H", 10))
+        self.u32(hit_model + 0x12C, body)
+        self.u32(player + 0x498, hit_model)
+        self.u32(player + 0x10C, inventory)
+        armour, stack, entry = inventory + 0x200, inventory + 0x500, inventory + 0x800
+        self.u32(inventory + 0x10C + 4 * 2, armour)
+        self.emu.mem_write(armour + 0x218, struct.pack("<f", 9.0))
+        self.u32(inventory + 0x10C + 4 * 9, stack)
+        self.emu.mem_write(stack + 0x218, struct.pack("<f", 0.5))
+        self.u32(stack + 0x25C, entry)
+        self.u8(entry + 0x22A, 1)
+        self.emu.mem_write(stack + 0x260, struct.pack("<H", 3))
         self.set_alive(player, True, 1000)
         self.emu.mem_write(player + TRANSFORM, struct.pack("<16f", *matrix((x, 0, z))))
         self.emu.mem_write(player + EYE, struct.pack("<16f", *matrix((x, 1.64, z + 0.08))))
@@ -341,6 +368,9 @@ class Game:
     def set_alive(self, player, alive, spawned):
         self.u8(player + ALIVE, 1 if alive else 0)
         self.u32(player + SPAWNED, spawned)
+
+    def hit_body(self, player):
+        return self.u32(self.u32(player + 0x498) + 0x12C)
 
     def set_local(self, player):
         self.u32(CLIENT + 4, player)
@@ -579,6 +609,30 @@ def main():
     game.set_alive(a, False, 2000)
     game.step()
     check(not game.draw(a)[1], "another death of the place (a new life) starts from the clip again")
+    # the killing shot pushes the body: a bullet in a living player's hit model
+    # (the game's ray hit its body) is kept, and its death falls along it
+    pushed = game.add_player(4, 30.0, 0.0)
+    calm = game.add_player(5, 40.0, 0.0)
+    game.step()
+    game.u32(BULLET + 0x4, 5000)
+    out = game.shoot((27.0, 1.3, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(29.88, 1.3, 0.0), body=game.hit_body(pushed))
+    theirs = stock.shoot((27.0, 1.3, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(29.88, 1.3, 0.0), body=WALL_OBJECT)
+    check(out[:3] == theirs[:3] and out[3], "a bullet in a living player: the hook's registers, frame and XMM0 are "
+          "the original exe's, the bullet and the result untouched")
+    # the same ray traced again (a rollback): kept once
+    game.shoot((27.0, 1.3, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(29.88, 1.3, 0.0), body=game.hit_body(pushed))
+    for player in (pushed, calm):
+        game.set_alive(player, False, 1000)
+    hips = {}
+    for _ in range(45):
+        game.step()
+        for player in (pushed, calm):
+            drawn, _ = game.draw(player)
+            hips[player] = drawn[1][12:15]
+    # (the drawn bones are in model space: the player's own place is 0)
+    check(hips[pushed][0] > 0.25 and abs(hips[calm][0]) < hips[pushed][0],
+          f"the killing shot knocks its body along it (+x): the hip {hips[pushed][0]:+.2f} m, the "
+          f"unshot death's {hips[calm][0]:+.2f} m")
     print("all checks passed")
 
 
