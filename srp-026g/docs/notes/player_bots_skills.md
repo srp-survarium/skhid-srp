@@ -135,12 +135,24 @@ spend. So the two lower rows sit a few levels above their band's median
 
 Every row passes the skills window's rules (`SkillsTree::validate`) at its
 level. Each row keeps all of the row below it. Left out:
-- **102:** it gives no speed (§5).
+- **102:** it gives no speed (§5). Given only by the owner's kit (below).
 - **103:** the bots would not use it (§5).
 - **108:** the bots count a reload by its clip length (§5), and few of the
-  ten take it.
+  ten take it. Given only by the owner's kit (below).
 - **213:** two of ten take it.
 - **214:** nobody takes it, and it takes the sprint away.
+
+**The owner's kit (2026-10-26, on with `SRP_BOT_KIT=1`, off unless set).** Every row also has
+`bot_skills::AMMO_POUCH`: 102:5, 104:2, 108:3 and 109:1, 11 points (levels 26, 31 and 41),
+for 109, the extra ammo bag (one more magazine of rounds in the kit). 109 needs 15 points in
+the aim branch's first three rows; 101 has 5. The ten more are the least that is neither aim,
+damage nor protection: the rest of those rows are 103 (the bolt's cocking speed, so the camper's
+rate of fire), 105 (breath hold), 106 and 107 (dispersion). 102 gives +5 % movement speed while
+aiming (no effect found, §5), 104 +15 % weapon swap speed (the bots carry one weapon), 108 +12 %
+reload speed: the client reloads sooner than the bots' clip-length timing (`Gun::reload_ms`), so
+they wait up to 0.2 to 0.6 s too long until the gun takes the factor from the profile's
+modifiers. The test `every_tier_is_a_set_a_player_could_have` checks that the pouch changes no
+other modifier.
 
 Mass against capacity (the server's game data, `Loadout::weight`; the tests
 in `bot_skills.rs`). The speed level is `movement_level`: 1 + 208's 0.05 −
