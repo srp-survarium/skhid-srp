@@ -112,6 +112,10 @@ struct BotNow {
     grenades: GrenadeStats,
     /// What its avoidance of live grenades has counted this match (`grenade_threat::AvoidStats`).
     avoid: crate::v026g::bots::grenade_threat::AvoidStats,
+    /// Its view is held for a throw now, and how long ago, ms, it let go of
+    /// its last grenade.
+    throw_held: bool,
+    thrown_ago_ms: Option<u32>,
 }
 
 #[derive(Default)]
@@ -130,6 +134,8 @@ pub(crate) struct OwnerTally {
     metric_rays: u64,
     /// The fight counts ([`FightCounts`], `fight.rs`).
     fight: FightCounts,
+    /// The tactics' walk cache at the last tick (hits, misses, kept).
+    walk_stats: crate::v026g::bots::tactics::WalkStats,
     /// The jumps counts ([`JumpCounts`], `jumps.rs`).
     jumps: JumpCounts,
     /// The moving counts ([`MoveCounts`], `moving.rs`).
@@ -213,11 +219,16 @@ impl OwnerTally {
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                     grenades: bot.reflex.grenade_stats(),
                     avoid: bot.avoid.stats,
+                    throw_held: bot.reflex.view_held(),
+                    thrown_ago_ms: bot.reflex.thrown_ago(tick),
                 })
             })
             .collect();
         self.grenades.listed = Some(bots.tracker.throw_counts());
         self.grenades.live = bots.tracker.live_grenades().to_vec();
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.walk_stats = tactics.walk_stats();
+        }
         self.step(game, &nows);
     }
 
@@ -274,6 +285,7 @@ impl OwnerTally {
             self.grenades_keys(place, tick, body, &prev);
             self.grenades_logic(place, &now.grenades);
             self.grenades.avoid.insert(place, now.avoid);
+            self.fight.throw_state = (now.throw_held, now.thrown_ago_ms);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);

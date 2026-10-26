@@ -31,12 +31,20 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    /// The bear-trap habit (`bots/traps.rs`).
+    pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// `Ctx::path_dist` is the regions' walk between floors when a target
+    /// is a storey off; off (the default: merged switched off), the straight
+    /// ground distance whatever the floor, with Collect's batteries a storey
+    /// off priced by the walk as before (the bench's switch,
+    /// `SRP_BENCH_FLOOR_PATHS=1` on).
+    pub floor_paths: bool,
     /// Whether a bot's way out of a zone stays under the strength of the
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
@@ -66,10 +74,12 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
             avoid: AvoidTuning::default(),
             hazard_margin: 1.0,
+            floor_paths: false,
             escape_ceiling: true,
             gap_links: false,
             plays: PlayKind::ALL
@@ -91,6 +101,7 @@ mod motion;
 mod play;
 mod sense;
 mod team;
+mod traps;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
@@ -99,6 +110,7 @@ pub use sense::{CheatTuning, SenseTuning};
 pub use team::{
     AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
 };
+pub use traps::TrapTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -135,6 +147,7 @@ impl Tuning {
         team::validate_think(&self.think)?;
         team::validate_avoid(&self.avoid)?;
         motion::validate_feel(&self.feel)?;
+        traps::validate(&self.traps)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
         heal::validate(&self.heal)?;

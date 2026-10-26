@@ -586,6 +586,8 @@ pub struct TeamKnowledge {
     pub thefts_match: u32,
     /// Each enemy human's lanes, thefts and kills, for the match (CG-12).
     pub humans: HumanLanes,
+    /// The bear traps the team's bots put down (`trap_know.rs`).
+    pub traps: super::trap_know::TrapList,
     /// By battery number.
     pub batteries: Vec<Option<KnownBattery>>,
     /// By battery spawner: when a bot of the team last saw its spot.
