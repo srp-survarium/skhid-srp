@@ -48,6 +48,7 @@ package
    import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -394,7 +395,7 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
-         this._keptLayer.mouseEnabled = this._keptLayer.mouseChildren = false;
+         _keptLayer = new KeptLayer(this,this.keepLaidOut);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -866,11 +867,10 @@ package
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
       // while the Tab list is asked for (show_player_list) the match's time left and, alive, the ammo
       // and the quick-use slots or, while the game shows the kits (the death screen, before the
-      // start), the kits to pick from (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
-      // the root is (placeKept), so the hidden root leaves it; back at its place in the root when not.
-      private const _keptLayer:Sprite = new Sprite();
-
-      private const _keptAt:Dictionary = new Dictionary();
+      // start), the kits to pick from (keptOnTab), not the list. A kept part is in _keptLayer
+      // (KeptLayer: on the stage over the root, placed as the root is), so the hidden root leaves it,
+      // and works there as in the root; back at its place in the root when not.
+      private var _keptLayer:KeptLayer;
 
       private var _forced:Boolean;
 
@@ -880,10 +880,10 @@ package
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forced = forced;
-         this.keep(this.keptWhenForced(),forced);
+         this._keptLayer.keep(this.keptWhenForced(),forced);
          if(!forced)
          {
-            this.keep(this.keptNow(),false);
+            this._keptLayer.keep(this._keptLayer.kept(),false);
             this._tabKept = [];
          }
          this.hide_interface(forced);
@@ -908,69 +908,17 @@ package
          return [this.ammoInd,this.quick_slots,this.matchTime()];
       }
 
-      // Tab down (again at every key while held) or up: what keptOnTab says now kept, what it kept
-      // before and does not now given back (a death or a respawn while Tab is held).
+      // Tab down or up (the game tells the movie at a change, game_world_ui::show_player_list): what
+      // keptOnTab says now kept, what it kept before and does not now given back.
       private function keepOnTab(down:Boolean) : void
       {
          var now:Array = down ? this.keptOnTab() : [];
-         this.keep(this._tabKept.filter(function(part:*, i:int, all:Array):Boolean
+         this._keptLayer.keep(this._tabKept.filter(function(part:*, i:int, all:Array):Boolean
          {
             return now.indexOf(part) == -1;
          }),false);
-         this.keep(now,true);
+         this._keptLayer.keep(now,true);
          this._tabKept = now;
-      }
-
-      // Every part in the kept layer now.
-      private function keptNow() : Array
-      {
-         var parts:Array = [];
-         for(var part:Object in this._keptAt)
-         {
-            parts.push(part);
-         }
-         return parts;
-      }
-
-      // `parts` into the kept layer or back to where each was. A part keeps its place on the screen:
-      // in the kept layer (the root's transform) its matrix is its own times its parents' up to the
-      // root; it remembers its parent, its index there and its own matrix to go back.
-      private function keep(parts:Array, kept:Boolean) : void
-      {
-         // the layer is where the root is now (it may not have been resized since it was made)
-         this.placeKept();
-         for each(var part:DisplayObject in parts)
-         {
-            if(part == null)
-            {
-               continue;
-            }
-            var was:Object = this._keptAt[part];
-            if(kept && was == null && part.parent != null)
-            {
-               var place:Matrix = part.transform.matrix.clone();
-               for(var up:DisplayObjectContainer = part.parent; up != null && up != this; up = up.parent)
-               {
-                  place.concat(up.transform.matrix);
-               }
-               this._keptAt[part] = {
-                  "parent":part.parent,
-                  "index":part.parent.getChildIndex(part),
-                  "matrix":part.transform.matrix.clone()
-               };
-               this._keptLayer.addChild(part);
-               part.transform.matrix = place;
-               this.keepLaidOut(part);
-            }
-            else if(!kept && was != null)
-            {
-               var parent:DisplayObjectContainer = was.parent as DisplayObjectContainer;
-               parent.addChildAt(part,Math.min(int(was.index),parent.numChildren));
-               part.transform.matrix = was.matrix as Matrix;
-               delete this._keptAt[part];
-               this.keepLaidOut(part);
-            }
-         }
       }
 
       // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
@@ -983,11 +931,6 @@ package
          {
             this.layout.manage(Sprite(part));
          }
-      }
-
-      private function placeKept() : void
-      {
-         this._keptLayer.transform.matrix = this.transform.matrix;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -2631,7 +2574,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
-         this.placeKept();
+         this._keptLayer.place();
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

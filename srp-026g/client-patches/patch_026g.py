@@ -2066,7 +2066,10 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # movie is told the forced state from Research's per-frame icons entry,
 # 0x23B207, hide_ui_icons). Two hooks of its own:
 # - game_world::on_keyboard_action's `call 0x2384C0` (show_player_list, Tab
-#   down or up) at 0x25CD34: bo_tab keeps the state, then the call;
+#   down or up) at 0x25CD34: the call, then bo_tab keeps the state; in a
+#   Blackout match (no Tab list) the caller's bl, Tab down, is cleared, so
+#   the key goes on as with Tab up (0x25CD3B; patch 58's kit keys at
+#   0x25CD41) instead of to the function's end;
 # - player_input_handler::process_first_person_mode 0x241250 at its
 #   epilogue 0x2421B0 (`pop edi / pop esi / pop ebx / mov esp,ebp`, ebx the
 #   handler): while Tab is held in a Blackout match the input's actions mask
@@ -2287,7 +2290,8 @@ INSTALLS = {
                        "instead", None, None),
     # Blackout, patch 65 (in `.srpx`)
     0x25CD34: (CALLEE, "game_world::on_keyboard_action's show_player_list (esi the hud, the byte pushed; `ret 4`): "
-                       "bo_tab_entry, Tab kept for Blackout's input, then the call", None, None),
+                       "bo_tab_entry: the call, Tab kept for Blackout's input, and in a Blackout match the "
+                       "caller's bl cleared (the key goes on as with Tab up, 0x25CD3B)", None, None),
     0x2421B0: (JUMP, "process_first_person_mode's epilogue `pop edi / pop esi / pop ebx / mov esp,ebp` (ebx the "
                      "handler): bo_input_entry, Blackout's Tab takes moves and acts out of the mask, back at "
                      "0x2421B5", None, None),

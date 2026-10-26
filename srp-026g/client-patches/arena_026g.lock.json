@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 74060,
-  "sha256": "3af3eb666ed1e52ebc85238c07aa7bb27ef2bc796253abdcf3e6144a0cd72f1c",
+  "size": 74076,
+  "sha256": "b7ba7b303899bb44068bb291e6dadcb1a4677dda9e1b3c5867fdc3499b3b22c6",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -72,11 +72,11 @@
     "blackout.code": {
       "kind": "code",
       "va": "0xa43f000",
-      "size": 309
+      "size": 330
     },
     "blackout.state": {
       "kind": "state",
-      "va": "0xa43f140",
+      "va": "0xa43f150",
       "size": 12
     }
   },
@@ -87,11 +87,11 @@
     "artefacts_loader": "0xa431000",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
-    "bo_input": "0xa43f0e3",
-    "bo_input_entry": "0xa43f015",
-    "bo_match": "0xa43f12f",
-    "bo_options": "0xa43f030",
-    "bo_tab": "0xa43f0d0",
+    "bo_input": "0xa43f0f8",
+    "bo_input_entry": "0xa43f025",
+    "bo_match": "0xa43f144",
+    "bo_options": "0xa43f040",
+    "bo_tab": "0xa43f0e0",
     "bo_tab_entry": "0xa43f000",
     "chat_variable": "0xa434000",
     "controls": "0xa43d008",

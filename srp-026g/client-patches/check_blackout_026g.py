@@ -53,7 +53,8 @@ OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 PROFILE_SIZE, PROFILE_TEAM = 0x45FC, 0x45EC
 OTHER_ICONS = 0x20076000               # another icons' movie (a new game world's)
 ICONS_SITE, ICONS_BACK, PLAYER_ICONS = 0x23B206, 0x23B20C, 0x23AA10
-TAB_SITE, TAB_BACK, SHOW_PLAYER_LIST = 0x25CD34, 0x25CD39, 0x2384C0
+TAB_SITE, SHOW_PLAYER_LIST = 0x25CD34, 0x2384C0
+KEY_ON, KEY_END = 0x25CD41, 0x25CF0D   # on_keyboard_action after its Tab test: the key's way (patch 58's kit keys), its end
 INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
 # the input's bits (srp's drive.rs::key)
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
@@ -117,8 +118,10 @@ class Run(hide.Run):
             regs[UC_X86_REG_EDI] == hide.HUD
         return self.fed, self.stopped == ICONS_BACK and esp == sp, kept, self.invokes()
 
-    # game_world::on_keyboard_action's call of show_player_list (0x25CD34), the byte pushed:
-    # back at 0x25CD39 with it popped, show_player_list (a stub) given the byte.
+    # game_world::on_keyboard_action's call of show_player_list (0x25CD34), the byte pushed and in
+    # bl (0x25CD26), on through the game's Tab test (0x25CD39): where the key goes (0x25CD41 on its
+    # way, 0x25CF0D the function's end), whether it got there with the byte popped, show_player_list
+    # (a stub) given the byte and the other registers kept.
     def tab(self, down):
         emu = self.emu
         given = []
@@ -130,10 +133,13 @@ class Run(hide.Run):
         handle = emu.hook_add(hide.UC_HOOK_CODE, stub, begin=SHOW_PLAYER_LIST, end=SHOW_PLAYER_LIST)
         sp = hide.STACK + 0x8000 - 4
         self.word(sp, 0xABCDEF00 | down)
-        regs, esp = self.run(TAB_SITE, (TAB_BACK,), sp, {**hide.GAME, UC_X86_REG_ESI: hide.HUD})
+        ebx = (hide.GAME[UC_X86_REG_EBX] & ~0xFF) | down
+        regs, esp = self.run(TAB_SITE, (KEY_ON, KEY_END), sp, {**hide.GAME, UC_X86_REG_ESI: hide.HUD,
+                                                                UC_X86_REG_EBX: ebx})
         emu.hook_del(handle)
-        return self.stopped == TAB_BACK and esp == sp + 4 and given == [down] \
-            and all(regs[r] == v for r, v in hide.GAME.items() if r != UC_X86_REG_ESI)
+        kept = all(regs[r] == v for r, v in hide.GAME.items() if r not in (UC_X86_REG_ESI, UC_X86_REG_EBX)) \
+            and regs[UC_X86_REG_EBX] & ~0xFF == ebx & ~0xFF
+        return self.stopped if esp == sp + 4 and given == [down] and kept else None
 
     # process_first_person_mode's epilogue (0x2421B0) on a handler whose mask is `mask`: the
     # mask after it, and whether it returned as the function (`ret 8`, edi esi ebx ebp popped).
@@ -279,9 +285,10 @@ def main():
     for name, down, mask, want in steps:
         a_tab, b_tab = stock.tab(down), patched.tab(down)
         a, b = stock.input(mask), patched.input(mask)
-        ok = a_tab and b_tab and a == (mask, True) and b == (want, True)
+        ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (want, True)
         report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
-                   "show_player_list given the byte, the builder returns as itself")
+                   "show_player_list given the byte, the builder returns as itself; the key goes on (0x25cd41: "
+                   "the kits' keys 1 to 3)" + (", the original's to the end (0x25cf0d: its Tab list)" if down else ""))
     # Only the moves and acts: every other bit (crouch, the weapon keys, the wheel, fire mode, ammo type,
     # spot, the suicide key, the unused ones) goes as pressed; the Esc menu is no input bit at all.
     patched.tab(1)
@@ -294,9 +301,10 @@ def main():
     patched.input(0)
     for run in (stock, patched):
         run.options(empty_options(b""))
-    patched.tab(1)
+    where = patched.tab(1)
     b = patched.input(moving)
-    report(b == (moving, True), f"a match without Blackout, Tab down: {b[0]:#x} sent, all that is pressed")
+    report(b == (moving, True) and where == KEY_END, f"a match without Blackout, Tab down: {b[0]:#x} sent, all that "
+           "is pressed; the key to the end (0x25cf0d) as the original's (its Tab list)")
     patched.options(empty_options(srpx((2, b"\x01"))))
     b = patched.input(moving)
     report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")

@@ -42,8 +42,12 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   Never the player list or the score (the owner, 2026-10-25).
 - **Tab held while dead** (the owner, 2026-10-26: "pressing tab when dying should show kits"): the
   kits, as a plain match shows them on the death screen and before the start, to pick by a click
-  or 1 to 3, and the time left; hidden again when Tab is let go. Keys 1 to 3 pick a kit with or
-  without Tab, as before. A death or a respawn while Tab is held changes the view at the next key.
+  or 1 to 3 (shown chosen as in a plain match), and the time left; hidden again when Tab is let go.
+  Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held shows at the
+  next Tab.
+- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
+  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; the moves and acts stay
+  stopped by the input's filter.
 - **Tab held stops the player:** no walking, sprinting or jumping (a crouch stays, it does not
   move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
   look, the weapon keys, the fire mode, spot and the suicide key stay.
@@ -87,18 +91,22 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   - the player icons' movie is told the forced state from its feed (Research's per-frame entry of
     `update_player_icons` calls patch 62's `hide_ui_icons` first): its
     `root.force_interface_hidden` at a change of the movie (the game world's own) or of the state;
-  - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept, and the input builder's
-    end (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
+  - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept and the key goes on
+    (the caller's bl, Tab down, cleared: 0x25CD3B no longer sends it to the function's end, so
+    patch 58's kit keys at 0x25CD41 get it), and the input builder's end
+    (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
     while it is held.
 - **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
-  (`pregameInfo`) in a layer over it, placed as the root (and still placed by the hud's own
+  (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
+  kits are clicked there; the first build made the whole layer mouse-blind, the owner's
+  2026-10-26 "I cannot switch between profiles"), placed as the root (and still placed by the hud's own
   layout there, `Layout.manage`: centred as in any match, at every resolution and interface
   scale, also when kept before the layout's first pass at the match's start); while forced, the
   game's Tab (`show_player_list`) moves the match's time left (the label `set_match_time` writes
   for the mode, `matchTime`) and, alive, the ammo (`ammoInd`) and the quick-use slots or, while
   the game shows the kits (`show_profiles_selector`: the death screen, before the start), the kits
-  (`_profilePanel`) into that layer and back instead of showing the list (`keepOnTab`: the game
-  asks again at every key while Tab is held, so a death or a respawn meanwhile swaps them); the reset of the next match unforces it and puts every kept
+  (`_profilePanel`) into that layer and back instead of showing the list (`keepOnTab`: what it
+  kept is given back as it was); the reset of the next match unforces it and puts every kept
   part back.
 - **The player icons' movie:** `force_interface_hidden` hides the match's objects' icons (ids from
   37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its objects' from

@@ -43,6 +43,7 @@ static u32 bo_blackout;
 static u32 bo_tab_down, bo_held;
 
 u32 bo_match(void);
+u32 bo_tab(u32 down);
 
 /* The input's actions mask (process_first_person_mode, handler+33Ch; the
  * bits: srp's drive.rs::key). While Tab is held in a Blackout match the
@@ -77,9 +78,12 @@ void bo_options(u8 *options, u8 **reader) {
     bo_tab_down = bo_held = 0;
 }
 
-/* game_world::on_keyboard_action's show_player_list: Tab down or up. */
-void bo_tab(u32 down) {
+/* game_world::on_keyboard_action's show_player_list: Tab down or up. 1 when
+ * the key goes on as with Tab up: a Blackout match has no Tab list (Tab shows
+ * the ammo or the kits), so its keys are not the list's (the kits' 1 to 3). */
+u32 bo_tab(u32 down) {
     bo_tab_down = (down & 0xFF) != 0;
+    return bo_match();
 }
 
 /* The input's actions mask as built: in a Blackout match, while Tab is held,

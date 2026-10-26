@@ -1745,6 +1745,16 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
   use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
   8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
+  After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
+  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the entry clears
+  bl (no Tab list), so 1 to 3 reach the kits Tab shows.
+- **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
+  them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
+  kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`
+  (scaleform_callback 0x233F06: game_world::select_profile 0x1F8070, then
+  show_profiles_selector(false), which does nothing while the game's +53C8h is set, 0x2383D8).
+  The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
+  0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
 - **The patch:** README patch 65. Exe code: the hooks at 0x25CD34 (`bo_tab_entry`, CALLEE) and
   0x2421B0 (`bo_input_entry`, JUMP), the call of `bo_options` in patch 63's options entry,
   `hide_ui_force` (the hud's root.force_interface_hidden), `hide_ui_icons` (the icons'

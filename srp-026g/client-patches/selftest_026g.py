@@ -4494,21 +4494,26 @@ def test_blackout(original, image, before):
           "Research's per-frame entry of update_player_icons feeds the markers' movie in every match and first "
           "calls hide_ui_icons (the icons told the forced state); the icons movie's force_interface_hidden keeps "
           "the players' markers (ids below 37) and hides the match's objects'")
+    kept_src = open(os.path.join(HERE, "..", "flash", "hud", "src", "survarium", "controls", "KeptLayer.as"),
+                    encoding="utf-8").read()
     check("public function force_interface_hidden(forced:Boolean) : void" in hud
-          and "return [this.pregameInfo];" in hud and "this._keptLayer.addChild(part);" in hud
+          and "return [this.pregameInfo];" in hud and "_keptLayer = new KeptLayer(this,this.keepLaidOut);" in hud
           and "return [this.ammoInd,this.quick_slots,this.matchTime()];" in hud and "this.keepOnTab(bool);" in hud
           and "return [this._profilePanel,this.matchTime()];" in hud and "if(this._profilePanel.visible)" in hud
-          and "this.matchTime().text = time;" in hud and "this.keep(this.keptNow(),false);" in hud
-          and "this.layout.manage(Sprite(part));" in hud and "this.placeKept();" in hud
+          and "this.matchTime().text = time;" in hud
+          and "this._keptLayer.keep(this._keptLayer.kept(),false);" in hud
+          and "this.layout.manage(Sprite(part));" in hud and "this._keptLayer.place();" in hud
           and "public function manage(spr:Sprite) : void" in open(os.path.join(HERE, "..", "flash", "hud", "src",
               "scaleform", "clik", "layout", "Layout.as"), encoding="utf-8").read()
-          and "this._keptLayer.transform.matrix = this.transform.matrix;" in hud
+          and "transform.matrix = this._root.transform.matrix;" in kept_src and "addChild(part);" in kept_src
+          and "mouseEnabled = false;" in kept_src and "mouseChildren" not in kept_src
           and "this.force_interface_hidden(false);" in hud,
-          "the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a "
-          "layer over the hidden root, placed as the root, and Tab (show_player_list) the match's time left (the "
-          "label set_match_time writes) and the ammo and the quick-use slots, or the kits while the game shows "
-          "them (the death screen), never the list; a new "
-          "match's reset unforces it and puts back every kept part")
+          "the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a layer over the "
+          "hidden root (KeptLayer, placed as the root; the layer takes no mouse, its parts do: the kits are "
+          "clicked there), and Tab (show_player_list) the match's time left (the label set_match_time writes) "
+          "and the ammo and the quick-use slots, or the kits while the game shows them (the death screen), "
+          "never the list; a new match's reset unforces it and puts back every kept part; "
+          "scripts/blackout-kits/check.sh clicks the kits there in Ruffle")
     check(f"call {linked.symbols['bo_options']:#x}" in td_texts
           and f"call {linked.symbols['bo_match']:#x}" in hide_texts
           and f"call {linked.symbols['hide_ui_force']:#x}" in hide_texts,

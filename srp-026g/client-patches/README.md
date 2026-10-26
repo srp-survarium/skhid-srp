@@ -3597,7 +3597,10 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   (jump, fire, reload, aim, held breath, quick use, use, drop, grenade, melee) out of the input's
   actions mask (+33Ch) while it is held in a Blackout match; an act held through Tab stays out
   until its key is let go. The input is filtered before it is applied and sent: every game plays
-  what was sent, no rule changes.
+  what was sent, no rule changes. The key itself goes on as with Tab up (the entry clears the
+  caller's bl, Tab down, which at 0x25CD3B sends every key to the function's end while the Tab
+  list is up): patch 58's kit keys 1 to 3 at 0x25CD41 reach the kits Tab shows on the death
+  screen.
 - **The players' markers stay.** Research's per-frame entry at update_ui's call of
   update_player_icons (0x23B207, patch 53) first calls patch 62's `hide_ui_icons`: the player
   icons' movie the hud holds (the game world's own) gets `root.force_interface_hidden` with the
