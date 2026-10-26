@@ -10,11 +10,16 @@ pub struct HazardTuning {
     pub margin_m: Metres,
     /// The way out of a zone the bot starts in ([`EscapeRule`]).
     pub escape: EscapeRule,
+    /// Whether the bots read the anomaly fields a world holds (`Bots::fields_from_world`, `live_zones.rs`): the
+    /// floors they cover are kept off while a field hurts, and a bot caught in one is got out. Off (the default:
+    /// merged switched off): the worlds' fields are not read, today's decisions (the bench's switch,
+    /// `SRP_BENCH_LIVE_ZONES=1` on).
+    pub live_zones: bool,
 }
 
 impl Default for HazardTuning {
     fn default() -> Self {
-        Self { margin_m: Metres::of(1.0), escape: EscapeRule::UnderStartZone }
+        Self { margin_m: Metres::of(1.0), escape: EscapeRule::UnderStartZone, live_zones: false }
     }
 }
 

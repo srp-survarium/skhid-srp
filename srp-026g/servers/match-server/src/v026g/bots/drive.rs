@@ -1,3 +1,4 @@
+use super::hazards::ZoneSet;
 use super::*;
 
 /// The own eye is led at most this far past its last decided tick
@@ -390,7 +391,7 @@ pub(super) fn drive_tick(
         .world
         .grid
         .locate(me.feet, 1.5)
-        .map_or(0, |node| tactics.hazards.set_of(node));
+        .map_or(ZoneSet::default(), |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
     let zone_out = if Gates::wants_zone_way_out(&intent, goal) {
         zone_way_out(bot, tactics, me.feet, time, intent.objective)
@@ -680,7 +681,7 @@ pub(super) fn drive_tick(
                     if let Some((from, _)) = ends
                         && route.is_some()
                         && zone_out.is_none()
-                        && tactics.hazards.set_of(from) != 0
+                        && !tactics.hazards.set_of(from).is_none()
                         && bot
                             .stuck
                             .zone_escape(time, tactics.hazards.set_of(from), at)
