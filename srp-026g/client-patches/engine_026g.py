@@ -318,8 +318,11 @@ def functions(spec=None, abi=None, inputs=None):
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
-# An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
+# An `::image` row's VA: inside the exe's image (its data sections), the
+# original's whole SizeOfImage: .data's zero-filled part runs past 16 MiB (the
+# renderer's resource manager pointer is at 0x226047C) up to 0xA425000, where
+# our first section, `.srp`, begins.
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA425000
 
 
 def fields(path=None):

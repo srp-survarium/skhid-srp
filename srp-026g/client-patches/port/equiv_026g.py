@@ -78,7 +78,11 @@ class External:
     block whose address the two builds need not share), `pops` the bytes
     it pops; a stub sets EAX from the run's generator, then
     `model(machine, args, rng)` may set the return registers and write
-    memory; `real` runs the game's own code instead."""
+    memory (machine.at_call: the registers at the call, before the stub's
+    EAX; a model may append its own records of what the call was given to
+    machine.calls, e.g. a text or a struct an argument points to, which
+    the two builds keep at different addresses); `real` runs the game's own
+    code instead."""
 
     def __init__(self, name, inputs, pops=0, model=None, real=False):
         self.name, self.inputs, self.pops, self.model, self.real = name, tuple(inputs), pops, model, real
@@ -263,6 +267,7 @@ class Machine:
             if external.real:
                 self.inside = False                        # the game's code, until it returns to ours
                 return
+            self.at_call = {r: self.reg(r) for r in REG_NAMES}   # what a model may read of the call
             self.set_reg("eax", self.rng.getrandbits(32))
             if external.model:
                 external.model(self, args, self.rng)
