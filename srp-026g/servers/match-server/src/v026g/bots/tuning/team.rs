@@ -64,6 +64,18 @@ pub struct ThreatTuning {
     pub search_floors: u32,
 }
 
+/// How a bot commits to a play it has started. Every switch is off until a
+/// bench turns it on.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CommitTuning {
+    /// A running Cut is scored without the crowd at its cut point
+    /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
+    /// start a Cut where friends already are, not to leave one the bot is
+    /// walking to.
+    pub cut_given_crowd: bool,
+}
+
 impl Default for ThreatTuning {
     fn default() -> Self {
         Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }

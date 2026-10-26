@@ -35,6 +35,7 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    pub commit: CommitTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// `Ctx::path_dist` is the regions' walk between floors when a target
@@ -75,6 +76,7 @@ impl Default for Tuning {
             traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
+            commit: CommitTuning::default(),
             hazard_margin: 1.0,
             floor_paths: false,
             escape_ceiling: true,
@@ -104,7 +106,7 @@ pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use team::{CommitTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
 pub use traps::TrapTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
