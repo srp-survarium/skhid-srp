@@ -31,8 +31,10 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
 """
 import argparse
+import os
 import re
 import struct
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -146,12 +148,42 @@ def site_of(patch_name, kind, row, sites):
     return site
 
 
-BRANCH = set(range(0x70, 0x80)) | {0xE8, 0xE9, 0xEB, 0xE0, 0xE1, 0xE2, 0xE3}
-
-
 def _branch_free(bytes_, where):
-    if any(b in BRANCH for b in bytes_):
-        raise Bad(f"{where}: the bytes have a relative branch; they cannot be relocated or replayed (use a code hook)")
+    """Decode whole instructions before copying a span to another address.
+    Opcode-looking bytes inside immediates/displacements are harmless; near
+    conditional branches and prefixed branches still need relocation.
+    ndisasm prints undecodable/truncated instructions as db or lone prefixes.
+    """
+    tool = os.path.join(os.environ.get("NASM_DIR", ""), "ndisasm")
+    try:
+        done = subprocess.run([tool, "-b", "32", "-"], input=bytes_, capture_output=True,
+                              check=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise Bad(f"{where}: cannot decode the span with ndisasm: {error}") from error
+    prefixes = {"o16", "o32", "a16", "a32", "lock", "rep", "repe", "repne", "repz", "repnz",
+                "cs", "ds", "es", "fs", "gs", "ss", "bnd", "xacquire", "xrelease"}
+    decoded = bytearray()
+    for line in done.stdout.decode().splitlines():
+        continuation = re.fullmatch(r"\s+-([0-9A-F]+)", line)
+        if continuation:
+            decoded.extend(bytes.fromhex(continuation[1]))
+            continue
+        row = re.fullmatch(r"([0-9A-F]+)\s+([0-9A-F]+)\s+(.+)", line)
+        if row is None or int(row[1], 16) != len(decoded):
+            raise Bad(f"{where}: cannot decode the complete span: {line!r}")
+        decoded.extend(bytes.fromhex(row[2]))
+        instruction = row[3].strip()
+        words = instruction.split()
+        while words and words[0] in prefixes:
+            words.pop(0)
+        if not words or words[0] == "db":
+            raise Bad(f"{where}: the span contains an invalid or incomplete instruction: {instruction}")
+        if re.search(r"\b(?:j[a-z]+|loop[a-z]*|call|xbegin)\s+"
+                     r"(?:(?:near|short|word|dword)\s+)*0x[0-9a-f]+$", instruction):
+            raise Bad(f"{where}: the bytes have a relative branch; they cannot be relocated or replayed "
+                      "(use a code hook)")
+    if decoded != bytes_:
+        raise Bad(f"{where}: ndisasm did not decode the complete span")
 
 
 def _typed(patch_name, patch_no, kind, site, handler, f):
@@ -197,7 +229,7 @@ def call_hook(patch, row, sites, functions, exe=None):
         raise Bad(f"{name}: {site['callee']} is {f['call']}; a call hook needs stdcall or cdecl (a register "
                   "convention would need a reverse thunk, not built yet)")
     args, h = _typed(name, patch["patch"], "call", site, row["handler"], f)
-    original = b"\xE8" + struct.pack("<i", (f["va"] - (site["va"] + 5)) & 0xFFFFFFFF)
+    original = b"\xE8" + struct.pack("<I", (f["va"] - (site["va"] + 5)) & 0xFFFFFFFF)
     h.update(original=original, entry_macro=("RUST_CALL", len(args), f["cleanup"]), install=("call", 0xE8),
              orig_kind="direct")
     return h
@@ -245,6 +277,9 @@ def splice_hook(patch, row, sites, functions, exe=None):
              "thiscall": ("RUST_THISCALL", nargs)}[convention]
     h.update(original=prologue, convention=convention, this=this, entry_macro=macro, install=("splice", 0xE9),
              orig_kind="trampoline", trampoline=(prologue, site["va"] + len(prologue)))
+    # A splice's Original must call this entry's trampoline, not the direct
+    # function (which now detours) or another hook's trampoline.
+    h["orig"] += "For" + camel(name) + "_" + camel(row["handler"])
     return h
 
 
@@ -282,7 +317,7 @@ def lohook_entry(h):
     exit). Reached by a jump from the site; leaves esp as it was."""
     e, past = h["entry"], h["site"] + len(h["original"])
     lines = [f"global {e}", f"extern {h['shim']}", f"{e}:",
-             "    sub esp, 4",                          # the dispatch slot (ret jumps here)
+             "    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
              "    pushfd", "    pushad", "    cld",
              "    mov ebp, esp",                        # ebp -> Regs; [ebp+36] the slot
              "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
@@ -360,6 +395,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
 
 
 def rs_text(hs):
+    originals = {}
     lines = [f"// The Rust hooks' glue ({GENERATED}).",
              "//",
              "// Included inside `vostok` (crate::vostok::generated): each hook's",
@@ -416,19 +452,26 @@ def rs_text(hs):
                       f'unsafe extern "{abi}" {{ fn {h["entry"]}_tramp('
                       + ", ".join(f"a{i}: {t}" for i, t in enumerate(h["raw_params"])) + f"){ret}; }}",
                       ""]
+        original_key = (target_fn, abi, orig_params, result["type"])
+        if h["orig"] in originals and originals[h["orig"]] != original_key:
+            raise Bad(f"{h['orig']}: two different Originals have the same generated type name")
+        if h["orig"] not in originals:
+            originals[h["orig"]] = original_key
+            lines += [
+                f"/// {h['function']} ({h['target']:#x}), as the {h['kind']} hook at {h['site']:#x} wraps it.",
+                f"pub struct {h['orig']};",
+                "",
+                f"impl {h['orig']} {{",
+                "    /// The game's own function, with these typed arguments.",
+                f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
+                f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
+                "        // typed by the row (engine_026g.tsv).",
+                f"        unsafe {{ {orig_body} }}",
+                "    }",
+                "}",
+                "",
+            ]
         lines += [
-            f"/// {h['function']} ({h['target']:#x}), as the {h['kind']} hook at {h['site']:#x} wraps it.",
-            f"pub struct {h['orig']};",
-            "",
-            f"impl {h['orig']} {{",
-            "    /// The game's own function, with these typed arguments.",
-            f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
-            f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
-            "        // typed by the row (engine_026g.tsv).",
-            f"        unsafe {{ {orig_body} }}",
-            "    }",
-            "}",
-            "",
             f"/// The entry `{h['entry']}` ({h['site']:#x}, {h['what']}) calls this with",
             f"/// {h['function']}'s {len(h['args'])} arguments.",
             "#[unsafe(no_mangle)]",
