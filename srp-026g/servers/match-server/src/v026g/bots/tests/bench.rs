@@ -224,6 +224,10 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
         tuning.escape_ceiling = v != "0";
     }
+    // The humans' perches in the hold plays (V-S2b): `0` off, else on.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_PERCH") {
+        tuning.perch.on = v != "0";
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
