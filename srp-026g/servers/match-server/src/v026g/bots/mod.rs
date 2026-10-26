@@ -185,6 +185,9 @@ pub struct Bot {
     /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
     #[cfg(test)]
     pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
+    /// The time of its last route search, for the bench's counts of asks (`search::asks`).
+    #[cfg(test)]
+    pub(crate) bench_asked: search::asks::Asked,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -345,6 +348,7 @@ impl Bot {
             bench_guard_at: ([0.0; 2], Vec3::ZERO),
             #[cfg(test)]
             bench_est: std::collections::VecDeque::new(),
+            bench_asked: Default::default(),
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
