@@ -367,7 +367,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // a new offer before the last one was reached
-        if let Some((_, false, _, closest)) = g.borrow_mut().remove(&cx.me.place) {
+        if let Some((_, false, _, closest, _)) = g.borrow_mut().remove(&cx.me.place) {
             perch_count(16);
             lost_at(closest);
         }
@@ -384,7 +384,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // the plays take one of the first three at random
-        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX));
+        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, None));
     });
     out
 }
@@ -392,10 +392,10 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
 /// The bench's look at the bot at `place`, at `feet`, alive or not: the perch
 /// it was last offered first is reached (within 2 m, once) and stood on.
 #[cfg(test)]
-pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
+pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::PlayKind>) {
     PERCH_GOALS.with(|g| {
         let mut g = g.borrow_mut();
-        let Some((spots, reached, age, closest)) = g.get_mut(&place) else { return };
+        let Some((spots, reached, age, closest, first_play)) = g.get_mut(&place) else { return };
         if !alive {
             if !*reached {
                 // dying within 20 s of the take, or long after the play moved on
@@ -406,6 +406,18 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
             return;
         }
         if !*reached {
+            match *first_play {
+                None => *first_play = Some(play),
+                Some(first) if first != play => {
+                    // the bot's play changed before it got there
+                    perch_count(25);
+                    PERCH_LEFT.with(|m| {
+                        *m.borrow_mut().entry(format!("{first:?}->{play:?}")).or_insert(0) += 1;
+                    });
+                    *first_play = Some(play);
+                }
+                Some(_) => {}
+            }
             *age += 1;
             if *age > 1400 {
                 // longer than a play's give-up time: the take is lost
@@ -429,6 +441,12 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool) {
     });
 }
 
+/// The plays the bots left before reaching an offered perch (`from->to`, counts).
+#[cfg(test)]
+pub fn perch_left() -> String {
+    PERCH_LEFT.with(|m| format!("{:?}", m.borrow()))
+}
+
 /// How near a lost take came to its perches: at most 2.5 m (a wrong
 /// height), 6 m, 15 m, farther.
 #[cfg(test)]
@@ -446,8 +464,9 @@ fn lost_at(closest: f32) {
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 25]> = const { std::cell::Cell::new([0; 25]) };
-    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    static PERCHED: std::cell::Cell<[u64; 26]> = const { std::cell::Cell::new([0; 26]) };
+    static PERCH_LEFT: std::cell::RefCell<std::collections::BTreeMap<String, u32>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32, Option<Option<super::PlayKind>>)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
 #[cfg(test)]
@@ -472,7 +491,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 25] {
+pub fn perch_counts() -> [u64; 26] {
     PERCHED.with(|c| c.get())
 }
 

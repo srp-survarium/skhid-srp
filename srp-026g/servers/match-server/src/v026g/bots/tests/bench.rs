@@ -821,7 +821,12 @@ pub(crate) fn real_bot_cost() {
                     push.tick(&bots);
                     for bot in bots.bots.iter().flatten() {
                         let body = &game.bodies[bot.place];
-                        super::plays::goals::perch_watch(bot.place, body.feet, body.alive);
+                        super::plays::goals::perch_watch(
+                            bot.place,
+                            body.feet,
+                            body.alive,
+                            bot.assignment.as_ref().map(|a| a.kind),
+                        );
                     }
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
@@ -1302,7 +1307,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  push: {}", push.line(&bots));
             let perched = super::plays::goals::perch_counts();
             eprintln!(
-                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {} spawn {} no_floor {} fall {} lip {} arrived {} on_perch_ticks {} repicked {} died_20s {} ticks_to_arrive {} died_late {} timed_out {} lost_2m {} lost_6m {} lost_15m {} lost_far {}",
+                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {} spawn {} no_floor {} fall {} lip {} arrived {} on_perch_ticks {} repicked {} died_20s {} ticks_to_arrive {} died_late {} timed_out {} lost_2m {} lost_6m {} lost_15m {} lost_far {} left_play {}",
                 perched[0] - perch_before[0], perched[1] - perch_before[1], perched[2] - perch_before[2],
                 perched[3] - perch_before[3], perched[4] - perch_before[4], perched[5] - perch_before[5],
                 perched[6] - perch_before[6], perched[7] - perch_before[7], perched[8] - perch_before[8],
@@ -1311,8 +1316,9 @@ pub(crate) fn real_bot_cost() {
                 perched[14] - perch_before[14], perched[15] - perch_before[15],
                 perched[16] - perch_before[16], perched[17] - perch_before[17], perched[18] - perch_before[18],
                 perched[19] - perch_before[19], perched[20] - perch_before[20],
-                perched[21] - perch_before[21], perched[22] - perch_before[22], perched[23] - perch_before[23], perched[24] - perch_before[24]
+                perched[21] - perch_before[21], perched[22] - perch_before[22], perched[23] - perch_before[23], perched[24] - perch_before[24], perched[25] - perch_before[25]
             );
+            eprintln!("  perch_left: {}", super::plays::goals::perch_left());
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }
