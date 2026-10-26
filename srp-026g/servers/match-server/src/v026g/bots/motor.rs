@@ -58,9 +58,10 @@ pub struct Feel {
     pub max_turn_speed: f32,
     /// Top change of the turning speed, radians a second per second.
     pub max_turn_accel: f32,
-    /// Forward is let go for a turn larger than this, radians …
+    /// The walk's keys are let go for a target more than this off the
+    /// facing, radians (it turns on the spot) …
     pub stop_turn: f32,
-    /// … and held again once the turn left is under this.
+    /// … and taken up again once the target is within this.
     pub go_turn: f32,
     /// The point steered at is this far ahead, metres, plus
     /// `look_ahead_per_speed` × speed.
@@ -307,6 +308,16 @@ const HOP_STEP_M: f32 = 0.5;
 /// ground about the body.
 const HOP_SIDE_M: f32 = 1.0;
 
+/// The walk keys are the set nearest the way to go, and a set is held at
+/// least this many ticks (100 ms) while the way stays within
+/// [`KEY_FORCE_RAD`] of it: no chatter between two sets at a boundary. A
+/// human holds a set 100 ms or more in 92 % of his holds (574 players in 12+
+/// live matches), a one-tick hold is 1-2 %.
+const KEY_HOLD_TICKS: u32 = 2;
+/// A set is let go at once when the way to go is this far from it, radians
+/// (more than a sector and a half: the facing swung round).
+const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
+
 /// One bot's hands.
 #[derive(Clone, Debug)]
 pub struct Motor {
@@ -352,6 +363,18 @@ pub struct Motor {
     hopped: Option<u32>,
     /// The jump this tick's decision pressed, if any.
     jump: Option<JumpBy>,
+    /// The walk key set held ([`Motor::pick_keys`]).
+    key_hold: Option<KeyHold>,
+}
+
+/// The walk key set held: its sector (45 degrees apart, 0 forward, positive
+/// to the left), the motor's tick it was last used and for how many ticks it
+/// has been held.
+#[derive(Clone, Copy, Debug)]
+struct KeyHold {
+    sector: i32,
+    at: u32,
+    held: u32,
 }
 
 /// A jump of the route being made: its take-off and landing (the
@@ -431,7 +454,47 @@ impl Motor {
             way: [0.0, 0.0],
             hopped: None,
             jump: None,
+            key_hold: None,
         }
+    }
+
+    /// The walk keys for a way to go `relative` to the facing (positive to
+    /// the left): the set of the eight nearest the way, held at least
+    /// [`KEY_HOLD_TICKS`] unless the way swung round. The body moves where
+    /// the keys point and the view turns on its own: a player's keys and
+    /// mouse. (A dither between the two nearest sets for a mean track was
+    /// tried: its minor holds weave the body 0.25 m off the line and it fell
+    /// off ledges it walks with the nearest set alone.)
+    fn pick_keys(&mut self, relative: f32) -> u32 {
+        use std::f32::consts::FRAC_PI_4;
+        let relative = wrap(relative);
+        let nearest = (relative / FRAC_PI_4).round() as i32;
+        let held = self
+            .key_hold
+            .filter(|hold| self.clock.wrapping_sub(hold.at) <= 2);
+        let (sector, ticks) = match held {
+            Some(hold)
+                if hold.sector == nearest
+                    || (hold.held < KEY_HOLD_TICKS
+                        && wrap(relative - hold.sector as f32 * FRAC_PI_4).abs()
+                            <= KEY_FORCE_RAD) =>
+            {
+                (hold.sector, hold.held + 1)
+            }
+            _ => (nearest, 1),
+        };
+        #[cfg(test)]
+        counts::key(
+            held.is_some(),
+            held.is_some_and(|hold| hold.sector != sector),
+            held.map_or(0, |hold| hold.held),
+        );
+        self.key_hold = Some(KeyHold {
+            sector,
+            at: self.clock,
+            held: ticks,
+        });
+        keys_toward(sector as f32 * FRAC_PI_4)
     }
 
     /// The jump this tick's decision pressed, and why.
@@ -567,11 +630,14 @@ impl Motor {
             yaw_of([dx, dz]) + sway
         };
         let turn = self.turn_toward(pose, heading, 0.0);
-        let still = wrap(heading - (pose.yaw + turn.0)).abs();
+        let relative = wrap(heading - (pose.yaw + turn.0));
+        let still = relative.abs();
 
-        // Walk while turning; let go only for a big turn (on a jump's line,
-        // for a turn off its way: it stands and turns to it first).
-        if jump.is_some_and(|jump| jump.lined) {
+        // Walk while turning, the keys pointing where the way goes; let go
+        // only for a way behind it (it turns on the spot), and on a jump's
+        // line for a turn off its way: it stands and turns to it first.
+        let lined = jump.is_some_and(|jump| jump.lined);
+        if lined {
             self.walking = still < LINE_UP_GO;
         } else if self.walking && still > self.feel.stop_turn {
             self.walking = false;
@@ -604,13 +670,22 @@ impl Motor {
         }
         let mut keys = 0;
         if self.walking {
-            keys |= key::FORWARD;
+            // A jump's line is walked facing its way, forward only; any
+            // other walk by the key set nearest the way to go.
+            keys |= if lined {
+                self.key_hold = None;
+                key::FORWARD
+            } else {
+                self.pick_keys(relative)
+            };
             if self.sprinting {
                 keys |= key::SPRINT;
             }
             if low {
                 keys |= key::CROUCH;
             }
+        } else {
+            self.key_hold = None;
         }
         if let Some(jump) = jump {
             if let Some(take_off) = jump.failed {
@@ -618,7 +693,8 @@ impl Motor {
             }
             keys |= self.jump_key(&jump, still, pose);
         }
-        let may = self.walking && still <= self.feel.hop_max_turn && !pose.no_jump;
+        // A hop goes the way the keys do: only with forward held.
+        let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
@@ -691,14 +767,21 @@ impl Motor {
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
-        let mut keys = keys_toward(wrap(yaw_of([dx, dz]) - (pose.yaw + turn.0)));
+        let relative = wrap(yaw_of([dx, dz]) - (pose.yaw + turn.0));
         self.walking = true;
+        let mut keys;
         if let Some(jump) = lined {
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
             self.walking = still < LINE_UP_GO;
+            self.key_hold = None;
             keys = if self.walking { key::FORWARD } else { 0 };
-        } else if jump.is_none() && route.low_ahead(s, LOW_AHEAD_M) {
-            keys |= key::CROUCH;
+        } else {
+            // The set nearest the way to go, and the other nearest in
+            // proportion ([`Motor::pick_keys`]): no steady bias.
+            keys = self.pick_keys(relative);
+            if jump.is_none() && route.low_ahead(s, LOW_AHEAD_M) {
+                keys |= key::CROUCH;
+            }
         }
         if let Some(jump) = jump {
             if let Some(take_off) = jump.failed {
@@ -707,7 +790,9 @@ impl Motor {
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
             keys |= self.jump_key(&jump, still, pose);
         }
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), !pose.no_jump);
+        // A hop goes the way the keys do: only with forward held.
+        let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -1190,6 +1275,27 @@ pub mod counts {
         add(if clear { 4 } else { 5 });
     }
 
+    static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    /// One tick of the walk keys: whether the plan goes on from a tick
+    /// before, whether the key set changed, and how long the set before
+    /// was held.
+    pub fn key(continued: bool, changed: bool, held: u32) {
+        KEYS[0].fetch_add(1, Ordering::Relaxed);
+        if continued && changed {
+            KEYS[1].fetch_add(1, Ordering::Relaxed);
+            KEYS[2].fetch_add(1, Ordering::Relaxed);
+            if held <= 1 {
+                KEYS[3].fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// (walk key ticks, set changes, holds ended, of them one tick long).
+    pub fn keys() -> [u64; 4] {
+        std::array::from_fn(|k| KEYS[k].load(Ordering::Relaxed))
+    }
+
     /// (up at the first press, up later, given up, look-ahead cuts, side
     /// steps clear, side steps refused).
     pub fn counts() -> [u64; 6] {
@@ -1248,6 +1354,89 @@ mod tests {
             p(10.0, false, true),
             p(20.0, false, false),
         ])
+    }
+
+    /// The keys of `ticks` ticks for a way to go `relative` to the facing,
+    /// as the walk asks for them: the sets (as key bits).
+    fn keys_for(motor: &mut Motor, relative: f32, ticks: usize) -> Vec<u32> {
+        (0..ticks)
+            .map(|_| {
+                motor.next_tick();
+                motor.pick_keys(relative)
+            })
+            .collect()
+    }
+
+    /// The walk keys point where the way goes: the nearest of the eight
+    /// sets (the way is within 22.5 degrees of it), held and not changed
+    /// for a steady way, so a set changes far less than the humans' 2.4 a
+    /// second.
+    #[test]
+    fn steady_ways_are_followed_by_the_nearest_set() {
+        let kin = Kinematics::default();
+        for degrees in [0.0_f32, 3.0, 10.0, 17.0, 22.0, 34.0, 50.0, 80.0, -25.0] {
+            let relative = degrees.to_radians();
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            let sets = keys_for(&mut motor, relative, 320);
+            assert!(sets.windows(2).all(|w| w[0] == w[1]), "{degrees} deg: {sets:?}");
+            let [x, z] = kin.target_velocity(sets[0], 0.0, 1.0);
+            assert!(
+                wrap(yaw_of([x, z]) - relative).abs() <= 24.0_f32.to_radians(),
+                "{degrees} deg: the keys went {} deg",
+                yaw_of([x, z]).to_degrees()
+            );
+        }
+        // Straight ahead is forward alone, with no change at all.
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        assert!(keys_for(&mut motor, 0.0, 100).iter().all(|&k| k == key::FORWARD));
+    }
+
+    /// A way wobbling over the boundary between two sets does not make the
+    /// keys chatter: a set is held two ticks or more (a human holds 100 ms
+    /// or more in 92 % of his holds), and the set changes at most as often
+    /// as the humans' 2.4 a second while the way is steady.
+    #[test]
+    fn a_way_at_a_boundary_does_not_chatter() {
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let boundary = std::f32::consts::FRAC_PI_8;
+        let sets: Vec<u32> = (0..400)
+            .map(|k| {
+                motor.next_tick();
+                // 2 degrees either side of the boundary, every tick.
+                let wobble = if k % 2 == 0 { 0.035 } else { -0.035 };
+                motor.pick_keys(boundary + wobble)
+            })
+            .collect();
+        let mut holds = Vec::new();
+        let mut run = 1;
+        for w in sets.windows(2) {
+            if w[0] == w[1] {
+                run += 1;
+            } else {
+                holds.push(run);
+                run = 1;
+            }
+        }
+        assert!(
+            holds.iter().skip(1).all(|&hold| hold >= KEY_HOLD_TICKS),
+            "holds {holds:?}"
+        );
+    }
+
+    /// A way that swings round (the facing turned a long way) changes the
+    /// set at once, not after the two ticks' hold.
+    #[test]
+    fn a_swing_changes_the_set_at_once() {
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        assert_eq!(keys_for(&mut motor, 0.0, 3), [key::FORWARD; 3]);
+        let after = keys_for(&mut motor, 1.57, 1)[0];
+        assert_eq!(after, key::LEFT, "a quarter turn to the left at once");
+        let after = keys_for(&mut motor, -1.57, 1)[0];
+        assert_eq!(after, key::RIGHT);
     }
 
     fn facing_x(feet: Vec3) -> Pose {
@@ -1793,12 +1982,19 @@ mod tests {
         assert!(decisions.iter().any(|d| d.keys & key::FORWARD != 0));
         // 50 m at 3.3 to 5.25 m/s plus the turn: well under 20 s.
         assert!(decisions.len() < 400, "{}", decisions.len());
-        // Keys change seldom: no flicker of forward or sprint.
+        // Keys change at the humans' rate or below (2.4 set changes a second
+        // while moving), and the sprint does not flicker.
         let changes = decisions
             .windows(2)
             .filter(|w| w[0].keys != w[1].keys)
             .count();
-        assert!(changes <= 8, "{changes}");
+        let seconds = decisions.len() as f32 * TICK_S;
+        assert!(changes as f32 <= 2.4 * seconds, "{changes} in {seconds} s");
+        let sprints = decisions
+            .windows(2)
+            .filter(|w| (w[0].keys ^ w[1].keys) & key::SPRINT != 0)
+            .count();
+        assert!(sprints <= 4, "{sprints}");
     }
 
     #[test]
