@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 62 (hide_ui_026g.asm: one key hides the interface and shows it
+"""Run patch 62 (the Rust patch hide_ui; hide_ui_026g.asm until the Rust port: one key hides the interface and shows it
 again) in the default build on made-up game objects.
 
     python check_hide_ui_026g.py <original survarium.exe>
@@ -450,7 +450,7 @@ def main():
     a_set, b_set = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
     kept = [s_opt.text(s_opt.read(0xA9DB28 + 0x68 * i + 0x10)) for i in range(40)]
     report(a_set == b_set == [(0x19, "kF9", 0)] and b"kF9" not in kept
-           and p_opt.text(p_opt.read(linked.symbols["controls"] + 40 * 0x68 + 0x10)) == b"kF9",
+           and p_opt.text(p_opt.read(linked.symbols.get("SRP_CONTROLS", linked.symbols.get("controls")) + 40 * 0x68 + 0x10)) == b"kF9",
            f"a key set for 19h (kF9, 0x2013A0): shown {b_set} by both, kept in the 41st row; the original "
            "keeps it in no row")
     for run in (s_opt, p_opt):

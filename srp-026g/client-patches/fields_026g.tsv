@@ -218,3 +218,6 @@ survarium::player	yaw	0x490	f32	m_rotation_y
 survarium::damage_model	invulnerable_until	0x32C	u32	invulnerable until (a time); -1 not (0x2E5550)
 survarium::network_client	shown_state	0x1F1C60	u32	the time rule's state the camera was last set for (the time rule's change 0x27B1A0, a tick first played)
 survarium::game_world_ui	world	0x18	u32	the game world (0x23B74F)
+survarium::world_input_handler	hud	0x4	u32	the hud (game_world_ui) itself, inline: its +8 the hud movie holder
+survarium::world_input_handler	replay_movie	0x18	u32	the hud's +14h: the replay's controls movie (0 in a match)
+survarium::lobby_menu	movie	0x690	u32	the lobby movie's holder ([[+690h]+108h]+4 the movie)

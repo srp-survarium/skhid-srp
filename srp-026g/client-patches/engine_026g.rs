@@ -1880,6 +1880,24 @@ pub mod world_input_handler {
     pub unsafe fn pointer_y(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_sub(0x168).cast() }
     }
+
+    /// +0x4 (u32): the hud (game_world_ui) itself, inline: its +8 the hud movie holder
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn hud(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x18 (u32): the hud's +14h: the replay's controls movie (0 in a match)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn replay_movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18).cast() }
+    }
 }
 
 /// survarium::world_keyboard_frame's fields (fields_026g.tsv).
@@ -2689,5 +2707,20 @@ pub mod statistics_record {
     #[inline(always)]
     pub unsafe fn next(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x1f8).cast() }
+    }
+}
+
+/// survarium::lobby_menu's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod lobby_menu {
+    use core::ffi::c_void;
+
+    /// +0x690 (u32): the lobby movie's holder ([[+690h]+108h]+4 the movie)
+    ///
+    /// # Safety
+    /// `this` is a survarium::lobby_menu.
+    #[inline(always)]
+    pub unsafe fn movie(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x690).cast() }
     }
 }

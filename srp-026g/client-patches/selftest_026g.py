@@ -1439,7 +1439,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
@@ -3868,8 +3867,9 @@ def test_match_keys(original, image, before):
 
 
 def test_hide_ui(original, image, before):
-    """Check 62: the key that hides the interface (patch 62,
-    HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
+    """Check 62: the key that hides the interface (patch 62, the Rust patch
+    hide_ui: three lohooks, the controls vostok's SRP_CONTROLS).
+    check_hide_ui_026g.py runs the three entries from the
     game's sites on made-up objects, with the game's own show_ui and
     get_binded_action."""
     stock = Image(original)
@@ -3925,36 +3925,11 @@ def test_hide_ui(original, image, before):
           "get_binded_action (0x207D50, `ret 4`) for kind 2; 0x26CCAE is where it goes after a key the movie "
           "typed (0x1FDD70 pops its five arguments): al 1, the key taken")
     linked = P.arena()
-    block = linked.blocks["hide_ui.code"]
-    for va, old, symbol, opcode in P.HIDE_UI_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of hide_ui.code) here")
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.HIDE_UI_HOOKS)]
-    hits = [h for va, old, _, _ in P.HIDE_UI_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
-            if not va <= h < va + len(old) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
-          + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "hide_ui.code")
-    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's hide_ui.code ({len(code)} bytes)")
-    names = code.index(b"root.toggle_interface\0")
-    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
-    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
-                      and not block.va <= branch_target(t) < block.va + len(code)})
-    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
-    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
-    check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
-          and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
-          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
-          and "hide_ui.state" not in linked.blocks,
-          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
-          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
-          "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
-          "root.interface_hidden and root.hide_interface, and keeps no state of its own")
+    rust_lohooks(original, image, before, "hide_ui",
+                 {0x25CED1: ["mov esi,[esp+0x10]", "cmp dword [esi+0x18],byte +0x0", "jz 0x25cf0d"],
+                  0x26CCD2: ["call 0x207d50"], 0x234AE8: ["call 0x511600"]},
+                 exits={0x25CF0D, "lea esp,[esp+0x4] / jmp 0x26ccd7", "lea esp,[esp+0x4] / jmp 0x26ccae",
+                        "lea esp,[esp+0x4] / jmp 0x26cdd2", "lea esp,[esp+0x10] / jmp 0x234aed"})
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
     table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
@@ -3974,8 +3949,8 @@ def test_hide_ui(original, image, before):
               "mov dword [esp+0x10],0x28", "mov dword [ebp-0x8],0x28"],
           "the table's six readers (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B) and their six "
           "counts of 28h")
-    controls = linked.symbols["controls"]
-    data_block = linked.blocks["hide_ui.data"]
+    controls = linked.symbols["SRP_CONTROLS"]
+    data_block = linked.blocks["patches.data"]
     arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
     new_row = arena_rows[count]
     label = struct.unpack_from("<I", new_row, 4)[0]
@@ -3985,7 +3960,7 @@ def test_hide_ui(original, image, before):
           and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
           and new_row[16:] == empty(controls + 0x68 * count)
           and image.read(label, 25) == b"st_hide_interface_action\0",
-          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
+          f"SRP_CONTROLS ({controls:#x}, patches.data) is the game's 40 rows, each pointing into itself, and a 41st: "
           "19h, st_hide_interface_action, group 2, type 1")
     writes = P.hide_ui_table_writes(linked)
     check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
@@ -4384,6 +4359,8 @@ def test_ragdoll(original, image, before):
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"] if isinstance(addr, int)} \
+        | {addr[1] for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]
+           if isinstance(addr, tuple) and addr[0] == "pop"} \
         | {branch_target(text) for va, old, _, _ in P.rust_hooks(original) for _, _, text in ndisasm(old, va)
            if branch_target(text) is not None}       # a replay's relocated call or jcc: the span's own targets
     allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
@@ -5477,7 +5454,7 @@ def test_arena(original):
     s = linked.symbols
     b_data = body[at(s["b_data"]):at(s["b_data"]) + 14]
     call = body[at(s["b_entry"]):at(s["b_entry"]) + 5]
-    check(gaps and states and body == linked.image
+    check(gaps and states and body == P.arena_image(one, linked)
           and body[at(s["a_entry"]):at(s["a_entry"]) + 17] == b"\x90" * 16 + b"\xc3"
           and b_data == b"hello\0" + struct.pack("<II", s["a_entry"], s["a_state"])
           and call[0] == 0xE8 and s["b_entry"] + 5 + struct.unpack_from("<i", call, 1)[0] == s["a_entry"]
@@ -5757,8 +5734,9 @@ def test_late_join(original, without, server, source):
           and linked.va == P.ARENA_VA and list(linked.blocks) == [b.name for b in P.ARENA]
           and vsize_r == linked.size and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == linked.image,
-          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: the linked arena ({linked.size:#x} bytes), its "
+          and bytes(data[raw_r:raw_r + vsize_r]) == P.arena_image(bytes(data), linked),
+          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: the linked arena ({linked.size:#x} bytes; its "
+          "required patches' bitmap and options' controls the build's), its "
           "blocks " + ", ".join(f"{b.name} ({b.kind}) at {b.va:#x}" for b in linked.blocks.values())
           + "; code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]

@@ -34,6 +34,7 @@ pub mod draw;
 mod damage;
 mod gfx;
 mod hook;
+pub mod interface;
 mod input;
 pub mod kill_feed;
 pub mod kit_choice;

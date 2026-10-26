@@ -482,7 +482,8 @@ Patches:
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
   game's action toggle_replay_ui (19h, F11), which only worked in a replay.
-  hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
+  The Rust patch hide_ui (until the Rust port hide_ui_026g.asm, the arena's
+  blocks hide_ui.code and .data): the game
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
   asks the hud movie root.interface_hidden and gives it and the player icons'
   movie root.hide_interface(not that), the kits before the start too (the
@@ -1958,8 +1959,9 @@ ARTEFACTS_SIZES = (
 # No base relocation is under a site and no branch aims inside one.
 
 # The key that hides the interface (patch 62, README; client_patch.md section
-# 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
-# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
+# 3.54; the rules: ../docs/notes/hide-ui-key.md): the Rust patch hide_ui
+# (rust/patches/src/hide_ui.toml), three lohooks (until the Rust port
+# hide_ui_026g.asm in the arena's blocks hide_ui.code and hide_ui.data):
 # - the game world's on_keyboard_action 0x25CD00, its case of action 19h
 #   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
 #   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
@@ -1982,16 +1984,11 @@ ARTEFACTS_SIZES = (
 #   root.hide_interface(false): a new match starts shown (the movies are the
 #   last match's).
 # No base relocation is under a site and no branch aims inside one.
-HIDE_UI_HOOKS = (
-    (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
-    (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
-    (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
-)
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
-# them the address is, the row's field it names) and (site, its bytes, where
-# the count 28h is).
+# that read the table of 28h rows at 0xA9DB28 read vostok::interface's
+# SRP_CONTROLS (29h rows, the 29th toggle_replay_ui; build() fills them,
+# controls_rows) instead: (site, its bytes, where in them the address is,
+# the row's field it names) and (site, its bytes, where the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
 HIDE_UI_ROWS = 0x28
 HIDE_UI_TABLE_REFS = (
@@ -2015,15 +2012,37 @@ HIDE_UI_TABLE_COUNTS = (
 def hide_ui_table_writes(linked):
     """[(site, its bytes, the new bytes)] of the six functions' table and
     counts, `controls` being the link's."""
-    table = linked.symbols["controls"]
+    table = linked.symbols["SRP_CONTROLS"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
     out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
 
 
-HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
-# the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
+HIDE_UI_ROW = (0x19, 2, 1)       # the 29th row: toggle_replay_ui, the game's group, the type of the game's rows
+HIDE_UI_ROW_SIZE = 0x68
+HIDE_UI_LABEL = b"st_hide_interface_action\0"   # its label (SRP_CONTROLS' own, after the rows)
+
+
+def controls_rows(data, table_va):
+    """SRP_CONTROLS' rows as the build has them, at `table_va`: the game's
+    28h rows of 0xA9DB28 (`data`'s) copied (the action, the label, the
+    group, the type), then patch 62's, each row's two empty buffer_strings
+    pointing into their own 32 bytes; the label after the rows."""
+    at = next((raw + HIDE_UI_TABLE - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
+               if IMAGE_BASE + rva <= HIDE_UI_TABLE < IMAGE_BASE + rva + min(vsize, rsize)), None)
+    if at is None:
+        sys.exit(f"the options' controls at {HIDE_UI_TABLE:#x} are in no section's file data")
+    heads = [struct.unpack_from("<4I", data, at + HIDE_UI_ROW_SIZE * i) for i in range(HIDE_UI_ROWS)]
+    label = table_va + HIDE_UI_ROW_SIZE * (HIDE_UI_ROWS + 1)
+    heads.append((HIDE_UI_ROW[0], label, HIDE_UI_ROW[1], HIDE_UI_ROW[2]))
+    out = b""
+    for i, head in enumerate(heads):
+        row = table_va + HIDE_UI_ROW_SIZE * i
+        out += struct.pack("<4I", *head)
+        out += struct.pack("<3I", row + 0x1C, row + 0x1C, row + 0x3C) + bytes(32)
+        out += struct.pack("<3I", row + 0x48, row + 0x48, row + 0x68) + bytes(32)
+    return out
 
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md): the Rust patch
@@ -2192,16 +2211,6 @@ INSTALLS = {
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): match_keys (Rust `call` hook), which drops the line or "
                        "gives it to add_message", None, None),
-    # the key that hides the interface, patch 62 (in `.srpx`)
-    0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
-                     "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
-                     "replay's controls, esi the handler) or 0x25CF0D", None, None),
-    0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
-                       "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
-                       "icons", None, None),
-    0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
-                       "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
-                       "instead", None, None),
     # the baked textures kept and baked or loaded once, patch 70 (in `.srpx`)
     0x1E9455: (CALLEE, "game::game's delete of user_data/streamed_textures (0x1E8DA0, eax the folder's "
                        "buffer_string): start, which deletes it for another revision's folder only", None, None),
@@ -2423,8 +2432,6 @@ ARENA = (
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
-    ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
     # The Rust exe patches (the framework's example is patch 34, the
@@ -2475,23 +2482,42 @@ def arena_target(linked, symbol):
 
 def add_arena(data, linked, required=bytes(MOUNT_REQUIRED_SIZE)):
     """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
-    section, with `required` (required_bitmap()) the bitmap of
-    SRP_REQUIRED_PATCHES; returns the new file. No arena (None): `data` as
-    it is."""
+    section, with the build's own data (arena_image); returns the new file.
+    No arena (None): `data` as it is."""
     if linked is None:
         return data
     headers = Headers(data)
     if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
         sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
                  f"past its three pages?)")
+    return add_code_section(data, ARENA_NAME, ARENA_VA, arena_image(data, linked, required), ARENA_CHARACTERISTICS)
+
+
+def arena_image(data, linked, required=bytes(MOUNT_REQUIRED_SIZE)):
+    """The arena's bytes as a build has them: the link's, with
+    `required` (required_bitmap()) the bitmap of vostok::mount's
+    SRP_REQUIRED_PATCHES and vostok::interface's SRP_CONTROLS filled
+    (controls_rows, from `data`'s own table). A link without the crate (a
+    test's) has neither."""
     image = bytearray(linked.image)
+    if "SRP_REQUIRED_PATCHES" not in linked.symbols and "SRP_CONTROLS" not in linked.symbols:
+        if any(required):
+            sys.exit(".srpx: required patches, but no SRP_REQUIRED_PATCHES in the link (patch 49)")
+        return bytes(image)
     at = linked.symbols["SRP_REQUIRED_PATCHES"] - ARENA_VA + len(MOUNT_UNREADABLE)
     if image[at - len(MOUNT_UNREADABLE):at] != MOUNT_UNREADABLE or any(image[at:at + MOUNT_REQUIRED_SIZE]) \
             or len(required) != MOUNT_REQUIRED_SIZE or image.count(MOUNT_UNREADABLE) != 1:
         sys.exit(".srpx: SRP_REQUIRED_PATCHES is not the \"Cannot open\" text once with a zeroed bitmap after it "
                  "(patch 49)")
     image[at:at + MOUNT_REQUIRED_SIZE] = required
-    return add_code_section(data, ARENA_NAME, ARENA_VA, bytes(image), ARENA_CHARACTERISTICS)
+    # the options' controls (patch 62): their rows, the label after them
+    table = linked.symbols["SRP_CONTROLS"]
+    at = table - ARENA_VA
+    size = HIDE_UI_ROW_SIZE * (HIDE_UI_ROWS + 1)
+    if any(image[at:at + size]) or image[at + size:at + size + len(HIDE_UI_LABEL)] != HIDE_UI_LABEL:
+        sys.exit(".srpx: SRP_CONTROLS is not 29h zeroed rows and the label after them (patch 62)")
+    image[at:at + size] = controls_rows(data, table)
+    return bytes(image)
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
@@ -3284,7 +3310,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + HIDE_UI_HOOKS \
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS \
                         + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     disabled = neutralize_relocs(data, [(va, va + len(expected))])

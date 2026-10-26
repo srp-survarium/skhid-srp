@@ -166,6 +166,66 @@ pub extern "C" fn hook_forward_scroll_on_scene_time_bound(frame: &mut Frame) -> 
     }
 }
 
+// ---- hide_ui (patch 62) ----
+
+/// The named exits of hide_ui::on_match_toggle (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HideUiOnMatchToggleExit { NotTaken }
+/// The entry `hide_ui_on_match_toggle` (0x25ced1, the game world's on_keyboard_action, its case of action 19h, toggle_replay_ui (mov esi,[esp+10h]; cmp dword [esi+18h],0; jz 25CF0Dh; [esp+10h] the input handler); not_taken: the function's end, the key not taken (al 0)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hide_ui_on_match_toggle(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hide_ui_on_match_toggle` calls this, from the game's jump at 0x25ced1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hide_ui::on_match_toggle(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hide_ui (patch 62) ----
+
+/// The named exits of hide_ui::on_lobby_action (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HideUiOnLobbyActionExit { Answered, Taken, ToMovie }
+/// The entry `hide_ui_on_lobby_action` (0x26ccd2, lobby_menu::on_keyboard_action's call of get_binded_action (call 207D50h; EAX the binder, EDI 2 the lobby's kind, ESI the key, [esp] the toggle's place, which the callee pops; EBX the lobby menu); answered: past the call, EAX the answer; taken: its return after a key the movie typed (al 1); to_movie: its last part, the key to the movie) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hide_ui_on_lobby_action(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hide_ui_on_lobby_action` calls this, from the game's jump at 0x26ccd2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hide_ui::on_lobby_action(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hide_ui (patch 62) ----
+
+/// The named exits of hide_ui::on_match_reset (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HideUiOnMatchResetExit { Reset }
+/// The entry `hide_ui_on_match_reset` (0x234ae8, initialize_match's Invoke of root.reset (call 511600h; ECX the hud movie, the name, result, arguments and count pushed, which the callee pops; EBP the hud); reset: past the call, its arguments popped) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hide_ui_on_match_reset(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hide_ui_on_match_reset` calls this, from the game's jump at 0x234ae8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hide_ui::on_match_reset(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- kill_feed (patch 67) ----
 
 /// The entry `kill_feed_on_cause_icon` (0x2da3d1, base_player::generate_killed_event, the kill event's cause icon (mov [eax+4],bl; mov edx,[esi+120h]): EAX the event, BL the cause icon (1 a headshot, 3 no killer or the victim), ESI the victim, EBP the killing bullet or 0, [esp+14h] the melee flag) calls this with the saved machine.

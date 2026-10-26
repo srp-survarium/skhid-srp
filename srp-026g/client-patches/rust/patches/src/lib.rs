@@ -35,6 +35,7 @@ pub mod read_order;
 pub mod replay_link;
 pub mod replay_viewer;
 pub mod forward_scroll;
+pub mod hide_ui;
 pub mod kill_feed;
 pub mod match_keys;
 pub mod mount_patches;

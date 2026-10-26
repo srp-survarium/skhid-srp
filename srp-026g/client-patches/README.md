@@ -112,7 +112,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `rust/patches/src/match_keys.rs`, `match_keys.toml`, `check_match_keys_026g.py`, `port/equiv/match_keys.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the Rust patch `match_keys`: lohooks at `world_keyboard.kind_test` and `world.hud_made`, a call hook at `chat.add_message`, its variable the static `HIDE_CHAT` in `patches.state`; until the port, NASM in the blocks `match_keys.code` and `match_keys.state`); its check runs the three hooks from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `rust/patches/src/hide_ui.rs`, `hide_ui.toml`, `rust/patches/src/vostok/interface.rs`, `port/equiv/hide_ui.py`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby, as the Rust patch `hide_ui` (three lohooks); and the options' 41st controls row (vostok's `SRP_CONTROLS`, which `patch_026g.py` fills in the build: the game's 40 rows copied, then the 41st); its equivalence spec against the asm it replaced (until the Rust port `hide_ui_026g.asm`, the arena's blocks `hide_ui.code` and `hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `rust/patches/src/kill_feed.rs`, `kill_feed.toml`, `check_kill_feed_026g.py`, `port/equiv/kill_feed.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the Rust patch `kill_feed`, lohooks at the sites `killed_event.cause_icon` and `player_killed.mastery_icon`, in the block `patches.code`; until the port, NASM in the block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
@@ -195,7 +195,6 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
 | `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
-| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
 | `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
 | `patches.code`, `patches.state` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 58, 67), its zeroed statics | Rust, generated hook entries |
 
@@ -3348,8 +3347,9 @@ binder, `root.set_keybind`) and 0x201F2B (accept: `bind <action> <key>` or `unbi
 through the console for each row whose key changed). The movie only names an action
 (`start_bind_key`), so a row for 19h cannot be the movie's alone: a key set for an action without
 a row is kept nowhere (0x2013A0) and never applied. The patch links the table again, its 40 rows
-and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in the arena's block
-`hide_ui.data`, and points the six functions at it (their immediates) with counts of 29h. Saving
+and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as vostok's `SRP_CONTROLS` (the
+rows filled by `patch_026g.py` in the build from the exe's own table; until the Rust port `controls`
+in the arena's block `hide_ui.data`), and points the six functions at it (their immediates) with counts of 29h. Saving
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
 `hide-interface-1.json` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
@@ -3394,8 +3394,10 @@ which presses Play at 0x26CDA2). The movie shows the interface and takes that ke
 its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
 Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
 
-All three in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
-(`hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
+All three the Rust patch `hide_ui`'s lohooks (`sites_026g.tsv` `hide_ui.match_toggle`,
+`hide_ui.lobby_action` and `hide_ui.match_reset`, whose exits pop the call's arguments; proven against
+the asm by `port/equiv/hide_ui.py`, 2000 cases, 0 differences; until the Rust port the arena's block
+`hide_ui.code`, the controls in `hide_ui.data`, `hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
 library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 and
 0x234AE8 a `call` each); nothing aims inside them (the switch's table aims at 0x25CED1, the
 jump's own first byte).

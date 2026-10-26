@@ -128,6 +128,28 @@ impl<'t> Movie<'t> {
         }
     }
 
+    /// `method()`, no argument, no answer.
+    pub fn invoke_none(&self, method: &CStr) {
+        // SAFETY: as invoke: no result, no arguments (null, 0).
+        unsafe {
+            raw::engine_movie_invoke(self.movie.ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
+                                     core::ptr::null(), 0);
+        }
+    }
+
+    /// `method()`, no argument, its answer's data's low byte not 0 (a bool's
+    /// value; a method the movie has not: false).
+    pub fn ask_bool(&self, method: &CStr) -> bool {
+        let mut answer = Value { interface: 0, kind: 0, data: 0, rest: [0; 3] };
+        // SAFETY: as invoke: the answer a GFx value of ours (a bool: nothing
+        // to release), no arguments (null, 0).
+        unsafe {
+            raw::engine_movie_invoke(self.movie.ptr(), method.as_ptr().cast(), (&raw mut answer).cast(),
+                                     core::ptr::null(), 0);
+        }
+        answer.data & 0xFF != 0
+    }
+
     /// `method(value)`, an unsigned int, no answer.
     pub fn invoke_uint(&self, method: &CStr, value: u32) {
         let arg = Value { interface: 0, kind: Value::UINT, data: value, rest: [0; 3] };

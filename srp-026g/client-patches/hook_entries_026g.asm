@@ -422,6 +422,152 @@ forward_scroll_on_scene_time_bound_replay:
     db 0x8d, 0xb3, 0x3c, 0x12, 0x00, 0x00
     jmp 0x149919
 
+; 0x25ced1 the game world's on_keyboard_action, its case of action 19h, toggle_replay_ui (mov esi,[esp+10h]; cmp dword [esi+18h],0; jz 25CF0Dh; [esp+10h] the input handler); not_taken: the function's end, the key not taken (al 0): lohook -> hide_ui_on_match_toggle
+global hide_ui_on_match_toggle
+extern hook_hide_ui_on_match_toggle
+hide_ui_on_match_toggle:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hide_ui_on_match_toggle
+    mov edx, hide_ui_on_match_toggle_replay
+    cmp eax, 0
+    je hide_ui_on_match_toggle_go
+    mov edx, 0x25cedb
+    cmp eax, 1
+    je hide_ui_on_match_toggle_go
+    mov edx, 0x25cf0d
+    cmp eax, 2
+    je hide_ui_on_match_toggle_go
+    ud2
+hide_ui_on_match_toggle_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hide_ui_on_match_toggle_replay:
+    db 0x8b, 0x74, 0x24, 0x10
+    db 0x83, 0x7e, 0x18, 0x00
+    jz near 0x25cf0d
+    jmp 0x25cedb
+
+; 0x26ccd2 lobby_menu::on_keyboard_action's call of get_binded_action (call 207D50h; EAX the binder, EDI 2 the lobby's kind, ESI the key, [esp] the toggle's place, which the callee pops; EBX the lobby menu); answered: past the call, EAX the answer; taken: its return after a key the movie typed (al 1); to_movie: its last part, the key to the movie: lohook -> hide_ui_on_lobby_action
+global hide_ui_on_lobby_action
+extern hook_hide_ui_on_lobby_action
+hide_ui_on_lobby_action:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hide_ui_on_lobby_action
+    mov edx, hide_ui_on_lobby_action_replay
+    cmp eax, 0
+    je hide_ui_on_lobby_action_go
+    mov edx, 0x26ccd7
+    cmp eax, 1
+    je hide_ui_on_lobby_action_go
+    mov edx, hide_ui_on_lobby_action_answered
+    cmp eax, 2
+    je hide_ui_on_lobby_action_go
+    mov edx, hide_ui_on_lobby_action_taken
+    cmp eax, 3
+    je hide_ui_on_lobby_action_go
+    mov edx, hide_ui_on_lobby_action_to_movie
+    cmp eax, 4
+    je hide_ui_on_lobby_action_go
+    ud2
+hide_ui_on_lobby_action_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hide_ui_on_lobby_action_replay:
+    call 0x207d50
+    jmp 0x26ccd7
+hide_ui_on_lobby_action_answered:
+    lea esp, [esp + 0x4]
+    jmp 0x26ccd7
+hide_ui_on_lobby_action_taken:
+    lea esp, [esp + 0x4]
+    jmp 0x26ccae
+hide_ui_on_lobby_action_to_movie:
+    lea esp, [esp + 0x4]
+    jmp 0x26cdd2
+
+; 0x234ae8 initialize_match's Invoke of root.reset (call 511600h; ECX the hud movie, the name, result, arguments and count pushed, which the callee pops; EBP the hud); reset: past the call, its arguments popped: lohook -> hide_ui_on_match_reset
+global hide_ui_on_match_reset
+extern hook_hide_ui_on_match_reset
+hide_ui_on_match_reset:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hide_ui_on_match_reset
+    mov edx, hide_ui_on_match_reset_replay
+    cmp eax, 0
+    je hide_ui_on_match_reset_go
+    mov edx, 0x234aed
+    cmp eax, 1
+    je hide_ui_on_match_reset_go
+    mov edx, hide_ui_on_match_reset_reset
+    cmp eax, 2
+    je hide_ui_on_match_reset_go
+    ud2
+hide_ui_on_match_reset_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hide_ui_on_match_reset_replay:
+    call 0x511600
+    jmp 0x234aed
+hide_ui_on_match_reset_reset:
+    lea esp, [esp + 0x10]
+    jmp 0x234aed
+
 ; 0x2da3d1 base_player::generate_killed_event, the kill event's cause icon (mov [eax+4],bl; mov edx,[esi+120h]): EAX the event, BL the cause icon (1 a headshot, 3 no killer or the victim), ESI the victim, EBP the killing bullet or 0, [esp+14h] the melee flag: lohook -> kill_feed_on_cause_icon
 global kill_feed_on_cause_icon
 extern hook_kill_feed_on_cause_icon

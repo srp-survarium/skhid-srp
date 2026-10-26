@@ -626,7 +626,8 @@ def main():
         b = new.run(hook, case, seed, old=False)
         faults += a["error"] is not None
         diff = compare(old, new, a, b)
-        for name, machine in (("old", old), ("new", new)) if args.only is not None else ():
+        for name, machine, run in (("old", old, a), ("new", new, b)) if args.only is not None else ():
+            print(f"  {name}: exit {run['exit']!r}, error {run['error']!r}, calls {run['calls']!r}")
             for eip, address, size, value in machine.trace:
                 print(f"  {name} write at eip {eip:#x}: {machine.normal(address)} ({address:#x}) {size} bytes {value:#x}")
         old.reset()
