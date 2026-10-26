@@ -79,6 +79,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
+    s("SRP_BENCH_LIP_GUARD", "on", "`off` turns the lip guard and the short look-ahead on lip floors off (`Feel::lip_guard_ticks`, `lip_look_ahead_m`)"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),

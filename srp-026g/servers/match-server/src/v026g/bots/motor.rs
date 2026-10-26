@@ -118,6 +118,11 @@ pub struct Feel {
     pub hop_every_s: f32,
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
+    /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
+    /// to a stop on a lip's floors; 0 is off.
+    pub lip_guard_ticks: u32,
+    /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the walk looks as far as anywhere).
+    pub lip_look_ahead_m: f32,
 }
 
 impl Default for Feel {
@@ -147,6 +152,8 @@ impl Default for Feel {
             hop_max_turn: 0.35,
             hop_every_s: 4.0,
             hop_after_jump_s: 2.0,
+            lip_guard_ticks: 2,
+            lip_look_ahead_m: 0.8,
         }
     }
 }

@@ -9,5 +9,6 @@ pub(super) fn validate_feel(feel: &Feel) -> Result<(), String> {
         feel.hop_rise_m.0 <= feel.hop_rise_m.1 && feel.hop_every_s > 0.0,
         "feel.hop_*",
     )?;
+    check(feel.lip_look_ahead_m >= 0.0, "feel.lip_look_ahead_m")?;
     Ok(())
 }

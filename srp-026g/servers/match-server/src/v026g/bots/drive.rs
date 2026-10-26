@@ -707,7 +707,8 @@ pub(super) fn drive_tick(
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
                         let grid = &tactics.world.grid;
-                        grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node)).then_some(LIP_AHEAD_M)
+                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
                     };
                     #[cfg(test)]
                     {
@@ -969,10 +970,6 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
 const PLANNED_DROP_M: f32 = 6.0;
 /// The guard also looks this far on along the velocity (s) for a lip's floor.
 const LIP_LOOK_S: f32 = 0.4;
-/// The look-ahead of a walk on a lip's floors, m.
-const LIP_AHEAD_M: f32 = 0.8;
-/// The ticks the guard counts the keys held before the body lets go and stops.
-const LIP_HOLD_TICKS: u32 = 2;
 /// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
 const LIP_HELD_SCORE: u8 = 3;
 /// The score at which the guard gives a bot up for [`LIP_OFF_MS`].
@@ -1094,7 +1091,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
     } else {
-        lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, LIP_HOLD_TICKS)
+        lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, bot.motor.feel.lip_guard_ticks)
     };
     let (watch, may) = bot.lip_watch.after(guard, time);
     bot.lip_watch = watch;
@@ -1196,6 +1193,9 @@ mod tests {
         }
     }
 
+    /// The ticks the tests count the keys held.
+    const HOLD: u32 = 2;
+
     /// A body of the slab 2 m over the field, at `x` on its z = 33 line, walking at `speed` along `yaw`.
     fn on_the_slab(x: f32, yaw: f32, speed: f32) -> PlaceView {
         let [fx, fz] = kin::forward(yaw);
@@ -1234,7 +1234,7 @@ mod tests {
         let grid = &world.grid;
         let kin = kin::Kinematics::default();
         let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
-        let guard = |me: &PlaceView, planned: &[Vec3]| lip_guard(grid, &kin, me, 0.0, key::FORWARD, planned, LIP_HOLD_TICKS);
+        let guard = |me: &PlaceView, planned: &[Vec3]| lip_guard(grid, &kin, me, 0.0, key::FORWARD, planned, HOLD);
         let at_rim = on_the_slab(55.4, toward, 3.5);
         // It brakes: the stop from 55.4 at 3.5 m/s is past the rim even braking (the reckoning's margin).
         let swapped = |guard: LipGuard| match guard {
@@ -1251,7 +1251,7 @@ mod tests {
         // A landing elsewhere is not.
         assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
         // With no keys held there is nothing to let go of.
-        assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], LIP_HOLD_TICKS), LipGuard::Clear);
+        assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear);
     }
 
     /// A sprint at a rim is slowed to a walk or a creep before it is stopped, and the walk goes on where a
@@ -1265,7 +1265,7 @@ mod tests {
         let mut slowed = 0;
         for x in [53.5f32, 54.0, 54.5, 55.0, 55.3] {
             let me = on_the_slab(x, toward, 5.0);
-            match lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], LIP_HOLD_TICKS) {
+            match lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD) {
                 LipGuard::Swapped(k) => {
                     assert_eq!(k & key::SPRINT, 0, "{x}: {k:#x}");
                     slowed += u32::from(k & key::FORWARD != 0);
