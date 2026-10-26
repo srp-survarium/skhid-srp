@@ -1,5 +1,6 @@
 owner-test: dry 25.0 s (deaths 0), reloading 14.0 s (deaths 7), reloads 281 in a line 253 died 19; fire >=35 m by class rifle 1/95; side hits 60 turned in 3 s 54 died unturned 2
   owner-test fight: fire/hits by move still 688/67 walk 0/68 sprint 0/48 strafe 0/0 air 10/5; hits a fire tick by class and band {"rifle":[1.385,2.095,2.462,14.0,0.0]}; fire at a target 547 out of line 195 (35.6 %), no target 151; target switches 0 with the hurter in line 0
+  owner-test walk cache: 0 hits 0 misses (0.0 % hit), 0 goals kept, 0 KB
 {
   "deaths_dry": 0,
   "deaths_reloading": 7,
