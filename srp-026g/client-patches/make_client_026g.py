@@ -18,6 +18,9 @@ USAGE
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
+        [--voice=<skhid_voice.dll>]  defaults to the Rust release build in this repo
+                                     (`nix develop ./srp-026g -c bash
+                                     srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
@@ -59,6 +62,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         Two different arenas: docs/notes/README.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
+    <output>/game/binaries/x86/skhid_voice.dll
+        voice chat (../client-voice, exe patch 66): the exe loads it at the
+        first match; without it voice is off. Built by client-voice/build.sh
+        in the pinned Nix shell; its exports are checked here.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
         Winetricks and launches with the same server and language as the batch file.
@@ -189,6 +196,31 @@ def read_bugtrap(path):
             or int.from_bytes(data[pe + 24:pe + 26], "little") != 0x10b
             or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
         sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    return data
+
+
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+# What patch 66 asks of the DLL by name (the shared voice-abi crate).
+VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_mute",
+                 b"sv_talking", b"sv_slot", b"sv_last_speaker", b"sv_voice_id")
+
+
+def read_voice(path):
+    """skhid_voice.dll: a 32-bit x86 DLL that exports every function patch 66 asks for."""
+    try:
+        with open(path, "rb") as dll:
+            data = dll.read()
+    except OSError as e:
+        sys.exit(f"{path}: cannot read skhid_voice.dll ({e}). Build it with `nix develop ./srp-026g -c bash "
+                 "srp-026g/client-voice/build.sh`, or pass --voice=<path>.")
+    pe = int.from_bytes(data[0x3c:0x40], "little")
+    if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
+            or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c
+            or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
+        sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    missing = [name.decode() for name in VOICE_EXPORTS if name + b"\0" not in data]
+    if missing:
+        sys.exit(f"{path}: not skhid_voice.dll: no {', '.join(missing)}")
     return data
 
 
@@ -479,6 +511,7 @@ def main():
     options = [a for a in sys.argv[1:] if a.startswith("--")]
     mode, check, server, localization = "section", False, None, "ukrainian"
     bugtrap_path = BUGTRAP_DLL
+    voice_path = VOICE_DLL
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
@@ -504,6 +537,8 @@ def main():
             localization = option[15:]
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
+        elif option.startswith("--voice="):
+            voice_path = option[len("--voice="):]
         elif option.startswith("--updater="):
             updater_path = option[len("--updater="):]
         elif option.startswith("--extractor="):
@@ -524,6 +559,7 @@ def main():
         if archive or not os.path.isdir(output) or os.listdir(output):
             sys.exit(f"{output}: output already exists; use a new ZIP or an empty folder")
     bugtrap = read_bugtrap(bugtrap_path)
+    voice = read_voice(voice_path)
 
     # The exe: patch_026g.py refuses anything but the original.
     original = Path(source, EXE_DIR, "survarium.exe").read_bytes()
@@ -551,6 +587,7 @@ def main():
     files = [
         (os.path.join("game", EXE_DIR, "survarium_skhid.exe"), exe),
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
+        (os.path.join("game", EXE_DIR, "skhid_voice.dll"), voice),
         (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, localization, embedded)),
         (LINUX_LAUNCHER, sh(server, localization, embedded)),
         (os.path.join("game", CERT_REL), srp_cert),

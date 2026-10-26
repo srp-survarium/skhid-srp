@@ -163,4 +163,34 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_i
 /* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
 void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count);
 
+/* 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16 */
+void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved);
+
+/* 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, buffer ESP+8; pops 8 */
+void engine_translate(void *translator, const char *key, char *buffer);
+
+/* the IAT slot 0x87003c (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_module_handle)(const char * name);
+
+/* the IAT slot 0x870080 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_load_library)(const char * name);
+
+/* the IAT slot 0x870084 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
+
+/* the IAT slot 0x870088 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_free_library)(void * module);
+
+/* 0x1dd40 vostok::console_commands::cc_value<float>::cc_value: object EAX, min XMM0, name ESP+4, value ESP+8, max ESP+12, saved ESP+16, kind ESP+20; pops 20 */
+void engine_cc_float(void *object, float min, const char *name, float *value, float max, unsigned int saved, unsigned int kind);
+
+/* 0x200f50 survarium::game_options::activate: options EAX, state ESP+4; pops 4; EAX */
+unsigned int engine_options_activate(void *options, unsigned int state);
+
+/* 0x1f77e0 survarium::game_world::tick: world ECX, first ESP+4, second ESP+8, third ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_world_tick(void *world, unsigned int first, unsigned int second, unsigned int third);
+
+/* 0x1ff5d0 survarium::game_options::scaleform_callback: handler ECX, unknown ESP+4, name ESP+8, arguments ESP+12, count ESP+16; pops 16; thiscall, called directly */
+void __attribute__((thiscall)) engine_options_callback(void *handler, unsigned int unknown, void *name, void *arguments, unsigned int count);
+
 #endif

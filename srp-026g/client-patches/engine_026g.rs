@@ -92,6 +92,14 @@ unsafe extern "C" {
     pub fn engine_user_data_directory() -> *const u8;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
+    /// 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+    pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
+    /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, buffer ESP+8; pops 8
+    pub fn engine_translate(translator: *mut c_void, key: *const u8, buffer: *mut u8);
+    /// 0x1dd40 vostok::console_commands::cc_value<float>::cc_value: object EAX, min XMM0, name ESP+4, value ESP+8, max ESP+12, saved ESP+16, kind ESP+20; pops 20
+    pub fn engine_cc_float(object: *mut c_void, min: f32, name: *const u8, value: *mut f32, max: f32, saved: u32, kind: u32);
+    /// 0x200f50 survarium::game_options::activate: options EAX, state ESP+4; pops 4; EAX
+    pub fn engine_options_activate(options: *mut c_void, state: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -108,6 +116,10 @@ unsafe extern "thiscall" {
     pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
     /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
     pub fn engine_active_player(client: *mut c_void, out: *mut u32, place: u32) -> *mut u32;
+    /// 0x1f77e0 survarium::game_world::tick: world ECX, first ESP+4, second ESP+8, third ESP+12; pops 12; thiscall, called directly
+    pub fn engine_world_tick(world: *mut c_void, first: u32, second: u32, third: u32);
+    /// 0x1ff5d0 survarium::game_options::scaleform_callback: handler ECX, unknown ESP+4, name ESP+8, arguments ESP+12, count ESP+16; pops 16; thiscall, called directly
+    pub fn engine_options_callback(handler: *mut c_void, unknown: u32, name: *mut c_void, arguments: *mut c_void, count: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -124,6 +136,14 @@ unsafe extern "C" {
     pub static engine_query_performance_frequency: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870118 (kernel32, stdcall): unsigned int engine_get_current_thread_id(void)
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87003c (kernel32, stdcall): void *engine_get_module_handle(const char *name)
+    pub static engine_get_module_handle: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870080 (kernel32, stdcall): void *engine_load_library(const char *name)
+    pub static engine_load_library: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (kernel32, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
+    /// the IAT slot 0x870088 (kernel32, stdcall): unsigned int engine_free_library(void *module)
+    pub static engine_free_library: unsafe extern "stdcall" fn(*mut c_void) -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
@@ -154,6 +174,24 @@ pub mod game_world {
     pub unsafe fn game(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x9c).cast() }
     }
+
+    /// +0x4d4c (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn core_owner(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4d4c).cast() }
+    }
+
+    /// +0x204 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn hud_holder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x204).cast() }
+    }
 }
 
 /// survarium::game's fields (fields_026g.tsv).
@@ -178,6 +216,33 @@ pub mod game {
     pub unsafe fn renderer(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x5360).cast() }
     }
+
+    /// +0x18 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn world(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x18).cast() }
+    }
+
+    /// +0x52a8 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn translator(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x52a8).cast() }
+    }
+
+    /// +0x5344 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn binder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5344).cast() }
+    }
 }
 
 /// survarium::network_client's fields (fields_026g.tsv).
@@ -192,6 +257,24 @@ pub mod network_client {
     #[inline(always)]
     pub unsafe fn local_player(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x1f1c44 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::network_client.
+    #[inline(always)]
+    pub unsafe fn local_place(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x1f1c44).cast() }
+    }
+
+    /// +0x1f1c48 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::network_client.
+    #[inline(always)]
+    pub unsafe fn match_client(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1f1c48).cast() }
     }
 }
 
@@ -339,6 +422,15 @@ pub mod player {
     #[inline(always)]
     pub unsafe fn game_world(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0xf474).cast() }
+    }
+
+    /// +0x43c (f32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn position(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x43c).cast() }
     }
 }
 
@@ -840,6 +932,15 @@ pub mod image {
 
     /// 0xa042ac (u32): victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
     pub const VICTORY_ITEM_VTABLE: u32 = 0xa042ac;
+
+    /// 0xa9db28 (u32): the 40 controls rows, 68h bytes each (game_options readers 0x201150,0x2013BF,0x201A19; check_hide_ui_026g.py)
+    pub const CONTROLS_TABLE: u32 = 0xa9db28;
+
+    /// 0x9e7c4c (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    pub const CC_BOOL_VTABLE: u32 = 0x9e7c4c;
+
+    /// 0x9e7c6c (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;
 }
 
 /// vostok::render::game::renderer's fields (fields_026g.tsv).
@@ -854,6 +955,249 @@ pub mod renderer {
     #[inline(always)]
     pub unsafe fn scene_renderer(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x200064).cast() }
+    }
+}
+
+/// survarium::match_client's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod match_client {
+    use core::ffi::c_void;
+
+    /// +0xc (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::match_client.
+    #[inline(always)]
+    pub unsafe fn static_info(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::profile's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod profile {
+    use core::ffi::c_void;
+
+    /// +0x8 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::profile.
+    #[inline(always)]
+    pub unsafe fn name(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0x45ec (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::profile.
+    #[inline(always)]
+    pub unsafe fn team(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x45ec).cast() }
+    }
+
+    /// +0x45fc (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::profile.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x45fc).cast() }
+    }
+}
+
+/// survarium::core_owner's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod core_owner {
+    use core::ffi::c_void;
+
+    /// +0x1f8 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::core_owner.
+    #[inline(always)]
+    pub unsafe fn core(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x1f8).cast() }
+    }
+}
+
+/// survarium::game_world_core's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_world_core {
+    use core::ffi::c_void;
+
+    /// +0x18458 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world_core.
+    #[inline(always)]
+    pub unsafe fn places(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18458).cast() }
+    }
+}
+
+/// survarium::player_place's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player_place {
+    use core::ffi::c_void;
+
+    /// +0xc (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_place.
+    #[inline(always)]
+    pub unsafe fn kit(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x0 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_place.
+    #[inline(always)]
+    pub unsafe fn players(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x30 (u8): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_place.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x30).cast() }
+    }
+}
+
+/// survarium::game_options's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod game_options {
+    use core::ffi::c_void;
+
+    /// +0xc (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_options.
+    #[inline(always)]
+    pub unsafe fn movie_holder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x34 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_options.
+    #[inline(always)]
+    pub unsafe fn game(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x34).cast() }
+    }
+}
+
+/// survarium::keyboard_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod keyboard_frame {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::keyboard_frame.
+    #[inline(always)]
+    pub unsafe fn input_world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::keyboard_frame.
+    #[inline(always)]
+    pub unsafe fn key(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x10 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::keyboard_frame.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+}
+
+/// survarium::keyboard_handler's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod keyboard_handler {
+    use core::ffi::c_void;
+
+    /// -0x15c (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a survarium::keyboard_handler.
+    #[inline(always)]
+    pub unsafe fn game(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x15c).cast() }
+    }
+}
+
+/// vostok::input_world's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod input_world {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a vostok::input_world.
+    #[inline(always)]
+    pub unsafe fn vtable(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// vostok::input_vtable's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod input_vtable {
+    use core::ffi::c_void;
+
+    /// +0x24 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a vostok::input_vtable.
+    #[inline(always)]
+    pub unsafe fn keyboard(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x24).cast() }
+    }
+}
+
+/// vostok::keyboard's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod keyboard {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a vostok::keyboard.
+    #[inline(always)]
+    pub unsafe fn vtable(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// vostok::keyboard_vtable's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod keyboard_vtable {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): voice chat: observed reads of original patch 66, client_patch.md section 3.59
+    ///
+    /// # Safety
+    /// `this` is a vostok::keyboard_vtable.
+    #[inline(always)]
+    pub unsafe fn pressed(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
     }
 }
 

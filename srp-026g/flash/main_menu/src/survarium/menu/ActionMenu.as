@@ -30,6 +30,9 @@ package survarium.menu
       protected var _current_action:String = "";
       
       protected var _promoMessage:SrvMessageEnterPromo;
+
+      // Voice chat's mutes, to the right of the buttons, in a match only (exe patch 66).
+      public var voicePanel:VoicePanel;
       
       public function ActionMenu()
       {
@@ -56,6 +59,23 @@ package survarium.menu
             this.background.height = buttonsHeight + 26;
          }
          this.tiledSprite.height = this.background.height - this.tiledSprite.y;
+         this.placeVoicePanel();
+      }
+
+      // The teammates and their mutes (VoicePanel.setData); none: the panel hidden.
+      public function setVoice(title:String, allLabel:String, rows:Array) : void
+      {
+         this.voicePanel.setData(title,allLabel,rows);
+         this.placeVoicePanel();
+      }
+
+      protected function placeVoicePanel() : void
+      {
+         if(this.voicePanel)
+         {
+            this.voicePanel.x = this.background.x + this.background.width + 12;
+            this.voicePanel.y = this.background.y;
+         }
       }
       
       public function simButton(buttonIndex:uint) : void
@@ -86,6 +106,9 @@ package survarium.menu
          this.menu_buttons.addEventListener(ButtonBarEvent.BUTTON_SELECT,this.takeAction);
          this.btnPromo.addEventListener(ButtonEvent.CLICK,this.showPromo);
          this.tiledSprite.setTile(new HintLinePattern());
+         voicePanel = new VoicePanel(this.label);
+         addChild(this.voicePanel);
+         this.placeVoicePanel();
       }
       
       public function handlePromoKeyValidation(isValid:Boolean, warningText:String) : void

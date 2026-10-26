@@ -1,0 +1,43 @@
+{
+ "_about": "Voice chat (exe patch 66, docs/notes/voice-chat.md): the gameplay options' dead \"Hide spam\" checkbox is \"Disable voice chat\"; the controls' PTT row says what it does; the controls' new \"Mute last speaker\" row, the Esc menu's voice panel (\"Mute all\") and the mute key's notices get their texts, in the six localization tables.",
+ "edit_text": [
+  {"file": "localization/english/localization", "path": "strings/st_hide_spam_option", "from": "Hide spam", "to": "Disable voice chat"},
+  {"file": "localization/german/localization", "path": "strings/st_hide_spam_option", "from": "Spam vergeben", "to": "Sprachchat deaktivieren"},
+  {"file": "localization/polish/localization", "path": "strings/st_hide_spam_option", "from": "Ukryj spam", "to": "Wyłącz czat głosowy"},
+  {"file": "localization/russian/localization", "path": "strings/st_hide_spam_option", "from": "Скрывать спам", "to": "Отключить голосовой чат"},
+  {"file": "localization/original/localization", "path": "strings/st_hide_spam_option", "from": "Скрывать спам", "to": "Отключить голосовой чат"},
+  {"file": "localization/ukrainian/localization", "path": "strings/st_hide_spam_option", "from": "Приховувати спам", "to": "Вимкнути голосовий чат"},
+  {"file": "localization/english/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Push to talk"},
+  {"file": "localization/german/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Sprechen (gedrückt halten)"},
+  {"file": "localization/polish/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Mów (przytrzymaj)"},
+  {"file": "localization/russian/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Говорить (удерживать)"},
+  {"file": "localization/original/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Говорить (удерживать)"},
+  {"file": "localization/ukrainian/localization", "path": "strings/st_ptt_action", "from": "PTT", "to": "Говорити (утримувати)"}
+ ],
+ "add_key": [
+  {"file": "localization/english/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Mute last speaker"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Letzten Sprecher stummschalten"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Wycisz ostatniego mówcę"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Заглушить последнего"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Заглушить последнего"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_mute_last_speaker_action", "text": "Заглушити останнього"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Mute all"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Alle stummschalten"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Wycisz wszystkich"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Заглушить всех"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Заглушить всех"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_voice_mute_all", "text": "Заглушити всіх"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_voice_muted", "text": "Muted:"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_voice_muted", "text": "Stummgeschaltet:"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_voice_muted", "text": "Wyciszono:"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_voice_muted", "text": "Заглушён:"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_voice_muted", "text": "Заглушён:"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_voice_muted", "text": "Заглушено:"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Unmuted:"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Stummschaltung aufgehoben:"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Wyłączono wyciszenie:"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Снова слышен:"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Снова слышен:"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_voice_unmuted", "text": "Знову чути:"}
+ ]
+}

@@ -28,3 +28,6 @@ libc = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+
+# Exercise the shipped codec/jitter implementation through the real voice relay.
+skhid-voice = { path = "../../client-voice" }

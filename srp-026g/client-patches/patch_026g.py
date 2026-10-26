@@ -505,6 +505,18 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
+- voice chat in a match (patch 66, with the late join; docs/notes/voice-chat.md):
+  Rust patches::voice (the arena's shared patches.code, .data and
+  .state) with skhid_voice.dll beside the exe: the sound tab's voice options
+  and "Disable voice chat" (the dead g_hide_spam) registered at game::game
+  (0x1E90A3); the DLL started at match_client::connect (0x27A1B0) on the
+  match port + 1 and stopped at on_finish_match (0x1F96F0) and on_deactivate
+  (0x1F9520); every frame (game_world::tick's slot 0x9FC4FC) the options,
+  mutes, radio distances and the hud's list of who talks; push-to-talk (ptt,
+  47h) and "mute the last speaker" (the action table's entry 37h renamed,
+  kind 8, no default key) from on_keyboard_action's show_player_list call
+  (0x25CD34); the Esc menu's voice panel (0x1EDBDC, and game_options'
+  callback slot 0x9FD47C for its clicks);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
@@ -1187,7 +1199,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "voice")
 
 
 def rust_hooks(original):
@@ -2087,12 +2099,15 @@ HIDE_UI_HOOKS = (
     (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
 )
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# that read the table of 28h rows at 0xA9DB28 read Rust's `controls` (patches.state,
+# 2Ah rows initialized before menus; F11 and mute_last_speaker appended) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
 HIDE_UI_ROWS = 0x28
+# `controls`' rows: the game's 28h, patch 62's toggle_replay_ui and patch 66's
+# mute_last_speaker.
+CONTROLS_ROWS = HIDE_UI_ROWS + 2
 HIDE_UI_TABLE_REFS = (
     (0x201150, bytes.fromhex("b828dba900"), 1, 0x0),           # the conflicts' loop: mov eax,table
     (0x201248, bytes.fromhex("be2cdba900"), 1, 0x4),           # the conflict message: mov esi,table+4
@@ -2117,13 +2132,60 @@ def hide_ui_table_writes(linked):
     table = linked.symbols["controls"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
-    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    out += [(va, old, old[:at] + bytes([CONTROLS_ROWS]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
+# Voice chat (patch 66, README; client_patch.md section 3.58; the rules:
+# ../docs/notes/voice-chat.md): the safe Rust module voice.rs and its named
+# sites in voice.toml, in the shared patches blocks (ARENA below), with
+# skhid_voice.dll beside the exe (srp-026g/client-voice). The glue's entries:
+# - game::game's call of game_world::game_world (0x1E90A3, `ret 8`): the
+#   world made, then the voice's console variables registered (s_chat_volume,
+#   s_use_microphone, s_mic_sens: the sound tab's dead voice controls;
+#   g_hide_spam: the gameplay tab's dead option 5, "Disable voice chat";
+#   srp_voice_mutes), before user.cfg runs and the options look them up;
+# - match_client::connect (0x27A1B0, its entry; a replay's connect is
+#   another function, 0x122350): the DLL started with the host, the port + 1
+#   and the session, then the function;
+# - game_world::on_finish_match (0x1F96F0) and on_deactivate (0x1F9520), at
+#   their entries: the DLL stopped, then the function;
+# - the game world's on_keyboard_action's call of show_player_list (0x25CD34,
+#   every key of every kind passes it): push-to-talk (ptt, 47h) and "mute the
+#   last speaker" (37h), the chat keys' kind 8, then the call;
+# - activate_main_menu's call of game_options::activate (0x1EDBDC): the menu,
+#   then its voice panel filled (a match's teammates, or nothing);
+# and two vtable slots: game_world::tick (0x9FC4FC, every frame: the options,
+# mutes, radio distances and the hud's list of who talks) and game_options'
+# Scaleform callback (0x9FD47C: the panel's srp_voice_* calls, any other the
+# game's). The action table's entry 0xA74E10, serialize_player_state (37h,
+# kinds 5, kO; a debug action whose console command does not exist), becomes
+# mute_last_speaker, kind 8 (the chat keys: only the chat handler and this
+# patch ask kind 8), no default key: the owner's M is set_next_ammo_type's.
+# No base relocation is under a hook site and no branch aims inside one.
+VOICE_HOOKS = () # named Rust sites in voice.toml
+VOICE_BACKS = (0x27A1B5, 0x1F96F9, 0x1F9525)   # each entry's function after the moved instructions
+# (the slot, the game's function there, ours)
+VOICE_SLOTS = () # generated pointer installs from voice.toml
+# The action table's entry {name, id, kinds, toggle, default key}: 37h.
+VOICE_ACTION = 0xA74E10
+VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
+VOICE_ACTION_KINDS = 8
+# The slots' and the action's writes, as install rows (the build's write index).
+VOICE_WRITES = tuple((va, struct.pack("<I", old)) for va, old, _ in VOICE_SLOTS) + ((VOICE_ACTION, VOICE_ACTION_OLD),)
+
+
+def voice_writes(linked):
+    """[(VA, its bytes, the new bytes)] of patch 66's slots and its action's
+    entry (the name the link's mute_action_name, kind 8, no default key)."""
+    out = [(va, struct.pack("<I", old), struct.pack("<I", arena_target(linked, symbol)))
+           for va, old, symbol in VOICE_SLOTS]
+    name = linked.symbols["mute_action_name"]
+    out.append((VOICE_ACTION, VOICE_ACTION_OLD, struct.pack("<5I", name, 0x37, VOICE_ACTION_KINDS, 0, 0)))
+    return out
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
 # kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
@@ -2511,6 +2573,11 @@ def audit_installs(data, writes, installs=None):
 for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
 
+# Calls and pointer slots use the same named-site declaration as their glue.
+for _va, _owner, _what, _kind in hooks_026g.typed_install_sites():
+    INSTALLS[_va] = ({"call": CALLEE, "pointer": SLOT, "splice": ENTRY}[_kind],
+                     f"{_what}: {_owner} (Rust {_kind})", None, None)
+
 
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
 # README "The arena"). The exe's section table has room for twelve entries
@@ -2555,7 +2622,6 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
@@ -3608,12 +3674,18 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
+                        + VOICE_HOOKS + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                for va, old, symbol, owner in hooks_026g.pointer_installs(exe=lambda va, n: original[file_offset(va):file_offset(va)+n]):
+                    patch_section_value(data, va, old, struct.pack("<I", arena_target(linked, symbol)))
+                for va, old, new in voice_writes(linked):
+                    patch_section_value(data, va, old, new)
+                # the action's default key is none now: no relocation adds the base to its 0
+                neutralize_relocs(data, [(VOICE_ACTION + 16, VOICE_ACTION + 20)])
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):

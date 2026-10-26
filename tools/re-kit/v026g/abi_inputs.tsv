@@ -2191,7 +2191,6 @@ va	name	location	role	basis
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
 0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
 0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
-0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true0 false2	inferred
@@ -4550,6 +4549,47 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	ECX	the medkit (any drug): influences at +280h (14h each: the pool name first, the per-second amount at +10h), their count byte +288h, healed so far per influence (floats) +284h, delay ms left +2ACh, activity ms left +2A8h	observed
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	ECX	chat handler receiver	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+4	the input world (vtable+24h: the keyboard)	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+8	the key code, looked up in the chat keys (group 8: actions 45h, 46h; 47h ptt unused)	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+12	the event kind; 1 key down	observed
+0x0027a1b0	survarium::match_client::connect	ECX	the match client (vtable 0xA08864, slot 1 at 0xA08868; network_client+1F1C48h)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+4	the match server's host, NUL-terminated char* (logged with %s at 0x21BF85)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+8	the match server's port (low 16 bits; the caller pushes the whole dword)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+12	the match session, written into 0xD8 at 0x27A203	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+16	the game time	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+20	the connection functor, to 0x379090 in ECX	observed
+0x0021beb0	survarium::network_client::connect_to_match	ECX	network_client receiver	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+4	host char*	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+8	port (word)	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+12	match id: returns at once when equal to static info +577BCh (0x21BED2)	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+16	session	observed
+0x002384c0	survarium::game_world_ui::show_player_list	ESI	the hud (+0BAh the list shown, +8 its movie holder)	observed
+0x002384c0	survarium::game_world_ui::show_player_list	entry ESP+4	shown, a byte: root.show_player_list on a change	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	EAX	the object (4Ch: +0Ch next, +10h name, +14h kind, +1Dh saved, +40h value pointer, +44h min, +48h max); new list head 0x1F1D66C	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	XMM0	min	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+4	the name	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+8	the float's address	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+12	max, a float	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+16	saved, a byte	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+20	kind (2: user.cfg)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	EAX	the object (48h; kind 2; vtable 0x9E7C2C; +40h buffer, +44h size)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+4	the name	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+8	the char buffer	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+12	the size of the char buffer	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+16	saved, a byte	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	ECX	the main menu's flash external handler (+30h the game); slot pointer 0x9FD47C	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+8	the ExternalInterface call's name, char*	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+12	the arguments, GFx values of 18h bytes (+4 type, +8 value; a managed string's char* at [[+8]])	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+16	the arguments' count	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	ECX	the hud (+18h the game world); slot pointer 0xA03C60	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+8	the call's name, char*	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+12	the GFx arguments	observed
+0x00200f50	survarium::game_options::activate	EAX	the options (game+57F4h; +0Ch movie holder, +30h the state under it, +34h the game, +44h active)	observed
+0x00200f50	survarium::game_options::activate	entry ESP+4	the state the menu opens over (game+539Ch; the game world game+18h in a match)	observed
+0x001f77e0	survarium::game_world::tick	ECX	the game world (vtable 0x9FC4F4 slot 2, pointer 0x9FC4FC; called every frame at 0x1ECBE1)	observed
+0x001f96f0	survarium::game_world::on_finish_match	EAX	the game world: unloads the world and switches to the lobby (from close_current_match 0x27A790's reasons 0, 1, 2, 3, 5 and the hud's finish_match_clicked 0x233D6C)	observed
+0x001f9520	survarium::game_world::on_deactivate	ECX	the game world (the world left: also network_client::disconnect 0x27B110's path, without on_finish_match)	observed
 0x002da170	survarium::base_player::generate_killed_event	ESI	the victim (place +114h, world +120h, damage model +2E0h)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+4	the time (the event's +24h)	observed
 0x002da170	survarium::base_player::generate_killed_event	entry ESP+8	the killer's place (0FFh: none)	observed
@@ -4633,6 +4673,10 @@ va	name	location	role	basis
 0x00316c20	survarium::player_respawn_rule_base::fill_match_hud_state	entry ESP+8	now, the game's time in ms	observed
 0x00236c30	survarium::game_world_ui::set_local_respawn_time	EAX	the respawn seconds left (hud+2Ch, update_ui 0x23B3FC); returns at once when equal to the last (the global 0xACFC30)	observed
 0x00236c30	survarium::game_world_ui::set_local_respawn_time	entry ESP+4	the hud; root.set_respawn_time with "%s %02d:%02d" (st_respawn_time_pref, minutes, seconds), "" for 0	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+4	unused argument forwarded unchanged	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+4	argument1 passed unchanged through vtable slot (call at 0x1ECBE1)	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+8	argument2 passed unchanged through vtable slot (call at 0x1ECBE1)	observed
+0x001f77e0	survarium::game_world::tick	entry ESP+12	argument3 passed unchanged through vtable slot (call at 0x1ECBE1)	observed
 0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	ESI	the data (F328h bytes, from profile_skin_visual_cook at 0x2045A9): +0 the bind pose's path and +118h the skeleton's (buffer_strings of 114h: begin, end, the buffer's end, then 104h bytes), +234h 20 part records of C0Ch (constructed by 0x127CB0 through the array helper 0x11100), +F324h the records in use (u8), +F325h the pushed byte	observed
 0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	entry ESP+4	a byte kept at +F325h (0 from 0x2045A7)	observed
 0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	ECX	a part record (C0Ch): +0 base_model, +114h part_name, +228h material (buffer_strings over their own 104h bytes), +33Ch..+348h four zeroed words, +34Ch the camouflage_decal_cook_parameters (0x119760); +C08h the part (on_configs_loaded writes 0 for the head, 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's and its additional_models; nothing reads +C08h directly)	observed

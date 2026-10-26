@@ -10,7 +10,7 @@
 #   project   srp26           (containers srp26-srp26-1, srp26-caddy26-1)
 #   image     srp-026g:latest
 #   volumes   srp26_srp26-data (its own srp.db), srp26_caddy26-data
-#   ports     2234/tcp login, 2235/udp lobby, 2236/udp match,
+#   ports     2234/tcp login, 2235/udp lobby, 2236/udp match, 2237/udp voice,
 #             127.0.0.1:8098 web page
 #
 # The client is told the ports srp binds, so each game port is the same
@@ -18,8 +18,11 @@
 # SRP26_LOBBY_PORT / SRP26_MATCH_PORT, never the right-hand side alone. On a
 # host of its own set them to the game's 1234 / 1235 / 1236.
 #
-# Open SRP26_LOGIN_PORT/tcp, SRP26_LOBBY_PORT/udp and SRP26_MATCH_PORT/udp in
-# the host's firewall. Players start the game with
+# Voice chat is on the match port + 1 (SRP_VOICE=off for none): the games
+# send there, so SRP26_VOICE_PORT must be SRP26_MATCH_PORT + 1.
+#
+# Open SRP26_LOGIN_PORT/tcp, SRP26_LOBBY_PORT/udp, SRP26_MATCH_PORT/udp and
+# SRP26_VOICE_PORT/udp in the host's firewall. Players start the game with
 #   -server=<SRP_PUBLIC_HOST>:<SRP26_LOGIN_PORT>
 # Settings and secrets go in a `.env` beside this file (see
 # deploy/env-026g.example and docs/DEPLOY.md).
@@ -37,6 +40,7 @@ services:
       - SRP_LOGIN_PORT=${SRP26_LOGIN_PORT:-2234}
       - SRP_LOBBY_PORT=${SRP26_LOBBY_PORT:-2235}
       - SRP_MATCH_PORT=${SRP26_MATCH_PORT:-2236}
+      - SRP_VOICE
       # The admin page: on only with a token AND a path (a long random
       # name, served at /<SRP_ADMIN_PATH>), for these addresses only. On the
       # host itself Docker shows the bridge gateway, not 127.0.0.1; behind a
@@ -165,6 +169,8 @@ services:
       # server on 80 and no presence pings).
       - "${SRP26_LOBBY_PORT:-2235}:${SRP26_LOBBY_PORT:-2235}/udp"
       - "${SRP26_MATCH_PORT:-2236}:${SRP26_MATCH_PORT:-2236}/udp"
+      # Voice chat: the match port + 1.
+      - "${SRP26_VOICE_PORT:-2237}:${SRP26_VOICE_PORT:-2237}/udp"
       # The web page (home, launcher, admin) is plain HTTP: this host only. Reach
       # it through an SSH tunnel, or put HTTPS in front (the caddy26 service
       # below, on a host whose 443 is free).

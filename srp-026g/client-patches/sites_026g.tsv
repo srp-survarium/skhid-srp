@@ -6,6 +6,14 @@ player_draw.bones	0x247716	lohook	-	6	-	mt_draw after the bones, before the Weap
 camera.eye	0x1F3643	lohook	-	6	-	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
 bullet.ray_traced	0x32D627	lohook	-	10	-	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
 player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
+game.world_created	0x1E90A8	lohook	-	10	-	after game_world ctor, before user.cfg
+match_client.connect	0x27A1B0	lohook	-	5	-	match connect prologue: ECX client, stack host/port/session
+game_world.finish	0x1F96F0	lohook	-	9	-	match end, EAX world
+game_world.deactivate	0x1F9520	lohook	-	5	-	world deactivation
+keyboard.player_list	0x25CD34	lohook	-	5	-	show_player_list call; EBP keyboard frame, EDI handler
+game_options.activate	0x1EDBDC	call	engine_options_activate	-	-	main menu activate, EAX options
+game_world.tick_slot	0x9FC4FC	pointer	engine_world_tick	-	-	world vtable tick
+game_options.callback_slot	0x9FD47C	pointer	engine_options_callback	-	-	menu ExternalInterface callback
 static_info.options_read	0x27b92d	lohook	-	5	-	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
 replay.options_read	0x1f0971	lohook	-	5	-	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
 player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)

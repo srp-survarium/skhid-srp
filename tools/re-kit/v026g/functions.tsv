@@ -1807,6 +1807,16 @@ va	status	ref_021d	name
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x0027a1b0	observed		survarium::match_client::connect
+0x002384c0	observed		survarium::game_world_ui::show_player_list
+0x0001dd40	observed		vostok::console_commands::cc_value<float>::cc_value
+0x00122350	observed		vostok::journaling::match_client::connect
+0x000ec860	observed		vostok::console_commands::cc_string::cc_string
+0x001ff5d0	observed		survarium::game_options::scaleform_callback
+0x00200f50	observed		survarium::game_options::activate
+0x001f77e0	observed		survarium::game_world::tick
+0x0021beb0	observed		survarium::network_client::connect_to_match
+0x001edbc0	observed		survarium::game::activate_main_menu
 0x002971c0	observed		survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
 0x00297570	observed		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
 0x0012d1d0	observed		vostok::render::camouflage_decal_texture_type_baker_cook::translate_query

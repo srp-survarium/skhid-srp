@@ -385,6 +385,9 @@ pub struct Options {
     /// off): the folders the match server converts recordings into, the
     /// lobby gives tokens for and the web page serves from.
     pub replays: Option<ReplaySettings>,
+    /// Voice chat (`SRP_VOICE`, default on): the relay on the match port + 1
+    /// (`match_server::v026g::voice`).
+    pub voice: bool,
 }
 
 impl Options {
@@ -404,6 +407,7 @@ impl Options {
             certs: PathBuf::from("./certs"),
             bots: session::v026g::bots::from_env(),
             replays: ReplaySettings::from_env(),
+            voice: matches::voice::enabled_from_env(),
         }
     }
 
@@ -418,6 +422,7 @@ impl Options {
             certs: certs.to_owned(),
             bots: Vec::new(),
             replays: None,
+            voice: false,
         }
     }
 }
@@ -436,6 +441,8 @@ pub struct Stack {
     pub login_addr: SocketAddr,
     pub lobby_addr: SocketAddr,
     pub match_addr: SocketAddr,
+    /// The voice relay's, when it runs: the match port + 1.
+    pub voice_addr: Option<SocketAddr>,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
     stop: Arc<AtomicBool>,
@@ -477,6 +484,25 @@ impl Stack {
             &options.match_public_host,
             match_addr.port(),
         ));
+        // Voice beside it, on the next port: the games send there.
+        let voice_socket = if options.voice {
+            let port = matches::voice::port_for(match_addr.port()).ok_or_else(|| {
+                io::Error::other("the match port is 65535: no port after it for voice")
+            })?;
+            Some(UdpSocket::bind(SocketAddr::new(match_addr.ip(), port)).map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!("the voice relay's UDP port {port} (the match port + 1; SRP_VOICE=off for none): {error}"),
+                )
+            })?)
+        } else {
+            log::info!("Voice chat is off (SRP_VOICE)");
+            None
+        };
+        let voice_addr = voice_socket
+            .as_ref()
+            .map(UdpSocket::local_addr)
+            .transpose()?;
 
         // One for the process: the match server converts, the lobby gives
         // tokens, the web page takes them.
@@ -578,6 +604,31 @@ impl Stack {
                 )
             }));
         }
+        // Mutes are kept by the voice ids: the key outlives a restart, and
+        // without it there is no voice (never a key of the moment, which
+        // would lose every player's mutes).
+        let id_key = match voice_socket
+            .as_ref()
+            .map(|_| matches::voice::id_key_from_env())
+        {
+            Some(Err(error)) => {
+                log::error!("srp: voice chat is OFF: its voice ids' key: {error}");
+                None
+            }
+            Some(Ok(key)) => Some(key),
+            None => None,
+        };
+        if let (Some(socket), Some(voice_addr), Some(id_key)) = (voice_socket, voice_addr, id_key) {
+            let (registry, flag) = (registry.clone(), stop.clone());
+            let mut socket = Some(socket);
+            threads.push(supervise("voice", stop.clone(), move || {
+                let socket = match socket.take() {
+                    Some(socket) => socket,
+                    None => UdpSocket::bind(voice_addr)?,
+                };
+                matches::voice::run(&socket, registry.clone(), id_key, &flag)
+            }));
+        }
         {
             let mut first = Some(first_lobby);
             threads.push(supervise("lobby", stop.clone(), move || {
@@ -609,7 +660,8 @@ impl Stack {
         }
         log::info!(
             "srp: 0.26g servers started: login TCP {login_addr}, lobby UDP {lobby_addr}, match \
-             UDP {match_addr}"
+             UDP {match_addr}, voice {}",
+            voice_addr.map_or("off".to_owned(), |addr| format!("UDP {addr}"))
         );
         Ok(Self {
             store,
@@ -621,6 +673,7 @@ impl Stack {
             login_addr,
             lobby_addr,
             match_addr,
+            voice_addr,
             min_patch_revision: options.lobby.min_patch_revision,
             stop,
             threads,

@@ -55,6 +55,16 @@ global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
+global engine_cc_string
+global engine_translate
+global engine_get_module_handle
+global engine_load_library
+global engine_get_proc_address
+global engine_free_library
+global engine_cc_float
+global engine_options_activate
+global engine_world_tick
+global engine_options_callback
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -65,6 +75,12 @@ engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_ac
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_get_module_handle equ 0x87003c   ; the IAT slot 0x87003c (kernel32, stdcall)
+engine_load_library equ 0x870080   ; the IAT slot 0x870080 (kernel32, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (kernel32, stdcall)
+engine_free_library equ 0x870088   ; the IAT slot 0x870088 (kernel32, stdcall)
+engine_world_tick equ 0x1f77e0   ; 0x1f77e0 survarium::game_world::tick: world ECX, first ESP+4, second ESP+8, third ESP+12; pops 12; thiscall, called directly
+engine_options_callback equ 0x1ff5d0   ; 0x1ff5d0 survarium::game_options::scaleform_callback: handler ECX, unknown ESP+4, name ESP+8, arguments ESP+12, count ESP+16; pops 16; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -772,6 +788,79 @@ engine_update_skeleton:
     push dword [esp + 36]   ; instance -> 4
     mov edi, [esp + 36]   ; scene_renderer
     call 0x22490
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_string:
+    ; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; saved -> 16
+    push dword [esp + 36]   ; size -> 12
+    push dword [esp + 36]   ; buffer -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0xec860
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_translate:
+    ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, buffer ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; buffer -> 8
+    push dword [esp + 28]   ; key -> 4
+    mov ecx, [esp + 28]   ; translator
+    call 0x1ff0f0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_float:
+    ; 0x1dd40 vostok::console_commands::cc_value<float>::cc_value: object EAX, min XMM0, name ESP+4, value ESP+8, max ESP+12, saved ESP+16, kind ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; kind -> 20
+    push dword [esp + 44]   ; saved -> 16
+    push dword [esp + 44]   ; max -> 12
+    push dword [esp + 44]   ; value -> 8
+    push dword [esp + 44]   ; name -> 4
+    mov eax, [esp + 40]   ; object
+    movss xmm0, [esp + 44]   ; min
+    call 0x1dd40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_options_activate:
+    ; 0x200f50 survarium::game_options::activate: options EAX, state ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; state -> 4
+    mov eax, [esp + 24]   ; options
+    call 0x200f50
     pop edi
     pop esi
     pop ebx

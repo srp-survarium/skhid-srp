@@ -428,6 +428,8 @@ impl Server {
         }
         game.attach(index, addr, session_id, revision, transport, now);
         self.routes.insert(addr, (seat.match_id, index));
+        // The voice relay takes the place's talk from this IP only.
+        self.registry.set_connection(seat, addr.ip());
         self.store.seen_in_match(session_id);
     }
 

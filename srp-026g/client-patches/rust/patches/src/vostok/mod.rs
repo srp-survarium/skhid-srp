@@ -27,6 +27,7 @@ pub mod camera;
 mod cell;
 pub mod clock;
 mod context;
+pub mod controls;
 pub mod draw;
 mod hook;
 mod input;
@@ -39,6 +40,7 @@ mod sync;
 pub mod trace;
 pub mod types;
 pub mod world;
+pub mod voice;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -55,6 +57,8 @@ mod generated {
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
     use crate::raw;
+    #[allow(unused_imports)]
+    use super::voice::{VoiceWorld, VoiceOptions, VoiceText, VoiceValues, VoiceObject};
     include!("../../../../hooks_026g.rs");
 }
 

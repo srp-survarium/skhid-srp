@@ -38,9 +38,8 @@ impl<'t> OptionsRead<'t> {
 
     /// At `replay.options_read`.
     pub fn at_replay(ctx: &'t Context<'_>) -> Option<OptionsRead<'t>> {
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = non_null(ctx.reg(Reg::Esp).wrapping_add(8))?;
+        // Context already removes the dispatch slot and flags from saved ESP.
+        let frame = non_null(ctx.reg(Reg::Esp))?;
         // SAFETY: the frame's argument and local (replay_options_frame, by the site's ESP).
         let (options, reader) = unsafe {
             (*raw::replay_options_frame::options(frame.as_ptr()), raw::replay_options_frame::reader(frame.as_ptr()))

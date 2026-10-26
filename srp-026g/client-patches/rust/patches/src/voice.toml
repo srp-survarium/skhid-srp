@@ -1,0 +1,34 @@
+name = "voice"
+patch = 66
+
+[[hook]]
+site = "game.world_created"
+handler = "register"
+
+[[hook]]
+site = "match_client.connect"
+handler = "connect"
+
+[[hook]]
+site = "game_world.finish"
+handler = "finish"
+
+[[hook]]
+site = "game_world.deactivate"
+handler = "deactivate"
+
+[[hook]]
+site = "keyboard.player_list"
+handler = "key"
+
+[[hook]]
+site = "game_options.activate"
+handler = "menu"
+
+[[hook]]
+site = "game_world.tick_slot"
+handler = "tick"
+
+[[hook]]
+site = "game_options.callback_slot"
+handler = "menu_call"

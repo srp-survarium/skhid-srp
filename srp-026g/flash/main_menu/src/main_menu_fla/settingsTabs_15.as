@@ -365,7 +365,9 @@ package main_menu_fla
             }
             this._hide_spam.autoSize = "none";
             this._hide_spam.data = "";
-            this._hide_spam.enabled = false;
+            // "Disable voice chat" (exe patch 66 gives the dead option g_hide_spam its variable;
+            // docs/notes/voice-chat.md): enabled whenever the timeline makes the checkbox.
+            this._hide_spam.enabled = true;
             this._hide_spam.enableInitCallback = false;
             this._hide_spam.focusable = true;
             this._hide_spam.label = "";
@@ -776,7 +778,8 @@ package main_menu_fla
             }
             this._use_mik.autoSize = "none";
             this._use_mik.data = "";
-            this._use_mik.enabled = false;
+            // "Use microphone" (exe patch 66 registers s_use_microphone): enabled.
+            this._use_mik.enabled = true;
             this._use_mik.enableInitCallback = false;
             this._use_mik.focusable = true;
             this._use_mik.label = "";
@@ -874,13 +877,10 @@ package main_menu_fla
          this._sound_volume.slider.enabled = false;
          this._sound_volume.mouseEnabled = false;
          this._sound_volume.alpha = 0.5;
-         this._sound_сhat.slider.enabled = false;
-         this._sound_сhat.mouseEnabled = false;
-         this._sound_сhat.alpha = 0.5;
-         this._sound_сhat.mouseChildren = this._sound_volume.mouseChildren = this._game_volume.mouseChildren = false;
-         this._mic_sens.slider.enabled = false;
-         this._mic_sens.mouseEnabled = false;
-         this._mic_sens.alpha = 0.5;
+         this._sound_volume.mouseChildren = this._game_volume.mouseChildren = false;
+         // The voice chat's volume and the microphone's sensitivity (exe patch 66 registers
+         // s_chat_volume and s_mic_sens) work: not greyed. The PTT checkbox stays off: voice is
+         // push-to-talk only.
       }
    }
 }

@@ -20,9 +20,8 @@ pub struct GameWorldUi<'t> {
 impl<'t> GameWorldUi<'t> {
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
+        // Context already removes the dispatch slot and flags from saved ESP.
+        let frame = ctx.reg(Reg::Esp) as usize as *mut c_void;
         // SAFETY: the function's argument at its start (update_player_icons_frame).
         let ui = unsafe { *raw::update_player_icons_frame::ui(frame) };
         NonNull::new(ui as usize as *mut c_void).map(|this| GameWorldUi { this, thread: PhantomData })

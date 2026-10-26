@@ -73,6 +73,27 @@ mod game {
         to
     }
 
+    /// # Safety
+    /// Both byte ranges are readable for size bytes. Volatile reads prevent
+    /// LLVM turning the implementation back into a libc call.
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
+        for i in 0..size {
+            let (a, b) = unsafe { (a.add(i).read_volatile(), b.add(i).read_volatile()) };
+            if a != b { return i32::from(a) - i32::from(b); }
+        }
+        0
+    }
+
+    /// # Safety
+    /// As memcmp; bcmp only promises zero for equal bytes.
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
+        unsafe { memcmp(a, b, size) }
+    }
+
     #[panic_handler]
     fn panic(info: &core::panic::PanicInfo) -> ! {
         use crate::vostok::log::{Piece::*, line};

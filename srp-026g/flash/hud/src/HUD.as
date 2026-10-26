@@ -52,6 +52,7 @@ package
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -215,6 +216,9 @@ package
       protected const GAME_MODE_RESEARCH:uint = 5;
       
       public var researchUnits:ResearchUnits;
+
+      // Voice chat: who of the team talks now (srp_voice_talking).
+      public var voiceSpeakers:VoiceSpeakers;
 
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
@@ -449,6 +453,8 @@ package
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
          this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         voiceSpeakers = new VoiceSpeakers();
+         addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
@@ -1423,6 +1429,12 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
+         // On the left, above the middle: clear of the minimap, the chat and the kill feed.
+         this.voiceSpeakers.layoutData = new LayoutData();
+         this.voiceSpeakers.layoutData.alignV = "center";
+         this.voiceSpeakers.layoutData.alignH = "left";
+         this.voiceSpeakers.layoutData.offsetV = -120;
+         this.voiceSpeakers.layoutData.offsetH = borderOffset + 22;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
          this.chat.layoutData.alignH = "center";
@@ -1987,6 +1999,7 @@ package
          this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
+         this.voiceSpeakers.clear();
          this.show_ammo(false);
          this.show_slots(false);
          this.show_game_info(false);
@@ -2011,6 +2024,20 @@ package
          }
       }
       
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): who of the team talks now, as pairs
+      // of the name and its flags (VoiceSpeakers.FLAG_SELF: the player's own, while it transmits;
+      // FLAG_RADIO: heard through the radio). None: nobody. Called on a change only.
+      public function srp_voice_talking(... pairs) : void
+      {
+         this.voiceSpeakers.update(pairs);
+      }
+
+      // The "mute the last speaker" key's answer: the text (the exe's, translated) and the name.
+      public function srp_voice_notice(text:String, name:String) : void
+      {
+         this.voiceSpeakers.notice(text + " " + name);
+      }
+
       public function clear_minimap() : void
       {
          this.minimap.clear_minimap();

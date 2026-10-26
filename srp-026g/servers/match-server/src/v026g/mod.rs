@@ -118,6 +118,9 @@ pub mod replay;
 mod server;
 pub mod sur;
 pub mod sur_convert;
+/// Voice chat: the team push-to-talk relay beside the match server
+/// (`docs/notes/voice-chat.md`).
+pub mod voice;
 
 #[cfg(test)]
 mod tests;
@@ -138,7 +141,7 @@ use udp_transport::{Config, Table};
 pub use registry::{
     CreateError, DRAW, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd, MatchPlayer,
     MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink, Seat,
-    static_id,
+    VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use server::{run, run_on, run_on_with_replays};

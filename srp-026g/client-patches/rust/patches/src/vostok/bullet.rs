@@ -32,9 +32,8 @@ impl<'t> BulletRay<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<BulletRay<'t>> {
         let bullet = Object::at(ctx.reg(Reg::Edi))?;
         let result = Object::at(ctx.reg(Reg::Eax))?;
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
+        // Context already removes the dispatch slot and flags from saved ESP.
+        let frame = ctx.reg(Reg::Esp) as usize as *mut c_void;
         Some(BulletRay { bullet, result, frame, _thread: ctx.thread() })
     }
 

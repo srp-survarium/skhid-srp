@@ -206,3 +206,179 @@ pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
 }
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_register` (0x1e90a8, after game_world ctor, before user.cfg) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_register(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_register` calls this, from the game's jump at 0x1e90a8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::register(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_connect` (0x27a1b0, match connect prologue: ECX client, stack host/port/session) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_connect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_connect` calls this, from the game's jump at 0x27a1b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::connect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_finish` (0x1f96f0, match end, EAX world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_finish(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_finish` calls this, from the game's jump at 0x1f96f0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::finish(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_deactivate` (0x1f9520, world deactivation) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_deactivate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_deactivate` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::deactivate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_key` (0x25cd34, show_player_list call; EBP keyboard frame, EDI handler) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_key` calls this, from the game's jump at 0x25cd34,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// engine_options_activate (0x200f50), as the call hook at 0x1edbdc wraps it.
+pub struct OrigOptionsActivate;
+
+impl OrigOptionsActivate {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, options: &mut VoiceOptions, state: u32) -> u32 {
+        // SAFETY: engine_options_activate at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_options_activate(options.ptr(), state) }
+    }
+}
+
+/// The entry `voice_menu` (0x1edbdc, main menu activate, EAX options) calls this with
+/// engine_options_activate's 2 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_menu(a0: u32, a1: u32) -> u32 {
+    // SAFETY: only the entry `voice_menu` calls this, from the game's call at
+    // 0x1edbdc, on the game's thread; a0.. are engine_options_activate's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut options) = (unsafe { VoiceOptions::from_raw(&thread, a0) }) else {
+        // a null VoiceOptions never happens at this site; take the unpatched path.
+        return unsafe { raw::engine_options_activate(a0 as usize as *mut _, a1) };
+    };
+    let state = a1;
+    let orig = OrigOptionsActivate;
+    crate::voice::menu(&orig, &mut options, state)
+}
+
+// ---- voice (patch 66) ----
+
+/// engine_world_tick (0x1f77e0), as the pointer hook at 0x9fc4fc wraps it.
+pub struct OrigWorldTick;
+
+impl OrigWorldTick {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, world: &mut VoiceWorld, first: u32, second: u32, third: u32) {
+        // SAFETY: engine_world_tick at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_world_tick(world.ptr(), first, second, third) }
+    }
+}
+
+/// The entry `voice_tick` (0x9fc4fc, world vtable tick) calls this with
+/// engine_world_tick's 4 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_tick(a0: u32, a1: u32, a2: u32, a3: u32) -> u32 {
+    // SAFETY: only the entry `voice_tick` calls this, from the game's call at
+    // 0x9fc4fc, on the game's thread; a0.. are engine_world_tick's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut world) = (unsafe { VoiceWorld::from_raw(&thread, a0) }) else {
+        // a null VoiceWorld never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_world_tick(a0 as usize as *mut _, a1, a2, a3) }; 0 };
+    };
+    let first = a1;
+    let second = a2;
+    let third = a3;
+    let orig = OrigWorldTick;
+    { crate::voice::tick(&orig, &mut world, first, second, third); 0 }
+}
+
+// ---- voice (patch 66) ----
+
+/// engine_options_callback (0x1ff5d0), as the pointer hook at 0x9fd47c wraps it.
+pub struct OrigOptionsCallback;
+
+impl OrigOptionsCallback {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, handler: &mut VoiceObject, unknown: u32, name: &mut VoiceText, args: &mut VoiceValues, count: u32) {
+        // SAFETY: engine_options_callback at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_options_callback(handler.ptr(), unknown, name.ptr(), args.ptr(), count) }
+    }
+}
+
+/// The entry `voice_menu_call` (0x9fd47c, menu ExternalInterface callback) calls this with
+/// engine_options_callback's 5 arguments.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_menu_call(a0: u32, a1: u32, a2: u32, a3: u32, a4: u32) -> u32 {
+    // SAFETY: only the entry `voice_menu_call` calls this, from the game's call at
+    // 0x9fd47c, on the game's thread; a0.. are engine_options_callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut handler) = (unsafe { VoiceObject::from_raw(&thread, a0) }) else {
+        // a null VoiceObject never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_options_callback(a0 as usize as *mut _, a1, a2 as usize as *mut _, a3 as usize as *mut _, a4) }; 0 };
+    };
+    let unknown = a1;
+    let Some(mut name) = (unsafe { VoiceText::from_raw(&thread, a2) }) else {
+        // a null VoiceText never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_options_callback(a0 as usize as *mut _, a1, a2 as usize as *mut _, a3 as usize as *mut _, a4) }; 0 };
+    };
+    let Some(mut args) = (unsafe { VoiceValues::from_raw(&thread, a3) }) else {
+        // a null VoiceValues never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_options_callback(a0 as usize as *mut _, a1, a2 as usize as *mut _, a3 as usize as *mut _, a4) }; 0 };
+    };
+    let count = a4;
+    let orig = OrigOptionsCallback;
+    { crate::voice::menu_call(&orig, &mut handler, unknown, &mut name, &mut args, count); 0 }
+}
