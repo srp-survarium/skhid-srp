@@ -84,6 +84,8 @@ mod features;
 #[cfg(test)]
 pub mod hold_trace;
 mod layers;
+#[cfg(test)]
+pub mod pair_counts;
 mod search;
 mod think;
 
