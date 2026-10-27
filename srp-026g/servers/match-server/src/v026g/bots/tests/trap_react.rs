@@ -435,6 +435,7 @@ fn mate_at(place: usize, feet: Vec3, yaw: f32) -> PlaceView {
         streak: 0,
         carrying: None,
         seen_at: 0,
+        late_ms: 0,
         known_at: 0,
     }
 }

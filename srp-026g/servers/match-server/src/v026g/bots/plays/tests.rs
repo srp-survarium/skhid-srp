@@ -174,6 +174,7 @@ impl Scenario {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                late_ms: 0,
                 known_at: 0,
             });
         }
