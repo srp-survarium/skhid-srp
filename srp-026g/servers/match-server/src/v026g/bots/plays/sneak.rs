@@ -404,6 +404,7 @@ mod tests {
                 place,
                 candidates: sneaks(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 1);

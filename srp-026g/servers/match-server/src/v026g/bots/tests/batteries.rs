@@ -518,12 +518,9 @@ pub(crate) struct LostBattery {
 /// "nook": no ray of the battery sight sees it (`battery_sight_m` 0), only
 /// a bot within `battery_near_m`. The thief cheat is off, so the team knows
 /// where he was only by its own senses. Runs to `limit` ms.
-pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
-    lost_battery_run_in(look_weight, limit, false)
-}
-
-/// [`lost_battery_run`] with the sight refresh `refresh` (off: the tip's bots and the tip's timing).
-pub(crate) fn lost_battery_run_in(look_weight: Option<f32>, limit: u32, refresh: bool) -> LostBattery {
+///
+/// `refresh`: the sight refresh on (off: the tip's bots and the tip's timing of the thief's steps).
+pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bool) -> LostBattery {
     let world = soak_world();
     let mut tuning = if refresh { super::sight::refreshed_tuning() } else { Tuning::default() };
     tuning.cheats.batteries = false;
@@ -671,14 +668,14 @@ pub(crate) fn a_battery_a_killed_thief_dropped_in_a_nook_is_looked_for_and_taken
     a_killed_thief_case(false);
 }
 
-/// The same with the sight refresh on (its own timing of the thief's steps, see `lost_battery_run_in`).
+/// The same with the sight refresh on (its own timing of the thief's steps, see `lost_battery_run`).
 #[test]
 pub(crate) fn with_the_sight_refresh_a_battery_a_killed_thief_dropped_in_a_nook_is_looked_for_and_taken() {
     a_killed_thief_case(true);
 }
 
 fn a_killed_thief_case(refresh: bool) {
-    let run = lost_battery_run_in(None, 60_000, refresh);
+    let run = lost_battery_run(None, 60_000, refresh);
     let died = run
         .died
         .unwrap_or_else(|| panic!("the thief lives: {run:?}"));
@@ -689,7 +686,7 @@ fn a_killed_thief_case(refresh: bool) {
     assert!(sent <= look + 5_000, "{run:?}");
     let took = run.took.unwrap_or_else(|| panic!("not taken: {run:?}"));
     assert!(took <= died + 30_000, "{run:?}");
-    let without = lost_battery_run_in(Some(0.0), took + 10_000, refresh);
+    let without = lost_battery_run(Some(0.0), took + 10_000, refresh);
     eprintln!("with the look {run:?}; without {without:?}");
     assert_eq!(without.died, run.died, "the same fight");
     assert!(without.took.is_none(), "{without:?}");

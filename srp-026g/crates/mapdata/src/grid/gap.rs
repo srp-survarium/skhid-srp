@@ -95,6 +95,54 @@ impl PressLead {
         (GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&m)
     }
 }
+
+/// How a gap link leaves its take-off.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Takeoff {
+    /// The short jump, pressed this far before the take-off's centre.
+    Press(PressLead),
+    /// Walked off the edge, no key: the body keeps its ground speed over
+    /// the edge and falls ([`WALK_OFF_SPEEDS`]).
+    WalkOff,
+}
+
+impl Takeoff {
+    /// In a built file: a press's centimetres, a walk-off 0 (no press is
+    /// under [`GAP_PRESS_MIN_M`]).
+    pub(super) fn centimetres(self) -> u16 {
+        match self {
+            Takeoff::Press(lead) => lead.centimetres(),
+            Takeoff::WalkOff => 0,
+        }
+    }
+
+    pub(super) fn from_centimetres(cm: u16) -> Self {
+        match cm {
+            0 => Takeoff::WalkOff,
+            cm => Takeoff::Press(PressLead::from_centimetres(cm)),
+        }
+    }
+
+    pub(super) fn is_valid(self) -> bool {
+        match self {
+            Takeoff::Press(lead) => lead.is_valid(),
+            Takeoff::WalkOff => true,
+        }
+    }
+}
+
+/// A body walked off an edge keeps its ground speed over it while it
+/// falls (PROVEN, J0 g2a, 2026-10-26: 3.5-3.6 m/s through a 1.2 m fall,
+/// 7 of 7 onto the bridge where a jump at the edge overshot 7 of 7). A
+/// walk-off link is kept only where every one of these speeds, m/s, comes
+/// down on one level: a walk (3.0-3.6) and a sprint (5.1, J0), so the
+/// bot walks it at whatever pace it has, no key.
+pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.6, 5.1];
+/// Floor walked behind a walk-off's take-off, m: the walk's speed is
+/// reached in 0.25-0.5 s. GUESS.
+pub const WALK_OFF_RUN_UP_M: f32 = 1.0;
+/// `fall_params.gravity`, m/s² (PROVEN, `docs/notes/fall_damage.md`).
+const GRAVITY: f32 = 9.8;
 /// The heights over the feet at which a face holds a body in the air: its
 /// feet (a little over) and its head, m (the stand-in's rays, 0.1 and
 /// 1.7).
@@ -160,8 +208,8 @@ pub struct OffLink {
     pub from: NodeId,
     pub to: NodeId,
     pub kind: LinkKind,
-    /// Where it is pressed.
-    pub press: PressLead,
+    /// How it leaves its take-off: pressed, or walked off.
+    pub press: Takeoff,
 }
 
 /// The short jump's root height `ahead` metres from the press (linear
@@ -304,6 +352,90 @@ impl WalkGrid {
         }
     }
 
+    /// Where a body walking off floor `a`'s edge along `d` comes down, when
+    /// it is the same level at every speed of [`WALK_OFF_SPEEDS`]: from the
+    /// cell's edge it keeps its speed and falls, held by faces as [`Self::fly`]
+    /// holds a jump. `None` past the harmless drop or with no common level.
+    fn walk_off_landing(&self, a: usize, d: usize, solids: &Solids) -> Option<u32> {
+        let mut level: Option<(u32, f32)> = None;
+        for speed in WALK_OFF_SPEEDS {
+            let to = self.walk_off(a, d, speed, solids)?;
+            let y = self.height[to as usize];
+            match level {
+                None => level = Some((to, y)),
+                Some((_, l)) if (y - l).abs() <= SAME_TOP => {}
+                Some(_) => return None,
+            }
+            if speed == WALK_OFF_SPEEDS[1] {
+                level = Some((to, y));
+            }
+        }
+        level.map(|(to, _)| to)
+    }
+
+    /// One walk-off at `speed`: the body leaves `a`'s cell at its edge on
+    /// `a`'s height and falls; the first floor it comes down to.
+    fn walk_off(&self, a: usize, d: usize, speed: f32, solids: &Solids) -> Option<u32> {
+        let from = self.position(a as NodeId);
+        let h = self.height[a];
+        let (di, dk) = DIRS[d];
+        let len = ((di * di + dk * dk) as f32).sqrt();
+        let (ux, uz) = (di as f32 / len, dk as f32 / len);
+        let ds = 0.5 * self.cell;
+        let floors = |cell: usize| self.start[cell]..self.start[cell + 1];
+        let at = |s: f32| (from.x + ux * s, from.z + uz * s);
+        // It walks on `a`'s height while a surface of that height is under
+        // its centre (past the floors erosion took from the edge), and
+        // falls from where it ends.
+        let surface_under = |s: f32| {
+            let (px, pz) = at(s);
+            self.cell_at(px, pz).is_some_and(|c| {
+                solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
+                    .iter()
+                    .any(|&(_, hi)| (hi - h).abs() <= 0.06)
+            })
+        };
+        let mut edge = 0.0f32;
+        while edge < 2.0 && surface_under(edge + ds) {
+            edge += ds;
+        }
+        let mut last = h;
+        let mut x = edge + ds;
+        loop {
+            let t = (x - edge) / speed;
+            let y = h - 0.5 * GRAVITY * t * t;
+            if y < h - self.body.max_drop {
+                return None;
+            }
+            // Coming down onto a floor at `x` (before the faces: its own
+            // top is under the feet).
+            let (px, pz) = at(x);
+            let cell = self.cell_at(px, pz)?;
+            if let Some(f) = floors(cell)
+                .filter(|&f| {
+                    let fy = self.height[f as usize];
+                    fy <= last + 0.05 && fy >= y - 1e-4
+                })
+                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+            {
+                return Some(f);
+            }
+            // Held by a face ahead: it falls where it is.
+            if self.face_ahead(solids, at(x + self.body.radius), (ux, uz), y) {
+                let (px, pz) = at(x - ds);
+                let cell = self.cell_at(px, pz)?;
+                return floors(cell)
+                    .filter(|&f| {
+                        let fy = self.height[f as usize];
+                        fy <= y + 0.05 && fy >= h - self.body.max_drop
+                    })
+                    .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]));
+            }
+            last = y;
+            x += ds;
+        }
+    }
+
     /// The gap links from floor `a` along `d` (module documentation): for
     /// each window of presses [`GAP_PRESS_STEP_M`] apart from
     /// [`GAP_PRESS_MIN_M`] to [`GAP_PRESS_MAX_M`] before `a`'s centre that
@@ -343,6 +475,20 @@ impl WalkGrid {
         if behind + 1e-3 < GAP_PRESS_MIN_M + GAP_RUN_UP_M {
             stats.no_run_up += 1;
             return;
+        }
+        // A drop walked off the edge first (J0: where a walk-off lands, a
+        // jump overshoots); the presses after it, as for any gap.
+        if let Some(to) = (behind + 1e-3 >= WALK_OFF_RUN_UP_M).then(|| self.walk_off_landing(a, d, solids)).flatten() {
+            let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
+            let to_y = self.height[to as usize];
+            if (ti - i).abs().max((tk - k).abs()) >= 2
+                && to_y - h <= -self.body.step
+                && self.ceiling[to as usize] - to_y >= self.body.stand_height
+                && Self::lands(wide, to as usize, d)
+            {
+                out.push(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff });
+                stats.made += 1;
+            }
         }
         let presses = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize + 1;
         // Each press's landing, two or more cells on.
@@ -394,7 +540,7 @@ impl WalkGrid {
                         } else {
                             LinkKind::GapDrop
                         },
-                        press: PressLead::from_metres(GAP_PRESS_MIN_M + mid as f32 * GAP_PRESS_STEP_M),
+                        press: Takeoff::Press(PressLead::from_metres(GAP_PRESS_MIN_M + mid as f32 * GAP_PRESS_STEP_M)),
                     });
                     stats.made += 1;
                 } else {
@@ -432,7 +578,10 @@ impl WalkGrid {
             }
         }
         // One a metre of edge, direction and level (the first, in floor
-        // order).
+        // order); a drop one a metre of edge and level whatever its way,
+        // walked off before pressed (J0: where a walk-off lands, a jump
+        // overshoots).
+        found.sort_by_key(|&(link, _)| link.press != Takeoff::WalkOff);
         let mut seen = std::collections::HashSet::new();
         found.retain(|&(link, d)| {
             let (p, q) = (self.position(link.from), self.position(link.to));
@@ -440,7 +589,7 @@ impl WalkGrid {
                 p.x.floor() as i32,
                 p.z.floor() as i32,
                 (2.0 * p.y).round() as i32,
-                d,
+                if link.kind == LinkKind::GapDrop { usize::MAX } else { d },
                 (2.0 * q.y).round() as i32,
             ))
         });
@@ -681,6 +830,22 @@ mod tests {
         assert!(kinds.contains(&LinkKind::GapDrop), "{kinds:?}");
         let grid = world(2.0, 0.5, 2.5, -3.0, &[]);
         assert!(way_across(&grid, 2.0, 0.5).is_none());
+    }
+
+    /// A lower block 1.2 m down across a 1 m gap: walked off (no key), the
+    /// body keeps its speed and comes down on it at a walk and a sprint
+    /// alike: a gap drop walked off, made before any pressed one.
+    #[test]
+    fn a_lower_block_close_across_a_gap_is_walked_off_to() {
+        let grid = world(2.0, 0.8, 1.0, -3.0, &[]);
+        let off = grid
+            .off_links()
+            .iter()
+            .filter(|l| l.kind == LinkKind::GapDrop && l.press == Takeoff::WalkOff)
+            .count();
+        assert!(off > 0, "{:?}", grid.off_links());
+        let kinds = way_across(&grid, 2.0, 0.8).expect("a way across");
+        assert!(kinds.contains(&LinkKind::GapDrop), "{kinds:?}");
     }
 
     /// Up 0.6 m across 0.75 m: within the arc; up 1.2 m: not.

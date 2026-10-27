@@ -19,6 +19,18 @@ pub enum HearingRanges {
     Game { crouch_step_m: f32 },
 }
 
+/// How far a shot is heard: the flat range or the shooter's weapon's.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotRanges {
+    /// `SenseTuning::shot_m` for every shot, times the hearing cheat.
+    Flat,
+    /// The weapon's own reach (`shot_reach.rs`: 55, 100, 150 or 200 m, the
+    /// game's sound data), `unknown_m` where the shooter's weapon is not
+    /// known; the hearing cheat takes a shot no farther than that.
+    ByWeapon { unknown_m: f32 },
+}
+
 /// What a bot sees and hears (`player_bots_behaviour.md` §2).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -67,6 +79,9 @@ pub struct SenseTuning {
     pub step_speed: f32,
     /// Flat ranges (the default) or the game's ([`HearingRanges`]).
     pub ranges: HearingRanges,
+    /// Shots heard at the flat range (the default) or by the weapon
+    /// ([`ShotRanges`], H1c).
+    pub shots: ShotRanges,
     /// The sprint sound follows the body (H1a). `None` (the default, off): a
     /// bot or player holding SPRINT and FORWARD makes the sprint sound, as it
     /// was. `Some(m/s)`: only when the body also moves that fast, so a body
@@ -142,6 +157,7 @@ impl Default for SenseTuning {
             step_m: 8.0,
             step_speed: 1.5,
             ranges: HearingRanges::Flat,
+            shots: ShotRanges::Flat,
             sprint_body_mps: None,
             heard_error: 0.15,
             callout_ms: 1_000,
@@ -227,6 +243,13 @@ impl Check for SenseTuning {
         )?;
         check(self.bush_notice >= 0.0 && self.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
         check(self.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
+        check(
+            match self.shots {
+                ShotRanges::Flat => true,
+                ShotRanges::ByWeapon { unknown_m } => unknown_m > 0.0,
+            },
+            "sense.shots.by_weapon.unknown_m",
+        )?;
         check(
             match self.ranges {
                 HearingRanges::Flat => true,

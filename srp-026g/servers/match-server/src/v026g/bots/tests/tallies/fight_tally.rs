@@ -33,6 +33,9 @@ pub(crate) struct ShotFact {
     /// The aim's state and the shot's cone, degrees ([`super::bench_spread`]).
     pub aim_state: AimState,
     pub cone: f32,
+    /// Where the shot line passed that target, for the owner counts' `shot_offsets` (counts only: the stand-in
+    /// resolved the shot before it was worked out).
+    pub offset: Option<super::shot_offset::ShotOffset>,
 }
 
 /// Distance bands of the shot counts, metres (upper bounds).
