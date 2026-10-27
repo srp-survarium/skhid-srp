@@ -88,6 +88,10 @@ pub struct AmmoParams {
     pub distance: f32,
     /// Bullets a shot makes (a shotgun's pellets); 1 otherwise.
     pub buck_shot: u32,
+    /// The pellets' cone, degrees (full angle; `buck_dispersion`, ammo +0x2A8 of `weapon_core::instant_fire`
+    /// 0x2E23A0, PROVEN): each pellet turns the shot's direction again by `frac(N(0, 0.5)) x cone / 2`
+    /// (`get_dispersed_buckshot_direction` 0x2E2120). 0 for a plain bullet.
+    pub buck_dispersion: f32,
 }
 
 impl AmmoParams {
@@ -124,6 +128,7 @@ impl AmmoParams {
             air_resistance: number("air_resistance", 0.0)?,
             distance: number("distance", 0.0)?,
             buck_shot: number("buck_shot", 1.0)?.round().max(1.0) as u32,
+            buck_dispersion: number("buck_dispersion", 0.0)?.max(0.0),
         }))
     }
 
@@ -626,6 +631,22 @@ mod tests {
         let buck = ammo_named("ammo_12mm_buck").unwrap();
         assert!(near(buck.k_damage, 0.2));
         assert!(buck.buck_shot > 1);
+    }
+
+    /// The pellets of the 12 mm ammunition: 10 each, in a cone of 4 degrees (buck) or 2.5 (buck2), none for a
+    /// plain bullet (`fact-hitboxes-026g.md` 4, read from the data and the exe).
+    #[test]
+    fn the_pellet_cones_are_read_from_the_data() {
+        let cone = |name: &str| {
+            let ammo = ammo_named(name).unwrap();
+            (ammo.buck_shot, ammo.buck_dispersion)
+        };
+        assert_eq!(cone("ammo_12mm_buck"), (10, 4.0));
+        assert_eq!(cone("ammo_5.45x39_7n6m"), (1, 0.0));
+        // The test archive is older than the live data and may lack the second buck ammunition.
+        if ammo_named("ammo_12mm_buck2").is_some() {
+            assert_eq!(cone("ammo_12mm_buck2"), (10, 2.5));
+        }
     }
 
     /// Damage is full up to `max_damage_distance`, `min_damage_amount` of

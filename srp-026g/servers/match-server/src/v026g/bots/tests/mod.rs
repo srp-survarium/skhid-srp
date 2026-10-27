@@ -81,6 +81,7 @@ mod standin_damage;
 mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
+mod standin_hitbox;
 mod standin_jump;
 mod standin_stamina;
 mod standin_traps;
@@ -100,6 +101,7 @@ pub(crate) use camper::*;
 use settings::*;
 use soak::*;
 use standin::*;
+use standin_hitbox::HitVolume;
 use standin_jump::*;
 
 

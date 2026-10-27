@@ -176,7 +176,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
         // The shots the stand-in would have fired at a target this tick: lines at made-up offsets (from `k` alone,
         // so that no draw above moves), all bands, classes and stances, some hits, some with no line.
         if k % 7 == 0 {
-            use crate::v026g::bots::tests::tallies::fight_tally::ShotFact;
+            use crate::v026g::bots::tests::tallies::fight_tally::{Landed, ShotFact};
             use crate::v026g::bots::tests::tallies::shot_offset::{DistBand, Offset, ShotClass, ShotOffset, Stance};
             let n = (k / 7) as u32;
             let distance = 4.0 + (n * 13 % 95) as f32;
@@ -198,6 +198,12 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                     stance: if n.is_multiple_of(5) { Stance::Crouched } else { Stance::Standing },
                     line,
                 }),
+                // Pellets for the shotgun class, parts for the landed ones, from `n` alone.
+                landed: Landed {
+                    fired: if ShotClass::ALL[n as usize % 7] == ShotClass::Shotgun { 10 } else { 1 },
+                    on_enemy: (n % 4) as u8,
+                    parts: [(n % 3) as u8, (n % 2) as u8, u8::from(n.is_multiple_of(5)), u8::from(n % 4 == 3)],
+                },
             });
         }
         tally.step_with(&mut game, &nows);
