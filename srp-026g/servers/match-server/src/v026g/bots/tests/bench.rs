@@ -1520,6 +1520,11 @@ pub(crate) fn real_bot_cost() {
                     ),
                 })
             };
+            // What the zones took by pool and the deaths by the pool that ran out (F2; zeros unless routed).
+            eprintln!(
+                "  zone_pools: {}",
+                serde_json::json!({"zone_pool_lost": game.zone_pool_lost, "zone_pool_deaths": game.zone_pool_deaths})
+            );
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
@@ -1557,8 +1562,6 @@ pub(crate) fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
-                    "zone_pool_lost": game.zone_pool_lost,
-                    "zone_pool_deaths": game.zone_pool_deaths,
                     "zone_spells": zone_spells,
                     // Crossings' searches (`crossing.rs`): searched, taken,
                     // ring walks, refused, floors expanded, wanted for a long
