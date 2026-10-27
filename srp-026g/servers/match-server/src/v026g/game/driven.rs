@@ -56,6 +56,7 @@ use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::arc::Grenade;
 use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
+use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
 use crate::v026g::bots::tuning::Tuning;
@@ -122,6 +123,21 @@ impl Walkers {
             None => Trace::none(hash),
         };
         log::info!("Match {id:#x}: the bots run on tuning {hash:08x}");
+        // What is on and off, and the data it runs on: one block per match (the report's lines), never per tick.
+        for line in tuning.switch_report().lines() {
+            log::info!("Match {id:#x}: {line}");
+        }
+        log::info!(
+            "Match {id:#x}: {}",
+            switch_log::data_files(
+                &switch_log::tuning_file(std::env::var_os("SRP_BOT_TUNING").as_deref()),
+                std::env::var_os("SRP_BOT_ROUTES").as_deref(),
+                std::env::var_os("SRP_BOT_FOLIAGE").as_deref(),
+                std::env::var_os("SRP_BOT_GRASS").as_deref(),
+                maps.dir(),
+            )
+        );
+        log::info!("Match {id:#x}: {}", switch_log::env_switches());
         let project = formed.map.project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
