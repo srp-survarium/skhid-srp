@@ -628,6 +628,11 @@ impl BandTry {
 struct BandWatch {
     at: u32,
     landing: Vec3,
+    /// The feet and the take-off at the press, the speed and the sprint key then (the trace of #673).
+    from: Vec3,
+    take_off: Vec3,
+    speed: f32,
+    sprint: bool,
 }
 
 /// A sprint-band jump given up: its take-off and the tick.
@@ -1580,8 +1585,18 @@ impl Motor {
                 band_jumps::pressed(speed, self.sprinting);
                 band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Press);
                 // A press still followed when the next comes did not get up on its own.
-                if self.band_watch.replace(BandWatch { at: self.clock, landing: jump.landing }).is_some() {
+                let watch = BandWatch {
+                    at: self.clock,
+                    landing: jump.landing,
+                    from: pose.feet,
+                    take_off: jump.take_off,
+                    speed,
+                    sprint: self.sprinting,
+                };
+                if let Some(old) = self.band_watch.replace(watch) {
                     band_jumps::strict(false);
+                    #[cfg(test)]
+                    band_jumps::trace("second press", self.since(old.at), &old, pose.feet);
                 }
             }
         }
@@ -1605,9 +1620,13 @@ impl Motor {
         };
         if feet.distance_xz(watch.landing) <= BAND_UP_NEAR_M && (feet.y - watch.landing.y).abs() <= BAND_UP_FLOOR_M {
             band_jumps::strict(true);
+            #[cfg(test)]
+            band_jumps::trace("up", self.since(watch.at), &watch, feet);
             self.band_watch = None;
         } else if self.since(watch.at) > BAND_UP_S {
             band_jumps::strict(false);
+            #[cfg(test)]
+            band_jumps::trace("not up", self.since(watch.at), &watch, feet);
             self.band_watch = None;
         }
     }
@@ -2067,6 +2086,20 @@ pub mod band_jumps {
     /// The counts, by [`Slot`].
     pub fn counts() -> [u64; COUNT] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+
+    /// The first of each kind of ending of a band press, to stderr (the trace of #673): when, where from, where to, the
+    /// speed and the sprint key at the press, and where the body is.
+    #[cfg(test)]
+    pub(super) fn trace(what: &str, seconds: f32, watch: &super::BandWatch, now: super::Vec3) {
+        static SEEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        if SEEN.fetch_add(1, Ordering::Relaxed) < 60 {
+            let (f, t, l) = (watch.from, watch.take_off, watch.landing);
+            eprintln!(
+                "band-press {what} after {seconds:.2} s: press at ({:.2}, {:.2}, {:.2}) speed {:.2} sprint {}; take-off ({:.2}, {:.2}, {:.2}); landing ({:.2}, {:.2}, {:.2}) rise {:.2}; now ({:.2}, {:.2}, {:.2})",
+                f.x, f.y, f.z, watch.speed, watch.sprint, t.x, t.y, t.z, l.x, l.y, l.z, l.y - t.y, now.x, now.y, now.z
+            );
+        }
     }
 
     /// What happened at a face.
