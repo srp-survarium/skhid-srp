@@ -4,7 +4,8 @@
 //! the stored base.
 //!
 //! `p = d_a / (d_a + d_b)`, `d_a` and `d_b` the cheapest walk-grid path
-//! from the lowest and from the next team's spawn floors: 0 at the
+//! (forwards, as a body walks: a spawn only a drop leaves is no goal to
+//! walk *to*, which left a map's table all unknown) from the lowest and from the next team's spawn floors: 0 at the
 //! first side's spawns, 1 at the other's, about 0.5 on the line between.
 //! A side reads its own number (`for_side`): 0 at home, 1 at the enemy's.
 //!
@@ -59,7 +60,7 @@ impl Progress {
                 .filter_map(|s| grid.locate(s.position, 1.5))
                 .collect()
         };
-        let (from_a, from_b) = (grid.distances_to(&floors(a)), grid.distances_to(&floors(b)));
+        let (from_a, from_b) = (grid.distances_from(&floors(a)), grid.distances_from(&floors(b)));
         let p = (0..regions.len() as u32)
             .map(|r| {
                 let node = regions.middle(r);
