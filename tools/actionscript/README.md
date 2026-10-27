@@ -77,6 +77,8 @@ at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversa
 It also checks countdown spacing and restoration of other modes' timer styles.
 The spacing regression includes hidden capture timers; centering is checked before
 resize with different initial positions and scaled, translated parents.
+Death/respawn transitions check immediate full-width text, late native label
+validation, animation frames, and removal of the Research field on mode exit.
 This exercises the controls; the game's Scaleform integration still needs a playtest.
 
 ## History

@@ -11,14 +11,15 @@ package survarium.controls
    import scaleform.clik.controls.Label;
 
    // Research alone adds a row of capture points below the score. Keep the
-   // native countdown labels below that row, and restore their original
-   // geometry and styling when the same HUD switches to another mode.
+   // countdown labels below that row. The respawn label's CLIK sizing and
+   // timeline must not resize our text during the first frame of a death.
    public class ResearchCountdownLayout
    {
       public var respawn:Label;
       private var _pregame:MovieClip;
       private var _texts:Array;
-      private var _respawnPosition:Point;
+      private var _respawnText:TextField;
+      private var _respawnVisible:Boolean;
       private var _pregamePosition:Point;
       private var _alignH:String;
       private var _alignV:String;
@@ -28,8 +29,18 @@ package survarium.controls
          this.respawn = respawn;
          this._pregame = pregame;
          respawn.validateNow();
-         this._texts = [save(respawn.textField),save(pregame.contextText)];
-         this._respawnPosition = new Point(respawn.x,respawn.y);
+         this._texts = [save(pregame.contextText)];
+         this._respawnVisible = respawn.visible;
+         this._respawnText = new TextField();
+         this._respawnText.defaultTextFormat = respawn.textField.defaultTextFormat;
+         this._respawnText.embedFonts = respawn.textField.embedFonts;
+         this._respawnText.selectable = false;
+         this._respawnText.mouseEnabled = false;
+         this._respawnText.multiline = false;
+         style(this._respawnText);
+         this._respawnText.visible = false;
+         respawn.parent.addChild(this._respawnText);
+         respawn.visible = false;
          this._pregamePosition = new Point(pregame.x,pregame.y);
          this._alignH = pregame.layoutData.alignH;
          this._alignV = pregame.layoutData.alignV;
@@ -63,8 +74,16 @@ package survarium.controls
          {
             return;
          }
-         respawn.validateNow();
-         style(respawn.textField);
+         // Read the engine's value, not the asynchronously validated textField.
+         // This sibling inherits the score indicator's visibility/transform,
+         // but is unaffected by the native label's animation or constraints.
+         respawn.visible = false;
+         var text:String = respawn.text == null ? "" : respawn.text;
+         if(this._respawnText.text != text)
+         {
+            this._respawnText.text = text;
+         }
+         this._respawnText.visible = text.length > 0;
          style(this._pregame.contextText);
          var bottom:Number = hud.globalToLocal(units.localToGlobal(new Point(0,units.contentBottom))).y + 4;
          var bounds:Rectangle = this._pregame.contextText.getBounds(this._pregame);
@@ -77,9 +96,8 @@ package survarium.controls
             bottom += bounds.height + 6;
          }
          var anchor:Point = respawn.parent.globalToLocal(hud.localToGlobal(new Point(units.x,bottom)));
-         bounds = respawn.textField.getBounds(respawn);
-         respawn.x = Math.round(anchor.x - bounds.x - bounds.width / 2);
-         respawn.y = Math.round(anchor.y - bounds.y);
+         this._respawnText.x = Math.round(anchor.x - this._respawnText.width / 2);
+         this._respawnText.y = Math.round(anchor.y);
       }
 
       public function restore() : void
@@ -98,8 +116,11 @@ package survarium.controls
             field.y = saved.y;
             field.autoSize = saved.autoSize;
          }
-         respawn.x = this._respawnPosition.x;
-         respawn.y = this._respawnPosition.y;
+         if(this._respawnText.parent != null)
+         {
+            this._respawnText.parent.removeChild(this._respawnText);
+         }
+         respawn.visible = this._respawnVisible;
          this._pregame.x = this._pregamePosition.x;
          this._pregame.y = this._pregamePosition.y;
          this._pregame.layoutData.alignH = this._alignH;

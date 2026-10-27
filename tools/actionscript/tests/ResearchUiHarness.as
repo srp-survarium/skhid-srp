@@ -79,6 +79,7 @@ package
          cls = domain.getDefinition("DefaultLabel33") as Class;
          var respawn:* = new cls();
          indicator.addChild(respawn);
+         respawn.autoSize = "center";
          respawn.text = "Respawn in 00:10";
          respawn.validateNow();
          var oldSize:Object = respawn.textField.defaultTextFormat.size;
@@ -91,27 +92,60 @@ package
          cls = domain.getDefinition("survarium.controls.ResearchCountdownLayout") as Class;
          var placement:* = new cls(respawn,pregame);
          placement.place(points);
+         var countdown:TextField = indicator.getChildAt(indicator.numChildren - 1) as TextField;
+         check(countdown != null && !respawn.visible && respawn.textField.defaultTextFormat.size == oldSize,
+            "Research uses its own countdown without resizing the native label");
          check(pregame.contextText.getBounds(this).top >= points.getBounds(this).bottom + 3,
             "pre-match countdown clears the Research icons and capture timers");
-         check(respawn.textField.getBounds(this).top >= pregame.contextText.getBounds(this).bottom + 5,
+         check(countdown.getBounds(this).top >= pregame.contextText.getBounds(this).bottom + 5,
             "simultaneous countdowns do not overlap at a scaled indicator");
-         check(respawn.textField.defaultTextFormat.size == 18 && pregame.contextText.defaultTextFormat.size == 18,
+         check(countdown.defaultTextFormat.size == 18 && pregame.contextText.defaultTextFormat.size == 18,
             "Research countdown text is larger");
          pregame.visible = false;
          placement.place(points);
-         check(respawn.textField.getBounds(this).top >= points.getBounds(this).bottom + 3,
+         check(countdown.getBounds(this).top >= points.getBounds(this).bottom + 3,
             "respawn countdown keeps its own row after pre-match ends");
-         var withCapture:Number = respawn.textField.getBounds(this).top;
+         var withCapture:Number = countdown.getBounds(this).top;
          points.update([{cp_id:0,owner:0,capturing:0,progress:100,inside_0:0,inside_1:0,local:false,left:0}],0);
          placement.place(points);
-         var withoutCapture:Number = respawn.textField.getBounds(this).top;
+         var withoutCapture:Number = countdown.getBounds(this).top;
          check(withoutCapture < withCapture - 10,
             "a finished capture removes the hidden timer's empty row above respawn");
          var iconBottom:Number = points.getChildAt(0).getBounds(this).bottom;
          check(withoutCapture >= iconBottom + 3 && withoutCapture <= iconBottom + 6,
             "respawn sits close below the points when no capture timer is visible");
+         for each(var message:String in ["","Respawn in 00:10","Respawn in 00:09","","Respawn in 00:10"])
+         {
+            respawn.text = message;
+            placement.place(points);
+            check(countdown.text == message && countdown.visible == (message.length > 0),
+               "death/respawn text changes synchronously: " + message);
+            var width:Number = countdown.getBounds(this).width;
+            var left:Number = countdown.getBounds(this).left;
+            // CLIK can validate after our frame handler. It must not resize or
+            // shift the Research countdown on this frame or a subsequent death.
+            respawn.invalidateSize();
+            respawn.validateNow();
+            check(Math.abs(countdown.getBounds(this).width - width) < 0.01 &&
+               Math.abs(countdown.getBounds(this).left - left) < 0.01,
+               "late native validation cannot squeeze or shift the countdown");
+            if(message.length > 0)
+            {
+               check(countdown.width >= countdown.textWidth && countdown.textWidth > 60 &&
+                  Math.abs(countdown.getBounds(this).left + width / 2 - points.x) <= 0.5,
+                  "first death frame has full-width centred text");
+            }
+         }
+         for each(var frame:int in [1,10,11,20])
+         {
+            respawn.gotoAndStop(frame);
+            respawn.validateNow();
+            check(countdown.text == "Respawn in 00:10" && countdown.width >= countdown.textWidth &&
+               Math.abs(countdown.getBounds(this).width - width) < 0.01,
+               "native label animation cannot squeeze Research text at frame " + frame);
+         }
          placement.restore();
-         check(respawn.textField.defaultTextFormat.size == oldSize && respawn.y == oldY &&
+         check(countdown.parent == null && respawn.visible && respawn.textField.defaultTextFormat.size == oldSize && respawn.y == oldY &&
             pregame.layoutData.alignH == "center" && pregame.layoutData.alignV == "top",
             "leaving Research restores the other modes' timer style and layout");
          removeChild(points); removeChild(indicator); removeChild(pregame);

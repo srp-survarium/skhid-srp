@@ -314,3 +314,11 @@ the generic layout's initial viewport or the changing width of its labels; only 
 horizontal layout is overridden, and switching modes restores the stock alignment.
 Countdown spacing counts visible point graphics and timers only, with a 4 px gap:
 hidden capture timers cannot leave an empty row after the capture ends.
+
+The Research respawn text is a separate TextField under the score indicator. It
+reads the engine's label value synchronously, inherits the indicator's visibility
+and scale, and hides the original label only while Research owns the layout.
+Changing the original label's TextField auto-size fought CLIK's own sizing and
+timeline, producing a narrow flash on death. The separate field is unaffected by
+late label validation or animation; leaving Research removes it and restores the
+native label's visibility without changing that label's font or geometry.
