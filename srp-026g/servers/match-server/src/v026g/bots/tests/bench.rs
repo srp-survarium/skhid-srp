@@ -181,6 +181,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/honest_drops", true.into());
     }
+    // What a route's drop is for all its readers (`Feel::drop_truth`; the height test by default).
+    if settings.var("SRP_BENCH_DROP_TRUTH").is_ok_and(|v| v == "links") {
+        set(&mut tuning, "/feel/drop_truth", "links".into());
+    }
     // A planned drop unsafe at a sprint is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
     if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/drop_walk", true.into());
