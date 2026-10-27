@@ -33,6 +33,7 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+pub mod contact;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -211,6 +212,8 @@ pub struct Bot {
     sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
+    /// Whether it presses against something as it walks ([`contact`]), counted only.
+    contact: contact::ContactWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -394,6 +397,7 @@ impl Bot {
             stamina: stamina::Reckoning::default(),
             sent_keys: 0,
             rest: rest::RestWatch::default(),
+            contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
