@@ -182,11 +182,31 @@ pub(super) fn contacts() -> Box<dyn RouteTopic> {
     )
 }
 
-/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+/// The sprint at planned drops (`motor::drop_walks`): ticks let go of before a drop unsafe at a sprint, ticks skipped as
+/// safe, and hard falls after a drop crossed at a sprint.
 pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
     Delta::of(
-        || vec![super::super::motor::drop_walks::ticks()],
-        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+        || {
+            let mut all = super::super::motor::drop_walks::counts();
+            all.extend(super::super::motor::drop_walks::episodes());
+            all
+        },
+        |d, line| {
+            use super::super::motor::drop_walks::{SLICES, quantile};
+            let q = |k: usize, width: f32| {
+                let (from, len) = SLICES[k];
+                format!("{:.1}/{:.1}", quantile(&d[from..from + len], width, 0.5), quantile(&d[from..from + len], width, 0.9))
+            };
+            let e = d.len() - 2;
+            line.ends.push(format!(
+                "drop_walk_ticks released_unsafe/released_unknown {}/{} skipped_descent_by_walk {} drop_walk_safe_ticks {} drop_sprinted_hard_falls {} \
+                 drop_walk_episodes unsafe/unknown {}/{} no_edge {} unresolved {} \
+                 release_to_edge_s_p50/p90 {} release_to_edge_m_p50/p90 {} edge_to_sprint_s_p50/p90 {} landing_to_sprint_s_p50/p90 {}",
+                d[0], d[1], d[5], d[6], d[7],
+                d[e], d[e + 1], d[14], d[15],
+                q(0, 0.1), q(1, 0.25), q(2, 0.1), q(3, 0.1)
+            ));
+        },
     )
 }
 
