@@ -94,6 +94,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SPRINT_GAPS", "off", "`on` (or `1`) runs up to a sprint gap link (`Leap::SprintGap`) at a sprint, the run turning onto the jump's way, and presses it at speed (`Feel::sprint_gaps`); off by default: a walking gap jump"),
     s("SRP_BENCH_STRANDED_START", "off", "`on` (or `1`) lets a body that stands on no floor of the grid (on the top of an object) plan from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`); off by default: it has no route"),
     s("SRP_BENCH_UNCLEAR_AIM", "off", "`on` (or `1`): a walk whose look-ahead finds no point of the route it walks to in a line steers at a clear one back of its progress, or plans again (`Feel::unclear_aim`); off, it steers at the unclear point"),
+    s("SRP_BENCH_FLOOR_HEIGHT", "off", "`on` (or `1`): the walk's tests of the ground ask at the route's floor heights, not at the line between each leg's ends (`Feel::floor_height_clear`)"),
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.

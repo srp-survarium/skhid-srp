@@ -59,7 +59,10 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
                 "jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {}",
                 d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
             ));
-            line.tail.push(format!("look_unclear {} look_unclear_back {} look_unclear_off {}", d[8], d[9], d[10]));
+            line.tail.push(format!(
+                "look_unclear {} look_unclear_back {} look_unclear_off {} look_cut_false {} look_unclear_floor {}",
+                d[8], d[9], d[10], d[11], d[12]
+            ));
         },
     )
 }

@@ -93,6 +93,16 @@ pub struct Waypoint {
     pub low: bool,
 }
 
+/// The height a point of a route is given ([`Route::at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RouteHeight {
+    /// On the line between the legs' ends ([`Route::point_at`]): over a hump of the floor (a deck the leg crosses
+    /// between two lower ends) it is up to the hump's height under the floor.
+    Chord,
+    /// On the floor the route walks ([`Route::floor_point`]).
+    Floor,
+}
+
 #[derive(Clone, Debug)]
 pub struct Route {
     points: Vec<Waypoint>,
@@ -946,6 +956,21 @@ impl Route {
             .iter()
             .map(|&(_, y)| y)
             .fold(self.floor_at(s0).max(self.floor_at(s1)), f32::max)
+    }
+
+    /// The point `s` metres along the route at the given height.
+    pub fn at(&self, s: f32, height: RouteHeight) -> Vec3 {
+        match height {
+            RouteHeight::Chord => self.point_at(s),
+            RouteHeight::Floor => self.floor_point(s),
+        }
+    }
+
+    /// A route by its corners over the floors' heights `floors` (distance along it, height), as the planner makes
+    /// them: the tests' hump.
+    #[cfg(test)]
+    pub fn over_floors(points: Vec<Waypoint>, floors: Vec<(f32, f32)>) -> Self {
+        Self::with_floors(points, floors)
     }
 
     /// The point `s` metres along the route on its floor.
