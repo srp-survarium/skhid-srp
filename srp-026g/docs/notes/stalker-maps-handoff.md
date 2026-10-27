@@ -6,6 +6,45 @@ where it is, what is open and how to build the next pack are all below.
 Experimental Pool is `cs-mp_bath`, maps_dict 210. Military Warehouses is
 `cs-mp_military_1`, maps_dict 211.
 
+## Ground relief checkpoint (later on 2026-10-27)
+
+**The current feature pack is @6.** This supersedes the earlier @4 checkpoint
+below. The owner's first reported surface was Military Warehouses outdoor
+ground. Its installed Clear Sky terrain shaders use strengthened normal maps,
+not terrain parallax. The port missed the THM detail scale (57, previously the
+fallback 142), weakened terrain normals and retained unrelated template height
+maps. These are fixed in resource-porter commit `d92d7cc`, branch
+`fix/stalker-ground-relief`, based on `stalker-maps-026`:
+[draft resource-porter PR #14](https://github.com/srp-survarium/resource-porter/pull/14).
+
+- Persistent source worktree: `/mnt/hdd/Projects/stalker-maps-026/porter-ground`.
+  This filesystem has executable-mode noise; use `git -c core.fileMode=false`
+  for status/diff/staging. Binary: `target-ground/release/vostok-port`.
+- Candidate artifacts: `out-ground-v6/`; corrected donor SHA-256:
+  `7877c0616a665dd3dd61453f5aa05f6a45980ada224a0f72b5bef2dabf68c96b`.
+- Local private pack: `stalker-maps-6`; pack.json SHA-256:
+  `ceb6ae661dda93e24f62d5c59a5cfba68cc9d4e3cd2e34d2eba1b52d99bd17cb`.
+- Validated content: `content-rev32-ground-v6/resources.db.patch_32`, SHA-256
+  `f2b089f9885e2deaedb12cc9c7d98d6f944d946602ea352617e8013ddfaea624`.
+  Use the matching `server-game-data.db` from that same directory.
+- Evidence, logs and matching headless road/grass screenshots:
+  `analysis-bath/ground-relief/{before,after}/`. Captures completed successfully
+  and show stronger asphalt and exposed-grass relief. The wrapper `capture.py`
+  uses its adjacent `poses.json`; set `STALKER_GAME_DATA` to the matching DB.
+  It imports the existing preview worker's script listed below.
+- All 12,981 content manifest files passed archive readback. Porter tests passed
+  (346 library + one tool; final X-Ray subset 153), resources-db tests 3 passed,
+  and library Clippy passed. Workspace Clippy and rustfmt have existing unrelated
+  failures. See `porter-ground/docs/soc-deathmatch-026.md` for shader details.
+
+Only Military Warehouses was rebuilt. The other five maps and all layouts are
+from @4; **the Experimental Pool cave-in is still absent**. The target normal
+blend is an approximation of Clear Sky's blend, not identical source lighting.
+@5 in `out-ground/` failed native material-type validation and must not be used.
+Do not rebuild @6 in place. Use version **7 or newer** for subsequent changes.
+The cave-in recipe below now uses the corrected donor, so it preserves this fix.
+Neither these artifacts nor the maps have been merged or deployed.
+
 ## Rules that apply to every step
 
 - **One GPU, one game.** Start a game, or capture with `previews.py`, only while
@@ -75,7 +114,8 @@ All are under `/mnt/hdd/Projects/stalker-maps-026/`.
 | path | built from | use |
 | --- | --- | --- |
 | `target/release/vostok-port` | the grass commits, 2026-10-26 20:28 | `VP` in `env.sh`. It **can't** read 823b2fe's `maps.json`: the spec rejects unknown fields and fails on `rotation`. |
-| `target-roof/release/vostok-port` | 823b2fe, 2026-10-27 | the one to use for @5 |
+| `target-ground/release/vostok-port` | d92d7cc, 2026-10-27 | terrain fix plus the cave-in importer |
+| `target-roof/release/vostok-port` | 823b2fe, 2026-10-27 | historical cave-in-only binary |
 | `target-packs/release/vostok-port` | `porter-packs` | `PACK_VP` (`pack from-bundle`, `pack check`) |
 
 To rebuild, from the porter worktree:
@@ -128,10 +168,11 @@ with `previews.py setup` (its docstring lists the arguments).
 
 ## Pack state
 
-- **@4 is the current pack** (`release/content.tsv`: `stalker-maps@4`,
+- **@4 was the earlier pack** (the former `release/content.tsv` row: `stalker-maps@4`,
   `ade4843d…`). It has the grass with the detail normals on Experimental Pool
   and Military Warehouses, and Experimental Pool's new spots. Its content patch
-  is `content-rev32-grass-spots`. None of it has been tested in game yet.
+  is `content-rev32-grass-spots`. Military Warehouses was subsequently captured
+  in game as the ground-fix baseline.
 - **The cave-in (823b2fe) is in no pack.** It has only been imported once, in
   `out-roof/`, and checked on that built map:
   - the five cuts removed the roof slab, and the importer logs which surfaces
@@ -144,19 +185,20 @@ with `previews.py setup` (its docstring lists the arguments).
   `sheet_current.png` (before), `sheet_A.png` (the first try, a clean cut) and
   `sheet_A2.png` (the cave-in, the owner's pick).
 
-## How to build @5 (@4 plus the cave-in)
+## How to build @7 (@6 plus the cave-in)
 
-823b2fe changes only the 0.26g import step. The 0.10b bundles and the donor
-from @4 (`out-grass/`) are still valid. You only need to run `port-map.sh` if
+The cave-in changes only the 0.26g import step. Reuse the corrected donor
+from @6 (`out-ground-v6/`) and the mixed bundles shown below. You only need to
+run `port-map.sh` if
 a recipe or the level conversion changes, for example a fix for the concrete
 corners below.
 
-1. Build the binary, if `target-roof` isn't from the commit you build:
+1. Build the binary, if `target-ground` isn't from the commit you build:
 
    ```
-   cd /mnt/hdd/Projects/stalker-maps-026/porter
-   git log --oneline -1          # 823b2fe or later
-   CARGO_TARGET_DIR=/mnt/hdd/Projects/stalker-maps-026/target-roof nix develop -c cargo build --release --bin vostok-port
+   cd /mnt/hdd/Projects/stalker-maps-026/porter-ground
+   git log --oneline -1          # d92d7cc or later
+   CARGO_TARGET_DIR=/mnt/hdd/Projects/stalker-maps-026/target-ground nix develop -c cargo build --release --bin vostok-port
    ```
 
 2. Only if the 0.10b conversion changed: run the two grass maps' bundles, then
@@ -165,7 +207,7 @@ corners below.
 
    ```
    . ../env.sh
-   export OUT=/mnt/hdd/Projects/stalker-maps-026/out-5 VP=/mnt/hdd/Projects/stalker-maps-026/target-roof/release/vostok-port
+   export OUT=/mnt/hdd/Projects/stalker-maps-026/out-7 VP=/mnt/hdd/Projects/stalker-maps-026/target-ground/release/vostok-port
    bash scripts/stalker-tdm/port-map.sh cs-mp_bath --no-pack
    bash scripts/stalker-tdm/port-map.sh cs-mp_military_1 --no-pack
    ```
@@ -174,23 +216,24 @@ corners below.
    from `out-grass/bundles/` (`ln -s`). Then run step 3 **without**
    `--keep-donor`, because the donor must be composed again.
 
-3. The pack. Without step 2, reuse `out-grass`'s bundles and donor through
-   symlinks:
+3. The pack. Without step 2, reuse @4's bundles, @6's Military Warehouses
+   bundle and @6's donor through symlinks:
 
    ```
    . ../env.sh
-   O=/mnt/hdd/Projects/stalker-maps-026/out-5; mkdir -p $O/bundles $O/donor
+   O=/mnt/hdd/Projects/stalker-maps-026/out-7; mkdir -p $O/bundles $O/donor
    for b in ../out-grass/bundles/*; do ln -sfn "$(realpath $b)" $O/bundles/$(basename $b); done
-   ln -sfn "$(realpath ../out-grass/donor/stalker-maps.db)" $O/donor/stalker-maps.db
-   export OUT=$O VP=/mnt/hdd/Projects/stalker-maps-026/target-roof/release/vostok-port
-   bash scripts/stalker-tdm/build-pack.sh --version 5 --keep-donor > $O/build-pack.log 2>&1
+   ln -sfn "$(realpath ../out-ground-v6/bundles/cs-mp_military_1)" $O/bundles/cs-mp_military_1
+   ln -sfn "$(realpath ../out-ground-v6/donor/stalker-maps.db)" $O/donor/stalker-maps.db
+   export OUT=$O VP=/mnt/hdd/Projects/stalker-maps-026/target-ground/release/vostok-port
+   bash scripts/stalker-tdm/build-pack.sh --version 7 --keep-donor > $O/build-pack.log 2>&1
    tail -3 $O/build-pack.log    # "map 210 cs_mp_bath: 12+12 spawns, 2 stashes; 1 walker_ramps, 12 props, 5 cuts" and the pack's pack.json sha256
    ```
 
 4. Copy the pack to the packs folder:
-   `cp -r $O/packs/stalker-maps-5 "$SKHID_PACKS_DIR/"`.
+   `cp -r $O/packs/stalker-maps-7 "$SKHID_PACKS_DIR/"`.
 5. Change the row in `release/content.tsv` (on `feat/stalker-maps`): the name
-   becomes `stalker-maps@5` and the sha becomes the new `pack.json` sha256.
+   becomes `stalker-maps@7` and the sha becomes the new `pack.json` sha256.
    Add the cave-in to the row's description.
 6. Build the content patch. In this branch `release/patches.tsv` ends at 31, so
    the revision is 32.
@@ -294,7 +337,7 @@ Next steps:
   porter's `soc-probe-level`).
 - Fix it as a general porter step with a test, since the same fault would be
   on every ported map. Then run `port-map.sh` for every map that changes, and
-  build @5 as above, without `--keep-donor`.
+  build @7 as above, without `--keep-donor`.
 
 ## Open owner decisions
 
