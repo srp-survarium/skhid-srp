@@ -918,7 +918,7 @@ impl Bots {
     /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
-        std::mem::take(&mut self.layers).attach(&mut tactics);
+        let routes_moved = std::mem::take(&mut self.layers).attach(&mut tactics, self.tuning.grid.snap_routes_walked);
         tactics.escape = self.tuning.hazard.escape;
         tactics.clear_step_sees_lip = self.tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
@@ -943,8 +943,13 @@ impl Bots {
         self.tracker.set_containers(containers);
         let sides: std::collections::BTreeSet<i32> =
             tactics.world.map.spawns.iter().map(|s| s.team).collect();
+        let moved = if self.tuning.grid.snap_routes_walked {
+            format!("; {routes_moved} route points put on the walked side of a wall")
+        } else {
+            String::new()
+        };
         let summary = format!(
-            "{} damage zones over {} floors; exits by side {:?}; human routes by side {:?}",
+            "{} damage zones over {} floors; exits by side {:?}; human routes by side {:?}{moved}",
             tactics.hazards.zones.len(),
             tactics.hazards.marked(),
             sides

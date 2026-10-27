@@ -74,6 +74,7 @@ mod live_zones;
 mod no_way;
 mod opening;
 mod pocket_runs;
+mod route_snap;
 mod settings;
 mod sight;
 mod soak;

@@ -410,6 +410,21 @@ seed run, batteries 4-5 falls on route 63.8 → 62.6 (z −2.2) and kills
 within 2 SE. On level_05 (32 matches a cell) falls on route −19, 0, −4 and
 legs with no way +116, −382, −969 by tier; no time in pockets either side.
 
+**Route points on the walked side of a wall (`grid.snap_routes_walked`, 2026-10-27).** A median point of a
+route can lie a few decimetres past a thin wall, and the floor nearest it is then the far side's:
+Tarakanovsky Fort route 88's point 2 is (-10.40, 18.00), 0.36 m past a 3.8 m wall (z 17.64); the humans'
+deck ends at z 17.2-17.6 and beyond the wall they stand at y 4-6.5, never at 8.5-9.2 (reach, 0 of 75 samples).
+The nearest floor, a strip at (-10.38, 8.51, 18.16), was a 94 m walk from the point before it (24 m to the
+deck's floor at (-10.38, 8.30, 17.16)) once #660 removed the two gap links that hopped the wall. With the switch
+on, `Tactics::set_routes_with` takes each point after the first: if a floor within 1 m of it is not reached
+from the nearest floor by a local walk (3 m, the grid's links: across a wall or a drop) and the way from the
+point before to the nearest is over twice the straight line (at least 10 m), the point goes on the across floor
+with the shortest way when it saves 40 %. Off (the default): the nearest floor, as before. Measured on the 231
+release routes (real maps, grids off and with gap links and client numbers): one point moves, route 88's, to
+(-10.88, 8.36, 17.16); the routes check (hard checks / every check) 221 / 198 off and 222 / 195 on become 221 / 198
+and 222 / 196, route 88's jumps and detour failures gone; the walked-side step costs 83 ms for all 231 routes at
+load (5.7 s without the local-walk prefilter, which leaves the planner to the points that have a floor across a wall).
+
 **Route points with the players' height (3D route points, 2026-10-25).** A route row may
 carry `heights`: the players' feet height at each point, `null` where unknown (no format
 bump; a server without this code ignores the key and plays as before). `on_floors` puts a

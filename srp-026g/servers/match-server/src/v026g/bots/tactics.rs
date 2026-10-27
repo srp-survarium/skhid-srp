@@ -63,6 +63,22 @@ const STEP_OUT_FLOORS: usize = 12_000;
 /// taken only if it is this much farther than where the body stands, metres.
 const STEP_OUT_GAIN_M: f32 = 0.5;
 
+/// A route point whose way from the point before is more than this many times the straight line (but at least
+/// [`SNAP_MIN_STRAIGHT_M`] of it) is looked at for a floor on the side the humans walked
+/// ([`Tactics::set_routes_with`]). GUESS: the walk check's soft limit is 1.5; the one point found
+/// (Tarakanovsky Fort route 88) had 4.3.
+const SNAP_DETOUR: f32 = 2.0;
+/// The straight line the detour is reckoned against is at least this long, m (a short leg round a corner is no detour).
+const SNAP_MIN_STRAIGHT_M: f32 = 10.0;
+/// The other floors a point may take are within this of it (x, z), m: a median point 0.36 m past a wall is a metre
+/// from the floor of the other side (reach, 2026-10-27).
+const SNAP_NEAR_M: f32 = 1.0;
+/// The other floor must save this share of the way, or the nearest stays.
+const SNAP_SAVES: f32 = 0.6;
+/// A floor within this far (x, z) of the nearest one that a walk of the grid's links reaches inside that circle is on
+/// the nearest floor's side; one it does not reach is across something (a wall, a drop), m.
+const SNAP_SIDE_M: f32 = 3.0;
+
 /// [`Tactics::ledge_ahead`]: a ledge to jump up is looked for from this far
 /// ahead of the stuck body …
 const LEDGE_NEAR_M: f32 = 0.2;
@@ -707,11 +723,87 @@ impl Tactics {
     /// The human routes of this map and mode, put on its floors; a route
     /// left with no point is dropped.
     pub fn set_routes(&mut self, routes: Vec<super::routes::HumanRoute>) {
-        self.routes = routes
+        self.set_routes_with(routes, false);
+    }
+
+    /// [`Self::set_routes`], and with `walked` a point goes on the side of a wall the route walks: each point after
+    /// the first, whose way from the point before (planned as a bot of the route's side plans) is more than
+    /// [`SNAP_DETOUR`] times the straight line, takes of the floors within [`SNAP_NEAR_M`] of it
+    /// ([`super::routes::HumanRoute::floors_for`]) the one with the shortest way, when that saves
+    /// [`SNAP_SAVES`] of it. The nearest floor can lie across a thin wall from the deck the humans walked: Fort route
+    /// 88's point 2 is 0.36 m past a 3.8 m wall and its nearest floor is the street side, a 94 m walk from the
+    /// deck's 24 m. Returns the points moved.
+    pub fn set_routes_with(&mut self, routes: Vec<super::routes::HumanRoute>, walked: bool) -> usize {
+        use super::routes::HumanRoute;
+        let mut moved = 0;
+        let snapped: Vec<HumanRoute> = routes
             .into_iter()
-            .map(|route| route.on_floors(&self.world.grid))
+            .map(|mut route| {
+                if !walked {
+                    return route.on_floors(&self.world.grid);
+                }
+                let mut points: Vec<Vec3> = Vec::with_capacity(route.points.len());
+                for &p in &route.points {
+                    let floors = HumanRoute::floors_for(&self.world.grid, p);
+                    let Some(&nearest) = floors.first() else {
+                        continue;
+                    };
+                    let mut pick = nearest;
+                    // The floors a metre from the point that the nearest floor's side does not reach: across a wall.
+                    if let Some(&before) = points.last() {
+                        let across = self.across_from(nearest, floors.iter().filter(|at| at.distance_xz(p) <= SNAP_NEAR_M));
+                        if !across.is_empty() {
+                            let way = |to: Vec3| {
+                                self.route(before, to, 0, Some(route.team))
+                                    .map_or(f32::INFINITY, |way| way.length())
+                            };
+                            let straight = before.distance_xz(nearest).max(SNAP_MIN_STRAIGHT_M);
+                            let first = way(nearest);
+                            if first > SNAP_DETOUR * straight {
+                                let best = across
+                                    .into_iter()
+                                    .map(|at| (way(at), at))
+                                    .min_by(|a, b| a.0.total_cmp(&b.0));
+                                if let Some((len, at)) = best
+                                    && len < SNAP_SAVES * first
+                                {
+                                    pick = at;
+                                    moved += 1;
+                                }
+                            }
+                        }
+                    }
+                    points.push(pick);
+                }
+                route.points = points;
+                route
+            })
             .filter(|route| !route.points.is_empty())
             .collect();
+        self.routes = snapped;
+        moved
+    }
+
+    /// Of `floors`, those a walk over the grid's links from `from` does not reach within [`SNAP_SIDE_M`] of it (x, z):
+    /// the floors on the other side of a wall or a drop.
+    fn across_from<'a>(&self, from: Vec3, floors: impl Iterator<Item = &'a Vec3>) -> Vec<Vec3> {
+        let grid = &self.world.grid;
+        let Some(start) = grid.locate(from, 0.3) else {
+            return Vec::new();
+        };
+        let mut seen = std::collections::HashSet::from([start]);
+        let mut queue = vec![start];
+        while let Some(node) = queue.pop() {
+            for (to, _) in grid.links(node) {
+                if grid.position(to).distance_xz(from) <= SNAP_SIDE_M && seen.insert(to) {
+                    queue.push(to);
+                }
+            }
+        }
+        floors
+            .filter(|at| grid.locate(**at, 0.3).is_some_and(|node| !seen.contains(&node)))
+            .copied()
+            .collect()
     }
 
     /// The humans' perches of this map (and their share of time), each put on

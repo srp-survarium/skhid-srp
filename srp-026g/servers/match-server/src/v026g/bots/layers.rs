@@ -20,11 +20,13 @@ pub(super) struct MapLayers {
 }
 
 impl MapLayers {
-    /// Each layer on the tactics of the built map.
-    pub(super) fn attach(self, tactics: &mut Tactics) {
-        tactics.set_routes(self.routes);
+    /// Each layer on the tactics of the built map; with `walked_routes` the route points go on the side of a wall the
+    /// route walks (`GridTuning::snap_routes_walked`). Returns the route points that moved for it.
+    pub(super) fn attach(self, tactics: &mut Tactics, walked_routes: bool) -> usize {
+        let moved = tactics.set_routes_with(self.routes, walked_routes);
         tactics.set_perches(self.perches, self.perch_share);
         tactics.foliage = Arc::new(self.foliage);
         tactics.grass = Arc::new(self.grass);
+        moved
     }
 }

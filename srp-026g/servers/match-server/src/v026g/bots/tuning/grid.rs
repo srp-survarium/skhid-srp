@@ -34,6 +34,12 @@ pub struct GridTuning {
     /// a chain of harmless steps below an edge is one fall of 7.5 m (the team 1 spawn deck on Chemical Plant, A95).
     /// Off (the default until the phase-end smoke turns it on): the cell model. A grid is the map's (see `gap_links`).
     pub honest_drops: bool,
+    /// Whether a route point goes on the side of a wall the humans walked: each point whose way from the point before
+    /// is more than twice the straight line takes, of the floors within a metre of it, the one with the shortest way
+    /// (`Tactics::set_routes_with`). Off (the default): the nearest floor of the point's level, which a thin wall can put
+    /// on the far side (Tarakanovsky Fort route 88's point 2 is 0.36 m past a 3.8 m wall: a 94 m walk, not 24 m).
+    /// Read when the match's map layers are put on the tactics, not when the grid is built.
+    pub snap_routes_walked: bool,
 }
 
 /// How fast a body walks off a ledge, m/s: the walk (3.5, `kin`); the bots' motor walks planned drops (`Feel::drop_walk`).

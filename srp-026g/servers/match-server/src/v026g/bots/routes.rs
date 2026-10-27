@@ -294,6 +294,19 @@ impl HumanRoute {
     ///
     /// A point with no floor near (off the walkable map) is dropped.
     pub fn on_floors(mut self, grid: &WalkGrid) -> Self {
+        self.points = self
+            .points
+            .iter()
+            .filter_map(|&p| Self::floors_for(grid, p).first().copied())
+            .collect();
+        self
+    }
+
+    /// The floors [`Self::on_floors`] chooses from for the point `p`, nearest `p` (in x, z) first: the floors of the
+    /// level its height names (the nearest in height and those within 0.5 m of it), or without a usable height the
+    /// lowest ones. Several, since a thin wall puts floors of two sides of it within a metre of the point
+    /// (`Tactics::set_routes_with` takes the side the route walks).
+    pub fn floors_for(grid: &WalkGrid, p: Vec3) -> Vec<Vec3> {
         let near = |p: Vec3, r: f32| -> Vec<Vec3> {
             grid.floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
                 .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
@@ -311,33 +324,31 @@ impl HumanRoute {
                     .map(|at| (at.y - p.y).abs())
                     .fold(f32::INFINITY, f32::min);
                 (off <= HEIGHT_OFF_M).then_some(())?;
-                floors
+                let mut level: Vec<Vec3> = floors
                     .into_iter()
                     .filter(|at| (at.y - p.y).abs() <= off + 0.5)
-                    .min_by(nearest_xz(p))
+                    .collect();
+                level.sort_by(nearest_xz(p));
+                (!level.is_empty()).then_some(level)
             })
         };
         let lowest = |p: Vec3| {
             [2.0f32, 5.0].iter().find_map(|&r| {
                 let floors = near(p, r);
                 let lowest = floors.iter().map(|at| at.y).fold(f32::INFINITY, f32::min);
-                floors
+                let mut level: Vec<Vec3> = floors
                     .into_iter()
                     .filter(|at| at.y <= lowest + 1.0)
-                    .min_by(nearest_xz(p))
+                    .collect();
+                level.sort_by(nearest_xz(p));
+                (!level.is_empty()).then_some(level)
             })
         };
-        self.points = self
-            .points
-            .iter()
-            .filter_map(|&p| {
-                p.y.is_finite()
-                    .then(|| by_height(p))
-                    .flatten()
-                    .or_else(|| lowest(p))
-            })
-            .collect();
-        self
+        p.y.is_finite()
+            .then(|| by_height(p))
+            .flatten()
+            .or_else(|| lowest(p))
+            .unwrap_or_default()
     }
 }
 
