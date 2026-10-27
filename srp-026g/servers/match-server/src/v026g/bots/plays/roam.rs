@@ -753,10 +753,10 @@ mod tests {
         // About 0.89 against 0.69 of a weight: 56 % south.
         assert!(south > north + 30, "{north} {south}");
         assert!(north > 100, "still drawn: {north} {south}");
-        // Switched off (the default), the start's distance weighs nothing.
+        // Switched off (the default), the start's distance weighs nothing: the south route is drawn less.
         s.number(PlayKind::Roam, "join_ahead", 0.0);
-        let (north, south) = draws(&s, 600);
-        assert!(south < north + 30, "{north} {south}");
+        let (_, south_off) = draws(&s, 600);
+        assert!(south_off + 20 < south, "{south_off} {south}");
     }
 
     #[test]
