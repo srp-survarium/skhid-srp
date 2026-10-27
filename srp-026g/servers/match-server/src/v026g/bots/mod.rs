@@ -1380,20 +1380,19 @@ impl Bots {
     }
 
     /// What the weapon mods did to the bots' reloads, over all the bots and
-    /// lives (`guns.rs`), and how many bots now hold a modded weapon.
-    pub fn mod_counts(&self) -> (guns::ModCounts, u32) {
+    /// lives (`guns.rs`), and which bots now hold a modded weapon, by what is
+    /// modded and whether past what a player can have.
+    pub fn mod_counts(&self) -> (guns::ModCounts, guns::HeldMods) {
         let mut sum = guns::ModCounts::default();
-        let mut modded = 0;
+        let mut held = guns::HeldMods::default();
         for bot in self.bots.iter().flatten() {
             sum.add(&bot.features.weapon_mods.0);
             sum.add(&bot.reflex.mod_counts());
-            modded += u32::from(
-                bot.reflex
-                    .arms()
-                    .is_some_and(|arms| arms.primary.0.is_modded()),
-            );
+            if let Some(arms) = bot.reflex.arms() {
+                held.add(arms.primary.0);
+            }
         }
-        (sum, modded)
+        (sum, held)
     }
 
     /// The inputs due with the clock at `clock`.

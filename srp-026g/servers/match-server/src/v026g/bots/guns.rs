@@ -404,6 +404,51 @@ impl ModCounts {
     }
 }
 
+/// The least a human's reload time is of the weapon's base: the weapon's
+/// -15 % (2044) over the most reload speed a player sums, +27 % (skill 108 at
+/// 0.12 and gloves 1144 at 0.15; `fact-weapon-mods.md` §3.2).
+pub const HUMAN_MIN_RELOAD_RATIO: f32 = 0.85 / 1.27;
+/// The least a human's aim time is of the weapon's base: skill 101 (-10 %)
+/// and gloves 1084 (-10 %).
+pub const HUMAN_MIN_AIM_RATIO: f32 = 0.80;
+
+/// [measure] The bots that now hold a modded weapon, by what is modded, and
+/// those whose weapon is modded past what a player can have
+/// ([`HUMAN_MIN_RELOAD_RATIO`], [`HUMAN_MIN_AIM_RATIO`]): the harm, which the
+/// owner's table keeps at 0.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HeldMods {
+    /// Bots holding a [`Gun::is_modded`] weapon.
+    pub bots: u32,
+    /// ... of them with a shorter reload, a shorter aim time, another rate of
+    /// fire, another bolt time.
+    pub reload: u32,
+    pub aim: u32,
+    pub rate: u32,
+    pub chamber: u32,
+    /// ... with a reload or an aim time shorter than a player can have.
+    pub out_of_range: u32,
+}
+
+impl HeldMods {
+    /// A bot holding `held`.
+    pub fn add(&mut self, held: &Gun) {
+        let Some(base) = gun(held.item).filter(|base| *base != held) else {
+            return;
+        };
+        let ratio = |now: u32, then: u32| if then == 0 { 1.0 } else { now as f32 / then as f32 };
+        let reload = ratio(held.reload_ms(0, held.magazine), base.reload_ms(0, base.magazine));
+        let aim = ratio(held.aim_ms, base.aim_ms);
+        self.bots += 1;
+        self.reload += u32::from(held.reload != base.reload);
+        self.aim += u32::from(held.aim_ms != base.aim_ms);
+        self.rate += u32::from(held.rpm != base.rpm);
+        self.chamber += u32::from(held.chamber_ms != base.chamber_ms);
+        self.out_of_range +=
+            u32::from(reload < HUMAN_MIN_RELOAD_RATIO - 0.005 || aim < HUMAN_MIN_AIM_RATIO - 0.005);
+    }
+}
+
 /// What a bot banks of its [`ModCounts`] when its reflex is made anew at a life
 /// (`BotFeatures`); the live reflex has the rest.
 #[derive(Clone, Copy, Debug, Default)]
@@ -1146,6 +1191,37 @@ mod tests {
                 loops_cut_modded: 2,
             }
         );
+    }
+
+    #[test]
+    fn the_held_mods_count_what_is_modded_and_what_is_past_a_players_reach() {
+        let none = Factors::default();
+        let mut held = HeldMods::default();
+        held.add(gun("ak_74u").unwrap());
+        assert_eq!(held, HeldMods::default());
+        // The owner's 13-15 rusher: weapon -12 %, gloves +10 %, skill 101 -10 %.
+        let owners = Factors { reload_speed: 0.10, aim_time: -0.10 };
+        let mut held = HeldMods::default();
+        held.add(gun_with("ak_74u", &[2043], owners).unwrap());
+        held.add(gun_with("ak_74u", &[2061], none).unwrap());
+        assert_eq!(
+            held,
+            HeldMods { bots: 1, reload: 1, aim: 1, rate: 0, chamber: 0, out_of_range: 0 }
+        );
+        // A rate of fire and a bolt are counted by what they change.
+        held.add(gun_with("ak_74u", &[2034], none).unwrap());
+        held.add(gun_with("mosin_nagant", &[2054], none).unwrap());
+        assert_eq!((held.bots, held.rate, held.chamber), (3, 1, 1));
+        // A reload past a player's most (-15 % and +27 % speed): 0.5 of the base.
+        let absurd = Factors { reload_speed: 1.0, aim_time: 0.0 };
+        let mut held = HeldMods::default();
+        held.add(gun_with("ak_74u", &[], absurd).unwrap());
+        assert_eq!((held.reload, held.out_of_range), (1, 1));
+        // The most a player has is not past it.
+        let most = Factors { reload_speed: 0.27, aim_time: -0.20 };
+        let mut held = HeldMods::default();
+        held.add(gun_with("ak_74u", &[2044], most).unwrap());
+        assert_eq!(held.out_of_range, 0);
     }
 
     /// The SPAS-12 with `rounds` in it and `spare` to load.
