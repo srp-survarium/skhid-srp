@@ -691,7 +691,8 @@ impl JumpCounts {
             if SEEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 2000 {
                 continue;
             }
-            let rec = &run.recs[run.index(p.t).min(run.recs.len() - 1)];
+            let place_recs = &run.recs[p.place];
+            let rec = &place_recs[run.index(p.t).min(place_recs.len() - 1)];
             let (dx, dz) = (to.x - from.x, to.z - from.z);
             let len = dx.hypot(dz).max(1e-3);
             let (ux, uz) = (dx / len, dz / len);
