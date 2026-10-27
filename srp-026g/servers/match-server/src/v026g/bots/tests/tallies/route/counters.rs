@@ -250,6 +250,13 @@ pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
                 at(FaceStill),
                 at(Repicked)
             ));
+            // The faces with the most presses and backed-off arrivals so far (all the run's, not this tally's change).
+            let faces = super::super::motor::band_jumps::top_faces(6)
+                .into_iter()
+                .map(|((x, z, y), n)| format!("{x}/{z}/{}:{}/{}/{}/{}", y * 2, n[0], n[1], n[2], n[3]))
+                .collect::<Vec<_>>()
+                .join(" ");
+            line.ends.push(format!("band_faces x/z/y:press/refused/up/gave_up {faces}"));
         },
     )
 }

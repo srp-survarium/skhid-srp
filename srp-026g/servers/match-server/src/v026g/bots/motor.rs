@@ -1313,6 +1313,7 @@ impl Motor {
             {
                 t.sprint_counted = true;
                 sprint_jumps::up(landing.y - take_off.y);
+                band_jumps::face(take_off, landing.y - take_off.y, band_jumps::Event::Up);
             }
             if sprint_gap
                 && let Some(t) = self.jump_try.as_mut()
@@ -1371,6 +1372,7 @@ impl Motor {
             if sprint_ledge && !jump.sprint_counted {
                 jump.sprint_counted = true;
                 sprint_jumps::gave_up(landing.y - take_off.y);
+                band_jumps::face(take_off, landing.y - take_off.y, band_jumps::Event::GaveUp);
                 if band {
                     self.band_gave_up = Some(GaveUp { take_off, at: self.clock });
                 }
@@ -1537,6 +1539,7 @@ impl Motor {
             }
             self.jump_try = Some(jump);
             band_jumps::refused(block, self.sprinting);
+            band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
         }
         jump.tries += 1;
@@ -1556,6 +1559,7 @@ impl Motor {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
             if ahead.rise > WALK_JUMP_TOP_M {
                 band_jumps::pressed(speed, self.sprinting);
+                band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Press);
             }
         }
         if ahead.run_through {
@@ -2018,6 +2022,38 @@ pub mod band_jumps {
     /// The counts, by [`Slot`].
     pub fn counts() -> [u64; COUNT] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+
+    /// What happened at a face.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Event {
+        Press,
+        Refused,
+        Up,
+        GaveUp,
+    }
+
+    /// Per face (the take-off's metre bin: x, z, y in 2 m), the presses, the arrivals backed off from, the times it was
+    /// got up and given up; the faces of a rise over [`super::WALK_JUMP_TOP_M`] only.
+    static FACES: std::sync::Mutex<std::collections::BTreeMap<(i32, i32, i32), [u32; 4]>> =
+        std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+    pub fn face(take_off: super::Vec3, rise: f32, event: Event) {
+        if rise <= super::WALK_JUMP_TOP_M {
+            return;
+        }
+        if let Ok(mut faces) = FACES.lock() {
+            let key = (take_off.x.floor() as i32, take_off.z.floor() as i32, (take_off.y / 2.0).floor() as i32);
+            faces.entry(key).or_default()[event as usize] += 1;
+        }
+    }
+
+    /// The `n` faces with the most presses and arrivals backed off from: ((x, z, y/2), [presses, refused, up, gave up]).
+    pub fn top_faces(n: usize) -> Vec<((i32, i32, i32), [u32; 4])> {
+        let mut faces: Vec<_> = FACES.lock().map(|f| f.iter().map(|(&k, &v)| (k, v)).collect()).unwrap_or_default();
+        faces.sort_by(|a, b| (b.1[0] + b.1[1]).cmp(&(a.1[0] + a.1[1])).then(a.0.cmp(&b.0)));
+        faces.truncate(n);
+        faces
     }
 }
 
