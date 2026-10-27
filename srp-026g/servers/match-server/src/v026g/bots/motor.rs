@@ -1074,7 +1074,7 @@ impl Motor {
                 .into_iter()
                 .find(|&m| clear(at(m)))
                 .unwrap_or(0.0),
-            Leap::Gap(press) => {
+            Leap::Gap(press) | Leap::SprintGap(press) => {
                 let m = press.metres() + mapdata::grid::gap::GAP_RUN_UP_M;
                 if clear(at(m)) { m } else { press.metres() }
             }
@@ -1166,7 +1166,7 @@ impl Motor {
         // point (where the grid found the client's jump lands it).
         let near = match ahead.leap {
             Leap::Ledge => ahead.before <= JUMP_LEAD_S * speed + PRESS_M,
-            Leap::Gap(press) => ahead.before <= press.metres(),
+            Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres(),
         };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
             return 0;
