@@ -5,7 +5,8 @@
 //! of the next cell leaves floors nearer to it than the body's radius (A84 item 13: a floor 0.25 m from a post
 //! in a 0.65 m opening; the body is 0.76 m wide). This pass runs after the rounds, over the floors they kept:
 //! a floor goes when a wall triangle, clipped to the band the body's capsule meets walls in (from a step over
-//! the feet to the standing height), comes nearer to the floor's centre than the radius, measured on the ground.
+//! the feet to the standing height), comes nearer to the floor's centre than the radius less a quarter of a cell
+//! ([`WalkGrid::exact_clearance`]), measured on the ground.
 //!
 //! Walls are the faces no body walks on: steeper than [`STEEP_NORMAL_Y`], or `dont_walk`, and not `walk` faces
 //! (stairs). Floors, ramps and ceilings are not walls here; the rounds keep treating them as before.
@@ -150,10 +151,23 @@ fn ground_distance(polygon: &[Vec3], x: f32, z: f32) -> f32 {
     if inside && side != 0.0 { 0.0 } else { best }
 }
 
+/// What the pass leaves of the radius, in cells: floors sit on a grid of cell centres, so a gap the body fits (a
+/// door a few centimetres wider than its 0.76 m) can have no centre the radius clear of both sides, and taking
+/// every floor nearer than the radius shuts it (Tarakanovsky Fort with the clients' numbers: 60k floors cut off
+/// by one such passage, `a96_radii.txt`). A quarter of a cell is the most the grid's own quantisation can ask
+/// for: nothing nearer than that is a floor the body stands on.
+const EXACT_SLACK_CELLS: f32 = 0.25;
+
 impl WalkGrid {
-    /// Clears the `alive` floors that have a wall nearer than the body's radius ([`Walls::within`]); how many.
+    /// How far a floor is kept from a wall by [`Erosion::Exact`], metres: the body's radius less
+    /// [`EXACT_SLACK_CELLS`] of a cell.
+    pub fn exact_clearance(&self) -> f32 {
+        (self.body.radius - EXACT_SLACK_CELLS * self.cell).max(0.0)
+    }
+
+    /// Clears the `alive` floors that have a wall nearer than [`Self::exact_clearance`] ([`Walls::within`]); how many.
     pub(super) fn erode_exact(&self, alive: &mut [bool], walls: &Walls) -> usize {
-        let radius = self.body.radius;
+        let radius = self.exact_clearance();
         let mut removed = 0;
         for a in 0..alive.len() {
             if !alive[a] {
@@ -170,11 +184,11 @@ impl WalkGrid {
         removed
     }
 
-    /// How many floors of the grid have a wall nearer than the body's radius, of `triangles` (the walls
-    /// [`Erosion::Exact`] erodes by): the audit of a grid, built either way. Also the nearest one, metres.
-    pub fn floors_near_walls(&self, triangles: &[Triangle]) -> (usize, f32) {
+    /// How many floors of the grid have a wall of `triangles` (the walls [`Erosion::Exact`] erodes by) nearer than
+    /// `radius` metres: the audit of a grid, built either way. Also the nearest one, metres (`f32::MAX` when none
+    /// is within `radius`).
+    pub fn floors_near_walls(&self, triangles: &[Triangle], radius: f32) -> (usize, f32) {
         let walls = Walls::new(triangles, self.x0, self.z0, self.cell, self.nx, self.nz);
-        let radius = self.body.radius;
         let (mut near, mut nearest) = (0, f32::MAX);
         for node in 0..self.len() as NodeId {
             let p = self.position(node);
@@ -222,9 +236,10 @@ mod tests {
     }
 
     /// A post's corner leaves floors nearer than the radius to the cell rounds (the one diagonal to it 0.18 m
-    /// from the corner); the exact pass takes every floor nearer than the radius, and no other.
+    /// from the corner); the exact pass takes every floor nearer than its clearance, and no other: the floor
+    /// 0.375 m from a face (the radius less a hair) stays.
     #[test]
-    fn the_exact_pass_takes_the_floors_nearer_a_post_than_the_radius() {
+    fn the_exact_pass_takes_the_floors_nearer_a_post_than_its_clearance() {
         let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
         tris.extend(post(5.0, 5.0, 0.5));
         let build = |erosion| {
@@ -232,9 +247,11 @@ mod tests {
             WalkGrid::build(&tris, AREA, 0.25, body)
         };
         let (cells, exact) = (build(Erosion::Cells), build(Erosion::Exact));
-        let (under_cells, _) = cells.floors_near_walls(&tris);
-        let (under_exact, _) = exact.floors_near_walls(&tris);
-        assert!(under_cells > 0, "the rounds leave floors under the radius from the post");
+        let clearance = exact.exact_clearance();
+        assert!((clearance - (0.38 - 0.0625)).abs() < 1e-4, "{clearance}");
+        let (under_cells, _) = cells.floors_near_walls(&tris, clearance);
+        let (under_exact, _) = exact.floors_near_walls(&tris, clearance);
+        assert!(under_cells > 0, "the rounds leave floors under the clearance from the post");
         assert_eq!(under_exact, 0);
         // The diagonal floor of the corner is gone, a floor 0.6 m from the post is not.
         let corner = Vec3::new(4.875, 0.0, 4.875);
@@ -242,6 +259,8 @@ mod tests {
         assert!(exact.locate(corner, 0.05).is_none());
         let far = Vec3::new(4.375, 0.0, 5.125);
         assert!(exact.locate(far, 0.05).is_some(), "floors outside the radius stay");
+        let at_radius = Vec3::new(4.625, 0.0, 5.125);
+        assert!(exact.locate(at_radius, 0.05).is_some(), "a floor 0.375 m from the face stays");
         assert!(exact.len() < cells.len());
     }
 

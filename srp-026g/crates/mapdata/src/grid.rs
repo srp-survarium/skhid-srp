@@ -121,8 +121,9 @@ pub enum Erosion {
     /// the cell's width.
     #[default]
     Cells,
-    /// The rounds, then every floor a wall comes nearer to than the radius, measured exactly on the ground
-    /// (the module `exact`): A84 item 13, a floor 0.25 m from a post in a 0.65 m opening.
+    /// The rounds, then every floor a wall comes nearer to than the radius less a quarter of a cell
+    /// ([`WalkGrid::exact_clearance`]), measured exactly on the ground (the module `exact`): A84 item 13, a floor
+    /// 0.25 m from a post in a 0.65 m opening.
     Exact,
 }
 
