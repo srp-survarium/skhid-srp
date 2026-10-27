@@ -80,6 +80,18 @@ pub const HELD_AFTER_MS: u32 = 3_000;
 /// metres. GUESS: a walk of 3 s is 10 m, a crouched one 5 m; a body
 /// nudged by a wall it slides along moves more.
 pub const HELD_MOVED_M: f32 = 0.5;
+/// A stuck within this of a window that [`UnstickTuning::unknown_meant_needs_keys`]
+/// let go, at the same spot, is counted as one it may have wrongly let go, ms.
+pub const ENDED_THEN_STUCK_MS: u32 = 10_000;
+/// The progress watch ([`Stuck::no_progress`]): the distance along its route a walking body must gain within the window, metres.
+/// A walk of the window (6 s) is 20 m, a crouched one 15 m; a loop round a post gains none.
+pub const PROGRESS_M: f32 = 1.5;
+/// … and the route it is still short of its end by at least this, metres (a body at the end of its route holds keys and gains none).
+pub const PROGRESS_END_M: f32 = 1.5;
+/// … and only a body this near its route counts (off it, the motor's own replan acts), metres.
+pub const PROGRESS_OFF_M: f32 = 3.0;
+/// … the leg kept clear of is the point this far ahead of where the body got to along the route, metres.
+pub const PROGRESS_LEG_M: f32 = 1.0;
 /// A world this long after the one before it, ms, is noted with the gap: a note after it (a stuck body, a body off
 /// its reckoning) may come of the worlds that did not reach the bot, not of the bot. The longest gap between two
 /// uploads of the J0 matches' healthy streams was 2.85 s; one missed regular world is 4 s.
@@ -198,6 +210,12 @@ pub struct Stuck {
     /// The first of the worlds since that showed the walk keys held and
     /// the body near where it was then: time and feet ([`HELD_AFTER_MS`]).
     held_from: Option<(u32, Vec3)>,
+    /// A world of the reckoned watch's window had no reckoning of the bot's
+    /// keys ([`UnstickTuning::unknown_meant_needs_keys`]).
+    unknown_in_window: bool,
+    /// The last window that the rule ended where the old one would have said
+    /// stuck: when and where (to see whether a stuck follows it).
+    ended_at: Option<(u32, Vec3)>,
     /// Where it got stuck, the last time, and how often there.
     spots: Vec<Spot>,
     /// How often at the spot of the last time.
@@ -227,6 +245,17 @@ pub struct Stuck {
     heights: Vec<(u32, f32)>,
     /// A hard fall locks the body till this time ([`HARD_FALL_M`]): it is not stuck while it cannot move.
     fall_lock_until: u32,
+    /// The progress watch's window ([`Self::no_progress`]).
+    progress: Option<ProgressWindow>,
+}
+
+/// The window of the progress watch: since when, how far along the route the body was then, and which route (its goal and length).
+#[derive(Clone, Copy, Debug)]
+struct ProgressWindow {
+    since: u32,
+    from_s: f32,
+    goal: Vec3,
+    length: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -266,6 +295,45 @@ impl Stuck {
     pub fn reset(&mut self) {
         self.walked_from = None;
         self.held_from = None;
+        self.progress = None;
+    }
+
+    /// The progress watch: a world showed the body `s` metres along its route (to `goal`, `length` long) with `keys` held. True when
+    /// it held a walk key for `window_ms` without gaining [`PROGRESS_M`] and is not at the route's end; then the leg ahead (`leg`,
+    /// the route's point [`PROGRESS_LEG_M`] on) is kept clear of ([`Self::avoided`]) and the watch starts again. A new route (another
+    /// goal or length), keys let go, or a gain of [`PROGRESS_M`] starts the window again.
+    #[allow(clippy::too_many_arguments)]
+    pub fn no_progress(&mut self, time: u32, s: f32, keys: u32, goal: Vec3, length: f32, window_ms: u32, leg: Vec3) -> bool {
+        let fresh = ProgressWindow { since: time, from_s: s, goal, length };
+        let Some(window) = self.progress.filter(|w| w.goal == goal && (w.length - length).abs() < 0.05) else {
+            self.progress = Some(fresh);
+            return false;
+        };
+        if keys & HELD_KEYS == 0 || s >= window.from_s + PROGRESS_M {
+            self.progress = Some(fresh);
+            return false;
+        }
+        if time < window.since + window_ms {
+            return false;
+        }
+        self.progress = Some(fresh);
+        if length - window.from_s < PROGRESS_END_M {
+            return false;
+        }
+        #[cfg(test)]
+        {
+            let again = self.spots.iter().any(|spot| spot.last + AGAIN_MS > time && near(spot.at, leg));
+            progress_watch::count(usize::from(again));
+        }
+        match self.spots.iter_mut().find(|spot| spot.last + SPOT_KEPT_MS > time && near(spot.at, leg)) {
+            Some(spot) => {
+                spot.last = time;
+                spot.times = spot.times.max(AVOID_AFTER);
+            }
+            None => self.spots.push(Spot { at: leg, first: time, last: time, times: AVOID_AFTER, fell: false }),
+        }
+        self.told.push((leg, false));
+        true
     }
 
     /// A world showed the body at `feet` while it had a route since the
@@ -281,6 +349,18 @@ impl Stuck {
         meant: Option<f32>,
         keys: u32,
     ) -> Option<(Recovery, bool)> {
+        self.walking_in(time, feet, meant, keys, &UnstickTuning::default())
+    }
+
+    /// [`Self::walking`] under `rule`.
+    pub fn walking_in(
+        &mut self,
+        time: u32,
+        feet: Vec3,
+        meant: Option<f32>,
+        keys: u32,
+        rule: &UnstickTuning,
+    ) -> Option<(Recovery, bool)> {
         if time < self.fall_lock_until {
             // Landed hard: the body cannot move yet, whatever the keys; not stuck, nothing to back off from.
             #[cfg(test)]
@@ -289,9 +369,15 @@ impl Stuck {
             return None;
         }
         let by_keys = self.held(time, feet, keys);
-        let by_reckoning = self.reckoned(time, feet, meant);
+        let by_reckoning = self.reckoned(time, feet, meant, keys, rule);
         if !(by_keys || by_reckoning) {
             return None;
+        }
+        if let Some((ended, spot)) = self.ended_at.take()
+            && time < ended + ENDED_THEN_STUCK_MS
+            && near(spot, feet)
+        {
+            unknown_meant::count(1);
         }
         self.spots.retain(|spot| spot.last + SPOT_KEPT_MS > time);
         self.walked_from = None;
@@ -335,11 +421,29 @@ impl Stuck {
 
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
-    fn reckoned(&mut self, time: u32, feet: Vec3, meant: Option<f32>) -> bool {
+    fn reckoned(
+        &mut self,
+        time: u32,
+        feet: Vec3,
+        meant: Option<f32>,
+        keys: u32,
+        rule: &UnstickTuning,
+    ) -> bool {
+        let unknown = meant.is_none();
+        // A way the tracker has no reckoning of: by the keys the world shows,
+        // when the rule says so (a walk key held is a walk, none is a stand).
+        let meant = match meant {
+            None if rule.unknown_meant_needs_keys => {
+                Some(if keys & HELD_KEYS != 0 { MEANT_M } else { 0.0 })
+            }
+            known => known,
+        };
         let Some((at, from, meant_since)) = self.walked_from else {
             self.walked_from = Some((time, feet, Some(0.0)));
+            self.unknown_in_window = false;
             return false;
         };
+        self.unknown_in_window |= unknown;
         let meant_since = meant_since.zip(meant).map(|(a, b)| a + b);
         if time < at + STUCK_AFTER_MS {
             self.walked_from = Some((at, from, meant_since));
@@ -347,7 +451,16 @@ impl Stuck {
         }
         self.walked_from = Some((time, feet, Some(0.0)));
         self.meant_checked = meant_since;
-        from.distance_xz(feet) < STUCK_MOVED_M && meant_since.is_none_or(|m| m >= MEANT_M)
+        let still = from.distance_xz(feet) < STUCK_MOVED_M;
+        let stuck = still && meant_since.is_none_or(|m| m >= MEANT_M);
+        // The window the old rule would have called stuck for a way it did not
+        // know, and this one let go.
+        if still && !stuck && self.unknown_in_window {
+            unknown_meant::count(0);
+            self.ended_at = Some((time, feet));
+        }
+        self.unknown_in_window = false;
+        stuck
     }
 
     /// The held-keys watch: every world for [`HELD_AFTER_MS`] with a walk
@@ -765,7 +878,7 @@ pub fn self_kill_step(
 /// What a note's text says without the evidence tags the notes above end with (they are for the reader of the log,
 /// not decisions: the bench's decision digest leaves them out).
 pub fn without_evidence(text: &str) -> &str {
-    [" [meant ", " [fix gap ", " [beside "]
+    [" [meant ", " [fix gap ", " [beside ", " [route "]
         .iter()
         .filter_map(|tag| text.find(tag))
         .min()
@@ -789,6 +902,35 @@ pub fn beside_note(beside: Option<super::view::Beside>) -> String {
     beside.filter(|b| b.distance_m <= BESIDE_M).map_or_else(String::new, |b| {
         format!(" [beside {} place {}, {:.1} m]", if b.enemy { "enemy" } else { "friend" }, b.place, b.distance_m)
     })
+}
+
+/// The note of where a stuck body was steering (A81 item 2: Chemical Plant's back and forth, where the bot
+/// let go of its keys by its own decision): the route's leg and its next waypoint, how far the body's heading is
+/// from it in degrees (positive to the left), and how many spots the bot keeps clear of. `[route none]` without a
+/// route. For the reader of the log; a decision never reads it.
+pub fn route_note(route: Option<&Route>, feet: Vec3, yaw: Option<f32>, kept: usize) -> String {
+    let Some(route) = route else {
+        return " [route none]".to_owned();
+    };
+    let leg = route.segment();
+    let Some(next) = route.points().get(leg + 1).map(|point| point.at) else {
+        return format!(" [route leg {leg}/{} at the end, {kept} kept]", route.points().len());
+    };
+    let off = yaw.map_or_else(
+        || "?".to_owned(),
+        |yaw| {
+            let want = super::kin::yaw_of([next.x - feet.x, next.z - feet.z]);
+            format!("{:+.0}", super::kin::wrap(want - yaw).to_degrees())
+        },
+    );
+    format!(
+        " [route leg {leg}/{} next {:.1},{:.1},{:.1} {:.1} m, heading off {off} deg, {kept} kept]",
+        route.points().len(),
+        next.x,
+        next.y,
+        next.z,
+        feet.distance_xz(next)
+    )
 }
 
 /// The note for a world that came `gap` ms after the one before it (none when the gap is not one).
@@ -835,6 +977,49 @@ pub mod fall_locks {
     }
 }
 
+/// The bench's counts of the windows [`UnstickTuning::unknown_meant_needs_keys`] let go (the activity), and of
+/// the stucks at the same spot within [`ENDED_THEN_STUCK_MS`] after one (the harm).
+#[cfg(not(test))]
+pub mod unknown_meant {
+    pub fn count(_kind: usize) {}
+}
+
+#[cfg(test)]
+pub mod unknown_meant {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// The bench's counts of the progress watch: bodies it stopped (activity), and those that came to the same leg again within
+/// [`AGAIN_MS`] (harm: the watch did not take them off it).
+#[cfg(test)]
+pub mod progress_watch {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// `0`: stopped one; `1`: stopped one that was at the same leg lately (also counted as stopped).
+    pub fn count(again: usize) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        if again == 1 {
+            COUNTS[1].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts of the blind stops: ticks a bot stood for want of a world, stops a world ended, and those worlds
 /// that showed the body within [`BLIND_NEEDLESS_M`] of its reckoning (the stop was needless).
 #[cfg(test)]
@@ -867,6 +1052,18 @@ pub mod self_kills {
     pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
+}
+
+/// A team's stuck state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamStuck {
+    /// Goals a bot of the team proved no way to, and until when the team's plays leave them
+    /// (`TEAM_NO_WAY_KEEP_MS`).
+    pub no_way_to: Vec<(mapdata::Vec3, u32)>,
+    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
+    pub spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`SelfKill`).
+    pub self_kills: Vec<u32>,
 }
 
 #[cfg(test)]
@@ -908,11 +1105,53 @@ mod tests {
     /// searches for as long as the motor refuses the jump, and a floor within
     /// the motor's "same jump" of it is shut with it; no other floor, nor
     /// after the lockout.
+    /// A body that walks without gaining on its route is stopped after the window and the leg is kept clear of; a gain, keys let go,
+    /// the route's end and a new route start the window again.
+    #[test]
+    fn a_body_that_walks_without_gaining_on_its_route_is_stopped() {
+        let goal = Vec3::new(40.0, 0.0, 0.0);
+        let leg = Vec3::new(11.0, 0.0, 0.0);
+        let walk = |stuck: &mut Stuck, time: u32, s: f32, keys: u32, length: f32| stuck.no_progress(time, s, keys, goal, length, 6_000, leg);
+        let mut stuck = Stuck::default();
+        // Round a post: 10 to 10.6 m along, back and forth, keys held.
+        let mut fired = None;
+        for k in 0..20u32 {
+            let s = 10.0 + 0.6 * (k % 2) as f32;
+            if walk(&mut stuck, 1_000 + k * 500, s, key::FORWARD, 40.0) {
+                fired = Some(1_000 + k * 500);
+                break;
+            }
+        }
+        assert_eq!(fired, Some(7_000), "six seconds after the window began");
+        assert!(stuck.near_spot(7_000, leg), "the leg is kept clear of");
+        // The window began again: nothing for six seconds more.
+        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0));
+        // A gain of PROGRESS_M starts it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 5_000, 11.6, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 7_000, 11.7, key::FORWARD, 40.0), "the window is 2 s old");
+        assert!(walk(&mut stuck, 11_000, 11.8, key::FORWARD, 40.0));
+        // Keys let go start it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 5_000, 10.0, 0, 40.0));
+        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0));
+        // At the route's end holding keys is no stall.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 39.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 8_000, 39.0, key::FORWARD, 40.0));
+        // Another route (its length) starts it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 8_000, 10.0, key::FORWARD, 52.0));
+    }
+
     #[test]
     fn the_evidence_tags_of_a_note_are_cut_off() {
         let plain = "is stuck at [1.0, 0.0, 2.0]: BackOff";
         assert_eq!(without_evidence(plain), plain);
-        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m]");
+        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m] [route none]");
         assert_eq!(without_evidence(&tagged), plain);
         let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
         assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
@@ -1039,6 +1278,65 @@ mod tests {
         assert_eq!(told[3], Some((Recovery::BackOff, true)));
     }
 
+    /// A resting body whose reckoning is unknown at some world of the window
+    /// (a burst of worlds newer than every tick it decided) is flagged stuck by
+    /// the old rule (School 12a83438 2:38.2); with `unknown_meant_needs_keys` it
+    /// is not, while one that shows a walk key held still is, and a window
+    /// whose ways are known is judged as ever.
+    #[test]
+    fn an_unknown_way_at_rest_is_not_stuck_when_the_rule_asks_for_the_keys() {
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let old = UnstickTuning::default();
+        let new = UnstickTuning {
+            unknown_meant_needs_keys: true,
+            ..UnstickTuning::default()
+        };
+        let run = |rule: &UnstickTuning, keys: u32, meant: Option<f32>| {
+            let mut stuck = Stuck::default();
+            // The first world starts the watch; the second has no reckoning.
+            let first = stuck.walking_in(0, spot, Some(0.0), keys, rule);
+            let second = stuck.walking_in(1_000, spot, meant, keys, rule);
+            let third = stuck.walking_in(1_600, spot, Some(0.0), keys, rule);
+            assert_eq!((first, second), (None, None));
+            third.map(|(recovery, _)| recovery)
+        };
+        // Old: unknown is a walk, the resting body is stuck.
+        assert_eq!(run(&old, 0, None), Some(Recovery::BackOff));
+        // New: no key held in the world, no walk.
+        assert_eq!(run(&new, 0, None), None);
+        // New: a key held in the worlds is a walk, as the old rule took it.
+        assert_eq!(run(&new, key::FORWARD, None), Some(Recovery::BackOff));
+        // Known ways are judged as ever, by either rule.
+        assert_eq!(run(&new, 0, Some(0.0)), None);
+        assert_eq!(run(&old, 0, Some(0.0)), None);
+        assert_eq!(run(&new, key::FORWARD, Some(2.0)), Some(Recovery::BackOff));
+    }
+
+    /// The window that was let go is counted, and a stuck at the same spot
+    /// soon after it is the harm.
+    #[test]
+    fn a_window_let_go_is_counted_and_a_stuck_after_it_at_the_spot_is_harm() {
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let rule = UnstickTuning {
+            unknown_meant_needs_keys: true,
+            ..UnstickTuning::default()
+        };
+        let before = unknown_meant::counts();
+        let mut stuck = Stuck::default();
+        stuck.walking_in(0, spot, Some(0.0), 0, &rule);
+        stuck.walking_in(1_000, spot, None, 0, &rule);
+        assert_eq!(stuck.walking_in(1_600, spot, Some(0.0), 0, &rule), None);
+        assert!(stuck.ended_at.is_some());
+        // Walk keys held at the spot for 3 s: stuck by the keys.
+        for time in [2_000, 3_000, 4_000] {
+            assert_eq!(stuck.walking_in(time, spot, Some(0.0), key::FORWARD, &rule), None);
+        }
+        assert!(stuck.walking_in(5_000, spot, Some(0.0), key::FORWARD, &rule).is_some());
+        let after = unknown_meant::counts();
+        // Other tests run at once and count too: at least ours.
+        assert!(after[0] > before[0] && after[1] > before[1], "{before:?} {after:?}");
+    }
+
     #[test]
     fn a_body_that_does_not_move_is_stuck_and_each_time_more_is_done() {
         let mut stuck = Stuck::default();
@@ -1081,6 +1379,33 @@ mod tests {
         assert!(stuck.near_spot(30_000, spot), "caught there three times");
         assert!(!stuck.near_spot(30_000, Vec3::ZERO), "caught there once");
         assert!(!stuck.near_spot(18_500 + SPOT_KEPT_MS, spot));
+    }
+
+    /// The stuck note says where the body was steering: the leg, the next
+    /// waypoint, how far the heading is from it, and how many spots are kept.
+    #[test]
+    fn the_route_tail_of_a_stuck_note_says_where_the_body_steered() {
+        let route = Route::new(
+            [(0.0, 0.0), (20.0, 0.0)]
+                .iter()
+                .map(|&(x, z)| Waypoint {
+                    at: Vec3::new(x, 0.0, z),
+                    node: 0,
+                    jump: None,
+                    low: false,
+                })
+                .collect(),
+        );
+        let feet = Vec3::ZERO;
+        let towards = crate::v026g::bots::kin::yaw_of([1.0, 0.0]);
+        assert_eq!(
+            route_note(Some(&route), feet, Some(towards), 2),
+            " [route leg 0/2 next 20.0,0.0,0.0 20.0 m, heading off +0 deg, 2 kept]"
+        );
+        assert!(route_note(Some(&route), feet, Some(0.0), 0).contains("heading off -90 deg"));
+        assert!(route_note(Some(&route), feet, None, 0).contains("heading off ? deg"));
+        assert_eq!(route_note(None, feet, None, 0), " [route none]");
+        assert_eq!(without_evidence("is stuck at [1.0]: BackOff [route none]"), "is stuck at [1.0]: BackOff");
     }
 
     #[test]
@@ -1406,16 +1731,4 @@ mod tests {
         let carrying = Facts { carrying: true, ..at(104_000) };
         assert_eq!(self_kill_step(sent, &carrying, &rule), (SelfKill::Ready, None));
     }
-}
-
-/// A team's stuck state, by feature ([`super::features`]).
-#[derive(Default)]
-pub struct TeamStuck {
-    /// Goals a bot of the team proved no way to, and until when the team's plays leave them
-    /// (`TEAM_NO_WAY_KEEP_MS`).
-    pub no_way_to: Vec<(mapdata::Vec3, u32)>,
-    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
-    pub spots: TeamSpots,
-    /// When its bots killed themselves in the last minute (`SelfKill`).
-    pub self_kills: Vec<u32>,
 }
