@@ -2418,8 +2418,7 @@ mod tests {
     #[test]
     fn a_hump_in_a_long_leg_is_not_a_wall_with_the_floor_heights() {
         let (route, clear) = hump();
-        let mut rng = Rng::new(3);
-        let motor = |feel: Feel| Motor::new(Feel { sway: 0.0, ..feel }, &mut rng);
+        let motor = |feel: Feel| Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3));
         let s = 9.0;
         // As it was: the point at the chord's height is not clear, off and with the rule on its retry finds the floor's.
         assert!(matches!(motor(Feel::default()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
