@@ -53,6 +53,25 @@ pub struct Kinematics {
     pub sprint: f32,
     /// Ticks of the blend to a new velocity.
     pub blend_ticks: u32,
+    /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
+    pub jump_snap: JumpSnap,
+}
+
+/// Which jump links the reckoned body takes up after a jump press, until a world shows where the body is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JumpSnap {
+    /// Any jump link (the default): the body is on its landing 0.8 s after the press whatever the rise, so a jump the clip
+    /// cannot make is believed made until the next world.
+    #[default]
+    Any,
+    /// Only a link whose rise the jump pressed could make: the plain jump's 1.09 m, or with forward and sprint held at
+    /// the walk cap or more the sprint jump's 1.28 m (the client's choice by the keys and the speed at the press, PROVEN,
+    /// the sprint-jump RE 1.1).
+    ByKeys,
+    /// None: the body stays on the take-off side until a world shows it on the landing floor (a landing counts only
+    /// with walkable ground under the body near the target).
+    Never,
 }
 
 impl Default for Kinematics {
@@ -64,6 +83,7 @@ impl Default for Kinematics {
             crouch_aim: [2.0, 1.5, 1.5],
             sprint: 5.0,
             blend_ticks: 6,
+            jump_snap: JumpSnap::Any,
         }
     }
 }
