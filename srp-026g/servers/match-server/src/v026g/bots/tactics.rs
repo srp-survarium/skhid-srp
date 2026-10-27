@@ -187,6 +187,8 @@ pub struct Tactics {
     pub escape: super::tuning::EscapeRule,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
+    /// The grass a sight line crosses (`grass.rs`); none without the file.
+    pub grass: Arc<super::grass::Grass>,
     /// Whether the fight's side step is refused onto the band of a lip
     /// (`Tuning::aim.combat.clear_step_sees_lip`, [`Self::clear_step_for`]).
     pub clear_step_sees_lip: bool,
@@ -692,6 +694,7 @@ impl Tactics {
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
             foliage: Default::default(),
+            grass: Default::default(),
             clear_step_sees_lip: false,
             base,
         }

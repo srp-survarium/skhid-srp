@@ -1093,6 +1093,14 @@ impl Running {
         )
     }
 
+    /// The human route a Roam run is on: the side's route number and when it was drawn.
+    pub fn route_claim(&self) -> Option<(usize, u32)> {
+        match self {
+            Self::Roam(roam::State::Route { route, drawn, .. }) => Some((*route, *drawn)),
+            _ => None,
+        }
+    }
+
     pub fn kind(&self) -> PlayKind {
         match self {
             Self::Roam(_) => PlayKind::Roam,

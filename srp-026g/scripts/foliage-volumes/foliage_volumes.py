@@ -12,7 +12,18 @@ rotation. A bush that has a collision object is in the sight tree already and is
 
 OUT.json (`bot-foliage.json`, read from the mapdata folder by the match server): {"version": 1, "projects": {"level_01/day_2": {"bushes": [{"lib", "p": [x, y, z] centre, "h": [x, y, z] half
 extents along the model's axes after the scale, "r": [x, y, z] the placement's angles (mapdata::math::Rotation::from_angles)}]}}}.
-Run with `python -I`."""
+Run with `python -I`.
+
+    foliage_volumes.py --grass SRP_GAME_DATA RESOURCES_DB OUT.json [PROJECT ...]
+
+writes the second file, `bot-grass.json`: the grass a sight line can cross. The map's `vegetation` object lists layers, each
+a `.veg` file (a chunk stream: id 0x58 holds u32 sizes of float3 instance positions, ground height included; the model,
+yaw and scale of each blade are the client's own random draws) and the models it draws. Only layers whose models stand at
+least `GRASS_MIN_M` high are kept (a lower grass hides nobody). OUT.json: {"version": 1, "levels": {"level_01":
+{"cells": [[x, z, ground_y, height_cm, clumps]]}}}: the grass is the level's, whatever the weather (the extractor stops if
+two projects of a level differ); per 1 m cell (x, z the cell's floor indices), the mean ground height of
+its instances, the mean height of the tallest layer in it (model height times the layer's scale, cm) and the number of
+instances of the kept layers."""
 import json
 import re
 import struct
@@ -26,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'gen-data-026g'))
 import bincfg  # noqa: E402
 
 BUSH = re.compile(r'bush|kust|kruch|shrub', re.I)
+GRASS_MIN_M = 0.6
 
 
 def rotation(a):
@@ -98,7 +110,74 @@ def render_box(tool, db, lib):
     return tuple(min(p[k] for p in pts) for k in range(3)), tuple(max(p[k] for p in pts) for k in range(3))
 
 
+def veg_positions(data):
+    """The float3 instance positions of a `.veg` chunk stream (chunk 0x58)."""
+    at = 0
+    while at + 8 <= len(data):
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind == 0x58:
+            return [struct.unpack_from('<3f', data, at + 8 + 12 * k) for k in range(size // 12)]
+        at += 8 + size
+    return []
+
+
+def grass_cells(tool, db, project, heights):
+    """The project's `bot-grass.json` cells; `heights` caches model -> LOD0 height."""
+    level = project.split('/')[0]
+    raw = get(tool, db, [f'projects/{project}/client_project'])
+    if not raw:
+        sys.exit(f'{project}: no client_project in {db}')
+    proj = bincfg.parse(raw[f'projects/{project}/client_project'])
+    cells = {}  # (x, z) -> [sum of ground y, clumps, tallest layer m]
+    kept = dropped = 0
+    for obj in proj.get('client_objects', []):
+        if obj.get('game_object_type') != 'vegetation':
+            continue
+        for layer in obj['layers']:
+            height = 0.0
+            for m in layer.get('model_def') or [{'name': n, 'scale': 1} for n in layer.get('models', [])]:
+                name = m['name'].rstrip()
+                if name not in heights:
+                    box = render_box(tool, db, name)
+                    heights[name] = box[1][1] if box else 0.0
+                height = max(height, heights[name] * m['scale'])
+            path = f"projects/{level}/{layer['filename']}"
+            data = get(tool, db, [path]).get(path)
+            if not data:
+                continue
+            points = veg_positions(data)
+            if height < GRASS_MIN_M:
+                dropped += len(points)
+                continue
+            kept += len(points)
+            for x, y, z in points:
+                cell = cells.setdefault((int(x // 1), int(z // 1)), [0.0, 0, 0.0])
+                cell[0] += y
+                cell[1] += 1
+                cell[2] = max(cell[2], height)
+    rows = [[x, z, round(c[0] / c[1], 2), round(c[2] * 100), c[1]] for (x, z), c in sorted(cells.items())]
+    print(f'{project}: {kept} grass instances of layers {GRASS_MIN_M} m or taller in {len(rows)} cells, '
+          f'{dropped} lower ones left out', file=sys.stderr)
+    return rows
+
+
+def main_grass(args):
+    tool, db, out = args[0], args[1], Path(args[2])
+    projects = args[3:] or sorted(
+        m.group(1) for m in (re.fullmatch(r'projects/(level_\d+/[^/]+)/client_project', p) for p in files_of(tool, db)) if m)
+    heights = {}
+    result = {}  # level -> cells: the .veg files are the level's, whatever the weather
+    for project in projects:
+        level = project.split('/')[0]
+        cells = grass_cells(tool, db, project, heights)
+        if result.setdefault(level, {'cells': cells})['cells'] != cells:
+            sys.exit(f'{project}: its grass differs from the other projects of {level}')
+    out.write_text(json.dumps({'version': 1, 'levels': result}, separators=(',', ':')) + '\n')
+
+
 def main():
+    if sys.argv[1] == '--grass':
+        return main_grass(sys.argv[2:])
     tool, db, out = sys.argv[1], sys.argv[2], Path(sys.argv[3])
     projects = sys.argv[4:] or sorted(
         m.group(1) for m in (re.fullmatch(r'projects/(level_\d+/[^/]+)/client_project', p) for p in files_of(tool, db)) if m)

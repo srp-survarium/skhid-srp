@@ -886,7 +886,7 @@ fn drive_tick_inner(
                     && !bot.threat.is_empty()
                     && let Some(plain) = route.as_ref()
                 {
-                    let seen = threat::exposure(plain, |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
+                    let seen = threat::exposure(plain, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
                     threat::checked(&seen);
                     if seen.metres > threat::EXPOSED_M
                         && tuning.threat.detour
@@ -895,8 +895,8 @@ fn drive_tick_inner(
                         let s0 = (first - threat::DETOUR_MARGIN_M).max(0.0);
                         let s1 = (last + threat::DETOUR_MARGIN_M).min(plain.length());
                         let ends = grid
-                            .locate(plain.point_at(s0), 1.5)
-                            .zip(grid.locate(plain.point_at(s1), 1.5));
+                            .locate(plain.at(s0, bot.motor.heights()), 1.5)
+                            .zip(grid.locate(plain.at(s1, bot.motor.heights()), 1.5));
                         if let Some((n0, n1)) = ends
                             && n0 != n1
                             && !plain.jumps_between(s0, s1 + 3.0)
@@ -1099,6 +1099,7 @@ fn drive_tick_inner(
                     {
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
                     }
+                    let walks_the_route = aim.is_none();
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
@@ -1106,6 +1107,9 @@ fn drive_tick_inner(
                         }
                         None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                     };
+                    // Pressing against something while walking the route: counted, nothing is decided from it.
+                    let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
+                    contact::contacts::count(counted, me.feet);
                     if walked != Walked::OnTheWay {
                         // Fallen off it: the spot it fell from (`Stuck::fell`).
                         if let Walked::Off(off) = walked

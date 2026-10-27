@@ -38,7 +38,7 @@
 
 use mapdata::Vec3;
 
-use super::path::Route;
+use super::path::{Route, RouteHeight};
 use super::tactics::Tactics;
 use super::view::{Place, eye_height};
 
@@ -118,13 +118,13 @@ pub struct Exposure {
 /// in a covered spawn, or going to a covered goal, still moves). The one
 /// function of a route and the ground seen; what is seen is the caller's
 /// ([`Covered::exposed_at`] for the threat spots).
-pub fn exposure(route: &Route, exposed: impl Fn(Vec3) -> bool, free: &[Vec3]) -> Exposure {
+pub fn exposure(route: &Route, height: RouteHeight, exposed: impl Fn(Vec3) -> bool, free: &[Vec3]) -> Exposure {
     let length = route.length().min(HORIZON_M);
     let mut out = Exposure::default();
     let mut open: Option<f32> = None;
     let mut s = 0.0;
     while s <= length {
-        let p = route.point_at(s);
+        let p = route.at(s, height);
         let seen = !free.iter().any(|f| f.distance_xz(p) < FREE_M) && exposed(p);
         match (seen, open) {
             (true, None) => open = Some(s),
@@ -747,17 +747,17 @@ mod tests {
         let route = Route::new(vec![wp(0.0), wp(30.0), wp(60.0)]);
         let seen = |p: Vec3| (20.0..35.0).contains(&p.x);
         // Samples every 3 m: 21, 24, 27, 30, 33 are seen.
-        let e = exposure(&route, seen, &[]);
+        let e = exposure(&route, RouteHeight::Chord, seen, &[]);
         assert_eq!(e.metres, 15.0);
         assert_eq!(e.spans, vec![(21.0, 33.0)]);
         // An end in the middle of it: the ground within 10 m is free.
-        assert_eq!(exposure(&route, seen, &[at(30.0)]).metres, 0.0);
+        assert_eq!(exposure(&route, RouteHeight::Chord, seen, &[at(30.0)]).metres, 0.0);
         // Two lanes make two spans; the horizon stops the count.
         let two = |p: Vec3| (6.0..10.0).contains(&p.x) || (40.0..44.0).contains(&p.x);
-        let e = exposure(&route, two, &[]);
+        let e = exposure(&route, RouteHeight::Chord, two, &[]);
         assert_eq!(e.spans, vec![(6.0, 9.0), (42.0, 42.0)]);
         let long = Route::new(vec![wp(0.0), wp(500.0)]);
-        assert_eq!(exposure(&long, |p| p.x > 150.0, &[]).metres, 0.0, "beyond the horizon");
+        assert_eq!(exposure(&long, RouteHeight::Chord, |p| p.x > 150.0, &[]).metres, 0.0, "beyond the horizon");
     }
 
     #[test]
@@ -771,7 +771,7 @@ mod tests {
         assert_eq!(e.spans.len(), 1);
         assert!((e.spans[0].0 - (10.1 - chord / 2.0)).abs() < 1e-3 && (e.metres - chord).abs() < 1e-3, "{e:?}");
         // The sampling at 3 m (0, 3, 6, 9, 12) misses it.
-        assert_eq!(exposure(&route, |p| p.distance_xz(Vec3::new(10.1, 0.0, 0.2)) < 0.5, &[]).metres, 0.0);
+        assert_eq!(exposure(&route, RouteHeight::Chord, |p| p.distance_xz(Vec3::new(10.1, 0.0, 0.2)) < 0.5, &[]).metres, 0.0);
         // Off the line by more than the radius: none. On the second leg: after 30 m.
         assert!(hits(&route, &[(Vec3::new(10.0, 0.0, 0.6), 0.5)]).spans.is_empty());
         let e = hits(&route, &[(Vec3::new(30.2, 0.0, 12.0), 0.9)]);

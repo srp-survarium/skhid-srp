@@ -96,6 +96,12 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // starting at the bot, between them in proportion.
     ("join_m", 150.0),
     ("join_min", 0.3),
+    // Switch (0 off, the tip's behaviour; 1 on): a teammate's run drawn on a route not more
+    // than `fresh_s` seconds ago counts as one standing on it (`friend_factor`) in the draw,
+    // though it is still on its way there, so bots that leave the spawn together do not all
+    // draw the same route (A111).
+    ("fresh_claims", 0.0),
+    ("fresh_s", 15.0),
     // On its way, not this much further in `headway_s`: the run ends,
     // metres and seconds. GUESS: past a pair's wait for its follower (6 s)
     // and a short fight, well short of the 90 s give-up; measured on the
@@ -148,6 +154,9 @@ pub enum State {
     /// Along a human route's points; `next` is the one it heads for.
     Route {
         points: Vec<Vec3>,
+        /// Which of the side's routes it is, and when it was drawn (the team's fresh claims).
+        route: usize,
+        drawn: u32,
         next: usize,
         /// Until when it waits for its pair's follower (0: not yet).
         wait_until: u32,
@@ -308,7 +317,7 @@ fn follower_behind(cx: &Ctx, follower: &PlaceView, points: &[Vec3]) -> bool {
 
 /// A human route of the bot's side, drawn by weight (the module's doc);
 /// its points from the first one ahead of the bot.
-fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
+fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<(Vec<Vec3>, usize)> {
     let side = cx.bot.side?;
     let num = |name| cx.num(PlayKind::Roam, name);
     // The first point of a run is not back along the route by more than this (infinite: the switch `join_ahead` is off).
@@ -353,15 +362,25 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
     let fighter = cx.bot.personality.push >= num("fighter_push");
     let sneaky = cx.bot.personality.sneak >= num("wide_sneak");
     let mine = cx.me.feet;
+    let fresh_on = num("fresh_claims") > 0.5;
+    let fresh_ms = (num("fresh_s") * 1000.0) as u32;
+    // Test only: each route's weight without the fresh claims, and the claims it counted.
+    #[cfg(test)]
+    let mut plain: Vec<(f32, usize)> = Vec::new();
     let weights: Vec<f32> = all
         .iter()
         .zip(&routes)
-        .map(|(route, points)| {
+        .enumerate()
+        .map(|(number, (route, points))| {
             let Some(first) = start_index(cx, points, side, num("reach_m"), tol)
             else {
+                #[cfg(test)]
+                plain.push((0.0, 0));
                 return 0.0;
             };
             if turned_bad(cx, points[first]) {
+                #[cfg(test)]
+                plain.push((0.0, 0));
                 return 0.0;
             }
             let near = |at: Vec3| points.iter().any(|p| p.distance_xz(at) < on);
@@ -382,7 +401,7 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
                 .count();
             w *= num("death_factor").powi(deaths as i32);
             // Teammates out on it (not those still about the bot).
-            let friends = cx
+            let standing: Vec<_> = cx
                 .view
                 .team(cx.me.team)
                 .filter(|p| {
@@ -391,8 +410,23 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
                         && p.feet.distance_xz(mine) > on
                         && near(p.feet)
                 })
-                .count();
-            w *= num("friend_factor").powi(friends as i32);
+                .map(|p| p.place)
+                .collect();
+            // A teammate alive and drawn on it lately, not yet there to be counted as standing.
+            let fresh = if fresh_on {
+                cx.team
+                    .route_claims_of_others(cx.me.place, side, number, cx.now, fresh_ms)
+                    .filter(|c| {
+                        Some(c.who) != cx.bot.partner
+                            && !standing.contains(&c.who)
+                            && cx.view.team(cx.me.team).any(|p| p.place == c.who)
+                    })
+                    .count()
+            } else {
+                0
+            };
+            let claimed = num("friend_factor").powi(fresh as i32);
+            w *= num("friend_factor").powi(standing.len() as i32) * claimed;
             if num("join_ahead") > 0.5 {
                 let off = points[first].distance_xz(mine);
                 w *= (1.0 - off / num("join_m")).max(num("join_min"));
@@ -400,6 +434,8 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
             if sneaky {
                 w *= 1.0 + 0.5 * width(points) / widest;
             }
+            #[cfg(test)]
+            plain.push((w / claimed, fresh));
             w.max(0.0)
         })
         .collect();
@@ -418,10 +454,21 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
     let points = &routes[index];
     let first = start_index(cx, points, side, num("reach_m"), tol)?;
     #[cfg(test)]
+    {
+        let best = plain
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.0.total_cmp(&b.1.0))
+            .map(|(i, _)| i);
+        super::super::route_twins::claims(plain[index].1, best.is_some_and(|b| b != index && plain[b].1 > 0));
+    }
+    #[cfg(test)]
+    super::super::route_twins::drawn(cx.me.place, i32::from(cx.me.team), cx.bot.partner, side, index, cx.now);
+    #[cfg(test)]
     if tol.is_finite() && start_index(cx, points, side, num("reach_m"), f32::INFINITY) != Some(first) {
         super::super::pair_counts::joined_elsewhere();
     }
-    Some(points[first..].to_vec())
+    Some((points[first..].to_vec(), index))
 }
 
 /// Where a run on a route's `points` starts: the point nearest the bot, or
@@ -465,10 +512,12 @@ fn turned_bad(cx: &Ctx, at: Vec3) -> bool {
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     if target == TargetRef::None
-        && let Some(points) = draw_route(cx, rng)
+        && let Some((points, route)) = draw_route(cx, rng)
     {
         return State::Route {
             points,
+            route,
+            drawn: cx.now,
             next: 0,
             wait_until: 0,
             headway: Headway::new(cx),
@@ -526,6 +575,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             next,
             wait_until,
             headway,
+            ..
         } => {
             let reach = cx.num(PlayKind::Roam, "reach_m");
             while *next < points.len() && cx.me.feet.distance_xz(points[*next]) < reach {
@@ -774,6 +824,64 @@ mod tests {
         assert!(south > north, "{north} {south}");
     }
 
+    /// `roam.fresh_claims`: a teammate's run drawn lately on the north route, still near the spawn, counts as one on it
+    /// (`friend_factor`); off, or an old claim, or the partner's, does not.
+    #[test]
+    fn a_teammates_fresh_draw_counts_as_one_on_the_route_when_the_switch_is_on() {
+        let north_of = |on: f32, drawn_ago: u32, partner: bool| {
+            let mut s = Scenario::field(Mode::Batteries);
+            with_routes(&mut s);
+            s.number(PlayKind::Roam, "fresh_claims", on);
+            s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+            s.bot(4, 0, Vec3::new(4.0, 0.0, 14.0));
+            if partner {
+                s.partner = Some(4);
+            }
+            let now = s.view.clock;
+            s.team.claim_route(4, 0, 0, now - drawn_ago, now);
+            draws(&s, 600).0
+        };
+        let off = north_of(0.0, 2_000, false);
+        let fresh = north_of(1.0, 2_000, false);
+        assert!(fresh + 40 < off, "off {off} fresh {fresh}");
+        assert_eq!(north_of(1.0, 40_000, false), off, "an old claim counts for nothing");
+        assert_eq!(north_of(1.0, 2_000, true), off, "the partner's claim counts for nothing");
+    }
+
+    /// Only the roam draw reads the claims: every other play's candidates are the same with the switch on and off, a claimant that
+    /// is gone from the view counts for nothing, and a released claim is gone.
+    #[test]
+    fn fresh_claims_change_only_the_roam_draw_and_end_with_the_run() {
+        let world = |on: f32| {
+            let mut s = Scenario::field(Mode::TeamDeathmatch);
+            with_routes(&mut s);
+            s.number(PlayKind::Roam, "fresh_claims", on);
+            s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+            s.bot(4, 0, Vec3::new(4.0, 0.0, 14.0));
+            let now = s.view.clock;
+            s.team.claim_route(4, 0, 0, now - 1_000, now);
+            s
+        };
+        let others = |s: &Scenario| -> Vec<String> {
+            s.candidates(0)
+                .into_iter()
+                .filter(|c| c.kind != PlayKind::Roam)
+                .map(|c| format!("{c:?}"))
+                .collect()
+        };
+        assert_eq!(others(&world(0.0)), others(&world(1.0)));
+        // Released (the run ended): counts as if never made.
+        let mut s = world(1.0);
+        let with = draws(&s, 600).0;
+        s.team.release_route(4);
+        let released = draws(&s, 600).0;
+        assert!(with + 40 < released, "{with} {released}");
+        // Gone from the view (dead): counts for nothing.
+        let mut s = world(1.0);
+        s.view.places.retain(|p| p.place != 4);
+        assert_eq!(draws(&s, 600).0, released);
+    }
+
     /// A route already bad where the run would start is not drawn: drawn,
     /// it ended at its first step and was drawn again (Cologne's loops).
     #[test]
@@ -852,6 +960,8 @@ mod tests {
         s.bot(2, 0, Vec3::new(follower_x, 0.0, 30.0));
         s.partner = Some(2);
         let state = State::Route {
+            route: 0,
+            drawn: 0,
             points: vec![
                 Vec3::new(20.0, 0.0, 30.0),
                 Vec3::new(35.0, 0.0, 33.0),
