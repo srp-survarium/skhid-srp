@@ -710,4 +710,60 @@ mod tests {
             assert!(weapons::weapon_named(weapon).is_some(), "{weapon}");
         }
     }
+
+    /// F2: an acid cloud on the face takes the infection pool, which does not mend, and kills when it runs
+    /// out; the body pool is never touched. Raw, the same cloud takes the body pool.
+    #[test]
+    fn a_routed_acid_zone_takes_the_infection_pool_and_kills_by_it() {
+        use crate::v026g::bots::hazards::Hazards;
+        use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let at = mapdata::Vec3::new(30.0, 0.0, 20.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "acid".into(),
+                team: -1,
+                position: at,
+                damage_type: "toxic".into(),
+                damage: Some(Damage {
+                    max_hit: 0.25,
+                    interval_ms: 1000,
+                    continuous: true,
+                    parts: 1,
+                    part_names: vec!["face".into()],
+                    ..Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: at + mapdata::Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: mapdata::Vec3::new(5.0, 2.0, 5.0),
+                }],
+            });
+        });
+        let inside = Hazards::build(&world, 0.0);
+        let run = |routed: bool| {
+            let mut game = super::super::Game::new(world.clone(), &[0, 1], 1, None, None);
+            game.zone_routed = routed;
+            game.bodies[0].feet = at;
+            for _ in 0..(60.0 / super::super::TICK_S) as usize {
+                game.tick += super::super::TICK_MS;
+                game.zone_tick(&inside, &inside, true);
+                if !game.bodies[0].alive {
+                    break;
+                }
+            }
+            game
+        };
+        let routed = run(true);
+        assert!(!routed.bodies[0].alive, "the infection ran out");
+        assert_eq!(routed.zone_pool_deaths, [0, 0, 1, 0], "{:?}", routed.zone_pool_lost);
+        assert!(routed.zone_pool_lost[2] > 0.5 && routed.zone_pool_lost[0] == 0.0, "{:?}", routed.zone_pool_lost);
+        assert!((routed.bodies[0].health - 1.0).abs() < 1e-6, "the body pool is not touched");
+        // Raw: the body pool pays.
+        let raw = run(false);
+        assert!(!raw.bodies[0].alive);
+        assert_eq!(raw.zone_pool_deaths, [0, 0, 0, 0]);
+        assert!(raw.bodies[0].health <= 1e-3);
+    }
 }
