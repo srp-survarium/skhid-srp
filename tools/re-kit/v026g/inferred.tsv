@@ -2443,8 +2443,6 @@ va	status	ref_021d	name
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
 0x00357ba0	inferred-medium	0x0021bf98	vostok::physics::destroy_ghost_object
-0x00357f80	inferred-medium		vostok::configs::apply_add_modifiers
-0x00358010	inferred-medium		vostok::configs::apply_multiply_modifiers
 0x00358d90	inferred-medium	0x00225589	vostok::configs::process_string
 0x00359ca0	inferred-medium	0x00225f59	boost::intrusive::detail::tree_algorithms<boost::intrusive::rbtree_node_traits<void *,0> >::dispose_subtree<boost::intrusive::detail::node_disposer<`vostok::configs::create_binary_config_buffer_impl'::`3'::remap_disposer::crc_disposer,boost::intrusive::rbtree_impl<boost::intrusive::setopt<boost::intrusive::detail::member_hook_traits<vostok::configs::pointer_remap_type,boost::intrusive::set_member_hook<boost::intrusive::none,boost::intrusive::none,boost::intrusive::none,boost::intrusive::none>,12>,vostok::configs::pointer_remap_type::comparer,unsigned int,1> > > >
 0x0035a050	inferred-high	0x002260f8	vostok::memory::stream::append

@@ -1469,6 +1469,7 @@ va	name	source	ret_cleanup	result
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	manual	8	
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	manual	12	EAX: the ghost
 0x00357aa0	vostok::physics::create_ghost_object	manual		EAX: the bt_ghost_object (kept at collision_geometry+18h)
+0x00357f10	vostok::configs::apply_set_modifiers	manual	0	[ESI] = the last of the modifiers' values (type 0)
 0x00357f80	vostok::configs::apply_add_modifiers	manual	0	[ESI] = value + sum of the modifiers (type 1)
 0x00358010	vostok::configs::apply_multiply_modifiers	manual	0	[ESI] = value x max(0, 1 + sum of the modifiers) (type 2)
 0x00376280	vostok::network::login_client::create_client	manual	0	

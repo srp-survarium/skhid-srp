@@ -106,6 +106,33 @@ impl Default for CommitTuning {
 impl Default for ThreatTuning {
     fn default() -> Self {
         Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
+
+    }
+}
+
+/// The humans' perches in the hold plays (V-S2b, `plays::goals::perch_first`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PerchTuning {
+    /// A hold's spot pick may take a perch of the routes table; off, none.
+    pub on: bool,
+    /// The holds' share of a bot's time, GUESS from the live play mix
+    /// (27-63 %): the humans' share of time on perches over this is the
+    /// share of the holds' picks that take one.
+    pub hold_share: f32,
+    /// A multiplier on that share, for the bench to sweep (1: as designed).
+    pub p_scale: f32,
+    /// The most that share of picks may be.
+    pub p_max: f32,
+    /// A perch is taken at least this far from the anchor it holds, m, and at
+    /// most this far.
+    pub min_m: f32,
+    pub max_m: f32,
+}
+
+impl Default for PerchTuning {
+    fn default() -> Self {
+        Self { on: true, hold_share: 0.4, p_scale: 1.0, p_max: 0.5, min_m: 10.0, max_m: 45.0 }
     }
 }
 
@@ -203,6 +230,10 @@ pub struct ThinkTuning {
     /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off (the
     /// default until the phase-end smoke turns it on): the sprint and the jumps as before; the reckoning is counted.
     pub stamina: bool,
+    /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
+    /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off (the default until a train turns
+    /// it on): the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
+    pub fall_lock: bool,
 }
 
 impl Default for ThinkTuning {
@@ -217,6 +248,7 @@ impl Default for ThinkTuning {
             rest_off_lip: false,
             stranded_start: false,
             stamina: false,
+            fall_lock: false,
         }
     }
 }

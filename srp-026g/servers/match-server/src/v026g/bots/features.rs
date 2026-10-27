@@ -75,6 +75,8 @@ features! {
         stock: stock::BotState,
         /// The bear-trap habit and the notice of the traps of others (`traps`).
         traps: traps::BotState,
+        /// What the weapon mods did to its reloads, from the lives gone (`guns`).
+        weapon_mods: guns::ModBank,
     }
 }
 

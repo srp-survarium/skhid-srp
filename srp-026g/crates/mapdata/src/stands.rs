@@ -24,9 +24,13 @@
 
 use crate::{RayTree, Rotation, Shape, Vec3, World, ZoneKind};
 
-/// The use ray's length, metres (`usable_objects_detection_distance`,
-/// PROVEN, 0xA710D8).
+/// The use ray's length the stands were first made for, metres: the client's
+/// compiled default of `usable_objects_detection_distance` (0xA710D8, PROVEN).
 pub const USE_RAY_M: f32 = 2.0;
+/// The use ray's length the client runs with, metres: the stock `startup.cfg`
+/// sets `usable_objects_detection_distance` to 1.80 (PROVEN; the cvar is the
+/// float `detect_usable_object` 0x2D84C0 loads as the ray's length).
+pub const USE_RAY_CLIENT_M: f32 = 1.8;
 /// The view's pitch limit, radians (LIKELY; `kin.rs`).
 pub const PITCH_MAX_RAD: f32 = 1.0;
 /// The two eye heights over the feet a standing stand must pass at, metres:
@@ -106,11 +110,16 @@ impl UseStands {
 
     /// [`Self::build`] with other pairs of eye heights.
     pub fn build_with(world: &World, standing: [f32; 2], crouched: [f32; 2]) -> Self {
+        Self::build_ray(world, standing, crouched, USE_RAY_M)
+    }
+
+    /// [`Self::build_with`] with a use ray of `ray_m` metres.
+    pub fn build_ray(world: &World, standing: [f32; 2], crouched: [f32; 2], ray_m: f32) -> Self {
         let lists = world
             .map
             .containers
             .iter()
-            .map(|c| stands_of(world, c.use_shapes.first(), standing, crouched))
+            .map(|c| stands_of(world, c.use_shapes.first(), standing, crouched, ray_m))
             .collect();
         let ids = world.map.containers.iter().map(|c| c.id).collect();
         let zones = world
@@ -118,7 +127,7 @@ impl UseStands {
             .zones
             .iter()
             .map(|z| match z.kind {
-                ZoneKind::Resupply => stands_of(world, z.shapes.first(), standing, crouched),
+                ZoneKind::Resupply => stands_of(world, z.shapes.first(), standing, crouched, ray_m),
                 _ => Vec::new(),
             })
             .collect();
@@ -147,6 +156,7 @@ fn stands_of(
     shape: Option<&Shape>,
     eye_standing: [f32; 2],
     eye_crouched: [f32; 2],
+    ray_m: f32,
 ) -> Vec<UseStand> {
     let Some(shape) = shape else {
         return Vec::new();
@@ -169,8 +179,8 @@ fn stands_of(
             continue;
         }
         let at = |heights: [f32; 2]| -> Option<(Vec3, f32)> {
-            let first = press(&world.sight, feet + Vec3::new(0.0, heights[0], 0.0), shape)?;
-            press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape)?;
+            let first = press(&world.sight, feet + Vec3::new(0.0, heights[0], 0.0), shape, ray_m)?;
+            press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape, ray_m)?;
             Some(first)
         };
         let standing = at(eye_standing);
@@ -197,9 +207,9 @@ fn stands_of(
 }
 
 /// The game's use test from `eye` against `shape`: some aim, within the
-/// view's pitch, whose [`USE_RAY_M`] ray meets the shape with nothing of
+/// view's pitch, whose `ray_m` ray meets the shape with nothing of
 /// the bullet mesh short of it. The aim (a point of the box) and its pitch.
-pub fn press(sight: &RayTree, eye: Vec3, shape: &Shape) -> Option<(Vec3, f32)> {
+pub fn press(sight: &RayTree, eye: Vec3, shape: &Shape, ray_m: f32) -> Option<(Vec3, f32)> {
     let n = SAMPLES;
     for &(ix, iy, iz) in aim_order() {
         let local = Vec3::new(
@@ -221,7 +231,7 @@ pub fn press(sight: &RayTree, eye: Vec3, shape: &Shape) -> Option<(Vec3, f32)> {
         let Some(t) = ray_box(eye, dir, shape.center, &shape.rotation, shape.half) else {
             continue;
         };
-        if t > USE_RAY_M {
+        if t > ray_m {
             continue;
         }
         if sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none() {
@@ -247,11 +257,11 @@ fn aim_order() -> &'static [(usize, usize, usize)] {
 }
 
 /// Whether a use ray from `eye` along `dir` (unit) meets `shape` by the
-/// game's rule: within [`USE_RAY_M`], nothing of the bullet mesh short of
+/// game's rule: within `ray_m`, nothing of the bullet mesh short of
 /// it.
-pub fn ray_meets(sight: &RayTree, eye: Vec3, dir: Vec3, shape: &Shape) -> bool {
+pub fn ray_meets(sight: &RayTree, eye: Vec3, dir: Vec3, shape: &Shape, ray_m: f32) -> bool {
     ray_box(eye, dir, shape.center, &shape.rotation, shape.half)
-        .is_some_and(|t| t <= USE_RAY_M && sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none())
+        .is_some_and(|t| t <= ray_m && sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none())
 }
 
 /// How far along a ray from `eye` along `dir` (unit) the oriented `shape`
@@ -376,6 +386,19 @@ mod tests {
     }
 
     #[test]
+    fn a_shorter_use_ray_keeps_only_stands_the_longer_one_has() {
+        let (world, _) = world(false);
+        let eyes = (EYE_STANDING, EYE_CROUCHED);
+        let long = UseStands::build_ray(&world, eyes.0, eyes.1, USE_RAY_M);
+        let short = UseStands::build_ray(&world, eyes.0, eyes.1, USE_RAY_CLIENT_M);
+        assert!(!short.of(0u8).is_empty(), "1.8 m still has stands");
+        assert!(short.of(0u8).len() < long.of(0u8).len(), "and fewer than 2.0 m");
+        assert!(short.of(0u8).iter().all(|s| is_stand(long.of(0u8), s.feet)));
+        // build_with is the 2.0 m list.
+        assert_eq!(UseStands::build_with(&world, eyes.0, eyes.1).of(0u8), long.of(0u8));
+    }
+
+    #[test]
     fn stands_are_floors_whose_press_ray_hits_the_box() {
         let (world, shape) = world(false);
         let stands = UseStands::build(&world);
@@ -383,7 +406,7 @@ mod tests {
         assert!(!list.is_empty(), "a box on a flat floor has stands");
         for s in list {
             let eye = s.feet + Vec3::new(0.0, EYE_STANDING[0], 0.0);
-            let (aim, _) = press(&world.sight, eye, &shape).expect("a listed stand presses");
+            let (aim, _) = press(&world.sight, eye, &shape, USE_RAY_M).expect("a listed stand presses");
             assert!((aim - s.aim).length() < 1e-4, "{s:?}");
             // Within the ray's reach of the box's faces.
             assert!(

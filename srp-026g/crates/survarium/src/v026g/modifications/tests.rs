@@ -1148,3 +1148,69 @@ fn every_item_of_the_built_game_data_rolls_three_types() {
     assert!(rolling > 150, "{rolling}");
     assert!(short.is_empty(), "fewer than three types: {short:?}");
 }
+
+fn change(kind: u8, value: f32) -> Modifier {
+    Modifier {
+        path: "parameters/k".into(),
+        value,
+        kind,
+    }
+}
+
+fn applied(base: f32, changes: &[Modifier]) -> f32 {
+    apply(base, &changes.iter().collect::<Vec<_>>())
+}
+
+/// The client's rule (0x357F10 / 0x357F80 / 0x358010): the changes to one key
+/// add, then take effect once; the floor is 0.
+#[test]
+fn changes_to_a_key_apply_by_the_clients_rule() {
+    assert_eq!(applied(10.0, &[]), 10.0);
+    // Type 2: -5 % and -10 % are -15 %, not 0.95 x 0.9.
+    let both = applied(10.0, &[change(2, -0.05), change(2, -0.10)]);
+    assert!((both - 8.5).abs() < 1e-5, "{both}");
+    // The floor is 0; nothing caps a rise.
+    assert_eq!(applied(10.0, &[change(2, -0.8), change(2, -0.5)]), 0.0);
+    assert!((applied(10.0, &[change(2, 3.0)]) - 40.0).abs() < 1e-4);
+    // Type 1 adds, type 0 sets to the last value.
+    assert_eq!(applied(10.0, &[change(1, 2.0), change(1, -5.0)]), 7.0);
+    assert_eq!(applied(10.0, &[change(0, 1.0), change(0, 4.0)]), 4.0);
+}
+
+/// A weapon's mod and a defect on one key add their fractions before they
+/// multiply; a key the mod does not touch stays.
+#[test]
+fn a_mod_and_a_defect_on_one_key_add_before_they_multiply() {
+    let data = Modifications::shared();
+    let defect = data
+        .defects
+        .iter()
+        .find(|row| {
+            row.modifiers
+                .iter()
+                .any(|modifier| modifier.path == "parameters/reload_time")
+        })
+        .expect("a defect slows the reload");
+    let slower = defect
+        .modifiers
+        .iter()
+        .find(|modifier| modifier.path == "parameters/reload_time")
+        .unwrap();
+    assert_eq!(slower.kind, 2);
+    // 2044: the reload time -15 %.
+    let alone = data.modified(&[(2044, false)], "parameters/reload_time", 3.167);
+    assert!((alone - 3.167 * 0.85).abs() < 1e-5, "{alone}");
+    let with = data.modified(
+        &[(2044, false), (defect.id, true)],
+        "parameters/reload_time",
+        3.167,
+    );
+    assert!(
+        (with - 3.167 * (1.0 - 0.15 + slower.value)).abs() < 1e-4,
+        "{with}"
+    );
+    assert_eq!(
+        data.modified(&[(2044, false)], "parameters/rounds_per_minute", 600.0),
+        600.0
+    );
+}
