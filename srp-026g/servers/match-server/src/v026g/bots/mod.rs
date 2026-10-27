@@ -64,6 +64,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod stamina;
 pub mod stock;
 pub mod stuck;
 pub mod tactics;
@@ -196,6 +197,9 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its stamina bar as the bot reckons it from the keys it sent ([`stamina`]), and those keys.
+    stamina: stamina::Reckoning,
+    sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
@@ -376,6 +380,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            stamina: stamina::Reckoning::default(),
+            sent_keys: 0,
             rest: rest::RestWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
@@ -1115,6 +1121,8 @@ impl Bots {
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
+            bot.stamina.spawn(time);
+            bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
