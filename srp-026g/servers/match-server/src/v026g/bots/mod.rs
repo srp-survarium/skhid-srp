@@ -76,6 +76,7 @@ pub mod traps;
 pub mod tuning;
 pub mod view;
 pub mod zone_cost;
+pub mod zone_search;
 
 mod commander;
 mod drive;

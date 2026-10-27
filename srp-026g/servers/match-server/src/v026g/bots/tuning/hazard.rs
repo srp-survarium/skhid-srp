@@ -25,6 +25,11 @@ pub struct HazardTuning {
     /// take from, through the bot's armour on the parts it hits (`zone_cost.rs`). The bench's
     /// switch, `SRP_BENCH_ZONE_POOLS=routed`.
     pub zone_pools: ZonePools,
+    /// A battery in zones on all match that no straight walk crosses to (a wall or a drop between it and
+    /// the dry floor) is offered when the motor's own crossing route over the zones' floors is borne
+    /// (`collect::routed_crossing_to`), and the motor walks it; off (the default): only the straight
+    /// crossings, as it was. The bench's switch, `SRP_BENCH_ROUTE_CROSSING=1`.
+    pub route_crossing: bool,
 }
 
 /// What a crossing of a damage zone is weighed against (`HazardTuning::zone_pools`).
@@ -48,6 +53,7 @@ impl Default for HazardTuning {
             artefact_know: false,
             live_zones: false,
             zone_pools: ZonePools::Raw,
+            route_crossing: false,
         }
     }
 }
