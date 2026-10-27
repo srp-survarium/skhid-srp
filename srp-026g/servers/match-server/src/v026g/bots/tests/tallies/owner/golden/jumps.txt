@@ -1,4 +1,4 @@
-owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,33],"route":[22,22],"unstick":[34,33]}; wrong 88 failed 84; flags BACK_SIDE 7, DROPPED 64, FWD_RELEASED_085 1, IN_PLACE 18, LINK_AGAIN 1, NOT_FREED 23, NOT_UP 46, NO_SPRINT 5, REPEAT 26, SHORT_RUNUP 23, TOO_LOW 18; missed jumps 0 stalls at a step 0 (stalls 4); route landings up 0 down 0; sprint jumps 12; the 5 s before a missed jump: 0 (fired 0, target past the band 0, standing 0); before a press that freed nothing: 23 (fired 9, target past the band 0, standing 2)
+owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,32],"route":[22,22],"unstick":[34,33]}; wrong 87 failed 84; flags BACK_SIDE 7, DROPPED 64, FWD_RELEASED_085 1, IN_PLACE 18, LINK_AGAIN 1, NOT_FREED 23, NOT_UP 46, NO_SPRINT 5, REPEAT 26, SHORT_RUNUP 23, TOO_LOW 16; missed jumps 0 stalls at a step 0 (stalls 4); route landings up 0 down 0; sprint jumps 12; the 5 s before a missed jump: 0 (fired 0, target past the band 0, standing 0); before a press that freed nothing: 23 (fired 9, target past the band 0, standing 2)
 {
   "band_jumps": [
     21,
@@ -22,11 +22,11 @@ owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,33],"route":[22,22],
     "REPEAT": 26,
     "SHORT_RUNUP": 23,
     "STAND_TURN": 0,
-    "TOO_LOW": 18,
+    "TOO_LOW": 16,
     "UP_THEN_DOWN": 0
   },
   "jumps_failed": 84,
-  "jumps_wrong": 88,
+  "jumps_wrong": 87,
   "missed_jump": 0,
   "missed_jump_play": {},
   "missed_jump_pre_5s": {},
@@ -55,7 +55,7 @@ owner-test jumps: presses 89 by [presses, wrong] {"hop":[33,33],"route":[22,22],
   "presses_by": {
     "hop": [
       33,
-      33
+      32
     ],
     "route": [
       22,
