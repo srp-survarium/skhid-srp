@@ -879,7 +879,7 @@ mod tests {
     #[test]
     fn the_rushers_weapon_kind_follows_its_kit() {
         let kind =
-            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher }));
+            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher, mask: None }));
         for kit in RusherKit::ALL {
             let shotgun = !matches!(kit.worn_in(BotTier::Mid), RusherKit::Smg | RusherKit::Alt);
             let wanted = if shotgun {
@@ -924,7 +924,7 @@ mod tests {
         for tier in [BotTier::Mid, BotTier::High] {
             for kit in [RusherKit::Smg, RusherKit::Alt] {
                 let profile =
-                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: None });
                 assert_eq!(
                     weapon_in_slot_7(&profile),
                     Some(WeaponKind::Smg),
@@ -934,7 +934,7 @@ mod tests {
             }
             for kit in [RusherKit::Slug, RusherKit::Helmet, RusherKit::Control] {
                 let profile =
-                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: None });
                 assert_eq!(
                     weapon_in_slot_7(&profile),
                     Some(WeaponKind::Shotgun),

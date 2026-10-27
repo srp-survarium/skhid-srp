@@ -69,7 +69,7 @@ use std::time::{Duration, Instant};
 
 use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
-use survarium::v026g::loadouts::RusherKits;
+use survarium::v026g::loadouts::{Masks, RusherKits};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
@@ -118,7 +118,8 @@ pub struct Config {
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
     /// `SRP_PVB_RUSHER_KIT` (default `control`, the old table): the kit the
-    /// rusher bots of each tier wear.
+    /// rusher bots of each tier wear; `SRP_PVB_MASKS` (default `off`): whether every bot wears the respirator
+    /// the top players of its tier wear.
     pub rusher_kits: RusherKits,
 }
 
@@ -147,13 +148,19 @@ impl Config {
             }),
             Err(_) => DEFAULT_MAX_GEAR,
         };
-        let rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
+        let mut rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
             Ok(value) => parse_rusher_kits(&value).unwrap_or_else(|why| {
                 log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the old kit");
                 RusherKits::default()
             }),
             Err(_) => RusherKits::default(),
         };
+        if let Ok(value) = std::env::var("SRP_PVB_MASKS") {
+            rusher_kits.masks = Masks::parse(&value).unwrap_or_else(|why| {
+                log::error!("SRP_PVB_MASKS is `{value}` ({why}). Using none");
+                Masks::default()
+            });
+        }
         let config = Self {
             enabled: session::v026g::pvb::enabled(),
             max_gear,

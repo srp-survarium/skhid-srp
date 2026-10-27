@@ -836,7 +836,7 @@ impl Arms {
                         continue;
                     }
                     for role in BotRole::ALL {
-                        let equipment = BotEquipment { tier, rusher };
+                        let equipment = BotEquipment { tier, rusher, mask: None };
                         let kits = bot_kits(equipment, role);
                         let modifiers = bot_modifiers(&kits);
                         for (k, kit) in kits.into_iter().enumerate() {
@@ -976,7 +976,7 @@ mod tests {
                 .copied()
                 .filter(|&kit| kit.worn_in(tier) == kit);
             for rusher in made {
-                let equipment = BotEquipment { tier, rusher };
+                let equipment = BotEquipment { tier, rusher, mask: None };
                 for role in BotRole::ALL {
                     let kits = Arms::kits_of(equipment, role);
                     assert_eq!(kits.len(), 3, "{tier} {} {role}", rusher.name());
@@ -1018,7 +1018,7 @@ mod tests {
             (BotTier::High, RusherKit::Alt, "kriss_vector", 200, 30),
         ] {
             assert_eq!(kit.worn_in(tier), kit, "{tier} {}", kit.name());
-            let rusher = BotEquipment { tier, rusher: kit };
+            let rusher = BotEquipment { tier, rusher: kit, mask: None };
             let arms = Arms::of_kit(rusher, BotRole::Rusher, 0).expect("the arms");
             assert_eq!(arms.primary.0.item, item);
             assert_eq!(arms.primary.0.magazine, magazine, "{item}");

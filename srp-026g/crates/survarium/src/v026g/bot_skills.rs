@@ -396,7 +396,7 @@ mod tests {
             for upgrades in [false, true] {
                 for tier in BotTier::ALL {
                     for rusher in made_kits(tier) {
-                        let equipment = BotEquipment { tier, rusher };
+                        let equipment = BotEquipment { tier, rusher, mask: None };
                         for role in BotRole::ALL {
                             all.push((equipment, role, new, upgrades));
                         }
@@ -579,7 +579,7 @@ mod tests {
                 continue;
             }
             let (new, old) = (
-                level(BotEquipment { tier, rusher: smg }),
+                level(BotEquipment { tier, rusher: smg, mask: None }),
                 level(BotEquipment {
                     tier,
                     rusher: RusherKit::Control,

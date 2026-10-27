@@ -194,7 +194,7 @@ pub(crate) fn a_rusher_carries_the_kit_its_equipment_says() {
             .copied()
             .filter(|&kit| kit.worn_in(tier) == kit)
         {
-            let equipment = BotEquipment { tier, rusher };
+            let equipment = BotEquipment { tier, rusher, mask: None };
             let bots = Bots::new(
                 0x41B,
                 survarium::v026g::maps::mode::BATTERIES,

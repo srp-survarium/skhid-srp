@@ -1804,15 +1804,20 @@ fn say_the_rusher_kit() {
 
 /// The kit the rusher bots of the bench wear (`SRP_BENCH_RUSHER`, as the
 /// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the old table
-/// when unset).
+/// when unset), and whether every bot wears the top players' respirator of its tier (`SRP_BENCH_MASKS=top`,
+/// as the lobby's `SRP_PVB_MASKS`; none when unset).
 pub(crate) fn bench_rusher_kits() -> survarium::v026g::loadouts::RusherKits {
-    use survarium::v026g::loadouts::RusherKits;
-    match bench_settings().var("SRP_BENCH_RUSHER") {
+    use survarium::v026g::loadouts::{Masks, RusherKits};
+    let mut kits = match bench_settings().var("SRP_BENCH_RUSHER") {
         Ok(text) if !text.is_empty() => {
             RusherKits::parse(&text).unwrap_or_else(|why| panic!("SRP_BENCH_RUSHER: {why}"))
         }
         _ => RusherKits::default(),
+    };
+    if let Ok(text) = bench_settings().var("SRP_BENCH_MASKS") {
+        kits.masks = Masks::parse(&text).unwrap_or_else(|why| panic!("SRP_BENCH_MASKS: {why}"));
     }
+    kits
 }
 
 /// The equipment of the bench's bots: their tier (`SRP_BENCH_TIER`) and the

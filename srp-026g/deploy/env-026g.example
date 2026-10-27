@@ -177,6 +177,10 @@ RUST_LOG=info
 # One word for both tiers or 9-10=alt,13-15=smg (the bench's pick). Read at
 # start.
 # SRP_PVB_RUSHER_KIT=control
+# Whether every bot wears the respirator the top players of its tier wear
+# (docs/notes/pvb-tiers.md): off (the default), or top (ren_mask_3 at 9-10,
+# edge_resp_3 at 13-15; the lowest tier has none). Read at start.
+# SRP_PVB_MASKS=off
 
 # The bots' decision traces, one JSON file a match with the server's bots
 # (off unless set), and the most MB they keep together, the oldest first.

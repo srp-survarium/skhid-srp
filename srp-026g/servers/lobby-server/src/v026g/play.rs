@@ -1284,7 +1284,11 @@ mod tests {
                     .iter()
                     .copied()
                     .filter(move |&kit| kit.worn_in(tier) == kit)
-                    .map(move |rusher| BotEquipment { tier, rusher })
+                    .flat_map(move |rusher| {
+                        [None, tier.top_mask()]
+                            .into_iter()
+                            .map(move |mask| BotEquipment { tier, rusher, mask })
+                    })
             })
             .collect();
         for equipment in equipments {
