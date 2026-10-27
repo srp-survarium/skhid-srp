@@ -3107,3 +3107,8 @@ va	status	ref_021d	name
 0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
 0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
 0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list
+0x002fe7f0	inferred-high		survarium::inventory::quick_slot_to_inventory_slot
+0x00313470	inferred-high		survarium::artefact_base::on_taken
+0x00313490	inferred-high		survarium::artefact_base::on_removed
+0x002d4540	inferred-high		survarium::active_objects::append
+0x00299830	inferred-high		survarium::empty_hands::empty_hands
