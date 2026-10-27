@@ -120,6 +120,20 @@ pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
     )
 }
 
+/// A battery's crossings by a route over the zones' floors (`collect::routed_asks`): weighed, borne, refused, begun,
+/// aborted.
+pub(super) fn route_crossings() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::collect::routed_asks::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "route_cross_asked {} route_cross_borne {} route_cross_refused {} route_cross_begun {} route_cross_aborted {}",
+                d[0], d[1], d[2], d[3], d[4]
+            ));
+        },
+    )
+}
+
 /// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
 pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -283,6 +297,17 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::fall_locks::counts().to_vec(),
         |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
+    )
+}
+
+/// The blind stops: ticks a bot stood for want of a world, the stops a world ended, and those that showed the stop was needless
+/// (`stuck::blind`).
+pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::blind::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("blind_stop_ticks {} blind_stops_ended {} blind_stops_needless {}", d[0], d[1], d[2]));
+        },
     )
 }
 
