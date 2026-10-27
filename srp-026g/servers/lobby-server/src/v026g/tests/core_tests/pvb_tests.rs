@@ -281,6 +281,7 @@ fn the_rusher_bots_wear_the_kit_the_lobby_says() {
     let high_only = RusherKits {
         mid: RusherKit::Control,
         high: RusherKit::Smg,
+        ..RusherKits::default()
     };
     assert_eq!(rusher_weapons(8, high_only), all("spas_12", rushers));
     let smg_at_13_15 = if Dictionary::shared().item_named("fn_p90").is_some() {

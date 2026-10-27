@@ -1269,7 +1269,7 @@ mod tests {
     fn a_server_bot_wears_its_roles_kit_and_a_client_reads_it() {
         use survarium::v026g::dictionary::Dictionary;
         use survarium::v026g::loadouts::{
-            self, BOT_AMMO_LIVES, bot_equipment_of, bot_kit_items, bot_of,
+            self, BOT_AMMO_LIVES, BotMask, bot_equipment_of, bot_kit_items, bot_of,
         };
         use survarium::v026g::match_msgs::static_info::{
             KIT_USABLE, MatchOptions, SCORE_WEIGHTS, StaticInfo, parse_payload,
@@ -1284,7 +1284,12 @@ mod tests {
                     .iter()
                     .copied()
                     .filter(move |&kit| kit.worn_in(tier) == kit)
-                    .map(move |rusher| BotEquipment { tier, rusher })
+                    .flat_map(move |rusher| {
+                        BotMask::ALL
+                            .into_iter()
+                            .filter(move |&mask| mask == BotMask::Table || tier.top_mask().is_some())
+                            .map(move |mask| BotEquipment { tier, rusher, mask })
+                    })
             })
             .collect();
         for equipment in equipments {

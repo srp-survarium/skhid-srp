@@ -75,6 +75,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SECONDS", "240", "the length of a match, s"),
     s("SRP_BENCH_SEED", "0", "another match of the same map and size (0: the digests' runs)"),
     s("SRP_BENCH_TIER", "unset: the lowest tier", "every bot's tier, `4-5`, `9-10` or `13-15`: each bot is the lobby's (its role from `bot_roles`, the tier's kits of `bot_profile`), read back as the match server does (`bench_roster`)"),
+    s("SRP_BENCH_MASKS", "off", "**model** `top`: every bot wears the respirator the top players of its tier wear (`loadouts::Masks`, `BotTier::top_mask`: `ren_mask_3` at 9-10, `edge_resp_3` at 13-15, none at 4-5), as the lobby's `SRP_PVB_MASKS`; changes the kits the bench's bots carry and so their armour against a damage zone"),
     s("SRP_BENCH_RUSHER", "control", "the kit the rusher bots of tiers 9-10 and 13-15 wear (`loadouts::RusherKits`, the lobby's `SRP_PVB_RUSHER_KIT`): `control` (the old kit: the SPAS-12 with buckshot; the default), `smg` (`sr2m` / `fn_p90`), `alt` (`ump45` / `kriss_vector`), `slug` or `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`. A kit whose items the game data lacks is the old kit, said in a line (the built-in test archive has no `fn_p90` or `kriss_vector`: set SRP_GAME_DATA); the rusher's armour and ammo in the stand-in's hits follow it"),
     s("SRP_DECISIONS_OUT", "unset", "a file the run's decisions line is appended to"),
     // What is printed or written.

@@ -186,7 +186,7 @@ pub(crate) fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
 /// with a life's rounds of its ammo; the others carry none of the rusher's.
 #[test]
 pub(crate) fn a_rusher_carries_the_kit_its_equipment_says() {
-    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier};
+    use survarium::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier};
     for tier in BotTier::ALL {
         for rusher in tier
             .rusher_kits()
@@ -194,7 +194,7 @@ pub(crate) fn a_rusher_carries_the_kit_its_equipment_says() {
             .copied()
             .filter(|&kit| kit.worn_in(tier) == kit)
         {
-            let equipment = BotEquipment { tier, rusher };
+            let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
             let bots = Bots::new(
                 0x41B,
                 survarium::v026g::maps::mode::BATTERIES,
