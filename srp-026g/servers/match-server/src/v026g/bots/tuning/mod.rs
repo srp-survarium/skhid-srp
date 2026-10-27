@@ -248,6 +248,8 @@ mod tests {
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
         assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
+        assert_eq!(wrong(|t| t.sense.use_ray_m = 0.0), "sense.use_ray_m");
+        assert_eq!(wrong(|t| t.sense.use_ray_m = 5.5), "sense.use_ray_m");
         assert_eq!(
             wrong(|t| t.sense.shots = ShotRanges::ByWeapon { unknown_m: 0.0 }),
             "sense.shots.by_weapon.unknown_m"
