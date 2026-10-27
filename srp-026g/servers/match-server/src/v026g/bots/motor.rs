@@ -979,7 +979,7 @@ impl Motor {
         // within the harmless fall as well.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
             let record = route.drop_record(s, DROP_WALK_AHEAD_M);
-            if record != path::DropRecord::Safe {
+            if record != super::path::DropRecord::Safe {
                 self.sprinting = false;
                 drop_walks::released(record, route.lost());
                 if self.release.is_none() {
@@ -1812,7 +1812,7 @@ pub mod landings {
 pub mod drop_walks {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use super::path::{DropRecord, Lost};
+    use crate::v026g::bots::path::{DropRecord, Lost};
 
     /// Released ticks by kind (unsafe, unknown, unknown spliced/stand/jump, walk) 0-5, skipped as safe 6, hard falls 7,
     /// episodes by kind (the same six) 8-13 less one slot, no edge 14 and unresolved 15.
