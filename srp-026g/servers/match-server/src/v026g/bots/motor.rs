@@ -2326,7 +2326,7 @@ mod tests {
         assert_ne!(keys_of(false) & key::FORWARD, 0);
         let after = landings::drop_counts();
         assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 2);
-        assert!(after[1].iter().sum::<u64>() >= before[1].iter().sum::<u64>() + 1);
+        assert!(after[1].iter().sum::<u64>() > before[1].iter().sum::<u64>());
     }
 
     /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
