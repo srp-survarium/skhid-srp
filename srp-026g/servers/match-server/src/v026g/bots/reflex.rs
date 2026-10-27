@@ -82,7 +82,7 @@ use serde::{Deserialize, Serialize};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
-    RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY,
+    RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
@@ -144,6 +144,19 @@ impl WeaponKind {
             (_, "wpn_aslt") => Self::Rifle,
             _ => return None,
         })
+    }
+
+    /// The kind of a weapon of class `class`: the matchup's five kinds. A
+    /// machine gun takes the rifles' band; the marksman and bolt classes the
+    /// snipers'.
+    pub fn of_class(class: WeaponClass) -> Self {
+        match class {
+            WeaponClass::Pistol => Self::Pistol,
+            WeaponClass::Smg => Self::Smg,
+            WeaponClass::Shotgun => Self::Shotgun,
+            WeaponClass::Rifle | WeaponClass::MachineGun => Self::Rifle,
+            WeaponClass::Marksman | WeaponClass::Bolt => Self::Sniper,
+        }
     }
 
     /// The kind of this weapon came from its category, because its type is
@@ -880,6 +893,14 @@ pub struct FireTuning {
     /// side-step).
     pub strafe_bolt: f32,
     pub strafe_marksman: f32,
+    /// **Switch (default off).** Which class a weapon is, for everything that
+    /// goes by class: the range floor, the bursts' table, the crouch and
+    /// side-step shares, the distance band against another weapon. Off: the
+    /// dictionary category's, and a server bot's kind by its role. On: the
+    /// game data's (`parameters.type`: `wpn_smg` is an SMG whatever its
+    /// category, so the AK-74U takes the SMG's bands and tables), and a
+    /// server bot's kind follows the weapon it holds ([`WeaponClass::of`]).
+    pub weapon_class_by_data: bool,
 }
 
 impl Default for FireTuning {
@@ -920,17 +941,39 @@ impl Default for FireTuning {
             crouch_other: 0.15,
             strafe_bolt: 0.5,
             strafe_marksman: 0.5,
+            weapon_class_by_data: false,
         }
     }
 }
 
 /// A marksman rifle: one round a press, of the rifles' or the sniper
-/// rifles' category (the SVD, the SKS, the VSK-94's one-round copies).
-fn marksman(gun: &Gun) -> bool {
-    gun.handling == Handling::Semi && matches!(gun.category, 8 | 13)
+/// rifles' category (the SVD, the SKS, the VSK-94's one-round copies); with
+/// `by_data`, one of the rifle or marksman class.
+fn marksman(gun: &Gun, by_data: bool) -> bool {
+    gun.handling == Handling::Semi
+        && if by_data {
+            matches!(gun.class, WeaponClass::Rifle | WeaponClass::Marksman)
+        } else {
+            matches!(gun.category, RIFLE_CATEGORY | SNIPER_CATEGORY)
+        }
 }
 
 impl FireTuning {
+    /// The class of `gun` the bots go by ([`Self::weapon_class_by_data`]).
+    pub fn class_of(&self, gun: &Gun) -> WeaponClass {
+        gun.class_for(self.weapon_class_by_data)
+    }
+
+    /// The bursts' table `gun` takes: the data class' with the switch on, else
+    /// the one its handling carries (`legacy`, by its category).
+    pub fn auto_class(&self, gun: &Gun, legacy: AutoClass) -> AutoClass {
+        if self.weapon_class_by_data {
+            gun.class.auto_class()
+        } else {
+            legacy
+        }
+    }
+
     /// An automatic weapon's next burst at `distance` metres, ms: a tap or
     /// a hold.
     pub fn burst_ms(
@@ -980,9 +1023,11 @@ impl FireTuning {
     pub fn crouch_chance(&self, gun: &Gun, sniper: f32) -> f32 {
         match gun.handling {
             Handling::Bolt => sniper,
-            Handling::Burst(_) if gun.category == MG_CATEGORY => self.crouch_machine_gun,
+            Handling::Burst(_) if self.class_of(gun) == WeaponClass::MachineGun => {
+                self.crouch_machine_gun
+            }
             Handling::Burst(_) => self.crouch_auto,
-            _ if marksman(gun) => self.crouch_marksman,
+            _ if marksman(gun, self.weapon_class_by_data) => self.crouch_marksman,
             _ => self.crouch_other,
         }
     }
@@ -991,7 +1036,7 @@ impl FireTuning {
     pub fn strafe_chance(&self, gun: &Gun) -> f32 {
         match gun.handling {
             Handling::Bolt => self.strafe_bolt,
-            _ if marksman(gun) => self.strafe_marksman,
+            _ if marksman(gun, self.weapon_class_by_data) => self.strafe_marksman,
             _ => 1.0,
         }
     }
@@ -1178,7 +1223,7 @@ impl CombatTuning {
         if !self.range_by_weapon {
             return ceiling_m;
         }
-        self.range_floor_m(gun.class()).min(ceiling_m)
+        self.range_floor_m(self.fire.class_of(gun).name()).min(ceiling_m)
     }
 
     pub fn band(&self, kind: WeaponKind) -> (f32, f32) {
@@ -4928,6 +4973,7 @@ impl Reflex {
                 // A burst as long as the best players hold this kind of
                 // weapon at this distance (a tap, more often far).
                 Handling::Burst(class) if now >= self.pause_until => {
+                    let class = c.fire.auto_class(gun, class);
                     let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
                     self.burst_until = now + hold;
                     self.pause_until = self.burst_until

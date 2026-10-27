@@ -130,22 +130,148 @@ pub struct Gun {
     pub aim_ms: u32,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
+    /// What the game data says it is ([`WeaponClass::of`]): its `wpn_*` type,
+    /// the dictionary category only for a type nobody knows. The class the
+    /// bots go by with `FireTuning::weapon_class_by_data` on.
+    pub class: WeaponClass,
+    /// What its dictionary category says it is ([`WeaponClass::by_category`]):
+    /// the class the bots went by before the data's, and still go by with
+    /// the switch off.
+    pub by_category: WeaponClass,
 }
 
 impl Gun {
-    /// [PR C] The measure's class: by its category, and the sniper
-    /// category split by its bolt.
+    /// [PR C] The measure's class, by its category (the sniper category split
+    /// by its bolt): [`Gun::by_category`]'s name.
     pub fn class(&self) -> &'static str {
-        match (self.category, self.handling) {
-            (SMG_CATEGORY, _) => "smg",
-            (MG_CATEGORY, _) => "mg",
-            (PISTOL_CATEGORY, _) => "pistol",
-            (SHOTGUN_CATEGORY, _) => "shotgun",
-            (SNIPER_CATEGORY, Handling::Bolt) => "bolt",
-            (SNIPER_CATEGORY, _) => "marksman",
-            _ => "rifle",
+        self.by_category.name()
+    }
+
+    /// The class the bots go by: the game data's with `by_data`, else the
+    /// category's.
+    pub fn class_for(&self, by_data: bool) -> WeaponClass {
+        if by_data { self.class } else { self.by_category }
+    }
+}
+
+/// What kind of weapon a gun is, for the bots' choices that go by kind: the
+/// range it is fired to, how long its bursts are held, how often its owner
+/// crouches or side-steps, the distance band against another weapon.
+///
+/// One rule decides it ([`WeaponClass::of`]), from the game data: the
+/// weapon's `parameters.type` says the family (`wpn_smg` an SMG, `wpn_pstl` a
+/// pistol, `wpn_dbrl` a shotgun, `wpn_bolt` a bolt action), and for the
+/// assault-rifle type (`wpn_aslt`) the dictionary category splits the sniper
+/// category's marksman rifles and the machine guns off; only a type this code
+/// does not know takes its category's class ([`WeaponClass::by_category`]),
+/// so that a weapon a patch adds still has a class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WeaponClass {
+    Pistol,
+    Smg,
+    Rifle,
+    MachineGun,
+    Shotgun,
+    /// One round a press, of the sniper category: the SVD.
+    Marksman,
+    /// A bolt or a pump (a `chamber_a_round` state).
+    Bolt,
+}
+
+impl WeaponClass {
+    /// The class the game data gives the weapon `w`.
+    pub fn of(w: &survarium::v026g::weapons::WeaponParams) -> Self {
+        let bolt = bolt_action(w);
+        match (w.kind, w.category) {
+            ("wpn_smg", _) => Self::Smg,
+            ("wpn_pstl" | "wpn_rvlr" | "wpn_apst", _) => Self::Pistol,
+            ("wpn_dbrl" | "wpn_stgn" | "wpn_asgn", _) => Self::Shotgun,
+            ("wpn_bolt", _) => Self::Bolt,
+            ("wpn_aslt", SNIPER_CATEGORY) if bolt => Self::Bolt,
+            ("wpn_aslt", SNIPER_CATEGORY) => Self::Marksman,
+            ("wpn_aslt", MG_CATEGORY) => Self::MachineGun,
+            ("wpn_aslt", _) => Self::Rifle,
+            (_, category) => Self::by_category(category, bolt),
         }
     }
+
+    /// The class the dictionary category gives a weapon whose bolt action is
+    /// `bolt`: what the bots went by before the game data's.
+    pub fn by_category(category: u8, bolt: bool) -> Self {
+        match category {
+            SMG_CATEGORY => Self::Smg,
+            MG_CATEGORY => Self::MachineGun,
+            PISTOL_CATEGORY => Self::Pistol,
+            SHOTGUN_CATEGORY => Self::Shotgun,
+            SNIPER_CATEGORY if bolt => Self::Bolt,
+            SNIPER_CATEGORY => Self::Marksman,
+            _ => Self::Rifle,
+        }
+    }
+
+    /// Its name in the measure's tables.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Pistol => "pistol",
+            Self::Smg => "smg",
+            Self::Rifle => "rifle",
+            Self::MachineGun => "mg",
+            Self::Shotgun => "shotgun",
+            Self::Marksman => "marksman",
+            Self::Bolt => "bolt",
+        }
+    }
+
+    /// The bursts' table an automatic weapon of this class takes.
+    pub fn auto_class(self) -> AutoClass {
+        match self {
+            Self::Smg => AutoClass::Smg,
+            _ => AutoClass::Rifle,
+        }
+    }
+}
+
+/// [measure] What the game data's weapon class ([`WeaponClass::of`]) changes
+/// for the bots that hold a weapon: how many hold one, how many are of
+/// another class than their category's, and of those how many change each
+/// choice that goes by class (the bursts' table, the range floor), and how
+/// many a distance band (the kind, `reflex::WeaponKind`). 0 on every weapon
+/// of the 0.26g data but the ones that name another family than their
+/// category: the AK-74U and its like.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ClassCounts {
+    pub bots: u32,
+    /// Of another class than their category's.
+    pub differ: u32,
+    /// ... with another bursts' table.
+    pub burst: u32,
+    /// ... under another range floor (`CombatTuning::range_floor_m`: floors by
+    /// the class' name, which the data's class changes for a rifle called
+    /// SMG, and so on).
+    pub floor: u32,
+    /// Bots whose kind in the distance band differs from the one the switch off
+    /// gives them.
+    pub band: u32,
+}
+
+impl ClassCounts {
+    /// A bot holding `gun`, whose band changes or not.
+    pub fn add(&mut self, gun: &Gun, band_changes: bool) {
+        self.bots += 1;
+        self.band += u32::from(band_changes);
+        if gun.class == gun.by_category {
+            return;
+        }
+        self.differ += 1;
+        self.burst += u32::from(gun.class.auto_class() != gun.by_category.auto_class());
+        self.floor += u32::from(gun.class.name() != gun.by_category.name());
+    }
+}
+
+/// The weapon is worked by a bolt or a pump: one round a press, then a
+/// `chamber_a_round` state ([`Handling::Bolt`]).
+fn bolt_action(w: &survarium::v026g::weapons::WeaponParams) -> bool {
+    !w.automatic() && w.has_chamber && ms(w.chamber_a_round_time) > 0
 }
 
 /// The rows of the bursts' table an automatic weapon takes
@@ -272,11 +398,7 @@ impl Gun {
             0
         };
         let handling = if auto {
-            Handling::Burst(if w.category == SMG_CATEGORY {
-                AutoClass::Smg
-            } else {
-                AutoClass::Rifle
-            })
+            Handling::Burst(WeaponClass::by_category(w.category, false).auto_class())
         } else if chamber_ms > 0 {
             Handling::Bolt
         } else if matches!(reload, Reload::Barrels { .. }) {
@@ -297,6 +419,8 @@ impl Gun {
             category: w.category,
             aim_ms: ms(w.aim_time),
             dispersion: w.dispersion,
+            class: WeaponClass::of(w),
+            by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),
         }
     }
 }

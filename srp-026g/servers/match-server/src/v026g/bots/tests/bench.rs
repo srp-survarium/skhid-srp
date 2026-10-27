@@ -1645,6 +1645,15 @@ pub(crate) fn real_bot_cost() {
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0
             );
+            if bots.tuning.aim.combat.fire.weapon_class_by_data {
+                // The switch's activity and harm (the held weapons whose class,
+                // bursts' table, range floor or band the data's class changes).
+                let c = bots.class_counts();
+                eprintln!(
+                    "  weapon class by data: {} holding, {} differ, {} burst table, {} range floor, {} band",
+                    c.bots, c.differ, c.burst, c.floor, c.band
+                );
+            }
             let line = format!("{project} {per_team}v{per_team}: {}", decisions.line());
             eprintln!("  {line}");
             if let Some(out) = bench_settings().var_os("SRP_DECISIONS_OUT") {
