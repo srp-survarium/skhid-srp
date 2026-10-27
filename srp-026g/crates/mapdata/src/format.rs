@@ -721,13 +721,12 @@ mod tests {
         let map = sample();
         let old = MapData::from_bytes(&map.to_bytes_of(2)).unwrap();
         assert!(old.artefact_cores.is_empty());
-        assert_eq!(
-            MapData {
-                artefact_cores: Vec::new(),
-                ..map.clone()
-            },
-            old
-        );
+        let mut expected = MapData {
+            artefact_cores: Vec::new(),
+            ..map.clone()
+        };
+        expected.zones[0].damage.as_mut().unwrap().part_names.clear();
+        assert_eq!(expected, old);
         assert!(MapData::from_bytes(&map.to_bytes_of(1)).is_err());
         assert!(MapData::from_bytes(&map.to_bytes_of(5)).is_err());
     }
