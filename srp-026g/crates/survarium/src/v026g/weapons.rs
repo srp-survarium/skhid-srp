@@ -77,6 +77,9 @@ pub struct WeaponParams {
     /// from `min_damage_distance` on): [`super::damage`].
     pub bullet_pierce: f32,
     pub min_damage_amount: f32,
+    /// `stamina_damage`: what a bullet (a pellet) that hits takes off the
+    /// victim's stamina bar, before its skill 211 (the bots have none).
+    pub stamina_damage: f32,
     /// `recoil`: `min/max_top_recoil`, `min/max_left_recoil`,
     /// `min/max_right_recoil` (the config's degrees), `recoil_power`, and
     /// the controller's gains (proportional, integral, derivational).
@@ -328,6 +331,7 @@ impl WeaponParams {
             min_damage_distance: number(Some(p), "min_damage_distance")?,
             bullet_pierce: number(Some(p), "bullet_pierce")?,
             min_damage_amount: number(Some(p), "min_damage_amount")?,
+            stamina_damage: number(Some(p), "stamina_damage")?,
             top_recoil: range("top")?,
             left_recoil: range("left")?,
             right_recoil: range("right")?,
