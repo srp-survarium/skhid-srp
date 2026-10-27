@@ -198,7 +198,25 @@ pub(super) fn choose_step(
     )
 }
 
+/// One drive tick: the bot's stamina reckoning follows the keys of its last decision ([`stamina`]); with
+/// `think.stamina` the motor is told the bar and a jump the bar cannot pay is not pressed.
 pub(super) fn drive_tick(
+    bot: &mut Bot,
+    me: &PlaceView,
+    view: &MatchView,
+    tactics: &Tactics,
+    tuning: &Tuning,
+    time: u32,
+    searching: &mut Searching,
+) -> Decision {
+    bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some());
+    bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
+    let decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    bot.sent_keys = decision.keys;
+    decision
+}
+
+fn drive_tick_inner(
     bot: &mut Bot,
     me: &PlaceView,
     view: &MatchView,
@@ -232,7 +250,7 @@ pub(super) fn drive_tick(
         pitch: me.pitch,
         speed: me.speed(),
         velocity: me.velocity,
-        no_jump: !bot.hurt.may_jump(time),
+        no_jump: !bot.hurt.may_jump(time) || (tuning.think.stamina && !bot.stamina.may_jump()),
     };
     if bot
         .jump_watch
@@ -267,8 +285,17 @@ pub(super) fn drive_tick(
     } else {
         me
     };
+    bot.memory
+        .set_sight_window(know::SightWindow::of(&tuning.sense, &tuning.cheats));
     // [aimpoint] What of its target shows, before the reflex aims.
-    bot.reflex.look(aiming_me, view, &tactics.world, time);
+    bot.reflex.look(
+        aiming_me,
+        view,
+        &tactics.world,
+        &mut bot.memory,
+        &tuning.sense,
+        time,
+    );
     // A carrier never fires: in the game a new fire press drops the battery
     // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
     // `carrying` comes with the worlds (up to 2 s after a take); the take
@@ -299,6 +326,9 @@ pub(super) fn drive_tick(
         bot.skill,
         &mut bot.rng,
     );
+    if let Some(lapse) = bot.reflex.take_lapse() {
+        bot.sight_counts.add(lapse);
+    }
     bot.motor.turn_time = over.turn_time_s;
     let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {
@@ -1722,6 +1752,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }

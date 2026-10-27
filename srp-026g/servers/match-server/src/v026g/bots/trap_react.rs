@@ -849,7 +849,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         bot.features.traps.react.target_armed = keyed.iter().any(|(k, _)| *k == key);
         bot.features.traps.react.register(key, bot.place, due.now, state);
     }
-    let fighting = !bot.memory.all_seen(due.now).is_empty()
+    let fighting = !bot.memory.all_seen(due.now, due.view.clock).is_empty()
         || bot
             .hurt
             .last_hit_ms

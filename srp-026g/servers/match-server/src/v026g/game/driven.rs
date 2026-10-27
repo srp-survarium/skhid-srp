@@ -71,7 +71,7 @@ const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
 /// The bots of a match and their map.
 pub(super) struct Walkers {
-    bots: Bots,
+    pub(super) bots: Bots,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -333,6 +333,11 @@ fn weapon_in_slot_7(
     let category = survarium::v026g::dictionary::Dictionary::shared()
         .item(item.dict_id)?
         .category;
+    if WeaponKind::by_fallback(kind, category) {
+        log::info!(
+            "weapon type {kind} (category {category}) is none the bots know: its band is its category's"
+        );
+    }
     WeaponKind::of_item(kind, category)
 }
 
@@ -550,11 +555,24 @@ impl Game {
         }
     }
 
-    /// A human's input as relayed: the bots hear it and track the body.
-    pub(super) fn observe_input(&mut self, index: usize, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick: the bots hear it and track the body.
+    pub(super) fn observe_input(
+        &mut self,
+        index: usize,
+        time: u32,
+        late_ms: u32,
+        input: &PlayerInput,
+    ) {
         if let Some(walkers) = self.walkers.as_mut() {
-            walkers.bots.input(index, time, input);
+            walkers.bots.input(index, time, late_ms, input);
         }
+    }
+
+    /// TEST ONLY: the server's bots.
+    #[cfg(test)]
+    pub(crate) fn driven_bots(&self) -> Option<&Bots> {
+        self.walkers.as_ref().map(|walkers| &walkers.bots)
     }
 
     /// A trusted world: every player's body, and the statistics and

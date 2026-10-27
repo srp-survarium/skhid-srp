@@ -142,6 +142,11 @@ pub struct Feel {
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
     pub lip_look_ahead_m: Metres,
+    /// A body above a drop of the route that is within its look-ahead aims at the drop's landing, not past it
+    /// (`false`, the default, looks as far as anywhere). The route's distance is across the ground, so the look-ahead
+    /// of a drop 0.35 m across (B8, Vector Laboratory) reaches the legs that come back under the way in and the body
+    /// turns round on the upper floor instead of stepping off.
+    pub drop_aim: bool,
     /// When no point of the route ahead is one the body walks to in a line (it is on the other side of a wall from the
     /// route's next legs): `false` (the default; the bench's trains switch it on) steers at the unclear point all the
     /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
@@ -202,6 +207,7 @@ impl Default for Feel {
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
             lip_look_ahead_m: Metres::of(0.0),
+            drop_aim: false,
             unclear_aim: false,
             carrier_jump_m: None,
             drop_walk: false,
@@ -308,6 +314,10 @@ pub const DROP_WALK_AHEAD_M: f32 = 3.0;
 pub const SPRINT_GAP_TURN_M: f32 = 2.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
+/// A jump of the route this far on or nearer is priced by the bar ([`Motor::sprint_by_the_bar`]), metres.
+const STAMINA_LOOKAHEAD_M: f32 = 40.0;
+/// A bar at this or under is empty for the sprint: let go before the lockout, units.
+const STAMINA_TIRED_AT: f32 = 3.0;
 /// The landing window after a route jump's press, seconds: from the first ground the jump can land on (a
 /// 1 m jump is in the air about 0.6 s) to the end of the coast (the J0 rows: a sprint coasts 1.3 m, a walk 0.45 m).
 const LANDING_FROM_S: f32 = 0.6;
@@ -413,6 +423,8 @@ const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 #[derive(Clone, Debug)]
 pub struct Motor {
     pub feel: Feel,
+    /// Walk ticks in a row whose look-ahead was cut to a drop's landing ([`Feel::drop_aim`]).
+    drop_aim_run: u32,
     /// The view's turning speed now (yaw, pitch), radians a second.
     rate: (f32, f32),
     walking: bool,
@@ -451,6 +463,14 @@ pub struct Motor {
     /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
     /// lip's floors, where a line to a point further on cuts a corner over the rim).
     pub ahead_cap: Option<f32>,
+    /// The bar as the bot reckons it ([`stamina`]), when `think.stamina` is on: the sprint is let go of at an empty
+    /// bar and for a jump the bar could not pay.
+    pub gauge: Option<super::stamina::Gauge>,
+    /// Tired: the sprint was let go of at the empty bar and is not taken up again before the bar is back over
+    /// [`stamina::CLEAR_ABOVE`](super::stamina::CLEAR_ABOVE).
+    tired: bool,
+    /// The take-off of the sprint segment that was short of the bar when first seen ([`stamina::counts`]).
+    short_for: Option<Vec3>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -541,6 +561,12 @@ pub enum JumpBy {
     Hop,
 }
 
+/// The aim past a drop's landing when the look-ahead is cut to it, metres (the target is just past the landing's point).
+const DROP_AIM_PAST_M: f32 = 0.05;
+/// A run of cut ticks longer than this, ticks (2 s), counts as the body staying above the drop.
+#[cfg(test)]
+const DROP_AIM_LONG_TICKS: u32 = 40;
+
 impl Motor {
     pub fn new(feel: Feel, rng: &mut Rng) -> Self {
         Self {
@@ -560,7 +586,11 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: None,
+            drop_aim_run: 0,
             ahead_cap: None,
+            gauge: None,
+            tired: false,
+            short_for: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -694,6 +724,31 @@ impl Motor {
         self.feel.sway * (self.phase + self.t * 2.0 * PI / self.feel.sway_period_s).sin()
     }
 
+    /// With [`Feel::drop_aim`], the look-ahead cut to the landing of a drop within it that the body (`feet`) is still
+    /// above: the target is the landing, and the walk goes off the edge. A run of ticks it applies to is counted
+    /// (`drop_aim`), and a long one (the body stays above the drop) is the harm.
+    fn drop_cap(&mut self, route: &Route, s: f32, feet: Vec3, ahead: f32) -> f32 {
+        if !self.feel.drop_aim {
+            return ahead;
+        }
+        let cap = route
+            .next_drop(s, ahead)
+            .filter(|&(_, landing)| feet.y - landing.y >= mapdata::grid::LIP_DROP_M)
+            .map(|(along, _)| (along - s).max(0.0) + DROP_AIM_PAST_M);
+        match cap {
+            Some(cap) if cap < ahead => {
+                self.drop_aim_run += 1;
+                #[cfg(test)]
+                drop_aim::tick(self.drop_aim_run);
+                cap
+            }
+            _ => {
+                self.drop_aim_run = 0;
+                ahead
+            }
+        }
+    }
+
     /// The point of the route the walk steers at: `ahead` metres on from `s`, nearer by 0.6 while the body does not walk
     /// to it in a line (`clear`), down to [`MIN_AHEAD_M`]. Where even that is not clear the body is on the wrong side of
     /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
@@ -765,6 +820,7 @@ impl Motor {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
+                ahead = self.drop_cap(route, s, pose.feet, ahead);
                 match self.aim_point(route, s, ahead, &clear) {
                     Aim::Clear(target) | Aim::Unclear(target) => target,
                     // No point of the route is one the body walks to in a line: it is off it.
@@ -823,6 +879,8 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
+        self.sprint_by_the_bar(route, s);
         // A planned drop just ahead is walked off, not sprinted into the air.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
             self.sprinting = false;
@@ -869,6 +927,51 @@ impl Motor {
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
+    }
+
+    /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (a lockout lasts as long as the
+    /// sprint keys are held) and not taken up again before the bar is back over [`stamina::CLEAR_ABOVE`]; and let go of
+    /// when a jump of the route within [`STAMINA_LOOKAHEAD_M`] would find the bar short of what the sprint there, its
+    /// run-up and the jump cost ([`stamina::Reckoning::covers`]): walking, the bar comes back.
+    fn sprint_by_the_bar(&mut self, route: &Route, s: f32) {
+        let Some(gauge) = self.gauge else {
+            self.tired = false;
+            self.short_for = None;
+            return;
+        };
+        if gauge.low || gauge.value <= STAMINA_TIRED_AT {
+            self.tired = true;
+        } else if gauge.value >= super::stamina::CLEAR_ABOVE {
+            self.tired = false;
+        }
+        if !self.sprinting {
+            return;
+        }
+        if self.tired {
+            self.sprinting = false;
+            super::stamina::counts::released_low();
+            return;
+        }
+        let Some((k, before)) = route.next_jump(s) else {
+            self.short_for = None;
+            return;
+        };
+        if before > STAMINA_LOOKAHEAD_M {
+            return;
+        }
+        let points = route.points();
+        let (take_off, landing) = (points[k - 1].at, points[k].at);
+        let sprint_jump = matches!(points[k].jump, Some(Leap::Ledge)) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let run_up = if sprint_jump { SPRINT_RUN_UP_M } else { 0.0 };
+        let reckoning = super::stamina::Reckoning::of(gauge);
+        if !reckoning.covers(before.max(0.0), run_up) {
+            self.sprinting = false;
+            super::stamina::counts::saved((TICK_S * 1000.0) as u32);
+            if self.short_for.is_none_or(|at| at.distance_xz(take_off) > 0.3) {
+                self.short_for = Some(take_off);
+                super::stamina::counts::short_segment();
+            }
+        }
     }
 
     /// The keys against a landing run ([`Feel::landing_cancel_deg`]): in the window after a route jump's press
@@ -1651,6 +1754,26 @@ pub mod sprint_jumps {
     }
 }
 
+/// The bench's counts of the walk ticks whose look-ahead was cut to a drop's landing ([`Feel::drop_aim`]), and of
+/// the ticks of a run that went on past [`DROP_AIM_LONG_TICKS`] (the body stays above the drop it aims off).
+#[cfg(test)]
+pub mod drop_aim {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn tick(run: u32) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        if run > super::DROP_AIM_LONG_TICKS {
+            COUNTS[1].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts (all matches of the run): the route jumps got up at
 /// the first press and later, those given up ([`JUMP_TRIES`]), the cuts of
 /// a look-ahead to a point a line is not clear to, and the fight's side
@@ -2126,6 +2249,59 @@ mod tests {
         assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
     }
 
+    /// B8 (Vector Laboratory, match 223ad08c bot 3, 138-200 s): a Drop of 3.58 m over 0.35 m across whose later legs come
+    /// back under the way in (the route is a hairpin on one line). The route's distance is across the ground, so at the
+    /// take-off the look-ahead (about 2.5 m, even 0.8 m under the lip cap) reaches the lower legs, horizontally the way the
+    /// bot came from: it turns 115-173 degrees and walks back along the upper floor instead of off the edge.
+    /// `Feel::drop_aim` cuts the look-ahead to the landing.
+    #[test]
+    fn at_a_hairpin_drops_take_off_the_walk_aims_at_the_landing_only_with_drop_aim() {
+        let p = |x, y, z| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let hairpin = || {
+            Route::new(vec![
+                p(10.01, 21.0, -22.04),
+                p(6.51, 21.03, -22.54),
+                p(6.01, 21.07, -23.04),
+                p(5.76, 17.49, -23.29),
+                p(6.0, 17.47, -22.8),
+                p(6.51, 17.45, -22.29),
+                p(8.76, 17.45, -21.54),
+            ])
+        };
+        let landing = Vec3::new(5.76, 17.49, -23.29);
+        // The body at the take-off, walking.
+        let feet = Vec3::new(6.01, 21.07, -23.04);
+        let yaw = yaw_of([landing.x - feet.x, landing.z - feet.z]);
+        let pose = Pose { feet, yaw: yaw + std::f32::consts::PI, pitch: 0.0, speed: 2.5, ..Default::default() };
+        let turn = |feel: Feel, cap: Option<f32>, pose: &Pose| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..feel }, &mut rng);
+            motor.ahead_cap = cap;
+            let (decision, walked) = motor.walk(&mut hairpin(), pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0
+        };
+        // Facing the landing already: with drop_aim the turn needed is nil; without, the aim lies behind and the
+        // turn is the half circle.
+        let facing = Pose { yaw, ..pose };
+        let off = turn(Feel::default(), None, &facing).abs();
+        let capped = turn(Feel::default(), Some(0.8), &facing).abs();
+        let on = turn(Feel { drop_aim: true, ..Feel::default() }, None, &facing).abs();
+        println!("B8 turn when facing the landing: off {off:.3}, lip cap {capped:.3}, drop_aim {on:.3}");
+        assert!(off > 0.05, "without the rule it turns away from the edge: {off}");
+        assert!(capped > 0.05, "the lip cap alone still aims past the landing: {capped}");
+        assert!(on < off * 0.3, "with drop_aim it stays on the landing: {on} {off}");
+        // The rule changes nothing where there is no drop (a straight route).
+        let straight = || Route::new(vec![p(0.0, 0.0, 0.0), p(5.0, 0.0, 0.0), p(10.0, 0.0, 0.0)]);
+        let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 3.0, ..Default::default() };
+        let run = |drop_aim| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, drop_aim, ..Feel::default() }, &mut rng);
+            motor.walk(&mut straight(), &pose, 5.0, |_| true).0
+        };
+        assert_eq!(run(false), run(true));
+    }
+
     /// A doorway in a thin wall (School's spawn room exit, x 24.04-25.91 in the wall strip z 182.62-183.07): the route goes
     /// through it and turns west along the wall's far side. A body on the near side, level with the far leg, has no
     /// route point ahead it walks to in a line: steering at the unclear one walks it into the wall; with
@@ -2423,6 +2599,45 @@ mod tests {
         assert!(sprinting > 0, "sprint held on the run-up");
         let after = sprint_jumps::counts();
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
+    /// With the reckoned bar the sprint is let go of at the empty bar and kept let go of until the bar is over 20,
+    /// and for a sprint jump ahead that the bar could not pay (the sprint to it, its run-up, the jump, a margin);
+    /// without the gauge, or with the bar full, it goes on.
+    #[test]
+    fn the_sprint_is_let_go_of_by_the_reckoned_bar() {
+        use crate::v026g::bots::stamina::Gauge;
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let route = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 1.2, true), p(40.0, 1.2, false)]);
+        let sprinting_after = |gauge: Option<Gauge>, tired: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.sprinting = true;
+            motor.tired = tired;
+            motor.gauge = gauge;
+            motor.sprint_by_the_bar(&route, 0.0);
+            motor.sprinting
+        };
+        let bar = |value: f32, low: bool| Some(Gauge { value, low });
+        assert!(sprinting_after(None, false), "no gauge: as before");
+        assert!(sprinting_after(bar(100.0, false), false), "a full bar pays the 20 m, the run-up and the jump");
+        assert!(!sprinting_after(bar(30.0, false), false), "30 - 22 is under the jump and the margin");
+        assert!(!sprinting_after(bar(2.0, false), false), "empty for the sprint");
+        assert!(!sprinting_after(bar(0.0, true), false), "locked out");
+        assert!(!sprinting_after(bar(10.0, false), true), "tired until the bar is over 20");
+        // The jump 20 m on is a sprint jump (1.2 m): with a walk jump (0.5 m) it wants no run-up.
+        let walk = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 0.5, true), p(40.0, 0.5, false)]);
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.sprinting = true;
+        motor.gauge = bar(40.0, false);
+        motor.sprint_by_the_bar(&walk, 0.0);
+        assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
     }
 
     /// With `drop_walk` the sprint is let go of 3 m before the edge of a planned drop, so the body is walked off it;

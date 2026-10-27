@@ -202,6 +202,25 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
+/// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
+/// first seen, and the seconds of sprint saved for them.
+pub(super) fn stamina() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || {
+            let mut v = super::super::stamina::counts::counts().to_vec();
+            v.push(super::super::stamina::counts::saved_ms());
+            v
+        },
+        |d, line| {
+            line.ends.push(format!(
+                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_saved_s {:.1}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6] as f32 / 1000.0
+            ));
+        },
+    )
+}
+
 /// The landings of route jumps by the carried run's angle from the way (`motor::landings`): seen / braked, bands
 /// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
 pub(super) fn landings() -> Box<dyn RouteTopic> {
@@ -295,6 +314,20 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Windows of the stuck watch let go for a way the bot had no reckoning of, and the stucks that followed them at the same
+/// spot (`stuck::unknown_meant`).
+pub(super) fn unknown_meant() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::unknown_meant::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "unknown_meant_ended {} unknown_meant_then_stuck {}",
+                d[0], d[1]
+            ));
+        },
+    )
+}
+
 /// The bodies the progress watch stopped, and those that came to the same leg again within 20 s (`stuck::progress_watch`).
 pub(super) fn progress_watch() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -311,6 +344,14 @@ pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
         |d, line| {
             line.ends.push(format!("blind_stop_ticks {} blind_stops_ended {} blind_stops_needless {}", d[0], d[1], d[2]));
         },
+    )
+}
+
+/// Walk ticks whose look-ahead was cut to a drop's landing, and those of runs past 2 s (`motor::drop_aim`).
+pub(super) fn drop_aim() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::drop_aim::counts().to_vec(),
+        |d, line| line.ends.push(format!("drop_aim_ticks {} drop_aim_long_ticks {}", d[0], d[1])),
     )
 }
 
