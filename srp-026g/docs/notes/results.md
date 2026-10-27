@@ -417,3 +417,20 @@ What follows from them:
 - The account level was the longest road: at the original's pace level 20 took about 67 hours of play and the skill tree's 81 points about 750; twice the experience makes them about 38 and 390 (`progression_pace.md` §7).
 
 Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs` `the_owners_rates_raise_silver_by_match_level_experience_and_reputation`, the own-terms part of `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`; `quests.rs`, the raised part of the scale test.
+
+## 14. The floor (the owner's, 2026-10-27)
+
+"The players with the fewest points usually need the silver most."
+
+- A player who stayed to the end and scored at least 30 (`pay::FLOOR_MIN_SCORE`) is paid at
+  least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
+  who stayed to the end; bots not counted; of two middle ones, the lower).
+- What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
+  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
+- Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
+  trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
+- On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
+  was paid 2.7k a match, the top quarter 21.9k; the lowest were also the lowest levels (16.9
+  against 31.2). With the floor the lowest quarter's pay rises to about 4.6k; all silver paid
+  rises about 7 %.
+- `rewards.rs` `Shared::money_floor`, applied in `settle_player`.

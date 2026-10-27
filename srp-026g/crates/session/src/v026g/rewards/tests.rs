@@ -299,6 +299,44 @@ fn a_draw_pays_no_win_and_moves_no_rating() {
 }
 
 #[test]
+fn the_lowest_who_scored_thirty_get_eighty_percent_of_the_median() {
+    // Silver of the rows: 12 kills won 300 + 82, 10 won 250 + 82, 9 won
+    // 225 + 82, 3 lost 75 + 41, 1 lost 25 + 41. The median is 307: the
+    // floor is 245.
+    let kills = |place: u8, team: u8, kills: u16| {
+        player(
+            place,
+            team,
+            &format!("P{place}"),
+            counters_of(0, &[(event::KILL, kills)]),
+        )
+    };
+    let players = vec![
+        kills(0, 0, 12),
+        kills(1, 0, 10),
+        kills(2, 0, 9),
+        kills(3, 1, 3),
+        kills(4, 1, 1),
+    ];
+    let store = accounts(&players);
+    let report = Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let money = |place: usize| report.players[place].reward.money;
+    assert_eq!((money(0), money(1), money(2)), (382, 332, 307));
+    // Score 30: the rest of the floor in its activity cell, 41 + 129.
+    let low = &report.players[3];
+    assert_eq!(low.reward.score, 30);
+    assert_eq!(columns(&low.full, 0), (3.0, 75, 9, 0));
+    assert_eq!(columns(&low.full, 2), (1.0, 170, 61, 0));
+    assert_eq!(low.reward.money, 245);
+    assert_eq!(low.full.premium.columns[0].money, 122);
+    // Score 10: under the floor's score, paid as it was.
+    assert_eq!(report.players[4].reward.score, 10);
+    assert_eq!(money(4), 66);
+}
+
+#[test]
 fn the_match_level_multiplies_the_rewards() {
     let players = alice_and_bob();
     let store = accounts(&players);
