@@ -1116,7 +1116,7 @@ impl Bots {
                 stuck::fix_gaps::count(1);
             }
             let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
-            let beside = self.tracker.nearest_body(place, feet);
+            let beside = self.tracker.neighbour_of(place, feet);
             #[cfg(test)]
             if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
                 stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });

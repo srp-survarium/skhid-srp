@@ -45,7 +45,7 @@ const NEAR_FLOOR_M: f32 = 1.5;
 /// A roster place.
 pub type Place = usize;
 
-/// The body nearest to another ([`Tracker::nearest_body`]).
+/// The body nearest to another ([`Tracker::neighbour_of`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Beside {
     pub place: Place,
@@ -626,7 +626,7 @@ impl Tracker {
     /// The other place whose last world shows it alive nearest to `feet` on the same floor (within a storey's
     /// step): how far in the plane, metres, and whether it is a friend of `place` or an enemy. Enemies block a
     /// body in the game, friends pass through it (the J0 bodies files).
-    pub fn nearest_body(&self, place: Place, feet: Vec3) -> Option<Beside> {
+    pub fn neighbour_of(&self, place: Place, feet: Vec3) -> Option<Beside> {
         let mine = self.places.get(place)?.team;
         self.places
             .iter()
