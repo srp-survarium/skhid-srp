@@ -94,7 +94,8 @@ pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
 /// - 104 weapon swap speed, 2: the bots carry one weapon;
 /// - 108 reload speed, 3: the client reloads 12 % faster; the bots time a
 ///   reload by the clip (`Gun::reload_ms`), so they wait a little longer
-///   than needed until the gun learns the factor.
+///   than needed unless the bots' upgrades are on (`SRP_BOT_UPGRADES`), where
+///   the gun learns the factor (`guns::Factors`).
 pub const AMMO_POUCH: &[(u16, u8)] = &[(102, 5), (104, 2), (108, 3), (109, 1)];
 
 /// The points of [`AMMO_POUCH`].
@@ -206,9 +207,10 @@ pub fn item_added(dict_id: u16, modifications: &[(u32, bool)], parameter: &str) 
 }
 
 /// What `item_weight` multiplies an item's weight by: `1 +` the sum of the
-/// type 2 (multiplying) `weight` changes of its `modifications` (the
-/// weight upgrades, -5 % to -15 %; LIKELY the client's reading, as
-/// [`Modifier::kind`]).
+/// type 2 (multiplying) `parameters/weight` changes of its `modifications`
+/// (the weight upgrades, -5 % to -15 %; the client's rule, as
+/// [`Modifier::kind`]). The path was `weight` once, which no modification
+/// has, so no weight upgrade ever lightened a bot.
 pub fn item_weight(dict_id: u16, count: u32, modifications: &[(u32, bool)]) -> f32 {
     let table = Modifications::shared();
     let change: f32 = modifications
@@ -216,7 +218,7 @@ pub fn item_weight(dict_id: u16, count: u32, modifications: &[(u32, bool)]) -> f
         .filter(|&&(_, defect)| !defect)
         .filter_map(|&(id, _)| table.modification(id))
         .flat_map(|row| &row.modifiers)
-        .filter(|modifier| modifier.kind == 2 && modifier.path == "weight")
+        .filter(|modifier| modifier.kind == 2 && modifier.path == "parameters/weight")
         .map(|modifier| modifier.value)
         .sum();
     item_params::carried_weight(dict_id, count) * (1.0 + change).max(0.0)
@@ -258,8 +260,9 @@ pub fn weight_cost(weight: f32, capacity: f32) -> f32 {
 /// The body's speed factor (`kin::Kinematics::level_of` of the match
 /// server's bots): `1 + movement_speed` of the skills and the items'
 /// modifications (`items_movement`), plus the weight's node (see the
-/// module). Not counted: a weapon's own `movement_speed_modifier` (±0.05,
-/// not in `item_params`).
+/// module). A weapon's own `movement_speed_modifier` (±0.05) is the
+/// caller's to add to `items_movement`
+/// ([`profile_movement_level_in`] does, with `weapon` set).
 pub fn movement_level(
     weight: f32,
     capacity: f32,
@@ -278,14 +281,34 @@ pub fn movement_level(
 }
 
 /// [`movement_level`] of a match profile's `kit` (0 on): its items' weight
-/// and modifications, its modifiers. `None` without that kit.
+/// and modifications, its modifiers; the held weapon's own speed modifier
+/// when the bots' upgrades are on ([`super::loadouts::upgrades_on`]). `None`
+/// without that kit.
 pub fn profile_movement_level(profile: &MatchProfile, kit: usize) -> Option<f32> {
+    profile_movement_level_in(profile, kit, super::loadouts::upgrades_on())
+}
+
+/// The slot of weapon 1 in a profile's kit.
+const WEAPON_SLOT: usize = 7;
+
+/// [`profile_movement_level`], with the weapon in slot 7 adding its own
+/// `parameters/movement_speed_modifier` (LIKELY: the client adds it to the
+/// player modifier 4 while the weapon is held) if `weapon`.
+pub fn profile_movement_level_in(profile: &MatchProfile, kit: usize, weapon: bool) -> Option<f32> {
     let kit = profile.kits.get(kit)?;
     let (mut weight, mut capacity_added, mut movement) = (0.0, 0.0, 0.0);
-    for &(index, count) in kit.slots.iter().flatten() {
+    for (slot, &(index, count)) in kit
+        .slots
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, entry)| entry.as_ref().map(|entry| (slot, entry)))
+    {
         let Some(item) = profile.items.get(usize::from(index)) else {
             continue;
         };
+        if weapon && slot == WEAPON_SLOT {
+            movement += super::weapons::weapon(item.dict_id).map_or(0.0, |w| w.movement_speed_modifier);
+        }
         weight += item_weight(item.dict_id, u32::from(count), &item.modifications);
         capacity_added += item_added(
             item.dict_id,
@@ -321,6 +344,48 @@ mod tests {
 
     fn index(name: &str) -> usize {
         modifier_index(name).unwrap()
+    }
+
+    /// The weight upgrades lighten what they are on (the path was `weight`,
+    /// which no modification has): gear 1061 and a weapon's 2061.
+    #[test]
+    fn a_weight_upgrade_lightens_the_piece() {
+        let dictionary = Dictionary::shared();
+        let table = Modifications::shared();
+        for (name, id) in [("edge_torso_2", 1061), ("ak_74u", 2061)] {
+            let dict_id = dictionary.item_named(name).unwrap().dict_id;
+            let value = table.modification(id).unwrap().modifiers[0].value;
+            assert!(value < 0.0, "{id}");
+            let plain = item_weight(dict_id, 1, &[]);
+            let upgraded = item_weight(dict_id, 1, &[(id, false)]);
+            assert!(plain > 0.0, "{name}");
+            assert!((upgraded - plain * (1.0 + value)).abs() < 1e-5, "{name}: {plain} {upgraded}");
+        }
+    }
+
+    /// The held weapon's own speed modifier moves a bot's speed level, only
+    /// when asked for.
+    #[test]
+    fn the_held_weapons_own_speed_modifier_moves_the_level() {
+        use crate::v026g::loadouts::RusherKits;
+        use crate::v026g::match_msgs::static_info::MatchProfile;
+        let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
+        let kits = bot_kits(equipment, BotRole::Flanker);
+        let weapon = crate::v026g::weapons::weapon(kits[0].slot(7).unwrap().dict_id).unwrap();
+        assert_ne!(weapon.movement_speed_modifier, 0.0, "{}", weapon.name);
+        let profile = MatchProfile::from_loadouts(
+            "Bot-1",
+            0,
+            &[kits[0]],
+            [0.0; MODIFIERS],
+            Dictionary::shared(),
+            1,
+        );
+        let off = profile_movement_level_in(&profile, 0, false).unwrap();
+        let on = profile_movement_level_in(&profile, 0, true).unwrap();
+        assert!((on - off - weapon.movement_speed_modifier).abs() < 1e-5, "{off} {on}");
+        // Off by the switch: the plain level.
+        assert_eq!(profile_movement_level(&profile, 0), Some(off));
     }
 
     /// Every tier and role, with each rusher kit the data can make, the

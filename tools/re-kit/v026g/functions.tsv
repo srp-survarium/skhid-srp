@@ -1828,3 +1828,6 @@ va	status	ref_021d	name
 0x00131b40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back
+0x00357f10	reviewed		vostok::configs::apply_set_modifiers
+0x00357f80	reviewed		vostok::configs::apply_add_modifiers
+0x00358010	reviewed		vostok::configs::apply_multiply_modifiers

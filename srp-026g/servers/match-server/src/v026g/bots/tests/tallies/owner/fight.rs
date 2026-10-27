@@ -36,6 +36,9 @@ pub(super) struct FightCounts {
     /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
     pub(super) fire_move: [u32; 5],
     pub(super) hits_move: [u32; 5],
+    /// Fire ticks with a side key held ([`SIDE_KEYS`]), whatever else is held
+    /// (`duels-humans-vs-bots.md` table 2: humans 75.0 %, bots 82.3 %).
+    pub(super) fire_side_key: u32,
     /// Fire ticks with an enemy target: of them, those with no line from
     /// the eye to his chest or head; with none.
     pub(super) fire_on_target: u32,
@@ -125,6 +128,9 @@ pub(crate) const HIT_SIDE_DEG: f32 = 60.0;
 pub(crate) const TURNED_DEG: f32 = 15.0;
 
 pub(crate) const TURN_MS: u32 = 3_000;
+
+/// The keys that strafe: a fire tick with either held counts as fired with a side key.
+pub(crate) const SIDE_KEYS: u32 = key::LEFT | key::RIGHT;
 
 /// The shooter's movement at a fire tick or a hit: in the air (a jump
 /// under way), still (under [`STILL_MPS`] or no walk key), sprinting
@@ -354,6 +360,40 @@ pub(crate) fn fire_and_hits_count_by_the_shooters_movement_and_range() {
 }
 
 #[test]
+pub(crate) fn fire_ticks_with_a_side_key_are_counted_whatever_else_is_held() {
+    // Bot 0 fires 10 ticks, a side key on the first 4 (left on 2, right on 2); bot 2 fires 10 ticks with a side key and
+    // forward on 5 of them (forward alone is no side key); bot 1 (the near miss) holds left and never fires; a dead
+    // bot's fire counts nowhere.
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
+    play(&mut game, &mut tally, 10, |k, game| {
+        let side = match k {
+            0 | 1 => key::LEFT,
+            2 | 3 => key::RIGHT,
+            _ => 0,
+        };
+        put(game, 0, 10.0, 10.0, key::FIRE | side);
+        put(game, 1, 10.0, 25.0, key::LEFT);
+        put(game, 2, 20.0, 10.0, key::FIRE | if k < 5 { key::FORWARD | key::LEFT | key::RIGHT } else { key::FORWARD });
+        put(game, 3, 20.0, 25.0, key::FIRE | key::LEFT);
+        game.bodies[3].alive = false;
+        vec![bot_now(); 4]
+    });
+    let (text, json) = tally.finish(&game);
+    assert_eq!(json["fire_side_key"], 9, "{json}");
+    assert_eq!(json["fire_side_key_pct"], 45.0);
+    assert!(text.contains("fire ticks with a side key 9 of 20 (45.0 %)"), "{text}");
+    // No fire at all: a share of nothing is 0, not a division by zero.
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    play(&mut game, &mut tally, 3, |_, game| {
+        put(game, 0, 10.0, 10.0, key::LEFT);
+        put(game, 1, 10.0, 25.0, 0);
+        vec![bot_now(); 2]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!((json["fire_side_key"].as_u64(), json["fire_side_key_pct"].as_f64()), (Some(0), Some(0.0)));
+}
+
+#[test]
 pub(crate) fn fire_at_a_target_behind_a_wall_is_counted_and_in_line_is_not() {
     // The soak field's wall stands at x = 40 for z < 25.
     let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
@@ -570,6 +610,7 @@ impl FightCounts {
     pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
         if body.alive && body.keys & key::FIRE != 0 {
             self.fire_move[move_of(rec)] += 1;
+            self.fire_side_key += u32::from(rec.keys & SIDE_KEYS != 0);
             // At the target: with a line to him or not.
             match body.target.and_then(|t| enemy_of(game, place, body.team, t)) {
                 Some(him) => {
@@ -821,6 +862,8 @@ impl FightCounts {
             "hits_by_class": self.hits_band,
             "hit_rate_by_class": hit_rate_class,
             "fire_by_move": by_move(&self.fire_move),
+            "fire_side_key": self.fire_side_key,
+            "fire_side_key_pct": pct(self.fire_side_key.into(), self.fire_move.iter().sum::<u32>().into()),
             "hits_by_move": by_move(&self.hits_move),
             "hit_rate_by_move": hit_rate_move,
             "fire_on_target": self.fire_on_target,
@@ -836,7 +879,7 @@ impl FightCounts {
             "died_unturned": died_unturned,
         });
         let text = format!(
-            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), at its target {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
+            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; fire ticks with a side key {} of {} ({:.1} %); hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), at its target {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
             json["dry_s"],
             self.deaths_dry,
             json["reload_s"],
@@ -849,6 +892,9 @@ impl FightCounts {
             turned,
             died_unturned,
             MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fire_move[i], self.hits_move[i])).collect::<Vec<_>>().join(" "),
+            self.fire_side_key,
+            self.fire_move.iter().sum::<u32>(),
+            json["fire_side_key_pct"].as_f64().unwrap_or(0.0),
             json["hit_rate_by_class"],
             fire_past,
             fire_all,
