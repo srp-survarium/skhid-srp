@@ -138,7 +138,15 @@ class Run(hide.Run):
         regs, esp = self.run(ICONS_SITE, (ICONS_PAST,), sp, {**hide.GAME, UC_X86_REG_EDI: hide.HUD})
         # past the prologue: [ebp] the caller's ebp, [ebp+4] the return, [ebp+8] the ui
         frame = regs[UC_X86_REG_EBP]
-        kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and self.read(frame + 4) == ICONS_SITE + 6 \
+        back = self.read(frame + 4)
+        direct = back == ICONS_SITE + 6
+        # Research wraps this call, forwarding the same UI. Check both
+        # frames and the inner call's target; its return is covered by the
+        # Research check, which continues past the wrapper to update_ui.
+        call = bytes(self.emu.mem_read(back - 5, 5))
+        wrapped = call[0] == 0xE8 and back + struct.unpack("<i", call[1:])[0] == PLAYER_ICONS \
+            and self.read(frame + 12) == ICONS_SITE + 6 and self.read(frame + 16) == hide.HUD
+        kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and (direct or wrapped) \
             and self.read(frame + 8) == hide.HUD and esp & 7 == 0 and esp <= frame \
             and all(regs[r] == v for r, v in {**hide.GAME, UC_X86_REG_EDI: hide.HUD}.items() if r != UC_X86_REG_EBP)
         return self.stopped == ICONS_PAST and kept, self.invokes()

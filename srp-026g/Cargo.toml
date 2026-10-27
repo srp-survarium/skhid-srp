@@ -2,6 +2,7 @@
 members = [
   "crates/binary-config-parser",
   "crates/mapdata",
+  "crates/research-rule",
   "crates/resources-db",
   "crates/session",
   "crates/ragdoll",

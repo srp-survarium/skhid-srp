@@ -143,6 +143,11 @@ package player_icons_fla
          trace("propsSetted");
       }
       
+      public function research_markers(... values) : void
+      {
+         this.iconControl.research_markers(values);
+      }
+
       public function set_player_icon_pos(id:uint, posX:Number, posY:Number, scale:Number) : void
       {
          this.iconControl.set_player_icon_pos(id,posX,posY,scale);

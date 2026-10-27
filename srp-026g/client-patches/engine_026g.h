@@ -163,4 +163,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_i
 /* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
 void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count);
 
+/* 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL */
+unsigned int engine_point_to_screen(void *game, const float *point, float *out);
+
 #endif

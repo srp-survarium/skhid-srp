@@ -1,0 +1,180 @@
+package
+{
+   import flash.display.*;
+   import flash.events.*;
+   import flash.geom.Matrix;
+   import flash.net.URLRequest;
+   import flash.system.*;
+   import flash.text.TextField;
+   import flash.utils.getTimer;
+
+   public class ResearchUiHarness extends Sprite
+   {
+      private var hud:Loader = new Loader();
+      private var icons:Loader = new Loader();
+      private var marker:*;
+      private var layer:*;
+      private var world:Sprite;
+      private var units:*;
+      private var topSwords:DisplayObject;
+      private var phase:int = 0;
+      private var fadeStart:int;
+      private var lastAlpha:Number;
+      private function packet(aiming:Boolean, legacy:Boolean = false):Array
+      {
+         var a:Array = [0,1,0,1,200,200,20,1,1,70,0,1,1];
+         if(!legacy) a.push(aiming ? 1 : 0);
+         return a;
+      }
+      private var swords:Sprite;
+      private var started:int;
+      private var sample:int;
+      private var rate:int = 30;
+      private var initialized:Boolean = false;
+
+      public function ResearchUiHarness()
+      {
+         for each(var loader:Loader in [hud,icons])
+         {
+            // The game's HUD root expects game callbacks; test its controls alone.
+            loader.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR,
+               function(e:UncaughtErrorEvent):void { e.preventDefault(); });
+         }
+         hud.load(new URLRequest("hud.swf"),new LoaderContext(false,new ApplicationDomain()));
+         icons.load(new URLRequest("player_icons.swf"),new LoaderContext(false,new ApplicationDomain()));
+         addEventListener(Event.ENTER_FRAME,tick);
+      }
+
+      private function check(ok:Boolean, message:String):void
+      {
+         if(!ok) throw new Error(message);
+         trace("PASS " + message);
+      }
+
+      private function startPulse():void
+      {
+         stage.frameRate = rate;
+         marker.update(0,1,1,70,0,true,0,20,false);
+         marker.update(0,1,1,70,0,true,0,20,true);
+         units.update([{cp_id:0,owner:1,capturing:1,progress:70,inside_0:1,inside_1:1,local:true,left:0}],0);
+         topSwords = Sprite(units.getChildAt(0)).getChildAt(0);
+         layer.research_markers(packet(true));
+         started = getTimer();
+         sample = 1;
+         check(swords.visible && swords.alpha == 1,"swords immediately visible at " + rate + " FPS");
+      }
+
+      private function tick(e:Event):void
+      {
+         try
+         {
+            if(!initialized)
+            {
+               if(hud.content == null || icons.content == null) return;
+               initialized = true;
+               var cls:Class = hud.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
+               units = new cls();
+               addChild(units);
+               var point:Object = {cp_id:0,owner:2,capturing:0,progress:40,inside_0:1,inside_1:0,local:true,left:7000};
+               for each(var owner:uint in [2,1,0])
+               {
+                  point.owner = owner;
+                  units.update([point],0);
+                  check(units.numChildren == 2,"no caption child for owner " + owner);
+                  check(Math.abs(units.getChildAt(0).scaleX - 34 / 24) < 0.001,"inside icon remains larger");
+                  var timer:TextField = units.getChildAt(1) as TextField;
+                  check(timer != null && timer.visible && timer.text == "0:07","capture timer retains its font and text");
+               }
+               point.local = false;
+               point.left = 0;
+               units.update([point],0);
+               check(units.getChildAt(0).scaleX == 1 && !timer.visible,"leaving point restores size and hides timer");
+               cls = icons.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchMarker") as Class;
+               marker = new cls();
+               addChild(marker);
+               swords = Sprite(Sprite(marker.getChildAt(0)).getChildAt(2));
+               marker.update(0,1,1,70,7000,false,0,20,false);
+               var outside:Number = marker.scaleX;
+               marker.update(0,1,1,70,7000,true,0,20,false);
+               check(Math.abs(marker.scaleX / outside - 34 / 24) < 0.001,"world marker remains larger inside");
+               check(!swords.visible,"no swords without an opponent contesting");
+               cls = icons.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.HUDIconLayer") as Class;
+               layer = new cls(); addChild(layer);
+               world = Sprite(layer.getChildAt(0));
+               layer.research_markers(packet(false));
+               check(world.alpha == 1 && world.numChildren == 1,"world layer starts visible");
+               layer.objectsHidden = true;
+               check(!world.visible,"hide-interface key hides Research world markers");
+               layer.objectsHidden = false;
+               check(world.visible,"show-interface restores Research world markers");
+               check(Math.abs(world.getChildAt(0).alpha - 0.55) < 0.01,"world marker opacity is 55 percent");
+               var art:DisplayObjectContainer = DisplayObjectContainer(DisplayObjectContainer(world.getChildAt(0)).getChildAt(0));
+               var bmp:BitmapData = new BitmapData(40,40,true,0);
+               bmp.draw(art.getChildAt(0),new Matrix(1,0,0,1,20,20));
+               var fill:uint = bmp.getPixel32(12,20) >>> 24;
+               check(fill > 20 && fill < 40,"circle interior has faint fill, no opaque backing: " + fill);
+               startPulse();
+               return;
+            }
+            if(phase > 0)
+            {
+               var elapsed:int = getTimer() - fadeStart;
+               if(phase == 1 && elapsed >= 100)
+               {
+                  check(world.alpha > 0 && world.alpha < 1,"aim exit is gradual");
+                  var t:Number = Math.min(1,elapsed / 300);
+                  lastAlpha = t*t*(3-2*t);
+                  layer.research_markers(packet(true));
+                  check(Math.abs(world.alpha-lastAlpha) < 0.03,"rapid reversal preserves current alpha");
+                  phase=2; fadeStart=getTimer();
+               }
+               else if(phase == 2)
+               {
+                  layer.research_markers(packet(true));
+                  if(elapsed >= 280)
+                  {
+                     check(world.alpha == 0,"repeated aim packets do not restart fade");
+                     layer.research_markers([0,0]);
+                     check(!world.getChildAt(0).visible,"match end hides world children");
+                     layer.research_markers(packet(false,true));
+                     phase=3; fadeStart=getTimer();
+                  }
+               }
+               else if(phase == 3 && elapsed >= 380)
+               {
+                  check(world.alpha == 1,"legacy sender restores visibility smoothly");
+                  removeEventListener(Event.ENTER_FRAME,tick);
+                  trace("RESEARCH UI PASS");
+               }
+               return;
+            }
+            if(getTimer() - started < sample * 500) return;
+            var expected:Number = [1,0.5,0,0.5,1][sample];
+            check(Math.abs(swords.alpha - expected) < 0.15,
+               rate + " FPS, " + sample * 500 + " ms: alpha " + swords.alpha.toFixed(3) + " near " + expected);
+            check(world.alpha == 0,"world stays hidden through contested pulse");
+            check(units.alpha == 1 && units.visible,"top HUD stays visible while scoped");
+            check(Math.abs(topSwords.alpha-expected) < 0.15,"top swords have the same two-second period");
+            if(++sample <= 4) return;
+            marker.update(0,1,1,70,0,true,0,20,false);
+            check(!swords.visible && !marker.hasEventListener(Event.ENTER_FRAME),"contest ends: swords and animation stop");
+            if(rate == 30)
+            {
+               rate = 144;
+               startPulse();
+               return;
+            }
+            units.update([],0);
+            check(!units.hasEventListener(Event.ENTER_FRAME),"top animation stops when units disappear");
+            layer.research_markers(packet(false));
+            check(world.alpha == 0,"aim exit does not pop visible");
+            phase=1; fadeStart=getTimer();
+         }
+         catch(error:Error)
+         {
+            removeEventListener(Event.ENTER_FRAME,tick);
+            trace("RESEARCH UI FAIL " + error.message);
+         }
+      }
+   }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Run patch 53 (Research, mode 5: research_026g.asm, research_native_026g.c,
-research_rule_026g.c) in the default build on made-up games, worlds and huds.
+"""Run patch 53 (Research, mode 5: research_026g.asm, research_arena,
+research-rule) in the default build on made-up games, worlds and huds.
 
     python check_research_026g.py <original survarium.exe>
 
@@ -11,8 +11,8 @@ cook table's register_cook (0x102D10), game_match_rule_base's constructor
 (0x313900), the config's look-ups (0xF6B10, 0xF6C00, the CRC table they build)
 and the hooks' sites. Intercepted (answered here): the allocator (0xE4F90),
 GetCurrentThreadId, the call the constructor's hook replaces (0x1EC170), a
-buffer's resize (0x7AB30, under the game's field writers), the movie's Invoke (0x511600) and the hud's message
-(0x2375C0). The game's own loops over a world's rules (game_world_core's
+buffer's resize (0x7AB30, under the game's field writers), the movie's Invoke (0x511600), the hud's message
+(0x2375C0) and update_player_icons (0x23AA10, under update_ui's call our hook takes). The game's own loops over a world's rules (game_world_core's
 serialize and deserialize, 0x2D2661 and 0x2D2B42) run with the rule in a
 world's rules, so a slot that pops other than the game expects shows as esp
 moved. What each case checks is printed.
@@ -33,12 +33,13 @@ import bcw  # noqa: E402
 
 # Research's code and state as the build links them (link_026g.py).
 ARENA = base.arena()
-SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith(("rn_", "rr_"))}
+SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith(("rn_", "rr_", "research_"))}
 VA, STATE = ARENA.blocks["research.code"].va, ARENA.blocks["research.state"].va
 HEAP, STACK, SENTINEL, CORE, CONFIG, FAKE = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000, 0x60000000
 STOP = SENTINEL + 0x10
 COOKS, REGISTERED, THREAD_ID = 0xA86E00, STATE + 0x24, 0x870118
 ALLOCATE, CTOR_CALL, RESIZE, INVOKE, MESSAGE = 0xE4F90, 0x1EC170, 0x7AB30, 0x511600, 0x2375C0
+PLAYER_ICONS = 0x23AA10                                # game_world_ui::update_player_icons(ui), ret 4
 # the field writers' hash mismatch dump: its switches, its record's allocation, type_info::name
 DUMP_ON, DUMP_RECORD, TYPE_NAME = 0x1F1D32C, 0x80450, 0x420724
 # [core+18FA8h] is the statistics handler; the shared statistics at +8 in it:
@@ -49,7 +50,7 @@ EVENTS_AT, LISTENER, NOTIFY = 0x8, 0x31A8, 0x2F5D40
 # from the records, for the places under +3240h, by the weights at
 # [+323Ch] + 577BCh
 RECALCULATE, SCORES, SCORE_COUNT, OPTIONS, WEIGHTS = 0x26DC30, 0x31F0, 0x3240, 0x323C, 0x577BC
-# rn_rule (research_native_026g.c's _Static_asserts)
+# rn_rule (research_arena's _Static_asserts)
 R_CORE, R_VALID, R_PARAMS, R_STATE, R_SIZE = 0x128, 0x134, 0x138, 0x7E0, 0x918
 P_ZONES, ZONE_DEF = 0x64, 0x214
 S_ZONES, ZONE = 0x18, 0x60
@@ -57,7 +58,7 @@ FULL = 1000000000
 # the world
 PLACES, TICK_LIST, TICK_ORDER, STATISTICS, MATCH_STATE, LOCAL_PLACE, RULES = \
     0x18458, 0x18850, 0x18FB0, 0x18FA8, 0x18FE4, 0x18FDC, 0x18824
-PLAYER, PROFILE = 0x800, 0x4600
+PLAYER, PROFILE = 0xF500, 0x4600  # client player: camera handler at +F470h
 
 
 def config_bytes():
@@ -106,10 +107,15 @@ class Run:
             emu.mem_map(at, size, UC_PROT_ALL)
         self.heap = HEAP
         self.invokes, self.messages, self.stopped, self.notified = [], [], None, []
+        self.player_icons = []
         # GetCurrentThreadId: a stub returning 77h
         emu.mem_write(SENTINEL + 0x100, bytes.fromhex("b877000000c3"))
         self.word(THREAD_ID, SENTINEL + 0x100)
-        emu.hook_add(UC_HOOK_CODE, self.intercept)
+        # Only these calls are intercepted; the rest runs in Unicorn. A
+        # Python callback on every instruction makes full Rust ticks costly.
+        for address in (ALLOCATE, CTOR_CALL, RESIZE, INVOKE, PLAYER_ICONS,
+                        DUMP_RECORD, TYPE_NAME, NOTIFY, MESSAGE):
+            emu.hook_add(UC_HOOK_CODE, self.intercept, begin=address, end=address)
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -157,6 +163,9 @@ class Run:
                 values.append(struct.unpack("<d", emu.mem_read(args + 0x18 * i + 8, 8))[0] if kind == 5 else None)
             self.invokes.append((emu.reg_read(UC_X86_REG_ECX), name, self.read(sp + 8), values))
             self.ret(1, 0x10)
+        elif address == PLAYER_ICONS:
+            self.player_icons.append(self.read(sp + 4))
+            self.ret(0, 4)
         elif address == DUMP_RECORD:
             self.ret(self.allocate(0x20), 0)
         elif address == TYPE_NAME:
@@ -190,6 +199,8 @@ class Run:
             emu.reg_write(reg, value)
         self.stopped = None
         emu.emu_start(start or function, until, count=5_000_000)
+        assert self.stopped is not None or emu.reg_read(UC_X86_REG_EIP) == until, \
+            f"instruction budget exhausted at {emu.reg_read(UC_X86_REG_EIP):#x}"
         return emu.reg_read(UC_X86_REG_EAX), emu.reg_read(UC_X86_REG_ESP) - sp - 4
 
     def thiscall(self, function, this, *args):
@@ -673,10 +684,11 @@ def main():
     run.emu.mem_write(CORE + LOCAL_PLACE, b"\0")
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
     sent = run.invokes[-1] if run.invokes else None
-    check("mode 5: research_update with 32 numbers, then past the Team Deathmatch part",
-          sent is not None and sent[0] == movie and sent[1] == "root.research_update" and len(sent[3]) == 32
+    check("mode 5: research_update with 35 numbers (nine a unit, then the units' ms left: A contested, none), "
+          "then past the Team Deathmatch part",
+          sent is not None and sent[0] == movie and sent[1] == "root.research_update" and len(sent[3]) == 35
           and sent[3][:5] == [0, 5, 0, 100, 3] and sent[3][5:14] == [0, 0, -10, 0, 0, 100, 1, 1, 1]
-          and not run.messages, str(sent))
+          and sent[3][32] == 0 and not run.messages, str(sent))
     count = len(run.invokes)
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
     check("the same state again: nothing sent", len(run.invokes) == count)
@@ -694,6 +706,167 @@ def main():
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3E4)
     check("mode 4: nothing sent, on to its last players", len(run.invokes) == sent
           and run.emu.reg_read(UC_X86_REG_EIP) == 0x23B3E4)
+
+    # 8b. The units' markers, through update_ui itself (0x23B200: eax the ui;
+    # dt, time, a flag; `ret 0Ch`): its call of update_player_icons
+    # (0x23B207, answered here) comes before its 40 ms gate (time - [ui+33Ch]
+    # under 28h: out at 0x23B53B) and its hud-state checksum, so the markers
+    # move every frame. The player-icons movie ([[ui+10h]+108h]+4, its
+    # vtable's +5Ch the frame's advance, answered by a stub); the game's own
+    # point_to_screen (0x23DEC0: its camera +0Ch, projection +4Ch, viewport
+    # [[+9Ch]+53B0h]+108h) on a camera at the origin looking along +z, 90
+    # degrees, a 1000 x 1000 screen; the distance from the camera director's
+    # position ([+98h]+34h). Unit B taken alone, half done.
+    icons_hold, icons_view, icons = run.allocate(0x200), run.allocate(0x10), run.allocate(0x10)
+    advance, advance_vtable = SENTINEL + 0x300, run.allocate(0x80)
+    run.emu.mem_write(advance, bytes.fromhex("d9eec20c00"))     # fldz; ret 0Ch
+    run.word(advance_vtable + 0x5C, advance)
+    run.word(icons, advance_vtable)
+    run.word(ui + 0x10, icons_hold)
+    run.word(icons_hold + 0x108, icons_view)
+    run.word(icons_view + 4, icons)
+    near, far = 0.1, 1000.0
+
+    def camera_at(x):
+        run.emu.mem_write(game2 + 0xC, struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1))
+        run.emu.mem_write(director + 0x34, struct.pack("<3f", x, 0, 0))
+    run.emu.mem_write(game2 + 0x4C, struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, far / (far - near), 1,
+                                                 0, 0, -near * far / (far - near), 0))
+    scene, viewport, director = run.allocate(0x5400), run.allocate(0x110), run.allocate(0x90)
+    run.word(game2 + 0x9C, scene)
+    run.word(scene + 0x53B0, viewport)
+    run.word(viewport + 0x108, 1000)
+    run.word(viewport + 0x10C, 1000)
+    run.word(game2 + 0x98, director)
+    camera_at(0.0)
+    b = rule + R_STATE + S_ZONES + ZONE
+    run.word(b, FULL // 2)
+    run.emu.mem_write(b + 4, bytes([0, 2, 1, 0]))
+    run.word(b + 8, 1 << 5)
+    run.word(b + 12, 0)
+    run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+    run.word(CORE + MATCH_STATE, 3)
+    run.word(ui + 0x20, 5)
+    now = 100000
+    run.word(ui + 0x33C, now)                                   # the 40 ms gate closed: past it, nothing
+
+    def frame():
+        start = len(run.invokes)
+        run.player_icons = []
+        _, moved = run.call(0x23B200, args=(16, now, 0), regs={UC_X86_REG_EAX: ui})
+        return run.invokes[start:], moved
+
+    sent, moved = frame()
+    marks = [i for i in sent if i[1] == "root.research_markers"]
+    values = marks[-1][3] if marks else []
+    check("update_ui, its gates closed: update_player_icons(ui) once, then research_markers: A on the screen at "
+          "(500, 400), 10 m away, contested; B and C off it; B's 10 s left; research_update too (in play), B's 10 s",
+          moved == 0xC and run.player_icons == [ui] and len(marks) == 1 and marks[0][0] == icons
+          and len(values) == 36 and values[:2] == [0, 3] and values[32:] == [1, 0, 0, 0]
+          and values[2:7] == [0, 1, 500, 400, 10] and values[12:22] == [1, 0, 0, 0, 101, 2, 0, 50, 10000, 0]
+          and values[22:24] == [2, 0] and values[26] == 200
+          and sent[-1][1] == "root.research_update" and sent[-1][3][33] == 10000, f"{sent} esp {moved}")
+    sent, _ = frame()
+    check("the next frame, nothing changed: nothing sent", sent == [] and run.player_icons == [ui])
+    camera_at(1.0)
+    sent, _ = frame()
+    check("the camera alone moved 1 m right (the gates still closed): the markers at once, A at (450, 400)",
+          len(sent) == 1 and sent[0][1] == "root.research_markers" and sent[0][3][2:7] == [0, 1, 450, 400, 10],
+          str(sent))
+    run.word(b, FULL // 2 + 30000)
+    sent, _ = frame()
+    check("B's capture 0.6 ms further (9999.4 ms left: 10 s in whole seconds, the same tenth of a per cent): "
+          "nothing sent", sent == [], str(sent))
+    run.emu.mem_write(b + 7, bytes([1]))
+    sent, _ = frame()
+    marks = [i[3] for i in sent if i[1] == "root.research_markers"]
+    check("a player of each team in B: the markers say it is contested (retail's swords), no time left",
+          len(marks) == 1 and marks[0][32:] == [1, 1, 0, 0] and marks[0][20] == 0, str(sent))
+    run.emu.mem_write(b + 7, bytes([0]))
+    frame()
+
+    # Scope visibility is local presentation, appended only to the world
+    # markers. The HUD's payload and the rule's serialized state stay intact.
+    camera_input, weapon, scope = run.allocate(0x360), run.allocate(0x1820), run.allocate(4)
+    run.word(game2 + 0x4D58, camera_input)
+    run.word(director + 0x84, camera_input + 4)
+    run.word(players[0] + 0xF470, camera_input)
+    run.word(players[0] + 0x128, weapon)
+    run.word(weapon, 0xA04174)
+    run.word(weapon + 0x1808, scope)
+    before_rule = bytes(run.emu.mem_read(rule + R_STATE, R_SIZE - R_STATE))
+
+    def scope_flag(label, expected):
+        sent, moved = frame()
+        packets = [i[3] for i in run.invokes if i[1] == "root.research_markers"]
+        check(label, moved == 0xC and packets[-1][-1] == expected
+              and all(i[1] != "root.research_update" for i in sent)
+              and bytes(run.emu.mem_read(rule + R_STATE, R_SIZE - R_STATE)) == before_rule, str(sent))
+
+    scope_flag("scope fitted, not aiming: world markers visible", 0)
+    run.emu.mem_write(weapon + 0x5E8, b"\1")
+    scope_flag("actual aim starts: scope flag changes immediately; top HUD and simulation untouched", 1)
+    scope_flag("aim held: no repeated scope transition", 1)
+    run.emu.mem_write(weapon + 0x5E8, b"\0")
+    scope_flag("actual aim ends: world markers may fade back", 0)
+    run.emu.mem_write(weapon + 0x5E8, b"\1")
+    run.word(weapon + 0x1808, 0)
+    scope_flag("iron-sight aiming also hides world markers", 1)
+    run.emu.mem_write(weapon + 0x5E8, b"\0")
+    scope_flag("iron sights lowered: world markers may fade back", 0)
+    run.emu.mem_write(weapon + 0x5E8, b"\1")
+    scope_flag("iron sights raised again: world markers hidden", 1)
+    run.word(weapon + 0x1808, scope)
+    scope_flag("scoped again", 1)
+    run.word(players[0] + 0x128, 0)
+    scope_flag("weapon put away while aiming: release the fade", 0)
+    run.word(players[0] + 0x128, weapon)
+    scope_flag("scoped weapon restored", 1)
+    run.word(weapon, 0)
+    scope_flag("another held-object type never supplies scope fields", 0)
+    run.word(weapon, 0xA04174)
+    scope_flag("weapon type restored", 1)
+    run.word(camera_input + 0x358, 2)
+    scope_flag("third-person view is not scoped", 0)
+    run.word(camera_input + 0x358, 4)
+    run.word(players[0] + 0xF470, 0)
+    run.word(players[5] + 0xF470, camera_input)
+    run.word(players[5] + 0x128, weapon)
+    scope_flag("attached spectator follows the viewed player's scope, not the local roster place", 1)
+    run.emu.mem_write(players[5] + 0x33C, b"\0")
+    scope_flag("viewed player dies: release the scope fade", 0)
+    run.emu.mem_write(players[5] + 0x33C, b"\1")
+    scope_flag("live viewed player", 1)
+    run.word(director + 0x84, 0)
+    scope_flag("free camera: the old aimed weapon cannot hide markers", 0)
+    run.word(game2 + 0x4D58, 0)
+    scope_flag("no input handler: world markers visible", 0)
+
+    run.word(rule + R_STATE + 12, now + 3000)
+    sent, _ = frame()
+    check("the end (end_time set; the time rule stays in state 3): the markers hidden, once",
+          [i for i in sent if i[1] == "root.research_markers"] == [(icons, "root.research_markers", 0, [0, 0])],
+          str(sent))
+    sent, _ = frame()
+    check("then no markers", not any(i[1] == "root.research_markers" for i in sent), str(sent))
+    run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+    sent, _ = frame()
+    check("no end again (in play): shown", any(i[1] == "root.research_markers" and i[3][1] == 3 for i in sent))
+    run.word(CORE + MATCH_STATE, 2)
+    sent, _ = frame()
+    check("the countdown (the time rule's state 2): the markers hidden, once",
+          sent == [(icons, "root.research_markers", 0, [0, 0])], str(sent))
+    sent, _ = frame()
+    check("then nothing", sent == [])
+    run.word(CORE + MATCH_STATE, 3)
+    sent, _ = frame()
+    check("in play again: shown", any(i[1] == "root.research_markers" and i[3][1] == 3 for i in sent))
+    run.word(ui + 0x20, 4)
+    sent, _ = frame()
+    check("a match of mode 4 on the same ui: the markers hidden (none), once",
+          sent == [(icons, "root.research_markers", 0, [0, 0])], str(sent))
+    sent, _ = frame()
+    check("then nothing", sent == [])
     stock.emu.mem_write(stock.allocate(4), b"")
     stock_ui = stock.allocate(0x100)
     stock.word(stock_ui + 0x20, 4)

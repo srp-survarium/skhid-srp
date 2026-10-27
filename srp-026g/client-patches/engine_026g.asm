@@ -55,6 +55,7 @@ global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
+global engine_point_to_screen
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -772,6 +773,24 @@ engine_update_skeleton:
     push dword [esp + 36]   ; instance -> 4
     mov edi, [esp + 36]   ; scene_renderer
     call 0x22490
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_point_to_screen:
+    ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; out -> 12
+    push dword [esp + 28]   ; point -> 8
+    push dword [esp + 28]   ; game -> 4
+    call 0x23dec0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx

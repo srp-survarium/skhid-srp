@@ -216,6 +216,7 @@ package
       
       public var researchUnits:ResearchUnits;
 
+
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
 
@@ -2369,7 +2370,7 @@ package
       }
       
       // Research (mode 5), every frame the state changes and every second
-      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // (research_arena::research_update_hud): the game's own team, the teams'
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
@@ -2394,7 +2395,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":5 + 9 * count + i < values.length ? Number(values[5 + 9 * count + i]) : 0
             });
             i++;
          }

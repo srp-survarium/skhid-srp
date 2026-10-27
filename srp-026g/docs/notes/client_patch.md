@@ -2063,14 +2063,13 @@ section table (0x210..0x400): 12 slots
   .srp .srpd .srpc .srpw                           (ours, 8..11)
   .srpx                                            (the arena, 12)
 
-.srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
-  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
-                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
-  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
-  artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
-  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
-  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000, 0x108
-  match_keys.state state 0x1000   its option's variable                  -> 0xA434000, 0x4A
+.srpx (VA 0xA42D000), its first blocks (the lock records every block):
+  research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3804
+  research.state   state 0x1000  research_arena STATE                 -> 0xa431000, 0x44
+  artefacts.code   code  0x1000  artefacts_026g.asm                   -> 0xa432000, 0x440
+  engine.code      code  0x1000  engine_026g.asm (0.5)                -> 0xa433000, 0x5dd
+  match_keys.code  code  0x1000  match_keys_026g.asm (patch 58)       -> 0xa434000, 0x108
+  match_keys.state state 0x1000  its option's variable                -> 0xa435000, 0x4a
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 

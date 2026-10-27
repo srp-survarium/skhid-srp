@@ -107,7 +107,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
+| `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
@@ -117,7 +117,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
-| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
+| `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -3040,11 +3040,11 @@ full build the same). **Not run in a game.**
 Research as 0.27d shipped it (`../docs/notes/research_mode.md`: the rules, the data, the inventory
 of the builds; the owner, 2026-10-22: "will go into the next one", not revision 28). 0.26g has none
 of 0.27d's capture code and its rule and world-object layouts drifted (the rule base grew 78h, the
-world objects were reworked), so the rule is written again in C on 0.26g's interfaces, with 0.27d's
+world objects were reworked), so the rule is implemented in Rust on 0.26g's interfaces, with 0.27d's
 disassembly as the spec, and the units are not world objects: the rule tests the players'
 positions against the units' shapes, which the mode config carries (`capture_zones`).
 
-- **The rule** (`research_native_026g.c`, `rn_rule`): game_match_rule_base (0x313900, type 5) and
+- **The rule** (`research_arena`, `Rule`): game_match_rule_base (0x313900, type 5) and
   0.26g's twenty slots: 7 events (`(type, data, time)`, as the world's dispatcher 0x2D1EA0 passes
   them; a kill, `{killer, victim}`: "kill invader"; the first build took `(type, time, data)`, fixed
   after #297's review), 8 and 9 a roster
@@ -3064,7 +3064,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0xF6C00). The mode configs list it: `rules [93, 91, 480, 94]`. Its vtable carries an RTTI
   locator of its own, `research_rule_cook`: a translate_query_cook, shaped as tdm_rule_core_cook's
   hierarchy (its base class descriptors reused), not tdm_rule_cook's (the first build's).
-- **The tick** (`research_rule_026g.c`): only in play (the time rule's state 3, world+18FE4h);
+- **The tick** (`research-rule`): only in play (the time rule's state 3, world+18FE4h);
   the players of the places entered, alive (+33Ch) and in the world (+33Fh), their team (+6B8h ->
   +45ECh), feet (+43Ch, the player's transform) and capsule (half its height from the character
   controller, `[[+494h]]` +1D0h/+1F0h, as get_transform 0x7F5C0 takes it; 0.38 m round): inside a
@@ -3074,7 +3074,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0x31E920) counted in the statistics' events 6 and 18 (hundredths), a kill invader in event 10;
   the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.
 - **The hud**: `cmp dword [edi+20h],4 / jne 0x23B3FC` at 0x23B3DE of game_world_ui::update_ui
-  becomes a `call` of the hud stub: in mode 5 `rn_hud` sends `root.research_update` (numbers
+  becomes a `call` of the hud stub: in mode 5 `research_update_hud` sends `root.research_update` (numbers
   only) at each change and every 60 frames, and the units' messages through the hud's
   parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
@@ -3082,19 +3082,32 @@ positions against the units' shapes, which the mode config carries (`capture_zon
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
   patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
   Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
-  three `jmp near`, the global symbols research_register, research_hud and research_welcome;
-  then the C code and its constants) and `research.state` (`rn_state`: the cook, the hud's
-  cache; zeroed), linked from source (0xA42D000 and 0xA430000 today). The next blocks are patch
+  four `jmp near`: research_register, research_hud, research_welcome and research_icons;
+  then the Rust code and its constants) and `research.state` (`rn_state`: the cook, the hud's
+  cache; zeroed), linked from source (addresses recorded in `arena_026g.lock.json`). The next blocks are patch
   54's, the engine library's and patch 58's.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
 
+The Research-only Rust port comes from `feat/rust-port` commit `195bad01`; other patches
+keep their current-main implementations. The port retains the rule layout, wire format and
+integer simulation. `arena_rt` supplies the no_std memory intrinsics; NASM aligns every
+Rust entry to 16 bytes and preserves the game's calling convention.
+
+The additional icons hook wraps `update_player_icons` at 0x23B207 and sends projected
+world markers from Rust. The top HUD has no capture caption; its occupied point grows by 34/24.
+World markers grow from 24 to 34 px. Both displays use the retail crossed-swords artwork with a two-second
+elapsed-time pulse. World markers have alpha 0.55 and fill alpha 0.12, under player icons.
+Their parent fades out in 200 ms and back in 300 ms while the viewed player aims (iron
+sights or scope); the separate top HUD stays visible. See `research_mode.md` for the
+camera checks and payload. This presentation change does not change the simulation.
+
 A simulation change for mode 5 only: modes 2 to 4 compute what they did; no exe without the patch
 loads a mode-5 config (the class has no cook there), so a server offers Research only to games
 with it. No base relocation is under a site and no branch aims inside one.
 
-Checked: `test_research_rule_026g.c` (the rules: captures by 1 and 2 players, contested, the fall
+Checks: `cargo test -p research-rule` (the rules: captures by 1 and 2 players, contested, the fall
 back, draining and taking, the owner refilling, the water-fill, the points and the end, kill
 invader, a place that left, the wire and its refusals); `check_research_026g.py` (Unicorn: the
 constructor's hook registers the cook once and goes on as the original, a taken class; the cook
