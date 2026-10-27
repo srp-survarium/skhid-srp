@@ -80,6 +80,17 @@ fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3
         }
         let mut made = Vec::new();
         bots.ticks(0, &clock_now, &view, &mut made);
+        if clock % 2_000 == 0 {
+            let b = &game.bodies[0];
+            eprintln!(
+                "blind {blind_stop_ms:?} t {clock}: ({:.1}, {:.1}) route {} estimate {:?} made {}",
+                b.feet.x,
+                b.feet.z,
+                bots.bots[0].as_ref().is_some_and(|bot| bot.route.is_some()),
+                bots.tracker.body(0).and_then(|t| t.estimate()).map(|e| (e.feet.x, e.feet.z)),
+                made.len()
+            );
+        }
         for made in made {
             let r = made.input.rotation;
             let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
