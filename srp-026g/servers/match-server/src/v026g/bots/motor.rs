@@ -1570,6 +1570,27 @@ pub mod counts {
         add(10);
     }
 
+    static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+
+    /// A refused side step of the reflex's own, asked the other side too: whether that side is clear (the
+    /// step could slide to it) or both are refused (the bot stands), standing to aim or weaving a walk,
+    /// from a floor in a lip's band or not.
+    pub fn slide_asked(other_clear: bool, weave: bool, in_band: bool) {
+        SLIDES[usize::from(!other_clear) * 4 + usize::from(weave) * 2 + usize::from(in_band)]
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The step was taken to the other side (`clear_step_slides_along`).
+    pub fn slid() {
+        SLIDES[8].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// (other side clear: still out of the band, still in it, weave out, weave in; both refused: the same
+    /// four; slid).
+    pub fn slides() -> [u64; 9] {
+        std::array::from_fn(|k| SLIDES[k].load(Ordering::Relaxed))
+    }
+
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     /// One tick of the walk keys: whether the plan goes on from a tick

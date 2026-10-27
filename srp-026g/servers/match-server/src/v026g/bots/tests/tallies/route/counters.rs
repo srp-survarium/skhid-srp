@@ -64,6 +64,21 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The reflex's own side steps refused at a lip and asked the other side (`drive_tick`, `clear_step_sees_lip`):
+/// the other side clear, or both refused (the bot stands), standing to aim or weaving a walk, from a floor in a
+/// lip's band or out of it; and the steps taken to the other side (`clear_step_slides_along`).
+pub(super) fn side_slides() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::counts::slides().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "side_other_clear_still_out {} side_other_clear_still_band {} side_other_clear_walk_out {} side_other_clear_walk_band {} side_both_refused_still_out {} side_both_refused_still_band {} side_both_refused_walk_out {} side_both_refused_walk_band {} side_slid {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]
+            ));
+        },
+    )
+}
+
 /// The route requests of a poll found / failed by the floors' storey gap (`path::request_gap`).
 pub(super) fn request_gaps() -> Box<dyn RouteTopic> {
     Delta::of(
