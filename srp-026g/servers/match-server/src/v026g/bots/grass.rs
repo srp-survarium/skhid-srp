@@ -208,9 +208,18 @@ mod tests {
         let m = g.metres(Vec3::new(12.0, 1.8, 0.5), Vec3::new(14.0, 1.8, 0.5));
         assert!((m - 0.7).abs() < 1e-4, "{m}");
         // Over the blades (2.4 m = 1.0 + 1.4), beside the row, short of it.
-        assert_eq!(g.metres(Vec3::new(10.0, 2.5, 0.5), Vec3::new(14.0, 2.5, 0.5)), 0.0);
-        assert_eq!(g.metres(Vec3::new(10.0, 1.8, 3.5), Vec3::new(14.0, 1.8, 3.5)), 0.0);
-        assert_eq!(g.metres(Vec3::new(0.0, 1.8, 0.5), Vec3::new(9.0, 1.8, 0.5)), 0.0);
+        assert_eq!(
+            g.metres(Vec3::new(10.0, 2.5, 0.5), Vec3::new(14.0, 2.5, 0.5)),
+            0.0
+        );
+        assert_eq!(
+            g.metres(Vec3::new(10.0, 1.8, 3.5), Vec3::new(14.0, 1.8, 3.5)),
+            0.0
+        );
+        assert_eq!(
+            g.metres(Vec3::new(0.0, 1.8, 0.5), Vec3::new(9.0, 1.8, 0.5)),
+            0.0
+        );
     }
 
     /// A line sinking into the grass counts from where it goes under the tops.
@@ -235,7 +244,10 @@ mod tests {
         let eye = Vec3::new(0.0, 2.6, 0.5);
         let feet = Vec3::new(12.0, 1.0, 0.5);
         let crouched = g.metres(eye, feet + Vec3::new(0.0, CROUCHED_CHEST_M, 0.0));
-        let standing = g.metres(eye, feet + Vec3::new(0.0, super::super::foliage::CHEST_M, 0.0));
+        let standing = g.metres(
+            eye,
+            feet + Vec3::new(0.0, super::super::foliage::CHEST_M, 0.0),
+        );
         assert!(crouched > 0.9, "{crouched}");
         assert!(standing < crouched, "{standing} {crouched}");
     }
@@ -259,10 +271,15 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let default = dir.join(DEFAULT_FILE);
         std::fs::write(&default, FILE).unwrap();
-        let choose = |var: Option<&str>| Source::choose_file(var.map(std::ffi::OsStr::new), Some(&dir), DEFAULT_FILE);
+        let choose = |var: Option<&str>| {
+            Source::choose_file(var.map(std::ffi::OsStr::new), Some(&dir), DEFAULT_FILE)
+        };
         assert_eq!(choose(None), Source::Default(default.clone()));
         assert_eq!(choose(Some("off")), Source::None);
-        assert_eq!(choose(Some("/else/grass.json")), Source::Set("/else/grass.json".into()));
+        assert_eq!(
+            choose(Some("/else/grass.json")),
+            Source::Set("/else/grass.json".into())
+        );
         assert_eq!(Grass::load(&default, "level_01/day_2").unwrap().len(), 4);
         std::fs::remove_file(&default).unwrap();
         assert_eq!(choose(None), Source::None);
@@ -276,7 +293,10 @@ mod tests {
         assert_eq!(Grass::parse(FILE, "level_01/day_2").unwrap().len(), 4);
         assert!(Grass::parse(FILE, "level_03/day_2").unwrap().is_empty());
         assert!(Grass::parse(FILE, "level_09/day_2").unwrap().is_empty());
-        assert_eq!(Grass::none().metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(9.0, 1.0, 0.0)), 0.0);
+        assert_eq!(
+            Grass::none().metres(Vec3::new(0.0, 1.0, 0.0), Vec3::new(9.0, 1.0, 0.0)),
+            0.0
+        );
         assert!(Grass::parse(r#"{"version":2,"levels":{}}"#, "level_01/day_2").is_err());
     }
 }
