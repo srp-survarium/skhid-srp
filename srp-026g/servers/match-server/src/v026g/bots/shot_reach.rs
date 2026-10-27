@@ -16,9 +16,13 @@
 //! one). For the Neostead, Saiga-12 and Vepr-12 it is a `core_distant_one_shot` echo that reaches
 //! 240 m; without it they reach 21 m (Neostead) or 19.3 m. Nothing in the executable (no string for
 //! `environments`) or the data picks an environment layer by level, so the client plays it on every
-//! map (LIKELY, not proven). The table keeps the reach without it in the second column, which the
-//! bots use, and the reach with it in a third where it differs (240); the owner decides whether the
-//! LIKELY reading is taken.
+//! map (LIKELY-strong, not proven: the composite loader has no level field and the layer is one
+//! more layer of the composite). The table keeps the reach without it in the second column, as
+//! information, and the reach with it in a third where it differs (240). **The owner took the
+//! LIKELY reading (2026-10-27: "are there any other weapon with 200 m+ sound range? if yes I am ok
+//! with 240"; the four guns at exactly 200 m are the bolt rifles Mosin, Rem 700 (and its premium)
+//! and SV-98, nothing is above 200 but these five): the bots hear these five guns to 240 m on
+//! every map.**
 //!
 //! The table is `shot_reach.tsv`, made by `srp-shot-reach` from the game's archives
 //! (`survarium::v026g::shot_reach` is the derivation, read from the files), keyed by the weapon's
@@ -38,10 +42,12 @@ pub fn table() -> &'static [(&'static str, f32)] {
             .lines()
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .map(|line| {
-                // name, the general metres, and the with-environment metres where they differ.
+                // name, the general metres, and the with-environment metres where they differ: the
+                // bots hear a shot as far as the last of them (the owner, 2026-10-27).
                 let mut fields = line.split('\t');
                 let name = fields.next().expect("a row of shot_reach.tsv");
-                let metres = fields.next().expect("metres in shot_reach.tsv");
+                let general = fields.next().expect("metres in shot_reach.tsv");
+                let metres = fields.next().unwrap_or(general);
                 (name, metres.parse().expect("metres in shot_reach.tsv"))
             })
             .collect()
@@ -70,6 +76,23 @@ mod tests {
         assert_eq!(reach_of("wpn_vss"), Some(55.0));
         assert_eq!(reach_of("wpn_spas_12"), Some(100.0));
         assert_eq!(reach_of("wpn_nothing"), None);
+    }
+
+    /// The five guns with Rudnya's environment layer are heard as far as it carries (240 m, the third
+    /// column); the general reach stays in the file as information; no other weapon is above 200 m.
+    #[test]
+    fn the_guns_with_the_environment_layer_are_heard_to_240_m_and_no_other_is_above_200() {
+        for stem in ["wpn_neostead", "wpn_neostead_2", "wpn_saiga_12", "wpn_vepr_12", "wpn_vepr_12_premium"] {
+            assert_eq!(reach_of(stem), Some(240.0), "{stem}");
+            let row = super::TABLE.lines().find(|l| l.starts_with(&format!("{stem}\t"))).unwrap();
+            let fields: Vec<&str> = row.split('\t').collect();
+            assert_eq!(fields.len(), 3, "{row}");
+            assert!(fields[1].parse::<f32>().unwrap() < 30.0, "the general reach is kept: {row}");
+        }
+        let above: Vec<_> = table().iter().filter(|(_, m)| *m > 200.0).map(|(n, _)| *n).collect();
+        assert_eq!(above.len(), 5, "{above:?}");
+        let at_200: Vec<_> = table().iter().filter(|(_, m)| *m == 200.0).map(|(n, _)| *n).collect();
+        assert_eq!(at_200, ["wpn_mosin_nagant", "wpn_rem_700", "wpn_rem_700_premium", "wpn_sv_98"]);
     }
 
     /// Every weapon any kit of any tier and role can carry has a row: a weapon added to a kit
