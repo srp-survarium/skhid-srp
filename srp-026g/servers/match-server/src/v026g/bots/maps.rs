@@ -88,6 +88,51 @@ impl fmt::Debug for MapState {
     }
 }
 
+/// Where a build thread is, for the tests: a build that does not finish names the step it is in (a no-op
+/// outside the tests).
+#[cfg(test)]
+mod stage {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    use std::thread::ThreadId;
+    use std::time::{Duration, Instant};
+
+    type Where = HashMap<ThreadId, (&'static str, &'static str, Instant)>;
+    static NOW: Mutex<Option<Where>> = Mutex::new(None);
+
+    fn put(step: Option<&'static str>, detail: &'static str) {
+        let mut now = NOW.lock().unwrap_or_else(|p| p.into_inner());
+        let id = std::thread::current().id();
+        let step = step.unwrap_or_else(|| now.as_ref().and_then(|w| w.get(&id)).map_or("", |s| s.0));
+        now.get_or_insert_with(HashMap::new).insert(id, (step, detail, Instant::now()));
+    }
+
+    /// The build thread begins `step`.
+    pub fn set(step: &'static str) {
+        put(Some(step), "");
+    }
+
+    /// It is in `detail` of its step (reading, building or writing a built file).
+    pub fn detail(detail: &'static str) {
+        put(None, detail);
+    }
+
+    /// The step a thread was last in, the detail and how long ago it began it.
+    pub fn of(id: ThreadId) -> Option<(&'static str, &'static str, Duration)> {
+        let now = NOW.lock().unwrap_or_else(|p| p.into_inner());
+        now.as_ref()?.get(&id).map(|(step, detail, since)| (*step, *detail, since.elapsed()))
+    }
+}
+
+#[cfg(not(test))]
+mod stage {
+    #[inline(always)]
+    pub fn set(_step: &'static str) {}
+
+    #[inline(always)]
+    pub fn detail(_detail: &'static str) {}
+}
+
 /// The store of built maps, shared by every match of the server.
 pub struct Maps {
     dir: Option<PathBuf>,
@@ -101,6 +146,9 @@ pub struct Maps {
     /// Held by the build under way: one at a time, for memory and the one
     /// core of the host.
     builds: Arc<Mutex<()>>,
+    /// The build threads, to say in a test what one that does not finish is doing.
+    #[cfg(test)]
+    builders: Mutex<HashMap<String, std::thread::JoinHandle<()>>>,
 }
 
 #[derive(Default)]
@@ -155,6 +203,8 @@ impl Maps {
             at_once: at_once.max(1),
             cache: Arc::default(),
             builds: Arc::default(),
+            #[cfg(test)]
+            builders: Mutex::default(),
         })
     }
 
@@ -238,6 +288,7 @@ impl Maps {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
                     build(&path, built.as_deref(), &cache)
                 };
+                stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
                 match result {
                     Ok((base, built)) => {
@@ -255,6 +306,13 @@ impl Maps {
                     }
                 }
             });
+        #[cfg(test)]
+        let spawned = spawned.map(|handle| {
+            self.builders
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(project.to_owned(), handle);
+        });
         if let Err(error) = spawned {
             let reason = format!("can't start its build: {error}");
             log::warn!("Bot map {project}: {reason}");
@@ -400,16 +458,20 @@ fn read_or_build<T>(
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
 ) -> (T, Source) {
     let Some(built) = built else {
+        stage::detail("building (no built files)");
         return (build(), Source::Built);
     };
     let path = built.join(file_name);
     if path.is_file() {
+        stage::detail("reading the built file");
         match read(&path) {
             Ok(value) => return (value, Source::Read),
             Err(why) => log::warn!("Bot map file refused ({why}); built again"),
         }
     }
+    stage::detail("building");
     let value = build();
+    stage::detail("writing the built file");
     let written = std::fs::create_dir_all(built)
         .map_err(|e| mapdata::Error(format!("{}: {e}", built.display())))
         .and_then(|()| write(&value, &path));
@@ -427,7 +489,9 @@ fn build(
     cache: &Mutex<Cache>,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
+    stage::set("reading the map file");
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    stage::set("parsing the map file");
     let mut map_file = mapdata::digest::Digest::new();
     map_file.bytes(&bytes);
     let map_file = map_file.finish();
@@ -435,6 +499,7 @@ fn build(
         MapData::from_bytes(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
     drop(bytes);
     let built = catch_unwind(AssertUnwindSafe(|| {
+        stage::set("the grid key");
         let (cell, body) = (mapdata::CELL, super::tuning::Tuning::default().grid_body());
         let walker = map.walker_triangles();
         let area = map.play_area(mapdata::AREA_MARGIN);
@@ -444,6 +509,7 @@ fn build(
         // (`GridTuning::gap_links`; the live server's tuning is the default).
         let links = super::tuning::Tuning::default().off_mesh_links();
         let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
+        stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
             Some(grid) => (grid, Source::Shared),
@@ -461,8 +527,10 @@ fn build(
             }
         };
         drop(walker);
+        stage::set("the sight tree key");
         let bullet = map.bullet_triangles();
         let sight_key = mapdata::sight_key(&bullet);
+        stage::set("the sight tree");
         let shared = lock(cache).sights.get(&sight_key).and_then(Weak::upgrade);
         let (sight, sight_source) = match shared {
             Some(sight) => (sight, Source::Shared),
@@ -483,7 +551,9 @@ fn build(
         // The meshes are not read once the grid and the tree are built.
         map.libraries = Vec::new();
         map.placements = Vec::new();
+        stage::set("assembling the world");
         let world = Arc::new(World::assemble(map, grid, sight));
+        stage::set("the tactics");
         let margin = Maps::margin();
         let key = TacticsBase::key(map_file, grid_key, margin);
         let (base, tactics_source) = read_or_build(
@@ -618,6 +688,36 @@ mod tests {
         dir
     }
 
+    /// What the build thread of `project` is doing, for a build that does not finish in time: whether it ended
+    /// (and with what panic), else the step it is in and for how long.
+    fn build_report(maps: &Maps, project: &str) -> String {
+        let mut builders = maps.builders.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(handle) = builders.remove(project) else {
+            return "no build thread was started for it".to_owned();
+        };
+        let id = handle.thread().id();
+        let at = stage::of(id).map_or_else(
+            || "no step recorded".to_owned(),
+            |(step, detail, since)| format!("step \"{step}\" {detail} for {since:?}"),
+        );
+        if handle.is_finished() {
+            return match handle.join() {
+                Ok(()) => format!("the build thread ended without a result in the store ({at})"),
+                Err(payload) => {
+                    let why = payload
+                        .downcast_ref::<&str>()
+                        .map(|s| (*s).to_owned())
+                        .or_else(|| payload.downcast_ref::<String>().cloned())
+                        .unwrap_or_else(|| "a payload that is no text".to_owned());
+                    format!("the build thread panicked: {why} ({at})")
+                }
+            };
+        }
+        let report = format!("the build thread is still running: {at}");
+        builders.insert(project.to_owned(), handle);
+        report
+    }
+
     fn wait_ready(maps: &Maps, project: &str, limit: Duration) -> Arc<TacticsBase> {
         let started = Instant::now();
         loop {
@@ -626,9 +726,37 @@ mod tests {
                 MapState::Loading if started.elapsed() < limit => {
                     std::thread::sleep(Duration::from_millis(5))
                 }
-                other => panic!("{project}: {other:?} after {:?}", started.elapsed()),
+                other => panic!(
+                    "{project}: {other:?} after {:?}; {}",
+                    started.elapsed(),
+                    build_report(maps, project)
+                ),
             }
         }
+    }
+
+    /// The diagnosis of a build that does not finish names its thread and step.
+    #[test]
+    fn a_build_that_does_not_finish_in_time_is_reported_with_its_step() {
+        let dir = temp_dir("report");
+        let project = "tiny/day_4";
+        tiny_map(project)
+            .write(&dir.join(mapdata::format::file_name(project)))
+            .unwrap();
+        let maps = Maps::new(Some(dir.clone()));
+        // Holding the build turn keeps the thread from starting its work: it waits, with no step yet.
+        let turn = maps.builds.lock().unwrap();
+        assert!(matches!(maps.get(project), MapState::Loading));
+        std::thread::sleep(Duration::from_millis(50));
+        let report = build_report(&maps, project);
+        assert!(report.contains("still running"), "{report}");
+        drop(turn);
+        let _ = wait_ready(&maps, project, Duration::from_secs(10));
+        // In the store: the thread ended cleanly, and its last step is on record.
+        let report = build_report(&maps, project);
+        assert!(report.contains("ended without a result"), "{report}");
+        assert!(report.contains("putting the map in the store"), "{report}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
