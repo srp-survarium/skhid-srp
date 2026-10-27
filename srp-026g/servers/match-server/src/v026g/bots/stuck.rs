@@ -87,6 +87,10 @@ pub const ENDED_THEN_STUCK_MS: u32 = 10_000;
 /// its reckoning) may come of the worlds that did not reach the bot, not of the bot. The longest gap between two
 /// uploads of the J0 matches' healthy streams was 2.85 s; one missed regular world is 4 s.
 pub const FIX_GAP_MS: u32 = 3_000;
+/// The keys a bot stands still of when it is blind (`UnstickTuning::blind_stop_ms`).
+pub const BLIND_KEYS: u32 = HELD_KEYS | key::SPRINT;
+/// A world after a blind stop that shows the body this near its reckoning, metres, shows the stop was needless.
+pub const BLIND_NEEDLESS_M: f32 = 1.0;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
 /// … if the earlier one was within this, ms.
@@ -903,6 +907,23 @@ pub mod unknown_meant {
     }
 
     pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// The bench's counts of the blind stops: ticks a bot stood for want of a world, stops a world ended, and those worlds
+/// that showed the body within [`BLIND_NEEDLESS_M`] of its reckoning (the stop was needless).
+#[cfg(test)]
+pub mod blind {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
