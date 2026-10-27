@@ -8,9 +8,7 @@
 //! The landing lock of a hard fall ([`super::stuck::HARD_FALL_M`]) is a contact of this kind too; `fall_locks` tells
 //! them apart.
 
-use mapdata::Vec3;
-
-use super::kin::key;
+use crate::v026g::drive::key;
 
 /// A body presses when its ground speed is under this with the forward key held, m/s.
 pub const CONTACT_SPEED_MS: f32 = 0.3;
@@ -110,6 +108,8 @@ pub mod contacts {
 
 #[cfg(test)]
 mod tests {
+    use mapdata::Vec3;
+
     use super::*;
 
     fn run(walking: bool, keys: u32, speed: f32) -> Vec<Counted> {
