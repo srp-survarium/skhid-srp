@@ -39,6 +39,11 @@ pub struct UnstickTuning {
     /// the leg it fails on is kept clear of for the spot's time and the route is planned again. None: the watch is off (the
     /// default; the held-keys watch only sees a body that stays within half a metre).
     pub progress_ms: Option<u32>,
+    /// A world this long after the one before it, ms, ends the stuck check (the watch starts again at the next
+    /// world, no note, no recovery, no spot for the team): the bot was not shown the body for that long, so a body
+    /// that "did not move" is not known to have been stuck. None: the check goes on (the default: 32 of the 35
+    /// stuck notes after a 3 s gap in the J0 matches were bodies really pinned).
+    pub fix_gap_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -54,6 +59,7 @@ impl Default for UnstickTuning {
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
             progress_ms: None,
+            fix_gap_ms: None,
         }
     }
 }

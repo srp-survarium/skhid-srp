@@ -39,8 +39,20 @@ use super::live_grenades::{
 };
 use crate::v026g::drive::key;
 
+/// A body this far over or under another is not beside it, metres.
+const NEAR_FLOOR_M: f32 = 1.5;
+
 /// A roster place.
 pub type Place = usize;
+
+/// The body nearest to another ([`Tracker::neighbour_of`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Beside {
+    pub place: Place,
+    pub distance_m: f32,
+    /// An enemy of the other body (else a friend).
+    pub enemy: bool,
+}
 
 /// Where the game's bullet starts, over the feet, metres: the player's head
 /// matrix (`player+0x44C`, the Head locator of its animation), which
@@ -620,6 +632,26 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// The other place whose last world shows it alive nearest to `feet` on the same floor (within a storey's
+    /// step): how far in the plane, metres, and whether it is a friend of `place` or an enemy. Enemies block a
+    /// body in the game, friends pass through it (the J0 bodies files).
+    pub fn neighbour_of(&self, place: Place, feet: Vec3) -> Option<Beside> {
+        let mine = self.places.get(place)?.team;
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|&(other, _)| other != place)
+            .filter_map(|(other, state)| {
+                let at = state.body.fix().filter(|fix| fix.alive).and_then(|fix| fix.feet)?;
+                ((at.y - feet.y).abs() < NEAR_FLOOR_M).then(|| Beside {
+                    place: other,
+                    distance_m: at.distance_xz(feet),
+                    enemy: state.team != mine,
+                })
+            })
+            .min_by(|a, b| a.distance_m.total_cmp(&b.distance_m))
     }
 
     /// Every place's shot reach, metres ([`super::shot_reach`]), by place.

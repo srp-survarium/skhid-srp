@@ -282,6 +282,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Some(x) = settings.number::<f32>("SRP_BENCH_PERCH_P") {
         set(&mut tuning, "/perch/p_scale", x.into());
     }
+    // A battery's crossing of a damage zone weighed against the pools the zone's hits take from and the bot's armour
+    // (`HazardTuning::zone_pools`): `routed`; else (the default) the body pool and the raw hit.
+    if let Ok(v) = settings.var("SRP_BENCH_ZONE_POOLS") {
+        set(&mut tuning, "/hazard/zone_pools", if v == "routed" { "routed" } else { "raw" }.into());
+    }
     // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
         set(&mut tuning, "/hazard/live_zones", (v != "0").into());
@@ -572,6 +577,20 @@ pub(crate) fn real_bot_cost() {
                 })
                 .collect();
             bots.set_shot_reach(reach);
+            // The armour each bot wears against a zone's hits, as the stand-in's body wears it (the kit of the
+            // bench's tier and rusher kit that has the bot's gun): read only with `HazardTuning::zone_pools`
+            // routed, which also makes the stand-in's zones hurt the pools their hits take from.
+            {
+                let model = super::standin_damage::Model::default();
+                for place in 0..bots.bots.len() {
+                    let gun = bots.bots[place]
+                        .as_ref()
+                        .and_then(|bot| bot.kits.get(bot.kit).map(|kit| kit.0.primary.0.item));
+                    if let Some(gun) = gun {
+                        bots.set_zone_armour(place, super::standin_damage::zone_armour_of(model.tier, model.rusher, gun));
+                    }
+                }
+            }
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
@@ -730,6 +749,7 @@ pub(crate) fn real_bot_cost() {
             // ticks of a need with none (a theft this match, a battery home,
             // no holder alive).
             let mut holder_ticks = [0u64; 2];
+            let mut pair_apart = 0u64;
             let mut holder_post_ticks = [0u64; 2];
             let mut holder_deaths = [0u32; 2];
             let mut holder_thefts = [0u32; 2];
@@ -765,6 +785,7 @@ pub(crate) fn real_bot_cost() {
             // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
             // owner's CG-20 test): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
+            game.zone_routed = bots.tuning.hazard.zone_pools == super::tuning::ZonePools::Routed;
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -933,6 +954,13 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    // The harm count of the pair rules: ticks a pair's two bodies are alive more than 60 m apart.
+                    for bot in bots.bots.iter().flatten() {
+                        if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
+                            let (a, b) = (&game.bodies[bot.place], &game.bodies[mate]);
+                            pair_apart += u64::from(a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0);
+                        }
+                    }
                     for bot in bots.bots.iter().flatten() {
                         let body = &game.bodies[bot.place];
                         super::plays::goals::perch_watch(
@@ -1440,6 +1468,7 @@ pub(crate) fn real_bot_cost() {
                 );
             }
             eprintln!("  push: {}", push.line(&bots));
+            eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
@@ -1550,6 +1579,11 @@ pub(crate) fn real_bot_cost() {
                     ),
                 })
             };
+            // What the zones took by pool and the deaths by the pool that ran out (F2; zeros unless routed).
+            eprintln!(
+                "  zone_pools: {}",
+                serde_json::json!({"zone_pool_lost": game.zone_pool_lost, "zone_pool_deaths": game.zone_pool_deaths})
+            );
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
