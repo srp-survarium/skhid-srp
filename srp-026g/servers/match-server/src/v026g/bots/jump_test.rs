@@ -107,6 +107,12 @@ const ROWS_KEPT: usize = 900;
 const OUTSTANDING_MS: u32 = 600;
 /// An upload that took longer than this (ms) makes the next request wait as long again.
 const SLOW_UPLOAD_MS: u32 = 250;
+/// One answer of a burst in this many goes down the ordinary path too ([`JumpTest::take_rows`]): the ordinary world
+/// carries what the burst rows do not (the legs, the carried item), and the bots' own fix must not be starved while the
+/// test asks all the time (the J0 reviews: 100-114 s of dead reckoning in 5dbc6cee and 4fdb062b).
+const NORMAL_EVERY: u32 = 4;
+/// The fixes of every place are counted over windows of this long, ms ([`JumpTest::fix_counts`]).
+const FIX_WINDOW_MS: u32 = 10_000;
 /// A motor-driven try is given up after this long on its way to the top, ms.
 const MOTOR_MAX_MS: u32 = 25_000;
 /// A ledge within this of one whose start was not reached is given up with it, m.
@@ -818,20 +824,48 @@ fn remaining_ms(distance_m: f32) -> u32 {
     (distance_m / SPRINT_MPS * BUDGET_SLACK * 1_000.0) as u32
 }
 
-/// [`budget_ms`] for a team's bot and the start of `def`.
-fn suicide_budget_ms(world: &World, team: u8, def: &TryDef) -> u32 {
+/// The cost of the floors to the start of `def`, made once per site ([`JumpTest::start_costs`]); None where the start is
+/// on no floor.
+fn start_costs<'a>(
+    cache: &'a mut HashMap<(i32, i32), mapdata::grid::DistanceMap>,
+    world: &World,
+    def: &TryDef,
+) -> Option<&'a mapdata::grid::DistanceMap> {
+    let key = site_key(def);
+    if let std::collections::hash_map::Entry::Vacant(slot) = cache.entry(key) {
+        let node = path::goal_floor(&world.grid, start_of(def))?;
+        slot.insert(world.grid.distances_to(&[node]));
+    }
+    cache.get(&key)
+}
+
+/// How far the walk from `feet` to the start of `def` is, metres: the grid's cost where the floors are joined, else
+/// the straight line (the walk to g2b's start was 150 m for 40 m of it).
+fn walk_to_start_m(world: &World, costs: Option<&mapdata::grid::DistanceMap>, feet: Vec3, start: Vec3) -> f32 {
+    costs
+        .zip(path::goal_floor(&world.grid, feet))
+        .map(|(c, node)| c.cost[node as usize])
+        .filter(|d| d.is_finite())
+        .unwrap_or_else(|| feet.distance_xz(start))
+}
+
+/// [`budget_ms`] for a team's bot and the start of `def`: from the nearest spawn of its team by the walk (the grid's
+/// cost to the start), else by the straight line.
+fn suicide_budget_ms(world: &World, team: u8, def: &TryDef, costs: Option<&mapdata::grid::DistanceMap>) -> u32 {
     let start = start_of(def);
-    let nearest = |own: bool| {
-        world
-            .map
-            .spawns
-            .iter()
-            .filter(|s| !own || s.team == i32::from(team))
-            .map(|s| s.position.distance_xz(start))
-            .fold(f32::MAX, f32::min)
+    let spawns = |own: bool| world.map.spawns.iter().filter(move |s| !own || s.team == i32::from(team));
+    let by_walk = |own: bool| {
+        costs.and_then(|c| {
+            spawns(own)
+                .filter_map(|s| world.grid.locate(s.position, 3.0))
+                .map(|node| c.cost[node as usize])
+                .filter(|d| d.is_finite())
+                .reduce(f32::min)
+        })
     };
+    let nearest = |own: bool| spawns(own).map(|s| s.position.distance_xz(start)).fold(f32::MAX, f32::min);
     let own = nearest(true);
-    budget_ms(if own < f32::MAX { own } else { nearest(false) })
+    budget_ms(by_walk(true).or_else(|| by_walk(false)).unwrap_or(if own < f32::MAX { own } else { nearest(false) }))
 }
 
 #[derive(Clone, Debug)]
@@ -901,6 +935,15 @@ pub struct JumpTest {
     missed: HashMap<(i32, i32), HashSet<Place>>,
     /// When a bot first waited short of an enemy's try on its way to a start (it waits [`YIELD_MAX_MS`] at most).
     yielding: HashMap<Place, u32>,
+    /// When a bot first waited in this try, never re-armed by leaving and entering an enemy's try zone again: the
+    /// total wait of a try is [`YIELD_MAX_MS`] at most (the J0 rows had bots waiting minutes, each encounter
+    /// re-arming [`Self::yielding`]).
+    yield_first: HashMap<Place, u32>,
+    /// The floors' cost to a site's start (a flood backwards over the grid's links), by site: what the walk to a
+    /// start really costs, for the suicide budget (a straight line is no walk: g2b needs 150 m for 40 m of it).
+    start_costs: HashMap<(i32, i32), mapdata::grid::DistanceMap>,
+    /// The tries refused for a fall over 5 m ([`launch_fall_m`]), by id, logged once.
+    refused_falls: HashSet<String>,
     /// Suicides so far, by team.
     suicides: [u32; 2],
     /// The reach of both teams' spawns, made at the first try file read.
@@ -943,6 +986,11 @@ pub struct JumpTest {
     /// goes no further in the game, so without this the reckoning of every bot is starved while the test asks (the
     /// J0 on Chemical Plant: rests 0.5-18 m off).
     fresh: Vec<Row>,
+    /// The answers of the bursts so far, for [`NORMAL_EVERY`].
+    answered: u32,
+    /// The rows seen per place in the window that began at the second field (the match clock), and how many bursts
+    /// went the ordinary way in it: logged as `fixes_per_place_per_10s` at its end.
+    fix_counts: (HashMap<Place, u32>, u32, u32),
     problem: Option<String>,
 }
 
@@ -982,6 +1030,9 @@ impl JumpTest {
             missed: HashMap::new(),
             sides: HashMap::new(),
             yielding: HashMap::new(),
+            yield_first: HashMap::new(),
+            start_costs: HashMap::new(),
+            refused_falls: HashSet::new(),
             suicides: [0; 2],
             reach: None,
             checked: HashMap::new(),
@@ -1003,6 +1054,8 @@ impl JumpTest {
             uploads: Vec::new(),
             sent: 0,
             fresh: Vec::new(),
+            answered: 0,
+            fix_counts: (HashMap::new(), 0, 0),
             problem: None,
         }
     }
@@ -1068,6 +1121,19 @@ impl JumpTest {
                         self.checked.insert(key, why);
                     }
                     if self.checked.get(&key).is_some_and(Option::is_none) {
+                        // A jump that comes down over 5 m below the ledge's top is a fall that hurts (by try: the
+                        // speed decides how far it flies).
+                        if let Some(fall) = launch_fall_m(&world.grid, &def).filter(|&fall| fall > FALL_REFUSE_M) {
+                            if self.refused_falls.insert(def.id.clone()) {
+                                log::warn!("jump test: try {} refused: its jump lands {fall:.1} m below the ledge's top", def.id);
+                                let line = serde_json::json!({ "refused": def.site.name, "id": def.id, "why": format!("the jump lands {fall:.1} m below the ledge's top: a fall over {FALL_REFUSE_M} m"), "deck": def.site.lower.to_array() });
+                                if self.tries_log.is_none() {
+                                    self.tries_log = self.open("tries");
+                                }
+                                Self::line(&mut self.tries_log, &line);
+                            }
+                            continue;
+                        }
                         tries_ok.push(def);
                     }
                 }
@@ -1282,6 +1348,7 @@ impl JumpTest {
                 *started
             };
             self.yielding.remove(&bot.place);
+            self.yield_first.remove(&bot.place);
             let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team, shift: [0.0, 0.0] });
         }
@@ -1343,7 +1410,10 @@ impl JumpTest {
                         back_to_pool(&mut self.pool, def);
                     }
                     runner.active = None;
-                } else if yield_to(&zones, bot.team, me.feet) && now.saturating_sub(*self.yielding.entry(bot.place).or_insert(now)) < YIELD_MAX_MS {
+                } else if yield_to(&zones, bot.team, me.feet)
+                    && now.saturating_sub(*self.yielding.entry(bot.place).or_insert(now)) < YIELD_MAX_MS
+                    && now.saturating_sub(*self.yield_first.entry(bot.place).or_insert(now)) < YIELD_MAX_MS
+                {
                     // An enemy's try is on the way: wait short of it (the walk's clock does not run meanwhile).
                     bot.intent = Intent::stay();
                     bot.intent.fire = false;
@@ -1356,11 +1426,15 @@ impl JumpTest {
                 } else if active.def.suicides == 0
                     && self.suicides[usize::from(bot.team & 1)] < SUICIDE_CAP
                     && now - *since > 8_000
-                    && now - *since > suicide_budget_ms(world, bot.team, &active.def)
-                    && remaining_ms(me.feet.distance_xz(start)) > suicide_budget_ms(world, bot.team, &active.def)
+                    && {
+                        let costs = start_costs(&mut self.start_costs, world, &active.def);
+                        let budget = suicide_budget_ms(world, bot.team, &active.def, costs);
+                        now - *since > budget && remaining_ms(walk_to_start_m(world, costs, me.feet, start)) > budget
+                    }
                 {
                     // The walk takes longer than dying and walking from a spawn: once.
-                    let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def));
+                    let costs = start_costs(&mut self.start_costs, world, &active.def);
+                    let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def, costs));
                     active.def.suicides += 1;
                     self.suicides[usize::from(bot.team & 1)] += 1;
                     active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
@@ -1635,6 +1709,28 @@ impl JumpTest {
             Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
         self.fresh = rows.clone();
+        // The fixes per place over 10 s windows: a place with few rows is on dead reckoning.
+        if clock.saturating_sub(self.fix_counts.1) >= FIX_WINDOW_MS {
+            if !self.fix_counts.0.is_empty() {
+                let mut per: Vec<(Place, u32)> = self.fix_counts.0.drain().collect();
+                per.sort_unstable();
+                let line = serde_json::json!({ "fixes_per_place_per_10s": per, "window_ms": clock.saturating_sub(self.fix_counts.1), "passed_normal": self.fix_counts.2 });
+                Self::line(&mut self.worlds_log, &line);
+            }
+            self.fix_counts = (HashMap::new(), clock, 0);
+        }
+        for row in rows.iter().filter(|r| r.alive) {
+            *self.fix_counts.0.entry(row.place).or_default() += 1;
+        }
+        // Every NORMAL_EVERY-th answer of a burst goes down the ordinary path too.
+        let burst = if burst {
+            self.answered += 1;
+            let ordinary = self.answered.is_multiple_of(NORMAL_EVERY);
+            self.fix_counts.2 += u32::from(ordinary);
+            !ordinary
+        } else {
+            false
+        };
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
             Self::line(&mut self.worlds_log, &row_json(&row, clock));
@@ -1885,6 +1981,37 @@ impl ReachSets {
         }
         None
     }
+}
+
+/// A try whose jump comes down this far below the ledge's top is refused (metres): the client's `harmless_height`
+/// (`docs/notes/fall_damage.md`; 21 J0 deaths were sprint jumps off 6-8 m decks that landed at 12.2 m/s or more).
+const FALL_REFUSE_M: f32 = 5.0;
+
+/// How far from the press a try's jump comes down along its approach, metres: a standing jump, a walking one, a
+/// sprint one (the J0 rows: a free sprint jump flies 5.9-6.6 m); none for the motor-driven tries (the drive jumps
+/// where its route says).
+fn air_reach_m(speed: Speed) -> Option<f32> {
+    match speed {
+        Speed::Stand => Some(1.2),
+        Speed::Walk => Some(3.4),
+        Speed::Sprint | Speed::SprintAt(_) => Some(6.3),
+        Speed::Motor | Speed::MotorRun => None,
+    }
+}
+
+/// How far below the ledge's top (the arc's level) the highest floor at the point the try's jump lands on is, metres;
+/// none when no floor is there (a void or a wall) or the try is the drive's.
+fn launch_fall_m(grid: &mapdata::WalkGrid, def: &TryDef) -> Option<f32> {
+    let reach = air_reach_m(def.speed)?;
+    let a = approach(def);
+    let start = start_of(def);
+    let (px, pz) = (start.x + a[0] * (def.runup + reach), start.z + a[1] * (def.runup + reach));
+    let top = def.site.lower.y + def.site.rise;
+    grid.floors_in([px - 0.3, pz - 0.3, px + 0.3, pz + 0.3])
+        .map(|node| grid.position(node).y)
+        .filter(|&y| y <= top + 0.5)
+        .reduce(f32::max)
+        .map(|y| top - y)
 }
 
 /// How far a try's rest position is from its planned start: metres on the ground, metres in height, degrees
@@ -2202,6 +2329,40 @@ mod tests {
         assert!(short.unwrap_err().contains("10"));
     }
 
+    /// A sprint jump off a deck 8 m over the ground lands 8 m below the ledge's top: a fall, the try is refused; a
+    /// jump onto a ledge with a deck beyond it, and a motor-driven try, are not.
+    #[test]
+    fn a_jump_that_lands_over_five_metres_down_is_a_fall_to_refuse() {
+        use crate::v026g::bots::body::tests::floor;
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 8.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 40.0, 10.0, 0.0));
+        let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 40.0, 10.0], 0.25, mapdata::Body::default());
+        let world_with = |site: Site, speed: Speed| {
+            let d = TryDef { site, ..def(0.5, 0.0, Face::Normal, 3.0, speed, Mid::Hold) };
+            launch_fall_m(&grid, &d)
+        };
+        let launch = Site {
+            name: "launch".into(),
+            lower: Vec3::new(8.5, 8.0, 5.0),
+            toward: [1.0, 0.0],
+            rise: 0.0,
+            face: 1.5,
+            half: 2.0,
+            depth: None,
+            gap: false,
+        };
+        let fall = world_with(launch.clone(), Speed::Sprint).expect("a floor where it lands");
+        assert!(fall > FALL_REFUSE_M, "{fall}");
+        assert_eq!(world_with(launch.clone(), Speed::Motor), None);
+        // A ledge of the same deck 1 m up with the top 9 m deep: it comes down on the top.
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 40.0, 10.0, 1.0));
+        let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 40.0, 10.0], 0.25, mapdata::Body::default());
+        let ledge = Site { lower: Vec3::new(8.5, 0.0, 5.0), rise: 1.0, ..launch };
+        let d = TryDef { site: ledge, ..def(0.5, 0.0, Face::Normal, 3.0, Speed::Sprint, Mid::Hold) };
+        assert!(launch_fall_m(&grid, &d).is_some_and(|fall| fall.abs() < 0.3));
+    }
+
     fn t4(d: &TryDef, lane: f32, team: u8) -> Taken {
         (base_of(d), lane, team, Zone::of(d, team, true))
     }
@@ -2443,6 +2604,23 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.take_rows(rows.clone(), 1_000, 1_050, 100);
         assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
         assert!(jt.take_fresh().is_empty(), "once");
+    }
+
+    /// While the test asks all the time, one answer of the burst in four goes down the ordinary path as well (the
+    /// ordinary world carries the legs and the carried item), and the fixes of every place are counted.
+    #[test]
+    fn one_answer_in_four_of_a_burst_goes_the_ordinary_way_too() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), std::env::temp_dir(), "t".into(), 120);
+        let rows = vec![row(1_000, 2.0, 5.0, false, 0), Row { place: 4, ..row(1_000, 2.0, 7.0, false, 0) }];
+        let mut ordinary = 0;
+        for i in 0..8u32 {
+            jt.outstanding = Some(i);
+            if !jt.take_rows(rows.clone(), 1_000 + i * 125, 1_050 + i * 125, 100) {
+                ordinary += 1;
+            }
+        }
+        assert_eq!(ordinary, 8 / NORMAL_EVERY, "answers that went the ordinary way");
+        assert_eq!(jt.fix_counts.0.values().copied().collect::<Vec<_>>(), vec![8, 8]);
     }
 
     #[test]

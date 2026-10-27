@@ -5,26 +5,24 @@
 //!
 //! - **The press.** The throw key ([`key::GRENADE`]: the first pocket that holds a grenade) or a quick-use
 //!   key whose slot holds one ([`Pockets`], from the place's profile) goes down: the thrower, its team and
-//!   the press time are known. The fuse is [`FUSE_MS`] from the press, whichever key began the throw (PROVEN,
+//!   the press time are known. The fuse (the grenade's `ttl_ms`) runs from the press, whichever key began the throw (PROVEN,
 //!   `fact-grenade-arc.md`). A smoke grenade (`rdg-m`) is no danger and is left out, counted apart. A server
 //!   bot has no profile table: its throw key is a frag (the reflex's only grenade).
 //! - **The launch.** [`LAUNCH_MS`] after the press (LIKELY) the grenade leaves the hand along the thrower's
 //!   view: the arc model of `arc.rs` over the map's bullet mesh gives the first contact and where it comes to
 //!   rest ([`arc::Landing`]), once, from the body's reckoning at that time. A thrower that is dead by then
 //!   threw nothing (counted).
-//! - **The blast.** [`FUSE_MS`] from the press; the entry is kept [`SPENT_MS`] after it.
+//! - **The blast.** The fuse after the press; the entry is kept [`SPENT_MS`] after it.
 //!
 //! The list only records and predicts: nothing reads it unless a bot's tuning asks for it
 //! (`grenade_avoid`), so a match plays out as before.
 
 use mapdata::Vec3;
 
-use super::arc;
+use super::arc::{self, Grenade};
 use super::view::Place;
 use crate::v026g::drive::key;
 
-/// The fuse from the press, ms (`arc::FUSE_S`, PROVEN: 80 of 82 recorded blasts at press + 4000 ms).
-pub const FUSE_MS: u32 = (arc::FUSE_S * 1000.0) as u32;
 /// The grenade leaves the hand this long after the press, ms (`arc::LAUNCH_DELAY_S`, LIKELY).
 pub const LAUNCH_MS: u32 = (arc::LAUNCH_DELAY_S * 1000.0) as u32;
 /// An entry is kept this long past its blast, ms: a poll or two, so a reader at the blast tick still sees it.
@@ -50,6 +48,8 @@ pub struct LiveGrenade {
     /// The match ms of the press.
     pub press: u32,
     pub phase: Phase,
+    /// Its numbers (fuse, blast), from the game data: the bots' for a bot's, else its pocket's.
+    pub grenade: Grenade,
 }
 
 /// Where a grenade is in its life.
@@ -66,9 +66,10 @@ pub enum Phase {
 }
 
 impl LiveGrenade {
-    /// When it goes off, match ms.
+    /// When it goes off, match ms: the fuse from the press (PROVEN: 80 of 82 recorded blasts at press + 4000 ms
+    /// for the RGD-5).
     pub fn blast_at(&self) -> u32 {
-        self.press + FUSE_MS
+        self.press + self.grenade.fuse_ms()
     }
 
     /// Whether the entry still counts at `clock`: until [`SPENT_MS`] past the blast.
@@ -80,9 +81,9 @@ impl LiveGrenade {
 /// What a pocket of a profile holds, as far as the throw keys care.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pocketed {
-    /// An RGD-5.
+    /// A fragmentation grenade: its blast hurts (the game data's `rgd-5`).
     Frag,
-    /// An RDG-M.
+    /// Another grenade item (the game data's `rdg-m` smoke): no blast to keep out of.
     Smoke,
     /// Anything else the quick-use keys count (a medkit, a trap, a booster).
     Other,
@@ -94,19 +95,21 @@ impl Pocketed {
     }
 }
 
-/// One pocket (profile slot 13..=18): what it holds, and how many units, at the spawn and now.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One pocket (profile slot 13..=18): what it holds, and how many units, at the spawn and now; the numbers of the
+/// grenade it holds (the bots' for a pocket made without them).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pocket {
     pub item: Pocketed,
     pub full: u16,
     pub left: u16,
+    pub grenade: Grenade,
 }
 
 /// A player's pockets, in slot order: what the throw keys throw (`loadouts::POCKET_SLOTS`,
 /// `QUICK_USE_ORDER`, PROVEN): the throw key the first pocket that holds a grenade with units left, quick use
 /// `n` the `n`-th pocket that holds an item with units left (the pockets come first in the client's order),
 /// and a grenade only if that item is one.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Pockets {
     slots: [Option<Pocket>; 6],
 }
@@ -120,9 +123,21 @@ impl Pockets {
                     item,
                     full: units,
                     left: units,
+                    grenade: *Grenade::bots(),
                 })
             }),
         }
+    }
+
+    /// The same pockets holding the grenades `grenades` (by slot; a slot with none keeps the bots' numbers): a
+    /// frag has its own fuse and blast in the game data.
+    pub fn with_grenades(mut self, grenades: [Option<Grenade>; 6]) -> Self {
+        for (slot, grenade) in self.slots.iter_mut().zip(grenades) {
+            if let (Some(pocket), Some(grenade)) = (slot.as_mut(), grenade) {
+                pocket.grenade = grenade;
+            }
+        }
+        self
     }
 
     /// A new life: every pocket full again.
@@ -156,10 +171,15 @@ impl Pockets {
 
     /// The grenade the keys `pressed` (just gone down) throw, if any: one unit is taken.
     pub fn throw(&mut self, pressed: u32) -> Option<Pocketed> {
+        self.throw_grenade(pressed).map(|(item, _)| item)
+    }
+
+    /// [`Self::throw`] with the numbers of the grenade that was thrown.
+    pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
         let i = self.throws_from(pressed)?;
         let pocket = self.slots[i].as_mut()?;
         pocket.left -= 1;
-        Some(pocket.item)
+        Some((pocket.item, pocket.grenade))
     }
 }
 
@@ -406,8 +426,19 @@ mod tests {
             team: 0,
             press: 1_000,
             phase: Phase::Pressed,
+            grenade: *Grenade::bots(),
         };
         assert_eq!(g.blast_at(), 5_000);
+        // A grenade with another fuse goes off by its own (a patched RGD-5, or another frag).
+        let short = LiveGrenade {
+            grenade: Grenade {
+                fuse_s: 3.0,
+                ..*Grenade::bots()
+            },
+            ..g
+        };
+        assert_eq!(short.blast_at(), 4_000);
+        assert!(short.live_at(4_300) && !short.live_at(4_301));
         assert!(g.live_at(5_300));
         assert!(!g.live_at(5_301));
     }
