@@ -404,6 +404,13 @@ const PRESS_M: f32 = 0.15;
 const STANDING_M: f32 = 0.02;
 /// The arrivals at a sprint-band take-off, short of what the client asks, backed off from before it is given up.
 const BAND_REFUSALS: u32 = 2;
+/// A band press is got up (strictly) if the body stands on the landing's floor, within [`BAND_UP_NEAR_M`] of it, this long,
+/// seconds, after the press at most, with no second press before.
+const BAND_UP_S: f32 = 1.5;
+/// ... on the landing's floor: its feet within this of the landing's height, metres.
+const BAND_UP_FLOOR_M: f32 = 0.2;
+/// ... and this near the landing, metres (the jump carries it on past the face).
+const BAND_UP_NEAR_M: f32 = 4.5;
 /// A face given up and picked again within this, seconds, is counted ([`band_jumps::repicked`]).
 const BAND_REPICK_S: f32 = 10.0;
 /// A body this near a band jump's take-off along its way, metres, and under [`STILL_MS`], is standing at its face.
@@ -497,6 +504,8 @@ pub struct Motor {
     pressed: Option<RoutePress>,
     /// The last sprint-band jump given up: a pick of it again soon is counted.
     band_gave_up: Option<GaveUp>,
+    /// The sprint-band press being followed for the strict got-up count ([`band_jumps::Slot::StrictUp`]).
+    band_watch: Option<BandWatch>,
     /// The landing being watched: from the last press of a route jump or the last take-off of a planned drop.
     last_press: Option<LandingWatch>,
     /// The route's progress at the last walk, for the edge of a drop crossed since ([`Route::left_drop_edge`]).
@@ -614,6 +623,13 @@ impl BandTry {
     }
 }
 
+/// A sprint-band press followed for [`BAND_UP_S`]: the tick, the landing it is for and the take-off.
+#[derive(Clone, Copy, Debug)]
+struct BandWatch {
+    at: u32,
+    landing: Vec3,
+}
+
 /// A sprint-band jump given up: its take-off and the tick.
 #[derive(Clone, Copy, Debug)]
 struct GaveUp {
@@ -688,6 +704,7 @@ impl Motor {
             lining: Lining::No,
             pressed: None,
             band_gave_up: None,
+            band_watch: None,
             last_press: None,
             last_s: None,
             phase: rng.range(0.0, 2.0 * PI),
@@ -946,6 +963,7 @@ impl Motor {
         self.next_tick();
         self.look = None;
         self.under_jump(route, pose.feet);
+        self.follow_band_press(pose.feet);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s)) {
@@ -1199,6 +1217,7 @@ impl Motor {
         self.sprinting = false;
         self.facing_ticks = 0;
         self.under_jump(route, pose.feet);
+        self.follow_band_press(pose.feet);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
@@ -1560,6 +1579,10 @@ impl Motor {
             if ahead.rise > WALK_JUMP_TOP_M {
                 band_jumps::pressed(speed, self.sprinting);
                 band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Press);
+                // A press still followed when the next comes did not get up on its own.
+                if self.band_watch.replace(BandWatch { at: self.clock, landing: jump.landing }).is_some() {
+                    band_jumps::strict(false);
+                }
             }
         }
         if ahead.run_through {
@@ -1574,6 +1597,21 @@ impl Motor {
     /// up and the route on past it (`body::JUMP_AIR_MS`): the route is
     /// looked at from that jump's leg again, so the jump is lined up again
     /// instead of walked on from under it.
+    /// The strict got-up count of the sprint-band press followed ([`BandWatch`]): on the landing's floor, near it, within
+    /// [`BAND_UP_S`] of the press; else not up.
+    fn follow_band_press(&mut self, feet: Vec3) {
+        let Some(watch) = self.band_watch else {
+            return;
+        };
+        if feet.distance_xz(watch.landing) <= BAND_UP_NEAR_M && (feet.y - watch.landing.y).abs() <= BAND_UP_FLOOR_M {
+            band_jumps::strict(true);
+            self.band_watch = None;
+        } else if self.since(watch.at) > BAND_UP_S {
+            band_jumps::strict(false);
+            self.band_watch = None;
+        }
+    }
+
     fn under_jump(&self, route: &mut Route, feet: Vec3) {
         let Some(jump) = self.jump_try else {
             return;
@@ -1969,9 +2007,11 @@ pub mod band_jumps {
         NoRunUp,
         FaceStill,
         Repicked,
+        StrictUp,
+        StrictNotUp,
     }
 
-    pub const COUNT: usize = Slot::Repicked as usize + 1;
+    pub const COUNT: usize = Slot::StrictNotUp as usize + 1;
     static COUNTS: [AtomicU64; COUNT] = [const { AtomicU64::new(0) }; COUNT];
 
     fn add(slot: Slot) {
@@ -2017,6 +2057,11 @@ pub mod band_jumps {
 
     pub fn repicked() {
         add(Slot::Repicked);
+    }
+
+    /// A band press followed to its end: on the landing's floor within 1.5 s with no second press (up), or not.
+    pub fn strict(up: bool) {
+        add(if up { Slot::StrictUp } else { Slot::StrictNotUp });
     }
 
     /// The counts, by [`Slot`].
