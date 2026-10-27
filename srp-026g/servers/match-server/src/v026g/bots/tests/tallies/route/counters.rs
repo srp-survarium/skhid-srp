@@ -264,6 +264,14 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bodies the progress watch stopped, and those that came to the same leg again within 20 s (`stuck::progress_watch`).
+pub(super) fn progress_watch() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::progress_watch::counts().to_vec(),
+        |d, line| line.ends.push(format!("progress_stalls {} progress_stalls_again {}", d[0], d[1])),
+    )
+}
+
 /// The blind stops: ticks a bot stood for want of a world, the stops a world ended, and those that showed the stop was needless
 /// (`stuck::blind`).
 pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
