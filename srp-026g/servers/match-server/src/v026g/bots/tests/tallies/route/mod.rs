@@ -112,6 +112,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         stranded(),
         foliage(),
         self_kills(),
+        blind_stops(),
         asks(),
         route_ends(),
         Box::new(probe::Probe::new(bodies)),

@@ -154,6 +154,17 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The blind stops: ticks a bot stood for want of a world, the stops a world ended, and those that showed the stop was needless
+/// (`stuck::blind`).
+pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::blind::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("blind_stop_ticks {} blind_stops_ended {} blind_stops_needless {}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {

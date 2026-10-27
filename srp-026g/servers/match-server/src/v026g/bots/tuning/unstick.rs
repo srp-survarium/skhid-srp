@@ -34,6 +34,10 @@ pub struct UnstickTuning {
     pub suicide_wait_ms: u32,
     /// The bit is held this many ticks (the J0 run's, `SUICIDE_TICKS`).
     pub suicide_ticks: u8,
+    /// A bot whose last world is this old, ms, stands still (no walk key, no sprint) until another world comes: its
+    /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
+    /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on (the default).
+    pub blind_stop_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -48,6 +52,7 @@ impl Default for UnstickTuning {
             suicide_min_tickets: 5,
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
+            blind_stop_ms: None,
         }
     }
 }

@@ -145,6 +145,16 @@ impl Bots {
                 test.quiet(bot.place, &mut decision);
                 test.motor_seen(bot, time, decision.keys);
             }
+            // Blind: the last world is older than the tuned limit; the reckoning alone does not walk it on.
+            if let Some(limit) = tuning.unstick.blind_stop_ms
+                && self.tracker.body(bot.place).and_then(|body| body.fix()).is_some_and(|fix| time.saturating_sub(fix.time) >= limit)
+                && decision.keys & stuck::BLIND_KEYS != 0
+            {
+                decision.keys &= !stuck::BLIND_KEYS;
+                bot.blind_since.get_or_insert(time);
+                #[cfg(test)]
+                stuck::blind::count(0);
+            }
             if let Some(line) = bot.reflex.take_friend_note() {
                 bot.traced.push(line);
             }
