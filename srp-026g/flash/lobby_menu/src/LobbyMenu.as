@@ -6454,7 +6454,9 @@ package
             var panel:DisplayObject = panels[i] as DisplayObject;
             if(panel != null && panel.parent == this && getChildIndex(panel) > getChildIndex(window))
             {
-               setChildIndex(window,getChildIndex(panel));
+               // Move the persistent side panel back, not the room forward:
+               // a window opened more recently (History, for example) stays above.
+               setChildIndex(panel,getChildIndex(window));
             }
          }
          if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))

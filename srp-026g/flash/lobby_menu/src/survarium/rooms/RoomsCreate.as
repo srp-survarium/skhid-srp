@@ -9,7 +9,6 @@ package survarium.rooms
     import flash.geom.Point;
     import flash.text.TextField;
     import flash.utils.getTimer;
-    import scaleform.gfx.FocusManager;
     import survarium.player.LocalPlayerProfile;
     import survarium.controls.PlayerInfo;
     import survarium.constants.GameMode;
@@ -299,11 +298,6 @@ package survarium.rooms
                 return;
             _makePinText = _makePin.text;
             win.render();
-            if (_makePin != null)
-            {
-                FocusManager.setFocus(_makePin);
-                _makePin.setSelection(_makePin.text.length, _makePin.text.length);
-            }
         }
 
         private function myName():String

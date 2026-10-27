@@ -11,6 +11,9 @@ survarium::player	held_item	0x128	u32	the held item (mt_draw's [+128h]; 0 none)
 survarium::player	spawned	0x328	u32	m_inserted_time_in_ms, the life's spawn time (set 0x2DAC43, serialized 0x2DB2FE): a death's key
 survarium::player	alive	0x33C	u8	m_is_alive (serialized 0x2DAFA1)
 survarium::player	inserted	0x33F	u8	m_has_been_inserted
+survarium::player	profile	0x6B8	u32	the match profile (render_name 0x1F2B3D, 0x1F2F33)
+survarium::player_profile	team	0x45EC	u32	the player's team: 0 or 1 (render_name 0x1F2B43, 0x1F2F3D)
+survarium::render_name_frame	local_team	0x14	u32	ESP+14h at player_names.visibility (0x1F2F10); 2 when no local player (0x1F2B31)
 survarium::player	physics_world	0x350	u32	the physics world (ray_test's ECX)
 survarium::player	transform	0x40C	f32	the simulated transform, a row-vector 4x4 (16 f32)
 survarium::player	eye	0x44C	f32	the camera's transform, bone Item x +40Ch (computed_head_transform 0x2DA4B0; update_camera gives &it at 0x1F356E)
@@ -76,3 +79,5 @@ survarium::static_info_frame	reader	-0x2C	u32	process_static_match_info's local 
 survarium::replay_options_frame	options	0x40	u32	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
 survarium::replay_options_frame	reader	0x14	u32	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
 survarium::update_player_icons_frame	ui	0x4	u32	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+scaleform::avm_text_field	as3_collectible	-0x20	u32	collectible AS3 object pointer; low bit is its GC tag
+scaleform::avm_text_field	as3_raw	-0x1C	u32	raw AS3 object pointer, preferred when nonzero

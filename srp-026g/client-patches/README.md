@@ -101,11 +101,12 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
-| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the players' markers on Tab: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
+| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the players' markers and teammate names on Tab: six `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
+| `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
@@ -3035,6 +3036,26 @@ both; another type and no focus null in both; no ActionScript object, and an int
 gives none, fault in the original at 0x77200B and 0x771FF8 and give null in the build; every
 full build the same). **Not run in a game.**
 
+The 2026-10-27 PIN-entry crash exposes the same missing receiver in a second path:
+`AvmTextField::OnCharEvent` (0x79D360) calls `EventDispatcher::WillTrigger` (0x74A860)
+with no AS3 object, reaching the null read at 0x74A800. The Rust `text_input` module
+extends patch 52 with a lohook at 0x79D369. Its borrowed `DetachedTextInput` handle
+recognizes the raw/collectible receiver exactly as the native code does; only a
+missing receiver can set BL to false and leave through the native epilogue at
+0x79D4AD. The editor then ignores this stale character. Attached fields retain the
+original dispatch and insertion behavior, including tagged collectible pointers.
+
+`RoomsWindow` owns focus transfer across its redraw: clear focus before removing
+an input, then restore the text selection only when the replacement view has an
+input. Joining a room and hiding the window release focus. `RoomsCreate` no longer
+tries to restore focus independently after its redraw callback.
+
+Checked: `check_text_input_026g.py` reproduces the original null read and verifies
+normal and detached events, Cyrillic/digit/control characters, both receiver fields,
+tagged pointers, registers and stack. The Rooms Ruffle harness verifies focus is
+released before removal, restored with its selection after redraw, and released on
+hide. Native in-game retesting is still required.
+
 ### 53. Research, mode 5 (the next release's revision)
 
 Research as 0.27d shipped it (`../docs/notes/research_mode.md`: the rules, the data, the inventory
@@ -3408,7 +3429,7 @@ writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The 
 
 The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.md section 3.58.
 The Rust module `patches::blackout` (`rust/patches/src/blackout.rs`; its hooks, names only,
-`blackout.toml`; `../docs/notes/rust_patches.md`), five `lohook`s at sites of its own, so no
+`blackout.toml`; `../docs/notes/rust_patches.md`), six `lohook`s at sites of its own, so no
 other patch is touched and patch 63 (team damage, 0x1F0F30) and Research's markers (0x23B207)
 land beside it unchanged:
 
@@ -3426,14 +3447,20 @@ land beside it unchanged:
 - **Tab.** `keyboard.tab_state` (0x25CD2C, BL Tab down): Tab's state; in a Blackout match BL
   cleared, so the key goes on as with Tab up (the game's Tab test at 0x25CD39; patch 58's kit keys
   at 0x25CD41). `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
-  actions mask (+33Ch) has no move and no act, and an act held through Tab stays out until let go.
+  actions mask (+33Ch) blocks acts immediately and movement after 200 ms, and an act held through Tab stays out until let go.
   The input is filtered before it is applied and sent: every game plays what was sent.
+- **Teammate names.** `player_names.visibility` (0x1F2F10) keeps the native Alt/crosshair
+  decision, except that Tab in Blackout shows names for the local team (teams 0 and 1).
+  This runs after the native life, visibility and projection checks. Enemies, spectators
+  and other modes keep their native decision. Releasing Tab uses that decision again;
+  each match options read resets the held key. The native cache marks changed names dirty.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
 **Checked:** `selftest_026g.py` check 65 (the sites' bytes, the entries the hooks jump to, the
 crate's block and state); `check_blackout_026g.py` (Unicorn, from the game's code before each
 site, the original beside): the options read on nine blocks for both reads; the feed over
-sixteen frames; Tab and the input. `cargo test` in `rust/`; `../scripts/blackout-kits/check.sh`
+sixteen frames; Tab and the input; names across modes, teams, native decisions and cached
+visibility, including a new match resetting Tab. `cargo test` in `rust/`; `../scripts/blackout-kits/check.sh`
 (Ruffle: the hud's Tab view and kits, the player icons' states). **Not run in a game.**
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

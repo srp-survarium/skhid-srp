@@ -289,6 +289,15 @@ pub mod player {
         unsafe { this.byte_add(0x33f).cast() }
     }
 
+    /// +0x6b8 (u32): the match profile (render_name 0x1F2B3D, 0x1F2F33)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn profile(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x6b8).cast() }
+    }
+
     /// +0x350 (u32): the physics world (ray_test's ECX)
     ///
     /// # Safety
@@ -341,6 +350,36 @@ pub mod player {
     #[inline(always)]
     pub unsafe fn game_world(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0xf474).cast() }
+    }
+}
+
+/// survarium::player_profile's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player_profile {
+    use core::ffi::c_void;
+
+    /// +0x45ec (u32): the player's team: 0 or 1 (render_name 0x1F2B43, 0x1F2F3D)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_profile.
+    #[inline(always)]
+    pub unsafe fn team(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x45ec).cast() }
+    }
+}
+
+/// survarium::render_name_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod render_name_frame {
+    use core::ffi::c_void;
+
+    /// +0x14 (u32): ESP+14h at player_names.visibility (0x1F2F10); 2 when no local player (0x1F2B31)
+    ///
+    /// # Safety
+    /// `this` is a survarium::render_name_frame.
+    #[inline(always)]
+    pub unsafe fn local_team(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x14).cast() }
     }
 }
 
@@ -997,5 +1036,29 @@ pub mod update_player_icons_frame {
     #[inline(always)]
     pub unsafe fn ui(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// scaleform::avm_text_field's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod avm_text_field {
+    use core::ffi::c_void;
+
+    /// -0x20 (u32): collectible AS3 object pointer; low bit is its GC tag
+    ///
+    /// # Safety
+    /// `this` is a scaleform::avm_text_field.
+    #[inline(always)]
+    pub unsafe fn as3_collectible(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x20).cast() }
+    }
+
+    /// -0x1c (u32): raw AS3 object pointer, preferred when nonzero
+    ///
+    /// # Safety
+    /// `this` is a scaleform::avm_text_field.
+    #[inline(always)]
+    pub unsafe fn as3_raw(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x1c).cast() }
     }
 }

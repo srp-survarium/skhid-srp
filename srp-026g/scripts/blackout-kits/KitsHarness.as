@@ -8,6 +8,7 @@ package
    import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
@@ -26,7 +27,7 @@ package
    //   (the tabs' index change, onProfileSelected's profile_changed);
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on kit 3's tab picks it;
    // - given back (Tab up), the panel is in the root where it was;
-   // - the body's state (HUDPlayerInfo's criticalInd, alive Tab's doll) kept the same way stays where it
+   // - the body's state kept inside HUDPlayerInfo with ammo stays where it
    //   was, shown, and takes the body parts' state (partHP) there;
    // - death and respawn with Tab held switch between the kits and body without another Tab event.
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
@@ -35,7 +36,11 @@ package
       private var loader:Loader = new Loader();
 
       // the hud's root
-      private var face:Sprite = new Sprite();
+      private var face:MovieClip = new MovieClip();
+
+      private var info:MovieClip;
+
+      private var layout:Object;
 
       private var kept:Object;
 
@@ -91,7 +96,11 @@ package
          face.scaleX = face.scaleY = 0.8;
          face.x = 20;
          addChild(face);
-         kept = new Kept(face);
+         kept = new Kept(face,function(part:DisplayObject):void
+         {
+            if(part is Sprite && Sprite(part)["layoutData"] != null)
+               layout.manage(Sprite(part));
+         });
          addChild(DisplayObject(kept));
          panel = new Panel() as MovieClip;
          panel.x = 60;
@@ -99,11 +108,22 @@ package
          panel.visible = false;         // alive at first
          face.addChild(panel);
          var Info:Class = domain.getDefinition("HUDPlayerInfo") as Class;
-         var info:MovieClip = new Info() as MovieClip;
+         info = new Info() as MovieClip;
          info.x = 700;
          info.y = 380;
          face.addChild(info);
          doll = info.criticalInd;
+         var Data:Class = domain.getDefinition("scaleform.clik.layout.LayoutData") as Class;
+         info.layoutData = new Data();
+         info.layoutData.alignH = "right";
+         info.layoutData.alignV = "bottom";
+         info.layoutData.offsetH = -20;
+         info.layoutData.offsetV = -51;
+         var Layout:Class = domain.getDefinition("scaleform.clik.layout.Layout") as Class;
+         layout = new Layout();
+         layout.rect = new Rectangle(0,0,1280,720);
+         face.addChild(DisplayObject(layout));
+         layout.manage(info);
          var Chat:Class = domain.getDefinition("SrvGameChat") as Class;
          chat = new Chat() as MovieClip;
          chat.x = 2000;                  // off the window: the kits are clicked
@@ -116,7 +136,7 @@ package
             return [];
          },function():Array
          {
-            return panel.visible ? [panel,chat] : [doll,chat];
+            return panel.visible ? [panel,chat] : [info,chat];
          },function():Array
          {
             return [chat];
@@ -222,23 +242,35 @@ package
                hp = false;
             }
             trace("KITS the body's state kept: at " + dollAt + " in the root, " + dollNow + " kept, shown " + doll.visible + ", its parts set " + hp);
-            if(doll.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
+            if(info.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
             {
                failures.push("the body's state kept: from " + dollAt + " to " + dollNow + ", parts set " + hp);
             }
+            // Reflow repeatedly with the same native bottom-right layout. Both
+            // children must retain their owner and remain within the viewport.
+            for each(var size:Point in [new Point(1024,768),new Point(2560,1080),new Point(1280,720)])
+            {
+               layout.rect = new Rectangle(0,0,size.x,size.y);
+               layout.reflow();
+               kept.place();
+               var bounds:Rectangle = doll.getBounds(this);
+               if(doll.parent != info || info.ammoInd.parent != info || bounds.right > 20 + size.x * 0.8 + 1 || bounds.bottom > size.y * 0.8 + 1)
+                  failures.push("body outside viewport after reflow " + size + ": " + bounds);
+            }
+            trace("KITS body and ammo stay together and on screen across reflows");
             // show_profiles_selector changes visibility, then refreshes the view. Tab is held
             // throughout these changes: no setter of forced/tab/typing is called again.
             if("refresh" in view)
             {
                panel.visible = true;
                view.refresh();
-               if(!shown(panel) || shown(doll) || panel.parent != kept || doll.parent == kept)
+               if(!shown(panel) || shown(doll) || panel.parent != kept || info.parent == kept)
                {
                   failures.push("death while Tab held: the kits must replace the body");
                }
                panel.visible = false;
                view.refresh();
-               if(shown(panel) || !shown(doll) || panel.parent != face || doll.parent != kept)
+               if(shown(panel) || !shown(doll) || panel.parent != face || info.parent != kept)
                {
                   failures.push("respawn while Tab held: the body must replace the kits");
                }
@@ -302,7 +334,7 @@ package
             failures.push("Tab let go: the history " + history.join());
          }
          expectChat("Tab let go",false,false);
-         if(doll.parent == kept)
+         if(info.parent == kept)
          {
             failures.push("given back: the body's state still kept");
          }

@@ -67,4 +67,4 @@ pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionStat
 pub use keyboard::TabTest;
 pub use options::OptionsRead;
 pub use rt::c_u32;
-pub use ui::{GameWorldUi, Movie};
+pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};

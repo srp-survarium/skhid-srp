@@ -103,7 +103,47 @@ package
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
          checkCreate();
+         checkWindowOrder();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // Exercise the lobby's actual recurring layer adjustment. Background
+      // panels may be re-added, but only opening a window changes its priority.
+      private function checkWindowOrder():void
+      {
+         try
+         {
+            var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            var lobby:Object = loader.content;
+            lobby.squadList = new (domain.getDefinition("survarium.friends.SquadList") as Class)();
+            lobby.questList = new (domain.getDefinition("survarium.quest.QuestList") as Class)();
+            lobby.chat = null;
+            var room:Sprite = new Sprite();
+            var history:Sprite = new Sprite();
+            lobby.addChild(room);
+            lobby.addChild(history);
+            for(var i:int = 0; i < 3; i++)
+            {
+               lobby.addChild(lobby.squadList);
+               lobby.addChild(lobby.questList);
+               lobby.layerRoomsWindow(room);
+               if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
+                  failures.push("History opened last was covered by a room frame");
+            }
+            lobby.setChildIndex(room,lobby.numChildren - 1);
+            lobby.layerRoomsWindow(room);
+            if(lobby.getChildIndex(room) <= lobby.getChildIndex(history))
+               failures.push("room reopened last did not stay above History");
+            lobby.setChildIndex(history,lobby.numChildren - 1);
+            lobby.layerRoomsWindow(room);
+            if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
+               failures.push("History reopened last did not stay above room");
+            trace("ROOMS most recently opened window stays on top across side-panel updates");
+         }
+         catch(err:Error)
+         {
+            failures.push("window order: " + err);
+         }
       }
 
       // The window told an answer, a row a field list.
@@ -228,6 +268,11 @@ package
          createShows("create, PIN typed",false);
          typePin("");
          createShows("create, PIN cleared",true);
+         Object(win).show(false);
+         if(stage.focus != null && win.contains(stage.focus))
+            failures.push("hidden room still owns text focus");
+         Object(win).show(true);
+         trace("ROOMS PIN focus released before removal, restored after redraw, released on hide");
       }
 
       // The create window's PIN field (its one input) given `pin`, as typed.
@@ -239,14 +284,25 @@ package
          {
             if(t.field.type == "input")
             {
-               t.field.text = pin;
+               var old:TextField = t.field as TextField;
+               old.text = pin;
+               stage.focus = old;
+               old.setSelection(pin.length,pin.length);
+               old.addEventListener(Event.REMOVED_FROM_STAGE,function(e:Event):void
+               {
+                  if(stage.focus == old)
+                     failures.push("PIN input removed while still owning focus");
+               });
                try
                {
                   t.field.dispatchEvent(new Event(Event.CHANGE));
+                  var active:TextField = stage.focus as TextField;
+                  if(active == null || active.stage == null || active.text != pin || active.selectionEndIndex != pin.length)
+                     failures.push("PIN redraw did not transfer text/selection to the attached input");
                }
                catch(err:Error)
                {
-                  // Its focus given back after the redraw (Scaleform's FocusManager): not ours.
+                  failures.push("PIN redraw: " + err);
                }
                return;
             }

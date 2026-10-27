@@ -52,10 +52,14 @@ package
       }
 
       // Whether the icon of `id` is on the screen: itself and every parent up to the movie visible. The
-      // layer's children are its icons in the order made (no Research markers here): 1, then 40.
+      // layer can also contain Research's container; remember each icon when it is made.
+      private var player:DisplayObject;
+
+      private var objectMarker:DisplayObject;
+
       private function shown(id:uint) : Boolean
       {
-         var icon:DisplayObject = movie.iconControl.getChildAt(id == 1 ? 0 : 1);
+         var icon:DisplayObject = id == 1 ? player : objectMarker;
          for(var at:DisplayObject = icon; at != null && at != movie; at = at.parent)
          {
             if(!at.visible)
@@ -90,7 +94,9 @@ package
                return;
             }
             movie.create_player_icon(1,0,1);
+            player = movie.iconControl.getChildAt(movie.iconControl.numChildren - 1);
             movie.create_player_icon(40,1,1);
+            objectMarker = movie.iconControl.getChildAt(movie.iconControl.numChildren - 1);
             movie.set_player_icon_type(40,1);
             expect("a plain match",true,true);
             movie.force_interface_hidden(true);

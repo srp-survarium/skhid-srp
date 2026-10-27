@@ -1816,3 +1816,6 @@ va	status	ref_021d	name
 0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back
 0x00316c20	observed		survarium::player_respawn_rule_base::fill_match_hud_state
+0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
+0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
+0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent

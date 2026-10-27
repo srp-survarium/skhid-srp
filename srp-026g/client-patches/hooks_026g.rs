@@ -81,6 +81,21 @@ pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- blackout (patch 65) ----
+
+/// The entry `blackout_on_name_visibility` (0x1f2f10, render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_blackout_on_name_visibility(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `blackout_on_name_visibility` calls this, from the game's jump at 0x1f2f10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::blackout::on_name_visibility(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
@@ -205,4 +220,24 @@ pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
     let mut state = unsafe { Out::<u32>::new(&thread, a2 as usize as *mut u32) };
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
+}
+
+// ---- text_input (patch 52) ----
+
+/// The named exits of text_input::on_char (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextInputOnCharExit { Ignore }
+/// The entry `text_input_on_char` (0x79d369, AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `text_input_on_char` calls this, from the game's jump at 0x79d369,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::text_input::on_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
 }

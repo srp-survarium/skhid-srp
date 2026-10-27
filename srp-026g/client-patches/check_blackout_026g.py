@@ -28,6 +28,9 @@ records each call. The original runs the same way and must do what it did:
   (a stub given the byte) and the game's Tab test: in a Blackout match the
   key goes on (0x25CD41, patch 58's kit keys), in another, and in the
   original, to the end (0x25CF0D) while Tab is down;
+- names: the native Alt/crosshair result through its HUD cache; Tab forces
+  same-team names only in Blackout, preserving other decisions, registers and
+  stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
   while Tab is held in a Blackout match the action mask has no move and no
   act, an act held through Tab stays out until let go; the original and a
@@ -52,6 +55,7 @@ TAB_START, SHOW_PLAYER_LIST = 0x25CD26, 0x2384C0
 KEY_ON, KEY_END = 0x25CD41, 0x25CF0D   # on_keyboard_action after its Tab test: the key's way (patch 58's), its end
 INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
 OTHER_ICONS = 0x20076000               # another icons' movie (a new game world's)
+NAME_SITE, NAME_PAST = 0x1F2F10, 0x1F2F33
 PLACE_COUNT = 4
 # the input's bits
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
@@ -76,9 +80,38 @@ def srpx(*entries):
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
-        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000)):
+        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.refused, self.refusing = (), ()
+        self.ticks = 0
+        for slot, stub in ((0x870158, 0x30200000), (0x870150, 0x30200010)):
+            self.word(slot, stub)
+            self.emu.mem_write(stub, b"\xc2\x04\x00")
+            self.emu.hook_add(hide.UC_HOOK_CODE, self.clock, begin=stub, end=stub)
+
+    def clock(self, emu, address, *_):
+        out = self.read(emu.reg_read(UC_X86_REG_ESP) + 4)
+        emu.mem_write(out, struct.pack("<Q", self.ticks if address == 0x30200000 else 1000))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+
+    def name_visible(self, local_team, player_team, normal, cached=0):
+        """The original Alt/crosshair decision through the name's cached flag."""
+        player, profile, place = WORK + 0x2000, WORK + 0x4000, 3
+        self.word(player + 0x6B8, profile)
+        self.word(profile + 0x45EC, player_team)
+        self.emu.mem_write(player + 0x114, bytes([place]))
+        row = hide.HUD + place * 24
+        self.emu.mem_write(row + 0x387, bytes([cached, 0, 0]))
+        sp = hide.STACK + 0x8000
+        self.word(sp + 0x14, local_team)
+        given = {**hide.GAME, UC_X86_REG_EAX: 0x12345600 | normal,
+                 UC_X86_REG_ESI: player, UC_X86_REG_EDI: hide.HUD}
+        regs, esp = self.run(NAME_SITE, (NAME_PAST,), sp, given)
+        kept = esp == sp and self.stopped == NAME_PAST and regs[UC_X86_REG_ECX] == row \
+            and regs[UC_X86_REG_EAX] & 0xFFFFFF00 == 0x12345600 \
+            and all(regs[r] == v for r, v in given.items() if r not in (UC_X86_REG_EAX, UC_X86_REG_ECX))
+        return self.read(row + 0x387) & 0xFF, self.read(row + 0x389) & 0xFF, kept
 
     # the harness's stubs; a movie that refuses a method (no root yet): its Invoke answers 0
     def stub(self, emu, address, size, _):
@@ -289,12 +322,15 @@ def main():
         run.static_info(empty_options(on))
     for name, down, mask, want in steps:
         a_tab, b_tab = stock.tab(down), patched.tab(down)
+        stock.ticks += 200
+        patched.ticks += 200
         a, b = stock.input(mask), patched.input(mask)
         ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (want, True)
         report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
                    "show_player_list given the byte; the key goes on (0x25cd41: the kits' keys 1 to 3)"
                    + (", the original's to the end (0x25cf0d: its Tab list)" if down else ""))
     patched.tab(1)
+    patched.ticks += 200
     blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
         | USE | 0x400000 | GRENADE | MELEE
     b = patched.input(0xFFFFFFFF)
@@ -310,6 +346,48 @@ def main():
     patched.static_info(empty_options(on))
     b = patched.input(moving)
     report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
+
+    print("Tab movement grace: immediate names, 200 ms before stopping movement")
+    patched.static_info(empty_options(on))
+    patched.ticks = 1000
+    patched.tab(1)
+    for now in (1000, 1199, 1200, 1250):
+        patched.ticks = now
+        patched.tab(1)
+        visible, _, kept = patched.name_visible(0, 0, 0)
+        expected = moving & ~(FIRE | AIM) if now < 1200 else CROUCH | WEAPON_1
+        report(patched.input(moving) == (expected, True) and visible == 1 and kept,
+               f"Tab at {now - 1000} ms: movement {'kept' if now < 1200 else 'blocked'}, names shown")
+    patched.tab(0)
+    report(patched.input(FORWARD | FIRE) == (FORWARD, True), "release restores movement; held fire stays suppressed")
+    patched.ticks = 1300
+    patched.tab(1)
+    patched.ticks = 1399
+    patched.tab(0)
+    report(patched.input(FORWARD) == (FORWARD, True), "a short Tab tap never stops movement")
+    patched.tab(1)
+    patched.static_info(empty_options(on))
+    patched.ticks += 500
+    report(patched.input(moving) == (moving, True), "new match clears the grace and held actions")
+
+    print("teammate names: the Alt/crosshair result, after visibility and projection")
+    for blackout in (False, True):
+        patched.static_info(empty_options(on if blackout else b""))
+        for tab in (0, 1):
+            patched.tab(tab)
+            for local, team in ((0, 0), (1, 1), (0, 1), (1, 0), (2, 0), (2, 2), (3, 3)):
+                for normal in (0, 1):
+                    wanted = int(bool(normal or (blackout and tab and local in (0, 1) and local == team)))
+                    for cached in (0, 1):
+                        a = stock.name_visible(local, team, normal, cached)
+                        b = patched.name_visible(local, team, normal, cached)
+                        report(a == (normal, 0x20 if normal != cached else 0, True)
+                               and b == (wanted, 0x20 if wanted != cached else 0, True),
+                               f"Blackout={blackout}, Tab={tab}, teams={local}/{team}, native={normal}, "
+                               f"cached={cached}: name={b[0]}, dirty={b[1]:#x}; registers/stack preserved")
+    patched.static_info(empty_options(on))
+    report(patched.name_visible(0, 0, 0, 1) == (0, 0x20, True),
+           "a new match resets Tab: no stale forced teammate name")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

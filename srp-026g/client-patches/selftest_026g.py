@@ -3901,7 +3901,7 @@ def test_suicide_key(original, image, before):
 
 
 def test_blackout(original, image, before):
-    """Check 65: Blackout (patch 65, the Rust patch `blackout`, five
+    """Check 65: Blackout (patch 65, the Rust patch `blackout`, six
     lohooks of blackout.toml at sites of its own). check_blackout_026g.py
     runs each from the game's code before its site on made-up objects."""
     stock = Image(original)
@@ -3928,12 +3928,17 @@ def test_blackout(original, image, before):
     block = linked.blocks["patches.code"]
     state = linked.blocks.get("patches.state")
     sites = {h["site_name"]: h for h in hooks}
-    check(sorted(sites) == ["input_builder.end", "keyboard.tab_state", "player_icons.update_start",
+    check(sorted(sites) == ["input_builder.end", "keyboard.tab_state", "player_icons.update_start", "player_names.visibility",
                             "replay.options_read", "static_info.options_read"]
           and all(h["kind"] == "lohook" for h in hooks) and state is not None,
-          "blackout.toml's five hooks are lohooks at the sites static_info.options_read, replay.options_read, "
-          "player_icons.update_start, keyboard.tab_state and input_builder.end; the crate's statics are the "
+          "blackout.toml's six hooks are lohooks at the sites static_info.options_read, replay.options_read, "
+          "player_icons.update_start, player_names.visibility, keyboard.tab_state and input_builder.end; the crate's statics are the "
           "block patches.state")
+    check(rows(0x1F2DCD, 12) == ["push byte +0x38", "call eax", "test al,al", "jnz near 0x1f2f10"]
+          and rows(0x1F2F10, 7) == ["movzx ecx,byte [esi+0x114]"]
+          and rows(0x1F2F33, 0x10) == ["mov edx,[esi+0x6b8]", "mov eax,[esp+0x14]", "cmp eax,[edx+0x45ec]"],
+          "render_name's left-Alt (0x38) or crosshair result joins at 0x1F2F10 in AL; ESI is the player, "
+          "ESP+14h the local team and the profile +45ECh the player's team")
     for h in hooks:
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]

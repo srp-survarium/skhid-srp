@@ -31,7 +31,7 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
 ## In the match
 
 - **The players' markers on Tab** (the owner, 2026-10-26: shown only while Tab is held): the markers
-  and names over players as a plain battery match shows them (teammates' as the game shows them; an
+  and names over players as a plain battery match shows them with Alt held (all eligible teammates; an
   enemy's name never, the game's own rule), alive or dead, while Tab is held; hidden otherwise. The
   match's objects' markers (the batteries and the like) are always hidden; no Research markers.
 - **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
@@ -56,9 +56,10 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held switches
   between the kits and the alive player's view immediately.
 - **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
-  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; the moves and acts stay
-  stopped by the input's filter.
-- **Tab held stops the player:** no walking, sprinting or jumping (a crouch stays, it does not
+  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; acts are filtered, and
+  movement is filtered after the 200 ms grace.
+- **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
+  holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
   move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
   look, the weapon keys, the fire mode, spot and the suicide key stay.
 - **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
@@ -94,7 +95,7 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
-  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), five
+  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
   - `static_info.options_read` (0x27B92D) and `replay.options_read` (0x1F0971), after the two
     calls of `match_options::deserialize` (the 0xE4's and a replay's chunk 1): srp's block is read
@@ -107,7 +108,10 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   - `keyboard.tab_state` (0x25CD2C): Tab's state; in a Blackout match the key goes on as with Tab
     up (bl cleared: the game's Tab test at 0x25CD39 no longer sends it to the function's end, so
     patch 58's kit keys at 0x25CD41 get it);
-  - `input_builder.end` (0x2421B0): the moves and acts out of the actions mask while Tab is held.
+  - `player_names.visibility` (0x1F2F10): while Tab is held, show all eligible teammate
+    names as with Alt. Keep the native enemy/spectator decisions and earlier visibility checks;
+    releasing Tab restores the native Alt/crosshair decision.
+  - `input_builder.end` (0x2421B0): acts out while Tab is held; moves out after a 200 ms grace, reset by release or a new match.
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
