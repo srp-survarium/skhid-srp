@@ -78,6 +78,7 @@ pub use aim::TierSkill;
 pub use grid::GridTuning;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
+pub use hazard::ZonePools;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
 pub use limits::Metres;

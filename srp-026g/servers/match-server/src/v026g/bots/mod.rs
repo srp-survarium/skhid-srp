@@ -75,6 +75,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod zone_cost;
 
 mod commander;
 mod drive;
@@ -829,6 +830,14 @@ impl Bots {
     /// known: the sense hears a shot that far when `SenseTuning::shots` says.
     pub fn set_shot_reach(&mut self, reach: Vec<Option<f32>>) {
         self.tracker.set_shot_reach(reach);
+    }
+
+    /// What a bot wears against a zone's hits (F2, `zone_cost.rs`), from its kit; it is read when
+    /// `HazardTuning::zone_pools` says.
+    pub fn set_zone_armour(&mut self, place: Place, armour: zone_cost::ZoneArmour) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.features.crossing.armour = std::sync::Arc::new(armour);
+        }
     }
 
     /// Every place's weapon 1 kind (the matchup, play 11).
