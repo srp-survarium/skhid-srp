@@ -202,6 +202,9 @@ pub fn grid_key_with_links(
     for value in body.values() {
         digest.f32(value);
     }
+    if body.drop_flight_mps > 0.0 {
+        digest.f32(body.drop_flight_mps);
+    }
     // The cells' erosion is the default: its keys are the ones there were.
     if body.erosion == Erosion::Exact {
         digest.u32(EXACT_EROSION_ALGO);

@@ -29,7 +29,15 @@ pub struct GridTuning {
     /// body does not fit (A84 item 13). Off (the default): the cells' erosion as it was. A grid is the map's
     /// (see `gap_links`).
     pub exact_erosion: bool,
+    /// Whether a Drop link of the maps' walk grids is kept only where the body that walks off the edge (3.5 m/s,
+    /// carried on through the air) comes down on a floor within the harmless fall (`mapdata::Body::drop_flight_mps`):
+    /// a chain of harmless steps below an edge is one fall of 7.5 m (the team 1 spawn deck on Chemical Plant, A95).
+    /// Off (the default until the phase-end smoke turns it on): the cell model. A grid is the map's (see `gap_links`).
+    pub honest_drops: bool,
 }
+
+/// How fast a body walks off a ledge, m/s: the walk (3.5, `kin`); the bots' motor walks planned drops (`Feel::drop_walk`).
+pub const WALK_OFF_MPS: f32 = 3.5;
 
 impl GridTuning {
     /// The body the maps' grids are built for.
@@ -41,6 +49,7 @@ impl GridTuning {
         };
         mapdata::Body {
             erosion: if self.exact_erosion { mapdata::Erosion::Exact } else { mapdata::Erosion::Cells },
+            drop_flight_mps: if self.honest_drops { WALK_OFF_MPS } else { 0.0 },
             ..body
         }
     }

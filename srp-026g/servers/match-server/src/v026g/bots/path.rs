@@ -58,6 +58,9 @@ pub const FELL_FROM_M: f32 = 3.0;
 /// by this much from the last kept (between, on the line), metres: well
 /// under [`OFF_ROUTE_HEIGHT_M`], and a ramp of 30 m keeps a few dozen.
 const FLOOR_SAMPLE_M: f32 = 0.1;
+/// The most a body's progress along its route moves between two ticks and still is a walk over a drop's edge
+/// ([`Route::left_drop_edge`]), metres: 0.2 m a tick at a sprint, with room for a jump in the progress.
+const DROP_EDGE_STEP_M: f32 = 1.0;
 
 /// How a route's jump is pressed.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,6 +74,10 @@ pub enum Leap {
     /// Across a gap link at a sprint (`mapdata::grid::gap::Takeoff::Sprint`):
     /// run into at a sprint, facing the landing, pressed this far before the
     /// take-off. The sprint itself is the motor's sprint-jump line-up (A55).
+    ///
+    /// The motor (`Feel::sprint_gaps`; off, a walking gap jump): the run-up (the grid guarantees 1.5 m of floor behind or
+    /// beside the press) may turn onto the jump's way, so it sprints along the route and turns onto it over the last
+    /// [`motor::SPRINT_GAP_TURN_M`].
     SprintGap(mapdata::PressLead),
 }
 
@@ -1120,6 +1127,22 @@ impl Route {
             .collect()
     }
 
+    /// Whether the body went over the edge of a drop of a lip's height or more (the take-off of a leg that is a
+    /// planned fall) between the progress `before` and `s` of two ticks. A step of more than [`DROP_EDGE_STEP_M`]
+    /// is a new route, not a walk.
+    pub fn left_drop_edge(&self, before: f32, s: f32) -> bool {
+        if !(s > before && s - before <= DROP_EDGE_STEP_M) {
+            return false;
+        }
+        let edge = self.along.partition_point(|&a| a <= before);
+        (edge..self.points.len().saturating_sub(1))
+            .take_while(|&k| self.along[k] <= s)
+            .any(|k| {
+                self.points[k + 1].jump.is_none()
+                    && self.points[k].at.y - self.points[k + 1].at.y >= mapdata::grid::LIP_DROP_M
+            })
+    }
+
     /// Whether the route from `s` to `within` metres on goes over a floor
     /// a standing body does not fit under ([`Waypoint::low`]).
     pub fn low_ahead(&self, s: f32, within: f32) -> bool {
@@ -1390,6 +1413,37 @@ mod tests {
         // On the drop's leg, and past it, none behind it.
         assert_eq!(route.drop_landings(8.5, 1.0).len(), 1);
         assert!(route.drop_landings(10.0, 20.0).is_empty());
+    }
+
+    /// The edge of a route's drop is crossed by the tick whose progress goes over its take-off: not the curb's, not a
+    /// jump's, not a tick before it, and not a new route's far-off progress.
+    #[test]
+    fn the_edge_of_a_routes_drop_is_crossed_once() {
+        let p = |x, y, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let route = Route::new(vec![
+            p(0.0, 3.0, false),
+            p(4.0, 3.0, false),
+            p(4.5, 2.5, false),
+            p(8.0, 2.5, false),
+            p(9.0, 0.5, false),
+            p(14.0, 0.5, false),
+            p(15.0, 1.7, true),
+        ]);
+        let (curb, edge, jump) = (route.along[1], route.along[3], route.along[5]);
+        assert!(!route.left_drop_edge(curb - 0.1, curb + 0.1));
+        assert!(route.left_drop_edge(edge - 0.1, edge + 0.1));
+        assert!(!route.left_drop_edge(edge - 0.3, edge - 0.1));
+        assert!(!route.left_drop_edge(edge + 0.1, edge + 0.3));
+        // Backwards, or a step too long for a walk, is no crossing.
+        assert!(!route.left_drop_edge(edge + 0.1, edge - 0.1));
+        assert!(!route.left_drop_edge(edge - 2.0, edge + 2.0));
+        // The jump's take-off is no drop.
+        assert!(!route.left_drop_edge(jump - 0.1, jump + 0.1));
     }
 
     /// A body that fell off a walkway its route goes on along is off the

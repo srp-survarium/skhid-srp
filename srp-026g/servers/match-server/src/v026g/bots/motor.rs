@@ -152,12 +152,24 @@ pub struct Feel {
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
     /// link of the grid (up to `Body::max_jump`, 1.05).
     pub carrier_jump_m: Option<Positive>,
+    /// A planned drop (a lip's height or more) is walked off: the sprint is let go of [`DROP_WALK_AHEAD_M`] before it,
+    /// so the body is not carried into the air at 5 m/s over the steps below (`GridTuning::honest_drops` keeps a Drop
+    /// link only where the body that walks off at a walk lands within the harmless fall). Off (the default): the
+    /// sprint as the route's straight stretch asks.
+    pub drop_walk: bool,
+    /// A sprint gap link ([`Leap::SprintGap`]) is run up to at a sprint, the run turning onto the jump's way, and
+    /// pressed at speed; off (the default), it is made as a walking gap jump.
+    pub sprint_gaps: bool,
     /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
     /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
     /// walk's keys are the ones against the run until it is slow (the owner's rule, 2026-10-27: a landing run is
     /// cancelled when it is against the bot's direction and path, and a wall is no direction). 0 is off (the
     /// default; the counters ([`landings`]) count the landings either way). 60 is a GUESS to tune on the bench.
     pub landing_cancel_deg: f32,
+    /// The landing cancel covers a planned drop too: its window starts when the body walks off the edge
+    /// ([`Route::left_drop_edge`]), and the run it lands with is braked by the same rule (the owner's rule,
+    /// 2026-10-27: after a jump or a drop). Off (the default): drop landings are counted, never braked.
+    pub landing_cancel_drops: bool,
 }
 
 impl Default for Feel {
@@ -192,7 +204,10 @@ impl Default for Feel {
             lip_look_ahead_m: Metres::of(0.0),
             unclear_aim: false,
             carrier_jump_m: None,
+            drop_walk: false,
+            sprint_gaps: false,
             landing_cancel_deg: 0.0,
+            landing_cancel_drops: false,
         }
     }
 }
@@ -285,12 +300,20 @@ pub const SPRINT_JUMP_RISE_M: f32 = 1.05;
 /// by 2 m (the 8e rows).
 pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
 pub const SPRINT_RUN_UP_M: f32 = 2.0;
+/// The sprint is let go of this far before the edge of a planned drop, metres (`Feel::drop_walk`): 0.6 s of a sprint.
+pub const DROP_WALK_AHEAD_M: f32 = 3.0;
+/// A sprint gap link is lined up (the view turned onto the jump's way) over the last this much of the route to its
+/// take-off, metres: a 90 degree turn at the view's top turn speed (5 rad/s) takes 0.31 s, 1.6 m of a sprint, and the
+/// grid guarantees 1.5 m of run.
+pub const SPRINT_GAP_TURN_M: f32 = 2.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// The landing window after a route jump's press, seconds: from the first ground the jump can land on (a
 /// 1 m jump is in the air about 0.6 s) to the end of the coast (the J0 rows: a sprint coasts 1.3 m, a walk 0.45 m).
 const LANDING_FROM_S: f32 = 0.6;
 const LANDING_TO_S: f32 = 1.6;
+/// The same window after the take-off of a planned drop: a 1.4 m fall lands in 0.53 s, a 5 m fall in 1.0 s.
+const LANDING_DROP_FROM_S: f32 = 0.5;
 /// Only a body carried at this speed at least is braked, m/s.
 const LANDING_MIN_SPEED_MS: f32 = 2.5;
 /// A run's coast, seconds of its speed (5 m/s coasts 1.3 m).
@@ -403,8 +426,10 @@ pub struct Motor {
     lining_up: bool,
     /// The route jump this tick's decision pressed, if any.
     pressed: Option<RoutePress>,
-    /// The clock tick of the last press of a route jump, and whether its landing is counted ([`landings`]).
-    last_press: Option<(u32, bool)>,
+    /// The landing being watched: from the last press of a route jump or the last take-off of a planned drop.
+    last_press: Option<LandingWatch>,
+    /// The route's progress at the last walk, for the edge of a drop crossed since ([`Route::left_drop_edge`]).
+    last_s: Option<f32>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -502,6 +527,9 @@ struct Ahead {
     leap: Leap,
     /// A sprint jump: walked into with sprint held, pressed at speed.
     sprint: bool,
+    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
+    /// line up, and `before` is the route's distance to the take-off.
+    run_through: bool,
 }
 
 /// Why the motor pressed jump.
@@ -525,6 +553,7 @@ impl Motor {
             lining_up: false,
             pressed: None,
             last_press: None,
+            last_s: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -717,6 +746,9 @@ impl Motor {
         self.under_jump(route, pose.feet);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
+        if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s)) {
+            self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Drop });
+        }
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
             self.sprinting = false;
@@ -756,7 +788,11 @@ impl Motor {
         // only for a way behind it (it turns on the spot), and on a jump's
         // line for a turn off its way: it stands and turns to it first.
         let lined = jump.is_some_and(|jump| jump.lined);
-        if lined {
+        let run_through = jump.is_some_and(|jump| jump.run_through);
+        if lined && run_through {
+            // A sprint gap link: the run goes on while the view turns onto the jump's way.
+            self.walking = true;
+        } else if lined {
             self.walking = still < LINE_UP_GO;
         } else if self.walking && still > self.feel.stop_turn {
             self.walking = false;
@@ -787,12 +823,15 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        // A planned drop just ahead is walked off, not sprinted into the air.
+        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
+            self.sprinting = false;
+            drop_walks::released();
+        }
         // A sprint jump is walked into at a sprint, on its line and facing its way.
         if let Some(j) = jump
             && j.sprint
-            && j.lined
-            && self.walking
-            && still < LINE_UP_GO
+            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.run_through && self.walking))
             && !pose.no_jump
         {
             self.sprinting = true;
@@ -844,9 +883,13 @@ impl Motor {
         s: f32,
         clear: &impl Fn(Vec3) -> bool,
     ) -> Option<u32> {
-        let (at, counted) = self.last_press?;
+        let LandingWatch { at, counted, from } = self.last_press?;
         let t = self.since(at);
-        if !(LANDING_FROM_S..LANDING_TO_S).contains(&t) {
+        let first = match from {
+            LandingFrom::Jump => LANDING_FROM_S,
+            LandingFrom::Drop => LANDING_DROP_FROM_S,
+        };
+        if !(first..LANDING_TO_S).contains(&t) {
             return None;
         }
         let [vx, vz] = pose.velocity;
@@ -860,10 +903,14 @@ impl Motor {
         let coast = LANDING_COAST_S * speed;
         let blocked = !clear(pose.feet + Vec3::new(vx / speed * coast, 0.0, vz / speed * coast));
         let limit = self.feel.landing_cancel_deg.to_radians();
-        let cancel = limit > 0.0 && (blocked || against > limit);
+        let may = match from {
+            LandingFrom::Jump => true,
+            LandingFrom::Drop => self.feel.landing_cancel_drops,
+        };
+        let cancel = may && limit > 0.0 && (blocked || against > limit);
         if !counted {
-            self.last_press = Some((at, true));
-            landings::seen(against, blocked, cancel);
+            self.last_press = Some(LandingWatch { at, counted: true, from });
+            landings::seen(from, against, blocked, cancel);
         }
         cancel.then(|| keys_toward(wrap(carried + PI - pose.yaw)))
     }
@@ -997,14 +1044,16 @@ impl Motor {
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let leap = points[k].jump.unwrap_or(Leap::Ledge);
-        let sprint = matches!(leap, Leap::Ledge) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let sprint_ledge = matches!(leap, Leap::Ledge) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let sprint_gap = self.feel.sprint_gaps && matches!(leap, Leap::SprintGap(_));
+        let sprint = sprint_ledge || sprint_gap;
         if before_route > if sprint { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
             return None;
         }
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
-            if sprint
+            if sprint_ledge
                 && let Some(t) = self.jump_try.as_mut()
                 && t.tries > 0
                 && !t.sprint_counted
@@ -1048,9 +1097,13 @@ impl Motor {
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
-            if sprint && !jump.sprint_counted {
+            if sprint_ledge && !jump.sprint_counted {
                 jump.sprint_counted = true;
                 sprint_jumps::gave_up(landing.y - take_off.y);
+            }
+            if sprint_gap && !jump.sprint_counted {
+                jump.sprint_counted = true;
+                sprint_gaps::gave_up();
             }
             #[cfg(test)]
             if !jump.counted {
@@ -1067,6 +1120,7 @@ impl Motor {
                 failed: Some(take_off),
                 leap,
                 sprint,
+                run_through: false,
             });
         }
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
@@ -1092,7 +1146,13 @@ impl Motor {
         {
             jump.back = false;
         }
-        let lined = in_the_air || (on_line && !jump.back);
+        // A sprint gap link is lined up only over its last metres: the run before it follows the route and may turn onto
+        // the jump's way (the run along a rail, the jump across it).
+        let lined = if sprint_gap {
+            in_the_air || (before_route <= SPRINT_GAP_TURN_M && !jump.back)
+        } else {
+            in_the_air || (on_line && !jump.back)
+        };
         let aim = if lined {
             // Along the jump's way, past the landing (a gap link's lands
             // up to 2 m on).
@@ -1102,7 +1162,7 @@ impl Motor {
                 landing.y,
                 take_off.z + way[1] * past,
             )
-        } else if clear(at(run_up)) {
+        } else if !sprint_gap && clear(at(run_up)) {
             at(run_up)
         } else {
             // The run-up not in a line yet (round a corner): the route, up
@@ -1120,7 +1180,8 @@ impl Motor {
         // The way the feet went since the last tick (the hop's trail): a
         // body facing the way but still moving off it (back from the
         // run-up, the walk's blend) is not pressed for.
-        let going = self
+        let going = sprint_gap
+            || self
             .trail
             .back()
             .filter(|&&(at, _)| self.clock.wrapping_sub(at) <= 1)
@@ -1134,11 +1195,12 @@ impl Motor {
             aim,
             lined,
             way,
-            before: -along,
+            before: if sprint_gap { before_route } else { -along },
             going,
             failed: None,
             leap,
             sprint,
+            run_through: sprint_gap,
         })
     }
 
@@ -1187,9 +1249,12 @@ impl Motor {
             facing: still,
         });
         self.jump = Some(JumpBy::Route);
-        self.last_press = Some((self.clock, false));
-        if ahead.sprint {
+        self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
+        if ahead.sprint && !ahead.run_through {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
+        }
+        if ahead.run_through {
+            sprint_gaps::pressed(speed);
         }
         key::JUMP
     }
@@ -1464,28 +1529,94 @@ pub fn keys_toward(relative: f32) -> u32 {
     }
 }
 
-/// The landings of route jumps by how far the carried run is from the way (the smaller of its angle to the route's
-/// next leg and to the goal): 0-30, 30-60, 60-90, over 90 degrees, and those with a wall within the coast; and how
-/// many of them were braked ([`Feel::landing_cancel_deg`]).
+/// What a watched landing started from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LandingFrom {
+    /// The press of a route jump.
+    Jump,
+    /// The take-off of a planned drop ([`Route::left_drop_edge`]).
+    Drop,
+}
+
+/// The landing being watched ([`Motor::landing_brake`]): when it started, whether it is counted yet, and from what.
+#[derive(Clone, Copy, Debug)]
+struct LandingWatch {
+    at: u32,
+    counted: bool,
+    from: LandingFrom,
+}
+
+/// The landings of route jumps and of planned drops by how far the carried run is from the way (the smaller of its
+/// angle to the route's next leg and to the goal): 0-30, 30-60, 60-90, over 90 degrees, and those with a wall within
+/// the coast; and how many of them were braked ([`Feel::landing_cancel_deg`], [`Feel::landing_cancel_drops`]).
 pub mod landings {
+    use super::LandingFrom;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const BANDS: usize = 4;
-    /// The bands, then the walls, of the landings seen; the same of those braked.
-    static COUNTS: [[AtomicU64; BANDS + 1]; 2] = [const { [const { AtomicU64::new(0) }; BANDS + 1] }; 2];
+    /// By jump then drop: the bands, then the walls, of the landings seen; the same of those braked.
+    static COUNTS: [[[AtomicU64; BANDS + 1]; 2]; 2] =
+        [const { [const { [const { AtomicU64::new(0) }; BANDS + 1] }; 2] }; 2];
 
     /// A landing run at `against` radians from the way, into a wall or not, braked or not.
-    pub fn seen(against: f32, wall: bool, braked: bool) {
+    pub(super) fn seen(from: LandingFrom, against: f32, wall: bool, braked: bool) {
         let band = if wall { BANDS } else { ((against.to_degrees() / 30.0) as usize).min(BANDS - 1) };
-        COUNTS[0][band].fetch_add(1, Ordering::Relaxed);
+        let counts = &COUNTS[from as usize];
+        counts[0][band].fetch_add(1, Ordering::Relaxed);
         if braked {
-            COUNTS[1][band].fetch_add(1, Ordering::Relaxed);
+            counts[1][band].fetch_add(1, Ordering::Relaxed);
         }
     }
 
-    /// Seen and braked, by band (the last is the walls).
+    /// Seen and braked, by band (the last is the walls), of the route jumps.
     pub fn counts() -> [[u64; BANDS + 1]; 2] {
-        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
+        counts_of(LandingFrom::Jump)
+    }
+
+    /// The same of the planned drops.
+    pub fn drop_counts() -> [[u64; BANDS + 1]; 2] {
+        counts_of(LandingFrom::Drop)
+    }
+
+    fn counts_of(from: LandingFrom) -> [[u64; BANDS + 1]; 2] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[from as usize][k][b].load(Ordering::Relaxed)))
+    }
+}
+
+/// Ticks the sprint was let go of before a planned drop (`Feel::drop_walk`): the activity, and the time the walk costs.
+pub mod drop_walks {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TICKS: AtomicU64 = AtomicU64::new(0);
+
+    pub fn released() {
+        TICKS.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn ticks() -> u64 {
+        TICKS.load(Ordering::Relaxed)
+    }
+}
+
+/// The sprint gap links of routes ([`Leap::SprintGap`], `Feel::sprint_gaps`): presses by the speed at the press (under
+/// 3.5, 3.5-4.5, 4.5 and over m/s: the speed after the turn is a GUESS to read off this), and those given up.
+pub mod sprint_gaps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn pressed(speed: f32) {
+        let band = if speed < 3.5 { 0 } else if speed < 4.5 { 1 } else { 2 };
+        COUNTS[band].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn gave_up() {
+        COUNTS[3].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, and given up.
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -2181,7 +2312,8 @@ mod tests {
         let keys_of = |deg: f32, velocity: [f32; 2], open: bool| {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sway: 0.0, landing_cancel_deg: deg, ..Feel::default() }, &mut rng);
-            motor.last_press = Some((motor.clock.wrapping_sub((0.8 / TICK_S) as u32), false));
+            let at = motor.clock.wrapping_sub((0.8 / TICK_S) as u32);
+            motor.last_press = Some(LandingWatch { at, counted: false, from: LandingFrom::Jump });
             let mut route = Route::new(vec![p(0.0), p(10.0)]);
             let pose = Pose {
                 feet: Vec3::new(3.0, 0.0, 0.0),
@@ -2210,6 +2342,44 @@ mod tests {
         let after = landings::counts();
         assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 4);
         assert!(after[1].iter().sum::<u64>() >= before[1].iter().sum::<u64>() + 2);
+    }
+
+    /// The landing of a planned drop is watched from the take-off, counted either way, and braked like a jump's only
+    /// with `landing_cancel_drops`: a run carried across the way (z while the route goes x) is braked, off the
+    /// route's keys stay.
+    #[test]
+    fn a_drop_landing_run_against_the_way_is_braked_only_with_the_drop_switch() {
+        let p = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let keys_of = |drops: bool| {
+            let mut rng = Rng::new(3);
+            let feel = Feel { sway: 0.0, landing_cancel_deg: 60.0, landing_cancel_drops: drops, ..Feel::default() };
+            let mut motor = Motor::new(feel, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(5.0, 0.0), p(5.4, -2.0), p(12.0, -2.0)]);
+            let at = |x: f32, y: f32, velocity: [f32; 2]| Pose {
+                feet: Vec3::new(x, y, 0.0),
+                yaw: yaw_of([1.0, 0.0]),
+                speed: velocity[0].hypot(velocity[1]),
+                velocity,
+                ..Default::default()
+            };
+            // On the floor before the edge, then over it: the watch starts.
+            motor.walk(&mut route, &at(4.9, 0.0, [2.0, 0.0]), 5.0, |_| true);
+            motor.walk(&mut route, &at(5.1, 0.0, [2.0, 0.0]), 5.0, |_| true);
+            assert!(motor.last_press.is_some_and(|w| w.from == LandingFrom::Drop));
+            let mut keys = 0;
+            for _ in 0..(0.8 / TICK_S) as u32 {
+                keys = motor.walk(&mut route, &at(5.3, -1.5, [0.0, 4.0]), 5.0, |_| true).0.keys;
+            }
+            keys
+        };
+        let before = landings::drop_counts();
+        let braked = keys_of(true);
+        assert_eq!(braked & key::FORWARD, 0, "{braked:#x}");
+        assert_ne!(braked & (key::LEFT | key::RIGHT), 0, "{braked:#x}");
+        assert_ne!(keys_of(false) & key::FORWARD, 0);
+        let after = landings::drop_counts();
+        assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 2);
+        assert!(after[1].iter().sum::<u64>() > before[1].iter().sum::<u64>());
     }
 
     /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
@@ -2253,6 +2423,60 @@ mod tests {
         assert!(sprinting > 0, "sprint held on the run-up");
         let after = sprint_jumps::counts();
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
+    /// With `drop_walk` the sprint is let go of 3 m before the edge of a planned drop, so the body is walked off it;
+    /// far from the edge, or with the switch off, the sprint of a long straight stretch goes on.
+    #[test]
+    fn a_planned_drop_is_walked_off_not_sprinted_into_the_air() {
+        let p = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let route = || Route::new(vec![p(0.0, 0.0), p(20.0, 0.0), p(20.5, -3.0), p(60.0, -3.0)]);
+        let keys_at = |on: bool, x: f32| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { drop_walk: on, sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor.sprinting = true;
+            motor.facing_ticks = 100;
+            let pose = Pose { feet: Vec3::new(x, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 5.0, ..Default::default() };
+            motor.walk(&mut route(), &pose, 5.0, |_| true).0.keys
+        };
+        assert_ne!(keys_at(true, 5.0) & key::SPRINT, 0, "far from the edge the sprint goes on");
+        assert_eq!(keys_at(true, 18.0) & key::SPRINT, 0, "3 m from the edge: walked off");
+        assert_ne!(keys_at(false, 18.0) & key::SPRINT, 0, "off: as before");
+    }
+
+    /// A sprint gap link (`Leap::SprintGap`, `Feel::sprint_gaps`) is run up to at a sprint along the route, the run
+    /// turning onto the jump's way over its last 2 m with no stop to line up, and pressed at the link's lead, at speed,
+    /// facing the way; off, it is a walking gap jump (no sprint held).
+    #[test]
+    fn a_sprint_gap_link_is_run_up_to_at_a_sprint_and_pressed_at_speed() {
+        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
+            low: false,
+        };
+        // A run along -z (a rail) to the take-off at the origin, the jump across it along +x.
+        let route = || {
+            Route::new(vec![p(0.0, 0.0, 20.0, false), p(0.0, 0.0, 0.0, false), p(3.0, -1.7, 0.0, true), p(6.0, -1.7, 0.0, false)])
+        };
+        let step = |on: bool, feet: Vec3, way: [f32; 2], speed: f32| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sprint_gaps: on, sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            let pose = Pose { feet, yaw: yaw_of(way), speed, ..Default::default() };
+            motor.walk(&mut route(), &pose, 5.0, |_| true).0.keys
+        };
+        let run = step(true, Vec3::new(0.0, 0.0, 2.0), [0.0, -1.0], 5.0);
+        assert_eq!(run & (key::FORWARD | key::SPRINT), key::FORWARD | key::SPRINT, "the sprint goes on into the turn: {run:#x}");
+        assert_eq!(run & key::JUMP, 0, "not yet");
+        // 0.4 m before the take-off, the view turned onto the way, 4.6 m/s: the press.
+        let press = step(true, Vec3::new(0.0, 0.0, 0.4), [1.0, 0.0], 4.6);
+        assert_ne!(press & key::JUMP, 0, "pressed: {press:#x}");
+        // Too slow after the turn (a standing start): not pressed short of the take-off.
+        assert_eq!(step(true, Vec3::new(0.0, 0.0, 0.4), [1.0, 0.0], 2.0) & key::JUMP, 0);
+        // Off: no sprint held on the run.
+        assert_eq!(step(false, Vec3::new(0.0, 0.0, 2.0), [0.0, -1.0], 5.0) & key::SPRINT, 0);
     }
 
     /// A jump that does not get the body up is tried again only from the

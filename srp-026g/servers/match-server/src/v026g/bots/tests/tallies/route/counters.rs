@@ -120,6 +120,19 @@ pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
     )
 }
 
+/// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
+pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::zone_cost::asks::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "zone_cross_asked {} zone_cross_borne {} zone_cross_refused {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -133,6 +146,25 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::rests::counts()],
         |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
+    )
+}
+
+/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::motor::drop_walks::ticks()],
+        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+    )
+}
+
+/// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
+/// and over m/s) and given up.
+pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_gaps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {}", d[0], d[1], d[2], d[3]));
+        },
     )
 }
 
@@ -160,10 +192,19 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
 /// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
 pub(super) fn landings() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::motor::landings::counts().iter().flatten().copied().collect(),
+        || {
+            let (jumps, drops) = (super::super::motor::landings::counts(), super::super::motor::landings::drop_counts());
+            jumps.iter().chain(&drops).flatten().copied().collect()
+        },
         |d, line| {
             let bands = |k: usize| d[k * 5..k * 5 + 5].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
-            line.ends.push(format!("landings {} landings_cancelled {}", bands(0), bands(1)));
+            line.ends.push(format!(
+                "landings {} landings_cancelled {} drop_landings {} drop_landings_cancelled {}",
+                bands(0),
+                bands(1),
+                bands(2),
+                bands(3)
+            ));
         },
     )
 }
@@ -199,6 +240,20 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
             line.ends.push(format!(
                 "self_kills {} self_kills_again {} self_kills_barred {}",
                 d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
+/// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
+/// came with one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, within 1.2 m (`stuck::fix_gaps`).
+pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::fix_gaps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "fix_gaps {} fix_gap_stuck_notes {} fix_gap_off_notes {} fix_gap_checks_ended {} stuck_beside_enemy {} stuck_beside_friend {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
             ));
         },
     )
