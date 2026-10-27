@@ -1026,6 +1026,7 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    super::route_twins::tick(game.tick, |place| game.bodies.get(place).map(|b| (b.feet, b.alive)));
                     // The harm count of the pair rules: ticks a pair's two bodies are alive more than 60 m apart.
                     for bot in bots.bots.iter().flatten() {
                         if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
@@ -1544,6 +1545,7 @@ pub(crate) fn real_bot_cost() {
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
+            eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,

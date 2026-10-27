@@ -418,6 +418,8 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
     let points = &routes[index];
     let first = start_index(cx, points, side, num("reach_m"), tol)?;
     #[cfg(test)]
+    super::super::route_twins::drawn(cx.me.place, i32::from(cx.me.team), cx.bot.partner, side, index, cx.now);
+    #[cfg(test)]
     if tol.is_finite() && start_index(cx, points, side, num("reach_m"), f32::INFINITY) != Some(first) {
         super::super::pair_counts::joined_elsewhere();
     }
