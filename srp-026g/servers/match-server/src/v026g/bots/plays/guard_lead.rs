@@ -478,6 +478,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 2);
@@ -701,6 +702,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         let given = assign(asking, s.view.clock);

@@ -48,6 +48,21 @@ use crate::v026g::drive::key;
 /// The look ahead is not shortened below this, metres.
 const MIN_AHEAD_M: f32 = 0.5;
 
+/// With [`Feel::unclear_aim`], how far back of the progress along the route the walk looks for a point it walks to in a
+/// line, metres (the doorway behind the leg it has been taken to be on).
+const BACK_AIM_M: f32 = 3.0;
+
+/// What the walk steers at ([`Motor::aim_point`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Aim {
+    /// A point the body walks to in a line.
+    Clear(Vec3),
+    /// The nearest the look-ahead came, not one (the rule is off).
+    Unclear(Vec3),
+    /// No point of the route is one.
+    None,
+}
+
 /// The motor's tuning.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -127,6 +142,11 @@ pub struct Feel {
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
     pub lip_look_ahead_m: Metres,
+    /// When no point of the route ahead is one the body walks to in a line (it is on the other side of a wall from the
+    /// route's next legs): `false` (the default; the bench's trains switch it on) steers at the unclear point all the
+    /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
+    /// back, and plans again from where it stands with none (`Motor::aim_point`).
+    pub unclear_aim: bool,
     /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
     /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
@@ -164,6 +184,7 @@ impl Default for Feel {
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
             lip_look_ahead_m: Metres::of(0.0),
+            unclear_aim: false,
             carrier_jump_m: None,
         }
     }
@@ -247,6 +268,16 @@ pub const LINE_UP_FROM_M: f32 = 2.5;
 /// the jump's line, metres (or half that, or none, where the way back is
 /// not clear).
 pub const RUN_UP_M: f32 = 0.8;
+/// A jump link rising more than this is a sprint jump (the grid makes them only with the clients' numbers, up to
+/// `mapdata::grid::SPRINT_JUMP_LOW_M`; the standing jump tops at 0.998 m, a walking one at about 1.0), metres.
+pub const SPRINT_JUMP_RISE_M: f32 = 1.05;
+/// A sprint jump is lined up from this far before its take-off along the route, metres (the run is 2 m and the
+/// take-off's lead), and walked into from this far behind the take-off on its line: a sprint from rest is at speed
+/// by 2 m (the 8e rows).
+pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
+pub const SPRINT_RUN_UP_M: f32 = 2.0;
+/// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
+const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// On the jump's line: within this of it to a side, metres …
 const LINED_SIDE_M: f32 = 0.3;
 /// … from this far behind the run-up …
@@ -413,6 +444,8 @@ struct JumpTry {
     /// Its outcome is in the bench's counts ([`counts`]).
     #[cfg(test)]
     counted: bool,
+    /// A sprint jump's outcome is counted ([`sprint_jumps`]).
+    sprint_counted: bool,
 }
 
 /// A press of a route jump, for the trace: the jump's take-off and landing,
@@ -446,6 +479,8 @@ struct Ahead {
     failed: Option<Vec3>,
     /// How it is pressed.
     leap: Leap,
+    /// A sprint jump: walked into with sprint held, pressed at speed.
+    sprint: bool,
 }
 
 /// Why the motor pressed jump.
@@ -608,6 +643,43 @@ impl Motor {
         self.feel.sway * (self.phase + self.t * 2.0 * PI / self.feel.sway_period_s).sin()
     }
 
+    /// The point of the route the walk steers at: `ahead` metres on from `s`, nearer by 0.6 while the body does not walk
+    /// to it in a line (`clear`), down to [`MIN_AHEAD_M`]. Where even that is not clear the body is on the wrong side of
+    /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
+    /// point all the same (into the wall); on, at the farthest route point it does walk to in a line, within
+    /// [`BACK_AIM_M`] back of `s`, and with none the route is lost to it ([`Aim::None`]: off the route, planned again from
+    /// where it stands).
+    fn aim_point(&self, route: &Route, s: f32, mut ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
+        let mut target = route.point_at(s + ahead);
+        while ahead > MIN_AHEAD_M && !clear(target) {
+            #[cfg(test)]
+            counts::cut();
+            ahead *= 0.6;
+            target = route.point_at(s + ahead);
+        }
+        if clear(target) {
+            return Aim::Clear(target);
+        }
+        #[cfg(test)]
+        counts::unclear();
+        if !self.feel.unclear_aim {
+            return Aim::Unclear(target);
+        }
+        let mut back = MIN_AHEAD_M;
+        while back > -BACK_AIM_M {
+            back -= 0.5;
+            let point = route.point_at((s + back).max(0.0));
+            if clear(point) {
+                #[cfg(test)]
+                counts::unclear_back();
+                return Aim::Clear(point);
+            }
+        }
+        #[cfg(test)]
+        counts::unclear_off();
+        Aim::None
+    }
+
     /// The decision of one tick that walks the route from `pose`. `off_m`:
     /// how far off the route the caller lets the body be before it plans
     /// again; `clear(point)`: whether the body walks to `point` in a line.
@@ -639,14 +711,11 @@ impl Motor {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                let mut target = route.point_at(s + ahead);
-                while ahead > MIN_AHEAD_M && !clear(target) {
-                    #[cfg(test)]
-                    counts::cut();
-                    ahead *= 0.6;
-                    target = route.point_at(s + ahead);
+                match self.aim_point(route, s, ahead, &clear) {
+                    Aim::Clear(target) | Aim::Unclear(target) => target,
+                    // No point of the route is one the body walks to in a line: it is off it.
+                    Aim::None => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
                 }
-                target
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
@@ -695,6 +764,16 @@ impl Motor {
         let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
         if low || jump.is_some() {
             self.sprinting = false;
+        }
+        // A sprint jump is walked into at a sprint, on its line and facing its way.
+        if let Some(j) = jump
+            && j.sprint
+            && j.lined
+            && self.walking
+            && still < LINE_UP_GO
+            && !pose.no_jump
+        {
+            self.sprinting = true;
         }
         let mut keys = 0;
         if self.walking {
@@ -785,15 +864,14 @@ impl Motor {
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
-                let mut ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                let mut target = route.point_at(s + ahead);
-                while ahead > MIN_AHEAD_M && !clear(target) {
-                    #[cfg(test)]
-                    counts::cut();
-                    ahead *= 0.6;
-                    target = route.point_at(s + ahead);
+                let ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
+                match self.aim_point(route, s, ahead, &clear) {
+                    Aim::Clear(target) | Aim::Unclear(target) => target,
+                    Aim::None => {
+                        let turn = self.aim_toward(pose, aim.0, aim.1);
+                        return (Decision { keys: 0, turn }, Walked::Off(off_m.max(off) + 0.01));
+                    }
                 }
-                target
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
@@ -850,15 +928,26 @@ impl Motor {
         clear: &impl Fn(Vec3) -> bool,
     ) -> Option<Ahead> {
         let (k, before_route) = route.next_jump(s)?;
-        if before_route > LINE_UP_FROM_M {
-            return None;
-        }
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let leap = points[k].jump.unwrap_or(Leap::Ledge);
+        let sprint = matches!(leap, Leap::Ledge) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        if before_route > if sprint { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
+            return None;
+        }
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
+            if sprint
+                && let Some(t) = self.jump_try.as_mut()
+                && t.tries > 0
+                && !t.sprint_counted
+                && (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+            {
+                t.sprint_counted = true;
+                sprint_jumps::up(landing.y - take_off.y);
+            }
             #[cfg(test)]
             if let Some(t) = self.jump_try.as_mut()
                 && t.tries > 0
@@ -887,11 +976,16 @@ impl Motor {
                 back: false,
                 #[cfg(test)]
                 counted: false,
+                sprint_counted: false,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
+            if sprint && !jump.sprint_counted {
+                jump.sprint_counted = true;
+                sprint_jumps::gave_up(landing.y - take_off.y);
+            }
             #[cfg(test)]
             if !jump.counted {
                 jump.counted = true;
@@ -906,6 +1000,7 @@ impl Motor {
                 going: false,
                 failed: Some(take_off),
                 leap,
+                sprint,
             });
         }
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
@@ -913,7 +1008,7 @@ impl Motor {
         // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
         // walked into from wherever the line is clear (it presses there).
         let run_up = match leap {
-            Leap::Ledge => [RUN_UP_M, 0.5 * RUN_UP_M]
+            Leap::Ledge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
                 .into_iter()
                 .find(|&m| clear(at(m)))
                 .unwrap_or(0.0),
@@ -977,6 +1072,7 @@ impl Motor {
             going,
             failed: None,
             leap,
+            sprint,
         })
     }
 
@@ -994,6 +1090,10 @@ impl Motor {
             return 0;
         };
         if pose.no_jump {
+            return 0;
+        }
+        // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
+        if ahead.sprint && !(self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS) && ahead.before > 0.0 {
             return 0;
         }
         let speed = pose.speed;
@@ -1021,6 +1121,9 @@ impl Motor {
             facing: still,
         });
         self.jump = Some(JumpBy::Route);
+        if ahead.sprint {
+            sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
+        }
         key::JUMP
     }
 
@@ -1294,6 +1397,37 @@ pub fn keys_toward(relative: f32) -> u32 {
     }
 }
 
+/// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_JUMP_RISE_M`]: pressed, got up, given up, for the
+/// bench's failed-jump counter.
+pub mod sprint_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// The bands: 1.05-1.10, 1.10-1.15, 1.15-1.20, 1.20-1.25, 1.25-1.30, 1.30 and over.
+    pub const BANDS: usize = 6;
+    static COUNTS: [[AtomicU64; BANDS]; 3] = [const { [const { AtomicU64::new(0) }; BANDS] }; 3];
+
+    fn band(rise: f32) -> usize {
+        (((rise - super::SPRINT_JUMP_RISE_M) / 0.05).floor().max(0.0) as usize).min(BANDS - 1)
+    }
+
+    pub fn pressed(rise: f32) {
+        COUNTS[0][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn up(rise: f32) {
+        COUNTS[1][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn gave_up(rise: f32) {
+        COUNTS[2][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Pressed, up and given up, by band.
+    pub fn counts() -> [[u64; BANDS]; 3] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
+    }
+}
+
 /// The bench's counts (all matches of the run): the route jumps got up at
 /// the first press and later, those given up ([`JUMP_TRIES`]), the cuts of
 /// a look-ahead to a point a line is not clear to, and the fight's side
@@ -1302,7 +1436,7 @@ pub fn keys_toward(relative: f32) -> u32 {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+    static COUNTS: [AtomicU64; 11] = [const { AtomicU64::new(0) }; 11];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1329,6 +1463,21 @@ pub mod counts {
         add(if changed { 6 } else { 7 });
     }
 
+    /// A walk tick whose look-ahead ended on a point the body does not walk to in a line.
+    pub fn unclear() {
+        add(8);
+    }
+
+    /// Of those, ticks that steered at a clear route point back of the progress instead.
+    pub fn unclear_back() {
+        add(9);
+    }
+
+    /// Of those, ticks with no clear route point at all: reported off the route.
+    pub fn unclear_off() {
+        add(10);
+    }
+
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     /// One tick of the walk keys: whether the plan goes on from a tick
@@ -1351,8 +1500,9 @@ pub mod counts {
     }
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
-    /// steps clear, side steps refused, lip guard changed, lip guard none).
-    pub fn counts() -> [u64; 8] {
+    /// steps clear, side steps refused, lip guard changed, lip guard none, look-ahead ended unclear, of them steered back
+    /// to a clear point, of them off the route).
+    pub fn counts() -> [u64; 11] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1732,6 +1882,89 @@ mod tests {
         assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
     }
 
+    /// A doorway in a thin wall (School's spawn room exit, x 24.04-25.91 in the wall strip z 182.62-183.07): the route goes
+    /// through it and turns west along the wall's far side. A body on the near side, level with the far leg, has no
+    /// route point ahead it walks to in a line: steering at the unclear one walks it into the wall; with
+    /// `Feel::unclear_aim` it steers back to the doorway's near point.
+    fn doorway() -> (Route, impl Fn(Vec3) -> bool + Copy) {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let route = Route::new(vec![
+            p(22.45, 179.72),
+            p(24.45, 182.72),
+            p(24.45, 182.97),
+            p(23.95, 183.47),
+            p(19.2, 183.72),
+            p(16.2, 180.47),
+        ]);
+        // A line from `a` to `b` crosses the wall strip unless it does so in the doorway.
+        let crosses = |a: Vec3, b: Vec3| {
+            let (lo, hi) = (182.62, 183.07);
+            if (a.z < lo) == (b.z < lo) && (a.z > hi) == (b.z > hi) && (a.z < lo || a.z > hi) {
+                return false;
+            }
+            if (a.z - b.z).abs() < 1e-4 {
+                return a.z > lo && a.z < hi;
+            }
+            [lo, hi].iter().any(|&z| {
+                let t = (z - a.z) / (b.z - a.z);
+                (0.0..=1.0).contains(&t) && {
+                    let x = a.x + (b.x - a.x) * t;
+                    !(24.04..=25.91).contains(&x)
+                }
+            })
+        };
+        (route, move |point: Vec3| !crosses(Vec3::new(21.5, 0.0, 182.3), point))
+    }
+
+    #[test]
+    fn with_no_clear_point_ahead_the_walk_steers_back_to_the_doorway_not_into_the_wall() {
+        let (mut route, clear) = doorway();
+        let feet = Vec3::new(21.5, 0.0, 182.3);
+        let (s, off) = route.progress(feet);
+        assert!(off < 2.0, "{off}");
+        let mut rng = Rng::new(3);
+        let motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        // The body is on the far leg's nearest segment: past the doorway by the progress.
+        assert!(s > 5.0, "{s}");
+        // Off (the default): the point it steers at is one the wall is across.
+        match motor.aim_point(&route, s, 2.4, &clear) {
+            Aim::Unclear(point) => assert!(!clear(point), "{point:?}"),
+            other => panic!("{other:?}"),
+        }
+        // On: a clear point of the route, back of the progress.
+        let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..Feel::default() }, &mut rng);
+        match on.aim_point(&route, s, 2.4, &clear) {
+            Aim::Clear(point) => assert!(clear(point) && point.z < 183.0, "{point:?}"),
+            Aim::None => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// The walk reports the route lost (off it) when no route point back of the progress is clear either, so the drive
+    /// plans again from where the body stands; and the rule changes nothing where the look-ahead is clear.
+    #[test]
+    fn a_clear_look_ahead_is_the_same_with_the_rule_on_and_off() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let decide = |unclear_aim: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, unclear_aim, ..Feel::default() }, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
+            let (decision, walked) = motor.walk(&mut route, &pose, 5.0, |_| true);
+            (decision.keys, decision.turn.0.to_bits(), walked)
+        };
+        assert_eq!(decide(false), decide(true));
+        // Nothing clear at all, the rule on: off the route; off: it walks on.
+        let blocked = |unclear_aim: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, unclear_aim, ..Feel::default() }, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
+            motor.walk(&mut route, &pose, 5.0, |_| false).1
+        };
+        assert_eq!(blocked(false), Walked::OnTheWay);
+        assert!(matches!(blocked(true), Walked::Off(_)));
+    }
+
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
     /// jump of its route, the body presses nothing and spends no try; once
     /// it may jump it makes the jump at the first try, walking or aiming.
@@ -1824,6 +2057,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
+    /// one) is lined up from further back, walked into at a sprint, and
+    /// pressed only at speed; the press is counted.
+    #[test]
+    fn a_sprint_jump_is_walked_into_at_a_sprint_and_pressed_at_speed() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let mut route = Route::new(vec![
+            p(0.0, 0.0, false),
+            p(8.0, 0.0, false),
+            p(8.4, 1.2, true),
+            p(14.0, 1.2, false),
+        ]);
+        let ledge = Ledge {
+            take_off: Vec3::new(8.0, 0.0, 0.0),
+            way: [1.0, 0.0],
+            face: 0.2,
+            reach: 1.2,
+            gets_up: true,
+        };
+        let before = sprint_jumps::counts();
+        let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false);
+        assert!(climb.up, "{:?}", climb.poses.last());
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        let (_, at) = climb.presses[0];
+        assert!(at.speed >= SPRINT_PRESS_SPEED_MS, "{at:?}");
+        let sprinting = climb
+            .poses
+            .iter()
+            .zip(&climb.decisions)
+            .filter(|(pose, d)| {
+                pose.feet.distance_xz(ledge.take_off) <= SPRINT_RUN_UP_M && d.keys & key::SPRINT != 0
+            })
+            .count();
+        assert!(sprinting > 0, "sprint held on the run-up");
+        let after = sprint_jumps::counts();
+        assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
     }
 
     /// A jump that does not get the body up is tried again only from the

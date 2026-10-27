@@ -226,6 +226,8 @@ impl Bots {
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
         let mut shaky: Vec<Place> = Vec::new();
+        // Bots whose hold walks to its spot (`commit.hold_to_arrival`).
+        let mut committed: Vec<Place> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -257,6 +259,7 @@ impl Bots {
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -286,6 +289,11 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if tuning.commit.hold_to_arrival
+                && bot.running.as_ref().is_some_and(plays::Running::travelling)
+            {
+                // A hold still walking to its spot (no way lately: not).
+                committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -295,6 +303,7 @@ impl Bots {
                 place: *place,
                 candidates: candidates.clone(),
                 current: current.as_ref(),
+                committed: committed.contains(place),
             })
             .collect();
         let gap = state.signals.score_gap;
@@ -345,6 +354,7 @@ impl Bots {
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -362,6 +372,16 @@ impl Bots {
                 &cx,
                 &mut rng,
             );
+            // A Crossfire on an enemy's last known place keeps the place
+            // when the memory forgets him (`commit.crossfire_point`).
+            let held_choke = match (assignment.kind, assignment.target) {
+                (plays::PlayKind::Crossfire, plays::TargetRef::Place(who))
+                    if tuning.commit.crossfire_point =>
+                {
+                    cx.point_of(assignment.target).map(|at| (who, at, now))
+                }
+                _ => None,
+            };
             bot.rng = rng;
             bot.note(
                 notes,
@@ -415,6 +435,7 @@ impl Bots {
                     "skill": state.skill.skill,
                 }));
             }
+            bot.held_choke = held_choke;
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);

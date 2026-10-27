@@ -16,6 +16,17 @@ pub(super) fn run_with(
     seconds: u32,
     armed: Option<Vec3>,
 ) -> (Vec<(u32, u32, f32)>, Bots) {
+    run_on(kit, tuning, seconds, |_| armed)
+}
+
+/// [`run_with`], the trap's place asked of the bots at each world (a trap
+/// put on the bot's own route is found once it has one).
+pub(super) fn run_on(
+    kit: Option<TrapKit>,
+    tuning: Tuning,
+    seconds: u32,
+    mut armed: impl FnMut(&Bots) -> Option<Vec3>,
+) -> (Vec<(u32, u32, f32)>, Bots) {
     let world = soak_world();
     let teams = [0u8, 1];
     let mut bots = Bots::new(
@@ -72,7 +83,7 @@ pub(super) fn run_with(
                 }
                 bots.facts(facts);
             }
-            if let Some(at) = armed {
+            if let Some(at) = armed(&bots) {
                 bots.traps_from_world(&objects_with(at, 1, 1_000), clock);
             }
         }

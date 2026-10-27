@@ -576,6 +576,15 @@ impl ThreatSpots {
 
 }
 
+/// A team's threat state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamThreat {
+    /// Where a shooter killed its bots from ([`ThreatSpots`]).
+    pub spots: ThreatSpots,
+    /// The regions his line covers now.
+    pub covered: Option<std::sync::Arc<Covered>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -781,13 +790,4 @@ mod tests {
         assert!(covered.floor(4) && covered.floor(5) && !covered.floor(6) && !covered.floor(99));
         assert_eq!(covered.regions(), &[2, 5]);
     }
-}
-
-/// A team's threat state, by feature ([`super::features`]).
-#[derive(Default)]
-pub struct TeamThreat {
-    /// Where a shooter killed its bots from ([`ThreatSpots`]).
-    pub spots: ThreatSpots,
-    /// The regions his line covers now.
-    pub covered: Option<std::sync::Arc<Covered>>,
 }
