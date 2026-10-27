@@ -1073,6 +1073,7 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");

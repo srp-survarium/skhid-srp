@@ -204,6 +204,14 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Bodies locked by a hard fall and the worlds the stuck watch kept quiet for them (`stuck::fall_locks`).
+pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::fall_locks::counts().to_vec(),
+        |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {

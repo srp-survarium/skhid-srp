@@ -198,6 +198,10 @@ pub struct ThinkTuning {
     /// the first leg of its route is the drop off the edge. Off (the default until a train turns it on): it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
+    /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
+    /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off (the default until a train turns
+    /// it on): the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
+    pub fall_lock: bool,
 }
 
 impl Default for ThinkTuning {
@@ -211,6 +215,7 @@ impl Default for ThinkTuning {
             shut_in_gate: false,
             rest_off_lip: false,
             stranded_start: false,
+            fall_lock: false,
         }
     }
 }
