@@ -80,6 +80,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ResupplyCounts::new(n)),
         Box::new(HealCounts::new(n)),
         Box::new(ShotOffsets::default()),
+        Box::new(HitShapes::default()),
     ]
 }
 

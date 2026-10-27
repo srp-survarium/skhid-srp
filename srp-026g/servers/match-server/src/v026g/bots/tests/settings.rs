@@ -136,6 +136,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FIELD_RADIUS_M", "3", "**model** the fields' radius, m"),
     s("SRP_BENCH_BAKE_FIELD_PLACES", "off", "**cost only** `<n>`: n always-on damage zones baked at the generator's places (the alternative to the live board, for what it costs)"),
     s("SRP_BENCH_ZONE_DAMAGE", "off", "**model** zones hurt the stand-in's bodies; `1` only (a GUESS of the game's)"),
+    s("SRP_BENCH_HIT_MODEL", "off", "**model** `on`: the stand-in's hit cut (`standin_hitbox.rs`), all together: a shot is a ray against the 19 hit shapes of the 0.26g player (the shape gives the hit box), a shotgun's ten pellets are rays in the ammunition's cone, and the line is moved across by the live position error (a Gaussian of 0.17 m per axis); `off` (unset): the nearest chest within 0.45 m of the line, a shotgun's centre ray, no scatter (the stand-in before); `boxes`: the shapes and the pellets without the scatter; `scatter=<m>`: another sigma"),
     s("SRP_BENCH_DAMAGE", "per weapon", "**model** `flat`: every stand-in hit takes a fifth of the health and nothing regenerates (the old stand-in); else the weapon's damage against the target's kit (`standin_damage.rs`)"),
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),
     s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
