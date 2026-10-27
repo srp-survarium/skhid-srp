@@ -114,8 +114,17 @@ pub const GRID_ALGO: u32 = 11;
 /// them keys, builds and writes as before they were made.
 pub const GAP_LINKS_ALGO: u32 = 3;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
-/// that asks for it: the grids of the cells' erosion key, build and write as before.
-pub const EXACT_EROSION_ALGO: u32 = 1;
+/// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
+/// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius).
+pub const EXACT_EROSION_ALGO: u32 = 2;
+/// The same for the honest drops pass (`Body::drop_flight_mps` over 0: a Drop is kept only if the body that walks off comes
+/// down within the harmless fall, `WalkGrid::drop_deep_flights`), in [`grid_key_with_links`] only for a body that asks for it.
+/// Raised with any change to which Drops that pass keeps; the pinned digest of `tests/pinned_passes.rs` fails until then.
+pub const HONEST_DROPS_ALGO: u32 = 1;
+/// The same for what only the clients' body builds (`Body::client_slope`: the sprint-jump links above the standing jump and
+/// their run-ups, no jump landing on steep ground), in [`grid_key_with_links`] only for such a body. The body's numbers are in
+/// the key already; the code that reads them is not, so a change to it needs this raised.
+pub const CLIENT_BODY_ALGO: u32 = 1;
 /// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
 pub const SIGHT_ALGO: u32 = 2;
@@ -204,10 +213,15 @@ pub fn grid_key_with_links(
     }
     if body.drop_flight_mps > 0.0 {
         digest.f32(body.drop_flight_mps);
+        digest.u32(HONEST_DROPS_ALGO);
     }
     // The cells' erosion is the default: its keys are the ones there were.
     if body.erosion == Erosion::Exact {
         digest.u32(EXACT_EROSION_ALGO);
+    }
+    // The default body's keys are the ones there were.
+    if body.client_slope() {
+        digest.u32(CLIENT_BODY_ALGO);
     }
     digest.len(seeds.len());
     for seed in seeds {

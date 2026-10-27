@@ -331,7 +331,7 @@ pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_kits, bot_kits_in};
+    use crate::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, RusherKit, bot_kits, bot_kits_in};
     use crate::v026g::skills::SkillError;
 
     /// The rusher kits of `tier` the game data in use can make.
@@ -396,7 +396,7 @@ mod tests {
             for upgrades in [false, true] {
                 for tier in BotTier::ALL {
                     for rusher in made_kits(tier) {
-                        let equipment = BotEquipment { tier, rusher };
+                        let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
                         for role in BotRole::ALL {
                             all.push((equipment, role, new, upgrades));
                         }
@@ -579,10 +579,11 @@ mod tests {
                 continue;
             }
             let (new, old) = (
-                level(BotEquipment { tier, rusher: smg }),
+                level(BotEquipment { tier, rusher: smg, mask: BotMask::Table }),
                 level(BotEquipment {
                     tier,
                     rusher: RusherKit::Control,
+                    mask: BotMask::Table,
                 }),
             );
             assert!(new >= old - 1e-6, "{tier}: {new} against {old}");

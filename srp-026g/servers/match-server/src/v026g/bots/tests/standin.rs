@@ -1536,7 +1536,7 @@ impl Game {
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
                 continue;
             };
-            let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, body.gun.item);
+            let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, self.damage.mask, body.gun.item);
             let baked_cost: Cost = if baked {
                 inside
                     .zones_at(node)

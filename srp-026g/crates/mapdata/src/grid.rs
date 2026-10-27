@@ -193,7 +193,7 @@ impl Body {
 
     /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
     /// on steep ground, which the client slides off ([`WalkGrid::cut_steep_climbs`]).
-    fn client_slope(&self) -> bool {
+    pub(crate) fn client_slope(&self) -> bool {
         self.min_ground_normal_y < Self::default().min_ground_normal_y
     }
 }

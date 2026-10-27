@@ -86,6 +86,24 @@ the live patches: the repo's test data (`resources/game-026g`) lacks them, so wi
 13-15 rusher wears the old kit (a line says so; `RusherKit::worn_in`), and the tests that need them
 run on the server's game data (`SRP_GAME_DATA`, the `on_the_live_data_` tests, each run alone).
 
+### 3.2 The respirator (batteries, 2026-10-27; `SRP_PVB_MASKS`, off by default)
+
+The cloud and gas zones (School's fruit cloud, Vostok Radar Station's gas, Chemical Plant's moss, Mamayev Kurgan's acid) hit one part, the
+`face`, with toxic damage, which goes to the infection pool (no regeneration, death at 0). Only a face item
+covers it: `scav_resp_1` 0.30, `ren_mask_2` 0.05, `ren_mask_3` 0.50, `edge_resp_1` 0.50, `edge_resp_3` 0.65. The tier tables' kits wore none
+(4-5), `ren_mask_2` in one role (9-10) and `ren_mask_5` in two (13-15), while players in the bot-free live recordings
+(`batteries-record` `human_masks_by_tier.py`, kits of exactly the tier's levels, the top players) wear:
+
+| tier (kit levels) | kits | no mask | most worn | next |
+|---|---|---|---|---|
+| 4-5 (4-5) | 143 | **66 %** | `scav_resp_1` 31 % | `bm_mask_1` 3 % |
+| 9-10 (9-10) | 1,246 | 22 % | `ren_mask_3` 22 % | `scav_resp_1` 18 %, `ren_mask_2` 17 % |
+| 13-15 (13-15) | 295 | 30 % | `edge_resp_3` 21 % | `ren_mask_3` 17 %, `ren_mask_2` 12 % |
+
+`SRP_PVB_MASKS=top` puts the most worn one (`BotTier::top_mask`) in the mask slot of every role of 9-10 and 13-15; the lowest tier has none,
+because most of its top players wear none. The kit carries it as `BotEquipment::mask: Option<Mask>`, set once where the profiles are made
+(`RusherKits::masks`, `Masks::mask_of`); a profile says it back (`bot_equipment_of`).
+
 Every kit is under the 30 kg a player carries with no skills (the heaviest, `slug` at 13-15, is 28.3
 kg), and the bots' skills lift their capacity to 40 kg, so the weight costs a bot at most 0.415 of the
 20 % of speed a full load costs (`bot_skills`, the rusher's own kit 0.285 at 13-15 and 0 at 9-10 with

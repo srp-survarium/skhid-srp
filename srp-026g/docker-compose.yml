@@ -153,6 +153,10 @@ services:
       # 13-15, control (the old SPAS-12 kit) when unset; e.g.
       # 9-10=alt,13-15=smg (docs/notes/pvb-tiers.md).
       - SRP_PVB_RUSHER_KIT
+      # SRP_PVB_MASKS: `top` puts the respirator the top players of the tier
+      # wear on every bot (ren_mask_3 at 9-10, edge_resp_3 at 13-15); off
+      # when unset (docs/notes/pvb-tiers.md).
+      - SRP_PVB_MASKS
       # The bots' decision traces (off unless set; e.g.
       # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
       # 2000) together, the oldest first.

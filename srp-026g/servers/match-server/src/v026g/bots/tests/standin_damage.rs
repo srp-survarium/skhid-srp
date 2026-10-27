@@ -30,7 +30,7 @@
 //! in 0.26g's data).
 
 use survarium::v026g::damage::{self, AmmoParams, ArmourParams, BodyParams};
-use survarium::v026g::loadouts::{BotTier, RoleGear, RusherKit, TierGear};
+use survarium::v026g::loadouts::{BotTier, Mask, RoleGear, RusherKit, TierGear};
 use survarium::v026g::weapons::{self, WeaponParams};
 
 use crate::v026g::bots::guns::{Gun, WeaponClass};
@@ -309,6 +309,8 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
 pub(crate) struct Model {
     pub(crate) tier: BotTier,
     pub(crate) rusher: RusherKit,
+    /// The respirator every bot wears in the mask slot (`SRP_BENCH_MASKS`): replaces the table's mask.
+    pub(crate) mask: Option<Mask>,
     /// `SRP_BENCH_DAMAGE=flat`: every hit takes a fifth of the health.
     pub(crate) flat: bool,
     /// `SRP_BENCH_GRENADE_DAMAGE=off`: a grenade's blast hurts nobody (the
@@ -328,6 +330,7 @@ impl Default for Model {
         Self {
             tier: bench_tier(),
             rusher: bench_rusher_kits().worn(bench_tier()),
+            mask: bench_rusher_kits().masks.mask_of(bench_tier()),
             flat: bench_settings().var("SRP_BENCH_DAMAGE").is_ok_and(|v| v == "flat"),
             grenades: !bench_settings().var("SRP_BENCH_GRENADE_DAMAGE").is_ok_and(|v| v == "off"),
         }
@@ -359,14 +362,38 @@ fn kit_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> Option<&'static Rol
 
 /// What the kit of `tier` and `rusher` that has `weapon` wears against a zone's hits (the largest of its
 /// items on each part and type, `zone_cost::ZoneArmour`); nothing if no kit has the weapon.
-pub(crate) fn zone_armour_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> crate::v026g::bots::zone_cost::ZoneArmour {
+pub(crate) fn zone_armour_of(
+    tier: BotTier,
+    rusher: RusherKit,
+    mask: Option<Mask>,
+    weapon: &str,
+) -> crate::v026g::bots::zone_cost::ZoneArmour {
     crate::v026g::bots::zone_cost::ZoneArmour::of_items(
-        kit_of(tier, rusher, weapon)
-            .map_or(&[][..], |kit| kit.armour)
-            .iter()
-            .filter_map(|(_, name)| damage::armour_named(name))
+        worn_names(kit_of(tier, rusher, weapon), mask)
+            .into_iter()
+            .filter_map(damage::armour_named)
             .map(|item| item.dict_id),
     )
+}
+
+/// The names of the armour a kit wears, the respirator `mask` in place of the table's mask piece.
+fn worn_names(kit: Option<&RoleGear>, mask: Option<Mask>) -> Vec<&'static str> {
+    let mask_slot = 1;
+    kit.map_or(&[][..], |kit| kit.armour)
+        .iter()
+        .filter(|&&(slot, _)| mask.is_none() || slot != mask_slot)
+        .map(|&(_, name)| name)
+        .chain(mask.map(|Mask(name)| name))
+        .collect()
+}
+
+/// [`armour_on`] with the respirator `mask` in place of the table's mask piece.
+pub(crate) fn armour_on_masked(kit: Option<&RoleGear>, mask: Option<Mask>, hit_box: &str) -> f32 {
+    worn_names(kit, mask)
+        .into_iter()
+        .filter_map(damage::armour_named)
+        .map(|item: &ArmourParams| item.of(hit_box))
+        .fold(0.0, f32::max)
 }
 
 /// The largest `ranged` armour on `hit_box` among `kit`'s items.
@@ -438,7 +465,7 @@ pub(crate) fn hit(
             hit_box,
             bullet.damage,
             bullet.arp,
-            armour_on(worn, hit_box),
+            armour_on_masked(worn, model.mask, hit_box),
         );
         target.health -= on_body;
         for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
@@ -489,7 +516,7 @@ pub(crate) fn hit_boxes(
             hit_box,
             bullet.damage,
             bullet.arp,
-            armour_on(worn, hit_box),
+            armour_on_masked(worn, model.mask, hit_box),
         );
         target.health -= on_body;
         for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
@@ -527,6 +554,7 @@ mod tests {
     const MODEL: Model = Model {
         tier: BotTier::Low,
         rusher: RusherKit::Control,
+        mask: None,
         flat: false,
         grenades: true,
     };
@@ -735,12 +763,31 @@ mod tests {
         assert_eq!(pools, full);
     }
 
+    /// The respirator the bench's bots wear (`SRP_BENCH_MASKS`) is the face armour against a toxic zone's hits
+    /// and against a bullet on the face, in place of the table's piece; with none the table's.
+    #[test]
+    fn the_masks_armour_counts_against_a_zone_and_a_bullet_on_the_face() {
+        let tier = BotTier::Mid;
+        let mask = tier.top_mask();
+        assert_eq!(mask, Some(Mask("ren_mask_3")));
+        let plain = zone_armour_of(tier, RusherKit::Control, None, "spas_12");
+        let masked = zone_armour_of(tier, RusherKit::Control, mask, "spas_12");
+        let face = |a: &crate::v026g::bots::zone_cost::ZoneArmour| a.against("face", "toxic");
+        assert!(face(&masked) >= 0.5 - 1e-6, "{}", face(&masked));
+        assert!(face(&masked) > face(&plain));
+        let kit = kit_of(tier, RusherKit::Control, "spas_12");
+        assert!(armour_on_masked(kit, mask, "face") >= armour_on_masked(kit, None, "face"));
+        // The mask replaces the table's piece: no more than one mask-slot item.
+        assert!(worn_names(kit, mask).iter().filter(|n| n.contains("mask") || n.contains("resp")).count() <= 1);
+    }
+
     #[test]
     fn a_flat_hit_is_the_old_fifth() {
         let mut body = game_body();
         let model = Model {
             tier: BotTier::Low,
             rusher: RusherKit::Control,
+            mask: None,
             flat: true,
             grenades: true,
         };
@@ -759,6 +806,7 @@ mod tests {
         let model = Model {
             tier: BotTier::Low,
             rusher: RusherKit::Control,
+            mask: None,
             flat: false,
             grenades: true,
         };
