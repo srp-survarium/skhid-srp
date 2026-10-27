@@ -1067,13 +1067,18 @@ impl Motor {
             self.sprinting = false;
             drop_walks::released();
         }
-        // A sprint jump is walked into at a sprint, on its line and facing its way.
+        // A sprint jump is walked into at a sprint, on its line and facing its way, unless the bar is spent: a tired body
+        // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
             && j.sprint
             && ((j.lined && self.walking && still < LINE_UP_GO) || (j.run_through && self.walking))
             && !pose.no_jump
         {
-            self.sprinting = true;
+            if self.tired {
+                super::stamina::counts::sprint_jump_kept_walking();
+            } else {
+                self.sprinting = true;
+            }
         }
         let mut keys = 0;
         if self.walking {
@@ -1143,7 +1148,15 @@ impl Motor {
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let sprint_jump = matches!(points[k].jump, Some(Leap::Ledge)) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
-        let run_up = if sprint_jump { SPRINT_RUN_UP_M } else { 0.0 };
+        // The run to the take-off is sprinted too: a sprint-band ledge's run-up, and a sprint gap link's own run.
+        let gap = self.feel.sprint_gaps && matches!(points[k].jump, Some(Leap::SprintGap(_)));
+        let run_up = if sprint_jump {
+            SPRINT_RUN_UP_M
+        } else if gap {
+            mapdata::grid::gap::SPRINT_RUN_UP_M
+        } else {
+            0.0
+        };
         let reckoning = super::stamina::Reckoning::of(gauge);
         if !reckoning.covers(before.max(0.0), run_up) {
             self.sprinting = false;
@@ -1151,6 +1164,9 @@ impl Motor {
             if self.short_for.is_none_or(|at| at.distance_xz(take_off) > 0.3) {
                 self.short_for = Some(take_off);
                 super::stamina::counts::short_segment();
+                if gap && reckoning.covers(before.max(0.0), 0.0) {
+                    super::stamina::counts::gap_run_short();
+                }
             }
         }
     }
@@ -3280,6 +3296,50 @@ mod tests {
         motor.gauge = bar(40.0, false);
         motor.sprint_by_the_bar(&walk, 0.0);
         assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
+    }
+
+    /// A tired body does not take the sprint up to walk into a sprint jump (it walks, the bar comes back); a rested one
+    /// does. A sprint gap link's own run is priced like a ledge's run-up: a bar that pays the way to the gap but not
+    /// its run lets the sprint go.
+    #[test]
+    fn a_tired_body_walks_into_a_sprint_jump_and_a_gap_run_is_priced() {
+        use crate::v026g::bots::stamina::Gauge;
+        let ledge = |tired_bar: f32| {
+            let p = |x: f32, y: f32, jump: bool| Waypoint {
+                at: Vec3::new(x, y, 0.0),
+                node: 0,
+                jump: jump.then_some(Leap::Ledge),
+                low: false,
+            };
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.gauge = Some(Gauge { value: tired_bar, low: false });
+            motor.walking = true;
+            let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
+            let pose = Pose { feet: Vec3::new(6.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 4.0, ..Default::default() };
+            motor.walk(&mut route, &pose, 5.0, |_| true);
+            motor.sprinting
+        };
+        assert!(ledge(100.0), "a full bar: the sprint is taken up for the sprint jump");
+        assert!(!ledge(2.0), "a spent bar: it walks");
+        let gap = |bar: f32| {
+            let p = |x: f32, jump: bool| Waypoint {
+                at: Vec3::new(x, if jump { -1.7 } else { 0.0 }, 0.0),
+                node: 0,
+                jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
+                low: false,
+            };
+            let route = Route::new(vec![p(-20.0, false), p(0.0, false), p(3.0, true), p(6.0, false)]);
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.sprinting = true;
+            motor.gauge = Some(Gauge { value: bar, low: false });
+            motor.sprint_by_the_bar(&route, 19.5);
+            motor.sprinting
+        };
+        // 0.5 m to the take-off: the way costs 0.5, the gap's 1.5 m run 1.5 more, the jump and its margin 15.
+        assert!(gap(18.0), "pays the way, the run and the jump");
+        assert!(!gap(16.0), "pays the way and the jump, not the run");
     }
 
     /// With `drop_walk` the sprint is let go of 3 m before the edge of a planned drop, so the body is walked off it;

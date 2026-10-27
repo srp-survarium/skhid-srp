@@ -268,7 +268,8 @@ pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
 
 /// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
 /// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
-/// first seen, and the seconds of sprint saved for them.
+/// first seen, the ticks a tired body was kept walking into a sprint jump, the sprint gap segments short only by the gap's
+/// run, and the seconds of sprint saved for them.
 pub(super) fn stamina() -> Box<dyn RouteTopic> {
     Delta::of(
         || {
@@ -278,8 +279,8 @@ pub(super) fn stamina() -> Box<dyn RouteTopic> {
         },
         |d, line| {
             line.ends.push(format!(
-                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_saved_s {:.1}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6] as f32 / 1000.0
+                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_jump_kept_walking {} gap_run_short {} sprint_saved_s {:.1}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8] as f32 / 1000.0
             ));
         },
     )

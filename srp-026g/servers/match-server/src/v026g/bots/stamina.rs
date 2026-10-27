@@ -142,11 +142,12 @@ impl Reckoning {
 
 /// The bench's counts (all matches): lockouts begun, ticks a body was locked out, of those with the sprint keys
 /// held (the lockout lasts as long as they do: the harm), jump presses the bar refused, sprints let go at the empty
-/// bar, sprint segments that were short of the bar when first seen, and the ms of sprint saved for them.
+/// bar, sprint segments that were short of the bar when first seen, the ticks a tired body was kept walking into a
+/// sprint jump, the sprint gap segments short only by the gap's run, and the ms of sprint saved for them.
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
 
     pub fn lockout() {
         COUNTS[0].fetch_add(1, Ordering::Relaxed);
@@ -169,7 +170,18 @@ pub mod counts {
         COUNTS[5].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 6] {
+    /// A tick a tired body, walking into a sprint jump, was kept walking (the sprint is not taken up at the bar's
+    /// empty or low).
+    pub fn sprint_jump_kept_walking() {
+        COUNTS[6].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// A sprint gap segment seen short of the bar only because the gap's own run is priced ([`super::Reckoning::covers`]).
+    pub fn gap_run_short() {
+        COUNTS[7].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 8] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 
