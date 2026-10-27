@@ -72,6 +72,7 @@ mod jump_pool;
 mod kits;
 mod live_zones;
 mod no_way;
+mod opening;
 mod pocket_runs;
 mod settings;
 mod sight;
