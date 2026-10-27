@@ -658,7 +658,7 @@ pub(crate) fn real_bot_cost() {
                         .as_ref()
                         .and_then(|bot| bot.kits.get(bot.kit).map(|kit| kit.0.primary.0.item));
                     if let Some(gun) = gun {
-                        bots.set_zone_armour(place, super::standin_damage::zone_armour_of(model.tier, model.rusher, gun));
+                        bots.set_zone_armour(place, super::standin_damage::zone_armour_of(model.tier, model.rusher, model.mask, gun));
                     }
                 }
             }
