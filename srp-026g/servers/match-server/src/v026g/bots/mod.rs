@@ -1165,7 +1165,7 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tuning.unstick) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
