@@ -290,9 +290,11 @@ function dollView(view) {
   const parts = D.parts.map(p => `<rect id="${id(p.name)}" mask="url(#${id("m-" + p.name)})" x="0" y="-30" width="140" height="130" fill="rgb(255,180,0)" fill-opacity="0"/>`).join("");
   const zones = D.zones[view].map(z => `<path data-part="${z.part}" transform="${z.transform}" d="${z.d}"/>`).join("");
   const caption = view === "back" ? T("back", "ззаду") : T("front", "спереду");
+  // The extracted zone paths use front-view coordinates. Mirror the figure,
+  // damage tint and interactive selection together, preserving anatomical sides.
   return `<figure><svg viewBox="58 -28 73 114" role="group" aria-label="${caption}"><defs>${defs}</defs>
-    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/></g>
-    <g class="zones" transform="translate(63 -24.65)">${zones}</g></svg><figcaption>${caption}</figcaption></figure>`;
+    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/>
+    <g class="zones" transform="translate(63 -24.65)">${zones}</g></g></svg><figcaption>${caption}</figcaption></figure>`;
 }
 function drawDoll() {
   const host = $("dollsvg");
