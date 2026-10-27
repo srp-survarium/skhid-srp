@@ -23,8 +23,9 @@ pub enum ContactWatch {
     /// Moving, or not walking the route.
     #[default]
     Free,
-    /// Pressing since `since`; `last` the tick before (for the milliseconds); `counted`: the contact is in the count.
-    Pressing { since: u32, last: u32, counted: bool },
+    /// Pressing since `since`, last seen at `seen`; `counted_to`: the time up to which its milliseconds are counted
+    /// (none: not yet counted as a contact).
+    Pressing { since: u32, seen: u32, counted_to: Option<u32> },
 }
 
 /// What a tick of the watch says to count.
@@ -47,18 +48,21 @@ impl ContactWatch {
                 Counted::Nothing
             }
             (Self::Free, true) => {
-                *self = Self::Pressing { since: time, last: time, counted: false };
+                *self = Self::Pressing { since: time, seen: time, counted_to: None };
                 Counted::Nothing
             }
             // The ticks between were not of a walk (an override, a stand): a new contact.
-            (Self::Pressing { last, .. }, true) if time > last + STALE_MS => {
-                *self = Self::Pressing { since: time, last: time, counted: false };
+            (Self::Pressing { seen, .. }, true) if time > seen + STALE_MS => {
+                *self = Self::Pressing { since: time, seen: time, counted_to: None };
                 Counted::Nothing
             }
-            (Self::Pressing { since, .. }, true) if time < since + CONTACT_MS => Counted::Nothing,
-            (Self::Pressing { since, last, counted }, true) => {
-                *self = Self::Pressing { since, last: time, counted: true };
-                Counted::Contact { first: !counted, ms: time.saturating_sub(last) }
+            (Self::Pressing { since, counted_to, .. }, true) if time < since + CONTACT_MS => {
+                *self = Self::Pressing { since, seen: time, counted_to };
+                Counted::Nothing
+            }
+            (Self::Pressing { since, counted_to, .. }, true) => {
+                *self = Self::Pressing { since, seen: time, counted_to: Some(time) };
+                Counted::Contact { first: counted_to.is_none(), ms: time.saturating_sub(counted_to.unwrap_or(since)) }
             }
         }
     }
