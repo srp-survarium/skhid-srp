@@ -67,7 +67,7 @@ fn sound_range(ranges: HearingRanges, kind: SoundKind, base: f32, hearing: f32) 
     let range = hearing * base;
     match (ranges, kind) {
         (HearingRanges::Flat, _) => range,
-        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump) => range.min(STEP_CULL_M),
+        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump | SoundKind::Trap) => range.min(STEP_CULL_M),
         (HearingRanges::Game { .. }, SoundKind::Reload) => range.min(RELOAD_CULL_M),
         (HearingRanges::Game { .. }, _) => range,
     }
@@ -159,6 +159,7 @@ pub fn sense(
             SoundKind::Sprint | SoundKind::Jump => tuning.sprint_m,
             SoundKind::Reload | SoundKind::Switch => tuning.reload_m,
             SoundKind::Use => tuning.use_m,
+            SoundKind::Trap => tuning.step_m,
         };
         // A shot by its weapon's reach (never farther: the cheat adds none
         // past the game's), else by the flat range.
@@ -502,6 +503,40 @@ mod tests {
             &mut Rng::new(1),
         );
         assert!(percepts.iter().all(|p| p.source != Source::Seen));
+    }
+
+    /// A trap that went off under an enemy is heard like his steps
+    /// (`SenseTuning::step_m`): within it, by his enemies only.
+    #[test]
+    fn a_trap_that_went_off_under_an_enemy_is_heard_at_the_range_of_his_steps() {
+        let tuning = SenseTuning::default();
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let hear = |victim: PlaceView| {
+            let snap = Sound {
+                from: victim.place,
+                kind: SoundKind::Trap,
+                at: victim.feet,
+                time: 900,
+                reach_m: None,
+            };
+            let view = view(vec![me.clone(), victim], vec![snap]);
+            sense(
+                &me,
+                &view,
+                &RayTree::build(&[]),
+                &tuning,
+                &CheatTuning::default(),
+                500,
+                &[1],
+                &mut RayBudget(0),
+                &mut Rng::new(1),
+            )
+        };
+        let near = hear(place(1, 1, Vec3::new(0.0, 0.0, -tuning.step_m * 1.1), 0.0));
+        assert_eq!(near.len(), 1, "{near:?}");
+        assert_eq!((near[0].who, near[0].source, near[0].busy), (1, Source::Heard, false));
+        assert!(hear(place(1, 1, Vec3::new(0.0, 0.0, -tuning.step_m * 1.3), 0.0)).is_empty());
+        assert!(hear(place(1, 0, Vec3::new(0.0, 0.0, -2.0), 0.0)).is_empty(), "a mate's");
     }
 
     /// Match 0x6da44bbb at 662-677 s: an enemy at arm's length behind, in a

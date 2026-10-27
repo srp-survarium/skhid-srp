@@ -250,7 +250,9 @@ pub(crate) fn a_tuning_patch_turns_it_on_and_bad_ones_are_refused() {
 
 // ---- R2: the shot ---------------------------------------------------------
 
-use crate::v026g::bots::trap_react::{End, Out, Reaction, Tick, mate_firing, step, view_error};
+use crate::v026g::bots::trap_react::{
+    End, Out, Reaction, Tick, mate_beside, mate_firing, step, view_error,
+};
 
 fn shoot_t() -> ReactTuning {
     ReactTuning {
@@ -267,6 +269,8 @@ fn tick(now: u32) -> Tick {
         calm: true,
         ready: true,
         mate_firing: false,
+        to_spot_m: 0.0,
+        eye_m: 1.5,
     }
 }
 
@@ -512,4 +516,385 @@ pub(crate) fn a_noticed_trap_is_shot_a_few_times_and_given_up() {
     assert!(c.gave_up >= 1 || c.disarmed_by_shot >= 1, "{c:?}");
     assert!(sent.iter().any(|s| s.1 & key::AIM != 0), "the aim is held");
     assert!(sent.iter().any(|s| s.1 & key::FIRE != 0), "a shot goes out");
+}
+
+/// The place of a trap on the first bot's route, `ahead` metres on, frozen
+/// at the first world that finds the bot with a route.
+fn on_the_route(ahead: f32) -> impl FnMut(&Bots) -> Option<Vec3> {
+    let mut at: Option<Vec3> = None;
+    move |bots| {
+        if at.is_none()
+            && let Some((route, _)) = bots.bots[0].as_ref().and_then(|b| b.route.as_ref())
+        {
+            at = Some(route.point_at(ahead.min(route.length())));
+        }
+        at
+    }
+}
+
+fn noticing() -> Tuning {
+    let mut on = Tuning::default();
+    on.traps.react.on = true;
+    on.traps.react.p0 = 1.0;
+    on.traps.react.cone_deg = 360.0;
+    on.traps.react.far_m = 20.0;
+    on
+}
+
+/// A trap on a noticing bot's own route: with only the notice the bot walks
+/// over it; with `pass` it takes a way round (the floors round the trap are a
+/// soft part of its filter); with only `jump` it walks the route and jumps
+/// once, a little before the trap; the same bot with both goes round and has
+/// no use for the jump. Counters: `trap_passed`, `trap_jumped`.
+#[test]
+pub(crate) fn a_noticed_trap_on_the_route_is_gone_round_or_jumped() {
+    use super::traps::run_on;
+    let run = |pass: bool, jump: bool| {
+        let mut on = noticing();
+        on.traps.react.pass = pass;
+        on.traps.react.jump = jump;
+        let (_, bots) = run_on(None, on, 40, on_the_route(5.0));
+        bots
+    };
+    let counts = |bots: &Bots| bots.react_counts();
+    let plain = run(false, false);
+    let c = counts(&plain);
+    assert_eq!(
+        (
+            c.through[Class::Noticed as usize],
+            c.trap_passed,
+            c.trap_jumped
+        ),
+        (1, 0, 0),
+        "{c:?}"
+    );
+    assert!(plain.bots[0].as_ref().unwrap().features.traps.react.private().is_empty());
+
+    let round = run(true, false);
+    let c = counts(&round);
+    assert_eq!(
+        (c.through_all(), c.trap_passed, c.trap_jumped),
+        (0, 1, 0),
+        "{c:?}"
+    );
+    let bot = round.bots[0].as_ref().unwrap();
+    assert_eq!(bot.features.traps.react.private().len(), 1);
+    assert!(!bot.features.traps.react.field().is_empty());
+
+    let hop = run(false, true);
+    let c = counts(&hop);
+    assert_eq!((c.trap_jumped, c.trap_passed), (1, 0), "{c:?}");
+
+    let both = run(true, true);
+    let c = counts(&both);
+    assert_eq!((c.through_all(), c.trap_jumped), (0, 0), "{c:?}");
+}
+
+/// A trap that went off right after a pass within a foot of it is counted as
+/// caught after the notice; one that was left behind with the trap standing is
+/// counted as passed; one that goes with the bot far off is neither.
+#[test]
+pub(crate) fn a_noticed_trap_that_goes_off_at_the_pass_is_counted_as_caught() {
+    let t = t();
+    let at = Vec3::new(0.0, 0.0, 3.0);
+    let placed = trap(at.x, at.z);
+    let key = TrapKey::of(&placed);
+    let armed = [(key, at)];
+    let mut look = look(0);
+    look.yaw = facing(look.feet, at);
+    let walk = |react: &mut React, x: f32| {
+        for (now, z) in [(100u32, -1.0f32), (600, 2.0), (1100, 3.0)] {
+            react.walk(now, Vec3::new(x, 0.0, z), &armed);
+        }
+    };
+    let noticed = || {
+        let mut react = React::default();
+        react.roll(&look, &placed, &t, || 0.0, |_, _| true);
+        react
+    };
+    let mut caught = noticed();
+    walk(&mut caught, 0.1);
+    caught.prune(&[]);
+    let c = caught.counts();
+    assert_eq!((c.trap_caught_after_notice, c.trap_passed), (1, 0));
+    let mut beside = noticed();
+    walk(&mut beside, 1.2);
+    for (now, z) in [(1600u32, 7.0f32), (2100, 12.0)] {
+        beside.walk(now, Vec3::new(1.2, 0.0, z), &armed);
+    }
+    beside.prune(&[]);
+    let c = beside.counts();
+    assert_eq!((c.trap_caught_after_notice, c.trap_passed), (0, 1));
+    let mut far = noticed();
+    walk(&mut far, 1.2);
+    far.prune(&[]);
+    assert_eq!(far.counts().trap_caught_after_notice, 0);
+}
+
+/// A trap the last world showed armed and this one shows fired went off under
+/// the body nearest it, and that body's enemies are given a sound (heard at the
+/// loudness of steps); a trap that was disarmed, one that was never seen armed,
+/// a fired world seen twice, a trap with nobody near it and the switch off
+/// make none.
+#[test]
+pub(crate) fn a_trap_that_goes_off_under_a_body_is_given_to_the_ears() {
+    use super::traps::{objects_with, run_with};
+    use crate::v026g::bots::view::SoundKind;
+    let mut hear = Tuning::default();
+    hear.traps.react.hear = true;
+    let (_, mut bots) = run_with(None, hear, 5, None);
+    bots.entered(1, true, 0);
+    let human = Vec3::new(70.0, 0.0, 12.0);
+    assert_eq!(bots.tracker.nearest_body(human, 3.0), Some(1));
+    let under = Vec3::new(71.0, 0.0, 12.0);
+    let snaps = |bots: &mut Bots, at: u32| {
+        let clock = Clock {
+            clock: at,
+            time_left_s: 0.0,
+            total_s: 0.0,
+            playing: true,
+        };
+        let view = bots.tracker.view(&clock, &bots.tuning.kin, None);
+        view.sounds
+            .iter()
+            .filter(|s| s.kind == SoundKind::Trap)
+            .map(|s| (s.from, s.at))
+            .collect::<Vec<_>>()
+    };
+    // Never seen armed: no sound.
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 5_500);
+    assert_eq!(bots.snaps_heard(), 0);
+    // Armed, then fired: one, the body's, at the trap.
+    bots.traps_from_world(&objects_with(under, 1, 1_000), 6_000);
+    assert_eq!(bots.snaps_heard(), 0);
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 7_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    assert_eq!(snaps(&mut bots, 7_100), vec![(1, under)]);
+    // The same fired world again: not twice.
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 8_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    // Armed, then disarmed: silent. Armed, fired with nobody near: silent.
+    let (hand, empty) = (Vec3::new(71.5, 0.0, 12.0), Vec3::new(40.0, 0.0, 30.0));
+    bots.traps_from_world(&objects_with(hand, 1, 2_000), 9_000);
+    bots.traps_from_world(&objects_with(hand, 3, 2_000), 10_000);
+    bots.traps_from_world(&objects_with(empty, 1, 3_000), 11_000);
+    bots.traps_from_world(&objects_with(empty, 2, 3_000), 12_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    // Off: armed then fired makes none.
+    let (_, mut off) = run_with(None, Tuning::default(), 5, None);
+    off.traps_from_world(&objects_with(under, 1, 1_000), 6_000);
+    off.traps_from_world(&objects_with(under, 2, 1_000), 7_000);
+    assert_eq!(off.snaps_heard(), 0);
+    assert!(snaps(&mut off, 7_100).is_empty());
+}
+
+// ---- R4: the hand defuse --------------------------------------------------
+
+fn walk_to(since: u32) -> Reaction {
+    Reaction::Walk {
+        key: TrapKey::of(&trap(5.0, 0.0)),
+        at: Vec3::new(5.0, 0.0, 0.0),
+        spot: Vec3::new(4.15, 0.0, 0.0),
+        since,
+    }
+}
+
+fn at_stand(since: u32) -> Reaction {
+    Reaction::Defuse {
+        key: TrapKey::of(&trap(5.0, 0.0)),
+        at: Vec3::new(5.0, 0.0, 0.0),
+        since,
+    }
+}
+
+fn defusing() -> ReactTuning {
+    ReactTuning {
+        defuse: true,
+        ..shoot_t()
+    }
+}
+
+#[test]
+pub(crate) fn the_walk_goes_to_the_stand_then_crouches_and_looks_at_the_trap() {
+    let t = defusing();
+    let far = Tick {
+        to_spot_m: 3.0,
+        ..tick(1_000)
+    };
+    let (state, out) = step(walk_to(500), far, true, &t);
+    assert!(matches!(state, Reaction::Walk { .. }));
+    assert_eq!(out.go, Some(Vec3::new(4.15, 0.0, 0.0)));
+    assert!(out.look.is_none() && !out.use_key && !out.crouch);
+    // At the stand: the defuse begins, crouched, looking, no USE yet.
+    let here = Tick {
+        to_spot_m: 0.2,
+        ..tick(1_200)
+    };
+    let (state, out) = step(walk_to(500), here, true, &t);
+    assert!(matches!(state, Reaction::Defuse { since: 1_200, .. }));
+    assert!(out.look.is_some() && out.crouch && !out.use_key && out.go.is_none());
+}
+
+#[test]
+pub(crate) fn the_walk_ends_when_the_trap_goes_something_calls_away_a_mate_is_there_or_it_takes_too_long()
+ {
+    let t = defusing();
+    let ended = |tick: Tick, armed: bool| {
+        let (next, out) = step(walk_to(1_000), tick, armed, &t);
+        assert_eq!(next, Reaction::Idle);
+        out.ended
+    };
+    let far = |now: u32| Tick {
+        to_spot_m: 3.0,
+        ..tick(now)
+    };
+    assert_eq!(
+        ended(far(2_000), false),
+        Some(End::Gone { shots: 0, last: 0 })
+    );
+    let fight = Tick {
+        calm: false,
+        ..far(2_000)
+    };
+    assert_eq!(ended(fight, true), Some(End::GaveUp));
+    let mate = Tick {
+        mate_firing: true,
+        ..far(2_000)
+    };
+    assert_eq!(ended(mate, true), Some(End::HeldForMate));
+    let long = far(1_000 + (t.defuse_walk_s * 1000.0) as u32 + 1);
+    assert_eq!(ended(long, true), Some(End::GaveUp));
+}
+
+#[test]
+pub(crate) fn use_is_pressed_only_once_the_view_has_settled_on_the_trap_and_held_for_the_defuse_time()
+ {
+    let t = defusing();
+    let held = |now: u32, err: f32| {
+        step(
+            at_stand(1_000),
+            Tick {
+                err_rad: err,
+                ..tick(now)
+            },
+            true,
+            &t,
+        )
+    };
+    assert!(
+        !held(1_000 + t.use_settle_ms - 10, 0.0).1.use_key,
+        "settling"
+    );
+    assert!(
+        !held(1_000 + t.use_settle_ms, t.use_ok_rad * 2.0).1.use_key,
+        "off the trap"
+    );
+    let (state, out) = held(1_000 + t.use_settle_ms, 0.0);
+    assert!(out.use_key && out.crouch && out.look.is_some());
+    assert!(matches!(state, Reaction::Defuse { .. }));
+    // Still held 4.9 s in, a mate that comes beside it changes nothing.
+    let (state, out) = step(
+        at_stand(1_000),
+        Tick {
+            mate_firing: true,
+            ..tick(5_900)
+        },
+        true,
+        &t,
+    );
+    assert!(out.use_key && matches!(state, Reaction::Defuse { .. }));
+}
+
+#[test]
+pub(crate) fn the_defuse_ends_when_the_trap_is_gone_or_the_hold_is_called_off() {
+    let t = defusing();
+    let ended = |tick: Tick, armed: bool| {
+        let (next, out) = step(at_stand(1_000), tick, armed, &t);
+        assert_eq!(next, Reaction::Idle);
+        out.ended
+    };
+    // Gone with the hold of 5 s: the defuse, with how long it was held.
+    assert_eq!(
+        ended(tick(6_100), false),
+        Some(End::Defused { held_ms: 5_100 })
+    );
+    let fight = Tick {
+        calm: false,
+        ..tick(3_000)
+    };
+    assert_eq!(ended(fight, true), Some(End::GaveUp));
+    // The 5 s and the slack spent, the trap still armed: given up.
+    let late = tick(1_000 + ((t.defuse_s + 1.5) * 1000.0) as u32 + 1);
+    assert_eq!(ended(late, true), Some(End::GaveUp));
+    // Out of the use ray's reach once settled: given up.
+    let far = Tick {
+        eye_m: 2.5,
+        ..tick(1_000 + 1_300)
+    };
+    assert_eq!(ended(far, true), Some(End::GaveUp));
+    // While the crouch is still coming down it waits.
+    let coming = Tick {
+        eye_m: 2.5,
+        ..tick(1_000 + t.use_settle_ms + 1)
+    };
+    assert!(step(at_stand(1_000), coming, true, &t).1.ended.is_none());
+}
+
+#[test]
+pub(crate) fn a_mate_beside_the_trap_looking_at_it_and_standing_is_a_defuse_in_hand() {
+    let t = defusing();
+    let trap_at = Vec3::new(0.0, 0.0, 6.0);
+    let beside = Vec3::new(0.0, 0.0, 5.2);
+    let looks = facing(beside, trap_at);
+    let mate = mate_at(7, beside, looks);
+    assert!(mate_beside(&[&mate], trap_at, &t));
+    let away = mate_at(7, beside, looks + 2.0);
+    assert!(!mate_beside(&[&away], trap_at, &t), "looking elsewhere");
+    let far = mate_at(
+        7,
+        Vec3::new(0.0, 0.0, 2.0),
+        facing(Vec3::new(0.0, 0.0, 2.0), trap_at),
+    );
+    assert!(!mate_beside(&[&far], trap_at, &t), "not beside it");
+    let mut running = mate_at(7, beside, looks);
+    running.velocity = [3.0, 0.0];
+    assert!(!mate_beside(&[&running], trap_at, &t), "passing by");
+}
+
+/// A trap on a noticing bot's route, the shot off, a sure roll: the bot walks
+/// up to a stand beside the trap (never on it), crouches and holds USE for
+/// the defuse time, then, the stand-in not defusing, gives up and walks on
+/// (over the trap: the shot and the pass are off); with the roll at 0 it does
+/// nothing of the kind.
+#[test]
+pub(crate) fn a_bot_that_decides_to_defuse_walks_up_crouches_and_holds_use() {
+    use super::traps::run_on;
+    let mut on = noticing();
+    on.traps.react.defuse = true;
+    on.traps.react.defuse_p = 1.0;
+    let (sent, bots) = run_on(None, on.clone(), 40, on_the_route(5.0));
+    let c = bots.react_counts();
+    assert_eq!(c.defuse_started, 1, "{c:?}");
+    assert_eq!(c.defuse_gave_up, 1, "{c:?}");
+    // Inputs are sent when the keys change: the hold is from the first input
+    // with USE to the first without it.
+    let first = sent
+        .iter()
+        .position(|s| s.1 & key::USE != 0)
+        .expect("a USE press");
+    let released = sent[first..]
+        .iter()
+        .find(|s| s.1 & key::USE == 0)
+        .expect("USE let go");
+    let held_ms = released.0 - sent[first].0;
+    assert!(
+        (4_900..=7_000).contains(&held_ms),
+        "USE held {held_ms} ms (the 5 s, the settle and the slack)"
+    );
+    assert!(sent[first].1 & key::CROUCH != 0, "crouched at the press");
+
+    on.traps.react.defuse_p = 0.0;
+    let (sent, bots) = run_on(None, on, 40, on_the_route(5.0));
+    assert_eq!(bots.react_counts().defuse_started, 0);
+    assert!(sent.iter().all(|s| s.1 & key::USE == 0));
 }

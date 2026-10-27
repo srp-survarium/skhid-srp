@@ -81,12 +81,17 @@ features! {
 features! {
     /// The match's states, by feature.
     pub(super) struct MatchFeatures {
+        /// The artefact places of the map and how well the cores' artefacts are known (`artefact_know`;
+        /// `tuning.hazard.artefact_know`, built with the tactics, none while it is off).
+        artefacts: Option<artefact_know::ArtefactKnow>,
         /// Kit choices made since they were last taken (`Bots::take_kit_choices`): the place and the kit's index.
         kit_choices: Vec<(Place, u8)>,
         /// How the teams' own traps went off (`trap_know`).
         own_traps: trap_know::OwnTrapCounts,
         /// This poll's route searches (`search`).
         searching: search::Searching,
+        /// The armed traps the last world showed and the snaps given to the ears (`trap_know`).
+        snaps: trap_know::Snaps,
         /// Every place's weapon 1 kind, where known (play 11).
         weapons: Vec<Option<reflex::WeaponKind>>,
     }

@@ -598,17 +598,24 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
     if bot.features.traps.field.is_empty() {
         return;
     }
-    let feet = due.me.feet;
-    if !bot
-        .features.traps.field
+    let field = bot.features.traps.field.clone();
+    if route_hits(bot, &field, due.me.feet) {
+        bot.end_route(RouteEnd::TrapAhead, due.now);
+    }
+}
+
+/// Whether the route of the bot runs over a disc of `field` within
+/// [`KEEP_OFF_M`] ahead of `feet`.
+pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
+    if !field
         .discs()
         .iter()
         .any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
     {
-        return;
+        return false;
     }
     let Some((route, _)) = bot.route.as_ref() else {
-        return;
+        return false;
     };
     // A copy: the motor's own progress along the route is not touched.
     let mut route = route.clone();
@@ -616,9 +623,18 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
     let points: Vec<Vec3> = (0..=KEEP_OFF_M as usize)
         .map(|k| route.point_at((s + k as f32).min(route.length())))
         .collect();
-    if bot.features.traps.field.hits(&points) {
-        bot.end_route(RouteEnd::TrapAhead, due.now);
+    field.hits(&points)
+}
+
+/// `filter` with the floors of the traps the bot noticed kept out as a
+/// preference (soft): a way round them where that is not much longer, else
+/// over them. Not the floor the body stands on (`start`).
+pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> RouteFilter {
+    if bot.features.traps.react.field().is_empty() {
+        return filter;
     }
+    let field = bot.features.traps.react.field().clone();
+    filter.avoiding_floors(move |node| Some(node) == start || field.open(node))
 }
 
 /// The hard part of a search's filter: the landings it gave up shut, and the
@@ -785,6 +801,24 @@ pub(super) fn drive(
 pub(super) struct TrapDrive {
     pub look: Option<Vec3>,
     pub key: u32,
+}
+
+/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
+/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
+/// (`trap_know.rs`, shared at each commander tick).
+#[derive(Default)]
+pub struct BotState {
+    pub habit: Habit,
+    pub placed: Option<(mapdata::Vec3, u32)>,
+    pub react: super::trap_react::React,
+    pub field: std::sync::Arc<super::trap_know::TrapField>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.habit.new_life();
+        self.react.new_life();
+    }
 }
 
 #[cfg(test)]
@@ -1102,23 +1136,5 @@ mod tests {
         let mut bad = crate::v026g::bots::tuning::Tuning::default();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
-    }
-}
-
-/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
-/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
-/// (`trap_know.rs`, shared at each commander tick).
-#[derive(Default)]
-pub struct BotState {
-    pub habit: Habit,
-    pub placed: Option<(mapdata::Vec3, u32)>,
-    pub react: super::trap_react::React,
-    pub field: std::sync::Arc<super::trap_know::TrapField>,
-}
-
-impl super::features::Feature for BotState {
-    fn new_life(&mut self, _life: &super::features::Life) {
-        self.habit.new_life();
-        self.react.new_life();
     }
 }

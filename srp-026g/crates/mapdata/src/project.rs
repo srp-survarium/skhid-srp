@@ -275,6 +275,34 @@ pub struct AnomalyArtefacts {
     pub containers: u32,
 }
 
+/// What an anomaly core names of its artefacts: the containers a spawn puts one in, with the
+/// holding time and the cooldown their objects give, and the pool the spawn draws from. Kept
+/// apart from [`Anomaly`] (format version 3; a version 2 file has none): `core` is that
+/// anomaly's `name`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtefactCore {
+    /// The anomaly core's `full_name`.
+    pub core: String,
+    /// `artefacts`: `(dict_id, count)` in config order. `dict_id` is the item's id in the game's
+    /// dictionary (54 lifebone, 74 spring, 76 onyx in 0.26g).
+    pub pool: Vec<(u32, u32)>,
+    /// `artefact_containers`, in config order.
+    pub containers: Vec<ArtefactContainer>,
+}
+
+/// An artefact container a core names: the zone of the same name (`ZoneKind::ArtefactContainer`)
+/// is its place.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtefactContainer {
+    /// The container object's `full_name`.
+    pub name: String,
+    /// `artefacts_search_time_sec`: how long a player holds USE to take the artefact (6 in every
+    /// project but Vostok's electro corridor, 5, and London's, 2).
+    pub search_s: f32,
+    /// `artefacts_cooldown_time_sec`: how long the container is shut after a take (80).
+    pub cooldown_s: f32,
+}
+
 /// One state of an anomaly core.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AnomalyState {
@@ -444,6 +472,9 @@ pub struct MapData {
     pub stations: Vec<Vec3>,
     pub zones: Vec<Zone>,
     pub anomalies: Vec<Anomaly>,
+    /// What the anomaly cores name of their artefacts, for the cores that name any (none in a
+    /// version 2 file).
+    pub artefact_cores: Vec<ArtefactCore>,
     /// Each collision library a placement uses, once, in its own space.
     pub libraries: Vec<Library>,
     pub placements: Vec<Placement>,
@@ -561,6 +592,11 @@ impl MapData {
                 map.stations.push(point_at(station, "position"));
             }
         }
+        let container_objects: HashMap<&str, &ConfigValue> = children(root, "client_objects")
+            .into_iter()
+            .filter(|object| str_or(object, "game_object_type") == "artefact_container")
+            .map(|object| (str_or(object, "full_name"), object))
+            .collect();
         for object in children(root, "client_objects") {
             let kind = str_or(object, "game_object_type");
             if let Some(kind) = ZoneKind::from_game_object_type(kind) {
@@ -575,6 +611,9 @@ impl MapData {
                 });
             } else if kind == "generic_anomaly_core" {
                 map.anomalies.push(anomaly_of(object));
+                if let Some(core) = artefact_core_of(object, &container_objects) {
+                    map.artefact_cores.push(core);
+                }
             }
         }
         Ok(map)
@@ -782,6 +821,41 @@ fn damage_of(object: &ConfigValue) -> Damage {
     }
 }
 
+/// The containers and the pool a core names, if it names any of either. A container the core
+/// names that no `artefact_container` object has keeps its name with no times (0).
+fn artefact_core_of(
+    object: &ConfigValue,
+    container_objects: &HashMap<&str, &ConfigValue>,
+) -> Option<ArtefactCore> {
+    let containers: Vec<ArtefactContainer> = children(object, "artefact_containers")
+        .into_iter()
+        .filter_map(|name| name.as_str())
+        .map(|name| {
+            let times = container_objects.get(name);
+            let time = |key: &str| times.map_or(0.0, |object| f32_or(object, key, 0.0));
+            ArtefactContainer {
+                name: name.to_owned(),
+                search_s: time("artefacts_search_time_sec"),
+                cooldown_s: time("artefacts_cooldown_time_sec"),
+            }
+        })
+        .collect();
+    let pool: Vec<(u32, u32)> = children(object, "artefacts")
+        .into_iter()
+        .map(|artefact| {
+            (
+                u32_or_0(artefact, "dict_id"),
+                u32_or_0(artefact, "count"),
+            )
+        })
+        .collect();
+    (!containers.is_empty() || !pool.is_empty()).then(|| ArtefactCore {
+        core: str_or(object, "full_name").to_owned(),
+        pool,
+        containers,
+    })
+}
+
 fn anomaly_of(object: &ConfigValue) -> Anomaly {
     let mut zones: Vec<String> = Vec::new();
     let states: Vec<AnomalyState> = children(object, "states")
@@ -927,6 +1001,50 @@ mod tests {
         assert_eq!(container.use_point(), Vec3::new(4.0, 0.0, 5.0));
         container.use_shapes.clear();
         assert_eq!(container.use_point(), container.position);
+    }
+
+    /// A core names its containers (with the times their objects give) and its pool; a core that
+    /// names neither has no entry, and a container no object has keeps its name with no times.
+    #[test]
+    fn a_core_names_its_containers_with_their_times_and_its_pool() {
+        let json = serde_json::json!({
+            "levelmap_min": [-10.0, 0.0, -10.0],
+            "levelmap_max": [10.0, 1.0, 10.0],
+            "collision_objects": [],
+            "server_objects": {},
+            "client_objects": [
+                { "game_object_type": "artefact_container", "full_name": "af/c1", "position": [0.0, 0.0, 0.0],
+                  "artefacts_search_time_sec": 6, "artefacts_cooldown_time_sec": 80, "collision_geometries": [] },
+                { "game_object_type": "generic_anomaly_core", "full_name": "core", "position": [0.0, 0.0, 0.0],
+                  "artefact_containers": ["af/c1", "af/missing"],
+                  "artefacts": [ { "dict_id": 76, "count": 5 }, { "dict_id": 74, "count": 2 } ],
+                  "states": [] },
+                { "game_object_type": "generic_anomaly_core", "full_name": "bare", "position": [1.0, 0.0, 0.0], "states": [] },
+            ],
+        });
+        let config = binary_config_parser::BinaryConfig::parse_json(&json);
+        let root = ConfigValue::parse(config.as_bytes()).unwrap();
+        let map = MapData::from_config("test/day_4", &root).unwrap();
+        assert_eq!(map.anomalies.len(), 2);
+        assert_eq!(
+            map.artefact_cores,
+            vec![ArtefactCore {
+                core: "core".into(),
+                pool: vec![(76, 5), (74, 2)],
+                containers: vec![
+                    ArtefactContainer {
+                        name: "af/c1".into(),
+                        search_s: 6.0,
+                        cooldown_s: 80.0,
+                    },
+                    ArtefactContainer {
+                        name: "af/missing".into(),
+                        search_s: 0.0,
+                        cooldown_s: 0.0,
+                    },
+                ],
+            }]
+        );
     }
 
     #[test]

@@ -29,9 +29,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use mapdata::{Damage, NodeId, Vec3, World, ZoneKind};
+use mapdata::{Damage, NodeId, Shape, Vec3, WalkGrid, World, ZoneKind};
 
 use super::anomalies::{Anomalies, Control, Schedule, SyncReport};
+pub use super::live_zones::ZoneSet;
+use super::live_zones::{FieldBoard, WorldField};
 
 /// A switching zone counts as on this long before it switches on and
 /// after it switches off, ms: the client's off-grid ticks (≤ 50 ms) and a
@@ -142,6 +144,36 @@ impl Hazard {
     }
 }
 
+/// The feet heights a standing body fills (the top, and the heights from the floor up to it, ≤ 0.25 m apart): what
+/// [`near_floor`] tests a floor at.
+pub(super) fn standing_heights(grid: &WalkGrid) -> (f32, Vec<f32>) {
+    let top = grid.body().stand_height.max(0.1);
+    let steps = ((top - 0.05) / 0.25).ceil().max(1.0) as usize;
+    let heights = (0..=steps)
+        .map(|i| 0.05 + (top - 0.05) * i as f32 / steps as f32)
+        .collect();
+    (top, heights)
+}
+
+/// Whether a standing body on the floor at `feet` comes within `margin` of `shape` (whose bounds are `bounds`): the
+/// test that marks a floor, for the baked zones ([`HazardMarks::build`]) and the live fields alike.
+pub(super) fn near_floor(
+    shape: &Shape,
+    bounds: (Vec3, Vec3),
+    feet: Vec3,
+    top: f32,
+    heights: &[f32],
+    margin: f32,
+) -> bool {
+    let (lo, hi) = bounds;
+    if feet.y + top < lo.y - margin || feet.y + 0.05 > hi.y + margin {
+        return false;
+    }
+    heights
+        .iter()
+        .any(|&up| shape.distance(feet + Vec3::new(0.0, up, 0.0)) <= margin)
+}
+
 /// The floors the damage zones mark, for one margin: the same for every
 /// match on the map, so matches share them ([`Hazards`] clones hold one
 /// `Arc`).
@@ -160,12 +192,7 @@ impl HazardMarks {
     pub fn build(world: &World, zones: &[Hazard], margin: f32) -> Self {
         let map = &world.map;
         let grid = &world.grid;
-        // Heights over the feet that a standing body fills, ≤ 0.25 m apart.
-        let top = grid.body().stand_height.max(0.1);
-        let steps = ((top - 0.05) / 0.25).ceil().max(1.0) as usize;
-        let heights: Vec<f32> = (0..=steps)
-            .map(|i| 0.05 + (top - 0.05) * i as f32 / steps as f32)
-            .collect();
+        let (top, heights) = standing_heights(grid);
         let mut floor_set = vec![0u16; grid.len()];
         let mut sets: Vec<Vec<u16>> = Vec::new();
         let mut known: HashMap<Vec<u16>, u16> = HashMap::new();
@@ -176,17 +203,11 @@ impl HazardMarks {
                 let area = [lo.x - margin, lo.z - margin, hi.x + margin, hi.z + margin];
                 for node in grid.floors_in(area) {
                     let feet = grid.position(node);
-                    if feet.y + top < lo.y - margin || feet.y + 0.05 > hi.y + margin {
-                        continue;
-                    }
                     let current = floor_set[node as usize];
                     if current > 0 && sets[usize::from(current) - 1].contains(&h) {
                         continue;
                     }
-                    let near = heights
-                        .iter()
-                        .any(|&up| shape.distance(feet + Vec3::new(0.0, up, 0.0)) <= margin);
-                    if !near {
+                    if !near_floor(shape, (lo, hi), feet, top, &heights, margin) {
                         continue;
                     }
                     let mut set = match current {
@@ -281,6 +302,9 @@ pub struct Hazards {
     anomalies: Option<Anomalies>,
     /// The prediction the activities were made from.
     seen: u64,
+    /// The fields of this match's worlds (`Tuning::live_zones`), next to the baked zones: empty unless the game
+    /// feeds it. Floors only: the regions, the fixed zones and the crossings read the baked zones alone.
+    pub live: FieldBoard,
 }
 
 impl Hazards {
@@ -299,6 +323,10 @@ impl Hazards {
         let mut zones = Vec::new();
         for (index, zone) in map.zones.iter().enumerate() {
             if zone.kind != ZoneKind::Damage || zone.damage.as_ref().is_some_and(|d| !d.harmful()) {
+                continue;
+            }
+            // The zones of a timed core are the board's (`field_source`), not baked.
+            if super::field_source::live_only(map, &zone.name) {
                 continue;
             }
             let anomaly = map
@@ -329,6 +357,7 @@ impl Hazards {
             pass_ms: PASS_MS,
             anomalies: None,
             seen: 0,
+            live: FieldBoard::default(),
         }
     }
 
@@ -352,10 +381,11 @@ impl Hazards {
         self.allowed_for(node, time, self.pass_ms)
     }
 
-    /// Whether every zone at `node` is off from `time` for `ms`.
+    /// Whether every zone at `node`, baked or live, is off from `time` for `ms`.
     pub fn allowed_for(&self, node: NodeId, time: u32, ms: u32) -> bool {
         self.zones_at(node)
             .all(|zone| zone.activity.off_for(time, ms))
+            && self.live.allowed_for(node, time, ms)
     }
 
     /// [`Self::allowed`] for a body `d_m` metres off `node` (in a line):
@@ -369,23 +399,25 @@ impl Hazards {
 
     /// Whether a zone at `node` is on at `time` (no margin of time).
     pub fn on_at(&self, node: NodeId, time: u32) -> bool {
-        self.zones_at(node).any(|zone| zone.activity.active(time))
+        self.zones_at(node).any(|zone| zone.activity.active(time)) || self.live.on_at(node, time)
     }
 
     /// The zones' hit a second at `node` while they are on, summed
     /// ([`Hazard::hit_per_s`]); 0 on a floor no zone marks.
     pub fn hit_per_s(&self, node: NodeId) -> f32 {
-        self.zones_at(node).map(Hazard::hit_per_s).sum()
+        self.zones_at(node).map(Hazard::hit_per_s).sum::<f32>() + self.live.hit_per_s(node)
     }
 
-    /// The set of zones marking `node` (0: none); floors of one set are
-    /// shut and open together.
-    pub fn set_of(&self, node: NodeId) -> u16 {
-        self.marks
+    /// The set of zones marking `node`, baked and live (none: no zone);
+    /// floors of one set are shut and open together.
+    pub fn set_of(&self, node: NodeId) -> ZoneSet {
+        let baked = self
+            .marks
             .floor_set
             .get(node as usize)
             .copied()
-            .unwrap_or(0)
+            .unwrap_or(0);
+        ZoneSet::new(baked, self.live.set_of(node))
     }
 
     /// Whether a zone that never switches off marks `node`
@@ -399,6 +431,10 @@ impl Hazards {
     /// ([`Hazard::switches`]): a floor shut all match and by nothing else, which
     /// a crossing may walk (`crossing.rs`).
     pub fn only_fixed_at(&self, node: NodeId) -> bool {
+        // A live field is never crossable: its floors are shut by more than a zone that stays on.
+        if self.live.set_of(node) != 0 {
+            return false;
+        }
         let mut any = false;
         for zone in self.zones_at(node) {
             if zone.switches() {
@@ -415,18 +451,25 @@ impl Hazards {
         self.zones.iter().map(|zone| !zone.switches()).collect()
     }
 
-    /// Whether no zone marks `node` at all (a place to stay).
+    /// Whether no zone, baked or live, marks `node` at all (a place to stay).
     pub fn hazard_free(&self, node: NodeId) -> bool {
-        self.zone_of(node).is_none()
+        self.zone_of(node).is_none() && self.live.set_of(node) == 0
     }
 
-    /// When the zones at `node` next switch, the soonest (match ms): for a
-    /// bot waiting to cross.
+    /// Whether a zone, baked or live, marks `node`: [`Self::zone_of`] is the baked zone alone (the regions' cut).
+    pub fn marked_at(&self, node: NodeId) -> bool {
+        self.zone_of(node).is_some() || self.live.set_of(node) != 0
+    }
+
+    /// When the zones at `node`, baked and live, next switch, the soonest
+    /// (match ms): for a bot waiting to cross.
     pub fn next_switch(&self, node: NodeId) -> Option<u32> {
-        let anomalies = self.anomalies.as_ref()?;
-        self.zones_at(node)
-            .filter_map(|zone| anomalies.next_switch(zone.zone))
-            .min()
+        let baked = self.anomalies.as_ref().and_then(|anomalies| {
+            self.zones_at(node)
+                .filter_map(|zone| anomalies.next_switch(zone.zone))
+                .min()
+        });
+        [baked, self.live.next_switch(node)].into_iter().flatten().min()
     }
 
     /// Floors marked, for the logs.
@@ -469,7 +512,14 @@ impl Hazards {
     /// search left under way while it changed is not gone on with (the
     /// floors it lets through are no longer those it started with).
     pub fn version(&self) -> u64 {
-        self.seen
+        self.seen + self.live.version()
+    }
+
+    /// The fields of a world (match time `time`) are the live zones from now on: new ones mark their floors, those
+    /// not listed go at once. Returns whether the board changed ([`Self::version`] then changed too).
+    pub fn set_fields(&mut self, fields: &[WorldField], grid: &WalkGrid, time: u32) -> bool {
+        let margin = self.margin;
+        self.live.update(fields, grid, margin, time)
     }
 
     /// The cores run to the match clock (`match_ms`); the zones' activity

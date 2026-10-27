@@ -1,3 +1,4 @@
+use super::hazards::ZoneSet;
 use super::*;
 
 /// The own eye is led at most this far past its last decided tick
@@ -71,6 +72,12 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
             &hard,
         )
     }
+}
+
+/// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
+fn stranded_leg(route: Route, feet: Vec3) -> Route {
+    path::stranded::count();
+    route.from_stand(feet)
 }
 
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
@@ -356,8 +363,17 @@ pub(super) fn drive_tick(
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
-    if react.is_some() {
-        intent.go = Go::Stay;
+    if let Some(react) = react {
+        intent.go = match react.go {
+            Some(at) => {
+                intent.pace = Pace::Walk;
+                intent.straight = false;
+                intent.objective = false;
+                Go::To { at, within_m: 0.3 }
+            }
+            None => Go::Stay,
+        };
+        intent.crouch |= react.crouch;
     }
     #[cfg(test)]
     {
@@ -412,6 +428,14 @@ pub(super) fn drive_tick(
             intent.straight = false;
         }
     }
+    // A rest point on a lip is moved inward (`ThinkTuning::rest_off_lip`): the walk ends with the centre on the floor.
+    if tuning.think.rest_off_lip
+        && let Go::To { at, within_m } = intent.go
+        && let Some(shifted) = path::off_lip(&tactics.world.grid, at)
+    {
+        path::rests::count();
+        intent.go = Go::To { at: shifted, within_m };
+    }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
@@ -440,7 +464,7 @@ pub(super) fn drive_tick(
         .world
         .grid
         .locate(me.feet, 1.5)
-        .map_or(0, |node| tactics.hazards.set_of(node));
+        .map_or(ZoneSet::default(), |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
     let zone_out = if Gates::wants_zone_way_out(&intent, goal) {
         zone_way_out(bot, tactics, me.feet, time, intent.objective)
@@ -646,6 +670,8 @@ pub(super) fn drive_tick(
                         _ => why::PLAIN,
                     };
                 }
+                let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
+                let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                 bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
@@ -693,12 +719,21 @@ pub(super) fn drive_tick(
                 if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                     hard = hard.with_max_jump_rise(rise);
                 }
-                let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
+                let filter = traps::soften(
+                    bot,
+                    hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
+                    grid.locate(me.feet, 1.5),
+                );
                 let avoiding = filter.has_soft();
-                let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
+                // On no floor (the top of an object, 2.5 m or more above the floors): plans from the floor it
+                // drops to (`ThinkTuning::stranded_start`), its first leg the drop off the edge.
+                let on_floor = grid.locate(me.feet, 1.5);
+                let stranded = tuning.think.stranded_start && on_floor.is_none();
+                let start_floor = on_floor.or_else(|| stranded.then(|| path::stranded_floor(grid, me.feet)).flatten());
+                let ends = start_floor.zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
-                // as near as it gets, nothing to search.
-                let there = ends.is_some_and(|(from, to)| from == to);
+                // as near as it gets, nothing to search. A stranded body is not on it yet.
+                let there = !stranded && ends.is_some_and(|(from, to)| from == to);
                 // On a floor it may not walk on (in a fire it stepped
                 // into, a zone about to come on): out first, the way that
                 // leads on to the goal when it is out in time
@@ -723,7 +758,7 @@ pub(super) fn drive_tick(
                     if let Some((from, _)) = ends
                         && route.is_some()
                         && zone_out.is_none()
-                        && tactics.hazards.set_of(from) != 0
+                        && !tactics.hazards.set_of(from).is_none()
                         && bot
                             .stuck
                             .zone_escape(time, tactics.hazards.set_of(from), at)
@@ -987,6 +1022,7 @@ pub(super) fn drive_tick(
                             why::PLAIN
                         };
                     }
+                    let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                     bot.set_route(route.map(|route| (route, at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
@@ -1193,6 +1229,8 @@ pub(super) fn drive_tick(
         JumpBy::Route => "route",
         JumpBy::Hop => "hop",
     });
+    // [trap_react] A noticed trap on the route, a little ahead: the same jump.
+    let by = by.or_else(|| trap_react::jump_due(bot, me, time, &tuning.traps.react).then_some("trap"));
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }

@@ -731,6 +731,7 @@ mod tests {
                 place,
                 candidates: intercepts(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         let out = assign(asking, s.view.clock);
@@ -782,6 +783,7 @@ mod tests {
                 place: 0,
                 candidates: all,
                 current: Some(&current),
+                committed: false,
             }],
             s.view.clock,
         );
