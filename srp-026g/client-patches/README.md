@@ -3600,3 +3600,15 @@ site from the game's code on the game's own static baker:
   "previous weapon" bit from a player who holds something other than its two
   weapons can crash every client of a match
   (`../docs/OPEN-ISSUES.md`, 26-24).
+
+## Medical consumable countdown (patch 77)
+
+The Rust `consumable_activity` hook publishes the medkit class's current use-delay
+and activity state to the HUD quick slot. Anesthetic, medkit and other medical
+consumables display a remaining-time arc and ceiling seconds during the actual
+native effect, including after the last item in a stack is spent. The initial
+use delay has neither an active ring nor a countdown. End, cancellation, death
+and HUD cleanup clear the presentation; artefacts retain their existing display.
+This is presentation only. See `docs/notes/client_patch.md` and
+`check_consumable_activity_026g.py`; the Flash lifecycle check is
+`scripts/consumable-activity/check.sh`.

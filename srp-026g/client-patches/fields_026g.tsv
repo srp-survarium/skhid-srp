@@ -81,3 +81,13 @@ survarium::replay_options_frame	reader	0x14	u32	its local reader {begin, cursor,
 survarium::update_player_icons_frame	ui	0x4	u32	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
 scaleform::avm_text_field	as3_collectible	-0x20	u32	collectible AS3 object pointer; low bit is its GC tag
 scaleform::avm_text_field	as3_raw	-0x1C	u32	raw AS3 object pointer, preferred when nonzero
+survarium::image	medkit_vtable	0xA1C79C	u32	medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
+survarium::inventory_item	vtable	0x0	u32	primary interface; medkit type checked before reading its activity fields
+survarium::medkit	duration	0x29C	u32	configured activity milliseconds, modified by drug_activity_time (0x33D3EF)
+survarium::medkit	skill_weight	0x2A0	f32	drug_activity_time modifier weight (0x33D3CD)
+survarium::medkit	remaining	0x2A8	u32	activity milliseconds remaining, after the use delay (0x33D790)
+survarium::medkit	delay_remaining	0x2AC	u32	use delay milliseconds remaining (0x33D790)
+survarium::medkit	active	0x2B0	u8	set_active's activity flag; includes the initial use delay (0x33D39F)
+survarium::player	kit	0x115	u8	current kit, used by medkit::set_active at 0x33D3D5
+survarium::player_profile	kit_modifiers	0xF4	u8	first kit's modifiers; kits are 704h bytes apart (0x33D3E2..0x33D3E8)
+survarium::profile_kit	end	0x704	u8	stride of profile kits (0x33D3E2)

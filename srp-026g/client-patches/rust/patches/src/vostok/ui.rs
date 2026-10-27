@@ -99,7 +99,7 @@ impl<'t> GameWorldUi<'t> {
 
 /// # Safety
 /// `holder` is a movie holder or 0, alive on the hook's thread.
-unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
+pub(super) unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
     let holder = NonNull::new(holder as usize as *mut c_void)?;
     // SAFETY: a holder's view is a movie view or 0, and a view's movie a GFx movie or 0.
     let view = NonNull::new(unsafe { *raw::movie_holder::view(holder.as_ptr()) } as usize as *mut c_void)?;
@@ -143,5 +143,15 @@ impl Movie<'_> {
                                      (&raw const argument).cast(), 1)
         };
         taken & 0xFF != 0
+    }
+}
+
+impl Movie<'_> {
+    /// Plain unsigned GFx values; the caller owns this synchronous argument array.
+    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32; 4]) {
+        let arguments = values.map(|value| GfxValue { object: 0, kind: 4, value, rest: [0; 3] });
+        // SAFETY: live movie, NUL-terminated method and four POD GFx UInt values.
+        unsafe { raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(),
+            core::ptr::null_mut(), arguments.as_ptr().cast(), 4); }
     }
 }

@@ -68,3 +68,6 @@ pub use keyboard::TabTest;
 pub use options::OptionsRead;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
+
+mod consumable;
+pub use consumable::QuickSlotActivity;

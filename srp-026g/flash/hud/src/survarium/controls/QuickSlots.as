@@ -23,6 +23,43 @@ package survarium.controls
       private var _inventoryItems:Array;
       
       private var _slots_items:Array = new Array();
+
+      // This owner combines native inventory descriptions with native effect
+      // snapshots. Neither callback can erase the other's presentation state.
+      private var _nativeSlots:Array = [];
+      private var _activities:Array = [];
+
+      public function setActivity(slot:uint, phase:uint, remaining:uint, duration:uint) : Boolean
+      {
+         if(slot >= 6) return false;
+         var seconds:uint = phase == 2 ? Math.ceil(remaining / 1000) : 0;
+         var fraction:uint = phase == 2 && duration > 0 ? Math.ceil(100 * remaining / duration) : 0;
+         var old:Object = _activities[slot];
+         if(old && old.phase == phase && old.seconds == seconds && old.fraction == fraction) return false;
+         _activities[slot] = {phase:phase, seconds:seconds, fraction:fraction};
+         return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
+      }
+
+      private function presentation(nativeSlot:Object) : Object
+      {
+         var result:Object = {};
+         for(var key:String in nativeSlot) result[key] = nativeSlot[key];
+         var activity:Object = _activities[uint(nativeSlot.slot_id)];
+         // An exhausted stack still owns its ongoing native effect. Keep its
+         // icon through the delay, but show no ring or time before activation.
+         if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
+         {
+            result.enabled = true;
+            result.activitySeconds = activity.seconds;
+            result.activityFraction = activity.fraction;
+         }
+         else
+         {
+            result.activitySeconds = 0;
+            result.activityFraction = 0;
+         }
+         return result;
+      }
       
       protected var _grayBitmaps:Dictionary = new Dictionary();
       
@@ -52,6 +89,12 @@ package survarium.controls
       
       public function fillSlot(_p:Object) : Boolean
       {
+         _nativeSlots[uint(_p.slot_id)] = _p;
+         return renderSlot(presentation(_p));
+      }
+
+      private function renderSlot(_p:Object) : Boolean
+      {
          var convertedObject:Object;
          trace("fill_slot::",_p.cooldown,_p.name,_p.icon,_p.condition_or_stack,_p.hotkey,_p.count,"slot::",_p.slot_id,_p.timer,_p.enabled,_p.is_artefact);
          var len:uint = this._slots_items.length;
@@ -70,7 +113,7 @@ package survarium.controls
                else
                {
                   origin = this._slots_items[i];
-                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey)
+                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activitySeconds == origin.activitySeconds && _p.activityFraction == origin.activityFraction)
                   {
                      return false;
                   }
@@ -115,12 +158,18 @@ package survarium.controls
       {
          trace("QS::clean");
          this._slots_items.length = 0;
+         _nativeSlots = [];
+         _activities = [];
+         this.slots_list.dataProvider = new DataProvider([]);
+         this.slots_list.width = 10;
          this.slots_list.visible = false;
       }
       
       public function fillSlots(p:Array) : void
       {
          trace("QS::fillSlots");
+         _nativeSlots = [];
+         _activities = [];
          this._slots_items.length = 0;
          var convertedItems:Array = new Array();
          for(var i:uint = 0; i < p.length; i++)
@@ -133,6 +182,7 @@ package survarium.controls
             var icon:Icon;
             var grayIcon:Icon;
             currentItemDescr = p[i];
+            _nativeSlots[uint(currentItemDescr.slot_id)] = currentItemDescr;
             if(currentItemDescr.icon_row == undefined)
             {
                currentItemDescr.icon_row = currentItemDescr.icon % this.otherRows + 1;
@@ -203,6 +253,8 @@ package survarium.controls
             enabled:value.enabled,
             hotkey:value.hotkey,
             timer:value.timer,
+            activitySeconds:value.activitySeconds,
+            activityFraction:value.activityFraction,
             is_artefact:value.is_artefact
          };
       }

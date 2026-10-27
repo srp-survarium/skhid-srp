@@ -240,6 +240,45 @@ blackout_on_name_visibility_replay:
     db 0x0f, 0xb6, 0x8e, 0x14, 0x01, 0x00, 0x00
     jmp 0x1f2f17
 
+; 0x23b7a0 update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer: lohook -> consumable_activity_on_update
+global consumable_activity_on_update
+extern hook_consumable_activity_on_update
+consumable_activity_on_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_consumable_activity_on_update
+    mov edx, consumable_activity_on_update_replay
+    cmp eax, 0
+    je consumable_activity_on_update_go
+    mov edx, 0x23b7a7
+    cmp eax, 1
+    je consumable_activity_on_update_go
+    ud2
+consumable_activity_on_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+consumable_activity_on_update_replay:
+    db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x23b7a7
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

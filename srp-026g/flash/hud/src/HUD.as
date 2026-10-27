@@ -1668,6 +1668,15 @@ package
       {
       }
       
+      public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
+      {
+         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         {
+            _reflow = true;
+            addEventListener(Event.RENDER,this.onRender);
+         }
+      }
+
       public function fill_slot(_p:Object) : void
       {
          if(this.quick_slots.fillSlot(_p) && !this._reflow)

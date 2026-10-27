@@ -351,6 +351,15 @@ pub mod player {
     pub unsafe fn game_world(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0xf474).cast() }
     }
+
+    /// +0x115 (u8): current kit, used by medkit::set_active at 0x33D3D5
+    ///
+    /// # Safety
+    /// `this` is a survarium::player.
+    #[inline(always)]
+    pub unsafe fn kit(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x115).cast() }
+    }
 }
 
 /// survarium::player_profile's fields (fields_026g.tsv).
@@ -365,6 +374,15 @@ pub mod player_profile {
     #[inline(always)]
     pub unsafe fn team(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x45ec).cast() }
+    }
+
+    /// +0xf4 (u8): first kit's modifiers; kits are 704h bytes apart (0x33D3E2..0x33D3E8)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_profile.
+    #[inline(always)]
+    pub unsafe fn kit_modifiers(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xf4).cast() }
     }
 }
 
@@ -881,6 +899,9 @@ pub mod image {
 
     /// 0xa042ac (u32): victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
     pub const VICTORY_ITEM_VTABLE: u32 = 0xa042ac;
+
+    /// 0xa1c79c (u32): medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
+    pub const MEDKIT_VTABLE: u32 = 0xa1c79c;
 }
 
 /// vostok::render::game::renderer's fields (fields_026g.tsv).
@@ -1060,5 +1081,86 @@ pub mod avm_text_field {
     #[inline(always)]
     pub unsafe fn as3_raw(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_sub(0x1c).cast() }
+    }
+}
+
+/// survarium::inventory_item's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod inventory_item {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): primary interface; medkit type checked before reading its activity fields
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory_item.
+    #[inline(always)]
+    pub unsafe fn vtable(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// survarium::medkit's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod medkit {
+    use core::ffi::c_void;
+
+    /// +0x29c (u32): configured activity milliseconds, modified by drug_activity_time (0x33D3EF)
+    ///
+    /// # Safety
+    /// `this` is a survarium::medkit.
+    #[inline(always)]
+    pub unsafe fn duration(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x29c).cast() }
+    }
+
+    /// +0x2a0 (f32): drug_activity_time modifier weight (0x33D3CD)
+    ///
+    /// # Safety
+    /// `this` is a survarium::medkit.
+    #[inline(always)]
+    pub unsafe fn skill_weight(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x2a0).cast() }
+    }
+
+    /// +0x2a8 (u32): activity milliseconds remaining, after the use delay (0x33D790)
+    ///
+    /// # Safety
+    /// `this` is a survarium::medkit.
+    #[inline(always)]
+    pub unsafe fn remaining(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2a8).cast() }
+    }
+
+    /// +0x2ac (u32): use delay milliseconds remaining (0x33D790)
+    ///
+    /// # Safety
+    /// `this` is a survarium::medkit.
+    #[inline(always)]
+    pub unsafe fn delay_remaining(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2ac).cast() }
+    }
+
+    /// +0x2b0 (u8): set_active's activity flag; includes the initial use delay (0x33D39F)
+    ///
+    /// # Safety
+    /// `this` is a survarium::medkit.
+    #[inline(always)]
+    pub unsafe fn active(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x2b0).cast() }
+    }
+}
+
+/// survarium::profile_kit's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod profile_kit {
+    use core::ffi::c_void;
+
+    /// +0x704 (u8): stride of profile kits (0x33D3E2)
+    ///
+    /// # Safety
+    /// `this` is a survarium::profile_kit.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x704).cast() }
     }
 }
