@@ -217,6 +217,20 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
+/// came with one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, within 1.2 m (`stuck::fix_gaps`).
+pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::fix_gaps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "fix_gaps {} fix_gap_stuck_notes {} fix_gap_off_notes {} fix_gap_checks_ended {} stuck_beside_enemy {} stuck_beside_friend {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
+            ));
+        },
+    )
+}
+
 /// Bodies locked by a hard fall and the worlds the stuck watch kept quiet for them (`stuck::fall_locks`).
 pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     Delta::of(
