@@ -48,7 +48,43 @@ use serde::Deserialize;
 struct File {
     format: u32,
     routes: Vec<Row>,
+    /// Where humans stand up high ([`Perch`]); absent in older tables.
+    #[serde(default)]
+    perches: Vec<PerchRow>,
+    #[serde(default)]
+    perch_maps: Vec<PerchMapRow>,
     // Anything else (the source's note) is not the bots' business.
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct PerchRow {
+    level: String,
+    x: f32,
+    /// The feet height.
+    y: f32,
+    z: f32,
+    /// Visits per 1000 alive player-minutes on the whole map.
+    rate: f32,
+    /// The median dwell, seconds.
+    #[serde(default)]
+    dwell: f32,
+    /// The visits behind the rate.
+    #[serde(default)]
+    n: f32,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct PerchMapRow {
+    level: String,
+    /// The map's feet-height p75, the "high" line.
+    p75: f32,
+    /// The humans' share of alive time on a perch visit, 0-1, all modes and
+    /// by mode group.
+    share: f32,
+    #[serde(default)]
+    share_batteries: Option<f32>,
+    #[serde(default)]
+    share_tdm: Option<f32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -77,6 +113,31 @@ struct Row {
 #[derive(Debug, Default)]
 pub struct RouteTable {
     rows: Vec<Row>,
+    perches: Vec<PerchRow>,
+    perch_maps: Vec<PerchMapRow>,
+}
+
+/// A place humans stand up high for a while, from the live matches of 12 or
+/// more (`bot-routes.json` `perches`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Perch {
+    /// On the floor, feet.
+    pub at: Vec3,
+    /// Visits per 1000 alive player-minutes.
+    pub rate: f32,
+    /// The median dwell, seconds.
+    pub dwell_s: f32,
+    /// The visits behind the rate.
+    pub visits: f32,
+}
+
+/// What the humans' perches add up to on a map.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PerchShare {
+    /// The map's feet-height p75.
+    pub p75: f32,
+    /// Their share of alive time on a perch visit for the mode asked.
+    pub share: f32,
 }
 
 /// One human route of a map side, its points on the walk grid.
@@ -131,7 +192,11 @@ impl RouteTable {
                 row.points.len()
             ));
         }
-        Ok(Self { rows: file.routes })
+        Ok(Self {
+            rows: file.routes,
+            perches: file.perches,
+            perch_maps: file.perch_maps,
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -140,6 +205,37 @@ impl RouteTable {
 
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
+    }
+
+    /// The perches of a map (`level` 1-8), the most visited first.
+    pub fn perches_for(&self, level: u8) -> Vec<Perch> {
+        let name = format!("level_{level:02}");
+        let mut out: Vec<Perch> = self
+            .perches
+            .iter()
+            .filter(|p| p.level == name && p.x.is_finite() && p.y.is_finite() && p.z.is_finite() && p.rate > 0.0)
+            .map(|p| Perch {
+                at: Vec3::new(p.x, p.y, p.z),
+                rate: p.rate,
+                dwell_s: p.dwell,
+                visits: p.n,
+            })
+            .collect();
+        out.sort_by(|a, b| b.rate.total_cmp(&a.rate));
+        out
+    }
+
+    /// The humans' perch share of a map (`level` 1-8) for a mode (2 and 3:
+    /// batteries; 4: deathmatch), the all-modes share when the table has
+    /// none for the group.
+    pub fn perch_share(&self, level: u8, mode: u8) -> Option<PerchShare> {
+        let name = format!("level_{level:02}");
+        let row = self.perch_maps.iter().find(|r| r.level == name)?;
+        let by_mode = if mode == 4 { row.share_tdm } else { row.share_batteries };
+        Some(PerchShare {
+            p75: row.p75,
+            share: by_mode.unwrap_or(row.share).clamp(0.0, 1.0),
+        })
     }
 
     /// The routes of a map (`level` 1-8) in a mode, each point's y the
@@ -328,6 +424,38 @@ mod tests {
             "lives": 12, "reward": 2.6, "points": [[1.0, 2.0]]}]}"#;
         let route = &RouteTable::parse(old).unwrap().for_map(3, 2)[0];
         assert_eq!((route.fight, route.battery), (2.6, 0.0));
+    }
+
+    /// Perches are optional: a table without them reads as before; with them
+    /// they are read by map, most visited first, and the share by mode group.
+    #[test]
+    fn perches_are_read_by_map_and_a_table_without_them_reads_as_before() {
+        let none = RouteTable::parse(r#"{"format": 2, "routes": []}"#).unwrap();
+        assert!(none.perches_for(1).is_empty());
+        assert_eq!(none.perch_share(1, 2), None);
+        let table = RouteTable::parse(
+            r#"{"format": 2, "routes": [], "source": "x",
+                "perches": [
+                  {"level": "level_01", "x": 1.0, "y": 26.0, "z": 2.0, "rate": 5.0, "dwell": 10.0, "n": 50},
+                  {"level": "level_01", "x": 3.0, "y": 26.5, "z": 4.0, "rate": 15.5, "dwell": 5.0, "n": 155},
+                  {"level": "level_02", "x": 9.0, "y": 20.0, "z": 9.0, "rate": 7.0, "dwell": 5.0, "n": 70}],
+                "perch_maps": [
+                  {"level": "level_01", "p75": 22.3, "share": 0.0575, "share_batteries": 0.0521,
+                   "share_tdm": 0.0651, "visits": 1462, "minutes": 6701.0},
+                  {"level": "level_02", "p75": 19.5, "share": 0.05, "visits": 10, "minutes": 100.0}]}"#,
+        )
+        .unwrap();
+        let one = table.perches_for(1);
+        assert_eq!(one.len(), 2);
+        assert_eq!(one[0].at, Vec3::new(3.0, 26.5, 4.0));
+        assert_eq!(one[0].rate, 15.5);
+        assert_eq!(table.perches_for(3).len(), 0);
+        assert_eq!(table.perch_share(1, 2).unwrap().share, 0.0521);
+        assert_eq!(table.perch_share(1, 3).unwrap().share, 0.0521);
+        assert_eq!(table.perch_share(1, 4).unwrap().share, 0.0651);
+        assert_eq!(table.perch_share(1, 4).unwrap().p75, 22.3);
+        // No mode group in the row: the all-modes share.
+        assert_eq!(table.perch_share(2, 4).unwrap().share, 0.05);
     }
 
     #[test]

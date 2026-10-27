@@ -432,14 +432,41 @@ pub const BOT_UPGRADES: [(BotTier, BotRole, u8, &[u32]); 20] = [
     (BotTier::High, BotRole::Camper, 4, &[1122]),
 ];
 
+/// What the bots wear besides [`BOT_UPGRADES`] that the bots' own numbers follow
+/// (`match-server` `bots::guns`): the weapon's and the gloves', `(tier, role,
+/// profile slot, modification ids)`, the owner's decisions of 2026-10-27.
+/// Nothing at 4-5. At 9-10 the rusher and the flanker, who lose the most time
+/// to reloads, reload 10 % faster (type 5, `2042`) and the support and the
+/// camper carry a weapon 8 % lighter (type 7, `2061`). At 13-15 the rusher and
+/// the flanker reload 12 % faster (`2043`) and wear gloves that add 10 % to
+/// the reload speed (type 26, `1142`), the support and the camper a weapon 10 %
+/// lighter (`2062`). Each is a strength that humans of the tier carry
+/// (`fact-weapon-mods.md` §3: reload level 3-4 on 63 % / 50 % of those who
+/// have the type, 17.7 % of lives at 13-15 with gloves). Slot 7 is weapon 1,
+/// slot 5 the gloves; the same switch as the armour's ([`upgrades_on`]).
+pub const BOT_WEAPON_UPGRADES: [(BotTier, BotRole, u8, &[u32]); 10] = [
+    (BotTier::Mid, BotRole::Flanker, 7, &[2042]),
+    (BotTier::Mid, BotRole::Rusher, 7, &[2042]),
+    (BotTier::Mid, BotRole::Support, 7, &[2061]),
+    (BotTier::Mid, BotRole::Camper, 7, &[2061]),
+    (BotTier::High, BotRole::Flanker, 7, &[2043]),
+    (BotTier::High, BotRole::Flanker, 5, &[1142]),
+    (BotTier::High, BotRole::Rusher, 7, &[2043]),
+    (BotTier::High, BotRole::Rusher, 5, &[1142]),
+    (BotTier::High, BotRole::Support, 7, &[2062]),
+    (BotTier::High, BotRole::Camper, 7, &[2062]),
+];
+
 /// The modifications a bot of `role` in `tier` wears on the piece in
-/// `slot` ([`BOT_UPGRADES`]) when they are `on`, else none.
+/// `slot` ([`BOT_UPGRADES`], [`BOT_WEAPON_UPGRADES`]) when they are `on`, else
+/// none.
 pub fn bot_upgrades_with(tier: BotTier, role: BotRole, slot: u8, on: bool) -> &'static [u32] {
     if !on {
         return &[];
     }
     BOT_UPGRADES
         .iter()
+        .chain(BOT_WEAPON_UPGRADES.iter())
         .find(|&&(of_tier, of_role, of_slot, _)| (of_tier, of_role, of_slot) == (tier, role, slot))
         .map_or(&[], |&(.., mods)| mods)
 }
@@ -1328,7 +1355,10 @@ pub fn bot_kit_items_in(
     let armour = worn(equipment, role, new);
     let names = || armour.iter().map(|&(_, name)| name);
     let rounds = ammo_max(arms.ammo, bot_ammo_bags(tier, names(), new));
-    let mut items = vec![kit_item(arms.weapon, 7, 1, Some(WEAPON_1_BIT))];
+    let mut items = vec![BotKitItem {
+        mods: bot_upgrades_with(tier, role, 7, upgrades),
+        ..kit_item(arms.weapon, 7, 1, Some(WEAPON_1_BIT))
+    }];
     items.extend(
         BOT_AMMO_SLOTS
             .iter()
@@ -2332,7 +2362,7 @@ mod tests {
             let tier = equipment.tier;
             let at = named(equipment, role, k);
             for item in &kit.items {
-                let wanted = if item.slot <= 6 {
+                let wanted = if item.slot <= 7 {
                     bot_upgrades_with(tier, role, item.slot, true)
                 } else {
                     &[]
@@ -2379,6 +2409,67 @@ mod tests {
                 );
                 assert_eq!(bot_of(&profile), Some((tier, role)));
             }
+        }
+    }
+
+    /// The owner's decisions of 2026-10-27: nothing at 4-5; reload speed on
+    /// the weapon of the rusher and the flanker (type 5, `2042` at 9-10,
+    /// `2043` at 13-15) and, at 13-15, gloves with reload speed (type 26,
+    /// `1142`); weight on the weapon of the support and the camper (type 7,
+    /// `2061`, `2062`). Each fits the piece it is on, in every kit.
+    #[test]
+    fn the_weapon_and_glove_upgrades_are_the_owners_set_and_fit() {
+        use super::super::modifications::Modifications;
+        let table = Modifications::shared();
+        let want = |tier: BotTier, role: BotRole, slot: u8| -> Option<(u32, u8)> {
+            let light = matches!(role, BotRole::Rusher | BotRole::Flanker);
+            match (tier, slot, light) {
+                (BotTier::Mid, 7, true) => Some((2042, 5)),
+                (BotTier::High, 7, true) => Some((2043, 5)),
+                (BotTier::High, 5, true) => Some((1142, 26)),
+                (BotTier::Mid, 7, false) => Some((2061, 7)),
+                (BotTier::High, 7, false) => Some((2062, 7)),
+                _ => None,
+            }
+        };
+        let mut rows = 0;
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                for slot in [5, 7] {
+                    let given = bot_upgrades_with(tier, role, slot, true);
+                    match want(tier, role, slot) {
+                        None => assert!(given.is_empty(), "{tier} {role} slot {slot}: {given:?}"),
+                        Some((id, kind)) => {
+                            assert_eq!(given, &[id], "{tier} {role} slot {slot}");
+                            assert_eq!(table.modification(id).unwrap().kind, kind, "{id}");
+                            rows += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(rows, BOT_WEAPON_UPGRADES.len());
+        let mut with = every_kit_in(false, true);
+        with.extend(every_kit_in(true, true));
+        for (equipment, role, k, kit) in &with {
+            for slot in [5, 7] {
+                let Some((id, _)) = want(equipment.tier, *role, slot) else {
+                    continue;
+                };
+                let at = named(*equipment, *role, *k);
+                let item = kit
+                    .items
+                    .iter()
+                    .find(|item| item.slot == slot)
+                    .unwrap_or_else(|| panic!("{at}: nothing in slot {slot}"));
+                assert_eq!(item.mods, &[id], "{at}: slot {slot}");
+                assert!(table.fits(item.dict_id, &[], id), "{at}: {id} on slot {slot}");
+            }
+        }
+        // Off: the weapon is plain, whichever kit.
+        for (equipment, role, k, kit) in &every_kit() {
+            let weapon = kit.items.iter().find(|item| item.slot == 7).unwrap();
+            assert!(weapon.mods.is_empty(), "{}", named(*equipment, *role, *k));
         }
     }
 

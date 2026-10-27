@@ -106,6 +106,20 @@ pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The holder's picks with the stand-sight rule on, those that kept spots seeing the stand, and
+/// those that fell back to the box rule (`guard_lead::stand_sight`).
+pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::guard_lead::stand_sight::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "holder_stand_picks {} holder_stand_kept {} holder_stand_fallback {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -119,6 +133,15 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::rests::counts()],
         |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
+    )
+}
+
+/// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
+/// (`rest::stops`): the owner's symptom, on and off.
+pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::rest::stops::counts().to_vec(),
+        |d, line| line.ends.push(format!("rests_on_lip {} rest_seconds_on_lip {:.1}", d[0], d[1] as f32 / 1000.0)),
     )
 }
 
@@ -178,6 +201,14 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
                 d[0], d[1], d[2]
             ));
         },
+    )
+}
+
+/// Bodies locked by a hard fall and the worlds the stuck watch kept quiet for them (`stuck::fall_locks`).
+pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::fall_locks::counts().to_vec(),
+        |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
     )
 }
 

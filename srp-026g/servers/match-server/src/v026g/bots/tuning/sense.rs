@@ -79,6 +79,14 @@ pub struct SenseTuning {
     pub step_speed: f32,
     /// Flat ranges (the default) or the game's ([`HearingRanges`]).
     pub ranges: HearingRanges,
+    /// The length of the client's use ray the bots count with, metres: the
+    /// container and zone stands, a take's reach, the belief about where a
+    /// use's ray went. 2.0 (the default) is the client's compiled value; the
+    /// client runs with 1.80 (stock `startup.cfg` sets
+    /// `usable_objects_detection_distance`, PROVEN: 0xAA2DF8 -> 0xA710D8, read
+    /// by `base_player::detect_usable_object` 0x2D84C0). The bench's stand-in
+    /// client uses the same value.
+    pub use_ray_m: f32,
     /// Shots heard at the flat range (the default) or by the weapon
     /// ([`ShotRanges`], H1c).
     pub shots: ShotRanges,
@@ -157,6 +165,7 @@ impl Default for SenseTuning {
             step_m: 8.0,
             step_speed: 1.5,
             ranges: HearingRanges::Flat,
+            use_ray_m: 2.0,
             shots: ShotRanges::Flat,
             sprint_body_mps: None,
             heard_error: 0.15,
@@ -243,6 +252,7 @@ impl Check for SenseTuning {
         )?;
         check(self.bush_notice >= 0.0 && self.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
         check(self.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
+        check(self.use_ray_m >= 0.1 && self.use_ray_m <= 5.0, "sense.use_ray_m")?;
         check(
             match self.shots {
                 ShotRanges::Flat => true,

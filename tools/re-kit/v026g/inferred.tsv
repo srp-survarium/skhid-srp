@@ -298,12 +298,8 @@ va	status	ref_021d	name
 0x00070ec0	inferred-high	0x00053799	vostok::physics::bt_animated_rigid_body::`scalar deleting destructor'
 0x00070ee0	inferred-high	0x000537fc	vostok::physics::bt_animated_rigid_body::set_transform
 0x00070f20	inferred-high	0x00053832	vostok::physics::bt_animated_rigid_body::get_transform
-0x00070f40	inferred-medium	0x00053869	vostok::physics::new_bt_element_joint
-0x00071080	inferred-medium	0x0005397a	vostok::physics::new_compound_shape_from_hit_targets_config
 0x00071310	inferred-medium	0x00053b7d	vostok::physics::destroy_animated_compound_shape
 0x00071440	inferred-medium	0x00053c46	vostok::physics::calculate_bt_animated_body_size_from_hit_targets_config
-0x000714f0	inferred-medium	0x00053cc3	vostok::physics::new_animated_rigid_body
-0x00071600	inferred-medium	0x00053db1	vostok::physics::new_animated_bt_hit_model
 0x000716c0	inferred-high	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
 0x000716d0	inferred-high	0x00053e72	vostok::physics::bt_animated_rigid_body::center_of_mass_offset
 0x00071710	inferred-medium	0x00053ea7	vostok::physics::bt_animated_rigid_body::~bt_animated_rigid_body
@@ -356,7 +352,6 @@ va	status	ref_021d	name
 0x0007a090	inferred-medium	0x00058ef7	vostok::physics::bt_collision_shape::~bt_collision_shape
 0x0007a110	inferred-medium	0x00058f64	vostok::physics::destroy_bt_shape
 0x0007a1b0	inferred-high	0x00059017	vostok::physics::destroy_shape
-0x0007a1f0	inferred-medium	0x0005904e	vostok::physics::create_bt_primitive
 0x0007a390	inferred-medium	0x000591ca	vostok::physics::create_primitive_shape
 0x0007a460	inferred-medium	0x0005927d	vostok::physics::create_compound_shape
 0x0007a6e0	inferred-medium	0x000594c4	vostok::physics::create_btBvhTriangleMeshShape
@@ -2443,8 +2438,6 @@ va	status	ref_021d	name
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
 0x00357ba0	inferred-medium	0x0021bf98	vostok::physics::destroy_ghost_object
-0x00357f80	inferred-medium		vostok::configs::apply_add_modifiers
-0x00358010	inferred-medium		vostok::configs::apply_multiply_modifiers
 0x00358d90	inferred-medium	0x00225589	vostok::configs::process_string
 0x00359ca0	inferred-medium	0x00225f59	boost::intrusive::detail::tree_algorithms<boost::intrusive::rbtree_node_traits<void *,0> >::dispose_subtree<boost::intrusive::detail::node_disposer<`vostok::configs::create_binary_config_buffer_impl'::`3'::remap_disposer::crc_disposer,boost::intrusive::rbtree_impl<boost::intrusive::setopt<boost::intrusive::detail::member_hook_traits<vostok::configs::pointer_remap_type,boost::intrusive::set_member_hook<boost::intrusive::none,boost::intrusive::none,boost::intrusive::none,boost::intrusive::none>,12>,vostok::configs::pointer_remap_type::comparer,unsigned int,1> > > >
 0x0035a050	inferred-high	0x002260f8	vostok::memory::stream::append

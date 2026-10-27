@@ -1,9 +1,10 @@
-owner-test vertical: certain drops 0 (0.00 a km), climbs of 1.5 m+ 1 (3.29 a km) over 0.3 km walked; 0.0 % of the time above the players' p75 height (no players' values for this map; players 25 %)
+owner-test vertical: certain drops 0 (0.00 a km), climbs of 1.5 m+ 1 (3.29 a km) over 0.3 km walked; 0.0 % of the time above the players' p75 height (no players' values for this map; players 25 %), 0.0 % on perches (3 s or more high on one spot; players 4-8 %)
 {
   "climbs_1_5m": 1,
   "climbs_per_km": 3.29,
   "drops_certain": 0,
   "drops_per_km": 0.0,
   "high_time_pct": 0.0,
-  "km_walked": 0.3
+  "km_walked": 0.3,
+  "perch_time_pct": 0.0
 }
