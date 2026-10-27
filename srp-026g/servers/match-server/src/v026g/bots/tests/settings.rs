@@ -136,6 +136,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FIELD_RADIUS_M", "3", "**model** the fields' radius, m"),
     s("SRP_BENCH_BAKE_FIELD_PLACES", "off", "**cost only** `<n>`: n always-on damage zones baked at the generator's places (the alternative to the live board, for what it costs)"),
     s("SRP_BENCH_ZONE_POOLS", "raw", "Tuning::hazard.zone_pools: `routed` weighs a battery's crossing of a damage zone against the pools its hits take from (infection, pain, body, head) through the bot's armour on the parts hit, and the stand-in's zone damage goes to those pools; `raw` (the default), the body pool and the raw hit"),
+    s("SRP_BENCH_ROUTE_CROSSING", "off", "Tuning::hazard.route_crossing: `1` offers a battery in zones on all match that no straight walk crosses to when the motor's own route over the zones' floors is borne (and the motor walks it); off (the default), only the straight crossings"),
     s("SRP_BENCH_ZONE_DAMAGE", "off", "**model** zones hurt the stand-in's bodies; `1` only (a GUESS of the game's)"),
     s("SRP_BENCH_DAMAGE", "per weapon", "**model** `flat`: every stand-in hit takes a fifth of the health and nothing regenerates (the old stand-in); else the weapon's damage against the target's kit (`standin_damage.rs`)"),
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),

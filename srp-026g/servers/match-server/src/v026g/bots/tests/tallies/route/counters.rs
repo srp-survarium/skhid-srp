@@ -120,6 +120,20 @@ pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
     )
 }
 
+/// A battery's crossings by a route over the zones' floors (`collect::routed_asks`): weighed, borne, refused, begun,
+/// aborted.
+pub(super) fn route_crossings() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::collect::routed_asks::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "route_cross_asked {} route_cross_borne {} route_cross_refused {} route_cross_begun {} route_cross_aborted {}",
+                d[0], d[1], d[2], d[3], d[4]
+            ));
+        },
+    )
+}
+
 /// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
 pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     Delta::of(

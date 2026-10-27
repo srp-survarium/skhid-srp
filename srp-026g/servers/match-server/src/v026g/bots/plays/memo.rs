@@ -19,7 +19,7 @@ use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
-use super::collect::{Crossing, crossing_to};
+use super::collect::{Crossing, crossing_to, routed_crossing_to};
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::zone_cost::ZoneArmour;
@@ -100,8 +100,9 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
 }
 
 /// A crossing's question: the stand's x, y, z bits, the side, the stop's
-/// bits, and the armour it is worked out with (`ZoneArmour::key`; 0: none).
-type CrossingKey = (u32, u32, u32, Option<i32>, u32, u64);
+/// bits, the armour it is worked out with (`ZoneArmour::key`; 0: none), and whether a route over
+/// the zones' floors answers where no straight walk does (`HazardTuning::route_crossing`).
+type CrossingKey = (u32, u32, u32, Option<i32>, u32, u64, bool);
 
 /// The plays' kept answers for one match on one map (`Bots` makes it anew
 /// with the tactics).
@@ -123,6 +124,7 @@ impl Memo {
         side: Option<i32>,
         stop_m: f32,
         armour: Option<&ZoneArmour>,
+        routed: bool,
     ) -> Option<Crossing> {
         // The armour is part of the question: crossings are worked out once a match for each kit's.
         let key = (
@@ -132,9 +134,14 @@ impl Memo {
             side,
             stop_m.to_bits(),
             armour.map_or(0, ZoneArmour::key),
+            routed,
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            crossing_to(tactics, to, side, stop_m, armour)
+            crossing_to(tactics, to, side, stop_m, armour).or_else(|| {
+                routed
+                    .then(|| routed_crossing_to(tactics, to, side, stop_m, armour))
+                    .flatten()
+            })
         })
     }
 
