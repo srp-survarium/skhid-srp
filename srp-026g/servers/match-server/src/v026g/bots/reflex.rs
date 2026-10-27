@@ -897,9 +897,9 @@ pub struct FireTuning {
     /// goes by class: the range floor, the bursts' table, the crouch and
     /// side-step shares, the distance band against another weapon. Off: the
     /// dictionary category's, and a server bot's kind by its role. On: the
-    /// game data's (`parameters.type`: `wpn_smg` is an SMG whatever its
-    /// category, so the AK-74U takes the SMG's bands and tables), and a
-    /// server bot's kind follows the weapon it holds ([`WeaponClass::of`]).
+    /// game data's ([`WeaponClass::of`]: the category's, except an SMG type in
+    /// the rifle category, so the AK-74U takes the SMG's bands and tables), and
+    /// a server bot's kind follows the weapon it holds.
     pub weapon_class_by_data: bool,
 }
 

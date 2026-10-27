@@ -1,7 +1,8 @@
 //! One weapon class from the game data (`FireTuning::weapon_class_by_data`,
-//! audit W5): the `wpn_*` type says what a weapon is, the dictionary category
-//! only for a type nobody knows, and a server bot's kind follows the weapon it
-//! holds. With the switch off every choice is the category's, as before.
+//! audit W5): a weapon is of its shop category's class, except an SMG type in
+//! the rifle category (the AK-74U and its copy), and a server bot's kind
+//! follows the weapon it holds. With the switch off every choice is the
+//! category's, as before.
 
 use std::sync::Arc;
 
@@ -50,7 +51,8 @@ fn class_before(gun: &Gun) -> &'static str {
 
 /// The families of the 83 weapons of the live data (rev30 and rev34):
 /// (category, `parameters.type`, automatic, bolt action, the class by category,
-/// the class by data, how many weapons).
+/// the class by data, how many weapons). Only the SMG type in the rifle category
+/// differs.
 const FAMILIES: [(u8, &str, bool, bool, &str, &str, u32); 16] = [
     (8, "wpn_aslt", true, false, "rifle", "rifle", 22),
     (8, "wpn_aslt", false, false, "rifle", "rifle", 5),
@@ -61,8 +63,8 @@ const FAMILIES: [(u8, &str, bool, bool, &str, &str, u32); 16] = [
     (14, "wpn_asgn", false, false, "shotgun", "shotgun", 7),
     (14, "wpn_dbrl", false, false, "shotgun", "shotgun", 5),
     (14, "wpn_stgn", false, true, "shotgun", "shotgun", 3),
-    (15, "wpn_aslt", true, false, "smg", "rifle", 4), // mp7 x3, ppsh
-    (15, "wpn_pstl", true, false, "smg", "pistol", 1), // aek_919k
+    (15, "wpn_aslt", true, false, "smg", "smg", 4), // mp7 x3, ppsh: the category wins
+    (15, "wpn_pstl", true, false, "smg", "smg", 1), // aek_919k: the category wins
     (15, "wpn_smg", true, false, "smg", "smg", 13),
     (16, "wpn_aslt", true, false, "mg", "mg", 3),
     (17, "wpn_apst", true, false, "pistol", "pistol", 1),
@@ -80,13 +82,13 @@ fn the_83_live_weapons_have_the_class_the_data_says_and_the_one_their_category_g
         assert_eq!(gun.class.name(), by_data, "{category} {kind}");
         assert_eq!(class_before(&gun), before, "{category} {kind}");
     }
-    // What changes: three families, 7 of the 83 weapons.
+    // What changes: one family, 2 of the 83 weapons.
     let changed: u32 = FAMILIES
         .iter()
         .filter(|f| f.4 != f.5)
         .map(|f| f.6)
         .sum();
-    assert_eq!(changed, 2 + 4 + 1);
+    assert_eq!(changed, 2);
 }
 
 #[test]
@@ -145,12 +147,19 @@ fn with_the_switch_on_the_ak_74u_is_an_smg() {
 fn with_the_switch_on_the_other_families_move_as_the_data_says() {
     let fire = on();
     let gun = |kind, category, auto, bolt| Gun::of(&row(kind, category, auto, bolt));
-    // An MP7 or a PPSh (category 15, type of an assault rifle): a rifle.
+    // An MP7 or a PPSh (category 15, type of an assault rifle) and the AEK-919K
+    // (category 15, an automatic pistol): the shop's category wins, SMGs.
     let mp7 = gun("wpn_aslt", 15, true, false);
-    assert_eq!(fire.class_of(&mp7), WeaponClass::Rifle);
-    assert_eq!(fire.auto_class(&mp7, AutoClass::Smg), AutoClass::Rifle);
-    // The AEK-919K (category 15, an automatic pistol): a pistol.
-    assert_eq!(fire.class_of(&gun("wpn_pstl", 15, true, false)), WeaponClass::Pistol);
+    assert_eq!(fire.class_of(&mp7), WeaponClass::Smg);
+    assert_eq!(fire.auto_class(&mp7, AutoClass::Smg), AutoClass::Smg);
+    assert_eq!(fire.class_of(&gun("wpn_pstl", 15, true, false)), WeaponClass::Smg);
+    // The one exception: an SMG type in the rifle category is an SMG; in any
+    // other category the category wins.
+    assert_eq!(fire.class_of(&gun("wpn_smg", 8, true, false)), WeaponClass::Smg);
+    assert_eq!(fire.class_of(&gun("wpn_smg", 13, false, false)), WeaponClass::Marksman);
+    assert_eq!(fire.class_of(&gun("wpn_smg", 14, false, false)), WeaponClass::Shotgun);
+    assert_eq!(fire.class_of(&gun("wpn_smg", 17, true, false)), WeaponClass::Pistol);
+    assert_eq!(fire.class_of(&gun("wpn_aslt", 17, true, false)), WeaponClass::Pistol);
     // A one-round weapon of the rifle type is a marksman's for the crouch and
     // the side-step with the switch on, as with it off.
     let sks = gun("wpn_aslt", 8, false, false);
@@ -250,21 +259,60 @@ fn the_counts_say_which_bots_the_data_changes() {
     assert_eq!(bots.class_counts(), counts);
 }
 
+/// What the type alone says (the family of its `parameters.type`), where it
+/// says one: for the table of disagreeing weapons below.
+fn family_by_type(w: &WeaponParams) -> Option<WeaponClass> {
+    let bolt = !w.automatic() && w.has_chamber && w.chamber_a_round_time > 0.0;
+    Some(match w.kind {
+        "wpn_smg" => WeaponClass::Smg,
+        "wpn_pstl" | "wpn_rvlr" | "wpn_apst" => WeaponClass::Pistol,
+        "wpn_dbrl" | "wpn_stgn" | "wpn_asgn" => WeaponClass::Shotgun,
+        "wpn_bolt" => WeaponClass::Bolt,
+        "wpn_aslt" if w.category == 13 && bolt => WeaponClass::Bolt,
+        "wpn_aslt" if w.category == 13 => WeaponClass::Marksman,
+        "wpn_aslt" if w.category == 16 => WeaponClass::MachineGun,
+        "wpn_aslt" => WeaponClass::Rifle,
+        _ => return None,
+    })
+}
+
 /// `SRP_GAME_DATA=<server-game-data.db> cargo test --release --lib --
-/// --ignored on_the_live_data_the_class`: the weapons whose class the data
-/// changes are the ones the families name.
+/// --ignored --nocapture --exact v026g::bots::tests::weapon_class::on_the_live_data_the_weapons_where_type_and_category_disagree`:
+/// every weapon whose `parameters.type` says another family than its category
+/// (id, name, type, category, the category's class, the class the bots get),
+/// and that the class differs from the category's for exactly the SMG types of
+/// the rifle category.
 #[test]
 #[ignore = "needs the live game data (SRP_GAME_DATA)"]
-fn on_the_live_data_the_class_changes_for_the_seven_weapons_that_name_another_family() {
+fn on_the_live_data_the_weapons_where_type_and_category_disagree() {
     survarium::v026g::game_data::init().expect("SRP_GAME_DATA names the server's game data");
-    let mut changed: Vec<String> = guns::guns()
-        .iter()
-        .filter(|gun| gun.class != gun.by_category)
-        .map(|gun| format!("{} {}->{}", gun.item, gun.by_category.name(), gun.class.name()))
-        .collect();
-    changed.sort();
-    println!("{} of {} weapons: {}", changed.len(), guns::guns().len(), changed.join(", "));
-    assert_eq!(changed.len(), 7);
+    let mut lines = Vec::new();
+    let mut moved = Vec::new();
+    for w in weapons::all() {
+        let by_category = guns::gun(w.name).unwrap().by_category;
+        let class = WeaponClass::of(w);
+        assert_eq!(guns::gun(w.name).unwrap().class, class, "{}", w.name);
+        if family_by_type(w).is_some_and(|family| family != by_category) {
+            lines.push(format!(
+                "{:>5} {:<26} {:<9} {:>2}  {:<8} -> {}",
+                w.dict_id,
+                w.name,
+                w.kind,
+                w.category,
+                by_category.name(),
+                class.name()
+            ));
+        }
+        if class != by_category {
+            moved.push(w.name);
+            assert_eq!((w.kind, w.category), ("wpn_smg", 8), "{}", w.name);
+        }
+    }
+    println!("{} disagreeing weapons of {}:
+{}", lines.len(), weapons::all().len(), lines.join("
+"));
+    moved.sort_unstable();
+    assert_eq!(moved, ["ak_74u", "ak_74u_premium"]);
     for gun in guns::guns() {
         assert_eq!(gun.class(), class_before(gun), "{}", gun.item);
     }

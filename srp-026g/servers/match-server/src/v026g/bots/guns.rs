@@ -158,13 +158,18 @@ impl Gun {
 /// range it is fired to, how long its bursts are held, how often its owner
 /// crouches or side-steps, the distance band against another weapon.
 ///
-/// One rule decides it ([`WeaponClass::of`]), from the game data: the
-/// weapon's `parameters.type` says the family (`wpn_smg` an SMG, `wpn_pstl` a
-/// pistol, `wpn_dbrl` a shotgun, `wpn_bolt` a bolt action), and for the
-/// assault-rifle type (`wpn_aslt`) the dictionary category splits the sniper
-/// category's marksman rifles and the machine guns off; only a type this code
-/// does not know takes its category's class ([`WeaponClass::by_category`]),
-/// so that a weapon a patch adds still has a class.
+/// One rule decides it ([`WeaponClass::of`]): **a weapon is of its dictionary
+/// (shop) category's class, except that a submachine-gun type (`wpn_smg`) in
+/// the rifle category is an SMG.** Where a weapon's `parameters.type` and its
+/// category disagree, the category wins (an MP7, a PPSh or an automatic pistol
+/// of the SMG category stay SMGs); the one disagreement the type decides is an
+/// SMG type in the rifle category: of the 83 weapons of the live data (rev30
+/// and rev34) that is the one case in which the type names a narrower family
+/// than a rifle category, and the weapons it covers are of no other
+/// disagreement (the ignored test
+/// `on_the_live_data_the_weapons_where_type_and_category_disagree` lists every
+/// disagreeing weapon with its result). A type nobody knows takes its
+/// category's class like any other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WeaponClass {
     Pistol,
@@ -179,19 +184,13 @@ pub enum WeaponClass {
 }
 
 impl WeaponClass {
-    /// The class the game data gives the weapon `w`.
+    /// The class of the weapon `w`: its category's, except an SMG type in the
+    /// rifle category.
     pub fn of(w: &survarium::v026g::weapons::WeaponParams) -> Self {
-        let bolt = bolt_action(w);
-        match (w.kind, w.category) {
-            ("wpn_smg", _) => Self::Smg,
-            ("wpn_pstl" | "wpn_rvlr" | "wpn_apst", _) => Self::Pistol,
-            ("wpn_dbrl" | "wpn_stgn" | "wpn_asgn", _) => Self::Shotgun,
-            ("wpn_bolt", _) => Self::Bolt,
-            ("wpn_aslt", SNIPER_CATEGORY) if bolt => Self::Bolt,
-            ("wpn_aslt", SNIPER_CATEGORY) => Self::Marksman,
-            ("wpn_aslt", MG_CATEGORY) => Self::MachineGun,
-            ("wpn_aslt", _) => Self::Rifle,
-            (_, category) => Self::by_category(category, bolt),
+        if w.kind == SMG_TYPE && w.category == RIFLE_CATEGORY {
+            Self::Smg
+        } else {
+            Self::by_category(w.category, bolt_action(w))
         }
     }
 
@@ -246,8 +245,7 @@ pub struct ClassCounts {
     /// ... with another bursts' table.
     pub burst: u32,
     /// ... under another range floor (`CombatTuning::range_floor_m`: floors by
-    /// the class' name, which the data's class changes for a rifle called
-    /// SMG, and so on).
+    /// the class' name).
     pub floor: u32,
     /// Bots whose kind in the distance band differs from the one the switch off
     /// gives them.
@@ -267,6 +265,9 @@ impl ClassCounts {
         self.floor += u32::from(gun.class.name() != gun.by_category.name());
     }
 }
+
+/// The submachine guns' `parameters.type`.
+pub const SMG_TYPE: &str = "wpn_smg";
 
 /// The weapon is worked by a bolt or a pump: one round a press, then a
 /// `chamber_a_round` state ([`Handling::Bolt`]).
