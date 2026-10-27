@@ -185,9 +185,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_DROP_TRUTH").is_ok_and(|v| v == "links") {
         set(&mut tuning, "/feel/drop_truth", "links".into());
     }
-    // The reckoned body takes a jump up a jump link only if the jump could make its rise (`Kinematics::jump_cap_by_keys`).
-    if settings.var("SRP_BENCH_RECKON_JUMP_CAP").is_ok_and(|v| v == "on" || v == "1") {
-        set(&mut tuning, "/kin/jump_cap_by_keys", true.into());
+    // Which jump links the reckoned body takes up after a press (`Kinematics::jump_snap`; any by default).
+    match settings.var("SRP_BENCH_RECKON_JUMP_CAP").as_deref() {
+        Ok("on" | "1") => set(&mut tuning, "/kin/jump_snap", "by_keys".into()),
+        Ok("never") => set(&mut tuning, "/kin/jump_snap", "never".into()),
+        _ => {}
     }
     // A planned drop unsafe at a sprint is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
     if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {

@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, Kinematics, TICK_S, to_world, wrap};
+use super::kin::{Blend, JumpSnap, Kinematics, TICK_S, to_world, wrap};
 use crate::v026g::drive::key;
 
 /// A world's word on the bot's body.
@@ -78,7 +78,7 @@ pub struct Estimate {
     /// floor its floor jumps to, it gets up on it ([`JUMP_AIR_MS`]); 0 on
     /// the ground.
     pub air_until: u32,
-    /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_cap_by_keys`]; infinite: any).
+    /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_snap`]; infinite: any).
     pub air_cap: f32,
 }
 
@@ -200,11 +200,13 @@ const MOVING_TICKS: u32 = 5;
 /// The walk cap, m/s: the speed at a press for the sprint jump (PROVEN, the sprint-jump RE 1.2).
 const WALK_CAP_MS: f32 = 3.5;
 
-/// The highest rise a jump pressed with `keys` can make ([`Kinematics::jump_cap_by_keys`]): the sprint jump's with forward
+/// The highest rise a jump pressed with `keys` can make ([`Kinematics::jump_snap`]): the sprint jump's with forward
 /// and sprint held, none of back, fire, crouch or aim, and the body `moving` at the walk cap; else the plain jump's.
 fn press_cap(kin: &Kinematics, keys: u32, moving: bool) -> f32 {
-    if !kin.jump_cap_by_keys {
-        return f32::INFINITY;
+    match kin.jump_snap {
+        JumpSnap::Any => return f32::INFINITY,
+        JumpSnap::Never => return 0.0,
+        JumpSnap::ByKeys => {}
     }
     let sprint = keys & (key::FORWARD | key::SPRINT) == (key::FORWARD | key::SPRINT)
         && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
@@ -1081,7 +1083,7 @@ pub(super) mod tests {
         assert_eq!(grid.locate(feet, 0.5), Some(node));
     }
 
-    /// With `jump_cap_by_keys` a jump the clip cannot make does not take the reckoned body up: a 1.2 m ledge pressed with
+    /// With `JumpSnap::ByKeys` a jump the clip cannot make does not take the reckoned body up: a 1.2 m ledge pressed with
     /// no sprint (the plain jump's 1.09 m) leaves it at the foot, pressed with forward and sprint held after a run (the sprint
     /// jump's 1.28 m) gets it up; with the switch off both get it up, as before.
     #[test]
@@ -1094,8 +1096,8 @@ pub(super) mod tests {
         }));
         let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::client());
         let yaw = -std::f32::consts::FRAC_PI_2;
-        let reckoned = |cap: bool, keys: u32| {
-            let kin = Kinematics { blend_ticks: 1, jump_cap_by_keys: cap, ..Kinematics::default() };
+        let reckoned = |snap: JumpSnap, keys: u32| {
+            let kin = Kinematics { blend_ticks: 1, jump_snap: snap, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(4.0, 0.0, 5.0), yaw), &kin, Some(&grid));
             for time in (50..=2_000).step_by(50) {
@@ -1106,9 +1108,10 @@ pub(super) mod tests {
         };
         let walk = key::FORWARD;
         let sprint = key::FORWARD | key::SPRINT;
-        assert!(reckoned(false, walk) > 1.1, "off: any jump link");
-        assert!(reckoned(true, walk) < 0.1, "a plain jump cannot make 1.2 m");
-        assert!(reckoned(true, sprint) > 1.1, "a sprint jump can");
+        assert!(reckoned(JumpSnap::Any, walk) > 1.1, "any jump link");
+        assert!(reckoned(JumpSnap::ByKeys, walk) < 0.1, "a plain jump cannot make 1.2 m");
+        assert!(reckoned(JumpSnap::ByKeys, sprint) > 1.1, "a sprint jump can");
+        assert!(reckoned(JumpSnap::Never, sprint) < 0.1, "none: until a world shows it");
     }
 
     /// The reckoned body walking into a 0.9 m ledge stops at its foot;
