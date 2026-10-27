@@ -1069,6 +1069,7 @@ pub(super) fn drive_tick(
                     {
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
                     }
+                    let walks_the_route = aim.is_none();
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
@@ -1076,6 +1077,9 @@ pub(super) fn drive_tick(
                         }
                         None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                     };
+                    // Pressing against something while walking the route: counted, nothing is decided from it.
+                    let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
+                    contact::contacts::count(counted, me.feet);
                     if walked != Walked::OnTheWay {
                         // Fallen off it: the spot it fell from (`Stuck::fell`).
                         if let Walked::Off(off) = walked
