@@ -18,6 +18,28 @@ pub(super) const REPLAN_ERROR_M: f32 = 2.0;
 /// side, metres (no step off a ledge or into a wall).
 pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
+/// Why the client takes no sprint jump now, as far as the bot knows (`base_player::can_sprint` and the stagger, the
+/// sprint-jump RE §1.4 and §1.8): the keys it sent in the tick before (aiming, firing or throwing), a reload on, a hit
+/// within [`motor::STAGGER_SPRINT_MS`], the reckoned bar in its low state, a battery carried.
+fn sprint_block(bot: &Bot, me: &PlaceView, time: u32, stamina_on: bool) -> Option<motor::SprintBlock> {
+    let sent = bot.sent_keys;
+    if me.carrying.is_some() {
+        Some(motor::SprintBlock::Carrying)
+    } else if sent & key::AIM != 0 {
+        Some(motor::SprintBlock::Aiming)
+    } else if sent & (key::FIRE | key::GRENADE) != 0 {
+        Some(motor::SprintBlock::Busy)
+    } else if bot.reflex.reload_note().is_some_and(|reload| time < reload.until) {
+        Some(motor::SprintBlock::Reloading)
+    } else if bot.hurt.last_hit_ms.is_some_and(|at| time < at.saturating_add(motor::STAGGER_SPRINT_MS)) {
+        Some(motor::SprintBlock::Staggered)
+    } else if stamina_on && bot.stamina.low() {
+        Some(motor::SprintBlock::Tired)
+    } else {
+        None
+    }
+}
+
 /// A jump pressed while the weapon fired lately is held this long, ms,
 /// with the trigger let go: the weapon takes a jump only idle, reloading or
 /// chambering a round (`weapon_core::can_jump` 0x2E3A70: states 3, 4 and
@@ -251,6 +273,7 @@ fn drive_tick_inner(
         speed: me.speed(),
         velocity: me.velocity,
         no_jump: !bot.hurt.may_jump(time) || (tuning.think.stamina && !bot.stamina.may_jump()),
+        sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
     };
     if bot
         .jump_watch
@@ -1263,7 +1286,11 @@ fn drive_tick_inner(
     // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
     // `player_bots_stuck.md` §8.9), and no sprint.
     if bot.motor.lining_up() {
-        decision.keys &= !(key::CROUCH | key::SPRINT);
+        decision.keys &= !key::CROUCH;
+        // A sprint jump is run up to at a sprint: `Feel::band_jump_gate`.
+        if !bot.motor.keeps_sprint() {
+            decision.keys &= !key::SPRINT;
+        }
     }
     if decision.keys & key::QUICK[0] != 0 {
         bot.features.stock.medkits_used = bot.features.stock.medkits_used.saturating_add(1);

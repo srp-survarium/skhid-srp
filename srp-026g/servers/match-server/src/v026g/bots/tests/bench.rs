@@ -185,6 +185,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/drop_walk", true.into());
     }
+    // A sprint-band ledge jump is pressed only at speed with sprint held (`Feel::band_jump_gate`; off by default).
+    if settings.var("SRP_BENCH_BAND_JUMP_GATE").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/band_jump_gate", true.into());
+    }
     // The sprint gap links are run up to at a sprint and pressed at speed (`Feel::sprint_gaps`; off by default).
     if settings.var("SRP_BENCH_SPRINT_GAPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/sprint_gaps", true.into());

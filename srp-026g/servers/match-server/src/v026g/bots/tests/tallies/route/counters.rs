@@ -221,6 +221,23 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint-band ledge jumps (`motor::band_jumps`): presses by ground speed (under 3.5, 3.5-4, 4-4.5, 4.5 and over m/s)
+/// and with no sprint held (the activity), the arrivals backed off by reason (too slow, no sprint key, or what the client's
+/// `can_sprint` says no to), the links given up for want of a run, and the ticks the body stood at a face with no press
+/// and the faces picked again within 10 s of giving them up (the harm; the jumps given up are in
+/// `sprint_jumps_gave_up`).
+pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::band_jumps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "band_press_speed {}/{}/{}/{} band_press_no_sprint {} band_refused_by slow/no_key/aiming/busy/reload/stagger/tired/carrying                  {}/{}/{}/{}/{}/{}/{}/{} band_no_run_up {} band_face_still_ticks {} band_repicked {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]
+            ));
+        },
+    )
+}
+
 /// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
 /// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
 /// first seen, and the seconds of sprint saved for them.

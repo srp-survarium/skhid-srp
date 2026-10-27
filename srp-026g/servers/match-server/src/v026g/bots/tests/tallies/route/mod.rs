@@ -115,6 +115,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         rest_stops(),
         contacts(),
         sprint_jumps(),
+        band_jumps(),
         drop_walks(),
         sprint_gaps(),
         landings(),
