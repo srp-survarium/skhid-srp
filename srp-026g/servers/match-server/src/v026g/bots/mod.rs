@@ -291,6 +291,8 @@ pub struct Bot {
     press: u32,
     /// Keys held for a few ticks to get unstuck.
     unstick: Option<(u32, u32)>,
+    /// Since when it stands for want of a world (`UnstickTuning::blind_stop_ms`); none: it walks as it will.
+    blind_since: Option<u32>,
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
     /// and the last tick the trigger was down.
     jump_hold: u32,
@@ -434,6 +436,7 @@ impl Bot {
             bench_found_ring: false,
             press: 0,
             unstick: None,
+            blind_since: None,
             jump_hold: 0,
             fired_at: None,
             hurt: Hurt::default(),
@@ -1110,6 +1113,17 @@ impl Bots {
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
             bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
+        }
+        // A world ends a blind stop (`UnstickTuning::blind_stop_ms`); its reckoning is put right by the world itself.
+        if bot.blind_since.is_some() && self.tracker.body(place).and_then(|body| body.fix()).is_some_and(|last| last.time == time) {
+            bot.blind_since = None;
+            #[cfg(test)]
+            {
+                stuck::blind::count(1);
+                if self.tracker.body(place).and_then(|body| body.last_error()).is_some_and(|error| error < stuck::BLIND_NEEDLESS_M) {
+                    stuck::blind::count(2);
+                }
+            }
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
