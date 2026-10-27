@@ -886,7 +886,7 @@ fn drive_tick_inner(
                     && !bot.threat.is_empty()
                     && let Some(plain) = route.as_ref()
                 {
-                    let seen = threat::exposure(plain, |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
+                    let seen = threat::exposure(plain, bot.motor.heights(), |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
                     threat::checked(&seen);
                     if seen.metres > threat::EXPOSED_M
                         && tuning.threat.detour
@@ -895,8 +895,8 @@ fn drive_tick_inner(
                         let s0 = (first - threat::DETOUR_MARGIN_M).max(0.0);
                         let s1 = (last + threat::DETOUR_MARGIN_M).min(plain.length());
                         let ends = grid
-                            .locate(plain.point_at(s0), 1.5)
-                            .zip(grid.locate(plain.point_at(s1), 1.5));
+                            .locate(plain.at(s0, bot.motor.heights()), 1.5)
+                            .zip(grid.locate(plain.at(s1, bot.motor.heights()), 1.5));
                         if let Some((n0, n1)) = ends
                             && n0 != n1
                             && !plain.jumps_between(s0, s1 + 3.0)

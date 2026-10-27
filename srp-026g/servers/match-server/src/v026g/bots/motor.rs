@@ -40,7 +40,7 @@ use mapdata::Vec3;
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::path::{Leap, Route};
+use super::path::{Leap, Route, RouteHeight};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
@@ -152,6 +152,13 @@ pub struct Feel {
     /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
     /// back, and plans again from where it stands with none (`Motor::aim_point`).
     pub unclear_aim: bool,
+    /// The height of the route's points the walk asks whether the body walks to ([`Motor::aim_point`], the run-up,
+    /// the hop's rise) and the threat detour's exposure: `false` (the default) on the line between each leg's ends
+    /// ([`Route::point_at`]), which over a hump of the floor (Cologne's deck: a long leg between two lower ends) lies
+    /// up to 1.6 m under the floor, so that the grid finds no floor under the point (`line_ends` takes floors up to
+    /// 1.0 m over it) and the walk sees no clear point, cuts its look-ahead and, with `unclear_aim`, steers back;
+    /// `true` on the route's floor ([`Route::floor_point`]).
+    pub floor_height_clear: bool,
     /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
     /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
@@ -209,6 +216,7 @@ impl Default for Feel {
             lip_look_ahead_m: Metres::of(0.0),
             drop_aim: false,
             unclear_aim: false,
+            floor_height_clear: false,
             carrier_jump_m: None,
             drop_walk: false,
             sprint_gaps: false,
@@ -755,15 +763,9 @@ impl Motor {
     /// point all the same (into the wall); on, at the farthest route point it does walk to in a line, within
     /// [`BACK_AIM_M`] back of `s`, and with none the route is lost to it ([`Aim::None`]: off the route, planned again from
     /// where it stands).
-    fn aim_point(&self, route: &Route, s: f32, mut ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
-        let mut target = route.point_at(s + ahead);
-        while ahead > MIN_AHEAD_M && !clear(target) {
-            #[cfg(test)]
-            counts::cut();
-            ahead *= 0.6;
-            target = route.point_at(s + ahead);
-        }
-        if clear(target) {
+    fn aim_point(&self, route: &Route, s: f32, ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
+        let (target, found) = self.look_ahead(route, s, ahead, clear, self.heights());
+        if found {
             return Aim::Clear(target);
         }
         #[cfg(test)]
@@ -771,10 +773,20 @@ impl Motor {
         if !self.feel.unclear_aim {
             return Aim::Unclear(target);
         }
+        // The heights of the line between the legs' ends can be what makes the points unclear (a hump of the floor
+        // the leg crosses): the look-ahead again at the floor's.
+        if self.heights() == RouteHeight::Chord {
+            let (target, found) = self.look_ahead(route, s, ahead, clear, RouteHeight::Floor);
+            if found {
+                #[cfg(test)]
+                counts::unclear_floor();
+                return Aim::Clear(target);
+            }
+        }
         let mut back = MIN_AHEAD_M;
         while back > -BACK_AIM_M {
             back -= 0.5;
-            let point = route.point_at((s + back).max(0.0));
+            let point = route.at((s + back).max(0.0), RouteHeight::Floor);
             if clear(point) {
                 #[cfg(test)]
                 counts::unclear_back();
@@ -784,6 +796,33 @@ impl Motor {
         #[cfg(test)]
         counts::unclear_off();
         Aim::None
+    }
+
+    /// How high the route's points are taken for the walk's tests of the ground ([`Feel::floor_height_clear`]).
+    pub(super) fn heights(&self) -> RouteHeight {
+        if self.feel.floor_height_clear {
+            RouteHeight::Floor
+        } else {
+            RouteHeight::Chord
+        }
+    }
+
+    /// The point of the route `ahead` metres on from `s`, nearer by 0.6 while the body does not walk to it in a
+    /// line, down to [`MIN_AHEAD_M`]; whether the one it came to is one.
+    fn look_ahead(&self, route: &Route, s: f32, mut ahead: f32, clear: &impl Fn(Vec3) -> bool, height: RouteHeight) -> (Vec3, bool) {
+        let mut target = route.at(s + ahead, height);
+        while ahead > MIN_AHEAD_M && !clear(target) {
+            #[cfg(test)]
+            {
+                counts::cut();
+                if height == RouteHeight::Chord && clear(route.at(s + ahead, RouteHeight::Floor)) {
+                    counts::cut_false();
+                }
+            }
+            ahead *= 0.6;
+            target = route.at(s + ahead, height);
+        }
+        (target, clear(target))
     }
 
     /// The decision of one tick that walks the route from `pose`. `off_m`:
@@ -1270,15 +1309,8 @@ impl Motor {
         } else {
             // The run-up not in a line yet (round a corner): the route, up
             // to the take-off.
-            let mut ahead = self.feel.look_ahead_m.min(before_route.max(0.0));
-            let mut target = route.point_at(s + ahead);
-            while ahead > MIN_AHEAD_M && !clear(target) {
-                #[cfg(test)]
-                counts::cut();
-                ahead *= 0.6;
-                target = route.point_at(s + ahead);
-            }
-            target
+            let ahead = self.feel.look_ahead_m.min(before_route.max(0.0));
+            self.look_ahead(route, s, ahead, clear, self.heights()).0
         };
         // The way the feet went since the last tick (the hop's trail): a
         // body facing the way but still moving off it (back from the
@@ -1495,9 +1527,10 @@ impl Motor {
         let (low, high) = self.feel.hop_rise_m.get();
         let look = self.feel.hop_look_m;
         let within = |rise: f32| rise >= low && rise <= high;
-        let base = route.point_at(s).y;
+        let height = self.heights();
+        let base = route.at(s, height).y;
         let route_rise = (1..=3)
-            .map(|k| route.point_at(s + look * k as f32 / 3.0).y - base)
+            .map(|k| route.at(s + look * k as f32 / 3.0, height).y - base)
             .fold(f32::NEG_INFINITY, f32::max);
         if within(route_rise) {
             return true;
@@ -1782,7 +1815,7 @@ pub mod drop_aim {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 11] = [const { AtomicU64::new(0) }; 11];
+    static COUNTS: [AtomicU64; 13] = [const { AtomicU64::new(0) }; 13];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1822,6 +1855,17 @@ pub mod counts {
     /// Of those, ticks with no clear route point at all: reported off the route.
     pub fn unclear_off() {
         add(10);
+    }
+
+    /// An ahead cut by a point that is not clear at the line between the legs' ends and is at the floor's height:
+    /// the false clear tests of a hump ([`Feel::floor_height_clear`] off).
+    pub fn cut_false() {
+        add(11);
+    }
+
+    /// Of the unclear look-aheads (rule on), those clear at the floor's heights: steered at, not back.
+    pub fn unclear_floor() {
+        add(12);
     }
 
     static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
@@ -1868,8 +1912,9 @@ pub mod counts {
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
     /// steps clear, side steps refused, lip guard changed, lip guard none, look-ahead ended unclear, of them steered back
-    /// to a clear point, of them off the route).
-    pub fn counts() -> [u64; 11] {
+    /// to a clear point, of them off the route, ahead cuts by a false clear at a hump, unclear look-aheads clear at the floor's
+    /// heights).
+    pub fn counts() -> [u64; 13] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2358,6 +2403,34 @@ mod tests {
             Aim::None => {}
             other => panic!("{other:?}"),
         }
+    }
+
+    /// Cologne's deck: one long leg between two low ends over a floor 1.6 m higher in the middle. The line between the
+    /// leg's ends lies under the floor, and the grid finds no floor under a point more than a metre under one
+    /// (`line_ends`): the test of a point at that height says "not clear" where the body walks.
+    fn hump() -> (Route, impl Fn(Vec3) -> bool + Copy) {
+        let p = |x, y| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let route = Route::over_floors(vec![p(0.0, 0.0), p(20.0, 0.0)], vec![(0.0, 0.0), (8.0, 1.6), (12.0, 1.6), (20.0, 0.0)]);
+        let floor = |x: f32| (x.min(20.0 - x) * 0.2).clamp(0.0, 1.6);
+        (route, move |point: Vec3| floor(point.x) - point.y <= 1.0)
+    }
+
+    #[test]
+    fn a_hump_in_a_long_leg_is_not_a_wall_with_the_floor_heights() {
+        let (route, clear) = hump();
+        let motor = |feel: Feel| Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3));
+        let s = 9.0;
+        // As it was: the point at the chord's height is not clear, off and with the rule on its retry finds the floor's.
+        assert!(matches!(motor(Feel::default()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
+        assert!(matches!(motor(Feel { unclear_aim: true, ..Feel::default() }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
+        // The floor heights: clear at once, at the look-ahead's full length, with the rule off too.
+        match motor(Feel { floor_height_clear: true, ..Feel::default() }).aim_point(&route, s, 3.0, &clear) {
+            Aim::Clear(point) => assert!((point.x - 12.0).abs() < 1e-3 && (point.y - 1.6).abs() < 1e-3, "{point:?}"),
+            other => panic!("{other:?}"),
+        }
+        // Off the hump nothing differs: the same point either way.
+        let flat = |feel| motor(feel).aim_point(&route, 2.0, 1.0, &|_| true);
+        assert_ne!(flat(Feel { floor_height_clear: true, ..Feel::default() }), Aim::None);
     }
 
     /// The walk reports the route lost (off it) when no route point back of the progress is clear either, so the drive

@@ -155,6 +155,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_UNCLEAR_AIM").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/unclear_aim", true.into());
     }
+    // The walk's tests of the ground at the route's floor heights, not the line between each leg's ends
+    // (`Feel::floor_height_clear`; off by default).
+    if settings.var("SRP_BENCH_FLOOR_HEIGHT").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/floor_height_clear", true.into());
+    }
     // Routes of a carrier over the jump links up to the standing jump only (`Feel::carrier_jump_m`; off by default:
     // every jump link of the grid).
     if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {

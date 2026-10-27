@@ -34,6 +34,7 @@
 //!   when he is lost, gets into his base, or after a time drawn per run.
 
 use super::*;
+use crate::v026g::bots::path::RouteHeight;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::view::BatteryState;
 
@@ -332,7 +333,10 @@ impl Ctx<'_> {
             None
         };
         let points = match route {
-            Some(route) => along(route.length(), &|s| (s, route.point_at(s))),
+            Some(route) => {
+                let height = if self.tuning.feel.floor_height_clear { RouteHeight::Floor } else { RouteHeight::Chord };
+                along(route.length(), &|s| (s, route.at(s, height)))
+            }
             None => {
                 // No route known: the straight way, with a detour factor.
                 let length = him.distance_xz(home);

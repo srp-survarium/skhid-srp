@@ -67,6 +67,7 @@ mod driving;
 mod eye;
 mod fights;
 mod fix_gap;
+mod hump_deck;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
