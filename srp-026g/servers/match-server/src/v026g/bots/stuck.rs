@@ -761,7 +761,7 @@ pub fn self_kill_step(
 /// What a note's text says without the evidence tags the notes above end with (they are for the reader of the log,
 /// not decisions: the bench's decision digest leaves them out).
 pub fn without_evidence(text: &str) -> &str {
-    [" [meant ", " [fix gap ", " [beside "]
+    [" [meant ", " [fix gap ", " [beside ", " [route "]
         .iter()
         .filter_map(|tag| text.find(tag))
         .min()
@@ -785,6 +785,35 @@ pub fn beside_note(beside: Option<super::view::Beside>) -> String {
     beside.filter(|b| b.distance_m <= BESIDE_M).map_or_else(String::new, |b| {
         format!(" [beside {} place {}, {:.1} m]", if b.enemy { "enemy" } else { "friend" }, b.place, b.distance_m)
     })
+}
+
+/// The note of where a stuck body was steering (A81 item 2: Chemical Plant's back and forth, where the bot
+/// let go of its keys by its own decision): the route's leg and its next waypoint, how far the body's heading is
+/// from it in degrees (positive to the left), and how many spots the bot keeps clear of. `[route none]` without a
+/// route. For the reader of the log; a decision never reads it.
+pub fn route_note(route: Option<&Route>, feet: Vec3, yaw: Option<f32>, kept: usize) -> String {
+    let Some(route) = route else {
+        return " [route none]".to_owned();
+    };
+    let leg = route.segment();
+    let Some(next) = route.points().get(leg + 1).map(|point| point.at) else {
+        return format!(" [route leg {leg}/{} at the end, {kept} kept]", route.points().len());
+    };
+    let off = yaw.map_or_else(
+        || "?".to_owned(),
+        |yaw| {
+            let want = super::kin::yaw_of([next.x - feet.x, next.z - feet.z]);
+            format!("{:+.0}", super::kin::wrap(want - yaw).to_degrees())
+        },
+    );
+    format!(
+        " [route leg {leg}/{} next {:.1},{:.1},{:.1} {:.1} m, heading off {off} deg, {kept} kept]",
+        route.points().len(),
+        next.x,
+        next.y,
+        next.z,
+        feet.distance_xz(next)
+    )
 }
 
 /// The note for a world that came `gap` ms after the one before it (none when the gap is not one).
@@ -891,7 +920,7 @@ mod tests {
     fn the_evidence_tags_of_a_note_are_cut_off() {
         let plain = "is stuck at [1.0, 0.0, 2.0]: BackOff";
         assert_eq!(without_evidence(plain), plain);
-        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m]");
+        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m] [route none]");
         assert_eq!(without_evidence(&tagged), plain);
         let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
         assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
@@ -1060,6 +1089,33 @@ mod tests {
         assert!(stuck.near_spot(30_000, spot), "caught there three times");
         assert!(!stuck.near_spot(30_000, Vec3::ZERO), "caught there once");
         assert!(!stuck.near_spot(18_500 + SPOT_KEPT_MS, spot));
+    }
+
+    /// The stuck note says where the body was steering: the leg, the next
+    /// waypoint, how far the heading is from it, and how many spots are kept.
+    #[test]
+    fn the_route_tail_of_a_stuck_note_says_where_the_body_steered() {
+        let route = Route::new(
+            [(0.0, 0.0), (20.0, 0.0)]
+                .iter()
+                .map(|&(x, z)| Waypoint {
+                    at: Vec3::new(x, 0.0, z),
+                    node: 0,
+                    jump: None,
+                    low: false,
+                })
+                .collect(),
+        );
+        let feet = Vec3::ZERO;
+        let towards = crate::v026g::bots::kin::yaw_of([1.0, 0.0]);
+        assert_eq!(
+            route_note(Some(&route), feet, Some(towards), 2),
+            " [route leg 0/2 next 20.0,0.0,0.0 20.0 m, heading off +0 deg, 2 kept]"
+        );
+        assert!(route_note(Some(&route), feet, Some(0.0), 0).contains("heading off -90 deg"));
+        assert!(route_note(Some(&route), feet, None, 0).contains("heading off ? deg"));
+        assert_eq!(route_note(None, feet, None, 0), " [route none]");
+        assert_eq!(without_evidence("is stuck at [1.0]: BackOff [route none]"), "is stuck at [1.0]: BackOff");
     }
 
     #[test]
