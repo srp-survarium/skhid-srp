@@ -617,12 +617,37 @@ impl JumpCounts {
                 && to.y - from.y > crate::v026g::bots::motor::WALK_JUMP_TOP_M
             {
                 band[0] += 1;
-                match self.landings.iter().find(|l| l.place == p.place && l.at == p.t) {
+                let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
+                match landing {
                     Some(l) => {
                         band[1 + usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
                         band[3] += u32::from(l.sprint);
                     }
                     None => band[4] += 1,
+                }
+                // The first 80 of a run, to the log (the trace of #673): where the press was against the take-off along the
+                // link's way and across it, the link's direction, and where the body came down.
+                static SEEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                if SEEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 80 {
+                    let (dx, dz) = (to.x - from.x, to.z - from.z);
+                    let len = dx.hypot(dz).max(1e-3);
+                    let (ux, uz) = (dx / len, dz / len);
+                    let (px, pz) = (p.feet.x - from.x, p.feet.z - from.z);
+                    eprintln!(
+                        "band-landing by {} take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2}) rise {:.2} link {:.0} deg; pressed {:.2} m along, {:.2} m across, {:.2} high; came down {}",
+                        p.by,
+                        from.x, from.y, from.z, to.x, to.y, to.z, to.y - from.y,
+                        uz.atan2(ux).to_degrees(),
+                        px * ux + pz * uz,
+                        px * uz - pz * ux,
+                        p.feet.y - from.y,
+                        landing.map_or("nowhere".to_string(), |l| format!(
+                            "{} at ({:.2}, {:.2}, {:.2}) {}",
+                            if l.to.y < to.y - UP_SLACK_M { "DOWN" } else { "UP" },
+                            l.to.x, l.to.y, l.to.z,
+                            if l.sprint { "sprint clip" } else { "short clip" }
+                        ))
+                    );
                 }
             }
         }
