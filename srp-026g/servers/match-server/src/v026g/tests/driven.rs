@@ -424,3 +424,87 @@ fn the_servers_bot_counts_the_drugs_a_live_clients_world_shows() {
     assert_eq!(pantry.first(Drug::Bandages).map(|held| held.quick), Some(1));
     assert_eq!(pantry.first(Drug::Medkit).map(|held| held.quick), Some(0));
 }
+
+/// Two real clients and the server's bot (place 2) on a map the bots have
+/// built tactics for, in the simulation: so the match has its bots' view.
+/// `one_way`: the clients' one-way delays.
+fn mapped_bench(one_way: Vec<u64>) -> Bench {
+    let settings = Settings {
+        maps: Some(walking_map()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::with_driven(3, MAP_TDM, settings, &[2]);
+    bench.one_way = one_way;
+    bench.join(0);
+    bench.join(1);
+    let started = std::time::Instant::now();
+    while !bench.game().bots_have_map() {
+        assert!(started.elapsed().as_secs() < 20, "no tactics");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        bench.step(5);
+    }
+    bench.run_long(8_000);
+    bench
+}
+
+/// How late a player's inputs come, as the bots have it, is what the server
+/// measures at the intake (`Game::input`: the match clock less the input's
+/// tick), not the age of the last world: a player whose inputs come 110 ms
+/// late is in the ping band 150 and over (lateness about 0.45 of the ping:
+/// 68 ms and over), one whose inputs come on time is not, with the same old
+/// world behind both.
+#[test]
+fn a_players_lateness_and_ping_band_come_from_the_intake_not_the_worlds_age() {
+    let mut bench = mapped_bench(vec![]);
+    let walk = |bench: &mut Bench, ahead: i32, inputs: usize| {
+        for _ in 0..inputs {
+            bench.clients[0].input(ahead, key::FORWARD);
+            bench.run(50);
+        }
+        let clock = bench.clock();
+        bench.game().driven_bots().unwrap().player_view(0, clock).unwrap()
+    };
+    let (late, _, band) = walk(&mut bench, -110, 60);
+    assert!((110..170).contains(&late.late_ms), "{}", late.late_ms);
+    assert_eq!(band, 3);
+    let (prompt, _, band) = walk(&mut bench, 0, 120);
+    assert!(prompt.late_ms < 60, "{}", prompt.late_ms);
+    assert!(band < 3, "band {band}");
+    // The last world is no younger for either.
+    assert!(prompt.seen_at < bench.clock());
+    bench.assert_no_faults();
+}
+
+/// An input later than the relay's reach (425 ms less the largest round
+/// trip of the other players) is discarded at the intake before the bots
+/// hear of it: their view of the player is as it was, its lateness
+/// unmoved; one that is late but inside the reach is taken.
+#[test]
+fn an_input_later_than_the_relays_reach_never_reaches_the_bots() {
+    // The other human: 150 ms each way, a 300 ms round trip, so the reach
+    // of player 0 is 125 ms: a later input than that and the horizon
+    // (250 ms) is dropped.
+    let mut bench = mapped_bench(vec![0, 150, 0]);
+    for _ in 0..40 {
+        bench.clients[0].input(-10, key::FORWARD);
+        bench.run(50);
+    }
+    let seen = |bench: &Bench| {
+        let clock = bench.clock();
+        let (body, last, _) = bench.game().driven_bots().unwrap().player_view(0, clock).unwrap();
+        (body.late_ms, last)
+    };
+    let (late, last) = seen(&bench);
+    assert!(late < 80 && last.is_some(), "{late} {last:?}");
+    // 300 ms late: past the horizon and the reach.
+    bench.clients[0].input(-300, key::BACK);
+    bench.run(300);
+    assert_eq!(seen(&bench), (late, last), "discarded: the bots never heard it");
+    // 200 ms late: inside the horizon, taken (moved or relayed).
+    let taken = bench.clients[0].input(-200, key::FORWARD);
+    bench.run(300);
+    let (later, last_now) = seen(&bench);
+    assert!(later > late, "{later} against {late}");
+    assert!(last_now.is_some_and(|tick| Some(tick) > last), "{last_now:?} {taken:?}");
+    bench.assert_no_faults();
+}

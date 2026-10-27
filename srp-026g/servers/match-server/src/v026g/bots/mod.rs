@@ -33,6 +33,7 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+pub mod contact;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -40,6 +41,7 @@ pub mod escape;
 pub mod field_source;
 pub mod foliage;
 pub mod friends;
+pub mod grass;
 pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
@@ -88,6 +90,9 @@ pub mod hold_trace;
 mod layers;
 #[cfg(test)]
 pub mod pair_counts;
+mod polls;
+#[cfg(test)]
+pub mod route_twins;
 mod search;
 mod think;
 
@@ -196,12 +201,20 @@ pub struct Bot {
     motor: Motor,
     reflex: Reflex,
     memory: Memory,
+    /// Its target sights that ended, for the match-end log line.
+    sight_counts: polls::SightCounts,
+    /// By place, when a ray test of that enemy last came to an answer
+    /// (seen or no part showing; one the rays ran out on did not): the
+    /// longest unchecked is looked at first (`sense::look_order`).
+    tested: Vec<u32>,
     stuck: Stuck,
     /// Its stamina bar as the bot reckons it from the keys it sent ([`stamina`]), and those keys.
     stamina: stamina::Reckoning,
     sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
+    /// Whether it presses against something as it walks ([`contact`]), counted only.
+    contact: contact::ContactWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -379,10 +392,13 @@ impl Bot {
             motor,
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
+            sight_counts: Default::default(),
+            tested: Vec::new(),
             stuck: Stuck::default(),
             stamina: stamina::Reckoning::default(),
             sent_keys: 0,
             rest: rest::RestWatch::default(),
+            contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
@@ -707,6 +723,10 @@ pub struct Bots {
     /// Raid whenever Raid is a candidate.
     #[cfg(test)]
     pub bench_human: Option<Place>,
+    /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
+    opened: [bool; 2],
+    /// The commander's pass in progress is the start countdown's (for its notes).
+    opening_pass: bool,
     /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
     /// `campers.md` K1 §4): this bot holds one spot all match, and the
     /// spot once found (with how many route points it sees), or none.
@@ -716,6 +736,7 @@ pub struct Bots {
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
@@ -771,6 +792,7 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            polls: Default::default(),
             tactics: None,
             memo: Default::default(),
             teams: [team_state(&tuning), team_state(&tuning)],
@@ -781,6 +803,8 @@ impl Bots {
             side1_tuning: None,
             #[cfg(test)]
             bench_human: None,
+            opened: [false; 2],
+            opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
             layers: MapLayers::default(),
@@ -958,6 +982,11 @@ impl Bots {
         self.layers.foliage = foliage;
     }
 
+    /// The map's grass (`bot-grass.json`); before [`Self::map_ready`].
+    pub fn set_grass(&mut self, grass: grass::Grass) {
+        self.layers.grass = grass;
+    }
+
     pub fn has_map(&self) -> bool {
         self.tactics.is_some()
     }
@@ -1028,13 +1057,15 @@ impl Bots {
         })
     }
 
-    /// A human's input as relayed.
-    pub fn input(&mut self, place: Place, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick.
+    pub fn input(&mut self, place: Place, time: u32, late_ms: u32, input: &PlayerInput) {
         if self.is_bot(place) {
             return;
         }
         view::set_live_eye(self.tuning.aim.combat.live_eye);
         view::set_use_ray_m(self.tuning.sense.use_ray_m);
+        self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -1560,17 +1591,19 @@ impl Bots {
         let view = self
             .tracker
             .view(&clock, &self.tuning.kin, world.as_deref());
-        if self.tactics.is_some() && clock.playing {
+        if self.tactics.is_some() {
             for team in 0..2u8 {
-                if now >= self.teams[usize::from(team)].next_commander {
+                if self.commander_due(team, &clock, &view) {
                     self.commander(team, &view, &mut notes);
                 }
             }
         }
-        let mut rays = RayBudget(self.tuning.think.rays_per_poll);
+        let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
+        rays.thinks_left = self.thinks_due(&view);
         self.features.searching.left = SEARCHES_PER_POLL;
         self.features.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();
+        let claims_on = [0u8, 1].map(|team| self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5);
         for index in 0..self.bots.len() {
             if self.bots[index].is_none() {
                 continue;
@@ -1579,6 +1612,7 @@ impl Bots {
             if clock.playing {
                 self.think(index, &view, &mut rays, &mut notes);
             }
+            self.sync_route_claim(index, now, claims_on);
             self.ticks(index, &clock, &view, &mut made);
             if let Some(bot) = self.bots[index].as_mut()
                 && let Some(text) = bot.dropped.take()
@@ -1606,7 +1640,63 @@ impl Bots {
                 self.features.kit_choices.push((bot.place, kit as u8));
             }
         }
+        self.polls.record(now, &rays);
         (made, notes)
+    }
+
+    /// Whether `team`'s commander runs in this poll: when its time has come and play has begun; and, with `roam.fresh_claims` on, once
+    /// in the start countdown, so the opening plays are chosen (and their routes drawn, each seeing the picks before it) before go,
+    /// while the bots rest (no think runs before play begins).
+    pub(super) fn commander_due(&mut self, team: u8, clock: &Clock, view: &MatchView) -> bool {
+        if clock.clock < self.teams[usize::from(team)].next_commander {
+            return false;
+        }
+        self.opening_pass = !clock.playing;
+        if clock.playing {
+            return true;
+        }
+        // Once, when the team's bots are in the match (alive in the view), not before.
+        let opening = !self.opened[usize::from(team)]
+            && self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5
+            && self
+                .bots
+                .iter()
+                .flatten()
+                .any(|b| b.team == team && b.entered.is_some() && view.place(b.place).is_some_and(|p| p.alive));
+        self.opened[usize::from(team)] |= opening;
+        opening
+    }
+
+    /// A bot's drawn route is the team's to count while its run is on it, and not a moment after (`roam.fresh_claims`): the run
+    /// ended for any reason (a new play, death, arrival, a replan), the claim goes in the same poll.
+    fn sync_route_claim(&mut self, index: usize, now: u32, on: [bool; 2]) {
+        let Some(bot) = self.bots[index].as_ref() else {
+            return;
+        };
+        if !on.get(usize::from(bot.team)).copied().unwrap_or(false) {
+            return;
+        }
+        let knowledge = &mut self.teams[usize::from(bot.team)].knowledge;
+        match (bot.running.as_ref().and_then(Running::route_claim), bot.side) {
+            (Some((route, drawn)), Some(side)) => knowledge.claim_route(bot.place, side, route, drawn, now),
+            _ => knowledge.release_route(bot.place),
+        }
+    }
+
+    /// The thinks that run in a poll at `view`: the bots that have entered,
+    /// are alive and whose next think has come, counted before any ray is
+    /// cast (`sense::fair_share`). None before play begins or the map is
+    /// ready.
+    pub(super) fn thinks_due(&self, view: &MatchView) -> u32 {
+        if self.tactics.is_none() {
+            return 0;
+        }
+        let due = self.bots.iter().flatten().filter(|bot| {
+            bot.entered.is_some()
+                && view.clock >= bot.next_think
+                && view.place(bot.place).is_some_and(|p| p.alive)
+        });
+        due.count() as u32
     }
 
     /// The tuning team `team` plays by: the match's (the bench's one-sided

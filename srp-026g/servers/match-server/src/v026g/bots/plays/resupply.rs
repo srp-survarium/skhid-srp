@@ -112,7 +112,7 @@ fn short(cx: &Ctx) -> bool {
 /// An enemy seen now, or one it knows of within `calm_m`.
 fn unsafe_here(cx: &Ctx) -> bool {
     let near = num(cx, "calm_m");
-    !cx.memory.all_seen(cx.now).is_empty()
+    !cx.memory.all_seen(cx.now, cx.view.clock).is_empty()
         || cx
             .memory
             .tracks()
@@ -230,7 +230,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     if cx.bot.ammo.missing() == 0 {
         return Step::Done("nothing to refill");
     }
-    if !cx.memory.all_seen(cx.now).is_empty() {
+    if !cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
         return Step::Done("an enemy came");
     }
     if let Some((_, _, started)) = cx.bot.current

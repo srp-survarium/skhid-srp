@@ -729,7 +729,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
 fn enemy_near(bot: &Bot, due: &Due) -> bool {
     let t = &due.tuning.traps;
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
-    !bot.memory.all_seen(due.now).is_empty()
+    !bot.memory.all_seen(due.now, due.view.clock).is_empty()
         || bot.memory.tracks().iter().any(|track| {
             due.now < track.time + quiet || track.at.distance_xz(due.me.feet) < t.enemy_near_m
         })

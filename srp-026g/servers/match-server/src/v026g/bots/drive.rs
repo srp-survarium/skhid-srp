@@ -285,8 +285,17 @@ fn drive_tick_inner(
     } else {
         me
     };
+    bot.memory
+        .set_sight_window(know::SightWindow::of(&tuning.sense, &tuning.cheats));
     // [aimpoint] What of its target shows, before the reflex aims.
-    bot.reflex.look(aiming_me, view, &tactics.world, time);
+    bot.reflex.look(
+        aiming_me,
+        view,
+        &tactics.world,
+        &mut bot.memory,
+        &tuning.sense,
+        time,
+    );
     // A carrier never fires: in the game a new fire press drops the battery
     // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
     // `carrying` comes with the worlds (up to 2 s after a take); the take
@@ -317,6 +326,9 @@ fn drive_tick_inner(
         bot.skill,
         &mut bot.rng,
     );
+    if let Some(lapse) = bot.reflex.take_lapse() {
+        bot.sight_counts.add(lapse);
+    }
     bot.motor.turn_time = over.turn_time_s;
     let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {
@@ -1087,6 +1099,7 @@ fn drive_tick_inner(
                     {
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
                     }
+                    let walks_the_route = aim.is_none();
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
@@ -1094,6 +1107,9 @@ fn drive_tick_inner(
                         }
                         None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                     };
+                    // Pressing against something while walking the route: counted, nothing is decided from it.
+                    let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
+                    contact::contacts::count(counted, me.feet);
                     if walked != Walked::OnTheWay {
                         // Fallen off it: the spot it fell from (`Stuck::fell`).
                         if let Walked::Off(off) = walked
@@ -1740,6 +1756,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }

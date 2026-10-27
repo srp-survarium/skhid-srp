@@ -320,6 +320,25 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
         set(&mut tuning, "/hazard/live_zones", (v != "0").into());
     }
+    // The sight refresh, all of it (`SenseTuning::sight_refresh`, off by default) with the hold of the cheat
+    // (`CheatTuning::sight_hold_ms`: 450 to the bot's next think); `SRP_BENCH_SIGHT_HOLD` then picks another
+    // hold: `think` (that one), `0` (none) or a fixed number of ms (the A/B of 250 and 450).
+    if settings.var("SRP_BENCH_SIGHT_REFRESH").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/sense/sight_refresh", true.into());
+        set(&mut tuning, "/cheats/sight_hold_ms", super::know::SIGHT_HOLD_MS.into());
+    }
+    match settings.var("SRP_BENCH_SIGHT_HOLD").as_deref() {
+        Err(_) => {}
+        Ok("think") => {
+            set(&mut tuning, "/cheats/sight_hold_ms", super::know::SIGHT_HOLD_MS.into());
+            set(&mut tuning, "/cheats/sight_hold_to_next_think", true.into());
+        }
+        Ok(ms) => {
+            let ms: u32 = ms.parse().expect("SRP_BENCH_SIGHT_HOLD: think or ms");
+            set(&mut tuning, "/cheats/sight_hold_ms", ms.into());
+            set(&mut tuning, "/cheats/sight_hold_to_next_think", false.into());
+        }
+    }
     if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
         let floors = if floors == "max" {
             u32::MAX
@@ -396,18 +415,21 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         .tracker
         .view(&clock, &bots.tuning.kin, world.as_deref());
     let viewed = Instant::now();
+    super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
         for team in 0..2u8 {
-            if now >= bots.teams[usize::from(team)].next_commander {
+            if bots.commander_due(team, &clock, &view) {
                 bots.commander(team, &view, &mut notes);
             }
         }
     }
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
-    let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
+    let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
+    rays.thinks_left = bots.thinks_due(&view);
     bots.features.searching.left = SEARCHES_PER_POLL;
     bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
     let a = Instant::now();
     bots.go_on_searching();
     ticks += a.elapsed().as_secs_f64();
@@ -416,12 +438,17 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             continue;
         }
         let a = Instant::now();
-        bots.think(index, &view, &mut rays, &mut notes);
+        // Before play begins: only rest.
+        if clock.playing {
+            bots.think(index, &view, &mut rays, &mut notes);
+        }
+        bots.sync_route_claim(index, now, claims_on);
         let b = Instant::now();
         bots.ticks(index, &clock, &view, &mut made);
         think += (b - a).as_secs_f64();
         ticks += b.elapsed().as_secs_f64();
     }
+    bots.polls.record(clock.clock, &rays);
     let parts = [
         (viewed - started).as_secs_f64(),
         (commanded - viewed).as_secs_f64(),
@@ -567,8 +594,29 @@ pub(crate) fn real_bot_cost() {
             // reckoned on from there (`Tracker::seen_late`). Off, the
             // bench's bots know each other to their decided ticks, up to
             // 100 ms past the clock, which no live human gives them.
-            if let Some(pings) = bench_pings(teams.len(), seed) {
+            // `SRP_BENCH_PING_JITTER=<ms>`: each place's ping off by up to
+            // that either way, anew every tick (a late input arriving in
+            // bursts; with no `SRP_BENCH_PING`, around none).
+            let jitter = bench_settings()
+                .number::<u32>("SRP_BENCH_PING_JITTER")
+                .unwrap_or(0);
+            let pings = bench_pings(teams.len(), seed)
+                .or_else(|| (jitter > 0).then(|| vec![0; teams.len()]));
+            let ping_ms = pings.clone().unwrap_or_default();
+            if let Some(pings) = pings {
+                // The relay discards an input later than 425 ms less the
+                // largest round trip of the other players (twice a ping
+                // here, which is taken as the lateness itself:
+                // `Game::late_relay_reach`); a body so late is shown with
+                // no error, for the input never came.
+                bots.tracker.seen_reach = (0..pings.len())
+                    .map(|place| {
+                        let others = pings.iter().enumerate().filter(|&(p, _)| p != place);
+                        425u32.saturating_sub(2 * others.map(|(_, &ping)| ping).max().unwrap_or(0))
+                    })
+                    .collect();
                 bots.tracker.seen_late = Some(pings);
+                bots.tracker.seen_jitter = (jitter, seed);
             }
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {
@@ -580,6 +628,14 @@ pub(crate) fn real_bot_cost() {
                 Some(&dir),
             ) {
                 bots.set_foliage(super::foliage::Foliage::load(&path, &project).unwrap());
+            }
+            // The grass (`SRP_BOT_GRASS`, else `bot-grass.json` of the mapdata folder).
+            if let super::grass::Source::Set(path) | super::grass::Source::Default(path) = super::grass::Source::choose_file(
+                bench_settings().var_os("SRP_BOT_GRASS").as_deref(),
+                Some(&dir),
+                super::grass::DEFAULT_FILE,
+            ) {
+                bots.set_grass(super::grass::Grass::load(&path, &project).unwrap());
             }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
@@ -800,6 +856,7 @@ pub(crate) fn real_bot_cost() {
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
+            owner.set_pings(ping_ms);
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
             owner.set_camper(bots.bench_camper.map(|(place, _)| place));
@@ -983,6 +1040,7 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    super::route_twins::tick(game.tick, |place| game.bodies.get(place).map(|b| (b.feet, b.alive)));
                     // The harm count of the pair rules: ticks a pair's two bodies are alive more than 60 m apart.
                     for bot in bots.bots.iter().flatten() {
                         if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
@@ -1486,6 +1544,9 @@ pub(crate) fn real_bot_cost() {
             // What the bots' profiles carry of upgrades (the roster's, not the tally's: it reads no profile).
             owner_sums["upgrades"] = upgrades_summary(&roster.upgrades);
             eprintln!("  {owner_line}");
+            // The refreshed sight's own counts: poll gaps, the ray budget's refusals, sights lost by
+            // ping band (the match-end line; the code before the refresh has none of them).
+            eprintln!("  sight polls: {}", bots.poll_report());
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
@@ -1498,6 +1559,7 @@ pub(crate) fn real_bot_cost() {
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
+            eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
@@ -2049,6 +2111,33 @@ mod tuning_tests {
 
     fn settings(pairs: &[(&str, &str)]) -> BenchSettings {
         BenchSettings::from_pairs(pairs)
+    }
+
+    /// The sight refresh is off with no setting, and `SRP_BENCH_SIGHT_REFRESH` turns all of it on and nothing
+    /// else: the switch and the hold of 450 ms to the next think; `SRP_BENCH_SIGHT_HOLD` then picks the hold.
+    #[test]
+    fn the_sight_refresh_setting_turns_all_of_it_on_and_nothing_else() {
+        let off = tuning_from(&settings(&[]), false);
+        assert!(!off.sense.sight_refresh);
+        assert_eq!(off.cheats.sight_hold_ms, 0);
+        assert_eq!(off, Tuning::default());
+        let hold = super::super::know::SIGHT_HOLD_MS;
+        let mut on = Tuning::default();
+        on.sense.sight_refresh = true;
+        on.cheats.sight_hold_ms = hold;
+        for value in ["1", "on"] {
+            assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", value)]), false), on);
+        }
+        assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "0")]), false), off);
+        let with_hold = |hold: &str| {
+            tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "1"), ("SRP_BENCH_SIGHT_HOLD", hold)]), false).cheats
+        };
+        assert_eq!((with_hold("250").sight_hold_ms, with_hold("250").sight_hold_to_next_think), (250, false));
+        assert_eq!((with_hold("think").sight_hold_ms, with_hold("think").sight_hold_to_next_think), (hold, true));
+        assert_eq!(with_hold("0").sight_hold_ms, 0);
+        // The patch can name the same switches.
+        let patched = settings(&[("SRP_BENCH_TUNING", r#"{"sense":{"sight_refresh":true},"cheats":{"sight_hold_ms":450}}"#)]);
+        assert_eq!(tuning_from(&patched, false), on);
     }
 
     /// Every older switch gives the tuning it gave, for team 0 and for team 1.

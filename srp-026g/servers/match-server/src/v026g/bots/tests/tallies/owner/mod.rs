@@ -17,7 +17,9 @@
 //!   the throws that went short, were refused, or were cut by a death or a
 //!   shot;
 //! - campers (`campers.md`): kills in a run from one spot, a team's deaths
-//!   in a row to one shooter from one spot, bots entering a held line.
+//!   in a row to one shooter from one spot, bots entering a held line;
+//! - sight (`pr-sight.md`, the sight refresh's paired counts): fire runs and what ended them,
+//!   gaps between runs, fire to kill and presses a kill, the targets' sights lost by cause.
 //!
 //! Each count copies the analysis's definition (its script named at the
 //! count), so a fix can be shown on the bench before a live test. What
@@ -55,6 +57,7 @@ mod pre;
 mod resupply;
 mod run;
 mod shot_offsets;
+mod sight;
 mod stamina;
 mod stock;
 mod topic;
@@ -70,6 +73,7 @@ use pre::*;
 use resupply::*;
 use run::*;
 use shot_offsets::*;
+use sight::*;
 use stamina::*;
 use stock::*;
 use topic::*;

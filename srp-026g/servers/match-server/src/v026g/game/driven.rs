@@ -52,6 +52,7 @@ use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
+use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::arc::Grenade;
 use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
@@ -70,7 +71,7 @@ const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
 /// The bots of a match and their map.
 pub(super) struct Walkers {
-    bots: Bots,
+    pub(super) bots: Bots,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -201,6 +202,11 @@ impl Walkers {
             let var = std::env::var_os("SRP_BOT_FOLIAGE");
             if let Some(foliage) = foliage_of(id, project, var.as_deref(), walkers.maps.dir()) {
                 walkers.bots.set_foliage(foliage);
+            }
+            // The grass a sight line crosses (the same: a private file, none without it).
+            let var = std::env::var_os("SRP_BOT_GRASS");
+            if let Some(grass) = grass_of(id, project, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_grass(grass);
             }
             walkers
         })
@@ -566,11 +572,24 @@ impl Game {
         }
     }
 
-    /// A human's input as relayed: the bots hear it and track the body.
-    pub(super) fn observe_input(&mut self, index: usize, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick: the bots hear it and track the body.
+    pub(super) fn observe_input(
+        &mut self,
+        index: usize,
+        time: u32,
+        late_ms: u32,
+        input: &PlayerInput,
+    ) {
         if let Some(walkers) = self.walkers.as_mut() {
-            walkers.bots.input(index, time, input);
+            walkers.bots.input(index, time, late_ms, input);
         }
+    }
+
+    /// TEST ONLY: the server's bots.
+    #[cfg(test)]
+    pub(crate) fn driven_bots(&self) -> Option<&Bots> {
+        self.walkers.as_ref().map(|walkers| &walkers.bots)
     }
 
     /// A trusted world: every player's body, and the statistics and
@@ -820,6 +839,27 @@ fn foliage_of(
         Ok(foliage) => Some(foliage),
         Err(why) => {
             log::warn!("Match {id:#x}: the bot foliage not used ({why})");
+            None
+        }
+    }
+}
+
+/// The grass of `project`'s level a match's bots get ([`grass::Source::choose_file`]): `var` is
+/// `SRP_BOT_GRASS`, `mapdata` the mapdata folder. A file that fails to load: a warning.
+fn grass_of(
+    id: u32,
+    project: &str,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<Grass> {
+    let path = match grass::Source::choose_file(var, mapdata, grass::DEFAULT_FILE) {
+        grass::Source::Set(path) | grass::Source::Default(path) => path,
+        grass::Source::None => return None,
+    };
+    match Grass::load(&path, project) {
+        Ok(grass) => Some(grass),
+        Err(why) => {
+            log::warn!("Match {id:#x}: the bot grass not used ({why})");
             None
         }
     }
