@@ -110,6 +110,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         rests(),
+        rest_stops(),
         sprint_jumps(),
         landings(),
         stranded(),

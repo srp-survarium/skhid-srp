@@ -136,6 +136,15 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
+/// (`rest::stops`): the owner's symptom, on and off.
+pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::rest::stops::counts().to_vec(),
+        |d, line| line.ends.push(format!("rests_on_lip {} rest_seconds_on_lip {:.1}", d[0], d[1] as f32 / 1000.0)),
+    )
+}
+
 /// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
 pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     Delta::of(
