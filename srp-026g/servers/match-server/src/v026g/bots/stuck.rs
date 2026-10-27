@@ -301,9 +301,11 @@ impl Stuck {
         if length - window.from_s < PROGRESS_END_M {
             return false;
         }
-        let again = self.spots.iter().any(|spot| spot.last + AGAIN_MS > time && near(spot.at, leg));
         #[cfg(test)]
-        progress_watch::count(usize::from(again));
+        {
+            let again = self.spots.iter().any(|spot| spot.last + AGAIN_MS > time && near(spot.at, leg));
+            progress_watch::count(usize::from(again));
+        }
         match self.spots.iter_mut().find(|spot| spot.last + SPOT_KEPT_MS > time && near(spot.at, leg)) {
             Some(spot) => {
                 spot.last = time;
