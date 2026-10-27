@@ -840,6 +840,9 @@ pub(crate) fn real_bot_cost() {
             // no holder alive).
             let mut holder_ticks = [0u64; 2];
             let mut pair_apart = 0u64;
+            // The same ticks split by the pair's younger life: under `leader_settle_s` (20 s, `plays::buddy`) into it, which is where the
+            // respawn rule (`buddy.respawn_rule`) leaves a follower forward on purpose, and later (the real separation).
+            let mut pair_apart_settling = 0u64;
             let mut holder_post_ticks = [0u64; 2];
             let mut holder_deaths = [0u32; 2];
             let mut holder_thefts = [0u32; 2];
@@ -1050,7 +1053,9 @@ pub(crate) fn real_bot_cost() {
                     for bot in bots.bots.iter().flatten() {
                         if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
                             let (a, b) = (&game.bodies[bot.place], &game.bodies[mate]);
-                            pair_apart += u64::from(a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0);
+                            let apart = a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0;
+                            pair_apart += u64::from(apart);
+                            pair_apart_settling += u64::from(apart && game.tick.saturating_sub(a.spawned.max(b.spawned)) < 20_000);
                         }
                     }
                     for bot in bots.bots.iter().flatten() {
@@ -1563,7 +1568,11 @@ pub(crate) fn real_bot_cost() {
                 );
             }
             eprintln!("  push: {}", push.line(&bots));
-            eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
+            eprintln!(
+                "  pairs: {} apart_ticks {pair_apart} apart_settling {pair_apart_settling} apart_later {}",
+                super::pair_counts::line(),
+                pair_apart - pair_apart_settling
+            );
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
