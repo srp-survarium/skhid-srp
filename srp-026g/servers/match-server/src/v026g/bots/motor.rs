@@ -363,6 +363,18 @@ const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// The highest rise a jump pressed without the sprint jump reaches, metres: its apex 1.0 and the settle onto the top,
 /// +1.08-1.09 (the 8f woodbox rows, PROVEN; a +1.36 face mounted 0 of 12 from a stand or a walk).
 pub const WALK_JUMP_TOP_M: f32 = 1.09;
+/// A sprint-band press needs the body's velocity within this of the jump's way, degrees, and its speed along that way
+/// at the press speed ([`SPRINT_PRESS_SPEED_MS`]): a body moving at 45 degrees to the way carries 3.5 m/s of 5 into the
+/// face. Quetoo's bot jumps only when its velocity points within 30 degrees of the target node
+/// (<https://github.com/jdolan/quetoo/pull/1108>).
+const BAND_PRESS_ALIGN_DEG: f32 = 30.0;
+
+/// Whether a body moving with `velocity` (x, z) is carried along the jump's `way` (a unit vector) fast enough for a
+/// sprint-band press: its speed along the way is the press speed or more, and within [`BAND_PRESS_ALIGN_DEG`] of the way.
+fn press_aligned(velocity: [f32; 2], way: [f32; 2]) -> bool {
+    let along = velocity[0] * way[0] + velocity[1] * way[1];
+    along >= SPRINT_PRESS_SPEED_MS && along >= velocity[0].hypot(velocity[1]) * BAND_PRESS_ALIGN_DEG.to_radians().cos()
+}
 /// A jump of the route this far on or nearer is priced by the bar ([`Motor::sprint_by_the_bar`]), metres.
 const STAMINA_LOOKAHEAD_M: f32 = 40.0;
 /// A bar at this or under is empty for the sprint: let go before the lockout, units.
@@ -1564,7 +1576,8 @@ impl Motor {
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
         let band = self.feel.band_jump_gate && ahead.sprint && !ahead.run_through && ahead.rise > WALK_JUMP_TOP_M;
         let block = pose.sprint_block.or(aimed.then_some(SprintBlock::Aiming));
-        let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || block.is_none());
+        let aligned = !band || press_aligned(pose.velocity, ahead.way);
+        let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned));
         if ahead.sprint && !sprinted && (ahead.before > 0.0 || band) {
             if band && ahead.before.abs() <= BAND_FACE_M && pose.speed < STILL_MS {
                 band_jumps::face_tick();
@@ -1618,7 +1631,7 @@ impl Motor {
             }
             jump.back = true;
             self.jump_try = Some(jump);
-            band_jumps::refused(block, self.sprinting);
+            band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
         }
@@ -2087,6 +2100,7 @@ pub mod band_jumps {
         RefusedStaggered,
         RefusedTired,
         RefusedCarrying,
+        RefusedDirection,
         NoRunUp,
         FaceStill,
         Repicked,
@@ -2119,8 +2133,8 @@ pub mod band_jumps {
     }
 
     /// An arrival backed off from, by the reason: a `block`, else the sprint key not held, else the speed short of the
-    /// press speed.
-    pub fn refused(block: Option<SprintBlock>, sprint_held: bool) {
+    /// press speed, or (`crooked`) the speed enough but the run not along the jump's way.
+    pub fn refused(block: Option<SprintBlock>, sprint_held: bool, crooked: bool) {
         add(match block {
             Some(SprintBlock::Aiming) => Slot::RefusedAiming,
             Some(SprintBlock::Busy) => Slot::RefusedBusy,
@@ -2129,6 +2143,7 @@ pub mod band_jumps {
             Some(SprintBlock::Tired) => Slot::RefusedTired,
             Some(SprintBlock::Carrying) => Slot::RefusedCarrying,
             None if !sprint_held => Slot::RefusedNoKey,
+            None if crooked => Slot::RefusedDirection,
             None => Slot::RefusedSlow,
         });
     }
@@ -2663,6 +2678,7 @@ mod tests {
                 }
             }
             pose.speed = (to - pose.feet).length() / TICK_S;
+            pose.velocity = [(to.x - pose.feet.x) / TICK_S, (to.z - pose.feet.z) / TICK_S];
             pose.feet = to;
         }
         climb
@@ -3179,7 +3195,7 @@ mod tests {
         assert!(!on.presses.is_empty(), "it runs up and jumps: {:?}", on.poses.last());
         assert!(on.presses.iter().all(|(_, at)| at.speed >= SPRINT_PRESS_SPEED_MS), "{:?}", on.presses);
         let after = band_jumps::counts();
-        let refusals = band_jumps::Slot::RefusedSlow as usize..=band_jumps::Slot::RefusedCarrying as usize;
+        let refusals = band_jumps::Slot::RefusedSlow as usize..=band_jumps::Slot::RefusedDirection as usize;
         assert!(after[refusals.clone()].iter().sum::<u64>() > before[refusals].iter().sum::<u64>(), "the slow arrival was refused");
         assert!(on.up, "{:?}", on.poses.last());
     }
@@ -3296,6 +3312,22 @@ mod tests {
         motor.gauge = bar(40.0, false);
         motor.sprint_by_the_bar(&walk, 0.0);
         assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
+    }
+
+    /// A sprint-band press is aligned when the body's speed along the jump's way is the press speed or more, within 30
+    /// degrees of it: 5 m/s straight on is, 5 m/s at 45 degrees (3.5 along) is not, and 4.2 m/s straight on is.
+    #[test]
+    fn a_band_press_needs_the_run_along_the_jumps_way() {
+        let way = [1.0, 0.0];
+        assert!(press_aligned([5.0, 0.0], way));
+        assert!(press_aligned([4.2, 0.0], way));
+        let d45 = 5.0 * std::f32::consts::FRAC_1_SQRT_2;
+        assert!(!press_aligned([d45, d45], way), "3.5 m/s of 5 along the way");
+        let d25 = 25.0_f32.to_radians();
+        assert!(press_aligned([5.0 * d25.cos(), 5.0 * d25.sin()], way), "25 degrees, 4.5 along");
+        let d35 = 35.0_f32.to_radians();
+        assert!(!press_aligned([6.0 * d35.cos(), 6.0 * d35.sin()], way), "35 degrees is over the 30");
+        assert!(!press_aligned([3.9, 0.0], way), "too slow");
     }
 
     /// A tired body does not take the sprint up to walk into a sprint jump (it walks, the bar comes back); a rested one
@@ -3620,6 +3652,7 @@ mod tests {
                 pose.feet.z + velocity[1] * TICK_S,
             );
             pose.speed = velocity[0].hypot(velocity[1]);
+            pose.velocity = velocity;
         }
         (decisions, pose)
     }
