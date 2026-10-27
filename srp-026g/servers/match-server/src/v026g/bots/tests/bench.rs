@@ -415,9 +415,10 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         .tracker
         .view(&clock, &bots.tuning.kin, world.as_deref());
     let viewed = Instant::now();
+    super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
         for team in 0..2u8 {
-            if now >= bots.teams[usize::from(team)].next_commander {
+            if bots.commander_due(team, &clock, &view) {
                 bots.commander(team, &view, &mut notes);
             }
         }
@@ -428,6 +429,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     rays.thinks_left = bots.thinks_due(&view);
     bots.features.searching.left = SEARCHES_PER_POLL;
     bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
     let a = Instant::now();
     bots.go_on_searching();
     ticks += a.elapsed().as_secs_f64();
@@ -436,7 +438,11 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             continue;
         }
         let a = Instant::now();
-        bots.think(index, &view, &mut rays, &mut notes);
+        // Before play begins: only rest.
+        if clock.playing {
+            bots.think(index, &view, &mut rays, &mut notes);
+        }
+        bots.sync_route_claim(index, now, claims_on);
         let b = Instant::now();
         bots.ticks(index, &clock, &view, &mut made);
         think += (b - a).as_secs_f64();
