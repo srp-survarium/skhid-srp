@@ -120,6 +120,19 @@ pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
     )
 }
 
+/// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
+pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::zone_cost::asks::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "zone_cross_asked {} zone_cross_borne {} zone_cross_refused {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -204,13 +217,16 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
-/// The blind stops: ticks a bot stood for want of a world, the stops a world ended, and those that showed the stop was needless
-/// (`stuck::blind`).
-pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
+/// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
+/// came with one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, within 1.2 m (`stuck::fix_gaps`).
+pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::stuck::blind::counts().to_vec(),
+        || super::super::stuck::fix_gaps::counts().to_vec(),
         |d, line| {
-            line.ends.push(format!("blind_stop_ticks {} blind_stops_ended {} blind_stops_needless {}", d[0], d[1], d[2]));
+            line.ends.push(format!(
+                "fix_gaps {} fix_gap_stuck_notes {} fix_gap_off_notes {} fix_gap_checks_ended {} stuck_beside_enemy {} stuck_beside_friend {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
+            ));
         },
     )
 }
@@ -220,6 +236,17 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::fall_locks::counts().to_vec(),
         |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
+    )
+}
+
+/// The blind stops: ticks a bot stood for want of a world, the stops a world ended, and those that showed the stop was needless
+/// (`stuck::blind`).
+pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::blind::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("blind_stop_ticks {} blind_stops_ended {} blind_stops_needless {}", d[0], d[1], d[2]));
+        },
     )
 }
 

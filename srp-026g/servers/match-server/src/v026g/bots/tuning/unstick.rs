@@ -34,6 +34,11 @@ pub struct UnstickTuning {
     pub suicide_wait_ms: u32,
     /// The bit is held this many ticks (the J0 run's, `SUICIDE_TICKS`).
     pub suicide_ticks: u8,
+    /// A world this long after the one before it, ms, ends the stuck check (the watch starts again at the next
+    /// world, no note, no recovery, no spot for the team): the bot was not shown the body for that long, so a body
+    /// that "did not move" is not known to have been stuck. None: the check goes on (the default: 32 of the 35
+    /// stuck notes after a 3 s gap in the J0 matches were bodies really pinned).
+    pub fix_gap_ms: Option<u32>,
     /// A bot whose last world is this old, ms, stands still (no walk key, no sprint) until another world comes: its
     /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
     /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on (the default).
@@ -52,6 +57,7 @@ impl Default for UnstickTuning {
             suicide_min_tickets: 5,
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
+            fix_gap_ms: None,
             blind_stop_ms: None,
         }
     }
