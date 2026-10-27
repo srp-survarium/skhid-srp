@@ -871,6 +871,9 @@ impl Game {
                     if !blocked {
                         body.node = Some(node);
                         body.feet = feet;
+                        if let Some(stood) = standing.get_mut(place) {
+                            stood.0 = feet;
+                        }
                     }
                 }
                 body.step_m = body.feet.distance_xz(before);
