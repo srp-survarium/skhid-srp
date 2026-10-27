@@ -1571,6 +1571,51 @@ mod tests {
         assert!(walked_past(&grid, 7.0), "{}", grid.off_links().len());
     }
 
+    /// A face across z from x0 to x1, from y0 to y1.
+    fn face_z(z: f32, x0: f32, x1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
+        let (a, b, c, d) = (Vec3::new(x0, y0, z), Vec3::new(x1, y0, z), Vec3::new(x1, y1, z), Vec3::new(x0, y1, z));
+        let walker = WalkerBehaviour::BySlope;
+        [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
+    }
+
+    /// A bot can still jump onto a box and from its top over a wall that is too tall to jump from the ground: the wall
+    /// stands 0.5 m over the clips' highest rise (the walking clip's 1.00, the sprint clip's 1.35, read from the
+    /// client's animations), the box 0.1 m under the walking apex, beside the wall. No link from the ground over the
+    /// wall; a way onto the box; a link from the box top landing beyond the wall.
+    #[test]
+    fn a_box_beside_a_tall_wall_is_jumped_onto_and_from_over_the_wall() {
+        let walking = SHORT_JUMP_RISE.iter().copied().fold(0.0f32, f32::max);
+        let sprint = SPRINT_JUMP_RISE.iter().flatten().copied().fold(0.0f32, f32::max);
+        let (box_h, wall_h) = (walking - 0.1, sprint + 0.5);
+        assert!(wall_h > walking + 0.5 && wall_h - box_h < walking, "the wall clears from the box top only");
+        let area = [0.0, 0.0, 14.0, 30.0];
+        // Ground; a wall 0.34 m thick across x 4.5 for z 0-25 (a way round at z 25-30); a box beside it on the west
+        // at z 5-10 (x 0.5-4.2, so 0.3 m from the wall).
+        let mut t = quad(0.0, 0.0, 14.0, 30.0, 0.0).to_vec();
+        t.extend(face_x(4.5, 0.0, 25.0, 0.0, wall_h));
+        t.extend(face_x(4.84, 0.0, 25.0, 0.0, wall_h));
+        t.extend(quad(4.5, 0.0, 4.84, 25.0, wall_h));
+        t.extend(quad(0.5, 5.0, 4.2, 10.0, box_h));
+        t.extend(face_x(0.5, 5.0, 10.0, 0.0, box_h));
+        t.extend(face_x(4.2, 5.0, 10.0, 0.0, box_h));
+        t.extend(face_z(5.0, 0.5, 4.2, 0.0, box_h));
+        t.extend(face_z(10.0, 0.5, 4.2, 0.0, box_h));
+        let grid = WalkGrid::build_with_links(&t, area, 0.25, Body::default(), OffMeshLinks::Gaps);
+        let at = |f: NodeId| grid.position(f);
+        let off = grid.off_links();
+        // From the ground, none lands beyond the wall.
+        let over_from_ground = off.iter().filter(|l| at(l.from).y < 0.1 && at(l.to).x > 5.0 && at(l.from).x < 4.4).count();
+        assert_eq!(over_from_ground, 0, "{over_from_ground} links over the wall from the ground");
+        // The box top is reached: a jump link, or a gap link, from the ground to a floor at the box's height.
+        let onto_box = (0..grid.len() as NodeId).filter(|&f| at(f).y < 0.1).any(|f| {
+            grid.links(f).any(|(n, k)| (k == LinkKind::Jump || k.is_off_mesh()) && (at(n).y - box_h).abs() < 0.05 && at(n).x > 0.5 && at(n).x < 4.2)
+        });
+        assert!(onto_box, "no link onto the box");
+        // From the box top, a link lands beyond the wall.
+        let over_from_box = off.iter().filter(|l| (at(l.from).y - box_h).abs() < 0.05 && at(l.to).x > 5.0 && at(l.to).y < 0.1).count();
+        assert!(over_from_box > 0, "no link from the box top over the wall: {:?}", off.iter().map(|l| (at(l.from), at(l.to), l.kind)).take(12).collect::<Vec<_>>());
+    }
+
     /// A wall over the gap with a door narrower than the body (0.5 m):
     /// no way through it; 1.5 m wide (the body and a cell of the solids'
     /// rounding each side): jumped through.
