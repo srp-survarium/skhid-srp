@@ -294,6 +294,19 @@ impl HumanRoute {
     ///
     /// A point with no floor near (off the walkable map) is dropped.
     pub fn on_floors(mut self, grid: &WalkGrid) -> Self {
+        self.points = self
+            .points
+            .iter()
+            .filter_map(|&p| Self::floors_for(grid, p).first().copied())
+            .collect();
+        self
+    }
+
+    /// The floors [`Self::on_floors`] chooses from for the point `p`, nearest `p` (in x, z) first: the floors of the
+    /// level its height names (the nearest in height and those within 0.5 m of it), or without a usable height the
+    /// lowest ones. Several, since a thin wall puts floors of two sides of it within a metre of the point
+    /// (`Tactics::set_routes_with` takes the side the route walks).
+    pub fn floors_for(grid: &WalkGrid, p: Vec3) -> Vec<Vec3> {
         let near = |p: Vec3, r: f32| -> Vec<Vec3> {
             grid.floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
                 .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
@@ -311,33 +324,31 @@ impl HumanRoute {
                     .map(|at| (at.y - p.y).abs())
                     .fold(f32::INFINITY, f32::min);
                 (off <= HEIGHT_OFF_M).then_some(())?;
-                floors
+                let mut level: Vec<Vec3> = floors
                     .into_iter()
                     .filter(|at| (at.y - p.y).abs() <= off + 0.5)
-                    .min_by(nearest_xz(p))
+                    .collect();
+                level.sort_by(nearest_xz(p));
+                (!level.is_empty()).then_some(level)
             })
         };
         let lowest = |p: Vec3| {
             [2.0f32, 5.0].iter().find_map(|&r| {
                 let floors = near(p, r);
                 let lowest = floors.iter().map(|at| at.y).fold(f32::INFINITY, f32::min);
-                floors
+                let mut level: Vec<Vec3> = floors
                     .into_iter()
                     .filter(|at| at.y <= lowest + 1.0)
-                    .min_by(nearest_xz(p))
+                    .collect();
+                level.sort_by(nearest_xz(p));
+                (!level.is_empty()).then_some(level)
             })
         };
-        self.points = self
-            .points
-            .iter()
-            .filter_map(|&p| {
-                p.y.is_finite()
-                    .then(|| by_height(p))
-                    .flatten()
-                    .or_else(|| lowest(p))
-            })
-            .collect();
-        self
+        p.y.is_finite()
+            .then(|| by_height(p))
+            .flatten()
+            .or_else(|| lowest(p))
+            .unwrap_or_default()
     }
 }
 
@@ -779,6 +790,212 @@ mod tests {
             ));
         }
         match std::env::var_os("SRP_ROUTES_ZONES_OUT") {
+            Some(file) => std::fs::write(file, out).unwrap(),
+            None => eprint!("{out}"),
+        }
+    }
+
+    /// How far a walk over the grid's links from a floor goes to say which floors are on its side, m (x, z).
+    const SIDE_M: f32 = 3.0;
+    /// The human samples round a point that count for it, m (x, z).
+    const SAMPLES_M: f32 = 3.0;
+    /// A point with fewer samples than this round it is not judged.
+    const MIN_SAMPLES: usize = 10;
+    /// A floor needs this many samples on its side to be one the players stood on.
+    const MIN_SUPPORT: usize = 3;
+    /// The floors a point may move to (the point's level) are within this of it, m; any floor (another level) within
+    /// [`WIDE_M`].
+    const NEAR_M: f32 = 1.0;
+    const WIDE_M: f32 = 2.5;
+
+    /// What the players' samples say of a route point's floor.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum Verdict {
+        /// Fewer than [`MIN_SAMPLES`] samples round the point: not judged.
+        Thin,
+        /// A player stood on the side of the floor the server puts the point on.
+        Walked,
+        /// No player did; a floor with [`MIN_SUPPORT`] or more samples on its side lies within [`NEAR_M`] (the point's
+        /// level) or within [`WIDE_M`] (`wide`: another level): the point goes there.
+        Move { to: Vec3, support: usize, wide: bool },
+        /// No player did, and no floor within [`WIDE_M`] has any: the point is dropped.
+        Drop,
+    }
+
+    /// The samples that stand on a floor reached from `at` by a walk over the grid's links within [`SIDE_M`] of it (x, z):
+    /// `floors` are the floors the samples stand on.
+    fn samples_on_side(grid: &WalkGrid, at: Vec3, floors: &[mapdata::NodeId]) -> usize {
+        let Some(start) = grid.locate(at, 0.3) else {
+            return 0;
+        };
+        let mut seen = std::collections::HashSet::from([start]);
+        let mut queue = vec![start];
+        while let Some(node) = queue.pop() {
+            for (to, _) in grid.links(node) {
+                if grid.position(to).distance_xz(at) <= SIDE_M && seen.insert(to) {
+                    queue.push(to);
+                }
+            }
+        }
+        floors.iter().filter(|node| seen.contains(node)).count()
+    }
+
+    /// The verdict on the point `p` (its y the players' feet height, NaN where the table gives none) against the feet
+    /// positions `samples` of the players of its map and mode, and the number of samples it was judged on.
+    fn judge(grid: &WalkGrid, p: Vec3, samples: &[Vec3]) -> Option<(Verdict, usize)> {
+        let level: Vec<Vec3> = HumanRoute::floors_for(grid, p)
+            .into_iter()
+            .filter(|at| at.distance_xz(p) <= NEAR_M)
+            .collect();
+        let nearest = *level.first()?;
+        let near: Vec<Vec3> = samples.iter().copied().filter(|s| s.distance_xz(p) <= SAMPLES_M).collect();
+        if near.len() < MIN_SAMPLES {
+            return Some((Verdict::Thin, near.len()));
+        }
+        let floors: Vec<mapdata::NodeId> = near.iter().filter_map(|&s| grid.locate(s, 0.6)).collect();
+        if samples_on_side(grid, nearest, &floors) > 0 {
+            return Some((Verdict::Walked, near.len()));
+        }
+        let best = |candidates: Vec<Vec3>| {
+            let mut chosen: Option<(usize, Vec3)> = None;
+            for at in candidates {
+                let support = samples_on_side(grid, at, &floors);
+                if support >= MIN_SUPPORT && chosen.is_none_or(|(most, _)| support > most) {
+                    chosen = Some((support, at));
+                }
+            }
+            chosen
+        };
+        if let Some((support, to)) = best(level) {
+            return Some((Verdict::Move { to, support, wide: false }, near.len()));
+        }
+        let mut wide: Vec<Vec3> = grid
+            .floors_in([p.x - WIDE_M, p.z - WIDE_M, p.x + WIDE_M, p.z + WIDE_M])
+            .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
+            .map(|node| grid.position(node))
+            .filter(|at| at.distance_xz(p) <= WIDE_M)
+            .collect();
+        wide.sort_by(|a, b| a.distance_xz(p).total_cmp(&b.distance_xz(p)));
+        Some(match best(wide) {
+            Some((support, to)) => (Verdict::Move { to, support, wide: true }, near.len()),
+            None => (Verdict::Drop, near.len()),
+        })
+    }
+
+    fn feet(points: &[(f32, f32)]) -> Vec<Vec3> {
+        points.iter().map(|&(x, z)| Vec3::new(x, 0.0, z)).collect()
+    }
+
+    /// A point just past a thin wall (the 40 x 40 m floor with the wall along x = 20), with the players on the near side,
+    /// goes to the near side's floor; with them on its own side it stays; with few samples it is not judged; with samples
+    /// on neither floor's side it is dropped (Tarakanovsky Fort route 88's point 2 was 0.36 m past a wall).
+    #[test]
+    fn a_point_past_a_wall_is_judged_by_the_side_the_players_stood_on() {
+        let grid = crate::v026g::bots::body::tests::walled();
+        let p = Vec3::new(20.15, f32::NAN, 10.0);
+        let nearest = HumanRoute::floors_for(&grid, p)[0];
+        assert!(nearest.x > 20.0, "{nearest:?}: the nearest floor is the far side's");
+        let near_side = feet(&[
+            (19.7, 8.5),
+            (19.5, 9.0),
+            (19.3, 9.5),
+            (19.1, 10.0),
+            (18.9, 10.5),
+            (18.7, 11.0),
+            (19.6, 11.5),
+            (19.4, 12.0),
+            (18.5, 9.0),
+            (18.3, 10.0),
+            (18.1, 11.0),
+            (17.9, 10.0),
+        ]);
+        let (verdict, n) = judge(&grid, p, &near_side).unwrap();
+        assert_eq!(n, 12);
+        let Verdict::Move { to, support, wide } = verdict else {
+            panic!("{verdict:?}")
+        };
+        assert!(to.x < 20.0 && support >= MIN_SUPPORT && !wide, "{to:?} {support}");
+        let far_side: Vec<Vec3> = near_side.iter().map(|s| Vec3::new(40.0 - s.x, 0.0, s.z)).collect();
+        assert_eq!(judge(&grid, p, &far_side).unwrap().0, Verdict::Walked);
+        assert_eq!(judge(&grid, p, &near_side[..5]).unwrap(), (Verdict::Thin, 5));
+        // Samples round the point that stand on no floor (above the 0.6 m the grid is searched): on neither side.
+        let aloft: Vec<Vec3> = near_side.iter().map(|s| Vec3::new(s.x, 9.0, s.z)).collect();
+        assert_eq!(judge(&grid, p, &aloft).unwrap().0, Verdict::Drop);
+    }
+
+    /// The route points of a table against the players' samples (private files): per point the verdict
+    /// ([`Verdict`]). With `SRP_ROUTES_WALKED_OUT` a TSV a row a point (`scripts/bot-routes/walked_floors.py` applies it to
+    /// the table); else the counts. `SRP_ROUTES_HUMAN_DIR` is the folder of the samples, `level_XX_day_M.tsv` with the
+    /// columns `x`, `feet`, `z`, `jumping` (the routes tool's world positions of the live matches of 12 or more
+    /// players). The grid is the default one, with the gap links on `SRP_ROUTES_GAP_LINKS=1` and the clients' numbers on
+    /// `SRP_ROUTES_CLIENT_NUMBERS=1`. Run in release.
+    #[test]
+    #[ignore = "needs the private map files, route table and human samples"]
+    fn route_points_stand_where_the_players_stood() {
+        let (Some(dir), Some(path), Some(human)) = (
+            std::env::var_os("SRP_MAPDATA_DIR"),
+            std::env::var_os("SRP_BOT_ROUTES"),
+            std::env::var_os("SRP_ROUTES_HUMAN_DIR"),
+        ) else {
+            panic!("set SRP_MAPDATA_DIR, SRP_BOT_ROUTES and SRP_ROUTES_HUMAN_DIR");
+        };
+        let on = |name: &str| std::env::var(name).is_ok_and(|v| v == "1");
+        let body = if on("SRP_ROUTES_CLIENT_NUMBERS") { mapdata::Body::client() } else { mapdata::Body::default() };
+        let links = if on("SRP_ROUTES_GAP_LINKS") { mapdata::OffMeshLinks::Gaps } else { mapdata::OffMeshLinks::None };
+        let table = RouteTable::load(path.as_ref()).unwrap();
+        let mut out = String::from("row\tpoint\tlevel\tmode\tx\tz\theight\tsamples\tverdict\tto_x\tto_y\tto_z\tsupport\n");
+        let mut worlds = std::collections::HashMap::new();
+        let mut humans: std::collections::HashMap<(String, u8), Vec<Vec3>> = Default::default();
+        let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+        for (index, row) in table.rows.iter().enumerate() {
+            let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
+            let world = worlds.entry((level, row.mode)).or_insert_with(|| {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{}.mapdata", row.mode));
+                let map = mapdata::MapData::read(&path).unwrap();
+                mapdata::World::build_with_links(map, mapdata::CELL, body, links)
+            });
+            let samples = humans.entry((row.level.clone(), row.mode)).or_insert_with(|| {
+                let file = std::path::Path::new(&human).join(format!("{}_day_{}.tsv", row.level, row.mode));
+                let text = std::fs::read_to_string(&file).unwrap_or_default();
+                let mut lines = text.lines();
+                let head: Vec<&str> = lines.next().unwrap_or("").split('\t').collect();
+                let col = |name: &str| head.iter().position(|h| *h == name);
+                let (Some(cx), Some(cy), Some(cz), Some(cj)) = (col("x"), col("feet"), col("z"), col("jumping")) else {
+                    return Vec::new();
+                };
+                lines
+                    .filter_map(|line| {
+                        let f: Vec<&str> = line.split('\t').collect();
+                        (f.get(cj) != Some(&"1")).then_some(())?;
+                        Some(Vec3::new(f.get(cx)?.parse().ok()?, f.get(cy)?.parse().ok()?, f.get(cz)?.parse().ok()?))
+                    })
+                    .collect()
+            });
+            for (k, &p) in row.route().points.iter().enumerate() {
+                let Some((verdict, n)) = judge(&world.grid, p, samples) else {
+                    continue;
+                };
+                let (name, to, support) = match verdict {
+                    Verdict::Thin => ("thin", None, 0),
+                    Verdict::Walked => ("walked", None, 0),
+                    Verdict::Move { to, support, wide: false } => ("move", Some(to), support),
+                    Verdict::Move { to, support, wide: true } => ("move_wide", Some(to), support),
+                    Verdict::Drop => ("drop", None, 0),
+                };
+                *counts.entry(name).or_default() += 1;
+                let at = to.map_or(String::from("\t\t"), |t| format!("{:.2}\t{:.2}\t{:.2}", t.x, t.y, t.z));
+                out.push_str(&format!(
+                    "{index}\t{k}\t{}\t{}\t{:.2}\t{:.2}\t{}\t{n}\t{name}\t{at}\t{support}\n",
+                    row.level,
+                    row.mode,
+                    p.x,
+                    p.z,
+                    if p.y.is_finite() { format!("{:.2}", p.y) } else { String::new() }
+                ));
+            }
+        }
+        eprintln!("route points by verdict: {counts:?}");
+        match std::env::var_os("SRP_ROUTES_WALKED_OUT") {
             Some(file) => std::fs::write(file, out).unwrap(),
             None => eprint!("{out}"),
         }
