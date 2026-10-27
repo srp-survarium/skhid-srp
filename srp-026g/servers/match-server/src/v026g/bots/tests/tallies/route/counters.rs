@@ -281,6 +281,20 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Windows of the stuck watch let go for a way the bot had no reckoning of, and the stucks that followed them at the same
+/// spot (`stuck::unknown_meant`).
+pub(super) fn unknown_meant() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::unknown_meant::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "unknown_meant_ended {} unknown_meant_then_stuck {}",
+                d[0], d[1]
+            ));
+        },
+    )
+}
+
 /// The bodies the progress watch stopped, and those that came to the same leg again within 20 s (`stuck::progress_watch`).
 pub(super) fn progress_watch() -> Box<dyn RouteTopic> {
     Delta::of(
