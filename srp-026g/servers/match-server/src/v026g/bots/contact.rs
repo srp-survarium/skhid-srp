@@ -125,7 +125,7 @@ mod tests {
         let firsts = counted.iter().filter(|c| matches!(c, Counted::Contact { first: true, .. })).count();
         let ms: u32 = counted.iter().map(|c| if let Counted::Contact { ms, .. } = c { *ms } else { 0 }).sum();
         assert_eq!(firsts, 1, "{counted:?}");
-        assert!((900..=1000).contains(&ms), "about 1 s of the 1.45 s: {ms}");
+        assert_eq!(ms, 1_450, "all of the 1.45 s pressed, from the first tick");
         for none in [run(true, key::FORWARD, 2.0), run(false, key::FORWARD, 0.0), run(true, key::LEFT, 0.0)] {
             assert!(none.iter().all(|c| *c == Counted::Nothing), "{none:?}");
         }
