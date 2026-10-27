@@ -139,6 +139,28 @@ package
             if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
                failures.push("History reopened last did not stay above room");
             trace("ROOMS most recently opened window stays on top across side-panel updates");
+            // Use the production modal-order owner with lightweight results;
+            // the full victory screen requires the game's player dictionaries.
+            var Layers:Object = domain.getDefinition("survarium.rooms.RoomLayers");
+            var results:Sprite = new Sprite();
+            var dimmer:Sprite = new Sprite();
+            lobby.addChild(dimmer);
+            lobby.addChild(results);
+            lobby.setChildIndex(room,lobby.numChildren - 1);
+            for(i = 0; i < 3; i++)
+            {
+               Layers.belowResults(room,results,dimmer);
+               lobby.addChild(lobby.squadList);
+               lobby.layerRoomsWindow(room);
+               if(lobby.getChildIndex(room) >= lobby.getChildIndex(dimmer) || lobby.getChildIndex(room) >= lobby.getChildIndex(results))
+                  failures.push("late room state covered match results or their dimmer");
+            }
+            results.visible = false;
+            lobby.setChildIndex(room,lobby.numChildren - 1);
+            Layers.belowResults(room,results,dimmer);
+            if(lobby.getChildIndex(room) <= lobby.getChildIndex(results))
+               failures.push("closed results still constrained room order");
+            trace("ROOMS post-match results stay above late room state until closed");
          }
          catch(err:Error)
          {

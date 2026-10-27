@@ -6448,6 +6448,7 @@ package
       // the chat stays over it (the owner's of 2026-10-19).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
+         survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
          var panels:Array = [this.squadList,this.questList];
          for(var i:int = 0; i < panels.length; i++)
          {
