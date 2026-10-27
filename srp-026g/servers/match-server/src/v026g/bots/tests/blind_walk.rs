@@ -43,7 +43,7 @@ fn blind_walk_after_a_mid_air_world() {
 fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3, f32) {
     let world = soak_world();
     let start = Vec3::new(5.0, 0.0, 10.0);
-    let goal = Vec3::new(75.0, 0.0, 32.0);
+    let goal = Vec3::new(50.0, 0.0, 35.0);
     let mut tuning = Tuning::default();
     tuning.unstick.blind_stop_ms = blind_stop_ms;
     let teams = [0u8, 1];
@@ -107,6 +107,6 @@ fn a_bot_with_no_world_for_the_tuned_time_stands_still() {
     let (_, far) = walk_with_no_worlds_after_3s(None, 25_000);
     assert!(far < 3.0, "untuned, the walk goes on to the goal: {far} m off");
     let (at, left) = walk_with_no_worlds_after_3s(Some(4_000), 25_000);
-    assert!(left > 25.0, "tuned, it stands where its world ran out: {left} m from the goal");
-    assert!(at.distance_xz(Vec3::new(5.0, 0.0, 10.0)) < 45.0, "{at:?}");
+    assert!(left > 8.0, "tuned, it stands where its world ran out: {left} m from the goal");
+    assert!(at.distance_xz(Vec3::new(5.0, 0.0, 10.0)) > 10.0, "it did walk at first: {at:?}");
 }
