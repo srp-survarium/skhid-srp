@@ -1302,7 +1302,8 @@ impl Bots {
             let length = route.length();
             let (s, off) = route.clone().progress(feet);
             if off < stuck::PROGRESS_OFF_M {
-                let leg = route.point_at((s + stuck::PROGRESS_LEG_M).min(length));
+                // On the floor the route walks: the spot kept clear of is compared with the floor heights of a route (`Stuck::clear`).
+                let leg = route.floor_point((s + stuck::PROGRESS_LEG_M).min(length));
                 if bot.stuck.no_progress(time, s, keys, *goal, length, window_ms, leg) {
                     bot.note(
                         &mut notes,
