@@ -15,8 +15,10 @@ const LAUNCH_MS: u32 = (arc::LAUNCH_DELAY_S * 1000.0) as u32;
 /// the launch and the 300 ms of `CombatTuning::grenade_look_after_ms`.
 const HELD_MS: u32 = LAUNCH_MS + 300;
 
-/// The fuse from the press, ms (`arc::FUSE_S`).
-const FUSE_MS: u32 = (arc::FUSE_S * 1000.0) as u32;
+/// The fuse from the press, ms: the bots' grenade's (`arc::Grenade::bots`, the game data's `ttl_ms`).
+fn fuse_ms() -> u32 {
+    arc::Grenade::bots().fuse_ms()
+}
 
 /// A first contact nearer than this to a thrower who aimed beyond it is a
 /// short throw, metres (the blast's 10 m and 2 m more:
@@ -106,14 +108,25 @@ pub(super) struct LiveBlasts {
     pub(super) err: [u32; 4],
 }
 
-/// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
-/// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between:
-/// GUESS), on a body with a line from the landing.
-pub(crate) const BLAST_M: f32 = 10.0;
+/// Grenades: the bots' grenade's blast, from the game data (the RGD-5's `rgd-5.options`: `splash_radius` 10 m,
+/// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between: GUESS), on a body with a line from the
+/// landing.
+pub(crate) fn blast_m() -> f32 {
+    arc::Grenade::bots().splash_m
+}
 
-pub(crate) const BLAST_MAX: f32 = 1.3;
+fn blast_params() -> survarium::v026g::weapons::GrenadeParams {
+    survarium::v026g::weapons::grenade_named(survarium::v026g::loadouts::BOT_GRENADE.name)
+        .expect("the game data has the bots' grenade")
+}
 
-pub(crate) const BLAST_MIN: f32 = 0.05;
+pub(crate) fn blast_max() -> f32 {
+    blast_params().splash_max_damage
+}
+
+pub(crate) fn blast_min() -> f32 {
+    blast_params().splash_min_damage
+}
 
 /// A grenade let go: the thrower, where it lands, when it goes off, and
 /// the bodies inside its radius at the throw.
@@ -140,12 +153,12 @@ pub(crate) fn held_back(text: &str) -> Option<&str> {
     rest.split_once("): ").map(|(_, why)| why)
 }
 
-/// The blast's damage at `d` m (linear, [`BLAST_MAX`] to [`BLAST_MIN`]).
+/// The blast's damage at `d` m (linear, `blast_max()` to `blast_min()`).
 pub(crate) fn blast_damage(d: f32) -> f32 {
-    if d > BLAST_M {
+    if d > blast_m() {
         0.0
     } else {
-        BLAST_MAX - (BLAST_MAX - BLAST_MIN) * d / BLAST_M
+        blast_max() - (blast_max() - blast_min()) * d / blast_m()
     }
 }
 
@@ -250,6 +263,8 @@ pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
     assert_eq!(logic["rolls"], 3, "{json}");
     assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0]), "{json}");
     assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
+    assert_eq!(logic["volley"], serde_json::json!([0, 0, 0, 0]), "{json}");
+    assert_eq!(logic["near"], serde_json::json!([0, 0, 0]), "{json}");
     // No bot thought: no key.
     let (mut game, mut tally) = made_up(&[0, 1]);
     game.tick = TICK_MS;
@@ -289,8 +304,8 @@ pub(crate) fn throws_of_one_team_at_one_spot_are_counted_by_radius() {
 
 #[test]
 pub(crate) fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
-    assert!((blast_damage(0.0) - BLAST_MAX).abs() < 1e-6);
-    assert!((blast_damage(BLAST_M) - BLAST_MIN).abs() < 1e-6);
+    assert!((blast_damage(0.0) - blast_max()).abs() < 1e-6);
+    assert!((blast_damage(blast_m()) - blast_min()).abs() < 1e-6);
     assert_eq!(blast_damage(10.5), 0.0);
 }
 
@@ -415,7 +430,7 @@ pub(crate) fn the_refusals_are_counted_by_their_reason() {
 #[test]
 pub(crate) fn the_launch_constants_are_the_arcs() {
     assert_eq!(LAUNCH_MS, 1100);
-    assert_eq!(FUSE_MS, 4000);
+    assert_eq!(fuse_ms(), blast_params().ttl_ms);
     assert_eq!(HELD_MS, 1400);
 }
 
@@ -488,10 +503,10 @@ impl Topic for GrenadeCounts {
 }
 
 impl GrenadeCounts {
-    /// A throw noted at its let-go: the blast is [`FUSE_MS`] after the press; where it lands is worked out at
+    /// A throw noted at its let-go: the blast is the fuse after the press; where it lands is worked out at
     /// the launch ([`Self::grenade_launches`]).
     pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32) {
-        let press = blast.saturating_sub(FUSE_MS);
+        let press = blast.saturating_sub(fuse_ms());
         // Teammates' throws at one spot, a throw counted once for each radius it lands within of an
         // earlier throw of another bot of its team in the last SAME_SPOT_MS (the bot's own volley is not).
         for earlier in &self.same_spot_log {
@@ -513,7 +528,7 @@ impl GrenadeCounts {
         self.throws.push(Throw {
             thrower,
             aim,
-            press: blast.saturating_sub(FUSE_MS),
+            press: blast.saturating_sub(fuse_ms()),
         });
     }
 
@@ -571,7 +586,7 @@ impl GrenadeCounts {
 
     /// The throws at their launch: the grenade leaves [`LAUNCH_MS`] after the press along the thrower's view
     /// then (his record), and comes down on the bullet mesh where `arc` says; the blast is there, at the rest
-    /// point, [`FUSE_MS`] after the press. Who is inside is by the bodies' places at the launch.
+    /// point, the fuse after the press. Who is inside is by the bodies' places at the launch.
     fn grenade_launches(&mut self, run: &Run, game: &Game, tick: u32) {
         let (due, later): (Vec<Throw>, Vec<Throw>) = std::mem::take(&mut self.throws)
             .into_iter()
@@ -598,14 +613,14 @@ impl GrenadeCounts {
                 .map(|r| {
                     r.is_some_and(|r| {
                         let chest = r.feet + Vec3::new(0.0, if r.keys & key::CROUCH != 0 { 0.8 } else { 1.3 }, 0.0);
-                        r.alive && (chest - landing.rest).length() <= BLAST_M
+                        r.alive && (chest - landing.rest).length() <= blast_m()
                     })
                 })
                 .collect();
             self.blasts.push(Blast {
                 thrower: throw.thrower,
                 at: landing.rest,
-                time: throw.press + FUSE_MS,
+                time: throw.press + fuse_ms(),
                 inside,
             });
         }
@@ -617,7 +632,7 @@ impl GrenadeCounts {
         if self.listed.is_none() {
             return;
         }
-        let press = blast.time.saturating_sub(FUSE_MS);
+        let press = blast.time.saturating_sub(fuse_ms());
         let found = self
             .live
             .iter()
@@ -684,7 +699,7 @@ impl GrenadeCounts {
             }
             for (place, body) in game.bodies.iter().enumerate() {
                 let d = (Game::chest(body) - blast.at).length();
-                if !body.alive || d > BLAST_M {
+                if !body.alive || d > blast_m() {
                     continue;
                 }
                 let who = if place == blast.thrower {
@@ -750,6 +765,8 @@ impl GrenadeCounts {
                 "rechecks": s.rechecks,
                 "thrown_from": s.thrown_from,
                 "pushes_skipped": s.pushes_skipped,
+                "volley": s.volley,
+                "near": s.near,
                 "fire_hidden_throw": hidden_throw,
             });
         }
@@ -806,8 +823,8 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
-                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, hidden_throw,
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, s.volley, s.near, hidden_throw,
             ));
         }
         if let Some(listed) = self.listed {

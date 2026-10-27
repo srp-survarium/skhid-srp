@@ -10,16 +10,16 @@
 //! - **The launch is an event of the throw animation** (0x310680 calls
 //!   0x33A770, which calls 0x30A250 `launch_grenade`): the grenade leaves
 //!   **along the view** (the head transform's forward row, player+0x44C) at
-//!   `throw_power × max(0, 1 + Σ modifier 27)` = 17 m/s for the bots, with
-//!   no lift angle and none of the thrower's own speed (0x30A2D5..0x30A312).
+//!   `throw_power × max(0, 1 + Σ modifier 27)` = 17 m/s for the bots (the
+//!   grenade's `throw_power`, [`Grenade::speed`]), with no lift angle and none of the thrower's own speed (0x30A2D5..0x30A312).
 //!   PROVEN. It leaves about [`LAUNCH_DELAY_S`] after the key goes down (the
 //!   animation's event, not in the code) and the view that counts is the
 //!   one **at the launch**, not at the press. LIKELY (a fit, ±0.2 s). The
 //!   start is the right hand's bone at that frame, not the eye (0x309F00);
 //!   where it is depends on the animation: [`HAND_DOWN_M`] is a GUESS.
 //! - **The fuse runs from the press** (0x30A120 from 0x3103D7, 80 of 82
-//!   recorded blasts at press + 4000 ms): [`FUSE_S`], so the flight has
-//!   [`FLIGHT_S`] left. PROVEN.
+//!   recorded blasts at press + 4000 ms): [`Grenade::fuse_s`], so the flight
+//!   has [`Grenade::flight_s`] left. PROVEN.
 //! - **The body** (`grenade_core::load` 0x303890 → 0x357100): a capsule of
 //!   radius [`RADIUS_M`], 0.3 kg, no damping, restitution 0, friction 0.5,
 //!   never asleep, in Bullet 2.81 with gravity `(0, -10, 0)` (0x74E3D) and
@@ -35,9 +35,10 @@
 //!   first contact, 80 % within 8 m; only grenades that killed are in it,
 //!   so the tail is a lower bound).
 //! - **No explosion on contact** (`explode_on_contact` false, `safe_time`
-//!   0, 0x248A33); the blast is [`SPLASH_M`] around the grenade. The
-//!   constants are the RGD-5's config (`weapons::grenade_named`; a test
-//!   keeps them together).
+//!   0, 0x248A33); the blast is [`Grenade::splash_m`] around the grenade.
+//!   The three numbers are the grenade's config (`weapons::grenade_named`),
+//!   read from the game data: a grenade patch reaches the bots at the
+//!   restart (the RGD-5 of the bots' kit is [`Grenade::bots`]).
 //!
 //! The fall is the sum Bullet makes, not the closed form: the two differ by
 //! up to 0.15 m at the end of a level throw (9.32 against 9.47 m).
@@ -50,10 +51,6 @@ use mapdata::{RayTree, Vec3};
 
 use super::kin;
 
-/// The throw's speed before the player's modifiers, m/s: the RGD-5's
-/// `throw_power` (0x309B91 into item+0x2B8, used at 0x30A2D5). The bots have
-/// no modifier 27 (`grenade_throw_power`), so it is the speed. PROVEN.
-pub const THROW_SPEED: f32 = 17.0;
 /// Gravity, m/s² (`setGravity(0, -10, 0)`, 0x74E3D..0x74E62). PROVEN.
 pub const GRAVITY: f32 = 10.0;
 /// One physics step, seconds: Bullet's fixed step (0xA2DBB4), three to the
@@ -68,14 +65,6 @@ pub const FRICTION: f32 = 0.25;
 /// From the key going down to the grenade leaving the hand, seconds (the
 /// throw animation's event). LIKELY, ±0.2 s.
 pub const LAUNCH_DELAY_S: f32 = 1.1;
-/// The fuse from the press, seconds (`ttl_ms` 4000, 0x30A120). PROVEN.
-pub const FUSE_S: f32 = 4.0;
-/// What is left of the fuse at the launch: a grenade still in the air at
-/// this time goes off there. LIKELY (the launch delay).
-pub const FLIGHT_S: f32 = FUSE_S - LAUNCH_DELAY_S;
-/// The blast's reach, metres (`splash_radius` of the RGD-5; lethal within
-/// about 2.4 m of the centre).
-pub const SPLASH_M: f32 = 10.0;
 /// How far under the eye the grenade starts, metres: the hand at the
 /// launch frame. GUESS (the data cannot tell it from the eye; 0.3 m
 /// shortens a level throw from 9.3 to 8.4 m).
@@ -163,16 +152,142 @@ impl Ground for Mesh<'_> {
     }
 }
 
+/// A grenade's numbers, from its config (`weapons::GrenadeParams`, the game data's):
+/// - `speed`: the throw's speed before the player's modifiers, m/s (`throw_power`, 0x309B91 into
+///   item+0x2B8, used at 0x30A2D5; the bots have no modifier 27, `grenade_throw_power`, so it is the
+///   speed). PROVEN.
+/// - `fuse_s`: from the press to the blast, seconds (`ttl_ms`, 0x30A120). PROVEN.
+/// - `splash_m`: the blast's reach, metres (`splash_radius`; lethal within about 2.4 m of the
+///   centre).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grenade {
+    pub speed: f32,
+    pub fuse_s: f32,
+    pub splash_m: f32,
+}
+
+impl Grenade {
+    /// From a grenade's config numbers.
+    pub fn of(params: &survarium::v026g::weapons::GrenadeParams) -> Self {
+        Self {
+            speed: params.throw_power,
+            fuse_s: params.ttl_ms as f32 / 1000.0,
+            splash_m: params.splash_radius,
+        }
+    }
+
+    /// The fuse from the press, ms.
+    pub fn fuse_ms(&self) -> u32 {
+        (self.fuse_s * 1000.0).round() as u32
+    }
+
+    /// What is left of the fuse at the launch: a grenade still in the air at this time goes off
+    /// there. LIKELY (the launch delay).
+    pub fn flight_s(&self) -> f32 {
+        self.fuse_s - LAUNCH_DELAY_S
+    }
+
+    /// The grenade of the bots' kit (`loadouts::BOT_GRENADE`) in the game data, read once. A game
+    /// data without it has bots without grenades (`reflex` throws only what the kit holds); the
+    /// 0.26g RGD-5's numbers stand in, said once.
+    pub fn bots() -> &'static Grenade {
+        static SHARED: std::sync::OnceLock<Grenade> = std::sync::OnceLock::new();
+        SHARED.get_or_init(|| {
+            let name = survarium::v026g::loadouts::BOT_GRENADE.name;
+            match survarium::v026g::weapons::grenade_named(name) {
+                Some(params) => Grenade::of(&params),
+                None => {
+                    log::error!("the game data has no grenade {name}: the 0.26g RGD-5's numbers stand in");
+                    Grenade {
+                        speed: 17.0,
+                        fuse_s: 4.0,
+                        splash_m: 10.0,
+                    }
+                }
+            }
+        })
+    }
+
+    /// Every fragmentation grenade of the game data by item name (a blast that hurts,
+    /// `GrenadeParams::is_frag`), read once: what a human's pocket can hold that the live list
+    /// tracks.
+    pub fn frags() -> &'static [(&'static str, Grenade)] {
+        static SHARED: std::sync::OnceLock<Vec<(&'static str, Grenade)>> = std::sync::OnceLock::new();
+        SHARED.get_or_init(|| {
+            survarium::v026g::weapons::grenades()
+                .iter()
+                .filter(|(_, params)| params.is_frag())
+                .map(|(name, params)| (*name, Grenade::of(params)))
+                .collect()
+        })
+    }
+
+    /// The fragmentation grenade item `name`.
+    pub fn named(name: &str) -> Option<&'static Grenade> {
+        Self::frags()
+            .iter()
+            .find(|(frag, _)| *frag == name)
+            .map(|(_, grenade)| grenade)
+    }
+
+    /// The velocity of a throw along the view (yaw, pitch at the launch).
+    pub fn throw_velocity(&self, yaw: f32, pitch: f32) -> Vec3 {
+        view_forward(yaw, pitch) * self.speed
+    }
+
+    /// How far from the launch point a throw at `pitch` lands on a level ground `drop_m` under the
+    /// launch point (negative: a ledge above it), metres on the ground; none when it never comes
+    /// down to it within [`Self::flight_s`].
+    pub fn level_range(&self, pitch: f32, drop_m: f32) -> Option<f32> {
+        let flight = Flight::new_by(*self, Vec3::new(0.0, drop_m, 0.0), self.throw_velocity(0.0, pitch));
+        let contact = flight.first_contact(&Floor { y: 0.0 }, self.flight_s())?;
+        Some(contact.point.z)
+    }
+
+    /// The pitch of the longest throw from `drop_m` over a level ground, radians:
+    /// `tan θ = v / √(v² + 2 g h)`. None when the ground is above what the throw can reach.
+    pub fn max_pitch(&self, drop_m: f32) -> Option<f32> {
+        let k = self.speed * self.speed + 2.0 * GRAVITY * drop_m;
+        (k > 0.0).then(|| (self.speed / k.sqrt()).atan())
+    }
+
+    /// The farthest a throw lands from `drop_m` over a level ground (about 30 m from an eye 1.6 m
+    /// up for the RGD-5), metres.
+    pub fn max_range(&self, drop_m: f32) -> Option<f32> {
+        self.level_range(self.max_pitch(drop_m)?, drop_m)
+    }
+
+    /// The view pitch whose first contact is `range_m` out on a level ground `drop_m` under the
+    /// launch point, radians: the flat arc (the high one lands a second or more later and is no
+    /// use before a fuse). None beyond [`Self::max_range`], nearer than a throw at [`PITCH_LIMIT`]
+    /// down lands, and where the longest throw would outlast [`Self::flight_s`]. Solved on the same
+    /// steps as [`Flight`], so `level_range(pitch_for(d, h)?, h)` is `d`.
+    pub fn pitch_for(&self, range_m: f32, drop_m: f32) -> Option<f32> {
+        let top = self.max_pitch(drop_m)?;
+        if self.level_range(top, drop_m)? < range_m {
+            return None;
+        }
+        let mut low = -PITCH_LIMIT;
+        if self.level_range(low, drop_m).is_some_and(|r| r > range_m) {
+            return None;
+        }
+        let mut high = top;
+        for _ in 0..24 {
+            let middle = 0.5 * (low + high);
+            match self.level_range(middle, drop_m) {
+                Some(r) if r >= range_m => high = middle,
+                _ => low = middle,
+            }
+        }
+        Some(0.5 * (low + high))
+    }
+}
+
 /// The unit direction of the view, `pitch` up.
 pub fn view_forward(yaw: f32, pitch: f32) -> Vec3 {
     let [x, z] = kin::forward(yaw);
     let (sin, cos) = pitch.sin_cos();
     Vec3::new(x * cos, sin, z * cos)
-}
-
-/// The velocity of a throw along the view (yaw, pitch at the launch).
-pub fn throw_velocity(yaw: f32, pitch: f32) -> Vec3 {
-    view_forward(yaw, pitch) * THROW_SPEED
 }
 
 /// Where the grenade starts for an eye at `eye`: [`HAND_DOWN_M`] under it.
@@ -188,17 +303,34 @@ pub fn hand_of(eye: Vec3) -> Vec3 {
 pub struct Flight {
     pub start: Vec3,
     pub velocity: Vec3,
+    /// The grenade that flies: its fuse bounds the flight, its blast is the landing's.
+    pub grenade: Grenade,
 }
 
 impl Flight {
+    /// A flight of the bots' grenade ([`Grenade::bots`]).
     pub fn new(start: Vec3, velocity: Vec3) -> Self {
-        Self { start, velocity }
+        Self::new_by(*Grenade::bots(), start, velocity)
+    }
+
+    /// A flight of `grenade`.
+    pub fn new_by(grenade: Grenade, start: Vec3, velocity: Vec3) -> Self {
+        Self {
+            start,
+            velocity,
+            grenade,
+        }
     }
 
     /// The throw of a view (`yaw`, `pitch` at the launch) from the hand of
-    /// an eye at `eye`.
+    /// an eye at `eye`, of the bots' grenade ([`Grenade::bots`]).
     pub fn thrown(eye: Vec3, yaw: f32, pitch: f32) -> Self {
-        Self::new(hand_of(eye), throw_velocity(yaw, pitch))
+        Self::thrown_by(*Grenade::bots(), eye, yaw, pitch)
+    }
+
+    /// [`Self::thrown`] of `grenade`.
+    pub fn thrown_by(grenade: Grenade, eye: Vec3, yaw: f32, pitch: f32) -> Self {
+        Self::new_by(grenade, hand_of(eye), grenade.throw_velocity(yaw, pitch))
     }
 
     /// Where the body is after `step` steps.
@@ -236,8 +368,8 @@ impl Flight {
     }
 
     /// The first time the body touches `ground` within `max_s` seconds of
-    /// the launch ([`FLIGHT_S`] for a throw that must land before the
-    /// blast), or none. Each step's line is asked of the ground; the point
+    /// the launch ([`Grenade::flight_s`] for a throw that must land before
+    /// the blast), or none. Each step's line is asked of the ground; the point
     /// is the centre of the body when it is [`RADIUS_M`] from the surface.
     pub fn first_contact(&self, ground: &(impl Ground + ?Sized), max_s: f32) -> Option<Contact> {
         let steps = (max_s / STEP_S).ceil() as u32;
@@ -266,9 +398,10 @@ impl Flight {
     }
 
     /// Where it lands and where it rests: [`Self::first_contact`] within
-    /// [`FLIGHT_S`], with its [`Landing`].
+    /// [`Grenade::flight_s`], with its [`Landing`].
     pub fn landing(&self, ground: &(impl Ground + ?Sized)) -> Option<Landing> {
-        self.first_contact(ground, FLIGHT_S).map(Landing::of)
+        self.first_contact(ground, self.grenade.flight_s())
+            .map(|contact| Landing::of(contact, self.grenade.splash_m))
     }
 }
 
@@ -335,14 +468,17 @@ pub struct Landing {
     /// The expected blast: the contact moved [`roll_m`] along the heading,
     /// at the contact's height.
     pub rest: Vec3,
+    /// The blast's reach, metres ([`Grenade::splash_m`]).
+    pub splash_m: f32,
 }
 
 impl Landing {
-    pub fn of(contact: Contact) -> Self {
+    pub fn of(contact: Contact, splash_m: f32) -> Self {
         let heading = contact.heading();
         Self {
             contact,
             heading,
+            splash_m,
             rest: contact.point + heading * roll_m(&contact),
         }
     }
@@ -362,7 +498,7 @@ impl Landing {
     /// a blast above the ground) is inside the splash of a blast anywhere
     /// from the contact to `reach_m` along the heading, or at the rest point.
     pub fn splashes(&self, at: Vec3, reach_m: f32) -> bool {
-        self.blast_distance(at, reach_m) < SPLASH_M
+        self.blast_distance(at, reach_m) < self.splash_m
     }
 
     /// How far the thrower (`at`) is from the blast, metres: from the
@@ -377,7 +513,7 @@ impl Landing {
 
     /// Whether the thrower is inside the splash of the predicted blast.
     pub fn splashes_thrower(&self, at: Vec3) -> bool {
-        self.thrower_distance(at) < SPLASH_M
+        self.thrower_distance(at) < self.splash_m
     }
 }
 
@@ -393,53 +529,24 @@ fn distance_to_segment(p: Vec3, a: Vec3, b: Vec3) -> f32 {
     (p - (a + ab * along)).length()
 }
 
-/// How far from the launch point a throw at `pitch` lands on a level ground
-/// `drop_m` under the launch point (negative: a ledge above it), metres on
-/// the ground; none when it never comes down to it within [`FLIGHT_S`].
+/// [`Grenade::level_range`] of the bots' grenade.
 pub fn level_range(pitch: f32, drop_m: f32) -> Option<f32> {
-    let flight = Flight::new(Vec3::new(0.0, drop_m, 0.0), throw_velocity(0.0, pitch));
-    let contact = flight.first_contact(&Floor { y: 0.0 }, FLIGHT_S)?;
-    Some(contact.point.z)
+    Grenade::bots().level_range(pitch, drop_m)
 }
 
-/// The pitch of the longest throw from `drop_m` over a level ground,
-/// radians: `tan θ = v / √(v² + 2 g h)`. None when the ground is above what
-/// the throw can reach.
+/// [`Grenade::max_pitch`] of the bots' grenade.
 pub fn max_pitch(drop_m: f32) -> Option<f32> {
-    let k = THROW_SPEED * THROW_SPEED + 2.0 * GRAVITY * drop_m;
-    (k > 0.0).then(|| (THROW_SPEED / k.sqrt()).atan())
+    Grenade::bots().max_pitch(drop_m)
 }
 
-/// The farthest a throw lands from `drop_m` over a level ground (about
-/// 30 m from an eye 1.6 m up), metres.
+/// [`Grenade::max_range`] of the bots' grenade.
 pub fn max_range(drop_m: f32) -> Option<f32> {
-    level_range(max_pitch(drop_m)?, drop_m)
+    Grenade::bots().max_range(drop_m)
 }
 
-/// The view pitch whose first contact is `range_m` out on a level ground
-/// `drop_m` under the launch point, radians: the flat arc (the high one
-/// lands a second or more later and is no use before a fuse). None beyond
-/// [`max_range`], nearer than a throw at [`PITCH_LIMIT`] down lands, and
-/// where the longest throw would outlast [`FLIGHT_S`]. Solved on the same
-/// steps as [`Flight`], so `level_range(pitch_for(d, h)?, h)` is `d`.
+/// [`Grenade::pitch_for`] of the bots' grenade.
 pub fn pitch_for(range_m: f32, drop_m: f32) -> Option<f32> {
-    let top = max_pitch(drop_m)?;
-    if level_range(top, drop_m)? < range_m {
-        return None;
-    }
-    let mut low = -PITCH_LIMIT;
-    if level_range(low, drop_m).is_some_and(|r| r > range_m) {
-        return None;
-    }
-    let mut high = top;
-    for _ in 0..24 {
-        let middle = 0.5 * (low + high);
-        match level_range(middle, drop_m) {
-            Some(r) if r >= range_m => high = middle,
-            _ => low = middle,
-        }
-    }
-    Some(0.5 * (low + high))
+    Grenade::bots().pitch_for(range_m, drop_m)
 }
 
 #[cfg(test)]
@@ -452,8 +559,9 @@ mod tests {
     /// note's table has it; its landing.
     fn level_landing(pitch_deg: f32) -> Contact {
         let eye = Vec3::new(0.0, EYE_M, 0.0);
-        Flight::new(eye, throw_velocity(0.0, pitch_deg.to_radians()))
-            .first_contact(&Floor { y: 0.0 }, FLIGHT_S)
+        let grenade = Grenade::bots();
+        Flight::new(eye, grenade.throw_velocity(0.0, pitch_deg.to_radians()))
+            .first_contact(&Floor { y: 0.0 }, grenade.flight_s())
             .unwrap()
     }
 
@@ -474,12 +582,89 @@ mod tests {
         assert!((a - b).abs() <= tolerance, "{what}: {a} against {b}");
     }
 
+    /// The bots' grenade's throw velocity (the tests' flights are of it).
+    fn throw_velocity(yaw: f32, pitch: f32) -> Vec3 {
+        Grenade::bots().throw_velocity(yaw, pitch)
+    }
+
+    /// The bots' grenade is the game data's, and on the stock data it is the numbers the bots were
+    /// built on (17 m/s, a 4 s fuse, a 10 m blast): the decisions on stock data do not move.
     #[test]
-    fn the_constants_are_the_rgd_5s_config() {
+    fn the_bots_grenade_is_the_game_datas_and_the_stock_numbers() {
         let rgd = survarium::v026g::weapons::grenade_named("rgd-5").unwrap();
-        assert_eq!(rgd.throw_power, THROW_SPEED);
-        assert_eq!(rgd.splash_radius, SPLASH_M);
-        assert_eq!(rgd.ttl_ms as f32 / 1000.0, FUSE_S);
+        assert_eq!(*Grenade::bots(), Grenade::of(&rgd));
+        assert_eq!(
+            (Grenade::bots().speed, Grenade::bots().fuse_s, Grenade::bots().splash_m),
+            (17.0, 4.0, 10.0)
+        );
+        assert_eq!(Grenade::bots().fuse_ms(), rgd.ttl_ms);
+        assert!((Grenade::bots().flight_s() - 2.9).abs() < 1e-6);
+        // The frags the humans' pockets can hold: the RGD-5 is one, the smoke is not.
+        assert_eq!(Grenade::named("rgd-5"), Some(Grenade::bots()));
+        assert_eq!(Grenade::named("rdg-m"), None);
+        assert_eq!(Grenade::named("no such grenade"), None);
+    }
+
+    /// A grenade patch reaches the bots: the numbers of a patched copy of the data
+    /// (`with_grenade_patched`: a 3 s fuse, 20 m/s, an 8 m blast) are the grenade's, and move the
+    /// range of a throw, the time it may fly, the landing's blast and what it splashes.
+    #[test]
+    fn a_patched_grenades_numbers_reach_the_flight_the_range_and_the_blast() {
+        use survarium::v026g::{
+            dictionary::Dictionary,
+            game_data::GameData,
+            weapons::{derive_grenades, with_grenade_patched},
+        };
+        let data = with_grenade_patched(
+            &GameData::test_archive(),
+            "rgd-5",
+            &[("ttl_ms", 3_000.0), ("splash_radius", 8.0), ("throw_power", 20.0)],
+        );
+        let rows = derive_grenades(&data, Dictionary::shared());
+        let rgd = rows.iter().find(|(name, _)| *name == "rgd-5").unwrap().1;
+        let patched = Grenade::of(&rgd);
+        assert_eq!(
+            patched,
+            Grenade {
+                speed: 20.0,
+                fuse_s: 3.0,
+                splash_m: 8.0
+            }
+        );
+        assert_eq!(patched.fuse_ms(), 3_000);
+        let stock = *Grenade::bots();
+        // Faster: a flat throw lands farther.
+        let flat = |g: Grenade| g.level_range(0.0, EYE_M).unwrap();
+        assert!(flat(patched) > flat(stock) + 1.0, "{} {}", flat(patched), flat(stock));
+        // A shorter fuse: a high lob that stock data lets fly (2.3 s of 2.9) is out of time now
+        // (2.7 s of 1.9).
+        assert!(stock.level_range(0.7, EYE_M).is_some());
+        assert!(patched.level_range(0.7, EYE_M).is_none());
+        // The pitch for a range is the grenade's: the same range needs a lower pitch at 18 m/s (the
+        // fuse kept: a fuse shorter than the longest throw's flight leaves `pitch_for` no throw).
+        let faster = Grenade { speed: 18.0, ..stock };
+        assert!(faster.pitch_for(15.0, EYE_M).unwrap() < stock.pitch_for(15.0, EYE_M).unwrap());
+        assert_eq!(
+            patched.pitch_for(15.0, EYE_M),
+            None,
+            "the 3 s fuse is shorter than the longest throw's flight"
+        );
+        // A flight carries its grenade into the landing's blast radius.
+        let eye = Vec3::new(0.0, EYE_M, 0.0);
+        let ground = Floor { y: 0.0 };
+        let landing_of = |g: Grenade| Flight::thrown_by(g, eye, 0.0, 0.0).landing(&ground).unwrap();
+        let (own, fast) = (landing_of(stock), landing_of(patched));
+        assert_eq!((own.splash_m, fast.splash_m), (10.0, 8.0));
+        // 9 m from the rest point: inside the stock blast, outside the patched one.
+        let (near_own, near_fast) = (
+            own.rest + Vec3::new(9.0, 0.0, 0.0),
+            fast.rest + Vec3::new(9.0, 0.0, 0.0),
+        );
+        assert!(own.splashes(near_own, 0.0));
+        assert!(!fast.splashes(near_fast, 0.0));
+        // The thrower: his own blast is the grenade's.
+        assert!(own.splashes_thrower(own.rest + Vec3::new(0.0, 0.0, 9.0)));
+        assert!(!fast.splashes_thrower(fast.rest + Vec3::new(0.0, 0.0, 9.0)));
     }
 
     #[test]
@@ -505,7 +690,7 @@ mod tests {
         }
         near(level_landing(0.0).t, 0.5485, 0.01, "level flight time");
         let velocity = level_landing(0.0).velocity;
-        near(velocity.z, THROW_SPEED, 1e-4, "speed along");
+        near(velocity.z, Grenade::bots().speed, 1e-4, "speed along");
         near(velocity.y, -5.5, 1e-3, "speed down");
     }
 
@@ -516,7 +701,7 @@ mod tests {
         let range = max_range(EYE_M).unwrap();
         near(range, 30.2, 0.1, "longest");
         let flight = level_landing(pitch.to_degrees()).t;
-        assert!(flight < FLIGHT_S, "lands in {flight} s");
+        assert!(flight < Grenade::bots().flight_s(), "lands in {flight} s");
         // Either side of it lands shorter.
         assert!(level_range(pitch - 0.05, EYE_M).unwrap() < range);
         assert!(level_range(pitch + 0.05, EYE_M).unwrap() < range);
@@ -529,7 +714,7 @@ mod tests {
         // fact-grenade-arc.md §3: 9.3 m from the eye, 8.4 from 0.3 m below.
         let eye = Vec3::new(0.0, EYE_M, 0.0);
         let hand = Flight::thrown(eye, 0.0, 0.0)
-            .first_contact(&Floor { y: 0.0 }, FLIGHT_S)
+            .first_contact(&Floor { y: 0.0 }, Grenade::bots().flight_s())
             .unwrap();
         near(hand.point.z, 8.358, 0.03, "hand 0.3 m below");
     }
@@ -725,7 +910,7 @@ mod tests {
         // 15 m past the contact: out of 10 m of it and of the rest point
         // (13 m), in range of the P80 end (7 m) and of the worst end (1 m).
         let mate = at(15.0, 0.0);
-        assert!(landing.blast_distance(mate, 0.0) > SPLASH_M);
+        assert!(landing.blast_distance(mate, 0.0) > Grenade::bots().splash_m);
         assert!(!landing.splashes(mate, 0.0));
         assert!(landing.splashes(mate, ROLL_P80_M));
         assert!(landing.splashes(mate, ROLL_WORST_M));

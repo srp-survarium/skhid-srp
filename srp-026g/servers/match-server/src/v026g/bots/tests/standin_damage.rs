@@ -15,7 +15,7 @@
 //! - the kit worn: the armour of the tier's kit that has the target's held
 //!   gun (a weapon is in one kit of a tier), the largest `ranged` armour of
 //!   its items on the box hit (LIKELY, `damage` module doc);
-//! - the part hit: with the boxes volume ([`super::standin_hitbox`], the
+//! - the part hit: with the boxes volume ([`super::standin_hitbox`],
 //!   `SRP_BENCH_HIT_MODEL=on`) the shape the shot ray met says the hit box
 //!   ([`hit_boxes`]); with the old disc, drawn by [`HIT_SHARES`] of the
 //!   shooter's weapon class and then a box of the part by chance ([`hit`]);
