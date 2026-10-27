@@ -83,11 +83,11 @@ pub const HELD_MOVED_M: f32 = 0.5;
 /// The progress watch ([`Stuck::no_progress`]): the distance along its route a walking body must gain within the window, metres.
 /// A walk of the window (6 s) is 20 m, a crouched one 15 m; a loop round a post gains none.
 pub const PROGRESS_M: f32 = 1.5;
-/// … and the route it is still short of its end by at least this, metres (a body at the end of its route holds keys and gains none).
+/// â€¦ and the route it is still short of its end by at least this, metres (a body at the end of its route holds keys and gains none).
 pub const PROGRESS_END_M: f32 = 1.5;
-/// … and only a body this near its route counts (off it, the motor's own replan acts), metres.
+/// â€¦ and only a body this near its route counts (off it, the motor's own replan acts), metres.
 pub const PROGRESS_OFF_M: f32 = 3.0;
-/// … the leg kept clear of is the point this far ahead of where the body got to along the route, metres.
+/// â€¦ the leg kept clear of is the point this far ahead of where the body got to along the route, metres.
 pub const PROGRESS_LEG_M: f32 = 1.0;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
