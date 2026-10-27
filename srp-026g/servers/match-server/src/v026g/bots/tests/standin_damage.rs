@@ -16,7 +16,7 @@
 //!   gun (a weapon is in one kit of a tier), the largest `ranged` armour of
 //!   its items on the box hit (LIKELY, `damage` module doc);
 //! - the part hit: with the boxes volume ([`super::standin_hitbox`], the
-//!   bench's default) the shape the shot ray met says the hit box
+//!   `SRP_BENCH_HIT_MODEL=on`) the shape the shot ray met says the hit box
 //!   ([`hit_boxes`]); with the old disc, drawn by [`HIT_SHARES`] of the
 //!   shooter's weapon class and then a box of the part by chance ([`hit`]);
 //! - the pools: the box's `bdb_coeff` of the damage after armour taken from

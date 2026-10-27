@@ -14,7 +14,7 @@
 //! | `SRP_BENCH_CAMP` | no camping carrier |
 //! | `SRP_BENCH_NUDGE` | no nudged battery |
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
-//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | on: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error; `off`: the old 0.45 m disc about the chest, the centre ray, no scatter |
+//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
@@ -382,7 +382,7 @@ pub(crate) struct Game {
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
-    /// ([`HitVolume::bench`], the whole cut unless `SRP_BENCH_HIT_MODEL=off`).
+    /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
     /// Whether bodies move as the client's do ([`honest_stand_in`]); the
     /// walker mesh a body in the air bumps into (built at the first jump;

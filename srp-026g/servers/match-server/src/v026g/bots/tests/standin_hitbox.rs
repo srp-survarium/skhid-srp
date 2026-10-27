@@ -2,7 +2,7 @@
 //!
 //! **Before** ([`HitVolume::Disc`]): a shot hit the nearest body whose chest point the line passed within
 //! 0.45 m, a disc of 0.64 m2 about one point with no head, arms, legs or crouch benefit
-//! (`fact-standin-calibration.md` C1). **Now** ([`HitVolume::Boxes`], the bench's default): the shot is a ray
+//! (`fact-standin-calibration.md` C1). **Now** ([`HitVolume::Boxes`], with `SRP_BENCH_HIT_MODEL=on`): the shot is a ray
 //! tested against the 19 shapes of the game's player hit model, the nearest hit along the ray wins, and the
 //! shape that was hit says which of the body's hit boxes it was ([`HitParam`]).
 //!
@@ -35,9 +35,11 @@
 //! quadrature to the aim error the bench already has (`fact-hitboxes-026g.md` 5.4); the C0 counts check the
 //! residual (`shot_off_cells`, `hit_cells`).
 //!
-//! One setting, `SRP_BENCH_HIT_MODEL`, turns the whole cut (C1 boxes, C2 pellets, C3 scatter) on together, which is
-//! the default of the bench; `off` gives the old disc, the centre ray and no scatter back, exactly
-//! ([`HitVolume::bench`]). `boxes` (C1 and C2 alone) and `scatter=<m>` (another sigma) are for diagnosis.
+//! One setting, `SRP_BENCH_HIT_MODEL`, turns the whole cut (C1 boxes, C2 pellets, C3 scatter) on together with
+//! `on`. **Unset it is `off`**: the old disc, the centre ray and no scatter, exactly, so every bench and identity
+//! run stays what it was until the setting is set (the phase-end smoke sets it in both arms; the bench becomes
+//! `on` after the release with a new base log set). `boxes` (C1 and C2 alone) and `scatter=<m>` (another sigma)
+//! are for diagnosis ([`HitVolume::bench`]).
 
 use mapdata::Vec3;
 
@@ -69,19 +71,22 @@ impl HitVolume {
     /// The boxes and pellets without the scatter (the tests' volume, and `SRP_BENCH_HIT_MODEL=boxes`).
     pub(crate) const BOXES: Self = Self::Boxes { scatter_m: None };
 
-    /// The bench's: the whole cut unless `SRP_BENCH_HIT_MODEL` says otherwise ([`Self::parse`]).
+    /// The whole cut: boxes, pellets and the scatter (`SRP_BENCH_HIT_MODEL=on`).
+    pub(crate) const ON: Self = Self::Boxes {
+        scatter_m: Some(POSITION_SIGMA_M),
+    };
+
+    /// The bench's: the old disc unless `SRP_BENCH_HIT_MODEL` says otherwise ([`Self::parse`]).
     pub(crate) fn bench() -> Self {
         Self::parse(bench_settings().var("SRP_BENCH_HIT_MODEL").ok().as_deref())
     }
 
-    /// `None` or `on`: boxes, pellets and the scatter; `off`: the old disc; `boxes`: no scatter; `scatter=<m>`:
+    /// `on`: boxes, pellets and the scatter; `None` or `off`: the old disc; `boxes`: no scatter; `scatter=<m>`:
     /// the scatter's sigma. Anything else refuses the run.
     pub(crate) fn parse(value: Option<&str>) -> Self {
         match value {
-            None | Some("on") => Self::Boxes {
-                scatter_m: Some(POSITION_SIGMA_M),
-            },
-            Some("off") => Self::Disc,
+            Some("on") => Self::ON,
+            None | Some("off") => Self::Disc,
             Some("boxes") => Self::BOXES,
             Some(other) => {
                 let sigma = other.strip_prefix("scatter=").and_then(|m| m.parse::<f32>().ok());
@@ -1147,12 +1152,12 @@ mod game_tests {
         assert!(hits > 20 && mates > 5, "hits {hits} team {mates}");
     }
 
-    /// A deterministic soak with the whole cut (the bench's default): it repeats itself exactly, and hits fewer of
+    /// A deterministic soak with the whole cut (`SRP_BENCH_HIT_MODEL=on`): it repeats itself exactly, and hits fewer of
     /// the shots fired than the disc does.
     #[test]
     fn a_soak_with_the_whole_cut_repeats_and_hits_less_than_with_the_disc() {
         let run = |volume| soak_volume(4, 0, 12, None, 60, 3, bench_tuning(), volume);
-        let on = HitVolume::parse(None);
+        let on = HitVolume::ON;
         let (a, b) = (run(on), run(on));
         assert_eq!((a.shots, a.hits, a.kills), (b.shots, b.hits, b.kills));
         let disc = run(HitVolume::Disc);
@@ -1164,8 +1169,8 @@ mod game_tests {
     /// The setting's values.
     #[test]
     fn the_setting_names_the_whole_cut_or_the_old_disc() {
-        assert_eq!(HitVolume::parse(None), HitVolume::Boxes { scatter_m: Some(POSITION_SIGMA_M) });
-        assert_eq!(HitVolume::parse(Some("on")), HitVolume::parse(None));
+        assert_eq!(HitVolume::parse(None), HitVolume::Disc, "unset is the old disc");
+        assert_eq!(HitVolume::parse(Some("on")), HitVolume::Boxes { scatter_m: Some(POSITION_SIGMA_M) });
         assert_eq!(HitVolume::parse(Some("off")), HitVolume::Disc);
         assert_eq!(HitVolume::parse(Some("boxes")), HitVolume::BOXES);
         assert_eq!(HitVolume::parse(Some("scatter=0.3")), HitVolume::Boxes { scatter_m: Some(0.3) });
@@ -1178,7 +1183,7 @@ mod game_tests {
     /// disc and the boxes without the scatter leave the line where it is and draw nothing.
     #[test]
     fn the_position_scatter_is_a_gaussian_across_the_line() {
-        let mut game = two_bodies(HitVolume::parse(None));
+        let mut game = two_bodies(HitVolume::ON);
         let eye = Vec3::new(10.0, 1.5, 10.0);
         let dir = Vec3::new(0.0, 0.6, 0.8);
         let mut radii = Vec::new();
@@ -1220,7 +1225,7 @@ mod game_tests {
             }
             hits as f32 / 600.0
         };
-        let (plain, scattered) = (rate(HitVolume::BOXES), rate(HitVolume::parse(None)));
+        let (plain, scattered) = (rate(HitVolume::BOXES), rate(HitVolume::ON));
         assert!(plain > 0.95, "{plain}");
         assert!(scattered < plain - 0.1 && scattered > 0.4, "{scattered} against {plain}");
     }
