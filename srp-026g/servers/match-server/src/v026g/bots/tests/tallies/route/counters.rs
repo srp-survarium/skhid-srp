@@ -182,11 +182,12 @@ pub(super) fn contacts() -> Box<dyn RouteTopic> {
     )
 }
 
-/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+/// The sprint at planned drops (`motor::drop_walks`): ticks let go of before a drop unsafe at a sprint, ticks skipped as
+/// safe, and hard falls after a drop crossed at a sprint.
 pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
     Delta::of(
-        || vec![super::super::motor::drop_walks::ticks()],
-        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+        || super::super::motor::drop_walks::counts().to_vec(),
+        |d, line| line.ends.push(format!("drop_walk_ticks {} drop_walk_safe_ticks {} drop_sprinted_hard_falls {}", d[0], d[1], d[2])),
     )
 }
 

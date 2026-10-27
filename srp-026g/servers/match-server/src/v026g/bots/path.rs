@@ -117,7 +117,15 @@ pub struct Route {
     /// How far under a walked leg's floor a body is still on it
     /// ([`OFF_WALK_BELOW_M`]; the motor sets it from `Feel::off_walk_below_m`).
     below_walk_m: f32,
+    /// The landings of the route's drops whose flight at a sprint ([`SPRINT_FLIGHT_MPS`]) comes down within the
+    /// harmless fall ([`WalkGrid::drop_harmless_at`]); the planner sets them. None known (a route made some other
+    /// way) means every drop is taken to be unsafe at a sprint.
+    sprint_safe: Vec<Vec3>,
 }
+
+/// The speed a body leaves a drop's edge at when it sprints, m/s: a sprint is 5.0-5.1 m/s in the client (PROVEN: the
+/// J0 and item 10 rows, 5.08 m/s in the air with the key held).
+pub const SPRINT_FLIGHT_MPS: f32 = 5.1;
 
 /// The searches of this thread so far, for the tests' counts.
 #[cfg(test)]
@@ -687,6 +695,7 @@ fn pull_straight(
         jump: None,
         low: false,
     }];
+    let mut sprint_safe = Vec::new();
     // The floors of the leg from node `from` to node `to`, by distance
     // along the route (`start` at `from`).
     let mut floors = vec![(0.0, grid.position(nodes[0]).y)];
@@ -731,6 +740,9 @@ fn pull_straight(
                 },
                 low: low(i - 1, i),
             });
+            if into[i] == LinkKind::Drop && grid.drop_harmless_at(nodes[i - 1], nodes[i], SPRINT_FLIGHT_MPS) {
+                sprint_safe.push(grid.position(nodes[i]));
+            }
             leg(i - 1, i, &mut floors);
             continue;
         }
@@ -755,7 +767,9 @@ fn pull_straight(
         });
         leg(from, i, &mut floors);
     }
-    Route::with_floors(points, floors)
+    let mut route = Route::with_floors(points, floors);
+    route.sprint_safe = sprint_safe;
+    route
 }
 
 /// Whether a body walks from `a` to `b` in a straight line: every half
@@ -924,6 +938,7 @@ impl Route {
             floors,
             segment: 0,
             below_walk_m: OFF_WALK_BELOW_M,
+            sprint_safe: Vec::new(),
         }
     }
 
@@ -1152,6 +1167,20 @@ impl Route {
             .collect()
     }
 
+    /// This route with these landings found safe at a sprint (the tests').
+    #[cfg(test)]
+    pub fn with_sprint_safe(mut self, landings: Vec<Vec3>) -> Self {
+        self.sprint_safe = landings;
+        self
+    }
+
+    /// Whether a drop of a lip's height or more the route makes from `s` to `within` metres on (as
+    /// [`Self::drop_landings`]) is one a sprint carries over the harmless fall: its landing is not among those the
+    /// planner found safe at a sprint ([`SPRINT_FLIGHT_MPS`]).
+    pub fn sprint_unsafe_drop(&self, s: f32, within: f32) -> bool {
+        self.drop_landings(s, within).iter().any(|at| !self.sprint_safe.contains(at))
+    }
+
     /// The first drop of a lip's height or more the route makes from `s` to `within` metres on (as
     /// [`Self::drop_landings`]): how far along its landing is, and the landing.
     pub fn next_drop(&self, s: f32, within: f32) -> Option<(f32, Vec3)> {
@@ -1251,6 +1280,36 @@ mod tests {
         // Well inside the deck, or on the ground below: left as it is.
         assert_eq!(off_lip(&grid, Vec3::new(5.0, 5.0, 5.0)), None);
         assert_eq!(off_lip(&grid, Vec3::new(15.0, 0.0, 5.0)), None);
+    }
+
+    /// The planner marks the drops a sprint carries over the harmless fall: a 4 m ledge over a strip 3.8 m wide with a
+    /// pit beyond it is unsafe at a sprint (the flight clears the strip), a 3 m ledge is safe, and a route made by
+    /// hand (no grid) has every drop unsafe.
+    #[test]
+    fn a_drop_the_sprint_flies_past_its_landing_is_unsafe_and_a_plain_ledge_is_not() {
+        use crate::v026g::bots::body::tests::floor;
+        use mapdata::Body;
+        let route_over = |deck: f32, strip: Option<f32>| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, deck).to_vec();
+            match strip {
+                Some(pit) => {
+                    tris.extend(floor(10.0, 0.0, 13.8, 10.0, 0.0));
+                    tris.extend(floor(13.8, 0.0, 24.0, 10.0, pit));
+                }
+                None => tris.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0)),
+            }
+            let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 24.0, 10.0], 0.25, Body::default());
+            let from = grid.locate(Vec3::new(5.0, deck, 5.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(11.5, 0.0, 5.0), 0.3).unwrap();
+            plan(&grid, from, to).expect("a way down")
+        };
+        let strip = route_over(4.0, Some(-3.5));
+        let ledge = route_over(3.0, None);
+        assert!(!strip.drop_landings(0.0, 10.0).is_empty() && !ledge.drop_landings(0.0, 10.0).is_empty());
+        assert!(strip.sprint_unsafe_drop(0.0, 10.0), "the sprint flies past the strip");
+        assert!(!ledge.sprint_unsafe_drop(0.0, 10.0), "a 3 m ledge is harmless at a sprint");
+        let by_hand = Route::new(ledge.points().to_vec());
+        assert!(by_hand.sprint_unsafe_drop(0.0, 10.0), "none known: unsafe");
     }
 
     #[test]

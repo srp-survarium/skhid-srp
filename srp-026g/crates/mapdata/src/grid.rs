@@ -2243,6 +2243,23 @@ impl WalkGrid {
             .chain(self.off_out(node).iter().map(|l| (l.to, l.kind)))
     }
 
+    /// The real fall, metres, of a body that walks off the Drop link from `from` to `to` at `speed` m/s (as
+    /// [`Self::flight_fall`]): the cell model's drop is `from`'s height less `to`'s, the flight goes on further the
+    /// faster the body leaves. None where the two are joined by no Drop link, or the flight leaves the map or finds no
+    /// floor.
+    pub fn drop_fall(&self, from: NodeId, to: NodeId, speed: f32) -> Option<f32> {
+        let a = from as usize;
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        (0..8)
+            .find(|&d| self.link_of(a, d, i, k) == Some((to, LinkKind::Drop)))
+            .and_then(|d| self.flight_fall(a, d, speed))
+    }
+
+    /// Whether the fall of [`Self::drop_fall`] is one the body takes without harm ([`Body::max_drop`]).
+    pub fn drop_harmless_at(&self, from: NodeId, to: NodeId, speed: f32) -> bool {
+        self.drop_fall(from, to, speed).is_some_and(|fall| fall <= self.body.max_drop)
+    }
+
     /// Whether a body walks from `a` to `b` in a straight line no longer
     /// than `max_length` (metres): every half cell of the line is on a
     /// floor walked to from the one before (no jump, no drop) that
@@ -4190,6 +4207,28 @@ pub(crate) mod tests {
         assert!(stats(&slot, flying).drops_crossable > 0, "the slot's drops are counted");
         assert_eq!(stats(&ledge, flying).drops_crossable, 0, "a ledge's are not");
         assert_eq!((stats(&slot, Body::default()).drops_crossable, stats(&slot, Body::default()).drops_deep), (0, 0));
+    }
+
+    /// A 4 m ledge over a strip 3.8 m wide with a pit (7.5 m down) beyond it: a body that walks off at 3.5 m/s comes
+    /// down on the strip (4 m), one that sprints off at 5.1 m/s flies past it into the pit (7.5 m): the drop is
+    /// harmless at the walk and not at the sprint ([`WalkGrid::drop_harmless_at`]); a plain 3 m ledge is harmless
+    /// at both.
+    #[test]
+    fn a_drop_can_be_harmless_at_a_walk_and_not_at_a_sprint() {
+        let edge_drop = |tris: &[Triangle], edge_y: f32| {
+            let flying = Body { drop_flight_mps: 3.5, ..Body::default() };
+            let grid = WalkGrid::build(tris, [0.0, 0.0, 24.0, 10.0], 0.25, flying);
+            let edge = grid.locate(Vec3::new(9.9, edge_y, 5.0), 0.3).expect("a floor on the ledge's edge");
+            let (to, _) = grid.links(edge).find(|&(_, kind)| kind == LinkKind::Drop).expect("a drop east");
+            (grid.drop_harmless_at(edge, to, 3.5), grid.drop_harmless_at(edge, to, 5.1))
+        };
+        let mut strip = floor(0.0, 0.0, 10.0, 10.0, 4.0).to_vec();
+        strip.extend(floor(10.0, 0.0, 13.8, 10.0, 0.0));
+        strip.extend(floor(13.8, 0.0, 24.0, 10.0, -3.5));
+        assert_eq!(edge_drop(&strip, 4.0), (true, false));
+        let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
+        ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
+        assert_eq!(edge_drop(&ledge, 3.0), (true, true));
     }
 
     #[test]

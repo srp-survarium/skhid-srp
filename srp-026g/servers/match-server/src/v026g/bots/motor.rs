@@ -164,10 +164,11 @@ pub struct Feel {
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
     /// link of the grid (up to `Body::max_jump`, 1.05).
     pub carrier_jump_m: Option<Positive>,
-    /// A planned drop (a lip's height or more) is walked off: the sprint is let go of [`DROP_WALK_AHEAD_M`] before it,
-    /// so the body is not carried into the air at 5 m/s over the steps below (`GridTuning::honest_drops` keeps a Drop
-    /// link only where the body that walks off at a walk lands within the harmless fall). Off (the default): the
-    /// sprint as the route's straight stretch asks.
+    /// A planned drop (a lip's height or more) that a sprint would carry past the harmless fall is walked off: the
+    /// sprint is let go of [`DROP_WALK_AHEAD_M`] before it, so the body is not carried into the air at 5 m/s over the
+    /// steps below (`GridTuning::honest_drops` keeps a Drop link only where the body that walks off at a walk lands
+    /// within the harmless fall; [`Route::sprint_unsafe_drop`] asks the same at the sprint's speed). A drop that is
+    /// harmless at a sprint is sprinted off. Off (the default): the sprint as the route's straight stretch asks.
     pub drop_walk: bool,
     /// A sprint gap link ([`Leap::SprintGap`]) is run up to at a sprint, the run turning onto the jump's way, and
     /// pressed at speed; off (the default), it is made as a walking gap jump.
@@ -316,6 +317,8 @@ pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
 pub const SPRINT_RUN_UP_M: f32 = 2.0;
 /// The sprint is let go of this far before the edge of a planned drop, metres (`Feel::drop_walk`): 0.6 s of a sprint.
 pub const DROP_WALK_AHEAD_M: f32 = 3.0;
+/// A drop crossed at a sprint is watched this long for a hard fall (`stuck::HARD_FALL_M`), seconds.
+const DROP_SPRINTED_WATCH_S: f32 = 4.0;
 /// A sprint gap link is lined up (the view turned onto the jump's way) over the last this much of the route to its
 /// take-off, metres: a 90 degree turn at the view's top turn speed (5 rad/s) takes 0.31 s, 1.6 m of a sprint, and the
 /// grid guarantees 1.5 m of run.
@@ -450,6 +453,10 @@ pub struct Motor {
     last_press: Option<LandingWatch>,
     /// The route's progress at the last walk, for the edge of a drop crossed since ([`Route::left_drop_edge`]).
     last_s: Option<f32>,
+    /// A planned drop's edge crossed at a sprint (`Feel::drop_walk` on, so one safe at a sprint): the tick of the
+    /// motor's clock and the feet's height there, till a fall of [`DROP_SPRINTED_WATCH_S`] has shown whether it was a
+    /// hard one.
+    sprinted_drop: Option<(u32, f32)>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -588,6 +595,7 @@ impl Motor {
             pressed: None,
             last_press: None,
             last_s: None,
+            sprinted_drop: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -842,6 +850,17 @@ impl Motor {
         let (s, off) = route.progress(pose.feet);
         if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s)) {
             self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Drop });
+            if self.feel.drop_walk && self.sprinting {
+                self.sprinted_drop = Some((self.clock, pose.feet.y));
+            }
+        }
+        if let Some((at, y)) = self.sprinted_drop {
+            if y - pose.feet.y >= super::stuck::HARD_FALL_M {
+                self.sprinted_drop = None;
+                drop_walks::hard_fall_sprinted();
+            } else if self.since(at) > DROP_SPRINTED_WATCH_S {
+                self.sprinted_drop = None;
+            }
         }
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
@@ -920,10 +939,15 @@ impl Motor {
         }
         // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
         self.sprint_by_the_bar(route, s);
-        // A planned drop just ahead is walked off, not sprinted into the air.
+        // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
+        // within the harmless fall as well.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
-            self.sprinting = false;
-            drop_walks::released();
+            if route.sprint_unsafe_drop(s, DROP_WALK_AHEAD_M) {
+                self.sprinting = false;
+                drop_walks::released();
+            } else {
+                drop_walks::skipped_as_safe();
+            }
         }
         // A sprint jump is walked into at a sprint, on its line and facing its way.
         if let Some(j) = jump
@@ -1719,18 +1743,30 @@ pub mod landings {
     }
 }
 
-/// Ticks the sprint was let go of before a planned drop (`Feel::drop_walk`): the activity, and the time the walk costs.
+/// The sprint at planned drops (`Feel::drop_walk`): the ticks it was let go of before one unsafe at a sprint (the
+/// activity, and the time the walk costs), the ticks the release was skipped as the drop is safe at a sprint, and the
+/// hard falls (`stuck::HARD_FALL_M` or more) within [`DROP_SPRINTED_WATCH_S`] of a drop's edge crossed at a sprint (the
+/// harm).
 pub mod drop_walks {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static TICKS: AtomicU64 = AtomicU64::new(0);
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
 
     pub fn released() {
-        TICKS.fetch_add(1, Ordering::Relaxed);
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn ticks() -> u64 {
-        TICKS.load(Ordering::Relaxed)
+    pub fn skipped_as_safe() {
+        COUNTS[1].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn hard_fall_sprinted() {
+        COUNTS[2].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Released, skipped as safe, hard falls after a sprinted drop.
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -2731,6 +2767,29 @@ mod tests {
         assert_ne!(keys_at(true, 5.0) & key::SPRINT, 0, "far from the edge the sprint goes on");
         assert_eq!(keys_at(true, 18.0) & key::SPRINT, 0, "3 m from the edge: walked off");
         assert_ne!(keys_at(false, 18.0) & key::SPRINT, 0, "off: as before");
+    }
+
+    /// A planned drop the planner found safe at a sprint is sprinted off (the release is skipped, counted), one it did
+    /// not is walked off as before.
+    #[test]
+    fn a_drop_safe_at_a_sprint_is_sprinted_off() {
+        let p = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let points = vec![p(0.0, 0.0), p(20.0, 0.0), p(20.5, -3.0), p(60.0, -3.0)];
+        let keys_at = |safe: bool| {
+            let mut route = Route::new(points.clone());
+            if safe {
+                route = route.with_sprint_safe(vec![Vec3::new(20.5, -3.0, 0.0)]);
+            }
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { drop_walk: true, sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor.sprinting = true;
+            motor.facing_ticks = 100;
+            let pose = Pose { feet: Vec3::new(18.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 5.0, ..Default::default() };
+            motor.walk(&mut route, &pose, 5.0, |_| true).0.keys
+        };
+        assert_ne!(keys_at(true) & key::SPRINT, 0, "safe at a sprint: the sprint goes on");
+        assert_eq!(keys_at(false) & key::SPRINT, 0, "not known to be safe: walked off");
     }
 
     /// A sprint gap link (`Leap::SprintGap`, `Feel::sprint_gaps`) is run up to at a sprint along the route, the run
