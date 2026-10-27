@@ -867,6 +867,17 @@ pub struct Claim {
 /// A claim is dropped when not renewed for this long, ms.
 pub const CLAIM_KEEP_MS: u32 = 2_000;
 
+/// The human route a bot's Roam run was drawn on (`plays::roam`, `fresh_claims`): the side's route
+/// number and when it was drawn. Renewed at every think of the run, dropped with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RouteClaim {
+    pub who: Place,
+    pub side: i32,
+    pub route: usize,
+    pub drawn: u32,
+    seen: u32,
+}
+
 /// A bot's claim on a throw spot: the place it decided to throw a grenade
 /// at, stamped when it decided. A teammate's roll skips places within
 /// `CombatTuning::grenade_claim_m` of one for `grenade_claim_ms`.
@@ -934,6 +945,8 @@ pub struct TeamKnowledge {
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
+    /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
+    route_claims: Vec<RouteClaim>,
     /// The places the team's bots decided to throw at, each throw a claim
     /// ([`Self::claim_throw`]).
     throws: Vec<ThrowClaim>,
@@ -992,6 +1005,39 @@ impl TeamKnowledge {
         }
     }
 
+    /// `who` runs along route `route` of `side`'s, drawn at `drawn`, and is on it at `now`.
+    pub fn claim_route(&mut self, who: Place, side: i32, route: usize, drawn: u32, now: u32) {
+        let claim = RouteClaim { who, side, route, drawn, seen: now };
+        match self.route_claims.iter_mut().find(|c| c.who == who) {
+            Some(c) => *c = claim,
+            None => self.route_claims.push(claim),
+        }
+    }
+
+    /// `who` runs along no route any more.
+    pub fn release_route(&mut self, who: Place) {
+        self.route_claims.retain(|c| c.who != who);
+    }
+
+    /// The runs of bots other than `except` on `side`'s route `route`, drawn within `fresh_ms` of `now`.
+    pub fn route_claims_of_others(
+        &self,
+        except: Place,
+        side: i32,
+        route: usize,
+        now: u32,
+        fresh_ms: u32,
+    ) -> impl Iterator<Item = &RouteClaim> {
+        self.route_claims.iter().filter(move |c| {
+            c.who != except
+                && c.side == side
+                && c.route == route
+                && c.seen + CLAIM_KEEP_MS >= now
+                && c.drawn <= now
+                && now - c.drawn <= fresh_ms
+        })
+    }
+
     /// The claims of bots other than `except` that are still kept at `now`.
     pub fn claims_of_others(&self, except: Place, now: u32) -> impl Iterator<Item = &Claim> {
         self.claims
@@ -1024,6 +1070,7 @@ impl TeamKnowledge {
     pub fn forget(&mut self, who: Place) {
         self.forget_callouts(who);
         self.claims.retain(|c| c.who != who);
+        self.release_route(who);
         for theft in &mut self.thefts {
             if theft.thief == Some(who) {
                 theft.thief = None;
@@ -1237,6 +1284,7 @@ impl TeamKnowledge {
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
         self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
         self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
+        self.route_claims.retain(|c| c.seen + CLAIM_KEEP_MS >= now);
         self.throws.retain(|c| c.time + THROW_CLAIM_KEEP_MS >= now);
     }
 

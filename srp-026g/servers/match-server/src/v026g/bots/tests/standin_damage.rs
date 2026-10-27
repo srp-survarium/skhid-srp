@@ -33,7 +33,7 @@ use survarium::v026g::damage::{self, AmmoParams, ArmourParams, BodyParams};
 use survarium::v026g::loadouts::{BotTier, RoleGear, RusherKit, TierGear};
 use survarium::v026g::weapons::{self, WeaponParams};
 
-use crate::v026g::bots::guns::Gun;
+use crate::v026g::bots::guns::{Gun, WeaponClass};
 use crate::v026g::bots::rng::Rng;
 
 use super::standin_hitbox::HitParam;
@@ -89,6 +89,9 @@ impl Class {
     /// machine guns, 17 pistols): a bolt is a bolt, any other sniper rifle
     /// a marksman's, an `wpn_smg` an SMG whatever its category.
     pub(crate) fn of(weapon: &WeaponParams) -> Self {
+        if by_data() {
+            return Self::of_class(WeaponClass::of(weapon));
+        }
         match (weapon.kind, weapon.category) {
             (_, 14) => Class::Shotgun,
             (_, 17) => Class::Pistol,
@@ -99,6 +102,31 @@ impl Class {
             _ => Class::Rifle,
         }
     }
+}
+
+impl Class {
+    /// The recordings' class of a weapon of the bots' class `class` (the game
+    /// data's: [`WeaponClass::of`]).
+    pub(crate) fn of_class(class: WeaponClass) -> Self {
+        match class {
+            WeaponClass::Rifle => Class::Rifle,
+            WeaponClass::Smg => Class::Smg,
+            WeaponClass::MachineGun => Class::Lmg,
+            WeaponClass::Pistol => Class::Pistol,
+            WeaponClass::Shotgun => Class::Shotgun,
+            WeaponClass::Marksman => Class::Dmr,
+            WeaponClass::Bolt => Class::Bolt,
+        }
+    }
+}
+
+/// Whether the stand-in's hits go by the game data's weapon class: it follows
+/// the run's switch (`FireTuning::weapon_class_by_data`), so that the bots'
+/// and the stand-in's idea of a weapon change together. Off: the stand-in's
+/// own rule (`parameters.type` first for an SMG, the category for the rest).
+fn by_data() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| super::bench::bench_tuning().aim.combat.fire.weapon_class_by_data)
 }
 
 /// Where the hits of each class of weapon land: shares of a class's hits on

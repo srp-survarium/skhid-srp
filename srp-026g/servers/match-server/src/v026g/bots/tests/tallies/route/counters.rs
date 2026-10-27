@@ -163,6 +163,22 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The contacts (`contact::contacts`): walks of the route's with the forward key held and no speed for 0.5 s, the
+/// seconds spent in them, and the five spots (1 m bins: x z, y in 2 m) with the most of them so far (A66, doors).
+pub(super) fn contacts() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::contact::contacts::counts().to_vec(),
+        |d, line| {
+            let top = super::super::contact::contacts::top(5)
+                .iter()
+                .map(|&((x, z, y), n)| format!("{x}/{z}/{}:{n}", y * 2))
+                .collect::<Vec<_>>()
+                .join(" ");
+            line.ends.push(format!("contacts {} contact_seconds {:.1} contact_spots {top}", d[0], d[1] as f32 / 1000.0));
+        },
+    )
+}
+
 /// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
 pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -258,6 +274,20 @@ pub(super) fn foliage() -> Box<dyn RouteTopic> {
         |d, line| {
             line.ends.push(format!(
                 "foliage_sights {} foliage_sights_through {} foliage_mm {} foliage_added_ms {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
+/// With `sense.grass_notice` on: the sights begun, those through half a metre of grass or more, the
+/// grass metres of all, and the delay the grass added (`grass::through`).
+pub(super) fn grass() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::grass::through::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "grass_sights {} grass_sights_through {} grass_mm {} grass_added_ms {}",
                 d[0], d[1], d[2], d[3]
             ));
         },

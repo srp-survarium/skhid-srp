@@ -33,6 +33,7 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+pub mod contact;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -40,6 +41,7 @@ pub mod escape;
 pub mod field_source;
 pub mod foliage;
 pub mod friends;
+pub mod grass;
 pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
@@ -89,6 +91,8 @@ mod layers;
 #[cfg(test)]
 pub mod pair_counts;
 mod polls;
+#[cfg(test)]
+pub mod route_twins;
 mod search;
 mod think;
 
@@ -209,6 +213,8 @@ pub struct Bot {
     sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
+    /// Whether it presses against something as it walks ([`contact`]), counted only.
+    contact: contact::ContactWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -392,6 +398,7 @@ impl Bot {
             stamina: stamina::Reckoning::default(),
             sent_keys: 0,
             rest: rest::RestWatch::default(),
+            contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
@@ -582,15 +589,31 @@ impl Bot {
     /// The kind of its weapon 1: the one the match gave its place
     /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
     /// personality's name as a role (the tests' bots, whose place has none).
+    /// With `weapon_class_by_data` on, the kind of the weapon it holds, by
+    /// the game data's class (it follows a change of kit).
     fn weapon(
         &self,
         weapons: &[Option<reflex::WeaponKind>],
         tuning: &Tuning,
     ) -> Option<reflex::WeaponKind> {
-        weapons
-            .get(self.place)
-            .copied()
-            .flatten()
+        self.weapon_by(weapons, tuning, tuning.aim.combat.fire.weapon_class_by_data)
+    }
+
+    /// [`Self::weapon`] with the choice made: `by_data` or not.
+    fn weapon_by(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+        by_data: bool,
+    ) -> Option<reflex::WeaponKind> {
+        let held = if by_data {
+            self.reflex
+                .arms()
+                .map(|_| reflex::WeaponKind::of_class(self.reflex.held_gun().class))
+        } else {
+            None
+        };
+        held.or_else(|| weapons.get(self.place).copied().flatten())
             .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
     }
 
@@ -700,6 +723,10 @@ pub struct Bots {
     /// Raid whenever Raid is a candidate.
     #[cfg(test)]
     pub bench_human: Option<Place>,
+    /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
+    opened: [bool; 2],
+    /// The commander's pass in progress is the start countdown's (for its notes).
+    opening_pass: bool,
     /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
     /// `campers.md` K1 §4): this bot holds one spot all match, and the
     /// spot once found (with how many route points it sees), or none.
@@ -776,6 +803,8 @@ impl Bots {
             side1_tuning: None,
             #[cfg(test)]
             bench_human: None,
+            opened: [false; 2],
+            opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
             layers: MapLayers::default(),
@@ -951,6 +980,11 @@ impl Bots {
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
     pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
         self.layers.foliage = foliage;
+    }
+
+    /// The map's grass (`bot-grass.json`); before [`Self::map_ready`].
+    pub fn set_grass(&mut self, grass: grass::Grass) {
+        self.layers.grass = grass;
     }
 
     pub fn has_map(&self) -> bool {
@@ -1511,6 +1545,21 @@ impl Bots {
         sum
     }
 
+    /// What the game data's weapon class changes for the bots now holding a
+    /// weapon ([`ClassCounts`]): the same count with the switch off or on.
+    pub fn class_counts(&self) -> guns::ClassCounts {
+        let mut counts = guns::ClassCounts::default();
+        for bot in self.bots.iter().flatten() {
+            let Some(arms) = bot.reflex.arms() else {
+                continue;
+            };
+            let weapons = &self.features.weapons;
+            let kind = |by_data| bot.weapon_by(weapons, &self.tuning, by_data);
+            counts.add(arms.primary.0, kind(false) != kind(true));
+        }
+        counts
+    }
+
     /// What the weapon mods did to the bots' reloads, over all the bots and
     /// lives (`guns.rs`), and which bots now hold a modded weapon, by what is
     /// modded and whether past what a player can have.
@@ -1542,9 +1591,9 @@ impl Bots {
         let view = self
             .tracker
             .view(&clock, &self.tuning.kin, world.as_deref());
-        if self.tactics.is_some() && clock.playing {
+        if self.tactics.is_some() {
             for team in 0..2u8 {
-                if now >= self.teams[usize::from(team)].next_commander {
+                if self.commander_due(team, &clock, &view) {
                     self.commander(team, &view, &mut notes);
                 }
             }
@@ -1554,6 +1603,7 @@ impl Bots {
         self.features.searching.left = SEARCHES_PER_POLL;
         self.features.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();
+        let claims_on = [0u8, 1].map(|team| self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5);
         for index in 0..self.bots.len() {
             if self.bots[index].is_none() {
                 continue;
@@ -1562,6 +1612,7 @@ impl Bots {
             if clock.playing {
                 self.think(index, &view, &mut rays, &mut notes);
             }
+            self.sync_route_claim(index, now, claims_on);
             self.ticks(index, &clock, &view, &mut made);
             if let Some(bot) = self.bots[index].as_mut()
                 && let Some(text) = bot.dropped.take()
@@ -1591,6 +1642,45 @@ impl Bots {
         }
         self.polls.record(now, &rays);
         (made, notes)
+    }
+
+    /// Whether `team`'s commander runs in this poll: when its time has come and play has begun; and, with `roam.fresh_claims` on, once
+    /// in the start countdown, so the opening plays are chosen (and their routes drawn, each seeing the picks before it) before go,
+    /// while the bots rest (no think runs before play begins).
+    pub(super) fn commander_due(&mut self, team: u8, clock: &Clock, view: &MatchView) -> bool {
+        if clock.clock < self.teams[usize::from(team)].next_commander {
+            return false;
+        }
+        self.opening_pass = !clock.playing;
+        if clock.playing {
+            return true;
+        }
+        // Once, when the team's bots are in the match (alive in the view), not before.
+        let opening = !self.opened[usize::from(team)]
+            && self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5
+            && self
+                .bots
+                .iter()
+                .flatten()
+                .any(|b| b.team == team && b.entered.is_some() && view.place(b.place).is_some_and(|p| p.alive));
+        self.opened[usize::from(team)] |= opening;
+        opening
+    }
+
+    /// A bot's drawn route is the team's to count while its run is on it, and not a moment after (`roam.fresh_claims`): the run
+    /// ended for any reason (a new play, death, arrival, a replan), the claim goes in the same poll.
+    fn sync_route_claim(&mut self, index: usize, now: u32, on: [bool; 2]) {
+        let Some(bot) = self.bots[index].as_ref() else {
+            return;
+        };
+        if !on.get(usize::from(bot.team)).copied().unwrap_or(false) {
+            return;
+        }
+        let knowledge = &mut self.teams[usize::from(bot.team)].knowledge;
+        match (bot.running.as_ref().and_then(Running::route_claim), bot.side) {
+            (Some((route, drawn)), Some(side)) => knowledge.claim_route(bot.place, side, route, drawn, now),
+            _ => knowledge.release_route(bot.place),
+        }
     }
 
     /// The thinks that run in a poll at `view`: the bots that have entered,
