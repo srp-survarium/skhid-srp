@@ -301,8 +301,16 @@ still hides this parent.
 Retail reference: 0.27d's CapturePointMarker used 24/34 px and alpha 195/255; its
 crossed-swords art is reused. Its frame-based triangle pulse sped up at higher FPS.
 The new elapsed-time pulse keeps the same two-second period at 30, 60 and 144 FPS.
+
 Research's respawn and pre-match countdowns use 18 px text with a dark outline,
 below the point icons and capture timers. If both messages arrive during a transition,
 they occupy separate rows. The layout helper restores the original label geometry,
 font and layout alignment when the HUD switches out of mode 5; other modes keep their
 existing timers. The engine's countdown values and death-screen state are unchanged.
+
+Research centres the score bars on the live stage midpoint, converted into the HUD's
+coordinate space, before following them with its point icons. It does not depend on
+the generic layout's initial viewport or the changing width of its labels; only its
+horizontal layout is overridden, and switching modes restores the stock alignment.
+Countdown spacing counts visible point graphics and timers only, with a 4 px gap:
+hidden capture timers cannot leave an empty row after the capture ends.

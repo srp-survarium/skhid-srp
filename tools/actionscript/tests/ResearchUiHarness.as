@@ -3,6 +3,7 @@ package
    import flash.display.*;
    import flash.events.*;
    import flash.geom.Matrix;
+   import flash.geom.Point;
    import flash.net.URLRequest;
    import flash.system.*;
    import flash.text.TextField;
@@ -90,7 +91,7 @@ package
          cls = domain.getDefinition("survarium.controls.ResearchCountdownLayout") as Class;
          var placement:* = new cls(respawn,pregame);
          placement.place(points);
-         check(pregame.contextText.getBounds(this).top >= points.getBounds(this).bottom + 7,
+         check(pregame.contextText.getBounds(this).top >= points.getBounds(this).bottom + 3,
             "pre-match countdown clears the Research icons and capture timers");
          check(respawn.textField.getBounds(this).top >= pregame.contextText.getBounds(this).bottom + 5,
             "simultaneous countdowns do not overlap at a scaled indicator");
@@ -98,13 +99,54 @@ package
             "Research countdown text is larger");
          pregame.visible = false;
          placement.place(points);
-         check(respawn.textField.getBounds(this).top >= points.getBounds(this).bottom + 7,
+         check(respawn.textField.getBounds(this).top >= points.getBounds(this).bottom + 3,
             "respawn countdown keeps its own row after pre-match ends");
+         var withCapture:Number = respawn.textField.getBounds(this).top;
+         points.update([{cp_id:0,owner:0,capturing:0,progress:100,inside_0:0,inside_1:0,local:false,left:0}],0);
+         placement.place(points);
+         var withoutCapture:Number = respawn.textField.getBounds(this).top;
+         check(withoutCapture < withCapture - 10,
+            "a finished capture removes the hidden timer's empty row above respawn");
+         var iconBottom:Number = points.getChildAt(0).getBounds(this).bottom;
+         check(withoutCapture >= iconBottom + 3 && withoutCapture <= iconBottom + 6,
+            "respawn sits close below the points when no capture timer is visible");
          placement.restore();
          check(respawn.textField.defaultTextFormat.size == oldSize && respawn.y == oldY &&
             pregame.layoutData.alignH == "center" && pregame.layoutData.alignV == "top",
             "leaving Research restores the other modes' timer style and layout");
          removeChild(points); removeChild(indicator); removeChild(pregame);
+      }
+
+      private function checkResearchCentering():void
+      {
+         var cls:Class = hud.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
+         var points:* = new cls();
+         addChild(points);
+         var container:Sprite = new Sprite();
+         container.x = 37;
+         container.scaleX = container.scaleY = 0.8;
+         addChild(container);
+         var indicator:Sprite = new Sprite();
+         indicator.scaleX = indicator.scaleY = 0.75;
+         indicator.y = 30;
+         container.addChild(indicator);
+         for each(var initialX:Number in [400,900])
+         {
+            indicator.x = initialX;
+            points.followIndicator(indicator,17,45);
+            check(Math.abs(indicator.localToGlobal(new Point(17,0)).x - stage.stageWidth / 2) < 0.01,
+               "score bars centre before resize from initial x=" + initialX);
+            check(Math.abs(points.localToGlobal(new Point()).x - stage.stageWidth / 2) <= 0.5,
+               "points stay centred with scaled and translated parents");
+         }
+         // A label or score widening must not move the group's centre.
+         indicator.graphics.beginFill(0);
+         indicator.graphics.drawRect(-400,0,900,10);
+         indicator.graphics.endFill();
+         points.followIndicator(indicator,17,45);
+         check(Math.abs(indicator.localToGlobal(new Point(17,0)).x - stage.stageWidth / 2) < 0.01,
+            "changing indicator bounds does not move Research off centre");
+         removeChild(points); removeChild(container);
       }
 
       private function tick(e:Event):void
@@ -116,6 +158,7 @@ package
                if(hud.content == null || icons.content == null) return;
                initialized = true;
                checkCountdownLayout();
+               checkResearchCentering();
                var cls:Class = hud.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
                units = new cls();
                addChild(units);

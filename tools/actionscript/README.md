@@ -75,6 +75,8 @@ automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the a
 caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested pulses
 at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
 It also checks countdown spacing and restoration of other modes' timer styles.
+The spacing regression includes hidden capture timers; centering is checked before
+resize with different initial positions and scaled, translated parents.
 This exercises the controls; the game's Scaleform integration still needs a playtest.
 
 ## History

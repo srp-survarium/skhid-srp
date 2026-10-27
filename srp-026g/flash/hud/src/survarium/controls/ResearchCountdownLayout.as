@@ -66,7 +66,7 @@ package survarium.controls
          respawn.validateNow();
          style(respawn.textField);
          style(this._pregame.contextText);
-         var bottom:Number = Math.max(units.y + 26,units.getBounds(hud).bottom) + 8;
+         var bottom:Number = hud.globalToLocal(units.localToGlobal(new Point(0,units.contentBottom))).y + 4;
          var bounds:Rectangle = this._pregame.contextText.getBounds(this._pregame);
          this._pregame.x = Math.round(units.x - bounds.x - bounds.width / 2);
          this._pregame.y = Math.round(bottom - bounds.y);

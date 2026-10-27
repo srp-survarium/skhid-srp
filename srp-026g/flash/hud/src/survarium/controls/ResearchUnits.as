@@ -2,9 +2,11 @@ package survarium.controls
 {
    import flash.display.Graphics;
    import flash.display.Bitmap;
+   import flash.display.DisplayObject;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.filters.GlowFilter;
+   import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
@@ -61,6 +63,36 @@ package survarium.controls
          super();
          mouseEnabled = false;
          mouseChildren = false;
+      }
+
+      public function followIndicator(indicator:DisplayObject, centre:Number, top:Number) : void
+      {
+         if(stage == null || parent == null || indicator.parent == null)
+         {
+            return;
+         }
+         var middle:Point = indicator.parent.globalToLocal(new Point(stage.stageWidth / 2,0));
+         indicator.x = middle.x - centre * indicator.scaleX;
+         var anchor:Point = parent.globalToLocal(indicator.localToGlobal(new Point(centre,top)));
+         x = Math.round(anchor.x);
+         y = Math.round(anchor.y);
+      }
+
+      // DisplayObject.getBounds includes hidden capture timers, retaining an
+      // empty row after a capture ends. Count only what is currently visible.
+      public function get contentBottom() : Number
+      {
+         var bottom:Number = 0;
+         for(var i:int = 0; i < this._units.length; i++)
+         {
+            bottom = Math.max(bottom,(RADIUS + RING) * this._units[i].scaleY);
+            var timer:TextField = this._timers[i];
+            if(timer.visible)
+            {
+               bottom = Math.max(bottom,timer.y + timer.height);
+            }
+         }
+         return bottom;
       }
 
       public static function colourOf(team:uint, ownTeam:uint) : uint
