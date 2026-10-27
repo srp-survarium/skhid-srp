@@ -4182,10 +4182,11 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.5).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert!(drops_east(&ledge, 3.5, flying) > 0, "a real ledge keeps its drop");
-        // Counted: the slot's drops went for no fall, the ledge's none; the default body counts nothing.
+        // Counted: the slot's drops went for no fall, the ledge's none (its diagonal drops at the map's sides leave the
+        // map and are counted deep); the default body counts nothing.
         let stats = |tris: &[Triangle], body: Body| WalkGrid::build_with_stats(tris, [0.0, 0.0, 24.0, 10.0], 0.25, body).1;
         assert!(stats(&slot, flying).drops_slotted > 0);
-        assert_eq!((stats(&ledge, flying).drops_slotted, stats(&ledge, flying).drops_deep), (0, 0));
+        assert_eq!(stats(&ledge, flying).drops_slotted, 0);
         assert_eq!((stats(&slot, Body::default()).drops_slotted, stats(&slot, Body::default()).drops_deep), (0, 0));
     }
 
