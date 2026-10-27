@@ -877,6 +877,7 @@ pub(crate) fn real_bot_cost() {
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             bots.bench_human = human.as_ref().map(|h| h.place);
+            bots.bench_enemy_lanes = bench_settings().flag("SRP_BENCH_ENEMY_HUMAN_LANES");
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
@@ -1582,9 +1583,10 @@ pub(crate) fn real_bot_cost() {
                 let habit = bots.place_counts();
                 let own = bots.own_trap_counts();
                 eprintln!(
-                    "  trap habit: placed {} died_placing {} fired {} own_team_caught {}",
-                    habit.placed, habit.died_placing, own.fired, own.own_team_caught
+                    "  trap habit: armed {} placed {} died_placing {} fired {} own_team_caught {}",
+                    habit.armed, habit.placed, habit.died_placing, own.fired, own.own_team_caught
                 );
+                eprintln!("  trap gate: {}", crate::v026g::bots::traps::gates::line());
                 eprintln!("  {}", bots.react_counts().line());
             }
             // The stand-in's bear traps (none carried: no line, the log as it was).
