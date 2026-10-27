@@ -181,6 +181,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/honest_drops", true.into());
     }
+    // What a route's drop is for all its readers (`Feel::drop_truth`; the height test by default).
+    if settings.var("SRP_BENCH_DROP_TRUTH").is_ok_and(|v| v == "links") {
+        set(&mut tuning, "/feel/drop_truth", "links".into());
+    }
     // A planned drop unsafe at a sprint is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
     if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/drop_walk", true.into());
@@ -568,6 +572,17 @@ pub(crate) fn real_bot_cost() {
         // memory of the world as the server holds it.
         mapdata::free_search_memory();
         let world_mb = memory_mb().map(|(now, _)| now);
+        // The audit of the grid's erosion (`GridTuning::exact_erosion`): the floors with a wall nearer than the exact clearance
+        // (none with the exact pass on) and the nearest such wall, metres.
+        {
+            let walker = world.map.walker_triangles();
+            let clearance = world.grid.exact_clearance();
+            let (near, nearest) = world.grid.floors_near_walls(&walker, clearance);
+            eprintln!(
+                "  exact_erosion audit: {} floors, {near} nearer to a wall than {clearance:.3} m (nearest {nearest:.3} m)",
+                world.grid.len()
+            );
+        }
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];
@@ -841,6 +856,9 @@ pub(crate) fn real_bot_cost() {
             // no holder alive).
             let mut holder_ticks = [0u64; 2];
             let mut pair_apart = 0u64;
+            // The same ticks split by the pair's younger life: under `leader_settle_s` (20 s, `plays::buddy`) into it, which is where the
+            // respawn rule (`buddy.respawn_rule`) leaves a follower forward on purpose, and later (the real separation).
+            let mut pair_apart_settling = 0u64;
             let mut holder_post_ticks = [0u64; 2];
             let mut holder_deaths = [0u32; 2];
             let mut holder_thefts = [0u32; 2];
@@ -1051,7 +1069,9 @@ pub(crate) fn real_bot_cost() {
                     for bot in bots.bots.iter().flatten() {
                         if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
                             let (a, b) = (&game.bodies[bot.place], &game.bodies[mate]);
-                            pair_apart += u64::from(a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0);
+                            let apart = a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0;
+                            pair_apart += u64::from(apart);
+                            pair_apart_settling += u64::from(apart && game.tick.saturating_sub(a.spawned.max(b.spawned)) < 20_000);
                         }
                     }
                     for bot in bots.bots.iter().flatten() {
@@ -1556,6 +1576,17 @@ pub(crate) fn real_bot_cost() {
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
+            // The bots' bear traps: the habit's counts (activity: placed; harm: the team's own catches, lives
+            // that ended while placing) and the response to the traps of others, one line each, always.
+            {
+                let habit = bots.place_counts();
+                let own = bots.own_trap_counts();
+                eprintln!(
+                    "  trap habit: placed {} died_placing {} fired {} own_team_caught {}",
+                    habit.placed, habit.died_placing, own.fired, own.own_team_caught
+                );
+                eprintln!("  {}", bots.react_counts().line());
+            }
             // The stand-in's bear traps (none carried: no line, the log as it was).
             if !game.traps.events.is_empty() {
                 let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
@@ -1564,7 +1595,11 @@ pub(crate) fn real_bot_cost() {
                 );
             }
             eprintln!("  push: {}", push.line(&bots));
-            eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
+            eprintln!(
+                "  pairs: {} apart_ticks {pair_apart} apart_settling {pair_apart_settling} apart_later {}",
+                super::pair_counts::line(),
+                pair_apart - pair_apart_settling
+            );
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",

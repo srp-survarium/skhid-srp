@@ -503,6 +503,10 @@ impl Bot {
         self.kits = kits;
         self.kit = 0;
         self.kit_chosen = 0;
+        // The traps its kit carries (none in the old pockets): the habit is told at the spawn.
+        self.features.traps.habit = traps::Habit::of_kit(self.role.and_then(|role| {
+            survarium::v026g::loadouts::bot_trap(survarium::v026g::loadouts::bot_kit(equipment, role))
+        }));
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
@@ -1160,6 +1164,9 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            if new_life {
+                bot.stuck.forget_heights();
+            }
             bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
         }
         // A world ends a blind stop (`UnstickTuning::blind_stop_ms`); its reckoning is put right by the world itself.
@@ -1541,6 +1548,16 @@ impl Bots {
     /// How the teams' own traps went off (`trap_know.rs`).
     pub fn own_trap_counts(&self) -> trap_know::OwnTrapCounts {
         self.features.own_traps
+    }
+
+    /// What the bots' habit did, over all the bots and lives: traps placed, lives ended while placing
+    /// (`traps.rs`).
+    pub fn place_counts(&self) -> traps::PlaceCounts {
+        let mut sum = traps::PlaceCounts::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.traps.habit.counts());
+        }
+        sum
     }
 
     /// The counts of the bots' notice of traps and passes by them, over all

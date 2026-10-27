@@ -135,6 +135,9 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
     assert!(steepest <= -0.9, "pitch {steepest}");
     let bot = bots.bots[0].as_ref().unwrap();
     assert_eq!(bot.features.traps.habit.placed_this_life(), 1);
+    assert_eq!(bots.place_counts().placed, 1);
+    assert_eq!(bots.place_counts().died_placing, 0);
+    assert!(bots.react_counts().line().starts_with("trap react: rolls "));
     assert_eq!(bots.teams[0].knowledge.traps.all().len(), 1);
     // None without the kit, and none with the habit switched off.
     let (sent, _) = run(None, Tuning::default(), 40);
@@ -251,4 +254,31 @@ pub(crate) fn a_trap_lands_where_the_head_ray_meets_the_floor() {
     assert!(landing(eye, yaw, 0.0, 0.0).is_none());
     assert!(landing(eye, yaw, -1.0, 1.7).is_none());
     assert!(landing(eye, yaw, -1.0, 0.0).is_some());
+}
+
+/// A bot is told its traps at its spawn from its kit (`Bot::arm`): the flankers and rushers carry the stack of the
+/// third pocket with the quick-use key of rank 3, the others none; with the owner's kit off (`SRP_BOT_KIT`, the
+/// default) the old pockets hold none and no habit is armed. Run it with `SRP_BOT_KIT=1` to see the kit on.
+#[test]
+pub(crate) fn a_bots_habit_is_armed_from_the_traps_in_its_kit() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, new_kit};
+    let roles = [Some("flanker"), Some("rusher"), Some("support"), Some("camper")];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let bots = Bots::new(
+        0x41C,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &[0, 0, 1, 1],
+        &[true; 4],
+        &roles,
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    )
+    .with_tiers(&[Some(equipment); 4]);
+    for (place, role) in roles.iter().enumerate() {
+        let role = BotRole::ALL.into_iter().find(|each| Some(each.name()) == *role).unwrap();
+        let kit = bots.bots[place].as_ref().unwrap().features.traps.habit.kit();
+        let wanted = (new_kit() && role.carries_traps()).then_some(TrapKit { count: 2, key: key::QUICK[2] });
+        assert_eq!(kit, wanted, "{role:?} (owner's kit on: {})", new_kit());
+    }
 }

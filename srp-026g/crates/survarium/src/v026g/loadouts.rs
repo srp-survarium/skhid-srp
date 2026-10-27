@@ -1413,6 +1413,18 @@ pub fn bot_pockets(role: BotRole, open: u32) -> Vec<BotKitItem> {
         .collect()
 }
 
+/// The bear traps a kit carries, `(count, input bit)`: the stack in a pocket and the quick-use bit that places one
+/// ([`BOT_TRAP`]; none for a kit without the traps, as every kit of the old pockets).
+pub fn bot_trap(kit: &Loadout) -> Option<(u32, u8)> {
+    let dictionary = Dictionary::shared();
+    let item = kit.items.iter().find(|item| {
+        item.count > 0
+            && POCKET_SLOTS.contains(&item.slot)
+            && dictionary.item(item.dict_id).is_some_and(|each| each.name == BOT_TRAP.name)
+    })?;
+    BOT_TRAP.input_bit.map(|bit| (item.count, bit))
+}
+
 /// The pockets `armour` opens ([`pockets`] of a kit not yet built).
 fn pockets_opened<'a>(armour: impl IntoIterator<Item = &'a str>) -> u32 {
     let dictionary = Dictionary::shared();
@@ -2631,6 +2643,20 @@ mod tests {
         for (equipment, role, k, kit) in &every_kit() {
             let weapon = kit.items.iter().find(|item| item.slot == 7).unwrap();
             assert!(weapon.mods.is_empty(), "{}", named(*equipment, *role, *k));
+        }
+    }
+
+    /// The traps a kit carries: the flankers' and rushers' stack in the third pocket with the quick-use bit of rank 3
+    /// (bit 16); none in the supports', the campers' or the old pockets.
+    #[test]
+    fn a_kit_says_which_traps_it_carries() {
+        for (equipment, role, k, kit) in &every_kit_in(true, false) {
+            let at = named(*equipment, *role, *k);
+            let wanted = role.carries_traps().then_some((2, QUICK_USE_FIRST_BIT + 2));
+            assert_eq!(bot_trap(kit), wanted, "{at}");
+        }
+        for (equipment, role, k, kit) in &every_kit_in(false, false) {
+            assert_eq!(bot_trap(kit), None, "{}", named(*equipment, *role, *k));
         }
     }
 

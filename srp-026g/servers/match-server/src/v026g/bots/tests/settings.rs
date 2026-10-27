@@ -97,6 +97,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_STRANDED_START", "off", "`on` (or `1`) lets a body that stands on no floor of the grid (on the top of an object) plan from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`); off by default: it has no route"),
     s("SRP_BENCH_UNCLEAR_AIM", "off", "`on` (or `1`): a walk whose look-ahead finds no point of the route it walks to in a line steers at a clear one back of its progress, or plans again (`Feel::unclear_aim`); off, it steers at the unclear point"),
     s("SRP_BENCH_FLOOR_HEIGHT", "off", "`on` (or `1`): the walk's tests of the ground ask at the route's floor heights, not at the line between each leg's ends (`Feel::floor_height_clear`)"),
+    s("SRP_BENCH_DROP_TRUTH", "height", "`links` makes a route's drop the planner's Drop link for every reader of the route's drops (the lip guard's planned landings, the drop aim, the landing watch, the drop walk), from the client's step height on and with no stair or ramp; `height` (the default) is a waypoint a lip's height under the one before it (`Feel::drop_truth`)"),
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.

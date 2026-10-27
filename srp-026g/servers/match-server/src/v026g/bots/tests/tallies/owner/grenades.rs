@@ -95,6 +95,33 @@ pub(super) struct GrenadeCounts {
     pub(super) in_launch: [u32; 3],
     /// By bot: what its avoidance of live grenades has counted this match (the last reading).
     pub(super) avoid: BTreeMap<Place, AvoidStats>,
+    /// The bots' alive time, ms, by the nearest alive enemy (`< 8 m`, `8-30 m`, farther, none alive), and the
+    /// throws let go by the same bins at the let-go: the rate of a bot's throws per alive minute and per minute
+    /// with an enemy 8-30 m away, counted as the humans' is (`grenades-record/scripts/rate_human.py`: the
+    /// players' worlds, an enemy any alive player of the other team).
+    pub(super) alive_by_enemy_ms: [u64; 4],
+    pub(super) thrown_by_enemy: [u32; 4],
+}
+
+/// The bin of the nearest alive enemy of `place`: 0 under 8 m, 1 from 8 to 30 m, 2 farther, 3 none alive.
+fn enemy_bin(game: &Game, place: Place) -> usize {
+    let me = &game.bodies[place];
+    let nearest = game
+        .bodies
+        .iter()
+        .enumerate()
+        .filter(|(other, body)| *other != place && body.alive && body.team != me.team)
+        .map(|(_, body)| body.feet.distance_xz(me.feet))
+        .fold(f32::INFINITY, f32::min);
+    if nearest < 8.0 {
+        0
+    } else if nearest <= 30.0 {
+        1
+    } else if nearest.is_finite() {
+        2
+    } else {
+        3
+    }
 }
 
 /// The tally's blasts against the list's entries for the same throw: found with a landing, found still in the
@@ -427,6 +454,53 @@ pub(crate) fn the_refusals_are_counted_by_their_reason() {
     assert_eq!(json["grenades"], 0);
 }
 
+/// A bot's alive time is counted by the nearest alive enemy (under 8 m, 8-30 m, farther, none alive) and a throw it
+/// lets go by the same bins, so the bots' rate can be set beside the humans' (`rate_human.py`).
+#[test]
+pub(crate) fn a_bots_alive_time_and_its_throws_are_counted_by_its_nearest_enemy() {
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    game.bodies[0].feet = Vec3::ZERO;
+    game.bodies[1].feet = Vec3::new(20.0, 0.0, 0.0);
+    let bot = || {
+        Some(BotNow {
+            play: "Roam".to_owned(),
+            grenades: GrenadeStats {
+                thinks: 1,
+                ..GrenadeStats::default()
+            },
+            ..BotNow::default()
+        })
+    };
+    // Place 0 is the bot; the enemy (place 1) is no bot, and its own time is not counted.
+    for _ in 0..4 {
+        game.tick += TICK_MS;
+        tally.step_with(&mut game, &[bot(), None]);
+    }
+    // A throw at 20 m from the enemy: the 8-30 m bin.
+    let note = |time: u32, text: &str| Note {
+        place: 0,
+        time,
+        text: text.to_owned(),
+    };
+    tally.note(&note(game.tick, "throws a grenade at (1.0, 0.0, 2.0), blast at 5000"), &game);
+    // The enemy closes to 5 m: one tick under 8 m, and a throw there; dead, none is alive: the last bin.
+    game.bodies[1].feet = Vec3::new(5.0, 0.0, 0.0);
+    game.tick += TICK_MS;
+    tally.step_with(&mut game, &[bot(), None]);
+    tally.note(&note(game.tick, "throws a grenade at (1.0, 0.0, 2.0), blast at 9000"), &game);
+    game.bodies[1].alive = false;
+    game.tick += TICK_MS;
+    tally.step_with(&mut game, &[bot(), None]);
+    let (_, json) = tally.finish(&game);
+    let rate = &json["grenade_rate"];
+    assert_eq!(
+        rate["alive_ms_by_enemy"],
+        serde_json::json!([TICK_MS, 4 * TICK_MS, 0, TICK_MS]),
+        "{json}"
+    );
+    assert_eq!(rate["thrown_by_enemy"], serde_json::json!([1, 1, 0, 0]), "{json}");
+}
+
 #[test]
 pub(crate) fn the_launch_constants_are_the_arcs() {
     assert_eq!(LAUNCH_MS, 1100);
@@ -474,6 +548,9 @@ impl Topic for GrenadeCounts {
             NoteKind::Thrown { aim, blast } => {
                 let team = game.bodies.get(note.place).map_or(0, |b| b.team);
                 self.grenade_thrown(note.place, team, aim, blast);
+                if note.place < game.bodies.len() {
+                    self.thrown_by_enemy[enemy_bin(game, note.place)] += 1;
+                }
             }
             NoteKind::HeldBack(why) => {
                 self.grenade_refused(why);
@@ -490,6 +567,9 @@ impl Topic for GrenadeCounts {
         };
         self.grenades_keys(at.place, at.tick, &at.game.bodies[at.place], at.prev);
         self.grenades_logic(at.place, &stats);
+        if at.game.bodies[at.place].alive {
+            self.alive_by_enemy_ms[enemy_bin(at.game, at.place)] += u64::from(TICK_MS);
+        }
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64) {
@@ -750,6 +830,10 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             json["grenade_team_same_spot"] = serde_json::json!(self.same_spot);
+            json["grenade_rate"] = serde_json::json!({
+                "alive_ms_by_enemy": self.alive_by_enemy_ms,
+                "thrown_by_enemy": self.thrown_by_enemy,
+            });
             json["grenade_logic"] = serde_json::json!({
                 "bot_lives": logic.lives,
                 "claimed": s.claimed,
@@ -823,8 +907,8 @@ impl GrenadeCounts {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
-                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, s.volley, s.near, hidden_throw,
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, alive minutes by the nearest enemy [<8 m, 8-30 m, farther, none] {:.1?}, thrown by the same {:?}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, self.alive_by_enemy_ms.map(|ms| ms as f64 / 60_000.0), self.thrown_by_enemy, s.volley, s.near, hidden_throw,
             ));
         }
         if let Some(listed) = self.listed {
