@@ -4677,3 +4677,7 @@ va	name	location	role	basis
 0x00299830	survarium::empty_hands::empty_hands	EDI	destination; 0x168 bytes plus external animation pointer storage	observed
 0x00299830	survarium::empty_hands::empty_hands	entry ESP+4	animation pointer array; retained by caller, stored at +0x15C	observed
 0x00299830	survarium::empty_hands::empty_hands	entry ESP+8	animation count stored at +0x160; selected_animations requires nonempty array	observed
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	ECX	client update callback subobject; artefact base +0x398	observed
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	ECX	client update callback subobject; artefact base +0x498	observed
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	client update callback subobject; artefact base +0xf20	observed
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	client update callback subobject; artefact base +0x340	observed

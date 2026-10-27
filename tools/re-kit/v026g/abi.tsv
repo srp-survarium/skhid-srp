@@ -1995,3 +1995,7 @@ va	name	source	ret_cleanup	result
 0x002e30f0	survarium::weapon_core::register_in_game_world	manual	4	no result used
 0x002d4540	survarium::active_objects::append	manual	4	no result used
 0x00299830	survarium::empty_hands::empty_hands	manual	8	EAX: constructed object
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	manual	0	no result used
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	manual	0	no result used
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	manual	0	no result used
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	manual	0	no result used

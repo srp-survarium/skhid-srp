@@ -3112,3 +3112,7 @@ va	status	ref_021d	name
 0x00313490	inferred-high		survarium::artefact_base::on_removed
 0x002d4540	inferred-high		survarium::active_objects::append
 0x00299830	inferred-high		survarium::empty_hands::empty_hands
+0x0025ebb0	inferred-high		survarium::artefact<artefact_spring_core>::update_client_state
+0x0025f100	inferred-high		survarium::artefact<artefact_lifebone_core>::update_client_state
+0x0025f640	inferred-high		survarium::artefact<artefact_onyx_core>::update_client_state
+0x0025fb80	inferred-high		survarium::artefact<artefact_rattle_core>::update_client_state

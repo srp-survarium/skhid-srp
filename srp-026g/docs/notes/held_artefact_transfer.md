@@ -89,7 +89,7 @@ The registry's concrete layout and construction are now traced:
   end to begin. The registry does not own an intrusive resource reference.
 
 There is a legitimate native `empty_hands` implementation, vtable
-0xA0BA6C, constructed by the lobby resource path at 0x259245. Its constructor
+0xA0BA6C, constructed by the resource path at 0x259245. Its constructor
 0x299830 takes EDI destination, stack animation-pointer array and count,
 `ret 8`; the object is 0x168 bytes before external animation-array storage.
 It sets ID 255 and is not registered by the constructor. Its set-user
@@ -104,11 +104,64 @@ the artefact's model attachment. It is a better starting point to
 investigate than modifying battery objective objects, but is not yet a
 proven complete carry adapter.
 
+Further tracing found its existing per-player owner: `player::initialize`
+0x1F2540 uses player +0xF47C as the empty-hands fallback when there is no
+desired active item (0x1F25AD). The player resource cook requests
+`player/empty_hands` as resource class **0x7C** at 0x202980..0x2029A0, only
+when its creation object's byte +0xB1 is set. The stock default player
+config defines that path as `gameplay/empty_hands/empty_hands`. That config
+contains only `user_animations[0] =
+resources/animations/single/weapons/ak/player/stand/3rd_view/on_site/idle_lobby`.
+Enabling it in a match requires checking both the request and response
+branches; changing the shared stock config would also change the lobby.
+
+Empty-hands vtable +0x58/+0x5C point to 0x2AFAC0/0x0F7760: both reach
+**INT3 stubs**, rather than real serializer implementations. Registration
+alone is therefore insufficient. Its animation selector 0x299930 selects
+an idle clip using its local RNG; it does not select the portable core's
+movement/stance animations. A carry adapter must supply real snapshot
+support and locomotion/hand animation composition.
+
 The portable core constructor 0x2FEBC0 creates animation-selection and
 animation-object machinery. The battery has its own take/carry/put states,
 hand expressions and serialized carried-item representation. Reusing a
 battery pointer as an artefact risks objective-rule ownership and battery
 serialization; that reuse has not been established as safe.
+
+## Existing rendering and animation resources
+
+The artefact does already own its own render-model instance. The client
+wrapper is more than its active-effect hint. `artefact_cook` 0x25E800 asks
+for `object/model` as resource class **0x0F**. The three stock artefact
+configs provide models under `item/artefacts/`; Spring is
+`item/artefacts/artefact_spring`.
+
+The wrapper callback has the same relative tail fields for each artefact:
+callback +0x0C is its client game world, +0x10 is cached presentation state,
++0x14 is the model holder (its +0x108 is the render resource reference),
++0x18 is the spawn particle instance. Callback offsets from the artefact
+base are Spring +0x398, Lifebone +0x498, Onyx +0xF20, Rattle +0x340.
+The corresponding update callbacks start at 0x25EBB0, 0x25F100, 0x25F640,
+0x25FB80 (the Rattle body was traced in detail).
+
+Rattle's callback 0x25FB80 compares native state +0x280 with cached state.
+Leaving spawned states 1/2 removes the existing model (0x25FC7C or
+0x25FCCD); entering those states adds it using the container transform
+(0x25FDB0 and the following state-2 branch). While spawning, it updates
+the scaled transform through `scene_renderer::update_model` 0x22280.
+The ordinary inventory state 3 does not draw the model. Thus a hand
+attachment can reuse the existing model, but must coordinate add/update/
+remove with the native callback under one presentation owner. Reusing the
+model does not require stealing an objective's battery renderer.
+
+Stock `gameplay/victory_items/default.options` names existing player-hand
+show/idle/hide clips under
+`resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/`.
+They are present in resources.db, along with `default.user_animations` for
+portable-object movement. The idle-lobby clip alone would not provide
+appropriate walking/crouching carry behavior. The native item clips use
+the electrobox skeleton and cannot simply be applied to a static artefact
+model without an attachment transform.
 
 ## Integration requirements still to resolve
 
