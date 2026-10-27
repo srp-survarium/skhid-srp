@@ -24,6 +24,11 @@ pub struct GridTuning {
     /// steeper than the clients walk. Off (the default until a train turns it on): the grids as they were.
     /// A grid is the map's (see `gap_links`): the server's take this default, the bench's this run's tuning.
     pub client_numbers: bool,
+    /// Whether the maps' walk grids take the floors nearer to a wall than the body's radius, measured exactly,
+    /// after the cell rounds ([`mapdata::Erosion::Exact`]): a floor beside a post's corner, in an opening the
+    /// body does not fit (A84 item 13). Off (the default): the cells' erosion as it was. A grid is the map's
+    /// (see `gap_links`).
+    pub exact_erosion: bool,
     /// Whether a Drop link of the maps' walk grids is kept only where the body that walks off the edge (3.5 m/s,
     /// carried on through the air) comes down on a floor within the harmless fall (`mapdata::Body::drop_flight_mps`):
     /// a chain of harmless steps below an edge is one fall of 7.5 m (the team 1 spawn deck on Chemical Plant, A95).
@@ -37,8 +42,13 @@ pub const WALK_OFF_MPS: f32 = 3.5;
 impl GridTuning {
     /// The body the maps' grids are built for.
     pub fn body(&self) -> mapdata::Body {
-        let body = if self.client_numbers { mapdata::Body::client() } else { mapdata::Body::default() };
+        let body = if self.client_numbers {
+            mapdata::Body::client()
+        } else {
+            mapdata::Body::default()
+        };
         mapdata::Body {
+            erosion: if self.exact_erosion { mapdata::Erosion::Exact } else { mapdata::Erosion::Cells },
             drop_flight_mps: if self.honest_drops { WALK_OFF_MPS } else { 0.0 },
             ..body
         }

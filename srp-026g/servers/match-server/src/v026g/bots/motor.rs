@@ -166,6 +166,10 @@ pub struct Feel {
     /// cancelled when it is against the bot's direction and path, and a wall is no direction). 0 is off (the
     /// default; the counters ([`landings`]) count the landings either way). 60 is a GUESS to tune on the bench.
     pub landing_cancel_deg: f32,
+    /// The landing cancel covers a planned drop too: its window starts when the body walks off the edge
+    /// ([`Route::left_drop_edge`]), and the run it lands with is braked by the same rule (the owner's rule,
+    /// 2026-10-27: after a jump or a drop). Off (the default): drop landings are counted, never braked.
+    pub landing_cancel_drops: bool,
 }
 
 impl Default for Feel {
@@ -203,6 +207,7 @@ impl Default for Feel {
             drop_walk: false,
             sprint_gaps: false,
             landing_cancel_deg: 0.0,
+            landing_cancel_drops: false,
         }
     }
 }
@@ -311,6 +316,8 @@ const STAMINA_TIRED_AT: f32 = 3.0;
 /// 1 m jump is in the air about 0.6 s) to the end of the coast (the J0 rows: a sprint coasts 1.3 m, a walk 0.45 m).
 const LANDING_FROM_S: f32 = 0.6;
 const LANDING_TO_S: f32 = 1.6;
+/// The same window after the take-off of a planned drop: a 1.4 m fall lands in 0.53 s, a 5 m fall in 1.0 s.
+const LANDING_DROP_FROM_S: f32 = 0.5;
 /// Only a body carried at this speed at least is braked, m/s.
 const LANDING_MIN_SPEED_MS: f32 = 2.5;
 /// A run's coast, seconds of its speed (5 m/s coasts 1.3 m).
@@ -423,8 +430,10 @@ pub struct Motor {
     lining_up: bool,
     /// The route jump this tick's decision pressed, if any.
     pressed: Option<RoutePress>,
-    /// The clock tick of the last press of a route jump, and whether its landing is counted ([`landings`]).
-    last_press: Option<(u32, bool)>,
+    /// The landing being watched: from the last press of a route jump or the last take-off of a planned drop.
+    last_press: Option<LandingWatch>,
+    /// The route's progress at the last walk, for the edge of a drop crossed since ([`Route::left_drop_edge`]).
+    last_s: Option<f32>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -556,6 +565,7 @@ impl Motor {
             lining_up: false,
             pressed: None,
             last_press: None,
+            last_s: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -751,6 +761,9 @@ impl Motor {
         self.under_jump(route, pose.feet);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
+        if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s)) {
+            self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Drop });
+        }
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
             self.sprinting = false;
@@ -932,9 +945,13 @@ impl Motor {
         s: f32,
         clear: &impl Fn(Vec3) -> bool,
     ) -> Option<u32> {
-        let (at, counted) = self.last_press?;
+        let LandingWatch { at, counted, from } = self.last_press?;
         let t = self.since(at);
-        if !(LANDING_FROM_S..LANDING_TO_S).contains(&t) {
+        let first = match from {
+            LandingFrom::Jump => LANDING_FROM_S,
+            LandingFrom::Drop => LANDING_DROP_FROM_S,
+        };
+        if !(first..LANDING_TO_S).contains(&t) {
             return None;
         }
         let [vx, vz] = pose.velocity;
@@ -948,10 +965,14 @@ impl Motor {
         let coast = LANDING_COAST_S * speed;
         let blocked = !clear(pose.feet + Vec3::new(vx / speed * coast, 0.0, vz / speed * coast));
         let limit = self.feel.landing_cancel_deg.to_radians();
-        let cancel = limit > 0.0 && (blocked || against > limit);
+        let may = match from {
+            LandingFrom::Jump => true,
+            LandingFrom::Drop => self.feel.landing_cancel_drops,
+        };
+        let cancel = may && limit > 0.0 && (blocked || against > limit);
         if !counted {
-            self.last_press = Some((at, true));
-            landings::seen(against, blocked, cancel);
+            self.last_press = Some(LandingWatch { at, counted: true, from });
+            landings::seen(from, against, blocked, cancel);
         }
         cancel.then(|| keys_toward(wrap(carried + PI - pose.yaw)))
     }
@@ -1290,7 +1311,7 @@ impl Motor {
             facing: still,
         });
         self.jump = Some(JumpBy::Route);
-        self.last_press = Some((self.clock, false));
+        self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
         if ahead.sprint && !ahead.run_through {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
         }
@@ -1570,28 +1591,57 @@ pub fn keys_toward(relative: f32) -> u32 {
     }
 }
 
-/// The landings of route jumps by how far the carried run is from the way (the smaller of its angle to the route's
-/// next leg and to the goal): 0-30, 30-60, 60-90, over 90 degrees, and those with a wall within the coast; and how
-/// many of them were braked ([`Feel::landing_cancel_deg`]).
+/// What a watched landing started from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LandingFrom {
+    /// The press of a route jump.
+    Jump,
+    /// The take-off of a planned drop ([`Route::left_drop_edge`]).
+    Drop,
+}
+
+/// The landing being watched ([`Motor::landing_brake`]): when it started, whether it is counted yet, and from what.
+#[derive(Clone, Copy, Debug)]
+struct LandingWatch {
+    at: u32,
+    counted: bool,
+    from: LandingFrom,
+}
+
+/// The landings of route jumps and of planned drops by how far the carried run is from the way (the smaller of its
+/// angle to the route's next leg and to the goal): 0-30, 30-60, 60-90, over 90 degrees, and those with a wall within
+/// the coast; and how many of them were braked ([`Feel::landing_cancel_deg`], [`Feel::landing_cancel_drops`]).
 pub mod landings {
+    use super::LandingFrom;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const BANDS: usize = 4;
-    /// The bands, then the walls, of the landings seen; the same of those braked.
-    static COUNTS: [[AtomicU64; BANDS + 1]; 2] = [const { [const { AtomicU64::new(0) }; BANDS + 1] }; 2];
+    /// By jump then drop: the bands, then the walls, of the landings seen; the same of those braked.
+    static COUNTS: [[[AtomicU64; BANDS + 1]; 2]; 2] =
+        [const { [const { [const { AtomicU64::new(0) }; BANDS + 1] }; 2] }; 2];
 
     /// A landing run at `against` radians from the way, into a wall or not, braked or not.
-    pub fn seen(against: f32, wall: bool, braked: bool) {
+    pub(super) fn seen(from: LandingFrom, against: f32, wall: bool, braked: bool) {
         let band = if wall { BANDS } else { ((against.to_degrees() / 30.0) as usize).min(BANDS - 1) };
-        COUNTS[0][band].fetch_add(1, Ordering::Relaxed);
+        let counts = &COUNTS[from as usize];
+        counts[0][band].fetch_add(1, Ordering::Relaxed);
         if braked {
-            COUNTS[1][band].fetch_add(1, Ordering::Relaxed);
+            counts[1][band].fetch_add(1, Ordering::Relaxed);
         }
     }
 
-    /// Seen and braked, by band (the last is the walls).
+    /// Seen and braked, by band (the last is the walls), of the route jumps.
     pub fn counts() -> [[u64; BANDS + 1]; 2] {
-        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
+        counts_of(LandingFrom::Jump)
+    }
+
+    /// The same of the planned drops.
+    pub fn drop_counts() -> [[u64; BANDS + 1]; 2] {
+        counts_of(LandingFrom::Drop)
+    }
+
+    fn counts_of(from: LandingFrom) -> [[u64; BANDS + 1]; 2] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[from as usize][k][b].load(Ordering::Relaxed)))
     }
 }
 
@@ -2324,7 +2374,8 @@ mod tests {
         let keys_of = |deg: f32, velocity: [f32; 2], open: bool| {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sway: 0.0, landing_cancel_deg: deg, ..Feel::default() }, &mut rng);
-            motor.last_press = Some((motor.clock.wrapping_sub((0.8 / TICK_S) as u32), false));
+            let at = motor.clock.wrapping_sub((0.8 / TICK_S) as u32);
+            motor.last_press = Some(LandingWatch { at, counted: false, from: LandingFrom::Jump });
             let mut route = Route::new(vec![p(0.0), p(10.0)]);
             let pose = Pose {
                 feet: Vec3::new(3.0, 0.0, 0.0),
@@ -2353,6 +2404,44 @@ mod tests {
         let after = landings::counts();
         assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 4);
         assert!(after[1].iter().sum::<u64>() >= before[1].iter().sum::<u64>() + 2);
+    }
+
+    /// The landing of a planned drop is watched from the take-off, counted either way, and braked like a jump's only
+    /// with `landing_cancel_drops`: a run carried across the way (z while the route goes x) is braked, off the
+    /// route's keys stay.
+    #[test]
+    fn a_drop_landing_run_against_the_way_is_braked_only_with_the_drop_switch() {
+        let p = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let keys_of = |drops: bool| {
+            let mut rng = Rng::new(3);
+            let feel = Feel { sway: 0.0, landing_cancel_deg: 60.0, landing_cancel_drops: drops, ..Feel::default() };
+            let mut motor = Motor::new(feel, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(5.0, 0.0), p(5.4, -2.0), p(12.0, -2.0)]);
+            let at = |x: f32, y: f32, velocity: [f32; 2]| Pose {
+                feet: Vec3::new(x, y, 0.0),
+                yaw: yaw_of([1.0, 0.0]),
+                speed: velocity[0].hypot(velocity[1]),
+                velocity,
+                ..Default::default()
+            };
+            // On the floor before the edge, then over it: the watch starts.
+            motor.walk(&mut route, &at(4.9, 0.0, [2.0, 0.0]), 5.0, |_| true);
+            motor.walk(&mut route, &at(5.1, 0.0, [2.0, 0.0]), 5.0, |_| true);
+            assert!(motor.last_press.is_some_and(|w| w.from == LandingFrom::Drop));
+            let mut keys = 0;
+            for _ in 0..(0.8 / TICK_S) as u32 {
+                keys = motor.walk(&mut route, &at(5.3, -1.5, [0.0, 4.0]), 5.0, |_| true).0.keys;
+            }
+            keys
+        };
+        let before = landings::drop_counts();
+        let braked = keys_of(true);
+        assert_eq!(braked & key::FORWARD, 0, "{braked:#x}");
+        assert_ne!(braked & (key::LEFT | key::RIGHT), 0, "{braked:#x}");
+        assert_ne!(keys_of(false) & key::FORWARD, 0);
+        let after = landings::drop_counts();
+        assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 2);
+        assert!(after[1].iter().sum::<u64>() > before[1].iter().sum::<u64>());
     }
 
     /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes

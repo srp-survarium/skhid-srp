@@ -211,10 +211,19 @@ pub(super) fn stamina() -> Box<dyn RouteTopic> {
 /// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
 pub(super) fn landings() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::motor::landings::counts().iter().flatten().copied().collect(),
+        || {
+            let (jumps, drops) = (super::super::motor::landings::counts(), super::super::motor::landings::drop_counts());
+            jumps.iter().chain(&drops).flatten().copied().collect()
+        },
         |d, line| {
             let bands = |k: usize| d[k * 5..k * 5 + 5].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
-            line.ends.push(format!("landings {} landings_cancelled {}", bands(0), bands(1)));
+            line.ends.push(format!(
+                "landings {} landings_cancelled {} drop_landings {} drop_landings_cancelled {}",
+                bands(0),
+                bands(1),
+                bands(2),
+                bands(3)
+            ));
         },
     )
 }
