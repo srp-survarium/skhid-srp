@@ -50,6 +50,7 @@ pub struct Scenario {
     pub medkits_used: u8,
     pub pantry: Pantry,
     pub pools: Option<Pools>,
+    pub zone_armour: std::sync::Arc<crate::v026g::bots::zone_cost::ZoneArmour>,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
     /// `BotFacts::ammo`.
@@ -140,6 +141,7 @@ impl Scenario {
             medkits_used: 0,
             pantry: Pantry::standard(),
             pools: None,
+            zone_armour: Default::default(),
             no_way_to: Vec::new(),
             dry: false,
             ammo: Default::default(),
@@ -291,6 +293,7 @@ impl Scenario {
                 medkits_used: self.medkits_used,
                 pantry: &self.pantry,
                 pools: self.pools,
+                zone_armour: &self.zone_armour,
                 no_way_to: &self.no_way_to,
                 set_aside: &[],
                 failed_stands: &self.failed_stands,

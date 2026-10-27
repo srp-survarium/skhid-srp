@@ -305,6 +305,14 @@ pub(crate) struct Game {
     /// run's loop counts those lying in zones on all match).
     pub(crate) zone_deaths: u32,
     pub(crate) zone_hp: f32,
+    /// Zones hurt the pools their hits take from, through the body's armour on the parts they hit
+    /// (`HazardTuning::zone_pools` routed, `SRP_BENCH_ZONE_POOLS=routed`: [`Game::zone_tick_routed`]); else
+    /// the body pool and the raw hit.
+    pub(crate) zone_routed: bool,
+    /// What the routed zones took by pool (body, head, infection, pain) and the deaths in them by the pool
+    /// that ran out.
+    pub(crate) zone_pool_lost: [f32; 4],
+    pub(crate) zone_pool_deaths: [u32; 4],
     /// The anomaly fields of the redesign, made by the bench ([`standin_fields`]); off unless `SRP_BENCH_LIVE_FIELDS`.
     pub(crate) fields: standin_fields::FieldGen,
     /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
@@ -548,6 +556,9 @@ impl Game {
             drops: [0, 0],
             zone_deaths: 0,
             zone_hp: 0.0,
+            zone_routed: false,
+            zone_pool_lost: [0.0; 4],
+            zone_pool_deaths: [0; 4],
             fields: standin_fields::FieldGen::from_env(&world, seed),
             zone_spells: Vec::new(),
             took_from: Vec::new(),
@@ -1365,6 +1376,9 @@ impl Game {
     /// `baked`: the map's zones hurt (`SRP_BENCH_ZONE_DAMAGE=1`); the anomaly fields of the generator
     /// ([`Game::fields`]) hurt whenever it runs, whatever the bots know of them.
     pub(crate) fn zone_tick(&mut self, inside: &Hazards, on: &Hazards, baked: bool) {
+        if self.zone_routed {
+            return self.zone_tick_routed(inside, on, baked);
+        }
         let tick = self.tick;
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
@@ -1447,6 +1461,124 @@ impl Game {
             let team = usize::from(body.team);
             self.zone_deaths += 1;
             self.fields.stats.deaths += u32::from(per_live >= per_baked);
+            self.stats[place].1 += 1;
+            self.stats[place].2 = 0;
+            if let Some(tickets) = self.tickets.as_mut() {
+                tickets[team] = tickets[team].saturating_sub(1);
+            }
+        }
+    }
+
+    /// [`Self::zone_tick`] with the zones' hits going where the client sends them (`zone_cost.rs`): each zone's
+    /// hit a second, worked out for the armour the body wears (its kit's), goes to the body, the head, the
+    /// infection (no regeneration) and the pain pools; the anomaly fields still hurt the body pool by their raw
+    /// hit. A body dies where it stands when any of those pools runs out (the client kills at 0 in each).
+    fn zone_tick_routed(&mut self, inside: &Hazards, on: &Hazards, baked: bool) {
+        use crate::v026g::bots::zone_cost::Cost;
+        let tick = self.tick;
+        for place in 0..self.bodies.len() {
+            let body = &mut self.bodies[place];
+            if !body.alive {
+                if let Some(spell) = body.zone_spell.take() {
+                    self.zone_spells.push(spell.ended(body));
+                }
+                continue;
+            }
+            let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
+                continue;
+            };
+            let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, body.gun.item);
+            let baked_cost: Cost = if baked {
+                inside
+                    .zones_at(node)
+                    .filter(|zone| {
+                        on.zones
+                            .iter()
+                            .find(|o| o.zone == zone.zone)
+                            .is_some_and(|o| o.activity.active(tick))
+                    })
+                    .map(|zone| zone.cost_per_s(&armour))
+                    .sum()
+            } else {
+                Cost::ZERO
+            };
+            let per_live = self.fields.hit_per_s_at(node);
+            let body = &mut self.bodies[place];
+            // The antitoxin halves a toxic hit: the infection pool's.
+            let factor = body.heal.toxic_factor(tick);
+            let cost = Cost {
+                body: baked_cost.body + per_live * factor,
+                infection: baked_cost.infection * factor,
+                ..baked_cost
+            };
+            if cost.most() <= 0.0 {
+                if let Some(spell) = body.zone_spell
+                    && tick >= spell.last + SPELL_GAP_MS
+                {
+                    self.zone_spells.push(spell.ended(body));
+                    body.zone_spell = None;
+                }
+                continue;
+            }
+            let per_s = cost.body + cost.head + cost.infection + cost.pain;
+            let take = |pool: &mut f32, per_s: f32| {
+                let hit = (per_s * TICK_S).min(pool.max(0.0));
+                *pool -= hit;
+                hit
+            };
+            let lost = [
+                take(&mut body.health, cost.body),
+                take(&mut body.pools.head, cost.head),
+                take(&mut body.rest.infection, cost.infection),
+                take(&mut body.pools.pain, cost.pain),
+            ];
+            let hit: f32 = lost.iter().sum();
+            for (total, each) in self.zone_pool_lost.iter_mut().zip(lost) {
+                *total += each;
+            }
+            if per_live > 0.0 {
+                self.fields.stats.hp += lost[0].min(per_live * factor * TICK_S);
+            }
+            let spell = body.zone_spell.get_or_insert(ZoneSpell {
+                start: tick,
+                health: body.health,
+                lost: 0.0,
+                last: tick,
+                why: 0,
+            });
+            spell.why |= body.why_now;
+            spell.lost += hit;
+            spell.last = tick;
+            self.zone_hp += hit;
+            let empty = [
+                body.health <= 1e-3,
+                body.pools.head <= 1e-3,
+                body.rest.infection <= 1e-3,
+                body.pools.pain <= 1e-3,
+            ];
+            let Some(which) = empty.iter().position(|&e| e) else {
+                continue;
+            };
+            let spell = body.zone_spell.take().expect("just set");
+            self.zone_spells.push(spell.ended(body));
+            eprintln!(
+                "  zone death ({}): at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, the zones took {:.2}",
+                ["body", "head", "infection", "pain"][which],
+                f64::from(tick) / 1000.0,
+                f64::from(tick - spell.start) / 1000.0,
+                per_s,
+                spell.health,
+                spell.lost,
+            );
+            body.alive = false;
+            body.dead_at = tick;
+            if let Some(battery) = body.carrying.take() {
+                self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
+            }
+            let team = usize::from(body.team);
+            self.zone_deaths += 1;
+            self.zone_pool_deaths[which] += 1;
+            self.fields.stats.deaths += u32::from(per_live > 0.0 && baked_cost.most() <= 0.0);
             self.stats[place].1 += 1;
             self.stats[place].2 = 0;
             if let Some(tickets) = self.tickets.as_mut() {
