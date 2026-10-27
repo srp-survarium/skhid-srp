@@ -53,6 +53,10 @@ pub struct Kinematics {
     pub sprint: f32,
     /// Ticks of the blend to a new velocity.
     pub blend_ticks: u32,
+    /// The reckoned body (`body.rs`) takes a jump it pressed up a jump link only if the jump could make its rise: the
+    /// plain jump's 1.09 m, or with forward and sprint held at the walk cap or more the sprint jump's 1.28 m (the client's
+    /// choice by the keys and the speed at the press, PROVEN, the sprint-jump RE 1.1). Off (the default): any jump link.
+    pub jump_cap_by_keys: bool,
 }
 
 impl Default for Kinematics {
@@ -64,6 +68,7 @@ impl Default for Kinematics {
             crouch_aim: [2.0, 1.5, 1.5],
             sprint: 5.0,
             blend_ticks: 6,
+            jump_cap_by_keys: false,
         }
     }
 }
