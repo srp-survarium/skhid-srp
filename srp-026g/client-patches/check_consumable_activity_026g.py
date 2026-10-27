@@ -37,7 +37,7 @@ class Run(hide.Run):
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
         emu.reg_write(UC_X86_REG_ESP, sp + 12)
 
-    def update(self, active, delay, remaining, alive=True, count=1):
+    def update(self, active, delay, remaining, alive=True, count=1, index=7):
         self.emu.mem_write(PLAYER + 0x33c, bytes([alive]))
         self.emu.mem_write(ITEM + 0x2b0, bytes([active]))
         self.emu.mem_write(ITEM + 0x260, struct.pack('<H', count))
@@ -45,11 +45,11 @@ class Run(hide.Run):
         self.word(ITEM + 0x2a8, remaining)
         before = self.read(DATA, 0x10000)
         regs = {**hide.GAME, UC_X86_REG_ESI: hide.HUD, UC_X86_REG_EBP: PLAYER,
-                UC_X86_REG_EBX: INVENTORY, UC_X86_REG_EDI: 1, UC_X86_REG_EAX: 7}
+                UC_X86_REG_EBX: INVENTORY, UC_X86_REG_EDI: 1, UC_X86_REG_EAX: index}
         after, sp = self.run(0x23b7a0, (0x23b7a7,), hide.STACK + 0x9000, regs)
         assert self.stopped == 0x23b7a7
         assert sp == hide.STACK + 0x9000
-        assert after == {**regs, UC_X86_REG_EAX: INVENTORY + 0x10c + 4*7}, after
+        assert after == {**regs, UC_X86_REG_EAX: (INVENTORY + 0x10c + 4*index) & 0xffffffff}, after
         assert self.read(DATA, 0x10000) == before, 'presentation modified simulation'
         if self.calls:
             assert self.calls[0][2] == b'root.set_quick_slot_activity'
@@ -74,6 +74,11 @@ def main():
     ]:
         assert r.update(*args) == [expected], label
         print('ok', label)
+    # Native artefact quick slots encode offsets to a different allocation,
+    # including wrapped negative offsets; the medical reader must not follow them.
+    assert r.update(True, 0, 7500, index=0x1000) == [(1, 0, 0, 0)]
+    assert r.update(True, 0, 7500, index=0xfffffff0) == [(1, 0, 0, 0)]
+    print('ok external artefact slot offsets excluded from medical reads')
     r.word(ITEM, 0xA042AC)
     assert r.update(True, 0, 7500) == [(1, 0, 0, 0)]
     r.word(INVENTORY + 0x10c + 4*7, 0)

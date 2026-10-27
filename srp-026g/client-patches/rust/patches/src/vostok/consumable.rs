@@ -46,11 +46,17 @@ impl<'t> QuickSlotActivity<'t> {
         let slot = ctx.reg(Reg::Edi);
         let index = ctx.reg(Reg::Eax) as usize;
         // SAFETY: these are the live objects held by update_local_player_state.
-        // The engine just mapped this quick slot; its next LEA and call read
-        // this very inventory entry (including artefact slots after slot 23).
+        // Medicines occupy the inventory's fixed slots. Artefact mappings
+        // instead encode an offset into a separately allocated container array;
+        // do not turn those offsets into an in-bounds inventory pointer.
         let (movie, activity) = unsafe {
             let movie = movie_of(*raw::game_world_ui::hud_movie(ui))?;
-            let item = *raw::inventory::slots(inventory).add(index) as usize as *mut c_void;
+            let slots = raw::inventory::slots(inventory);
+            let end = raw::inventory::slots_end(inventory);
+            let count = (end as usize - slots as usize) / core::mem::size_of::<u32>();
+            let item = if index < count {
+                *slots.add(index) as usize as *mut c_void
+            } else { core::ptr::null_mut() };
             let activity = if *raw::player::alive(player) == 0 || item.is_null()
                 || *raw::inventory_item::vtable(item) != raw::image::MEDKIT_VTABLE
             { Activity::Inactive } else {
