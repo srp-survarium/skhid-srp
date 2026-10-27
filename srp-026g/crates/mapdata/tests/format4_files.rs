@@ -18,6 +18,7 @@ fn the_new_files_are_the_old_ones_and_the_zones_part_names() {
     names.sort();
     assert!(!names.is_empty(), "no .mapdata files in {}", old.display());
     let (mut files, mut zones, mut named) = (0, 0, 0);
+    let mut distinct = std::collections::BTreeMap::<String, usize>::new();
     for name in names {
         let before = MapData::from_bytes(&std::fs::read(old.join(&name)).unwrap()).unwrap();
         let mut after = MapData::from_bytes(&std::fs::read(new.join(&name)).unwrap())
@@ -32,6 +33,9 @@ fn the_new_files_are_the_old_ones_and_the_zones_part_names() {
                     zone.name
                 );
                 named += usize::from(!damage.part_names.is_empty());
+                for part in &damage.part_names {
+                    *distinct.entry(part.clone()).or_default() += 1;
+                }
             }
         }
         for zone in &mut after.zones {
@@ -47,4 +51,5 @@ fn the_new_files_are_the_old_ones_and_the_zones_part_names() {
         files += 1;
     }
     eprintln!("{files} files equal; {zones} zones with a hit, {named} name their parts");
+    eprintln!("part names: {distinct:?}");
 }
