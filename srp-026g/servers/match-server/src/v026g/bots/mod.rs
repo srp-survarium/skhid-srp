@@ -463,6 +463,7 @@ impl Bot {
         self.kit_chosen = 0;
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -619,6 +620,7 @@ impl Bot {
             kit.1 = left;
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -1376,6 +1378,22 @@ impl Bots {
             sum.add(&bot.features.traps.react.counts());
         }
         sum
+    }
+
+    /// What the weapon mods did to the bots' reloads, over all the bots and
+    /// lives (`guns.rs`), and which bots now hold a modded weapon, by what is
+    /// modded and whether past what a player can have.
+    pub fn mod_counts(&self) -> (guns::ModCounts, guns::HeldMods) {
+        let mut sum = guns::ModCounts::default();
+        let mut held = guns::HeldMods::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.weapon_mods.0);
+            sum.add(&bot.reflex.mod_counts());
+            if let Some(arms) = bot.reflex.arms() {
+                held.add(arms.primary.0);
+            }
+        }
+        (sum, held)
     }
 
     /// The inputs due with the clock at `clock`.
