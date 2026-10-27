@@ -307,6 +307,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_ZONE_POOLS") {
         set(&mut tuning, "/hazard/zone_pools", if v == "routed" { "routed" } else { "raw" }.into());
     }
+    // A battery no straight walk crosses to is offered when the motor's own route over the zones' floors is borne
+    // (`HazardTuning::route_crossing`): `1` on; else (the default) only the straight crossings.
+    if let Ok(v) = settings.var("SRP_BENCH_ROUTE_CROSSING") {
+        set(&mut tuning, "/hazard/route_crossing", (v != "0").into());
+    }
     // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
         set(&mut tuning, "/hazard/live_zones", (v != "0").into());
