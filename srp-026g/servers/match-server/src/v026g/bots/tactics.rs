@@ -2341,6 +2341,18 @@ pub(super) mod tests {
                 let known = (0..base.regions.len() as u32)
                     .filter(|&r| base.progress().of_region(r, 0) != progress::UNKNOWN)
                     .count();
+                if known == 0 {
+                    for sp in &world.map.spawns {
+                        eprintln!(
+                            "  no numbers, spawn team {} at {:?}: locate 1.5 {:?}, 3 {:?}, 8 {:?}",
+                            sp.team,
+                            sp.position,
+                            world.grid.locate(sp.position, 1.5),
+                            world.grid.locate(sp.position, 3.0),
+                            world.grid.locate(sp.position, 8.0)
+                        );
+                    }
+                }
                 let teams: std::collections::BTreeSet<i32> = world.map.spawns.iter().map(|s| s.team).collect();
                 eprintln!(
                     "progress level {level} day {mode}: teams {teams:?} known regions {known} floors {} regions {} progress median {:?} min {:?} max {:?}, whole base {:?}",
