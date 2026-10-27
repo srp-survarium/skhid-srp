@@ -44,11 +44,13 @@ pub enum RouteEnd {
     Replanned,
     /// It ran over a bear trap's disc (`traps::keep_off`).
     TrapAhead,
+    /// Its body walked for the tuned time without getting further along the route (`Stuck::no_progress`).
+    NoProgress,
 }
 
 impl RouteEnd {
     /// Every ending, in the order of the bench's counts.
-    pub const ALL: [RouteEnd; 15] = [
+    pub const ALL: [RouteEnd; 16] = [
         RouteEnd::Arrived,
         RouteEnd::Off,
         RouteEnd::JumpFailed,
@@ -64,6 +66,7 @@ impl RouteEnd {
         RouteEnd::EscapeStep,
         RouteEnd::Replanned,
         RouteEnd::TrapAhead,
+        RouteEnd::NoProgress,
     ];
 
     /// The name the bench prints.
@@ -84,6 +87,7 @@ impl RouteEnd {
             RouteEnd::EscapeStep => "escape_step",
             RouteEnd::Replanned => "replanned",
             RouteEnd::TrapAhead => "trap_ahead",
+            RouteEnd::NoProgress => "no_progress",
         }
     }
 }
