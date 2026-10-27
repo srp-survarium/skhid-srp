@@ -378,6 +378,8 @@ impl Bots {
             }
             // The new play starts.
             bot.give_way(assignment.kind, now);
+            // (Per start: a claim made by an earlier start of this pass is seen by the next.)
+            let state = &self.teams[usize::from(team)];
             let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
             let cx = Ctx {
                 now,
@@ -483,9 +485,23 @@ impl Bots {
                 }));
             }
             bot.held_choke = held_choke;
+            // The route a Roam run is drawn on is claimed at once, for the draws that follow (`roam.fresh_claims`).
+            let claim = running.route_claim();
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);
+            if tuning.number(plays::PlayKind::Roam, "fresh_claims") > 0.5 {
+                let knowledge = &mut self.teams[usize::from(team)].knowledge;
+                match (claim, bot.side) {
+                    (Some((route, drawn)), Some(side)) => {
+                        knowledge.claim_route(place, side, route, drawn, now);
+                        // For the log: which path drew the route, the start countdown's opening pass or the commander's pass in play.
+                        let how = if self.opening_pass { "opening pass in the countdown" } else { "fresh claim in play" };
+                        bot.note(notes, now, format!("draws route {route} of side {side} ({how})"));
+                    }
+                    _ => knowledge.release_route(place),
+                }
+            }
         }
         // Why known batteries left a bot's Collect candidates, when it
         // changed (`collect::note_take_blocks`).
