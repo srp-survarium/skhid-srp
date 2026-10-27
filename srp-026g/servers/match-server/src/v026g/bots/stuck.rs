@@ -80,6 +80,9 @@ pub const HELD_AFTER_MS: u32 = 3_000;
 /// metres. GUESS: a walk of 3 s is 10 m, a crouched one 5 m; a body
 /// nudged by a wall it slides along moves more.
 pub const HELD_MOVED_M: f32 = 0.5;
+/// A stuck within this of a window that [`UnstickTuning::unknown_meant_needs_keys`]
+/// let go, at the same spot, is counted as one it may have wrongly let go, ms.
+pub const ENDED_THEN_STUCK_MS: u32 = 10_000;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
 /// … if the earlier one was within this, ms.
@@ -188,6 +191,12 @@ pub struct Stuck {
     /// The first of the worlds since that showed the walk keys held and
     /// the body near where it was then: time and feet ([`HELD_AFTER_MS`]).
     held_from: Option<(u32, Vec3)>,
+    /// A world of the reckoned watch's window had no reckoning of the bot's
+    /// keys ([`UnstickTuning::unknown_meant_needs_keys`]).
+    unknown_in_window: bool,
+    /// The last window that the rule ended where the old one would have said
+    /// stuck: when and where (to see whether a stuck follows it).
+    ended_at: Option<(u32, Vec3)>,
     /// Where it got stuck, the last time, and how often there.
     spots: Vec<Spot>,
     /// How often at the spot of the last time.
@@ -271,6 +280,18 @@ impl Stuck {
         meant: Option<f32>,
         keys: u32,
     ) -> Option<(Recovery, bool)> {
+        self.walking_in(time, feet, meant, keys, &UnstickTuning::default())
+    }
+
+    /// [`Self::walking`] under `rule`.
+    pub fn walking_in(
+        &mut self,
+        time: u32,
+        feet: Vec3,
+        meant: Option<f32>,
+        keys: u32,
+        rule: &UnstickTuning,
+    ) -> Option<(Recovery, bool)> {
         if time < self.fall_lock_until {
             // Landed hard: the body cannot move yet, whatever the keys; not stuck, nothing to back off from.
             #[cfg(test)]
@@ -279,9 +300,15 @@ impl Stuck {
             return None;
         }
         let by_keys = self.held(time, feet, keys);
-        let by_reckoning = self.reckoned(time, feet, meant);
+        let by_reckoning = self.reckoned(time, feet, meant, keys, rule);
         if !(by_keys || by_reckoning) {
             return None;
+        }
+        if let Some((ended, spot)) = self.ended_at.take()
+            && time < ended + ENDED_THEN_STUCK_MS
+            && near(spot, feet)
+        {
+            unknown_meant::count(1);
         }
         self.spots.retain(|spot| spot.last + SPOT_KEPT_MS > time);
         self.walked_from = None;
@@ -319,18 +346,45 @@ impl Stuck {
 
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
-    fn reckoned(&mut self, time: u32, feet: Vec3, meant: Option<f32>) -> bool {
+    fn reckoned(
+        &mut self,
+        time: u32,
+        feet: Vec3,
+        meant: Option<f32>,
+        keys: u32,
+        rule: &UnstickTuning,
+    ) -> bool {
+        let unknown = meant.is_none();
+        // A way the tracker has no reckoning of: by the keys the world shows,
+        // when the rule says so (a walk key held is a walk, none is a stand).
+        let meant = match meant {
+            None if rule.unknown_meant_needs_keys => {
+                Some(if keys & HELD_KEYS != 0 { MEANT_M } else { 0.0 })
+            }
+            known => known,
+        };
         let Some((at, from, meant_since)) = self.walked_from else {
             self.walked_from = Some((time, feet, Some(0.0)));
+            self.unknown_in_window = false;
             return false;
         };
+        self.unknown_in_window |= unknown;
         let meant_since = meant_since.zip(meant).map(|(a, b)| a + b);
         if time < at + STUCK_AFTER_MS {
             self.walked_from = Some((at, from, meant_since));
             return false;
         }
         self.walked_from = Some((time, feet, Some(0.0)));
-        from.distance_xz(feet) < STUCK_MOVED_M && meant_since.is_none_or(|m| m >= MEANT_M)
+        let still = from.distance_xz(feet) < STUCK_MOVED_M;
+        let stuck = still && meant_since.is_none_or(|m| m >= MEANT_M);
+        // The window the old rule would have called stuck for a way it did not
+        // know, and this one let go.
+        if still && !stuck && self.unknown_in_window {
+            unknown_meant::count(0);
+            self.ended_at = Some((time, feet));
+        }
+        self.unknown_in_window = false;
+        stuck
     }
 
     /// The held-keys watch: every world for [`HELD_AFTER_MS`] with a walk
@@ -766,6 +820,28 @@ pub mod fall_locks {
     }
 }
 
+/// The bench's counts of the windows [`UnstickTuning::unknown_meant_needs_keys`] let go (the activity), and of
+/// the stucks at the same spot within [`ENDED_THEN_STUCK_MS`] after one (the harm).
+#[cfg(not(test))]
+pub mod unknown_meant {
+    pub fn count(_kind: usize) {}
+}
+
+#[cfg(test)]
+pub mod unknown_meant {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts of the self-kills ([`SelfKillAct`]): sent, sent again,
 /// barred after two.
 #[cfg(test)]
@@ -941,6 +1017,65 @@ mod tests {
             .collect();
         assert_eq!(told[..3], [None, None, None]);
         assert_eq!(told[3], Some((Recovery::BackOff, true)));
+    }
+
+    /// A resting body whose reckoning is unknown at some world of the window
+    /// (a burst of worlds newer than every tick it decided) is flagged stuck by
+    /// the old rule (School 12a83438 2:38.2); with `unknown_meant_needs_keys` it
+    /// is not, while one that shows a walk key held still is, and a window
+    /// whose ways are known is judged as ever.
+    #[test]
+    fn an_unknown_way_at_rest_is_not_stuck_when_the_rule_asks_for_the_keys() {
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let old = UnstickTuning::default();
+        let new = UnstickTuning {
+            unknown_meant_needs_keys: true,
+            ..UnstickTuning::default()
+        };
+        let run = |rule: &UnstickTuning, keys: u32, meant: Option<f32>| {
+            let mut stuck = Stuck::default();
+            // The first world starts the watch; the second has no reckoning.
+            let first = stuck.walking_in(0, spot, Some(0.0), keys, rule);
+            let second = stuck.walking_in(1_000, spot, meant, keys, rule);
+            let third = stuck.walking_in(1_600, spot, Some(0.0), keys, rule);
+            assert_eq!((first, second), (None, None));
+            third.map(|(recovery, _)| recovery)
+        };
+        // Old: unknown is a walk, the resting body is stuck.
+        assert_eq!(run(&old, 0, None), Some(Recovery::BackOff));
+        // New: no key held in the world, no walk.
+        assert_eq!(run(&new, 0, None), None);
+        // New: a key held in the worlds is a walk, as the old rule took it.
+        assert_eq!(run(&new, key::FORWARD, None), Some(Recovery::BackOff));
+        // Known ways are judged as ever, by either rule.
+        assert_eq!(run(&new, 0, Some(0.0)), None);
+        assert_eq!(run(&old, 0, Some(0.0)), None);
+        assert_eq!(run(&new, key::FORWARD, Some(2.0)), Some(Recovery::BackOff));
+    }
+
+    /// The window that was let go is counted, and a stuck at the same spot
+    /// soon after it is the harm.
+    #[test]
+    fn a_window_let_go_is_counted_and_a_stuck_after_it_at_the_spot_is_harm() {
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let rule = UnstickTuning {
+            unknown_meant_needs_keys: true,
+            ..UnstickTuning::default()
+        };
+        let before = unknown_meant::counts();
+        let mut stuck = Stuck::default();
+        stuck.walking_in(0, spot, Some(0.0), 0, &rule);
+        stuck.walking_in(1_000, spot, None, 0, &rule);
+        assert_eq!(stuck.walking_in(1_600, spot, Some(0.0), 0, &rule), None);
+        assert!(stuck.ended_at.is_some());
+        // Walk keys held at the spot for 3 s: stuck by the keys.
+        for time in [2_000, 3_000, 4_000] {
+            assert_eq!(stuck.walking_in(time, spot, Some(0.0), key::FORWARD, &rule), None);
+        }
+        assert!(stuck.walking_in(5_000, spot, Some(0.0), key::FORWARD, &rule).is_some());
+        let after = unknown_meant::counts();
+        // Other tests run at once and count too: at least ours.
+        assert!(after[0] > before[0] && after[1] > before[1], "{before:?} {after:?}");
     }
 
     #[test]

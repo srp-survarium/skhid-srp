@@ -1113,7 +1113,7 @@ impl Bots {
             .is_some_and(escape::Escape::trying);
         if trying {
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tuning.unstick) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             bot.note(
                 &mut notes,

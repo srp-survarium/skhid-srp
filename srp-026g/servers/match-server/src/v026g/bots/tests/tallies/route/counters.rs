@@ -212,6 +212,20 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Windows of the stuck watch let go for a way the bot had no reckoning of, and the stucks that followed them at the same
+/// spot (`stuck::unknown_meant`).
+pub(super) fn unknown_meant() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::unknown_meant::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "unknown_meant_ended {} unknown_meant_then_stuck {}",
+                d[0], d[1]
+            ));
+        },
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {

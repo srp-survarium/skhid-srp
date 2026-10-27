@@ -34,6 +34,14 @@ pub struct UnstickTuning {
     pub suicide_wait_ms: u32,
     /// The bit is held this many ticks (the J0 run's, `SUICIDE_TICKS`).
     pub suicide_ticks: u8,
+    /// A world the bot has no reckoning of (`BodyTrack::last_meant` none: it
+    /// came newer than every tick the bot decided, as in a burst) says how far
+    /// the bot's keys meant to move it only by the keys that world shows: a
+    /// walk key held means a walk, none means the bot stood. Off (the default),
+    /// an unknown way is a walk, and a body at rest is flagged stuck
+    /// (`stuck::Stuck::walking`; School 12a83438 2:38.2: four resting bots at
+    /// once).
+    pub unknown_meant_needs_keys: bool,
 }
 
 impl Default for UnstickTuning {
@@ -48,6 +56,7 @@ impl Default for UnstickTuning {
             suicide_min_tickets: 5,
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
+            unknown_meant_needs_keys: false,
         }
     }
 }
