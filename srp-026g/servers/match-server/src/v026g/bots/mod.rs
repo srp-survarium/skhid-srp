@@ -816,6 +816,14 @@ impl Bots {
         self.tracker.set_shot_reach(reach);
     }
 
+    /// What a bot wears against a zone's hits (F2, `zone_cost.rs`), from its kit; it is read when
+    /// `HazardTuning::zone_pools` says.
+    pub fn set_zone_armour(&mut self, place: Place, armour: zone_cost::ZoneArmour) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.features.crossing.armour = std::sync::Arc::new(armour);
+        }
+    }
+
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.features.weapons = weapons;

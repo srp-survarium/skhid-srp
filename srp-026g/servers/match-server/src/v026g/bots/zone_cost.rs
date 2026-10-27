@@ -17,7 +17,7 @@
 //! cost is worked out with. With no armour ([`Budget::raw`], the switch off) a zone costs its raw
 //! hit in the body pool and the other pools are never short: the numbers the code always had.
 
-use std::ops::{Add, Mul};
+use std::ops::{Add, Div, Mul};
 use std::sync::Arc;
 
 use survarium::v026g::damage::{self, ArmourParams};
@@ -110,6 +110,19 @@ impl Mul<f32> for Cost {
     }
 }
 
+impl Div<f32> for Cost {
+    type Output = Self;
+
+    fn div(self, k: f32) -> Self {
+        Self {
+            body: self.body / k,
+            head: self.head / k,
+            infection: self.infection / k,
+            pain: self.pain / k,
+        }
+    }
+}
+
 impl std::iter::Sum for Cost {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, Add::add)
@@ -155,6 +168,16 @@ impl Reserve {
             && (cost.head <= 0.0 || pool(self.head, cost.head))
             && (cost.infection <= 0.0 || pool(self.infection, cost.infection))
             && (cost.pain <= 0.0 || pool(self.pain, cost.pain))
+    }
+
+    /// The largest share of a pool `cost` takes (the body pool's with `max(1e-3)` under it, as the
+    /// old `cost / health`): 0 for a pool it does not touch.
+    pub fn share(&self, cost: Cost) -> f32 {
+        let of = |value: f32, cost: f32| if cost > 0.0 { cost / value.max(1e-3) } else { 0.0 };
+        (cost.body / self.body.max(1e-3))
+            .max(of(self.head, cost.head))
+            .max(of(self.infection, cost.infection))
+            .max(of(self.pain, cost.pain))
     }
 
     /// Whether `cost` leaves at least `left` in every pool it takes from (the body pool always).

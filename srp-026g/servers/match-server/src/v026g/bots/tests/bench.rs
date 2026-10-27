@@ -267,6 +267,11 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
         set(&mut tuning, "/hazard/escape", (v != "0").into());
     }
+    // A battery's crossing of a damage zone weighed against the pools the zone's hits take from and the bot's armour
+    // (`HazardTuning::zone_pools`): `routed`; else (the default) the body pool and the raw hit.
+    if let Ok(v) = settings.var("SRP_BENCH_ZONE_POOLS") {
+        set(&mut tuning, "/hazard/zone_pools", if v == "routed" { "routed" } else { "raw" }.into());
+    }
     // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
         set(&mut tuning, "/hazard/live_zones", (v != "0").into());
