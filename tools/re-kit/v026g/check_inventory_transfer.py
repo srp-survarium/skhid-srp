@@ -10,7 +10,7 @@ import struct
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "srp-026g/client-patches"))
-from check_artefacts_026g import Game
+from check_artefacts_026g import Game, RETAIL, HOLDER, PLAYER, KITS, MOVEMENT
 from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EAX
 
@@ -131,6 +131,43 @@ def run(data):
     assert g.contents(donor, 1) == [item]
     assert g.read(item + 0x254) == slot
 
+    # Run the real artefact on_taken/on_removed and Spring modifier list
+    # operations. Only holder getters and thiscall-to-register ABI bridges
+    # are fixtures; unlink/relink itself executes original engine code.
+    g = InventoryGame(data)
+    item = g.spring(RETAIL)
+    g.word(item, g.vtable)
+    g.word(item + 0xD0, 2)
+    g.word(item + 0x24C, 1)
+    g.word(item + 0x28C, 12345)  # cooldown must survive the owner change
+    enable, disable = g.block(0x10), g.block(0x10)
+    # Spring native helpers: EAX=this / stdcall(this).
+    g.emu.mem_write(enable, b"\x8b\xc1\xe9" + struct.pack("<I", (0x311AD0-enable-7)&0xFFFFFFFF))
+    g.emu.mem_write(disable, b"\x51\xe8" + struct.pack("<I", (0x311D10-disable-6)&0xFFFFFFFF) + b"\xc3")
+    for offset, function in [(0x30,0x313470),(0x34,0x313490),(0x7C,enable),(0x84,disable)]:
+        g.word(g.vtable+offset,function)
+    donor, recipient = g.slots([item]), g.slots([0])
+    g.word(donor+0x174,HOLDER)
+    other_player, other_kits, other_holder, other_vtable = [g.block(n) for n in [0x800,0x1000,0x10,0x20]]
+    getter = g.block(0x10)
+    g.emu.mem_write(getter,b"\xb8"+struct.pack("<I",other_player)+b"\xc3")
+    g.word(other_player+0x6B8,other_kits)
+    g.word(other_holder,other_vtable)
+    g.word(other_vtable+0xC,getter)
+    g.word(recipient+0x174,other_holder)
+    g.call(0x313470,ecx=item)
+    assert g.count(MOVEMENT)==1
+    g.word(item+0xD0,g.read(item+0xD0)+1)
+    g.call(0x2FC680,esi=donor,eax=g.encoded_slot(donor,0))
+    assert g.count(MOVEMENT)==0 and g.listed(MOVEMENT)==[]
+    g.take(recipient,item)
+    g.word(item+0xD0,g.read(item+0xD0)-1)
+    assert g.count(MOVEMENT)==0
+    assert g.read(other_kits+0x204+MOVEMENT*0x14)==1
+    assert g.read(other_kits+0x204+MOVEMENT*0x14+4)==item+0x340
+    assert g.read(item+0x250)==recipient and g.read(item+0x280)==3
+    assert g.read(item+0x28C)==12345 and g.read(item+0xD0)==3
+
     g = InventoryGame(data)
     world = g.block(0x19040)
     begin = world + 0x18B58
@@ -147,7 +184,7 @@ def run(data):
         assert g.read(active + 0x10 + 0x248) == world
         assert g.read(world + 0x18B50) == begin + (index + 1) * 4
     print("original inventory: quick-slot mapping, empty pickup, full eviction, "
-          "retained transfer and active-object registration passed")
+          "retained transfer, real passive modifier relink and active-object registration passed")
 
 
 if __name__ == "__main__":

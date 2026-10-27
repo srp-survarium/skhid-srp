@@ -3116,3 +3116,5 @@ va	status	ref_021d	name
 0x0025f100	inferred-high		survarium::artefact<artefact_lifebone_core>::update_client_state
 0x0025f640	inferred-high		survarium::artefact<artefact_onyx_core>::update_client_state
 0x0025fb80	inferred-high		survarium::artefact<artefact_rattle_core>::update_client_state
+0x002fec10	inferred-high		survarium::portable_interactive_object_core::selected_user_animations
+0x002df050	inferred-high		survarium::portable_interactive_object_core::set_user_animation_resource

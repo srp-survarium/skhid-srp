@@ -40,9 +40,12 @@ and below the inventory, not merely an artificial inline subrange.
 
 Unicorn verifies: empty-container quick-slot mapping; insertion into the
 first empty slot; full-container eviction and shifting; removal followed by
-pickup while retaining the item across the gap. Item lifecycle methods are
-recording stubs in that test, so it does not prove real passive-effect
-unlinking/relinking, world integration or presentation.
+pickup while retaining the item across the gap. A further case runs the
+original artefact on_taken/on_removed methods and Spring passive modifier
+link/unlink against two distinct player modifier lists. The donor loses
+the movement node, the recipient gains that exact node, and cooldown and
+resource references survive. Holder getters and item-owner setters are
+fixtures; this still does not prove world integration or presentation.
 
 Artefact virtual +0x30 is 0x313470: enable passive, set state 3. Virtual +0x34
 is 0x313490: if state 4, disable active; disable passive; set state 0. The
@@ -220,7 +223,7 @@ implementation must perform the retained-reference transaction described
 above, including range/ownership/capacity validation at its commit point.
 
 The versioned nine-byte snapshot includes phase, generation, artefact ID,
-inventory slot and previous active-object ID. Parsing is atomic: malformed
+container ordinal and previous active-object ID. Parsing is atomic: malformed
 snapshots leave the old state unchanged. Native identity/owner are bound
 at construction and cannot be supplied by snapshot bytes. **The core must
 be serialized for every player even while Stowed**: it preserves the
@@ -234,8 +237,8 @@ changes, owner teardown, every snapshot phase, malformed input and replay
 after rollback. `cargo clippy -p artefact-carry --all-targets -- -D warnings`
 also passes. These are state/inventory-contract tests; they do not prove
 native animation selection, in-game snapshots or hand rendering. The
-crate is not yet a dependency of the native patches crate, so it does not
-alter the shipped executable or an existing match's computation.
+crate is now used by the native inventory owner, but no carry hook is
+installed and no existing match computation changes.
 
 ## Native inventory binding checkpoint
 
@@ -249,3 +252,31 @@ Three 32-bit Rust tests exercise this boundary, alongside the original-code
 Unicorn test. This remains unhooked: interaction reach/LOS, the registered
 active adapter, animation loading and world snapshot integration are still
 required before exposing Shift+number.
+
+## Portable animation construction findings
+
+The native battery factory 0x2F9F40 allocates 0x4D0 bytes; its independent
+portable core occupies +0x2D0..+0x4CF and the battery points to it at +0x1AC.
+The core constructor 0x2FEBC0 receives destination at stack+4 and an initial
+selector value in EAX. Its meaning is still being traced; do not infer that
+it is a resource pointer. The selector owns individually allocated state
+nodes, so copying the 0x200-byte core or borrowing a weapon's mutable core
+is invalid.
+
+The subresource callback at 0x2FA462 passes that core in EAX and a reference
+to the loaded user-animation resource in EDI to 0x2DF050. That helper retains
+the resource at core+0x48 and binds the hit-animation selector at core+0x60.
+`selected_animations` 0x3012A0 combines the battery state's hand expression
+with 0x2FEC10's independently selected locomotion expression. The latter
+takes EAX portable core, EDX hand-expression metadata, EDI result pair, and
+stack+4 animation buffer, then returns with ret 4. It dispatches the active
+selector node at core+0x20 through virtual +0x20. These findings establish
+the composition point, not yet a safe construction/teardown binding.
+
+A candidate implementation owns its own portable core and retains only
+immutable animation resources; it never borrows the weapon's mutable
+selector. Dedicated hand clips can be preloaded through the player cook's
+resource query. The existing empty-hands query at 0x202974..0x2029A0 is
+conditional on creation-data+0xB1; changing the shared lobby resource would
+be inappropriate. Match-only resource loading and callback teardown must
+be proven before enabling a registered active adapter.

@@ -4681,3 +4681,11 @@ va	name	location	role	basis
 0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	ECX	client update callback subobject; artefact base +0x498	observed
 0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	client update callback subobject; artefact base +0xf20	observed
 0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	client update callback subobject; artefact base +0x340	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EAX	portable core	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EDX	hand-expression metadata	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	EDI	output expression pair	observed
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	entry ESP+4	animation allocation buffer	observed
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EAX	portable core	observed
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EDI	reference to user-animation resource pointer	observed
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	entry ESP+4	destination storage, 0x200 bytes	observed
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	EAX	initial selector value; meaning not yet established	observed
