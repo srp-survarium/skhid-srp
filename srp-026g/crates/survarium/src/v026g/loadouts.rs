@@ -2889,6 +2889,7 @@ mod tests {
             let equipment = BotEquipment {
                 tier,
                 rusher: RusherKit::Control,
+                mask: None,
             };
             let mut expected = vec![
                 kit_item("spas_12", 7, 1, Some(WEAPON_1_BIT)),
@@ -2975,14 +2976,16 @@ mod tests {
             RusherKits::parse("9-10=control,13-15=alt"),
             Ok(RusherKits {
                 mid: RusherKit::Control,
-                high: RusherKit::Alt
+                high: RusherKit::Alt,
+                masks: Masks::Off,
             })
         );
         assert_eq!(
             RusherKits::parse("13-15=helmet"),
             Ok(RusherKits {
                 mid: RusherKit::Control,
-                high: RusherKit::Helmet
+                high: RusherKit::Helmet,
+                masks: Masks::Off,
             })
         );
         // The winning setting of the RK sweep, in the per-tier form.
@@ -2990,7 +2993,8 @@ mod tests {
             RusherKits::parse("9-10=alt,13-15=smg"),
             Ok(RusherKits {
                 mid: RusherKit::Alt,
-                high: RusherKit::Smg
+                high: RusherKit::Smg,
+                masks: Masks::Off,
             })
         );
         // Off by default: the old table in both tiers.

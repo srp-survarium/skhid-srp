@@ -583,6 +583,7 @@ mod tests {
                 level(BotEquipment {
                     tier,
                     rusher: RusherKit::Control,
+                    mask: None,
                 }),
             );
             assert!(new >= old - 1e-6, "{tier}: {new} against {old}");
