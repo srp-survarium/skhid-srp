@@ -415,9 +415,10 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         .tracker
         .view(&clock, &bots.tuning.kin, world.as_deref());
     let viewed = Instant::now();
+    super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
         for team in 0..2u8 {
-            if now >= bots.teams[usize::from(team)].next_commander {
+            if bots.commander_due(team, &clock, &view) {
                 bots.commander(team, &view, &mut notes);
             }
         }
@@ -428,6 +429,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     rays.thinks_left = bots.thinks_due(&view);
     bots.features.searching.left = SEARCHES_PER_POLL;
     bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    let claims_on = [0u8, 1].map(|team| bots.tuning_of(team).number(super::plays::PlayKind::Roam, "fresh_claims") > 0.5);
     let a = Instant::now();
     bots.go_on_searching();
     ticks += a.elapsed().as_secs_f64();
@@ -436,7 +438,11 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             continue;
         }
         let a = Instant::now();
-        bots.think(index, &view, &mut rays, &mut notes);
+        // Before play begins: only rest.
+        if clock.playing {
+            bots.think(index, &view, &mut rays, &mut notes);
+        }
+        bots.sync_route_claim(index, now, claims_on);
         let b = Instant::now();
         bots.ticks(index, &clock, &view, &mut made);
         think += (b - a).as_secs_f64();
@@ -1034,6 +1040,7 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    super::route_twins::tick(game.tick, |place| game.bodies.get(place).map(|b| (b.feet, b.alive)));
                     // The harm count of the pair rules: ticks a pair's two bodies are alive more than 60 m apart.
                     for bot in bots.bots.iter().flatten() {
                         if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
@@ -1552,6 +1559,7 @@ pub(crate) fn real_bot_cost() {
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
+            eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
