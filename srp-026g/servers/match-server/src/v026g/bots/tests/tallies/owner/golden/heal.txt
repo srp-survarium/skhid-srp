@@ -1,5 +1,11 @@
-owner-test heal: hurt at the fatal fight's start 0.0 % (0.0 % over 4 s old) of 4 fights; hurt 15.8 % of alive time with stock; episodes with a press 0.0 % of 2 (depth >=0.8 / 0.6-0.8 / <0.6: 0 / 0 / 0 %), first press after - s; 0 presses, 0.0 per 100 bot minutes on a hurt body, 0 on an empty slot, 0 on an active medkit; no stock at the spawn 0.0 % of alive time; dead within 5 s of a press 0.0 per 100; dead with a medkit unused 100.0 % (no press in the life 100.0 %) of 12; full 3-9 s after 0.0 %; infection <= 0.1 at 0 deaths; cover walks 0, heal plays taken 11
+owner-test heal: hurt at the fatal fight's start 0.0 % (0.0 % over 4 s old) of 4 fights; hurt 15.8 % of alive time with stock; episodes with a press 0.0 % of 2 (depth >=0.8 / 0.6-0.8 / <0.6: 0 / 0 / 0 %), first press after - s; 0 presses, 0.0 per 100 bot minutes on a hurt body, 0 on an empty slot, 0 on an active medkit; no stock at the spawn 0.0 % of alive time; dead within 5 s of a press 0.0 per 100; dead with a medkit unused 100.0 % (no press in the life 100.0 %) of 12; full 3-9 s after 0.0 %; infection <= 0.1 at 0 deaths; cover walks 0, heal plays taken 11; deaths in an item's window 0 {"antitoxin":0,"bandages":0,"medkit":0}
 {
+  "deaths_in_item_window": 0,
+  "deaths_in_item_window_by_kind": {
+    "antitoxin": 0,
+    "bandages": 0,
+    "medkit": 0
+  },
   "heal_active_presses": 0,
   "heal_cover_m_line": [
     0.0,

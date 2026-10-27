@@ -94,6 +94,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.
+    s("SRP_BENCH_FALL_LOCK", "off", "`on` (or `1`) keeps the stuck watch quiet for 8.5 s after a body landed from a fall of 6 m or more (`ThinkTuning::fall_lock`): such a body cannot move (the J0 worlds), and the watch took it for stuck"),
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),
     s("SRP_BENCH_BATTERY_SIGHT_M", "the tuning's", "SenseTuning::battery_sight_m"),
     s("SRP_BENCH_FRIEND_NEAR_M", "the tuning's", "FriendlyFireTuning::near_m"),
@@ -108,6 +109,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_THREAT_FLOORS", "the tuning's (3000)", "ThreatTuning::search_floors: floors of a poll's budget one search round a shooter's lane may take"),
     s("SRP_BENCH_THREAT_SPRINT", "the tuning's (on)", "ThreatTuning::sprint: `0` off (a bot in a shooter's lane keeps the pace its play chose), else on"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::hazard.escape: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
+    s("SRP_BENCH_PERCH", "the tuning's (on)", "PerchTuning::on: `0` off (the hold plays pick no perch of the routes table), else on"),
+    s("SRP_BENCH_PERCH_P", "the tuning's (1)", "PerchTuning::p_scale: a multiplier on the share of hold picks that take a perch (the sweep: 1 and 2)"),
     s("SRP_BENCH_LIVE_ZONES", "off", "Tuning::hazard.live_zones: the anomaly fields of the worlds are the bots' live zones (kept off while a field hurts, got out of); `0` off"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
