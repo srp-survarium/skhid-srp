@@ -163,6 +163,14 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::motor::drop_walks::ticks()],
+        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+    )
+}
+
 /// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
 /// and over m/s) and given up.
 pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
@@ -198,10 +206,19 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
 /// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
 pub(super) fn landings() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::motor::landings::counts().iter().flatten().copied().collect(),
+        || {
+            let (jumps, drops) = (super::super::motor::landings::counts(), super::super::motor::landings::drop_counts());
+            jumps.iter().chain(&drops).flatten().copied().collect()
+        },
         |d, line| {
             let bands = |k: usize| d[k * 5..k * 5 + 5].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
-            line.ends.push(format!("landings {} landings_cancelled {}", bands(0), bands(1)));
+            line.ends.push(format!(
+                "landings {} landings_cancelled {} drop_landings {} drop_landings_cancelled {}",
+                bands(0),
+                bands(1),
+                bands(2),
+                bands(3)
+            ));
         },
     )
 }
@@ -261,6 +278,14 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::fall_locks::counts().to_vec(),
         |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
+    )
+}
+
+/// The bodies the progress watch stopped, and those that came to the same leg again within 20 s (`stuck::progress_watch`).
+pub(super) fn progress_watch() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::progress_watch::counts().to_vec(),
+        |d, line| line.ends.push(format!("progress_stalls {} progress_stalls_again {}", d[0], d[1])),
     )
 }
 
