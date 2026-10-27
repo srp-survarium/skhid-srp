@@ -110,11 +110,15 @@ pub mod bots;
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
 mod game;
+/// A player's kills of one enemy pay at most 10 times a match.
+mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
 /// "Watch replay": kept recordings made into replay files (`SRP_REPLAY_DIR`).
 pub mod replay;
+/// A player's Research units pay at most 200 score a match.
+mod research_cap;
 mod server;
 pub mod sur;
 pub mod sur_convert;

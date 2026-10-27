@@ -115,8 +115,10 @@ use survarium::v026g::match_msgs::{
 use udp_transport::{Event, SendError, Transport};
 
 use super::battery_cap;
+use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
+use super::research_cap;
 use super::{LateInputs, Settings};
 
 mod driven;
@@ -882,6 +884,8 @@ pub(crate) struct Game {
     mode_end_at: Option<u32>,
     state: Option<Observed>,
     best_streaks: Vec<u16>,
+    /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
+    kill_pairs: kill_cap::Pairs,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -956,6 +960,7 @@ impl Game {
             mode_end_at: None,
             state: None,
             best_streaks: vec![0; players],
+            kill_pairs: kill_cap::Pairs::default(),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -3811,6 +3816,11 @@ impl Game {
                     .max(player.longest_killstreak)
                     .max(u16::from(player.killstreak));
             }
+            let before = self
+                .state
+                .as_ref()
+                .and_then(|state| state.statistics.as_ref());
+            self.kill_pairs.observe(before, statistics, &teams);
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -4727,6 +4737,32 @@ impl Game {
                         cut.counted,
                         cut.paid,
                         self.batteries()
+                    );
+                }
+                // Research's units pay at most research_cap::MOST_SCORE of
+                // score (docs/notes/research_mode.md).
+                if self.game_mode() == mode::RESEARCH {
+                    for cut in research_cap::cap(&mut statistics) {
+                        log::info!(
+                            "Match {:#x}: place {}'s Research score {}, paid {}",
+                            self.id,
+                            cut.place,
+                            cut.scored,
+                            cut.paid
+                        );
+                    }
+                }
+                // Kills of one enemy pay at most kill_cap::MOST_PAID times
+                // (docs/notes/kill_cap.md).
+                for cut in kill_cap::cap(&mut statistics, &self.kill_pairs) {
+                    log::info!(
+                        "Match {:#x}: place {}'s kills counted {}, paid {} (at most {} of one \
+                         enemy)",
+                        self.id,
+                        cut.place,
+                        cut.counted,
+                        cut.paid,
+                        kill_cap::MOST_PAID
                     );
                 }
                 statistics
