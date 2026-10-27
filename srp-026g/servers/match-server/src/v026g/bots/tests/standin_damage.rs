@@ -342,7 +342,9 @@ fn pools_taken(body: &BodyParams, hit_box: &str, amount: f32, arp: f32, armor: f
 /// One hit of `shooter_gun` at `distance` metres on `target`: takes the
 /// damage off its pools and, when a lethal pool is empty, its `health` to 0
 /// (the stand-in's death rule reads it). Draws the part and the box from
-/// `rng`.
+/// `rng`. Gives the stamina the hit takes from the target's bar: the
+/// weapon's `stamina_damage` for each pellet or bullet that lands (none for
+/// a flat hit).
 pub(crate) fn hit(
     model: &Model,
     target: &mut Body,
@@ -350,14 +352,14 @@ pub(crate) fn hit(
     distance: f32,
     rng: &mut Rng,
     now: u32,
-) {
+) -> f32 {
     if model.flat {
         target.health -= FLAT_HIT;
-        return;
+        return 0.0;
     }
     let Some(weapon) = weapons::weapon_named(shooter_gun.item) else {
         target.health -= FLAT_HIT;
-        return;
+        return 0.0;
     };
     let ammo = kit_of(model.tier, model.rusher, shooter_gun.item)
         .and_then(|kit| damage::ammo_named(kit.ammo))
@@ -366,7 +368,8 @@ pub(crate) fn hit(
     let bullet = damage::bullet_at(weapon, ammo, distance);
     let class = Class::of(weapon);
     let body = damage::human();
-    for _ in 0..pellets_hitting(ammo.buck_shot, distance) {
+    let pellets = pellets_hitting(ammo.buck_shot, distance);
+    for _ in 0..pellets {
         let part = part_for(class, rng.unit());
         let boxes = part.boxes();
         let hit_box = boxes[rng.below(boxes.len())];
@@ -387,6 +390,7 @@ pub(crate) fn hit(
     if target.pools.dead() {
         target.health = target.health.min(0.0);
     }
+    weapon.stamina_damage * pellets as f32
 }
 
 /// An ammunition that is not in the data: no multiplier, one bullet.

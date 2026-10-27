@@ -80,7 +80,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::arc;
-use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd};
+use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd, ModCounts};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
@@ -605,6 +605,16 @@ pub struct CombatTuning {
     /// 84.5 % of the time while finishing a kill, the others 66.6 %;
     /// players strafe 41 % of the time).
     pub strafe_walking: bool,
+    /// The side step and the weave are tested over the lip band too
+    /// (`Tactics::clear_step_for`): not ending in it, and the move tested is
+    /// the one the keys make. OFF: falls and pockets only, the pure side
+    /// step, as it was.
+    pub clear_step_sees_lip: bool,
+    /// With `clear_step_sees_lip`: a side step of the reflex's own that is
+    /// refused is taken to the other side if that is clear (the bot keeps
+    /// strafing, away from the edge); both refused, it stands. OFF: it
+    /// stands.
+    pub clear_step_slides_along: bool,
     /// With a bolt-action weapon, it crouches to fire at a target with
     /// this chance (drawn per target); other weapons: `fire.crouch_*`.
     pub sniper_crouch_chance: f32,
@@ -1064,6 +1074,8 @@ impl Default for CombatTuning {
             strafe_still_chance: 0.5,
             strafe_still_ms: (150, 450),
             strafe_walking: true,
+            clear_step_sees_lip: false,
+            clear_step_slides_along: false,
             sniper_crouch_chance: 0.25,
             fire: FireTuning::default(),
             switch_share: 0.65,
@@ -1274,6 +1286,10 @@ pub struct Override {
     /// while the bot stands to aim at a seen target; the caller presses it
     /// only where the ground that side is clear.
     pub strafe: u32,
+    /// `strafe` is the step away from a teammate in the line of fire
+    /// (`friend.away`), not the reflex's own run: the caller never turns it
+    /// to the other side (that would step into him).
+    pub strafe_away: bool,
     /// `look_at` is a glance at a heard shot (play 6, or a threat not
     /// made by a hit), not an aim: the caller keeps the play's look when
     /// the play uses something or carries (a glance there broke the use
@@ -2025,7 +2041,7 @@ fn can_retreat(
     let Some(from) = tactics.world.grid.locate(me.feet, 1.5) else {
         return false;
     };
-    let radius = arc::SPLASH_M + retreat.margin_m;
+    let radius = arc::Grenade::bots().splash_m + retreat.margin_m;
     tactics
         .step_out(from, rest, radius, reach_m, now, side, false, &RouteFilter::open())
         .is_some_and(|out| (out + Vec3::new(0.0, CHEST, 0.0) - rest).length() >= radius)
@@ -2388,6 +2404,8 @@ pub struct Reflex {
     gates: Gates,
     /// [measure] The last reload ([`Reflex::reload_note`]).
     reload_note: Option<ReloadNote>,
+    /// [measure] What the weapon mods did to the reloads of this life.
+    mod_counts: ModCounts,
     /// [measure] The bench's gate tally: every gate is tested each tick,
     /// `clear_shot`'s rays too, though an earlier one failed (no decision
     /// changes; only the rays cost).
@@ -2687,6 +2705,11 @@ impl Reflex {
     /// running ([`gate`]).
     pub fn gates(&self) -> Gates {
         self.gates
+    }
+
+    /// [measure] What the weapon mods did to this life's reloads.
+    pub fn mod_counts(&self) -> ModCounts {
+        self.mod_counts
     }
 
     /// [measure] The last reload started, if any.
@@ -4212,6 +4235,8 @@ impl Reflex {
         }
         let (left, magazine) = (load.rounds, load.gun.magazine);
         let ms = load.reload(now);
+        let gun = load.gun;
+        self.mod_counts.reload(gun);
         self.reload_note = Some(ReloadNote {
             at: now,
             until: now + ms,
@@ -4496,6 +4521,8 @@ impl Reflex {
             return;
         };
         self.loop_end = Some(end);
+        let gun = self.hands().held().gun;
+        self.mod_counts.loop_end(gun, &end);
         if self.busy_why == gate::RELOAD && end.ready < self.busy_until {
             self.busy_until = end.ready.max(now);
             if let Some(note) = self.reload_note.as_mut() {
@@ -4935,6 +4962,7 @@ impl Reflex {
         if let Some(friend) = friend.filter(|_| !running) {
             strafe = friend.away;
         }
+        let strafe_away = friend.is_some_and(|friend| !running && friend.away != 0);
         Override {
             look_at: Some(point),
             error,
@@ -4945,6 +4973,7 @@ impl Reflex {
             legs,
             band_m: self.band,
             strafe,
+            strafe_away,
             glance: false,
             track: body
                 .filter(|_| aimed.shows && c.turn_feed)
@@ -5298,14 +5327,25 @@ mod tests {
             reflex.think(&me, &memory, 1_000, &aim, 1.0, &mut rng);
             sense(&mut memory, &[sight(1_300)], 1_300);
             reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
-            let (mut fired, mut notes) = (false, Vec::new());
+            let (mut fired, mut notes, mut away) = (false, Vec::new(), 0);
             for k in 0..30 {
                 let now = 1_300 + k * 50;
                 sense(&mut memory, &[sight(now)], now);
-                fired |= reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).fire;
+                let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                fired |= o.fire;
+                // A step away from the teammate is marked (the drive never turns it to the other side).
+                if o.strafe_away {
+                    assert_ne!(o.strafe, 0);
+                    away += 1;
+                }
                 notes.extend(reflex.take_friend_note());
             }
             assert_eq!(fired, fires, "a teammate at {mate:?}");
+            assert_eq!(
+                away > 0,
+                !fires,
+                "a teammate at {mate:?}: {away} steps away"
+            );
             assert!(!notes.is_empty(), "a teammate at {mate:?}");
             for note in &notes {
                 assert_eq!(note["mate"], 2);
@@ -8670,6 +8710,10 @@ mod tests {
         let end = reflex.loop_end().expect("the loop ended");
         assert_eq!((end.at, end.loaded, end.target), (press, 8, 8));
         assert!(!end.cut());
+        // Counted as a reload and a loop of a plain gun, not cut.
+        let counts = reflex.mod_counts();
+        assert_eq!((counts.reloads, counts.reloads_modded), (1, 0));
+        assert_eq!((counts.loops, counts.loops_cut, counts.loops_modded), (1, 0, 0));
         let load = *reflex.hands().held();
         assert_eq!((load.rounds, load.spare), (8, 24));
         // The sights come back for the finish clip, and the bot waits the
@@ -8702,6 +8746,7 @@ mod tests {
         let end = reflex.loop_end().expect("the loop ended");
         assert_eq!((end.at, end.loaded, end.target), (press, 1, 8));
         assert!(end.cut());
+        assert_eq!(reflex.mod_counts().loops_cut, 1);
         assert_eq!(end.ended, press + 1_000 + 375);
         // The weapon is free at the finish clip's end.
         let ready = press + 1_000 + 375 + 1_000 + guns::CLIENT_LAG_MS;

@@ -84,6 +84,7 @@ mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
 mod standin_jump;
+mod standin_stamina;
 mod standin_traps;
 mod standin_weapon;
 mod tallies;

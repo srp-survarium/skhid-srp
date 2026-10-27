@@ -54,6 +54,7 @@ mod pre;
 mod resupply;
 mod run;
 mod shot_offsets;
+mod stamina;
 mod stock;
 mod topic;
 
@@ -67,6 +68,7 @@ use pre::*;
 use resupply::*;
 use run::*;
 use shot_offsets::*;
+use stamina::*;
 use stock::*;
 use topic::*;
 
