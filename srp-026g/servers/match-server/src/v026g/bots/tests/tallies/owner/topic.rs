@@ -79,6 +79,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(CamperCounts::default()),
         Box::new(ResupplyCounts::new(n)),
         Box::new(HealCounts::new(n)),
+        Box::new(SightCounts::new(n)),
         Box::new(ShotOffsets::default()),
         Box::new(HitShapes::default()),
     ]
@@ -115,6 +116,8 @@ pub(super) struct BotNow {
     pub(super) heal_walks: u32,
     /// Why the last heal press's cover walk was or was not made.
     pub(super) heal_note: Option<crate::v026g::bots::reflex::HealNote>,
+    /// The fire gates of its last tick (`Reflex::gates`).
+    pub(super) gates: crate::v026g::bots::reflex::Gates,
 }
 
 #[cfg(test)]

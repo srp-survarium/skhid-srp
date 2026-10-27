@@ -47,6 +47,7 @@ pub(crate) fn a_goal_proved_no_way_to_is_shut_while_the_proof_holds_but_not_for_
         streak: 0,
         carrying: None,
         seen_at: 0,
+        late_ms: 0,
         known_at: 0,
     };
     // Proved at 10 s.

@@ -88,7 +88,7 @@ fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
 /// Whether the enemy at `who` is seen holding an angle now.
 fn holding(cx: &Ctx, who: Place) -> bool {
     let num = |name| cx.num(PlayKind::Flank, name);
-    let Some(seen) = cx.memory.seen(who, cx.now) else {
+    let Some(seen) = cx.memory.seen(who, cx.now, cx.view.clock) else {
         return false;
     };
     let Some(p) = cx.view.place(who).filter(|p| p.alive) else {
@@ -166,7 +166,10 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
         return wait(cx, rng);
     };
     // His facing, only while he is seen; else wait and watch.
-    let (Some(seen), Some(p)) = (cx.memory.seen(who, cx.now), cx.view.place(who)) else {
+    let (Some(seen), Some(p)) = (
+        cx.memory.seen(who, cx.now, cx.view.clock),
+        cx.view.place(who),
+    ) else {
         return wait(cx, rng);
     };
     let him = seen.at();
@@ -254,7 +257,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     };
     // Seen up and moving: he no longer holds the angle.
     if let TargetRef::Place(who) = target
-        && cx.memory.seen(who, cx.now).is_some()
+        && cx.memory.seen(who, cx.now, cx.view.clock).is_some()
         && let Some(p) = cx.view.place(who)
         && (p.speed() >= num("still_speed") * 2.0 || p.keys & key::CROUCH == 0)
     {

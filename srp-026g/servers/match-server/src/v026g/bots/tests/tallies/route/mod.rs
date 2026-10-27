@@ -125,6 +125,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         blind_stops(),
         fix_gaps(),
         fall_locks(),
+        drop_aim(),
         unknown_meant(),
         asks(),
         route_ends(),

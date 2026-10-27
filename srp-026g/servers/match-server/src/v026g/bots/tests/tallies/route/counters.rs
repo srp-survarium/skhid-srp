@@ -333,6 +333,14 @@ pub(super) fn blind_stops() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Walk ticks whose look-ahead was cut to a drop's landing, and those of runs past 2 s (`motor::drop_aim`).
+pub(super) fn drop_aim() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::drop_aim::counts().to_vec(),
+        |d, line| line.ends.push(format!("drop_aim_ticks {} drop_aim_long_ticks {}", d[0], d[1])),
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {
