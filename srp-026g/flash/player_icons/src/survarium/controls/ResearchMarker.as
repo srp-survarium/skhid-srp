@@ -14,8 +14,8 @@ package survarium.controls
    // the game's own player is inside), translucent, raised LIFT px, no label.
    // The unit's letter in a circle of its owner's colour (the game's own team
    // blue, the other red, nobody grey, as the hud's units) and a ring as far
-   // round as the capture of the team taking it; blinking while a capture or
-   // neutralisation runs; retail's crossed swords, pulsing, while both teams
+   // round as the capture of the team taking it; retail's crossed swords,
+   // pulsing while both teams
    // are inside. The layer (HUDIconLayer.research_markers) places it.
    public class ResearchMarker extends Sprite
    {
@@ -76,8 +76,6 @@ package survarium.controls
       protected var _swords:Sprite;
 
       protected var _drawn:String = "";
-
-      protected var _blink:Boolean = false;
 
       protected var _pulseStarted:uint = 0;
 
@@ -240,8 +238,7 @@ package survarium.controls
             this._swords.alpha = 1;
          }
          this._swords.visible = contested;
-         this._blink = left > 0 && !contested;
-         if(this._blink || contested)
+         if(contested)
          {
             if(!hasEventListener(Event.ENTER_FRAME))
             {
@@ -253,10 +250,6 @@ package survarium.controls
          {
             removeEventListener(Event.ENTER_FRAME,this.onFrame);
          }
-         if(!this._blink)
-         {
-            this._art.alpha = 1;
-         }
       }
 
       // Retail's triangle, timed in milliseconds: 1 down to 0 and back.
@@ -266,10 +259,6 @@ package survarium.controls
          var wave:Number;
          var elapsed:uint = uint(uint(getTimer()) - this._pulseStarted);
          wave = Math.abs(1 - (elapsed % PULSE_MS) / PULSE_MS * 2);
-         if(this._blink)
-         {
-            this._art.alpha = wave;
-         }
          // Start visible when contested so the opponent is signalled at once.
          this._swords.alpha = wave;
       }

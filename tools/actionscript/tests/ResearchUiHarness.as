@@ -64,6 +64,49 @@ package
          check(swords.visible && swords.alpha == 1,"swords immediately visible at " + rate + " FPS");
       }
 
+      private function checkCountdownLayout():void
+      {
+         var domain:ApplicationDomain = hud.contentLoaderInfo.applicationDomain;
+         var cls:Class = domain.getDefinition("survarium.controls.ResearchUnits") as Class;
+         var points:* = new cls();
+         points.update([{cp_id:0,owner:2,capturing:0,progress:40,inside_0:1,inside_1:0,local:true,left:7000}],0);
+         points.x = 400; points.y = 80; addChild(points);
+         var indicator:Sprite = new Sprite();
+         indicator.x = 400; indicator.y = 30;
+         indicator.scaleX = indicator.scaleY = 0.8;
+         addChild(indicator);
+         cls = domain.getDefinition("DefaultLabel33") as Class;
+         var respawn:* = new cls();
+         indicator.addChild(respawn);
+         respawn.text = "Respawn in 00:10";
+         respawn.validateNow();
+         var oldSize:Object = respawn.textField.defaultTextFormat.size;
+         var oldY:Number = respawn.y;
+         cls = domain.getDefinition("SrvContextInfoPregame") as Class;
+         var pregame:* = new cls();
+         pregame.layoutData = {alignH:"center",alignV:"top"};
+         pregame.contextText.text = "Match starts in 00:10";
+         addChild(pregame);
+         cls = domain.getDefinition("survarium.controls.ResearchCountdownLayout") as Class;
+         var placement:* = new cls(respawn,pregame);
+         placement.place(points);
+         check(pregame.contextText.getBounds(this).top >= points.getBounds(this).bottom + 7,
+            "pre-match countdown clears the Research icons and capture timers");
+         check(respawn.textField.getBounds(this).top >= pregame.contextText.getBounds(this).bottom + 5,
+            "simultaneous countdowns do not overlap at a scaled indicator");
+         check(respawn.textField.defaultTextFormat.size == 18 && pregame.contextText.defaultTextFormat.size == 18,
+            "Research countdown text is larger");
+         pregame.visible = false;
+         placement.place(points);
+         check(respawn.textField.getBounds(this).top >= points.getBounds(this).bottom + 7,
+            "respawn countdown keeps its own row after pre-match ends");
+         placement.restore();
+         check(respawn.textField.defaultTextFormat.size == oldSize && respawn.y == oldY &&
+            pregame.layoutData.alignH == "center" && pregame.layoutData.alignV == "top",
+            "leaving Research restores the other modes' timer style and layout");
+         removeChild(points); removeChild(indicator); removeChild(pregame);
+      }
+
       private function tick(e:Event):void
       {
          try
@@ -72,6 +115,7 @@ package
             {
                if(hud.content == null || icons.content == null) return;
                initialized = true;
+               checkCountdownLayout();
                var cls:Class = hud.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
                units = new cls();
                addChild(units);
@@ -143,6 +187,14 @@ package
                else if(phase == 3 && elapsed >= 380)
                {
                   check(world.alpha == 1,"legacy sender restores visibility smoothly");
+                  marker.update(0,2,0,40,7000,true,0,20,false);
+                  check(!marker.hasEventListener(Event.ENTER_FRAME),"capture alone starts no blinking animation");
+                  phase=4; fadeStart=getTimer();
+               }
+               else if(phase == 4 && elapsed >= 1000)
+               {
+                  check(Sprite(marker.getChildAt(0)).alpha == 1,"capture icon stays steady");
+                  check(!swords.visible,"capture alone has no crossed swords");
                   removeEventListener(Event.ENTER_FRAME,tick);
                   trace("RESEARCH UI PASS");
                }

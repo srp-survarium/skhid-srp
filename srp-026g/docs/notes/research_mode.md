@@ -294,9 +294,15 @@ hide markers too. Free cameras and dead players do not inherit another player's 
 
 Visibility belongs to the world-marker parent Sprite: smoothstep to zero in 200 ms,
 to one in 300 ms. Repeated packets do not restart the fade; reversals begin at the
-current alpha. Capture and swords pulses animate children, so neither can reveal a
-hidden marker. The normal hide-interface key still hides this parent.
+current alpha. Only the crossed swords pulse; the capture icon stays steady. The swords
+animate a child, so they cannot reveal a hidden marker. The normal hide-interface key
+still hides this parent.
 
 Retail reference: 0.27d's CapturePointMarker used 24/34 px and alpha 195/255; its
 crossed-swords art is reused. Its frame-based triangle pulse sped up at higher FPS.
 The new elapsed-time pulse keeps the same two-second period at 30, 60 and 144 FPS.
+Research's respawn and pre-match countdowns use 18 px text with a dark outline,
+below the point icons and capture timers. If both messages arrive during a transition,
+they occupy separate rows. The layout helper restores the original label geometry,
+font and layout alignment when the HUD switches out of mode 5; other modes keep their
+existing timers. The engine's countdown values and death-screen state are unchanged.

@@ -38,7 +38,7 @@ package survarium.controls
       protected var _research:Array = [];
 
       // Aim visibility belongs to the world markers' parent. Individual
-      // capture/swords pulses can never undo this fade or affect the top HUD.
+      // swords pulses can never undo this fade or affect the top HUD.
       protected var _researchLayer:Sprite;
       protected var _researchTarget:Number = 1;
       protected var _researchFade:Object = null;

@@ -52,6 +52,7 @@ package
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.ResearchCountdownLayout;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -216,6 +217,7 @@ package
       
       public var researchUnits:ResearchUnits;
 
+      private var _researchCountdowns:ResearchCountdownLayout;
 
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
@@ -1852,6 +1854,7 @@ package
          {
             this.pregameInfo.premiumMembers.visible = false;
          }
+         this.placeResearchCountdowns();
       }
       
       public function set_pregame(value:String) : void
@@ -1868,6 +1871,7 @@ package
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
             this.pregameInfo.premiumMembers.x = 55;
          }
+         this.placeResearchCountdowns();
       }
       
       public function show_game_info(bool:Boolean) : void
@@ -2069,6 +2073,11 @@ package
       
       public function set_game_type(type:uint) : void
       {
+         if(this._researchCountdowns != null)
+         {
+            this._researchCountdowns.restore();
+            this._researchCountdowns = null;
+         }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          if(type == this.GAME_MODE_RESEARCH)
@@ -2416,8 +2425,8 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). The respawn
-      // countdown may overlap them (owner: less screen space).
+      // in the indicator's own space (its origin is its centre). Research's
+      // respawn and pre-match countdowns get a separate row below the units.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2459,7 +2468,22 @@ package
          if(this.researchUnits.visible)
          {
             this.followIndicator();
+            this.placeResearchCountdowns();
          }
+      }
+
+      private function placeResearchCountdowns() : void
+      {
+         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+            !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
+         {
+            return;
+         }
+         if(this._researchCountdowns == null)
+         {
+            this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
+         }
+         this._researchCountdowns.place(this.researchUnits);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2481,6 +2505,7 @@ package
       {
          this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
+         this.placeResearchCountdowns();
       }
       
       public function set_capture_progress(team:uint, text:String, value:uint) : void

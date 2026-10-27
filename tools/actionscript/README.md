@@ -72,8 +72,9 @@ java -jar "$FLEX/lib/mxmlc.jar" +flexlib="$FLEX/frameworks" \
 
 Run the SWF with Ruffle's filesystem access enabled (use a private virtual display for
 automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the absent
-caption, 24/34 px sizing, timer, translucent fill, hide-interface key, contested pulses
+caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested pulses
 at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
+It also checks countdown spacing and restoration of other modes' timer styles.
 This exercises the controls; the game's Scaleform integration still needs a playtest.
 
 ## History

@@ -4753,7 +4753,11 @@ def test_ragdoll(original, image, before):
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
-    allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
+    # arena_rt exports weak intrinsics so multiple Rust arena crates share
+    # them. The final ELF's full symbol map includes the selected weak
+    # definitions; the public map intentionally contains strong globals only.
+    runtime = {va for name, va, _, _ in linked.every if name in ("memcpy", "memmove", "memset")}
+    allowed = library | backs | runtime
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
           "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
