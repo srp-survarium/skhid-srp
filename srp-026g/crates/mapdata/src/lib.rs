@@ -50,7 +50,7 @@ pub mod sight;
 pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
+    Body, BuildStats, DistanceMap, Erosion, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
     PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Library, Materials, WalkerBehaviour};
@@ -113,6 +113,9 @@ pub const GRID_ALGO: u32 = 11;
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
 pub const GAP_LINKS_ALGO: u32 = 2;
+/// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
+/// that asks for it: the grids of the cells' erosion key, build and write as before.
+pub const EXACT_EROSION_ALGO: u32 = 1;
 /// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
 pub const SIGHT_ALGO: u32 = 2;
@@ -198,6 +201,10 @@ pub fn grid_key_with_links(
     }
     for value in body.values() {
         digest.f32(value);
+    }
+    // The cells' erosion is the default: its keys are the ones there were.
+    if body.erosion == Erosion::Exact {
+        digest.u32(EXACT_EROSION_ALGO);
     }
     digest.len(seeds.len());
     for seed in seeds {

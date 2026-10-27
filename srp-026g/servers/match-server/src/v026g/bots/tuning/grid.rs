@@ -24,15 +24,24 @@ pub struct GridTuning {
     /// steeper than the clients walk. Off (the default until a train turns it on): the grids as they were.
     /// A grid is the map's (see `gap_links`): the server's take this default, the bench's this run's tuning.
     pub client_numbers: bool,
+    /// Whether the maps' walk grids take the floors nearer to a wall than the body's radius, measured exactly,
+    /// after the cell rounds ([`mapdata::Erosion::Exact`]): a floor beside a post's corner, in an opening the
+    /// body does not fit (A84 item 13). Off (the default): the cells' erosion as it was. A grid is the map's
+    /// (see `gap_links`).
+    pub exact_erosion: bool,
 }
 
 impl GridTuning {
     /// The body the maps' grids are built for.
     pub fn body(&self) -> mapdata::Body {
-        if self.client_numbers {
+        let body = if self.client_numbers {
             mapdata::Body::client()
         } else {
             mapdata::Body::default()
+        };
+        mapdata::Body {
+            erosion: if self.exact_erosion { mapdata::Erosion::Exact } else { mapdata::Erosion::Cells },
+            ..body
         }
     }
 

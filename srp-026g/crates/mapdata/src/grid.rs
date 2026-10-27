@@ -76,6 +76,7 @@ use crate::math::Vec3;
 use crate::project::Triangle;
 use crate::resources::Error;
 
+mod exact;
 pub mod gap;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead};
 use gap::gap_cost;
@@ -108,6 +109,21 @@ pub struct Body {
     /// times as often (by the ledges there are) as at those 0.8-1.0 m
     /// (`player_bots_stuck.md`). Was 1.3.
     pub max_jump: f32,
+    /// How the floors near walls are eroded ([`Erosion`]). Not in the grid file: a grid read back has the cells'.
+    pub erosion: Erosion,
+}
+
+/// How the floors a body's radius from walls are taken away.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Erosion {
+    /// By cells: a floor goes when a wall is in the cell beside it along a side, round after round
+    /// ([`erosion_rounds`]); the walls diagonal to a cell and the far edge of the next cell are missed, up to
+    /// the cell's width.
+    #[default]
+    Cells,
+    /// The rounds, then every floor a wall comes nearer to than the radius, measured exactly on the ground
+    /// (the module `exact`): A84 item 13, a floor 0.25 m from a post in a 0.65 m opening.
+    Exact,
 }
 
 impl Body {
@@ -133,6 +149,7 @@ impl Body {
             min_ground_normal_y: v[4],
             max_drop: v[5],
             max_jump: v[6],
+            erosion: Erosion::Cells,
         }
     }
 }
@@ -176,6 +193,7 @@ impl Default for Body {
             min_ground_normal_y: 0.642_787_6,
             max_drop: 5.0,
             max_jump: 1.05,
+            erosion: Erosion::Cells,
         }
     }
 }
@@ -548,6 +566,8 @@ pub struct BuildStats {
     /// Left after dropping the floors no body gets to (the same without
     /// seeds).
     pub floors_kept: usize,
+    /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
+    pub exact_eroded: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -706,7 +726,8 @@ impl WalkGrid {
         grid.drop_narrow_landings(&mut wide);
         grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
-        grid.erode(&mut wide, &cut, &solids);
+        let walls = (body.erosion == Erosion::Exact).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
+        stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref());
         wide.off = match links {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
@@ -995,7 +1016,10 @@ impl WalkGrid {
     /// A drop or jump whose landing went lands further on, up to the
     /// rounds of erosion past it: a body that drops beside a wall lands
     /// clear of it.
-    fn erode(&mut self, wide: &mut Wide, cut: &[u8], solids: &Solids) {
+    ///
+    /// With `walls` ([`Erosion::Exact`]) the floors still within the radius of a wall go after the rounds; how
+    /// many.
+    fn erode(&mut self, wide: &mut Wide, cut: &[u8], solids: &Solids, walls: Option<&exact::Walls>) -> usize {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
@@ -1068,6 +1092,7 @@ impl WalkGrid {
                 }
             }
         }
+        let exact = walls.map_or(0, |walls| self.erode_exact(&mut alive, walls));
         // The floors kept at an unwalled side over a fall: no link, no cut
         // climb, no wall, and no floor beside within a step up or the
         // harmless drop down (a body walking off falls further).
@@ -1083,6 +1108,7 @@ impl WalkGrid {
             })
             .collect();
         self.compact(wide, &alive);
+        exact
     }
 
     /// Whether the side of `a` along `d`, with no link, is a wall for
