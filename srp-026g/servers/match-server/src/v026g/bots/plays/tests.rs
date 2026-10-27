@@ -50,6 +50,7 @@ pub struct Scenario {
     pub medkits_used: u8,
     pub pantry: Pantry,
     pub pools: Option<Pools>,
+    pub zone_armour: std::sync::Arc<crate::v026g::bots::zone_cost::ZoneArmour>,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
     /// `BotFacts::ammo`.
@@ -140,6 +141,7 @@ impl Scenario {
             medkits_used: 0,
             pantry: Pantry::standard(),
             pools: None,
+            zone_armour: Default::default(),
             no_way_to: Vec::new(),
             dry: false,
             ammo: Default::default(),
@@ -186,6 +188,16 @@ impl Scenario {
     }
 
     /// A bot at `place` of `team` standing at `feet`.
+    /// A number of a play's tuning (a switch is 1.0).
+    pub fn number(&mut self, kind: PlayKind, name: &str, value: f32) {
+        self.tuning
+            .plays
+            .entry(kind)
+            .or_insert_with(|| super::default_tuning(kind))
+            .numbers
+            .insert(name.into(), value);
+    }
+
     pub fn bot(&mut self, place: Place, team: u8, feet: Vec3) -> &mut PlaceView {
         self.place(place, team, feet, true)
     }
@@ -292,6 +304,7 @@ impl Scenario {
                 medkits_used: self.medkits_used,
                 pantry: &self.pantry,
                 pools: self.pools,
+                zone_armour: &self.zone_armour,
                 no_way_to: &self.no_way_to,
                 set_aside: &[],
                 failed_stands: &self.failed_stands,

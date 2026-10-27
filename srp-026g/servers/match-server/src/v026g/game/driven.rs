@@ -149,6 +149,7 @@ impl Walkers {
         let weapons = formed.profiles.iter().map(weapon_of).collect();
         let pockets = formed.profiles.iter().map(pockets_of).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
+        let armours: Vec<_> = formed.profiles.iter().map(zone_armour_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -181,6 +182,9 @@ impl Walkers {
             walkers.bots.set_weapons(weapons);
             walkers.bots.set_pockets(pockets);
             walkers.bots.set_shot_reach(reach);
+            for (place, armour) in armours.into_iter().enumerate() {
+                walkers.bots.set_zone_armour(place, armour);
+            }
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
@@ -374,6 +378,20 @@ fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfi
     let item = profile.items.get(usize::from(index))?;
     let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
+}
+
+/// What a bot wears against a zone's hits (F2, `zone_cost.rs`): the armour among the items of its first kit,
+/// as `HazardTuning::zone_pools` reads it.
+fn zone_armour_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> crate::v026g::bots::zone_cost::ZoneArmour {
+    let ids = profile
+        .kits
+        .first()
+        .into_iter()
+        .flat_map(|kit| kit.slots.iter().flatten())
+        .filter_map(|&(index, _)| profile.items.get(usize::from(index)).map(|item| item.dict_id));
+    crate::v026g::bots::zone_cost::ZoneArmour::of_items(ids)
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {
