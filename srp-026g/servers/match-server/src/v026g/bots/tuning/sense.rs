@@ -63,6 +63,14 @@ pub struct SenseTuning {
     /// (worlds 5 s apart); strong for a bush, the owner tunes it.
     pub bush_notice: f32,
     pub foliage_cap: f32,
+    /// The same for the grass the map draws (`grass.rs`): the metres of the line to the
+    /// chest (of the body as he stands, or crouches) hidden in blades within 100 m, each
+    /// counted by the share of its square metre the clumps cover; the delay times
+    /// `1 + bush_notice * bush metres + grass_notice * grass metres`, at most `foliage_cap`
+    /// times (0: grass hides nobody, as it was; the default until a train turns it on).
+    /// GUESS: a player cannot switch grass off and cannot see a crouched body in 1.0-1.8 m
+    /// grass, and nothing in the recordings measures the delay.
+    pub grass_notice: f32,
     /// Hearing ranges, metres.
     pub shot_m: f32,
     pub sprint_m: f32,
@@ -158,6 +166,7 @@ impl Default for SenseTuning {
             notice_moving: 0.7,
             bush_notice: 0.0,
             foliage_cap: 3.0,
+            grass_notice: 0.0,
             shot_m: 60.0,
             sprint_m: 15.0,
             reload_m: 10.0,
@@ -250,7 +259,10 @@ impl Check for SenseTuning {
             self.notice_near_ms <= self.notice_far_ms,
             "sense.notice_*_ms",
         )?;
-        check(self.bush_notice >= 0.0 && self.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
+        check(
+            self.bush_notice >= 0.0 && self.grass_notice >= 0.0 && self.foliage_cap >= 1.0,
+            "sense.bush_notice, grass_notice, foliage_cap",
+        )?;
         check(self.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
         check(self.use_ray_m >= 0.1 && self.use_ray_m <= 5.0, "sense.use_ray_m")?;
         check(

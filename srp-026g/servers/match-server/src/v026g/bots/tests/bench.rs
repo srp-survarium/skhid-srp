@@ -629,6 +629,14 @@ pub(crate) fn real_bot_cost() {
             ) {
                 bots.set_foliage(super::foliage::Foliage::load(&path, &project).unwrap());
             }
+            // The grass (`SRP_BOT_GRASS`, else `bot-grass.json` of the mapdata folder).
+            if let super::grass::Source::Set(path) | super::grass::Source::Default(path) = super::grass::Source::choose_file(
+                bench_settings().var_os("SRP_BOT_GRASS").as_deref(),
+                Some(&dir),
+                super::grass::DEFAULT_FILE,
+            ) {
+                bots.set_grass(super::grass::Grass::load(&path, &project).unwrap());
+            }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
             if bench_settings().flag("SRP_BENCH_WEAPONS") {

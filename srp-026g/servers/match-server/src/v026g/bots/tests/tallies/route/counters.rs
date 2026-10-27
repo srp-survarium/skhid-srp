@@ -280,6 +280,20 @@ pub(super) fn foliage() -> Box<dyn RouteTopic> {
     )
 }
 
+/// With `sense.grass_notice` on: the sights begun, those through half a metre of grass or more, the
+/// grass metres of all, and the delay the grass added (`grass::through`).
+pub(super) fn grass() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::grass::through::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "grass_sights {} grass_sights_through {} grass_mm {} grass_added_ms {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
 /// Bots that killed themselves with nothing left to try, the second tries, and those barred after two
 /// (`stuck::self_kills`).
 pub(super) fn self_kills() -> Box<dyn RouteTopic> {

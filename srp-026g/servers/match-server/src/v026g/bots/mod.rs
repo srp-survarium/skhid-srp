@@ -41,6 +41,7 @@ pub mod escape;
 pub mod field_source;
 pub mod foliage;
 pub mod friends;
+pub mod grass;
 pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
@@ -963,6 +964,11 @@ impl Bots {
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
     pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
         self.layers.foliage = foliage;
+    }
+
+    /// The map's grass (`bot-grass.json`); before [`Self::map_ready`].
+    pub fn set_grass(&mut self, grass: grass::Grass) {
+        self.layers.grass = grass;
     }
 
     pub fn has_map(&self) -> bool {
