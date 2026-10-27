@@ -733,6 +733,10 @@ pub struct Bots {
     /// Raid whenever Raid is a candidate.
     #[cfg(test)]
     pub bench_human: Option<Place>,
+    /// The real-map bench's model of Player vs Bots for the team's lanes of enemy humans (`SRP_BENCH_ENEMY_HUMAN_LANES`,
+    /// **model**): every body of the other team counts as a human in [`know::HumanLanes`]; nothing else reads it.
+    #[cfg(test)]
+    pub bench_enemy_lanes: bool,
     /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
@@ -813,6 +817,8 @@ impl Bots {
             side1_tuning: None,
             #[cfg(test)]
             bench_human: None,
+            #[cfg(test)]
+            bench_enemy_lanes: false,
             opened: [false; 2],
             opening_pass: false,
             #[cfg(test)]
@@ -1544,6 +1550,18 @@ impl Bots {
     /// How the teams' own traps went off (`trap_know.rs`).
     pub fn own_trap_counts(&self) -> trap_know::OwnTrapCounts {
         self.features.own_traps
+    }
+
+    /// Whether the other team's bodies all count as humans for the lanes (the bench's model; never in the game).
+    pub(crate) fn bench_enemy_human_lanes(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.bench_enemy_lanes
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
     }
 
     /// What the bots' habit did, over all the bots and lives: traps placed, lives ended while placing
