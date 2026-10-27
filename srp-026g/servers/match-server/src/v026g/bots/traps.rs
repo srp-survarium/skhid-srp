@@ -23,8 +23,10 @@
 //!   (the placer was the victim in 4.2 % of catches, 3 s after placing:
 //!   PROVEN), so it walks on without meeting it. A replan across it is the
 //!   team field's to prevent (a later change); here it is counted.
-//! - **Nothing is decided by the kit:** a bot carries traps only when told
-//!   ([`Habit::carry`]); none are told yet, so the habit is idle.
+//! - **The kit decides who carries:** a bot is told its traps at its spawn
+//!   (`Bot::arm`: [`Habit::of_kit`] of the traps in its kit's pocket,
+//!   `survarium::v026g::loadouts::bot_trap`); the old pockets hold none, so
+//!   with `SRP_BOT_KIT` off the habit is idle as ever.
 
 use std::sync::Arc;
 
@@ -279,6 +281,23 @@ pub struct Habit {
     left: u8,
     placed_life: u8,
     state: State,
+    /// Traps let go of in all its lives, and lives that ended while it was placing one (looking or pressing).
+    placed_total: u32,
+    died_placing: u32,
+}
+
+/// What a bot's habit did in all its lives (the bench's activity and harm counts).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PlaceCounts {
+    pub placed: u32,
+    pub died_placing: u32,
+}
+
+impl PlaceCounts {
+    pub fn add(&mut self, other: &PlaceCounts) {
+        self.placed += other.placed;
+        self.died_placing += other.died_placing;
+    }
 }
 
 impl Default for Habit {
@@ -295,6 +314,8 @@ impl Habit {
             left: 0,
             placed_life: 0,
             state: State::Idle,
+            placed_total: 0,
+            died_placing: 0,
         }
     }
 
@@ -305,11 +326,36 @@ impl Habit {
             left: kit.count,
             placed_life: 0,
             state: State::Idle,
+            placed_total: 0,
+            died_placing: 0,
+        }
+    }
+
+    /// A bot's habit from the traps its kit carries: `(count, quick-use bit)` of
+    /// [`survarium::v026g::loadouts::bot_trap`]; none carried is [`Habit::none`].
+    pub fn of_kit(trap: Option<(u32, u8)>) -> Self {
+        trap.map_or_else(Self::none, |(count, bit)| {
+            Self::carry(TrapKit {
+                count: count.min(u32::from(u8::MAX)) as u8,
+                key: 1 << bit,
+            })
+        })
+    }
+
+    /// What it did so far.
+    pub fn counts(&self) -> PlaceCounts {
+        PlaceCounts {
+            placed: self.placed_total,
+            died_placing: self.died_placing,
         }
     }
 
     /// A new life: the pocket is full again, nothing placed.
     pub fn new_life(&mut self) {
+        // A life that ended in the middle of placing one (looking down, or the key down): the harm count.
+        if !matches!(self.state, State::Idle) {
+            self.died_placing += 1;
+        }
         self.left = self.kit.map_or(0, |kit| kit.count);
         self.placed_life = 0;
         self.state = State::Idle;
@@ -362,6 +408,7 @@ impl Habit {
         if out.placed.is_some() {
             self.left = self.left.saturating_sub(1);
             self.placed_life += 1;
+            self.placed_total += 1;
         }
         out
     }
@@ -873,6 +920,23 @@ mod tests {
         f.last_hit = Some(90_000);
         f.play = Some(PlayKind::Ambush);
         assert_eq!(gate(&f, &t()), Ok(()));
+    }
+
+    /// The habit of a kit: none carried is [`Habit::none`], else the stack and the quick-use bit's mask; the counts
+    /// of what it did (a life that ended while placing is the harm).
+    #[test]
+    fn the_habit_comes_from_the_kit_and_counts_what_it_did() {
+        assert_eq!(Habit::of_kit(None), Habit::none());
+        let habit = Habit::of_kit(Some((2, 16)));
+        assert_eq!(habit.kit(), Some(TrapKit { count: 2, key: 0x1_0000 }));
+        assert_eq!(habit.counts(), PlaceCounts::default());
+        let mut habit = habit;
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 0, "a life that began idle");
+        habit.state = State::Looking { yaw: 0.0, spot: Vec3::ZERO, since: 0 };
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 1);
+        assert_eq!(habit.state(), State::Idle);
     }
 
     #[test]

@@ -141,6 +141,36 @@ pub enum DropRecord {
     Walk,
 }
 
+/// What a route's drop is: the one rule every reader of the route's drops asks ([`Route::drop_landings`],
+/// [`Route::drop_record`], [`Route::next_drop_edge_along`], [`Route::next_drop`], [`Route::left_drop_edge`]; the lip
+/// guard's planned landings, the drop aim, the landing watch, the drop walk).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DropTruth {
+    /// A waypoint a lip's height ([`mapdata::grid::LIP_DROP_M`]) or more under the one before it, reached by no jump,
+    /// whatever link leads to it: a stair or a ramp whose far corner is a metre lower counts, a Drop link of 0.8-1.0 m
+    /// does not.
+    #[default]
+    Height,
+    /// A Drop link of the planner's path ([`Route::sprint_drops`] holds every one, from the client's step height on);
+    /// a route made some other way has no links to read, and keeps the waypoints of the height.
+    Links,
+}
+
+impl DropTruth {
+    /// How far a body is above a drop's landing, metres, while it is still to go over the edge.
+    pub fn above_m(self) -> f32 {
+        match self {
+            Self::Height => mapdata::grid::LIP_DROP_M,
+            Self::Links => DROP_LINK_MIN_M,
+        }
+    }
+}
+
+/// The shallowest Drop link, metres: the client's step height (`Body::client().step`, 0.8), from which a grid link is
+/// a drop and not a step.
+pub const DROP_LINK_MIN_M: f32 = 0.8;
+
 /// The speed a body leaves a drop's edge at when it sprints, m/s: a sprint is 5.0-5.1 m/s in the client (PROVEN: the
 /// J0 and item 10 rows, 5.08 m/s in the air with the key held).
 pub const SPRINT_FLIGHT_MPS: f32 = 5.1;
@@ -1188,26 +1218,42 @@ impl Route {
 
     /// The landings of the drops of a lip's height or more the route makes from `s` to `within` metres on (a
     /// planned fall: the body walks off the edge there).
-    pub fn drop_landings(&self, s: f32, within: f32) -> Vec<Vec3> {
+    pub fn drop_landings(&self, s: f32, within: f32, truth: DropTruth) -> Vec<Vec3> {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
             .take_while(|&k| self.along[k - 1] <= s + within)
-            .filter(|&k| self.points[k].jump.is_none() && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+            .filter(|&k| self.drop_into(k, truth).is_some())
             .map(|k| self.points[k].at)
             .collect()
     }
 
+    /// What the planner knows of the drop that waypoint `k` is reached by (`k` at least 1), as to a sprint, if it is
+    /// one by `truth`: the one place the rule is read, so every reader sees the same drops.
+    fn drop_into(&self, k: usize, truth: DropTruth) -> Option<DropRecord> {
+        if self.points[k].jump.is_some() {
+            return None;
+        }
+        let landing = self.points[k].at;
+        let known = self.sprint_drops.iter().find(|(at, _)| *at == landing).map(|&(_, safe)| safe);
+        let by_height = || self.points[k - 1].at.y - landing.y >= mapdata::grid::LIP_DROP_M;
+        match (truth, known) {
+            (DropTruth::Links, Some(safe)) => Some(if safe { DropRecord::Safe } else { DropRecord::Unsafe }),
+            (DropTruth::Links, None) if self.planned => None,
+            (DropTruth::Links, None) => by_height().then_some(DropRecord::Unknown),
+            (DropTruth::Height, Some(safe)) => by_height().then_some(if safe { DropRecord::Safe } else { DropRecord::Unsafe }),
+            (DropTruth::Height, None) => by_height().then_some(if self.planned { DropRecord::Walk } else { DropRecord::Unknown }),
+        }
+    }
+
     /// What the planner knows of the drops of a lip's height or more from `s` to `within` metres on
     /// ([`Self::drop_landings`]), as to a sprint.
-    pub fn drop_record(&self, s: f32, within: f32) -> DropRecord {
+    pub fn drop_record(&self, s: f32, within: f32, truth: DropTruth) -> DropRecord {
         let mut record = DropRecord::None;
-        for at in self.drop_landings(s, within) {
-            let this = match self.sprint_drops.iter().find(|(landing, _)| *landing == at) {
-                Some(&(_, true)) => DropRecord::Safe,
-                Some(&(_, false)) => DropRecord::Unsafe,
-                None if self.planned => DropRecord::Walk,
-                None => DropRecord::Unknown,
-            };
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        for this in (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .filter_map(|k| self.drop_into(k, truth))
+        {
             let rank = |r: DropRecord| match r {
                 DropRecord::None => 0,
                 DropRecord::Walk => 1,
@@ -1224,11 +1270,11 @@ impl Route {
 
     /// How far along the route the take-off of the first drop of a lip's height or more from `s` to `within` metres on is
     /// (as [`Self::drop_landings`]); at most `s` where the body is on the drop's leg already.
-    pub fn next_drop_edge_along(&self, s: f32, within: f32) -> Option<f32> {
+    pub fn next_drop_edge_along(&self, s: f32, within: f32, truth: DropTruth) -> Option<f32> {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
             .take_while(|&k| self.along[k - 1] <= s + within)
-            .find(|&k| self.points[k].jump.is_none() && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+            .find(|&k| self.drop_into(k, truth).is_some())
             .map(|k| self.along[k - 1])
     }
 
@@ -1249,37 +1295,31 @@ impl Route {
     /// Whether a drop of a lip's height or more the route makes from `s` to `within` metres on (as
     /// [`Self::drop_landings`]) is one a sprint carries over the harmless fall: its landing is not among those the
     /// planner found safe at a sprint ([`SPRINT_FLIGHT_MPS`]).
-    pub fn sprint_unsafe_drop(&self, s: f32, within: f32) -> bool {
-        self.drop_record(s, within) != DropRecord::Safe
+    pub fn sprint_unsafe_drop(&self, s: f32, within: f32, truth: DropTruth) -> bool {
+        self.drop_record(s, within, truth) != DropRecord::Safe
     }
 
     /// The first drop of a lip's height or more the route makes from `s` to `within` metres on (as
     /// [`Self::drop_landings`]): how far along its landing is, and the landing.
-    pub fn next_drop(&self, s: f32, within: f32) -> Option<(f32, Vec3)> {
+    pub fn next_drop(&self, s: f32, within: f32, truth: DropTruth) -> Option<(f32, Vec3)> {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
             .take_while(|&k| self.along[k - 1] <= s + within)
-            .find(|&k| {
-                self.points[k].jump.is_none()
-                    && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M
-            })
+            .find(|&k| self.drop_into(k, truth).is_some())
             .map(|k| (self.along[k], self.points[k].at))
     }
 
     /// Whether the body went over the edge of a drop of a lip's height or more (the take-off of a leg that is a
     /// planned fall) between the progress `before` and `s` of two ticks. A step of more than [`DROP_EDGE_STEP_M`]
     /// is a new route, not a walk.
-    pub fn left_drop_edge(&self, before: f32, s: f32) -> bool {
+    pub fn left_drop_edge(&self, before: f32, s: f32, truth: DropTruth) -> bool {
         if !(s > before && s - before <= DROP_EDGE_STEP_M) {
             return false;
         }
         let edge = self.along.partition_point(|&a| a <= before);
         (edge..self.points.len().saturating_sub(1))
             .take_while(|&k| self.along[k] <= s)
-            .any(|k| {
-                self.points[k + 1].jump.is_none()
-                    && self.points[k].at.y - self.points[k + 1].at.y >= mapdata::grid::LIP_DROP_M
-            })
+            .any(|k| self.drop_into(k + 1, truth).is_some())
     }
 
     /// Whether the route from `s` to `within` metres on makes a planned link: a jump, or a leg that goes down by `drop_m`
@@ -1386,11 +1426,12 @@ mod tests {
         };
         let strip = route_over(4.0, Some(-3.5));
         let ledge = route_over(3.0, None);
-        assert!(!strip.drop_landings(0.0, 10.0).is_empty() && !ledge.drop_landings(0.0, 10.0).is_empty());
-        assert!(strip.sprint_unsafe_drop(0.0, 10.0), "the sprint flies past the strip");
-        assert!(!ledge.sprint_unsafe_drop(0.0, 10.0), "a 3 m ledge is harmless at a sprint");
+        let truth = DropTruth::Height;
+        assert!(!strip.drop_landings(0.0, 10.0, truth).is_empty() && !ledge.drop_landings(0.0, 10.0, truth).is_empty());
+        assert!(strip.sprint_unsafe_drop(0.0, 10.0, truth), "the sprint flies past the strip");
+        assert!(!ledge.sprint_unsafe_drop(0.0, 10.0, truth), "a 3 m ledge is harmless at a sprint");
         let by_hand = Route::new(ledge.points().to_vec());
-        assert!(by_hand.sprint_unsafe_drop(0.0, 10.0), "none known: unsafe");
+        assert!(by_hand.sprint_unsafe_drop(0.0, 10.0, truth), "none known: unsafe");
     }
 
     /// A descent by walk links (stairs of 0.5 m steps, 2 m down in 16 m) is a descent of a lip's height between the corners
@@ -1416,20 +1457,53 @@ mod tests {
             plan(&grid, a, b).expect("a way down")
         };
         let walked = route_of(&stairs(), Vec3::new(2.0, 2.0, 5.0), Vec3::new(20.0, 0.0, 5.0));
-        let ahead = walked.drop_landings(0.0, 30.0);
-        assert_eq!(walked.drop_record(0.0, 30.0), if ahead.is_empty() { DropRecord::None } else { DropRecord::Walk }, "{ahead:?}");
+        let ahead = walked.drop_landings(0.0, 30.0, DropTruth::Height);
+        assert_eq!(walked.drop_record(0.0, 30.0, DropTruth::Height), if ahead.is_empty() { DropRecord::None } else { DropRecord::Walk }, "{ahead:?}");
+        // By the links the stairs have no drop at all.
+        assert!(walked.drop_landings(0.0, 30.0, DropTruth::Links).is_empty());
+        assert_eq!(walked.drop_record(0.0, 30.0, DropTruth::Links), DropRecord::None);
         // A ledge: a drop with a record, kept over a splice by a detour.
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         let drop = route_of(&ledge, Vec3::new(5.0, 3.0, 5.0), Vec3::new(20.0, 0.0, 5.0));
-        assert_eq!(drop.drop_record(0.0, 30.0), DropRecord::Safe);
+        assert_eq!(drop.drop_record(0.0, 30.0, DropTruth::Height), DropRecord::Safe);
+        assert_eq!(drop.drop_record(0.0, 30.0, DropTruth::Links), DropRecord::Safe);
         let detour = Route::new(vec![
             Waypoint { at: Vec3::new(1.0, 3.0, 5.0), node: 0, jump: None, low: false },
             Waypoint { at: Vec3::new(2.0, 3.0, 6.0), node: 0, jump: None, low: false },
             Waypoint { at: Vec3::new(3.0, 3.0, 5.0), node: 0, jump: None, low: false },
         ]);
         let spliced = drop.spliced(1.0, 3.0, &detour);
-        assert_eq!(spliced.drop_record(0.0, 30.0), DropRecord::Safe, "the record survives a splice");
+        assert_eq!(spliced.drop_record(0.0, 30.0, DropTruth::Height), DropRecord::Safe, "the record survives a splice");
+        assert_eq!(spliced.drop_record(0.0, 30.0, DropTruth::Links), DropRecord::Safe, "the record survives a splice");
+    }
+
+    /// A Drop link of the planner under a lip's height (the client's step is 0.8 m, a lip 1.0) is a drop by the links
+    /// and none by the height, so the lip guard's planned landings, the drop aim and the landing watch miss it; a
+    /// 2 m stair is the other way round.
+    #[test]
+    fn a_drop_link_under_a_lips_height_is_a_drop_by_the_links_only() {
+        use crate::v026g::bots::body::tests::floor;
+        use mapdata::Body;
+        let route_over = |deck: f32| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, deck).to_vec();
+            tris.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
+            let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 24.0, 10.0], 0.25, Body::client());
+            let from = grid.locate(Vec3::new(5.0, deck, 5.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(20.0, 0.0, 5.0), 0.3).unwrap();
+            plan(&grid, from, to).expect("a way down")
+        };
+        let shallow = route_over(0.9);
+        assert!(shallow.drop_landings(0.0, 30.0, DropTruth::Height).is_empty(), "under a lip's height");
+        assert_eq!(shallow.drop_landings(0.0, 30.0, DropTruth::Links).len(), 1, "a Drop link");
+        assert!(shallow.next_drop(0.0, 30.0, DropTruth::Links).is_some());
+        let at = shallow.next_drop_edge_along(0.0, 30.0, DropTruth::Links).expect("its edge");
+        assert!(shallow.left_drop_edge(at - 0.1, at + 0.1, DropTruth::Links));
+        assert!(!shallow.left_drop_edge(at - 0.1, at + 0.1, DropTruth::Height));
+        let deep = route_over(3.0);
+        for truth in [DropTruth::Height, DropTruth::Links] {
+            assert_eq!(deep.drop_landings(0.0, 30.0, truth).len(), 1, "{truth:?}");
+        }
     }
 
     #[test]
@@ -1623,13 +1697,14 @@ mod tests {
             p(14.0, 0.5, false),
             p(15.0, 1.7, true),
         ]);
-        assert_eq!(route.drop_landings(0.0, 20.0), vec![Vec3::new(9.0, 0.5, 0.0)]);
+        let truth = DropTruth::Height;
+        assert_eq!(route.drop_landings(0.0, 20.0, truth), vec![Vec3::new(9.0, 0.5, 0.0)]);
         // The drop's leg starts about 8 m along: out of reach from the start, in reach from 3 m.
-        assert!(route.drop_landings(0.0, 6.0).is_empty());
-        assert_eq!(route.drop_landings(3.0, 6.0).len(), 1);
+        assert!(route.drop_landings(0.0, 6.0, truth).is_empty());
+        assert_eq!(route.drop_landings(3.0, 6.0, truth).len(), 1);
         // On the drop's leg, and past it, none behind it.
-        assert_eq!(route.drop_landings(8.5, 1.0).len(), 1);
-        assert!(route.drop_landings(10.0, 20.0).is_empty());
+        assert_eq!(route.drop_landings(8.5, 1.0, truth).len(), 1);
+        assert!(route.drop_landings(10.0, 20.0, truth).is_empty());
     }
 
     /// The edge of a route's drop is crossed by the tick whose progress goes over its take-off: not the curb's, not a
@@ -1652,15 +1727,17 @@ mod tests {
             p(15.0, 1.7, true),
         ]);
         let (curb, edge, jump) = (route.along[1], route.along[3], route.along[5]);
-        assert!(!route.left_drop_edge(curb - 0.1, curb + 0.1));
-        assert!(route.left_drop_edge(edge - 0.1, edge + 0.1));
-        assert!(!route.left_drop_edge(edge - 0.3, edge - 0.1));
-        assert!(!route.left_drop_edge(edge + 0.1, edge + 0.3));
-        // Backwards, or a step too long for a walk, is no crossing.
-        assert!(!route.left_drop_edge(edge + 0.1, edge - 0.1));
-        assert!(!route.left_drop_edge(edge - 2.0, edge + 2.0));
-        // The jump's take-off is no drop.
-        assert!(!route.left_drop_edge(jump - 0.1, jump + 0.1));
+        for truth in [DropTruth::Height, DropTruth::Links] {
+            assert!(!route.left_drop_edge(curb - 0.1, curb + 0.1, truth));
+            assert!(route.left_drop_edge(edge - 0.1, edge + 0.1, truth));
+            assert!(!route.left_drop_edge(edge - 0.3, edge - 0.1, truth));
+            assert!(!route.left_drop_edge(edge + 0.1, edge + 0.3, truth));
+            // Backwards, or a step too long for a walk, is no crossing.
+            assert!(!route.left_drop_edge(edge + 0.1, edge - 0.1, truth));
+            assert!(!route.left_drop_edge(edge - 2.0, edge + 2.0, truth));
+            // The jump's take-off is no drop.
+            assert!(!route.left_drop_edge(jump - 0.1, jump + 0.1, truth));
+        }
     }
 
     /// A body that fell off a walkway its route goes on along is off the

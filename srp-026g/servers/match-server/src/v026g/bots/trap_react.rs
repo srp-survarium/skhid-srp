@@ -163,6 +163,36 @@ pub struct ReactCounts {
 }
 
 impl ReactCounts {
+    /// The bench line, `trap react: ...` (the prefix is fixed; zero counts are printed).
+    pub fn line(&self) -> String {
+        format!(
+            "trap react: rolls {} noticed {} missed {} passes {}/{}/{} through {}/{}/{} shoot_started {} shots_fired {} \
+             disarmed_by_shot {} gave_up {} held_for_mate {} double_shooters {} trap_passed {} trap_jumped {} \
+             trap_caught_after_notice {} defuse_started {} disarmed_by_hand {} defuse_gave_up {}",
+            self.rolls,
+            self.noticed,
+            self.missed,
+            self.passes[0],
+            self.passes[1],
+            self.passes[2],
+            self.through[0],
+            self.through[1],
+            self.through[2],
+            self.shoot_started,
+            self.shots_fired,
+            self.disarmed_by_shot,
+            self.gave_up,
+            self.held_for_mate,
+            self.double_shooters,
+            self.trap_passed,
+            self.trap_jumped,
+            self.trap_caught_after_notice,
+            self.defuse_started,
+            self.disarmed_by_hand,
+            self.defuse_gave_up
+        )
+    }
+
     pub fn add(&mut self, other: &ReactCounts) {
         self.rolls += other.rolls;
         self.noticed += other.noticed;
