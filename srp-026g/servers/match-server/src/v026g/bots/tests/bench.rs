@@ -1306,6 +1306,11 @@ pub(crate) fn real_bot_cost() {
                 100.0 * stood_routing.iter().sum::<u64>() as f64
                     / goal_ticks.iter().sum::<u64>().max(1) as f64,
             );
+            let up = upgrades_summary(&roster.upgrades);
+            eprintln!(
+                "  upgrades: {} items on {} of {} bots, mean movement level of their first kits {}",
+                up["items"], up["bots"], up["of"], up["level_mean"]
+            );
             eprintln!(
                 "  takes: {} taken, {take_ends} could-not-take ends, {stands_given_up} stands given up ({stands_stale} at a belief the battery had left)",
                 game.taken
@@ -1419,7 +1424,9 @@ pub(crate) fn real_bot_cost() {
                 game.jumps_refused,
                 if game.honest { "honest" } else { "old" }
             );
-            let (owner_line, owner_sums) = owner.finish(&game);
+            let (owner_line, mut owner_sums) = owner.finish(&game);
+            // What the bots' profiles carry of upgrades (the roster's, not the tally's: it reads no profile).
+            owner_sums["upgrades"] = upgrades_summary(&roster.upgrades);
             eprintln!("  {owner_line}");
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
@@ -1717,6 +1724,45 @@ pub(crate) fn bench_equipment() -> survarium::v026g::loadouts::BotEquipment {
 pub(crate) struct BenchRoster {
     pub(crate) roles: Vec<Option<&'static str>>,
     pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
+    /// What each bot's profile carries of upgrades ([`Upgrades`]).
+    pub(crate) upgrades: Vec<Upgrades>,
+}
+
+/// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
+/// that wear a modification, and the speed level its first kit gives (`bot_skills::profile_movement_level`, the level the
+/// match server hands its bots' tracker in `game/driven.rs`). This is what the profiles hold: the bench's stand-in does not
+/// use it (it never calls `Bots::set_speed_levels`, and its bodies move at the nominal speed), so a bot's moves do not
+/// change with it here. It says that an arm which turns the upgrades on has them on, and how fast the profiles say they run.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Upgrades {
+    pub(crate) items: u32,
+    pub(crate) level: Option<f32>,
+}
+
+impl Upgrades {
+    pub(crate) fn of(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Self {
+        Self {
+            items: profile
+                .items
+                .iter()
+                .filter(|item| item.modifications.iter().any(|&(_, defect)| !defect))
+                .count() as u32,
+            level: survarium::v026g::bot_skills::profile_movement_level(profile, 0),
+        }
+    }
+}
+
+/// The bots' upgrades of a match, for its `upgrades:` line and the `upgrades` key of its sums: the items that wear
+/// upgrades, the bots that have one, and the mean speed level of the bots' first kits.
+pub(crate) fn upgrades_summary(upgrades: &[Upgrades]) -> serde_json::Value {
+    let levels: Vec<f32> = upgrades.iter().filter_map(|u| u.level).collect();
+    let mean = if levels.is_empty() { 0.0 } else { levels.iter().sum::<f32>() / levels.len() as f32 };
+    serde_json::json!({
+        "items": upgrades.iter().map(|u| u.items).sum::<u32>(),
+        "bots": upgrades.iter().filter(|u| u.items > 0).count(),
+        "of": upgrades.len(),
+        "level_mean": (f64::from(mean) * 1000.0).round() / 1000.0,
+    })
 }
 
 pub(crate) fn bench_roster(
@@ -1724,13 +1770,15 @@ pub(crate) fn bench_roster(
     equipment: survarium::v026g::loadouts::BotEquipment,
 ) -> BenchRoster {
     use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
-    let bots: Vec<_> = teams
+    let profiles: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_equipment_of(&bot_profile(n + 1, team, role, equipment)))
+        .map(|(n, (&team, role))| bot_profile(n + 1, team, role, equipment))
         .collect();
+    let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
+        upgrades: profiles.iter().map(Upgrades::of).collect(),
         roles: bots
             .iter()
             .map(|bot| bot.map(|(_, role)| role.name()))
@@ -2064,4 +2112,36 @@ mod tuning_tests {
             assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
         }
     }
+}
+
+/// A profile with the bots' upgrades on has items that wear modifications and a higher speed level than the plain
+/// one; a plain profile has no item that does.
+#[test]
+fn a_profile_with_upgrades_counts_its_modified_items_and_its_speed_level() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_kits_in};
+    use survarium::v026g::match_msgs::static_info::MatchProfile;
+    let equipment = BotEquipment::of(BotTier::High, RusherKits::default());
+    let profile = |upgrades: bool| {
+        let kits = bot_kits_in(equipment, BotRole::Flanker, false, upgrades);
+        let kits: Vec<&_> = kits.iter().collect();
+        MatchProfile::from_loadouts(
+            "BOT",
+            0,
+            &kits,
+            survarium::v026g::bot_skills::bot_modifiers(&kits),
+            Dictionary::shared(),
+            1,
+        )
+    };
+    let (plain, worn) = (Upgrades::of(&profile(false)), Upgrades::of(&profile(true)));
+    assert_eq!(plain.items, 0);
+    assert!(worn.items >= 1, "{worn:?}");
+    assert!(worn.level > plain.level, "{worn:?} against {plain:?}");
+    let summary = upgrades_summary(&[plain, worn, Upgrades { items: 0, level: None }]);
+    assert_eq!(summary["items"], worn.items);
+    assert_eq!((summary["bots"].as_u64(), summary["of"].as_u64()), (Some(1), Some(3)));
+    let mean = (plain.level.unwrap() + worn.level.unwrap()) / 2.0;
+    assert!((summary["level_mean"].as_f64().unwrap() - f64::from(mean)).abs() < 0.001, "{summary}");
+    assert_eq!(upgrades_summary(&[])["level_mean"], 0.0);
 }
