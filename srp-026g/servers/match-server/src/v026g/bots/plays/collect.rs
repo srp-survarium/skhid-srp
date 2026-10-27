@@ -853,7 +853,7 @@ impl Ctx<'_> {
     pub fn zone_armour(&self) -> Option<&ZoneArmour> {
         match self.tuning.hazard.zone_pools {
             crate::v026g::bots::tuning::ZonePools::Raw => None,
-            crate::v026g::bots::tuning::ZonePools::Routed => Some(&self.bot.zone_armour),
+            crate::v026g::bots::tuning::ZonePools::Routed => Some(self.bot.zone_armour),
         }
     }
 }
