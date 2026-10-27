@@ -884,7 +884,44 @@ second, level_06's acid 0.25.
 **Follow-up:** 19 of the bench maps' 47 have no straight dry way within
 25 m (most of level_02's and level_03 day 2's): no crossing in a line
 reaches them. A crossing by a route over the zones' floors (`path.rs`)
-would; left for now.
+would; see "The dry-way spawners" below.
+
+### The dry-way spawners (2026-10-27)
+
+**Survey** (`dry_way_spawners_on_the_real_maps`, ignored, prints; the v4 map
+files, 8 maps, mode 2, both teams, the zones' raw hit in the body pool, a
+full-health bot, CG-19's budget: at most 0.5 of the health, leaving 0.4):
+
+| | team-cases | distinct spawners |
+|---|---|---|
+| stand needs a crossing, none in a line within 25 m | 78 | 38 (level_02 13, level_03 14, level_04 3, level_06 3, level_07 5) |
+| a route over the zones' floors exists (the motor's crossing search, `crossing::start`, shortest by length, from the team's spawn) | 60 | |
+| ... borne | 6 | 4 (2/15, 4/2, 6/18, 7/26) |
+| the cheapest way in damage (`zone_search::Cheapest`, a Dijkstra priced by `Hazards::cost_per_s`, metres second) exists | 78 | |
+| ... borne | 10 | 6 (2/10, 3/30, 3/44, 4/29, 6/14, 6/18) |
+
+The rest cost 0.9-5 times a body's health at the raw hit (some 48 times: a
+lethal zone), over 100-200 m of walk from the spawn. So the shortest route
+over the zones' floors is not the cheapest (it is 1-5 bodies where a
+cheaper one is 0.2-1), but even the cheapest opens only about 9 of the 38
+spawners (4 by the shortest route, 5 more by the damage-priced one); the
+armour of F2's routed pools (a mask, a suit) lowers the costs and opens
+some more (not measured). The test prints each spawner's numbers.
+
+**What was done (owner's decision, "the cheap version"):**
+`HazardTuning::route_crossing` (default off, bench `SRP_BENCH_ROUTE_CROSSING=1`):
+a battery with no crossing in a line is offered when the motor's own route
+over the zones' floors from the team's spawn is borne
+(`collect::routed_crossing_to`: the dry edge is the last dry floor before
+the route first meets a zone on all match, the leg its damage to 1 m short
+of the stand, `Crossing::routed`; begun only at `crossing::START_HEALTH`,
+the motor's own rule). The Fetch walks to the edge by the plain route, the
+Take asks for the stand with the zone's floor the play's choice
+(`Intent::zone_ok`), and the motor's crossing search walks the route it
+priced. 4 spawners of the 38 at the raw numbers. The damage-priced search
+(`zone_search.rs`: one Dijkstra from a floor prices every stand of the map)
+is kept for the survey and not wired: it opens 5 more, with a walk of its
+own to write and verify.
 
 ### The bench's zone damage (a GUESS)
 

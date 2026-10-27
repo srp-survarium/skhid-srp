@@ -64,6 +64,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod stamina;
 pub mod stock;
 pub mod stuck;
 pub mod tactics;
@@ -76,6 +77,7 @@ pub mod traps;
 pub mod tuning;
 pub mod view;
 pub mod zone_cost;
+pub mod zone_search;
 
 mod commander;
 mod drive;
@@ -195,6 +197,9 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its stamina bar as the bot reckons it from the keys it sent ([`stamina`]), and those keys.
+    stamina: stamina::Reckoning,
+    sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
@@ -375,6 +380,8 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            stamina: stamina::Reckoning::default(),
+            sent_keys: 0,
             rest: rest::RestWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
@@ -1114,6 +1121,8 @@ impl Bots {
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
+            bot.stamina.spawn(time);
+            bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
@@ -1156,7 +1165,7 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tuning.unstick) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1164,6 +1173,15 @@ impl Bots {
             }
             let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
             let beside = self.tracker.neighbour_of(place, feet);
+            let route_text = stuck::route_note(
+                bot.route.as_ref().map(|(route, _)| route),
+                feet,
+                self.tracker
+                    .body(place)
+                    .and_then(|body| body.estimate())
+                    .map(|at| at.yaw),
+                bot.stuck.avoided(time).count(),
+            );
             #[cfg(test)]
             if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
                 stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
@@ -1172,7 +1190,7 @@ impl Bots {
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
@@ -1181,7 +1199,8 @@ impl Bots {
                     },
                     meant_text,
                     stuck::gap_note(gap),
-                    stuck::beside_note(beside)
+                    stuck::beside_note(beside),
+                    route_text
                 ),
             );
             let (side, other) = if bot.rng.unit() < 0.5 {
@@ -1262,6 +1281,25 @@ impl Bots {
                 }
             }
             return notes;
+        }
+        // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
+        if let Some(window_ms) = self.tuning.unstick.progress_ms
+            && let Some((route, goal)) = bot.route.as_ref()
+        {
+            let length = route.length();
+            let (s, off) = route.clone().progress(feet);
+            if off < stuck::PROGRESS_OFF_M {
+                let leg = route.point_at((s + stuck::PROGRESS_LEG_M).min(length));
+                if bot.stuck.no_progress(time, s, keys, *goal, length, window_ms, leg) {
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!("makes no progress: {s:.1} of {length:.1} m along its route in {window_ms} ms; keeps clear of {:?} and plans again", leg.to_array()),
+                    );
+                    bot.end_route(RouteEnd::NoProgress, time);
+                    return notes;
+                }
+            }
         }
         let error = self
             .tracker
