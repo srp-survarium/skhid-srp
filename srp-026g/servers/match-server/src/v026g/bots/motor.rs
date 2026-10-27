@@ -152,6 +152,11 @@ pub struct Feel {
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
     /// link of the grid (up to `Body::max_jump`, 1.05).
     pub carrier_jump_m: Option<Positive>,
+    /// A planned drop (a lip's height or more) is walked off: the sprint is let go of [`DROP_WALK_AHEAD_M`] before it,
+    /// so the body is not carried into the air at 5 m/s over the steps below (`GridTuning::honest_drops` keeps a Drop
+    /// link only where the body that walks off at a walk lands within the harmless fall). Off (the default): the
+    /// sprint as the route's straight stretch asks.
+    pub drop_walk: bool,
 }
 
 impl Default for Feel {
@@ -186,6 +191,7 @@ impl Default for Feel {
             lip_look_ahead_m: Metres::of(0.0),
             unclear_aim: false,
             carrier_jump_m: None,
+            drop_walk: false,
         }
     }
 }
@@ -276,6 +282,8 @@ pub const SPRINT_JUMP_RISE_M: f32 = 1.05;
 /// by 2 m (the 8e rows).
 pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
 pub const SPRINT_RUN_UP_M: f32 = 2.0;
+/// The sprint is let go of this far before the edge of a planned drop, metres (`Feel::drop_walk`): 0.6 s of a sprint.
+pub const DROP_WALK_AHEAD_M: f32 = 3.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// On the jump's line: within this of it to a side, metres …
@@ -764,6 +772,11 @@ impl Motor {
         let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
         if low || jump.is_some() {
             self.sprinting = false;
+        }
+        // A planned drop just ahead is walked off, not sprinted into the air.
+        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
+            self.sprinting = false;
+            drop_walks::released();
         }
         // A sprint jump is walked into at a sprint, on its line and facing its way.
         if let Some(j) = jump
@@ -1399,6 +1412,21 @@ pub fn keys_toward(relative: f32) -> u32 {
 
 /// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_JUMP_RISE_M`]: pressed, got up, given up, for the
 /// bench's failed-jump counter.
+/// Ticks the sprint was let go of before a planned drop (`Feel::drop_walk`): the activity, and the time the walk costs.
+pub mod drop_walks {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TICKS: AtomicU64 = AtomicU64::new(0);
+
+    pub fn released() {
+        TICKS.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn ticks() -> u64 {
+        TICKS.load(Ordering::Relaxed)
+    }
+}
+
 pub mod sprint_jumps {
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2100,6 +2128,26 @@ mod tests {
         assert!(sprinting > 0, "sprint held on the run-up");
         let after = sprint_jumps::counts();
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
+    /// With `drop_walk` the sprint is let go of 3 m before the edge of a planned drop, so the body is walked off it;
+    /// far from the edge, or with the switch off, the sprint of a long straight stretch goes on.
+    #[test]
+    fn a_planned_drop_is_walked_off_not_sprinted_into_the_air() {
+        let p = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        let route = || Route::new(vec![p(0.0, 0.0), p(20.0, 0.0), p(20.5, -3.0), p(60.0, -3.0)]);
+        let keys_at = |on: bool, x: f32| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { drop_walk: on, sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor.sprinting = true;
+            motor.facing_ticks = 100;
+            let pose = Pose { feet: Vec3::new(x, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 5.0, ..Default::default() };
+            motor.walk(&mut route(), &pose, 5.0, |_| true).0.keys
+        };
+        assert_ne!(keys_at(true, 5.0) & key::SPRINT, 0, "far from the edge the sprint goes on");
+        assert_eq!(keys_at(true, 18.0) & key::SPRINT, 0, "3 m from the edge: walked off");
+        assert_ne!(keys_at(false, 18.0) & key::SPRINT, 0, "off: as before");
     }
 
     /// A jump that does not get the body up is tried again only from the

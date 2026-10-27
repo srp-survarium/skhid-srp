@@ -199,6 +199,9 @@ pub fn grid_key_with_links(
     for value in body.values() {
         digest.f32(value);
     }
+    if body.drop_flight_mps > 0.0 {
+        digest.f32(body.drop_flight_mps);
+    }
     digest.len(seeds.len());
     for seed in seeds {
         digest.f32(seed.x);

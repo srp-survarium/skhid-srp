@@ -164,6 +164,14 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/client_numbers", true.into());
     }
+    // A Drop link is kept only where the body that walks off comes down within the harmless fall (`GridTuning::honest_drops`; off by default).
+    if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/honest_drops", true.into());
+    }
+    // A planned drop is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
+    if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/drop_walk", true.into());
+    }
     // A body on no floor plans from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`; off by default).
     if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stranded_start", true.into());

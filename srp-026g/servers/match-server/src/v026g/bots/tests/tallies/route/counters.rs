@@ -107,6 +107,14 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::motor::drop_walks::ticks()],
+        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+    )
+}
+
 /// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
 pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     Delta::of(

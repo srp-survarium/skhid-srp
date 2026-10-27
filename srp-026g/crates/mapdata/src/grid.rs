@@ -76,6 +76,13 @@ use crate::math::Vec3;
 use crate::project::Triangle;
 use crate::resources::Error;
 
+/// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
+const GRAVITY: f32 = 9.8;
+/// A flight looks this many cells on for its landing ([`WalkGrid::flight_fall`]).
+const FLIGHT_CELLS: i32 = 48;
+/// A floor this far under the body's feet in the air still catches it, metres.
+const FLIGHT_TOLERANCE_M: f32 = 0.1;
+
 pub mod gap;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead};
 use gap::gap_cost;
@@ -108,6 +115,13 @@ pub struct Body {
     /// times as often (by the ledges there are) as at those 0.8-1.0 m
     /// (`player_bots_stuck.md`). Was 1.3.
     pub max_jump: f32,
+    /// How fast a body walks off a ledge, m/s, for the Drop links: 0 (the default) is the cell model (a Drop is the
+    /// step down to the floor of the next cell, [`Self::max_drop`] deep); over 0 a Drop is kept only if the body that
+    /// walks off at this speed, carried on through the air (fall time sqrt(2 h / g)), comes down on a floor within
+    /// `max_drop` of the edge ([`WalkGrid::drop_deep_flights`]): a ledge below which the ground falls away in steps is
+    /// one fall, not several harmless drops (Chemical Plant, the team 1 spawn deck: 1.43 m then 4.66 m, 7.5 m in all).
+    /// A build input only: not in the digest or the file, in the key when set.
+    pub drop_flight_mps: f32,
 }
 
 impl Body {
@@ -133,6 +147,7 @@ impl Body {
             min_ground_normal_y: v[4],
             max_drop: v[5],
             max_jump: v[6],
+            drop_flight_mps: 0.0,
         }
     }
 }
@@ -176,6 +191,7 @@ impl Default for Body {
             min_ground_normal_y: 0.642_787_6,
             max_drop: 5.0,
             max_jump: 1.05,
+            drop_flight_mps: 0.0,
         }
     }
 }
@@ -704,6 +720,7 @@ impl WalkGrid {
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
+        grid.drop_deep_flights(&mut wide);
         grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         grid.erode(&mut wide, &cut, &solids);
@@ -820,6 +837,48 @@ impl WalkGrid {
             (next != NONE && wide.kinds[a][d] == LinkKind::Walk).then_some(next as usize)
         };
         walk(b).and_then(walk).is_some()
+    }
+
+    /// Where a body that walks off the edge of `a` in direction `d` at `speed` m/s comes down, as the fall from `a`'s
+    /// height, metres: the first cell along the direction whose highest floor within a step over the start is at
+    /// or over the body's feet there (its fall so far is g t^2 / 2 at t = distance / speed). None where the flight
+    /// leaves the map or finds no floor within [`FLIGHT_CELLS`].
+    fn flight_fall(&self, a: usize, d: usize, speed: f32) -> Option<f32> {
+        let (di, dk) = DIRS[d];
+        let step = self.cell * ((di * di + dk * dk) as f32).sqrt();
+        let (i0, k0) = self.cell_xz(self.cell_of[a] as usize);
+        let ha = self.height[a];
+        for j in 1..=FLIGHT_CELLS {
+            let cell = self.cell_index(i0 + di * j, k0 + dk * j)?;
+            let t = step * j as f32 / speed;
+            let feet = ha - 0.5 * GRAVITY * t * t;
+            let landing = (self.start[cell]..self.start[cell + 1])
+                .map(|b| self.height[b as usize])
+                .filter(|&h| h >= feet - FLIGHT_TOLERANCE_M && h <= ha + self.body.step)
+                .fold(f32::NEG_INFINITY, f32::max);
+            if landing > f32::NEG_INFINITY {
+                return Some(ha - landing);
+            }
+        }
+        None
+    }
+
+    /// Takes away the Drop links of a body that walks off ([`Body::drop_flight_mps`]) whose real fall is deeper than
+    /// [`Body::max_drop`], the chain of harmless drops included (the cell model sees each step of it as one).
+    fn drop_deep_flights(&self, wide: &mut Wide) {
+        if self.body.drop_flight_mps <= 0.0 {
+            return;
+        }
+        for a in 0..self.height.len() {
+            for d in 0..8 {
+                if wide.links[a][d] != NONE
+                    && wide.kinds[a][d] == LinkKind::Drop
+                    && self.flight_fall(a, d, self.body.drop_flight_mps).is_none_or(|fall| fall > self.body.max_drop)
+                {
+                    wide.links[a][d] = NONE;
+                }
+            }
+        }
     }
 
     /// Takes away the jumps that land on no room ([`Self::lands`]).
@@ -4037,6 +4096,28 @@ pub(crate) mod tests {
             assert!(steps < 1000);
         }
         assert_eq!(at, b);
+    }
+
+    /// A deck over steps that fall away (a 1.43 m strip, then 4.57 m to a hill, then a bench) is a chain of two harmless
+    /// drops in the cell model and one fall of 6.5 m to a body that walks off it: with `drop_flight_mps` the deck keeps
+    /// no Drop link east; a plain 3 m ledge keeps its Drop, and the default body keeps both as ever.
+    #[test]
+    fn a_drop_is_kept_only_where_the_body_that_walks_off_comes_down_within_the_harmless_fall() {
+        let drops_east = |tris: &[Triangle], edge_y: f32, body: Body| {
+            let grid = WalkGrid::build(tris, [0.0, 0.0, 24.0, 10.0], 0.25, body);
+            let edge = grid.locate(Vec3::new(9.9, edge_y, 5.0), 0.5).expect("a floor on the deck's edge");
+            grid.links(edge).filter(|&(_, kind)| kind == LinkKind::Drop).count()
+        };
+        let flying = Body { drop_flight_mps: 3.5, ..Body::default() };
+        let mut chain = floor(0.0, 0.0, 10.0, 10.0, 12.0).to_vec();
+        chain.extend(floor(10.0, 0.0, 10.5, 10.0, 10.57));
+        chain.extend(floor(10.5, 0.0, 14.0, 10.0, 6.0));
+        chain.extend(floor(14.0, 0.0, 24.0, 10.0, 4.5));
+        assert!(drops_east(&chain, 12.0, Body::default()) > 0, "the cell model sees a harmless step");
+        assert_eq!(drops_east(&chain, 12.0, flying), 0, "one fall of 7.5 m");
+        let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
+        ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
+        assert!(drops_east(&ledge, 3.0, flying) > 0, "a 3 m ledge is a harmless fall");
     }
 
     #[test]
