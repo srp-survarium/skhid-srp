@@ -211,12 +211,15 @@ pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
 }
 
 /// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
-/// and over m/s) and given up.
+/// and over m/s), given up, pressed with the sprint key held / not, and got across.
 pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::sprint_gaps::counts().to_vec(),
         |d, line| {
-            line.ends.push(format!("sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {}", d[0], d[1], d[2], d[3]));
+            line.ends.push(format!(
+                "sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {} sprint_gaps_press_sprint_held/not {}/{} sprint_gaps_across {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6]
+            ));
         },
     )
 }
@@ -241,9 +244,52 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint-band ledge jumps (`motor::band_jumps`): presses by ground speed (under 3.5, 3.5-4, 4-4.5, 4.5 and over m/s)
+/// and with no sprint held (the activity), the arrivals backed off by reason (too slow, no sprint key, or what the client's
+/// `can_sprint` says no to), the links given up for want of a run, and the ticks the body stood at a face with no press
+/// and the faces picked again within 10 s of giving them up (the harm; the jumps given up are in
+/// `sprint_jumps_gave_up`).
+pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
+    use super::super::motor::band_jumps::Slot::{self, *};
+    Delta::of(
+        || super::super::motor::band_jumps::counts().to_vec(),
+        |d, line| {
+            let at = |slot: Slot| d[slot as usize];
+            let refused = [RefusedSlow, RefusedNoKey, RefusedAiming, RefusedBusy, RefusedReloading, RefusedStaggered, RefusedTired, RefusedCarrying, RefusedDirection]
+                .map(|slot| at(slot).to_string())
+                .join("/");
+            line.ends.push(format!(
+                "band_press_speed {}/{}/{}/{} band_press_no_sprint {} band_refused_by slow/no_key/aiming/busy/reload/stagger/tired/carrying/direction {refused} \
+                 band_no_run_up {} band_face_still_ticks {} band_repicked {} band_strict_up/not_up {}/{} band_held_off/hold_over/pressed_after_hold {}/{}/{}",
+                at(PressUnder35),
+                at(Press35To40),
+                at(Press40To45),
+                at(Press45Up),
+                at(PressNoSprint),
+                at(NoRunUp),
+                at(FaceStill),
+                at(Repicked),
+                at(StrictUp),
+                at(StrictNotUp),
+                at(HeldOff),
+                at(HoldOver),
+                at(PressedAfterHold)
+            ));
+            // The faces with the most presses and backed-off arrivals so far (all the run's, not this tally's change).
+            let faces = super::super::motor::band_jumps::top_faces(6)
+                .into_iter()
+                .map(|((x, z, y), n)| format!("{x}/{z}/{}:{}/{}/{}/{}", y * 2, n[0], n[1], n[2], n[3]))
+                .collect::<Vec<_>>()
+                .join(" ");
+            line.ends.push(format!("band_faces x/z/y:press/refused/up/gave_up {faces}"));
+        },
+    )
+}
+
 /// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
 /// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
-/// first seen, and the seconds of sprint saved for them.
+/// first seen, the ticks a tired body was kept walking into a sprint jump, the sprint gap segments short only by the gap's
+/// run, and the seconds of sprint saved for them.
 pub(super) fn stamina() -> Box<dyn RouteTopic> {
     Delta::of(
         || {
@@ -253,8 +299,8 @@ pub(super) fn stamina() -> Box<dyn RouteTopic> {
         },
         |d, line| {
             line.ends.push(format!(
-                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_saved_s {:.1}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6] as f32 / 1000.0
+                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_jump_kept_walking {} gap_run_short {} sprint_saved_s {:.1}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8] as f32 / 1000.0
             ));
         },
     )
