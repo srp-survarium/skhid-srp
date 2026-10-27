@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.display.MovieClip;
    import flash.display.Sprite;
+   import flash.events.Event;
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
@@ -116,6 +117,7 @@ package survarium.controls
          this.modifiersList.setMaxFit(true);
          this.defaultModifiersList.setMaxFit(true);
          this.criticalModifiersList.setMaxFit(true);
+         this.itemCompare.addEventListener(Event.RESIZE,this.layoutDetails);
          addChildAt(this._spr,5);
       }
       
@@ -365,28 +367,7 @@ package survarium.controls
          this.defaultModifiersList.validateNow();
          this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
          this.criticalModifiersList.validateNow();
-         var regularHeight:uint = this.modifiersList.container.height * this.modifiersList.scaleY;
-         var defaultHeight:uint = this.defaultModifiersList.container.height * this.defaultModifiersList.scaleY;
-         var criticalHeight:uint = this.criticalModifiersList.container.height * this.criticalModifiersList.scaleY;
-         var hasDefaultModifiers:Boolean = defaultModifiers.length > 0;
-         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(criticalHeight) || Boolean(defaultHeight);
-         trace("IIR::FRED",this.itemCompare,this.defaultModfiersBack,this.propsBottomLine,this.bottomBackContainer,this.bottomLine,this.background);
-         this.defaultModfiersBack.height = defaultHeight + 11;
-         this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
-         this.bottomBackContainer.y = this.propsBottomLine.y;
-         this.bottomBackContainer.height = regularHeight + criticalHeight + defaultHeight + (hasModifiers ? 14 : 0) + (Boolean(criticalModifiers.length) ? 40 : 0) + (Boolean(regularHeight) || Boolean(criticalHeight) ? 5 : 0);
-         this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;
-         this.bottomLine.visible = false;
-         this.background.height = this.bottomLine.y + 5;
-         trace("IIR::FRED2",item.tipText,item.ammoText,item.itemDescription);
-         this.criticalSeparator.visible = criticalModifiers.length > 0;
-         this.defaultModfiersBack.visible = this.defaultModifiersList.visible = hasDefaultModifiers;
-         this.defaultModifiersList.y = this.propsBottomLine.y + 10;
-         this.defaultModfiersBack.y = this.propsBottomLine.y + 2;
-         this.modifiersList.y = this.defaultModifiersList.y + defaultHeight + (hasDefaultModifiers ? 5 : 0);
-         this.criticalSeparator.y = this.modifiersList.y + regularHeight + 15;
-         this.criticalModifiersList.y = this.criticalSeparator.visible ? this.criticalSeparator.y + this.criticalSeparator.height - 10 : this.modifiersList.y;
-         this.criticalSeparator.textField.text = LocalizationData.getName("critical_damages");
+         this.layoutDetails();
          trace("ItemHint::",item.name,item.descriptor);
          if(item.descriptor == ItemPlace.SHOP)
          {
@@ -400,13 +381,42 @@ package survarium.controls
          {
             this.textFieldStatus.text = LocalizationData.getName("item_hint_label");
          }
+
+      }
+
+      // The comparison can add/remove rows after the item has been assigned.
+      // One layout owner sizes the card and every section for either callback.
+      private function layoutDetails(e:Event = null) : void
+      {
+         var regularHeight:uint = this.modifiersList.container.height * this.modifiersList.scaleY;
+         var defaultHeight:uint = this.defaultModifiersList.container.height * this.defaultModifiersList.scaleY;
+         var criticalHeight:uint = this.criticalModifiersList.container.height * this.criticalModifiersList.scaleY;
+         var hasDefaultModifiers:Boolean = this.defaultModifiersList.dataProvider.length > 0;
+         var hasCriticalModifiers:Boolean = this.criticalModifiersList.dataProvider.length > 0;
+         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(criticalHeight) || Boolean(defaultHeight);
+         trace("IIR::FRED",this.itemCompare,this.defaultModfiersBack,this.propsBottomLine,this.bottomBackContainer,this.bottomLine,this.background);
+         this.defaultModfiersBack.height = defaultHeight + 11;
+         this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
+         this.bottomBackContainer.y = this.propsBottomLine.y;
+         this.bottomBackContainer.height = regularHeight + criticalHeight + defaultHeight + (hasModifiers ? 14 : 0) + (hasCriticalModifiers ? 40 : 0) + (Boolean(regularHeight) || Boolean(criticalHeight) ? 5 : 0);
+         this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;
+         this.bottomLine.visible = false;
+         this.background.height = this.bottomLine.y + 5;
+         this.criticalSeparator.visible = hasCriticalModifiers;
+         this.defaultModfiersBack.visible = this.defaultModifiersList.visible = hasDefaultModifiers;
+         this.defaultModifiersList.y = this.propsBottomLine.y + 10;
+         this.defaultModfiersBack.y = this.propsBottomLine.y + 2;
+         this.modifiersList.y = this.defaultModifiersList.y + defaultHeight + (hasDefaultModifiers ? 5 : 0);
+         this.criticalSeparator.y = this.modifiersList.y + regularHeight + 15;
+         this.criticalModifiersList.y = this.criticalSeparator.visible ? this.criticalSeparator.y + this.criticalSeparator.height - 10 : this.modifiersList.y;
+         this.criticalSeparator.textField.text = LocalizationData.getName("critical_damages");
          if(this._displayOrange)
          {
             this.orangeOverlay.y = this.propsTopLine.y;
             this.orangeOverlay.height = this.propsBottomLine.y - this.orangeOverlay.y;
          }
       }
-      
+
       public function get data() : Object
       {
          return this._data;

@@ -2344,3 +2344,22 @@ malloc_impl 0xE4F90's result, and the pool lookup 0x2E58B0, the artefact
 effect 0x313350, the allocation's name 0x420789 and query_resources 0xE5B60
 in full. The asm patches still call by hand; moving them is a follow-up
 (README, the library's section).
+
+### Medical consumable activity (patch 77)
+
+`consumable_activity` is a Rust presentation hook before the native quick-slot
+update (0x23B7A0). `vostok::QuickSlotActivity` reads the live local player's
+mapped item. Only the medkit primary vtable permits reading medical state.
+Inactive/dead, waiting for the native use delay, and active are distinct states;
+waiting and active each carry their remaining milliseconds and skill-modified
+duration. Waiting uses modifier 33 with weight 1, active uses modifier 34 with
+the medicine's skill weight, matching native set_active.
+No inventory, simulation timer, or snapshot is modified.
+
+The HUD receives `set_quick_slot_activity(slot, phase, remaining, duration)`.
+QuickSlots owns the combination of that snapshot with the native slot descriptor:
+an exhausted stack retains its icon during its remaining delay/effect, and is
+removed when the native effect ends. Waiting maps to the existing gray icon and
+filled cooldown sector. Active displays only ceiling seconds in the native
+countdown field; no custom outlined ring is added. Artefacts retain their
+native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.

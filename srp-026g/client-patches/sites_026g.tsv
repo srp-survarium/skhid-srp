@@ -11,3 +11,6 @@ replay.options_read	0x1f0971	lohook	-	5	-	a replay's chunk 1 after its match_opt
 player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
 keyboard.tab_state	0x25cd2c	lohook	-	7	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
 input_builder.end	0x2421b0	lohook	-	5	-	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
+player_names.visibility	0x1F2F10	lohook	-	7	-	render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only
+text_input.char_target	0x79D369	lohook	-	6	ignore@0x79D4AD	AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated
+quick_slots.activity	0x23B7A0	lohook	-	7	-	update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer

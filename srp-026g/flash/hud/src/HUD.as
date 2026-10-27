@@ -892,8 +892,8 @@ package
       // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
       // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
-      // alive, the ammo, the quick-use slots and the body's state (critInd: the parts, bleeding,
-      // radiation, toxins) or, while the game shows the kits (the death screen, before the start), the
+      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // while the game shows the kits (the death screen, before the start), the
       // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
       // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
@@ -924,7 +924,10 @@ package
          {
             return [this._profilePanel,this.matchTime(),this.chat];
          }
-         return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime(),this.chat];
+         // Ammo and the body doll share a size-dependent, bottom-right layout.
+         // Keep their owner intact: removing either child changes its bounds
+         // and a reflow can push the other child beyond the viewport.
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
       }
 
       private function keptWhileTyping() : Array
@@ -1665,6 +1668,15 @@ package
       {
       }
       
+      public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
+      {
+         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         {
+            _reflow = true;
+            addEventListener(Event.RENDER,this.onRender);
+         }
+      }
+
       public function fill_slot(_p:Object) : void
       {
          if(this.quick_slots.fillSlot(_p) && !this._reflow)

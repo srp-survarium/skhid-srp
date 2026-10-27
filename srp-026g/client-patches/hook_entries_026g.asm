@@ -201,6 +201,84 @@ blackout_on_input_end_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x2421b5
 
+; 0x1f2f10 render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only: lohook -> blackout_on_name_visibility
+global blackout_on_name_visibility
+extern hook_blackout_on_name_visibility
+blackout_on_name_visibility:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_name_visibility
+    mov edx, blackout_on_name_visibility_replay
+    cmp eax, 0
+    je blackout_on_name_visibility_go
+    mov edx, 0x1f2f17
+    cmp eax, 1
+    je blackout_on_name_visibility_go
+    ud2
+blackout_on_name_visibility_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_name_visibility_replay:
+    db 0x0f, 0xb6, 0x8e, 0x14, 0x01, 0x00, 0x00
+    jmp 0x1f2f17
+
+; 0x23b7a0 update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer: lohook -> consumable_activity_on_update
+global consumable_activity_on_update
+extern hook_consumable_activity_on_update
+consumable_activity_on_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_consumable_activity_on_update
+    mov edx, consumable_activity_on_update_replay
+    cmp eax, 0
+    je consumable_activity_on_update_go
+    mov edx, 0x23b7a7
+    cmp eax, 1
+    je consumable_activity_on_update_go
+    ud2
+consumable_activity_on_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+consumable_activity_on_update_replay:
+    db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x23b7a7
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step
@@ -442,3 +520,45 @@ ragdoll_on_held_item_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
+
+; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
+global text_input_on_char
+extern hook_text_input_on_char
+text_input_on_char:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_text_input_on_char
+    mov edx, text_input_on_char_replay
+    cmp eax, 0
+    je text_input_on_char_go
+    mov edx, 0x79d36f
+    cmp eax, 1
+    je text_input_on_char_go
+    mov edx, 0x79d4ad
+    cmp eax, 2
+    je text_input_on_char_go
+    ud2
+text_input_on_char_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+text_input_on_char_replay:
+    db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
+    jmp 0x79d36f

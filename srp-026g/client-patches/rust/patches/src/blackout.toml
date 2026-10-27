@@ -26,3 +26,7 @@ handler = "on_tab"
 [[hook]]
 site = "input_builder.end"
 handler = "on_input_end"
+
+[[hook]]
+site = "player_names.visibility"
+handler = "on_name_visibility"

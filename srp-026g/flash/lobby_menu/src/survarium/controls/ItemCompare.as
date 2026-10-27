@@ -12,6 +12,7 @@ package survarium.controls
    import survarium.item.ModificationRolls;
    import survarium.constants.ModifierType;
    import survarium.constants.SuperCategory;
+   import survarium.constants.ItemCategory;
    
    public class ItemCompare extends MovieClip
    {
@@ -218,6 +219,7 @@ package survarium.controls
          }
          trace("ItemCompare::updateData");
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
+         var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
@@ -319,7 +321,7 @@ package survarium.controls
          while(index < indicators)
          {
             _diff = this._indicator[index];
-            removeChild(_diff);
+            if(_diff.parent == this) removeChild(_diff);
             _diff.visible = false;
             index++;
          }
@@ -334,7 +336,9 @@ package survarium.controls
             _diff = this._indicator[index];
             if(_diff.visible)
             {
-               _diff.indicator.compare = 0;
+               // A medicine without this property has no comparable value.
+               // Missing healing is not a claim of zero healing.
+               _diff.indicator.compare = medical ? _diff.indicator.value : 0;
             }
             index++;
          }
@@ -355,6 +359,7 @@ package survarium.controls
                   _diff = this._indicator[index];
                   if(!_diff.visible)
                   {
+                     if(medical) break;
                      initIndicatorValues(this._indicator[index],propDescription,_value,0);
                      break;
                   }

@@ -16,8 +16,10 @@
 //! - the game world's keys (`keyboard.tab_state`): Tab's state, and in a
 //!   Blackout match the key goes on as with Tab up (no Tab list: the kits'
 //!   keys 1 to 3 of patch 58 come after the game's Tab test);
+//! - the player name decision (`player_names.visibility`): Tab shows names
+//!   for teammates in Blackout, after the native visibility checks;
 //! - the input builder's end (`input_builder.end`): while Tab is held the
-//!   input has no move and no act (the look stays), and an act held through
+//!   input has no act; moves stop after 200 ms (the look stays). An act held through
 //!   Tab stays out until its key is let go.
 //!
 //! Nothing a match computes: the interface and the local input only (the
@@ -25,9 +27,10 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::parse::Reader;
+use crate::vostok::{clock, parse::Reader};
 use crate::vostok::{
-    ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NoExit, OptionsRead, TabTest, Thread,
+    ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
+    TabTest, Thread,
 };
 
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
@@ -63,8 +66,35 @@ const NONE_TOLD: Told = Told { movie: 0, state: 0 };
 
 /// The options last read (a match's or a replay's) are a Blackout match's.
 static BLACKOUT: GameCell<bool> = GameCell::new(false);
-/// Tab held (the game's last test of it).
-static TAB_DOWN: GameCell<bool> = GameCell::new(false);
+/// One owner for the key and its movement grace period. Repeated key reports
+/// cannot restart the grace; release or a new match ends it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TabState {
+    Up,
+    Grace { pressed_at: u64 },
+    Blocking,
+}
+
+impl TabState {
+    fn down(self) -> bool { self != Self::Up }
+
+    fn key(self, down: bool, now: u64) -> Self {
+        match (self, down) {
+            (_, false) => Self::Up,
+            (Self::Up, true) => Self::Grace { pressed_at: now },
+            (state, true) => state,
+        }
+    }
+
+    fn advance(self, now: u64, ticks_per_second: u64) -> Self {
+        match self {
+            Self::Grace { pressed_at } if now.wrapping_sub(pressed_at) as f64 * 5.0 >= ticks_per_second as f64 => Self::Blocking,
+            state => state,
+        }
+    }
+}
+
+static TAB: GameCell<TabState> = GameCell::new(TabState::Up);
 /// The acts held through Tab (each stays out until its key is let go).
 static HELD: GameCell<ActionMask> = GameCell::new(ActionMask::NONE);
 static HUD_TOLD: GameCell<Told> = GameCell::new(NONE_TOLD);
@@ -89,12 +119,13 @@ pub fn blackout_in(mut rest: Reader) -> bool {
 
 /// The input's action mask as built, and the acts held through Tab: what
 /// is sent and what stays held. Not a Blackout match: as built, nothing held.
-pub fn filtered(blackout: bool, tab_down: bool, held: ActionMask, built: ActionMask) -> (ActionMask, ActionMask) {
+fn filtered(blackout: bool, tab: TabState, held: ActionMask, built: ActionMask) -> (ActionMask, ActionMask) {
     if !blackout {
         return (built, ActionMask::NONE);
     }
-    if tab_down {
-        return (built.without(MOVES.union(ACTS)), built.intersection(ACTS));
+    if tab.down() {
+        let blocked = if tab == TabState::Blocking { ACTS.union(MOVES) } else { ACTS };
+        return (built.without(blocked), built.intersection(ACTS));
     }
     let still = held.intersection(built);
     (built.without(still), still)
@@ -107,7 +138,7 @@ fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
         read.set_blackout_mark(on);
     }
     BLACKOUT.set(thread, on);
-    TAB_DOWN.set(thread, false);
+    TAB.set(thread, TabState::Up);
     HELD.set(thread, ActionMask::NONE);
     // A new match can allocate its movies at the same addresses as the
     // previous match. Their new roots must receive the forced state again.
@@ -141,7 +172,7 @@ pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
     let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let forced = BLACKOUT.get(thread);
-    let tab = TAB_DOWN.get(thread);
+    let tab = TAB.get(thread).down();
     tell(thread, &HUD_TOLD, ui.hud_movie(), u8::from(forced), |movie| {
         movie.invoke_bool(c"root.force_interface_hidden", forced)
     });
@@ -163,14 +194,34 @@ pub fn on_tab(ctx: &mut Context) -> Flow<NoExit> {
         }
         down
     };
-    TAB_DOWN.set(ctx.thread(), down);
+    let thread = ctx.thread();
+    let tab = TAB.get(thread);
+    // Only a fresh Blackout press needs a timestamp. The regular modes do
+    // not consult a clock or change their native key behavior.
+    let now = if blackout && down && tab == TabState::Up { clock::counter(thread) } else { 0 };
+    TAB.set(thread, tab.key(down, now));
+    Flow::Continue
+}
+
+/// render_name's Alt/crosshair result, after the game's visibility checks.
+/// Tab reveals teammate names only; the game's other name decisions survive.
+pub fn on_name_visibility(ctx: &mut Context) -> Flow<NoExit> {
+    if BLACKOUT.get(ctx.thread()) && TAB.get(ctx.thread()).down()
+        && let Some(name) = NameVisibility::for_teammate(ctx)
+    {
+        name.show();
+    }
     Flow::Continue
 }
 
 /// process_first_person_mode's end (0x2421B0): ebx the input handler.
 pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let (blackout, tab, held) = (BLACKOUT.get(thread), TAB_DOWN.get(thread), HELD.get(thread));
+    let (blackout, mut tab, held) = (BLACKOUT.get(thread), TAB.get(thread), HELD.get(thread));
+    if blackout && matches!(tab, TabState::Grace { .. }) {
+        tab = tab.advance(clock::counter(thread), clock::frequency(thread));
+        TAB.set(thread, tab);
+    }
     let Some(mut handler) = InputHandler::at_builder_end(ctx) else { return Flow::Continue };
     let (sent, still) = filtered(blackout, tab, held, handler.actions());
     handler.set_actions(sent);
@@ -202,16 +253,34 @@ mod tests {
     fn tab_stops_moves_and_acts() {
         let moving = ActionMask::FORWARD.union(ActionMask::SPRINT).union(ActionMask::FIRE).union(ActionMask::AIM)
             .union(ActionMask::CROUCH);
-        assert_eq!(filtered(false, true, ActionMask::NONE, moving), (moving, ActionMask::NONE));
-        let (sent, held) = filtered(true, true, ActionMask::NONE, moving);
+        assert_eq!(filtered(false, TabState::Blocking, ActionMask::NONE, moving), (moving, ActionMask::NONE));
+        let (sent, held) = filtered(true, TabState::Blocking, ActionMask::NONE, moving);
         assert_eq!(sent, ActionMask::CROUCH);
         assert_eq!(held, ActionMask::FIRE.union(ActionMask::AIM));
         // Tab up, fire still held: it stays out; a move comes back.
-        let (sent, held) = filtered(true, false, held, ActionMask::FORWARD.union(ActionMask::FIRE));
+        let (sent, held) = filtered(true, TabState::Up, held, ActionMask::FORWARD.union(ActionMask::FIRE));
         assert_eq!(sent, ActionMask::FORWARD);
         assert_eq!(held, ActionMask::FIRE);
         // fire let go, then pressed again: it fires.
-        let (_, held) = filtered(true, false, held, ActionMask::FORWARD);
-        assert_eq!(filtered(true, false, held, ActionMask::FIRE).0, ActionMask::FIRE);
+        let (_, held) = filtered(true, TabState::Up, held, ActionMask::FORWARD);
+        assert_eq!(filtered(true, TabState::Up, held, ActionMask::FIRE).0, ActionMask::FIRE);
     }
+    #[test]
+    fn a_quick_tab_keeps_movement_and_repeats_do_not_extend_the_grace() {
+        let moving = MOVES.union(ActionMask::FIRE);
+        let tab = TabState::Up.key(true, 1_000);
+        assert_eq!(tab.key(true, 1_100), tab);
+        for now in [1_000, 1_001, 1_199] {
+            let state = tab.advance(now, 1_000);
+            assert_eq!(filtered(true, state, ActionMask::NONE, moving), (MOVES, ActionMask::FIRE));
+        }
+        assert_eq!(tab.advance(1_200, 1_000), TabState::Blocking);
+        assert_eq!(tab.key(false, 1_100), TabState::Up);
+        assert_eq!(tab.key(false, 1_100).key(true, 1_150), TabState::Grace { pressed_at: 1_150 });
+        assert_eq!(TabState::Grace { pressed_at: u64::MAX - 99 }.advance(100, 1_000), TabState::Blocking);
+        // Non-integral counters round up, never blocking before 200 ms.
+        assert!(matches!(tab.advance(1_200, 1_001), TabState::Grace { .. }));
+        assert_eq!(tab.advance(1_201, 1_001), TabState::Blocking);
+    }
+
 }

@@ -626,6 +626,7 @@ package survarium.rooms
             _hideAfterResults = false;
             if (!value)
             {
+                releaseInputFocus();
                 _offer = null;
                 _openedByPlayAt = 0;
             }
@@ -1178,8 +1179,17 @@ package survarium.rooms
             listView.drawMembers();
         }
 
+        // A removed input can remain Scaleform's native character target even
+        // after its AS3 object is gone. Relinquish ownership before removing it.
+        private function releaseInputFocus():void
+        {
+            if (stage != null && stage.focus != null && contains(stage.focus))
+                stage.focus = null;
+        }
+
         private function clear():void
         {
+            releaseInputFocus();
             while (look._content.numChildren > 0)
                 look._content.removeChildAt(0);
             while (look._backdrop.numChildren > 0)
@@ -1199,6 +1209,10 @@ package survarium.rooms
         {
             if (!_shown || _hideAfterResults)
                 return;
+            var focused:TextField = stage != null ? stage.focus as TextField : null;
+            var editingPin:Boolean = focused != null && (focused == listView._joinPin || focused == createView._makePin);
+            var selectionStart:int = editingPin ? focused.selectionBeginIndex : 0;
+            var selectionEnd:int = editingPin ? focused.selectionEndIndex : 0;
             if (listView._joinPin != null)
                 listView._pinText = listView._joinPin.text;
             clear();
@@ -1244,6 +1258,14 @@ package survarium.rooms
                 listView.render();
             if (_offer != null)
                 drawOffer();
+            // Preserve typing across a redraw only if this view still has a PIN.
+            // Joining or hiding the room leaves focus released.
+            var pin:TextField = _view == "create" ? createView._makePin : listView._joinPin;
+            if (editingPin && pin != null && _offer == null && stage != null)
+            {
+                stage.focus = pin;
+                pin.setSelection(selectionStart, selectionEnd);
+            }
         }
 
         // The header's two tabs while we are in a room (the owner's of

@@ -11,6 +11,62 @@ use super::context::{Context, Reg};
 use super::hook::Thread;
 use crate::raw;
 
+/// A character event delivered after a text field lost its AS3 receiver.
+/// Only this detached state permits skipping native dispatch/insertion.
+pub struct DetachedTextInput<'c, 'm> {
+    ctx: &'c mut Context<'m>,
+}
+
+impl<'c, 'm> DetachedTextInput<'c, 'm> {
+    pub fn at_char_event(ctx: &'c mut Context<'m>) -> Option<Self> {
+        // EDI is the live AvmTextField interface.
+        let avm = ctx.reg(Reg::Edi) as usize as *mut c_void;
+        // SAFETY: this site's native code reads these exact two fields next.
+        // The collectible low bit is the GC mark, not part of its pointer.
+        let target = unsafe {
+            let raw = *raw::avm_text_field::as3_raw(avm);
+            if raw != 0 { raw } else { *raw::avm_text_field::as3_collectible(avm) }
+        } & !1;
+        if target != 0 { return None; }
+        Some(Self { ctx })
+    }
+
+    pub fn ignore(self) {
+        // The original epilogue returns BL as AL; its stack restores EBX.
+        self.ctx.set_reg8(Reg::Ebx, 0);
+    }
+}
+
+/// A teammate's name decision at `player_names.visibility` (0x1F2F10).
+/// The handle can only be obtained for a valid same-team player, and cannot
+/// escape the hook. The engine already checked life, visibility and projection.
+pub struct NameVisibility<'c, 'm> {
+    ctx: &'c mut Context<'m>,
+}
+
+impl<'c, 'm> NameVisibility<'c, 'm> {
+    pub fn for_teammate(ctx: &'c mut Context<'m>) -> Option<Self> {
+        let player = NonNull::new(ctx.reg(Reg::Esi) as usize as *mut c_void)?;
+        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
+        // SAFETY: at this site ESI is render_name's live player, and ESP+14h
+        // holds its local-team snapshot. The profile is the same one the
+        // original code reads at 0x1F2F33, before any call can change it.
+        let (local, team) = unsafe {
+            let profile = NonNull::new(*raw::player::profile(player.as_ptr()) as usize as *mut c_void)?;
+            (*raw::render_name_frame::local_team(frame), *raw::player_profile::team(profile.as_ptr()))
+        };
+        if local > 1 || local != team {
+            return None;
+        }
+        Some(Self { ctx })
+    }
+
+    /// Show this eligible teammate's name; never modify input or player state.
+    pub fn show(self) {
+        self.ctx.set_reg8(Reg::Eax, 1);
+    }
+}
+
 /// The hud, survarium::game_world_ui, as a hook's site has it.
 pub struct GameWorldUi<'t> {
     this: NonNull<c_void>,
@@ -43,7 +99,7 @@ impl<'t> GameWorldUi<'t> {
 
 /// # Safety
 /// `holder` is a movie holder or 0, alive on the hook's thread.
-unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
+pub(super) unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
     let holder = NonNull::new(holder as usize as *mut c_void)?;
     // SAFETY: a holder's view is a movie view or 0, and a view's movie a GFx movie or 0.
     let view = NonNull::new(unsafe { *raw::movie_holder::view(holder.as_ptr()) } as usize as *mut c_void)?;
@@ -87,5 +143,15 @@ impl Movie<'_> {
                                      (&raw const argument).cast(), 1)
         };
         taken & 0xFF != 0
+    }
+}
+
+impl Movie<'_> {
+    /// Plain unsigned GFx values; the caller owns this synchronous argument array.
+    pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32; 4]) {
+        let arguments = values.map(|value| GfxValue { object: 0, kind: 4, value, rest: [0; 3] });
+        // SAFETY: live movie, NUL-terminated method and four POD GFx UInt values.
+        unsafe { raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(),
+            core::ptr::null_mut(), arguments.as_ptr().cast(), 4); }
     }
 }
