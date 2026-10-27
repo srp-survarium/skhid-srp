@@ -915,7 +915,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, RusherKit, bot_profile};
 
     /// What the other bots believe of a bot's weapon: its role's, but the
     /// rusher's follows the kit it wears (the SMG is an SMG, the SPAS-12 a
@@ -923,7 +923,7 @@ mod tests {
     #[test]
     fn the_rushers_weapon_kind_follows_its_kit() {
         let kind =
-            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher, mask: None }), false);
+            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher, mask: BotMask::Table }), false);
         for kit in RusherKit::ALL {
             let shotgun = !matches!(kit.worn_in(BotTier::Mid), RusherKit::Smg | RusherKit::Alt);
             let wanted = if shotgun {
@@ -968,7 +968,7 @@ mod tests {
         for tier in [BotTier::Mid, BotTier::High] {
             for kit in [RusherKit::Smg, RusherKit::Alt] {
                 let profile =
-                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: None });
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: BotMask::Table });
                 assert_eq!(
                     weapon_in_slot_7(&profile, false),
                     Some(WeaponKind::Smg),
@@ -978,7 +978,7 @@ mod tests {
             }
             for kit in [RusherKit::Slug, RusherKit::Helmet, RusherKit::Control] {
                 let profile =
-                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: None });
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: BotMask::Table });
                 assert_eq!(
                     weapon_in_slot_7(&profile, false),
                     Some(WeaponKind::Shotgun),

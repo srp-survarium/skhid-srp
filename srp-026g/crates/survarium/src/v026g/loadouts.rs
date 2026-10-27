@@ -657,6 +657,14 @@ impl Masks {
         }
     }
 
+    /// What a bot of `tier` wears in the mask slot with this setting in the game data in use.
+    pub fn bot_mask(self, tier: BotTier) -> BotMask {
+        match self.mask_of(tier) {
+            Some(_) => BotMask::TiersTop,
+            None => BotMask::Table,
+        }
+    }
+
     /// The mask a bot of `tier` wears with this setting in the game data in use: the tier's, if it has one
     /// and the data has the item.
     pub fn mask_of(self, tier: BotTier) -> Option<Mask> {
@@ -673,6 +681,20 @@ impl Masks {
         }
         None
     }
+}
+
+/// Which piece a bot wears in the mask slot of its kit (profile slot 1): the tier table's own, or the respirator the
+/// top players of its tier wear ([`BotTier::top_mask`], by name where the armour is built, [`BotEquipment::worn_mask`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum BotMask {
+    #[default]
+    Table,
+    TiersTop,
+}
+
+impl BotMask {
+    /// In the order of the discriminants.
+    pub const ALL: [BotMask; 2] = [BotMask::Table, BotMask::TiersTop];
 }
 
 impl RusherKits {
@@ -737,8 +759,8 @@ impl RusherKits {
 pub struct BotEquipment {
     pub tier: BotTier,
     pub rusher: RusherKit,
-    /// The respirator every role of the tier wears in the mask slot; none: the tables' as they were.
-    pub mask: Option<Mask>,
+    /// What every role of the tier wears in the mask slot; the tables' own as they were.
+    pub mask: BotMask,
 }
 
 impl BotEquipment {
@@ -748,7 +770,16 @@ impl BotEquipment {
         Self {
             tier,
             rusher: kits.worn(tier),
-            mask: kits.masks.mask_of(tier),
+            mask: kits.masks.bot_mask(tier),
+        }
+    }
+
+    /// The respirator this equipment puts in the mask slot in place of the table's piece, if any: the tier's
+    /// (a tier without one, the lowest, keeps the table's).
+    pub fn worn_mask(self) -> Option<Mask> {
+        match self.mask {
+            BotMask::Table => None,
+            BotMask::TiersTop => self.tier.top_mask(),
         }
     }
 }
@@ -1333,7 +1364,7 @@ fn worn(equipment: BotEquipment, role: BotRole, new: bool) -> Vec<(u8, &'static 
     let tier = equipment.tier;
     let rusher = equipment.rusher.worn_in(tier);
     let mut armour = tier.gear().of_kit(role, rusher).armour.to_vec();
-    if let Some(Mask(name)) = equipment.mask {
+    if let Some(Mask(name)) = equipment.worn_mask() {
         armour.retain(|&(slot, _)| slot != MASK_SLOT);
         armour.push((MASK_SLOT, name));
         armour.sort_by_key(|&(slot, _)| slot);
@@ -1494,24 +1525,26 @@ pub fn bot_kits_in(
 /// A bot of `role` with `equipment`'s kits as loadouts, one for each of its
 /// [`BotRole::kit_roles`] ([`bot_kit_items`]).
 pub fn bot_kits(equipment: BotEquipment, role: BotRole) -> [&'static Loadout; 3] {
-    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * 2;
+    const KITS: usize = BotTier::ALL.len() * BotRole::ALL.len() * RusherKit::ALL.len() * BotMask::ALL.len();
     static SHARED: [std::sync::OnceLock<[Loadout; 3]>; KITS] =
         [const { std::sync::OnceLock::new() }; KITS];
     let equipment = BotEquipment {
         tier: equipment.tier,
         rusher: equipment.rusher.worn_in(equipment.tier),
-        mask: equipment.mask,
+        // A tier without a top mask wears the table's whatever is asked.
+        mask: if equipment.tier.top_mask().is_some() {
+            equipment.mask
+        } else {
+            BotMask::Table
+        },
     };
-    debug_assert!(
-        equipment.mask.is_none() || equipment.mask == equipment.tier.top_mask(),
-        "a mask is the tier's"
-    );
-    // The enums count up in the order of their `ALL`; the last digit is whether the tier's mask is worn.
+    // The enums count up in the order of their `ALL`. This is the slot of a process-wide cache, not an id
+    // that leaves the process.
     let index = ((equipment.tier as usize * BotRole::ALL.len() + role as usize)
         * RusherKit::ALL.len()
         + equipment.rusher as usize)
-        * 2
-        + usize::from(equipment.mask.is_some());
+        * BotMask::ALL.len()
+        + equipment.mask as usize;
     let [first, second, third] = SHARED[index].get_or_init(|| {
         bot_kits_in(equipment, role, new_kit(), upgrades_on())
     });
@@ -1584,7 +1617,9 @@ fn candidate_equipments(tier: BotTier, role: BotRole) -> Vec<BotEquipment> {
     } else {
         vec![default]
     };
-    let masks: Vec<Option<Mask>> = std::iter::once(None).chain(tier.top_mask().map(Some)).collect();
+    let masks: Vec<BotMask> = std::iter::once(BotMask::Table)
+        .chain(tier.top_mask().map(|_| BotMask::TiersTop))
+        .collect();
     rushers
         .into_iter()
         .flat_map(|rusher| masks.iter().map(move |&mask| BotEquipment { tier, rusher, mask }))
@@ -1872,7 +1907,7 @@ mod tests {
         for tier in BotTier::ALL {
             for rusher in made_kits(tier) {
                 // With the tier's respirator too: every rule on a kit holds for the masked bots.
-                for mask in [None, tier.top_mask()] {
+                for mask in BotMask::ALL.into_iter().filter(|mask| *mask == BotMask::Table || tier.top_mask().is_some()) {
                     let equipment = BotEquipment { tier, rusher, mask };
                     for role in BotRole::ALL {
                         for (k, kit) in bot_kits_in(equipment, role, new, upgrades)
@@ -2072,7 +2107,7 @@ mod tests {
                 ammo.sort_unstable();
                 ammo.dedup();
                 assert_eq!(ammo.len(), 4, "{tier} {}", rusher.name());
-                let equipment = BotEquipment { tier, rusher, mask: None };
+                let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
                 for (role, new) in BotRole::ALL
                     .into_iter()
                     .flat_map(|role| [(role, false), (role, true)])
@@ -2128,12 +2163,14 @@ mod tests {
         assert_eq!(Masks::parse("top"), Ok(Masks::TopPlayers));
         assert_eq!(Masks::parse(""), Ok(Masks::Off));
         assert!(Masks::parse("all").is_err());
-        assert_eq!(BotEquipment::of(BotTier::Low, on).mask, None, "the lowest tier has none");
+        assert_eq!(BotEquipment::of(BotTier::Low, on).mask, BotMask::Table, "the lowest tier has none");
+        assert_eq!(BotEquipment::of(BotTier::Low, on).worn_mask(), None);
         for (tier, mask) in [(BotTier::Mid, "ren_mask_3"), (BotTier::High, "edge_resp_3")] {
             let masked = BotEquipment::of(tier, on);
             let plain = BotEquipment::of(tier, RusherKits::default());
-            assert_eq!(masked.mask, Some(Mask(mask)));
-            assert_eq!(plain.mask, None);
+            assert_eq!(masked.mask, BotMask::TiersTop);
+            assert_eq!(masked.worn_mask(), Some(Mask(mask)));
+            assert_eq!(plain.mask, BotMask::Table);
             for role in BotRole::ALL {
                 let with = tier_armour(masked, role);
                 assert!(with.contains(&mask), "{tier} {role}: {with:?}");
@@ -2145,9 +2182,9 @@ mod tests {
                 assert_eq!(strip(&with), strip(&without), "{tier} {role}");
                 // The profile says the equipment back.
                 let profile = bot_profile(3, 0, role, masked);
-                assert_eq!(bot_equipment_of(&profile).map(|(e, r)| (e.mask, r)), Some((Some(Mask(mask)), role)));
+                assert_eq!(bot_equipment_of(&profile).map(|(e, r)| (e.mask, r)), Some((BotMask::TiersTop, role)));
                 let profile = bot_profile(3, 0, role, plain);
-                assert_eq!(bot_equipment_of(&profile).map(|(e, r)| (e.mask, r)), Some((None, role)));
+                assert_eq!(bot_equipment_of(&profile).map(|(e, r)| (e.mask, r)), Some((BotMask::Table, role)));
             }
         }
     }
@@ -2785,7 +2822,7 @@ mod tests {
             if rusher.worn_in(tier) != rusher {
                 continue;
             }
-            let equipment = BotEquipment { tier, rusher, mask: None };
+            let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
             let at = named(equipment, BotRole::Rusher, 0);
             let kit = bot_kit(equipment, BotRole::Rusher);
             assert_eq!(name(kit, 7), Some(weapon), "{at}");
@@ -2889,7 +2926,7 @@ mod tests {
             let equipment = BotEquipment {
                 tier,
                 rusher: RusherKit::Control,
-                mask: None,
+                mask: BotMask::Table,
             };
             let mut expected = vec![
                 kit_item("spas_12", 7, 1, Some(WEAPON_1_BIT)),
@@ -2954,7 +2991,7 @@ mod tests {
                 let expected = if has { kit } else { RusherKit::Control };
                 assert_eq!(worn, expected, "{tier} {}", kit.name());
                 // Whatever is asked, the kits are made.
-                let equipment = BotEquipment { tier, rusher: kit, mask: None };
+                let equipment = BotEquipment { tier, rusher: kit, mask: BotMask::Table };
                 for role in BotRole::ALL {
                     assert_eq!(bot_kits(equipment, role).len(), 3);
                 }
@@ -3024,7 +3061,7 @@ mod tests {
     fn a_bot_of_one_equipment_is_made_the_same_every_time() {
         for tier in BotTier::ALL {
             for rusher in made_kits(tier) {
-                let equipment = BotEquipment { tier, rusher, mask: None };
+                let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
                 for role in BotRole::ALL {
                     let a = bot_profile(3, 0, role, equipment);
                     let b = bot_profile(3, 0, role, equipment);
@@ -3086,7 +3123,7 @@ mod tests {
         let dictionary = Dictionary::shared();
         for tier in BotTier::ALL {
             for rusher in made_kits(tier) {
-                let equipment = BotEquipment { tier, rusher, mask: None };
+                let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
                 for role in BotRole::ALL {
                     let profile = MatchProfile::from_loadouts(
                         "Bot-1",
@@ -3154,7 +3191,7 @@ mod tests {
                         vec![RusherKit::default().worn_in(tier)]
                     };
                     rushers.into_iter().map(move |rusher| {
-                        bot_kit(BotEquipment { tier, rusher, mask: None }, role)
+                        bot_kit(BotEquipment { tier, rusher, mask: BotMask::Table }, role)
                             .items
                             .iter()
                             .map(|item| (item.slot, item.dict_id))
@@ -3227,7 +3264,7 @@ mod tests {
         for tier in BotTier::ALL {
             for rusher in made_kits(tier) {
                 for role in BotRole::ALL {
-                    let profile = bot_profile(7, 1, role, BotEquipment { tier, rusher, mask: None });
+                    let profile = bot_profile(7, 1, role, BotEquipment { tier, rusher, mask: BotMask::Table });
                     assert_eq!(profile.name, bot_name(7));
                     assert_eq!(profile.name, "Bot-7");
                     assert_eq!(profile.clan_tag, "BOT");

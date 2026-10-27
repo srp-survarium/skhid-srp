@@ -29,7 +29,7 @@ use std::time::{Duration, Instant};
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState};
-use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier};
+use survarium::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
@@ -1285,8 +1285,9 @@ mod tests {
                     .copied()
                     .filter(move |&kit| kit.worn_in(tier) == kit)
                     .flat_map(move |rusher| {
-                        [None, tier.top_mask()]
+                        BotMask::ALL
                             .into_iter()
+                            .filter(move |&mask| mask == BotMask::Table || tier.top_mask().is_some())
                             .map(move |mask| BotEquipment { tier, rusher, mask })
                     })
             })
