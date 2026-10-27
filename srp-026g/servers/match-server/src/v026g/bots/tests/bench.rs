@@ -1144,7 +1144,7 @@ pub(crate) fn real_bot_cost() {
                             no_way_seen[bot.place] = Some(until);
                             no_way_by.entry(play_now()).or_default()[0] += 1;
                         }
-                        if let Go::To { at, within_m } = bot.intent.go
+                        if let Some(Go::To { at, within_m }) = bot.bench_go
                             && body.alive
                             && body.feet.distance_xz(at) > within_m
                         {

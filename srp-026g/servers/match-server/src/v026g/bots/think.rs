@@ -137,6 +137,10 @@ impl Bots {
                 .and_then(|test| test.drive(bot, time, view));
             #[cfg(not(feature = "jump-test"))]
             let scripted: Option<Decision> = None;
+            #[cfg(test)]
+            {
+                bot.bench_go = None;
+            }
             #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
             let mut decision = match (scripted, estimate, me, self.tactics.as_ref()) {
                 (Some(scripted), ..) => {

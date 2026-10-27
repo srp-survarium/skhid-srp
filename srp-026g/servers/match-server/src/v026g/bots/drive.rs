@@ -480,6 +480,10 @@ fn drive_tick_inner(
             intent.straight = false;
         }
     }
+    #[cfg(test)]
+    {
+        bot.bench_go = Some(intent.go);
+    }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
