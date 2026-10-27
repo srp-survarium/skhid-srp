@@ -1,6 +1,9 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
+   import flash.display.Sprite;
+   import flash.events.Event;
+   import flash.utils.getTimer;
    import flash.filters.DropShadowFilter;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
@@ -31,15 +34,29 @@ package survarium.controls
       
       protected var _playerTeam:uint = 0;
       
+      // Research's units on the screen (research_markers).
+      protected var _research:Array = [];
+
+      // Aim visibility belongs to the world markers' parent. Individual
+      // swords pulses can never undo this fade or affect the top HUD.
+      protected var _researchLayer:Sprite;
+      protected var _researchTarget:Number = 1;
+      protected var _researchFade:Object = null;
+
       public function HUDIconLayer()
       {
          super();
+         this._researchLayer = new Sprite();
+         this._researchLayer.mouseEnabled = false;
+         this._researchLayer.mouseChildren = false;
+         addChildAt(this._researchLayer,0);
       }
       
       public function set objectsHidden(hidden:Boolean) : void
       {
          var id:*;
          _objectsHidden = hidden;
+         this._researchLayer.visible = !hidden;
          if(hidden)
          {
             for(id in this._markers)
@@ -61,6 +78,86 @@ package survarium.controls
             return false;
          }
          return renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+      }
+
+      // Research (mode 5), at a change and every 60 frames (research_arena
+      // markers): the game's own team, the number of units, then ten numbers a
+      // unit: cp_id, whether it is on the screen (off it or behind the camera:
+      // hidden, as 0.27d), x, y in pixels, its distance from the camera in
+      // metres, owner, the team taking it, its capture 0..100, the ms left of
+      // its capture or neutralisation (0 none), whether the game's own player
+      // is inside; then a number a unit: whether both teams are inside;
+      // finally whether the viewed player is aiming down sights.
+      // An older sender omits the aim flag (visible). Under the players' icons.
+      public function research_markers(values:Array) : void
+      {
+         var ownTeam:uint = uint(values[0]);
+         var count:uint = uint(values[1]);
+         var aimAt:uint = 2 + 11 * count;
+         this.setResearchAiming(count > 0 && aimAt < values.length && uint(values[aimAt]) != 0);
+         var i:uint = 0;
+         var at:uint;
+         var contested:uint;
+         var marker:ResearchMarker;
+         while(this._research.length < count)
+         {
+            marker = new ResearchMarker();
+            marker.visible = false;
+            this._researchLayer.addChild(marker);
+            this._research.push(marker);
+         }
+         while(i < this._research.length)
+         {
+            marker = this._research[i];
+            at = 2 + 10 * i;
+            contested = 2 + 10 * count + i;
+            if(i >= count || at + 9 >= values.length || uint(values[at + 1]) == 0)
+            {
+               marker.visible = false;
+            }
+            else
+            {
+               marker.x = Number(values[at + 2]);
+               marker.y = Number(values[at + 3]) - ResearchMarker.LIFT;
+               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]),contested < values.length && uint(values[contested]) != 0);
+               marker.visible = true;
+            }
+            i++;
+         }
+      }
+
+      protected function setResearchAiming(aiming:Boolean) : void
+      {
+         var target:Number = aiming ? 0 : 1;
+         if(target == this._researchTarget)
+         {
+            return;
+         }
+         // Finish the old tween up to now before reversing it. Repeated
+         // state packets do not restart the clock; a rapid reversal never pops.
+         this.onResearchFade(null);
+         this._researchTarget = target;
+         this._researchFade = {from:this._researchLayer.alpha,to:target,
+            started:uint(getTimer()),duration:aiming ? 200 : 300};
+         addEventListener(Event.ENTER_FRAME,this.onResearchFade);
+      }
+
+      protected function onResearchFade(e:Event) : void
+      {
+         if(this._researchFade == null)
+         {
+            return;
+         }
+         var elapsed:uint = uint(uint(getTimer()) - uint(this._researchFade.started));
+         var t:Number = Math.min(1,elapsed / this._researchFade.duration);
+         var eased:Number = t * t * (3 - 2 * t);
+         this._researchLayer.alpha = this._researchFade.from +
+            (this._researchFade.to - this._researchFade.from) * eased;
+         if(t == 1)
+         {
+            this._researchFade = null;
+            removeEventListener(Event.ENTER_FRAME,this.onResearchFade);
+         }
       }
 
       public function register_icon_renderer(kind:uint, renderer_class:Class) : void

@@ -2171,7 +2171,7 @@ va	name	location	role	basis
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
 0x001f28e0	survarium::player::on_player_death	ECX	the player	observed
 0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
-0x001f3480	survarium::player::update_camera	entry ESP+4	the player (its input handler at +F470h, null but for the local one)	observed
+0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
 0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
 0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
 0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
@@ -2193,10 +2193,10 @@ va	name	location	role	basis
 0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
 0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
-0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver	inferred
-0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true0 false2	inferred
+0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed
+0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true mode 0, false mode 2 at input+358h	observed
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	stack+4	game-world receiver	inferred
-0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	the game world (its player input handler at +4D58h set to mode 4)	observed
+0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	game world: input +4D58h set to mode 4; camera interface input+4 (attached spectator)	observed
 0x001f83d0	survarium::game_world::set_game_project	EAX	project resource pointer reference	inferred
 0x001f83d0	survarium::game_world::set_game_project	stack+4	world receiver	inferred
 0x001f8650	survarium::game_world::on_project_loaded	ECX	world receiver	inferred
@@ -2366,8 +2366,8 @@ va	name	location	role	basis
 0x00243370	survarium::camera_director::set_position_direction	EAX	position vector reference	inferred
 0x00243370	survarium::camera_director::set_position_direction	ECX	direction vector reference	inferred
 0x00243440	survarium::camera_director::apply	stack+4	camera-director receiver	inferred
-0x00243510	survarium::camera_director::switch_to_camera	ESI	camera-director receiver	inferred
-0x00243510	survarium::camera_director::switch_to_camera	EDI	next camera interface	inferred
+0x00243510	survarium::camera_director::switch_to_camera	ESI	camera-director receiver; active camera interface +84h read then replaced at 243545	observed
+0x00243510	survarium::camera_director::switch_to_camera	EDI	next camera interface, stored at director+84h (243545)	observed
 0x002435b0	survarium::weapon_core::get_transform	ECX	whole weapon receiver	inferred
 0x002435b0	survarium::weapon_core::get_transform	stack+4	16-DWORD output buffer	inferred
 0x002435d0	survarium::weapon_core::set_transform	ECX	whole weapon receiver	inferred
@@ -2773,8 +2773,8 @@ va	name	location	role	basis
 0x002e17d0	survarium::weapon_core::load_magazine	ESI	whole weapon receiver	inferred
 0x002e18e0	survarium::weapon_core::unload_ammo	EAX	weapon receiver	inferred
 0x002e1a00	survarium::weapon_core::reload_one_round	EDI	whole weapon receiver	inferred
-0x002e1b50		ECX		auto
-0x002e1bf0		ECX		auto
+0x002e1b50		ECX	weapon receiver: actual aimed byte +5E8h set to 1 at 2E1B5A	observed
+0x002e1bf0		ECX	weapon receiver: actual aimed byte +5E8h cleared at 2E1BFB	observed
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+4	whole weapon receiver	inferred
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+8	three-float output storage	inferred
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	stack+12	transform containing right and forward vectors	inferred

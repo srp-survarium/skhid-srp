@@ -81,6 +81,15 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
 
 ## Rust changes
 
+- Design for a **pit of success**: the simplest supported use of an API should be correct by
+  construction. Use ownership, lifetimes, types and explicit state transitions to enforce its
+  invariants, rather than requiring callers to remember special ordering or cleanup rules.
+- Give each piece of state a clear owner and a deliberate mutation API. Avoid overlapping setters,
+  callbacks or wrappers that independently control the same value. When multiple mechanisms must
+  coexist, encapsulate their coordination and ordering. At engine/FFI boundaries, keep raw access
+  behind that owner instead of exposing competing ways to bypass it. Verify initialization,
+  transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
+  the lifecycle rules of an external engine.
 - Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)
   and the tests of what you changed.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this

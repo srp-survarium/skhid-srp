@@ -58,6 +58,29 @@ python3 -m unittest discover -s tools/actionscript
 SRP_AS_TOOLS=/absolute/path/to/private/actionscript/tools.json python3 -m unittest discover -s tools/actionscript
 ```
 
+### Research UI
+
+The Research UI regression harness is `tests/ResearchUiHarness.as`. Put the newly
+built movies beside its output as `hud.swf` and `player_icons.swf`, then compile:
+
+```sh
+java -jar "$FLEX/lib/mxmlc.jar" +flexlib="$FLEX/frameworks" \
+  -library-path= -external-library-path="$FLEX/frameworks/libs/player/32.0/playerglobal.swc" \
+  -static-link-runtime-shared-libraries=true -debug=false -optimize=true -omit-trace-statements=false \
+  -output="$OUT/ResearchUiHarness.swf" tools/actionscript/tests/ResearchUiHarness.as
+```
+
+Run the SWF with Ruffle's filesystem access enabled (use a private virtual display for
+automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the absent
+caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested pulses
+at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
+It also checks countdown spacing and restoration of other modes' timer styles.
+The spacing regression includes hidden capture timers; centering is checked before
+resize with different initial positions and scaled, translated parents.
+Death/respawn transitions check immediate full-width text, late native label
+validation, animation frames, and removal of the Research field on mode exit.
+This exercises the controls; the game's Scaleform integration still needs a playtest.
+
 ## History
 
 Until 2026-10-21 the trees were proven to recompile revision 24 byte for byte

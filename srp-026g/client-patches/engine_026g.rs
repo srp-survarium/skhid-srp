@@ -92,6 +92,8 @@ unsafe extern "C" {
     pub fn engine_user_data_directory() -> *const u8;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
+    /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
+    pub fn engine_point_to_screen(game: *mut c_void, point: *const f32, out: *mut f32) -> u32;
 }
 
 #[allow(dead_code)]

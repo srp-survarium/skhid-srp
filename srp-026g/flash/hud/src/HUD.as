@@ -52,6 +52,7 @@ package
    import survarium.controls.ForcedView;
    import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.ResearchCountdownLayout;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -215,6 +216,8 @@ package
       protected const GAME_MODE_RESEARCH:uint = 5;
       
       public var researchUnits:ResearchUnits;
+
+      private var _researchCountdowns:ResearchCountdownLayout;
 
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
@@ -1851,6 +1854,7 @@ package
          {
             this.pregameInfo.premiumMembers.visible = false;
          }
+         this.placeResearchCountdowns();
       }
       
       public function set_pregame(value:String) : void
@@ -1867,6 +1871,7 @@ package
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
             this.pregameInfo.premiumMembers.x = 55;
          }
+         this.placeResearchCountdowns();
       }
       
       public function show_game_info(bool:Boolean) : void
@@ -2068,10 +2073,26 @@ package
       
       public function set_game_type(type:uint) : void
       {
+         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.layoutData)
+         {
+            this.progress_indicator.layoutData.alignH = "center";
+         }
+         if(this._researchCountdowns != null)
+         {
+            this._researchCountdowns.restore();
+            this._researchCountdowns = null;
+         }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          if(type == this.GAME_MODE_RESEARCH)
          {
+            // Research centres the visible score bars on the actual viewport.
+            // Timeline labels can change width after generic layout offsets
+            // were measured; Research must not wait for a resize to settle.
+            if(this.progress_indicator.layoutData)
+            {
+               this.progress_indicator.layoutData.alignH = "none";
+            }
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
             if(this.progress_indicator.team1LastPlayers)
             {
@@ -2369,7 +2390,7 @@ package
       }
       
       // Research (mode 5), every frame the state changes and every second
-      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // (research_arena::research_update_hud): the game's own team, the teams'
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
@@ -2394,7 +2415,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":5 + 9 * count + i < values.length ? Number(values[5 + 9 * count + i]) : 0
             });
             i++;
          }
@@ -2414,8 +2436,8 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). The respawn
-      // countdown may overlap them (owner: less screen space).
+      // in the indicator's own space (its origin is its centre). Research's
+      // respawn and pre-match countdowns get a separate row below the units.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2439,15 +2461,11 @@ package
          this.followIndicator();
       }
 
-      // The units where the indicator is now: its x and y as the layout last
-      // put them, plus the units' place in its space. Rev 30 converted the
-      // bars' bounds with getBounds(this) at research_update only: early in a
-      // match that gave the indicator's own space, and the units sat in the
-      // screen's top-left corner until a later update.
+      // Centre Research on the live viewport, including before the first
+      // resize. Layout owns the vertical position; the points follow the bars.
       private function followIndicator() : void
       {
-         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
-         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+         this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
       // Every frame of a Research match: the layout moves the indicator at
@@ -2457,7 +2475,22 @@ package
          if(this.researchUnits.visible)
          {
             this.followIndicator();
+            this.placeResearchCountdowns();
          }
+      }
+
+      private function placeResearchCountdowns() : void
+      {
+         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+            !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
+         {
+            return;
+         }
+         if(this._researchCountdowns == null)
+         {
+            this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
+         }
+         this._researchCountdowns.place(this.researchUnits);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2479,6 +2512,7 @@ package
       {
          this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
+         this.placeResearchCountdowns();
       }
       
       public function set_capture_progress(team:uint, text:String, value:uint) : void
