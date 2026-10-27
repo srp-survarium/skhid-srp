@@ -142,8 +142,10 @@ pub struct TacticsBase {
     /// zone off). A goal on any other floor (a roof one only drops from, a
     /// shelf's top past the jump) has no way from where bots are.
     walkable: Vec<u64>,
-    /// How far forward each region is, by the walk ([`progress`]).
-    progress: progress::Progress,
+    /// How far forward each region is, by the walk ([`progress`]): worked out
+    /// at the first ask (`roam.join_ahead`), once for the map, not stored
+    /// with the base; a map no switch asks it of never makes it.
+    progress: std::sync::OnceLock<progress::Progress>,
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -226,10 +228,10 @@ const SPAWN_BITS: u32 = 8;
 
 /// The version of what [`TacticsBase::build`] gives, in its key: raised
 /// with any change that changes the tactics of a map (the hazard marks,
-/// the spawn areas, the regions, the progress, the exits and the searches
+/// the spawn areas, the regions, the exits and the searches
 /// they come from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 4;
+pub const TACTICS_ALGO: u32 = 3;
 
 /// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
 /// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
@@ -389,7 +391,6 @@ impl TacticsBase {
         let spawn_areas = labels.iter().map(|&label| label as u8).collect();
         drop(labels);
         let walkable = walkable_from_spawns(&world);
-        let progress = progress::Progress::build(grid, &regions, &world.map.spawns);
         let mut base = Self {
             world,
             hazards,
@@ -397,7 +398,7 @@ impl TacticsBase {
             spawn_areas,
             regions,
             walkable,
-            progress,
+            progress: std::sync::OnceLock::new(),
         };
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
@@ -446,7 +447,6 @@ impl TacticsBase {
                 out.plain(&self.spawn_areas, |&bits| [bits])?;
                 self.regions.write_body(out)?;
                 out.plain(&self.walkable, |&bits| bits.to_le_bytes())?;
-                out.plain(self.progress.values(), |v| v.to_bits().to_le_bytes())?;
                 out.plain(&self.exits, |(side, exits)| {
                     let mut bytes = [0u8; 8];
                     bytes[..4].copy_from_slice(&side.to_le_bytes());
@@ -485,8 +485,6 @@ impl TacticsBase {
                 let spawn_areas: Vec<u8> = input.plain(|[bits]: [u8; 1]| bits)?;
                 let regions = Regions::read_body(input, floors)?;
                 let walkable: Vec<u64> = input.plain(u64::from_le_bytes)?;
-                let progress: Vec<f32> =
-                    input.plain(|bytes: [u8; 4]| f32::from_bits(u32::from_le_bytes(bytes)))?;
                 let sides: Vec<(i32, u32)> = input.plain(|bytes: [u8; 8]| {
                     let (side, count) = bytes.split_at(4);
                     (
@@ -510,9 +508,6 @@ impl TacticsBase {
                 {
                     return Err("tactics out of range".into());
                 }
-                let progress =
-                    progress::Progress::from_parts(&world.map.spawns, progress, regions.len())
-                        .ok_or("tactics out of range")?;
                 let mut rest = points.as_slice();
                 let exits = sides
                     .into_iter()
@@ -529,11 +524,19 @@ impl TacticsBase {
                     spawn_areas,
                     regions,
                     walkable,
-                    progress,
+                    progress: std::sync::OnceLock::new(),
                 })
             },
             Self::digest,
         )
+    }
+
+    /// The progress of each region, worked out at the first call: two floods
+    /// of the walk grid, once for the map (shared by its matches).
+    fn progress(&self) -> &progress::Progress {
+        self.progress.get_or_init(|| {
+            progress::Progress::build(&self.world.grid, &self.regions, &self.world.map.spawns)
+        })
     }
 
     /// Bytes held, beyond the world.
@@ -542,7 +545,6 @@ impl TacticsBase {
             + self.spawn_areas.len()
             + self.regions.memory_bytes()
             + self.walkable.len() * 8
-            + self.progress.memory_bytes()
             + self
                 .exits
                 .iter()
@@ -552,7 +554,7 @@ impl TacticsBase {
 
     /// What the tactics answer, as one number (`mapdata::digest`): the
     /// zones, their marks, the spawn areas, the regions, the walkable
-    /// floors, the progress of each region and the exits.
+    /// floors and the exits.
     /// Equal digests, equal answers.
     pub fn digest(&self) -> u64 {
         let mut digest = mapdata::digest::Digest::new();
@@ -573,7 +575,6 @@ impl TacticsBase {
         self.regions.digest_into(&mut digest);
         digest.len(self.walkable.len());
         self.walkable.iter().for_each(|&bits| digest.u64(bits));
-        self.progress.digest_into(&mut digest);
         digest.len(self.exits.len());
         for (side, exits) in &self.exits {
             digest.u32(*side as u32);
@@ -873,8 +874,7 @@ impl Tactics {
     /// spawns, 1 at the enemy's, 0.5 where unknown ([`progress`]).
     pub fn progress_at(&self, point: Vec3, side: i32) -> f32 {
         let base = &self.base;
-        base.progress
-            .at(&base.world.grid, &base.regions, point, side)
+        base.progress().at(&base.world.grid, &base.regions, point, side)
     }
 
     /// The map side whose spawn is nearest `point`.
@@ -2281,6 +2281,55 @@ pub(super) mod tests {
         );
     }
 
+    /// The progress table is made at the first ask, not with the base: a map
+    /// nothing asks it of (every switch off) never pays for its floods.
+    #[test]
+    fn the_progress_table_is_made_at_the_first_ask() {
+        let tactics = Tactics::new(field(), 1.0);
+        assert!(tactics.base.progress.get().is_none());
+        let a = tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0);
+        assert!(tactics.base.progress.get().is_some());
+        assert_eq!(a, tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0));
+    }
+
+    /// What the progress table (R2: two grid floods) costs next to the whole
+    /// base, per offered map. Run with `SRP_MAPDATA_DIR` set, in release:
+    /// `cargo test -p match-server --release progress_cost -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement; needs the private map files"]
+    fn progress_cost_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+            panic!("set SRP_MAPDATA_DIR");
+        };
+        for level in 1..=8u8 {
+            for mode in [2u8, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+                let start = std::time::Instant::now();
+                let base = TacticsBase::build(world.clone(), 1.0);
+                let whole = start.elapsed();
+                let mut each = Vec::new();
+                for _ in 0..5 {
+                    let start = std::time::Instant::now();
+                    let again = progress::Progress::build(&world.grid, &base.regions, &world.map.spawns);
+                    each.push(start.elapsed());
+                    assert_eq!(&again, base.progress());
+                }
+                each.sort();
+                eprintln!(
+                    "progress level {level} day {mode}: floors {} regions {} progress median {:?} min {:?} max {:?}, whole base {:?}",
+                    world.grid.len(),
+                    base.regions.len(),
+                    each[2],
+                    each[0],
+                    each[4],
+                    whole
+                );
+            }
+        }
+    }
+
     /// F4: a stuck body finds the ledge it can jump up (more than the
     /// client's step of 0.6 m, at most 0.95 m) a metre ahead of it along its
     /// facing, and nothing else: not a step it walks up, not a ledge over
@@ -2373,7 +2422,7 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 4);
+        assert_eq!(TACTICS_ALGO, 3);
     }
 
     const PINNED_FIELD: u64 = 18_272_090_014_271_229_028;

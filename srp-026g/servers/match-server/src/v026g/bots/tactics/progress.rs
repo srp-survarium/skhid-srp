@@ -1,6 +1,7 @@
 //! How far forward a place is: the walk's cost from a side's spawns to it
 //! against the cost from the other side's, per region, worked out once a
-//! map (with the rest of the tactics base).
+//! map, at the first ask (`TacticsBase::progress`): not at map load, not in
+//! the stored base.
 //!
 //! `p = d_a / (d_a + d_b)`, `d_a` and `d_b` the cheapest walk-grid path
 //! from the lowest and from the next team's spawn floors: 0 at the
@@ -73,20 +74,6 @@ impl Progress {
         Self { low: Some(a), p }
     }
 
-    /// The table as read from a stored base: `p` by region, for the map
-    /// with `spawns`. None when the count is not that of `regions`.
-    pub fn from_parts(spawns: &[Spawn], p: Vec<f32>, regions: usize) -> Option<Self> {
-        (p.len() == regions && p.iter().all(|v| (0.0..=1.0).contains(v))).then(|| Self {
-            low: teams(spawns).map(|t| t.0),
-            p,
-        })
-    }
-
-    /// The numbers by region, as stored.
-    pub fn values(&self) -> &[f32] {
-        &self.p
-    }
-
     /// Region `r`'s progress for the bot of `side`: 0 at its own spawns, 1 at
     /// the enemy's. [`UNKNOWN`] for a side the map does not have.
     pub fn of_region(&self, r: u32, side: i32) -> f32 {
@@ -102,15 +89,6 @@ impl Progress {
     pub fn at(&self, grid: &WalkGrid, regions: &Regions, point: Vec3, side: i32) -> f32 {
         grid.locate(point, 1.5)
             .map_or(UNKNOWN, |node| self.of_region(regions.of(node), side))
-    }
-
-    pub fn memory_bytes(&self) -> usize {
-        self.p.len() * 4
-    }
-
-    pub fn digest_into(&self, digest: &mut mapdata::digest::Digest) {
-        digest.len(self.p.len());
-        self.p.iter().for_each(|&v| digest.f32(v));
     }
 }
 
@@ -164,18 +142,5 @@ mod tests {
         let table = Progress::build(&world.grid, &regions, &one_team);
         assert_eq!(table.at(&world.grid, &regions, Vec3::new(5.0, 0.0, 10.0), 0), UNKNOWN);
         assert_eq!(table.of_region(0, 7), UNKNOWN);
-    }
-
-    #[test]
-    fn a_stored_table_is_taken_only_with_one_number_a_region_in_range() {
-        let world = field();
-        let regions = Regions::build(&world.grid, None);
-        let table = Progress::build(&world.grid, &regions, &world.map.spawns);
-        let back = Progress::from_parts(&world.map.spawns, table.values().to_vec(), regions.len());
-        assert_eq!(back.as_ref(), Some(&table));
-        assert!(Progress::from_parts(&world.map.spawns, vec![0.5], regions.len()).is_none());
-        let mut bad = table.values().to_vec();
-        bad[0] = 1.5;
-        assert!(Progress::from_parts(&world.map.spawns, bad, regions.len()).is_none());
     }
 }
