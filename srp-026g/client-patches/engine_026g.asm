@@ -56,6 +56,9 @@ global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
 global engine_point_to_screen
+global engine_inventory_remove
+global engine_inventory_take_artefact
+global engine_quick_inventory_slot
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -791,6 +794,54 @@ engine_point_to_screen:
     push dword [esp + 28]   ; game -> 4
     call 0x23dec0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_remove:
+    ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; inventory
+    mov eax, [esp + 24]   ; slot
+    call 0x2fc680
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_take_artefact:
+    ; 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; incoming -> 4
+    mov eax, [esp + 24]   ; inventory
+    call 0x2fc850
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_quick_inventory_slot:
+    ; 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; ordinal -> 8
+    push dword [esp + 24]   ; inventory -> 4
+    call 0x2fe7f0
     pop edi
     pop esi
     pop ebx

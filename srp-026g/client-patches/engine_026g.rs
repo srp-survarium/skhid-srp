@@ -94,6 +94,12 @@ unsafe extern "C" {
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
     /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
     pub fn engine_point_to_screen(game: *mut c_void, point: *const f32, out: *mut f32) -> u32;
+    /// 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
+    pub fn engine_inventory_remove(inventory: *mut c_void, slot: u32);
+    /// 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
+    pub fn engine_inventory_take_artefact(inventory: *mut c_void, incoming: *const u32);
+    /// 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
+    pub fn engine_quick_inventory_slot(inventory: *mut c_void, ordinal: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -525,6 +531,24 @@ pub mod inventory {
     pub unsafe fn slots_end(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x168).cast() }
     }
+
+    /// +0x168 (u32): pointer to the first artefact slot; native take_artefact and quick-slot lookup
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory.
+    #[inline(always)]
+    pub unsafe fn artefact_slots_begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x168).cast() }
+    }
+
+    /// +0x16c (u8): number of artefact containers
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory.
+    #[inline(always)]
+    pub unsafe fn artefact_slot_count(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x16c).cast() }
+    }
 }
 
 /// survarium::item's fields (fields_026g.tsv).
@@ -557,6 +581,33 @@ pub mod item {
     #[inline(always)]
     pub unsafe fn count(this: *mut c_void) -> *mut u16 {
         unsafe { this.byte_add(0x260).cast() }
+    }
+
+    /// +0xd0 (u32): resource reference count; inventory set/remove retain/release
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xd0).cast() }
+    }
+
+    /// +0x250 (u32): owning inventory; item virtual +28h changes it
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn inventory(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x250).cast() }
+    }
+
+    /// +0x254 (u32): slot in owning inventory; 23 when absent
+    ///
+    /// # Safety
+    /// `this` is a survarium::item.
+    #[inline(always)]
+    pub unsafe fn inventory_slot(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x254).cast() }
     }
 }
 
@@ -1060,5 +1111,29 @@ pub mod avm_text_field {
     #[inline(always)]
     pub unsafe fn as3_raw(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_sub(0x1c).cast() }
+    }
+}
+
+/// survarium::artefact's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod artefact {
+    use core::ffi::c_void;
+
+    /// +0x27e (u8): anomaly registry ID serialized by inventory; 255 absent
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn id(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x27e).cast() }
+    }
+
+    /// +0x280 (u32): native artefact state; 3 passive, 4 active
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn state(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x280).cast() }
     }
 }

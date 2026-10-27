@@ -1988,7 +1988,7 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
-0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: inventory slot index; 23 when no matching quick slot
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: encoded slot ((external array - inventory - 0x10c) SAR 2) + container ordinal, or fixed slot; 23 when absent
 0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
 0x00313470	survarium::artefact_base::on_taken	manual	0	no result used
 0x00313490	survarium::artefact_base::on_removed	manual	0	no result used

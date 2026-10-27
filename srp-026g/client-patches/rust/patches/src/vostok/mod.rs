@@ -30,6 +30,7 @@ mod context;
 pub mod draw;
 mod hook;
 mod input;
+pub mod inventory;
 mod keyboard;
 pub mod log;
 mod options;

@@ -162,6 +162,10 @@ pub struct Player<'t> {
 }
 
 impl<'t> Player<'t> {
+    pub fn inventory(&self) -> Option<super::inventory::Inventory<'t>> {
+        super::inventory::Inventory::of_player(self.this, self.thread)
+    }
+
     /// The player a site's register names (`reg`, as sites_026g.tsv says).
     pub(in crate::vostok) fn at(ctx: &'t Context<'_>, reg: Reg) -> Option<Player<'t>> {
         Object::at(ctx.reg(reg)).map(|this| Player { this, thread: ctx.thread() })

@@ -19,14 +19,24 @@ Disassembled from the original 0.26g executable, and exercised with
 | `inventory::set_item` 0x2FC620 | ESI inventory, EDI slot, stack reference to item pointer, `ret 4`. Retains incoming item, replaces slot reference, calls item virtual +0x28 with inventory and slot, marks inventory dirty. |
 | `inventory::remove_item` 0x2FC680 | ESI inventory, EAX slot, `ret`. Requires an occupied slot. Calls item virtual +0x34, then +0x28 with null owner and slot 23; clears and releases slot reference. |
 | `inventory::take_artefact` 0x2FC850 | EAX inventory, stack reference to incoming pointer, `ret 4`. Finds the first free artefact slot. If none is free, **removes the first artefact, shifts the remaining artefacts, and inserts the new one last**. A zero-container inventory is not a supported caller. |
-| Quick-slot lookup 0x2FE7F0 | Stack inventory and zero-based quick ordinal, `ret 8`, EAX inventory slot or 23. Walks the regular item order, then the artefact containers. Empty artefact containers still consume an ordinal. |
+| Quick-slot lookup 0x2FE7F0 | Stack inventory and zero-based quick ordinal, `ret 8`, EAX encoded inventory slot or sentinel 23. Walks the regular item order, then the artefact containers. Empty artefact containers still consume an ordinal. |
 | `base_player::process_quick_slots` 0x2D8BB0 | EAX player, stack previous input, current input, simulation time; `ret 12`. Input action masks are at input +4. Bits 14..19 address the six quick slots. Calls `inventory::action` on rising and falling edges. |
 
 Inventory slots are 23 resource pointers at +0x10C. The pointer at +0x168 is
-the beginning of the artefact slots, **not the end of all inventory slots**;
+the beginning of a **separately allocated artefact array**, not a subrange
+of those 23 pointers;
 the artefact slot count is the byte +0x16C. Item owner and slot are +0x250 and
 +0x254; the intrusive reference count is +0xD0. The inventory owner interface
 is +0x174; inventory dirty is +0x184.
+
+At 0x2FE892 the quick resolver encodes an external container as
+`((array - inventory - 0x10C) arithmetic_shift_right 2) + ordinal`, using
+32-bit wrapping subtraction. `take_artefact` uses the same representation.
+Negative offsets wrap to large u32 values; they are never Rust in-bounds
+array indices. The carry snapshot stores a container ordinal instead.
+Native transfer resolves that ordinal anew and confines encoded offsets
+to the engine boundary. Unicorn covers separate allocations both above
+and below the inventory, not merely an artificial inline subrange.
 
 Unicorn verifies: empty-container quick-slot mapping; insertion into the
 first empty slot; full-container eviction and shifting; removal followed by
@@ -226,3 +236,16 @@ also passes. These are state/inventory-contract tests; they do not prove
 native animation selection, in-game snapshots or hand rendering. The
 crate is not yet a dependency of the native patches crate, so it does not
 alter the shipped executable or an existing match's computation.
+
+## Native inventory binding checkpoint
+
+`vostok::inventory::Inventory` now owns the live hook-scoped inventory view.
+Quick-slot resolution parses the external container address before reading
+an artefact; offer state holds an ordinal, never an address. The transfer
+method rejects stale ownership, active effects, dead owners, self-transfer
+and absent/full containers before native mutation. A private RAII reference
+keeps the same anomaly-owned resource alive across native removal and pickup.
+Three 32-bit Rust tests exercise this boundary, alongside the original-code
+Unicorn test. This remains unhooked: interaction reach/LOS, the registered
+active adapter, animation loading and world snapshot integration are still
+required before exposing Shift+number.

@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 401445,
-  "sha256": "38ff4188b5264297dc956a0b7c501317c687af3412ab9cdd5580e790b5007005",
+  "sha256": "584b3f779798f86422678977d91de469ac0d95128ac1e13062c1f12726331c32",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa433000",
-      "size": 1501
+      "size": 1590
     },
     "match_keys.code": {
       "kind": "code",
@@ -131,6 +131,8 @@
     "engine_free": "0xa433340",
     "engine_get_all_surfaces": "0xa433380",
     "engine_increase_health": "0xa4331d0",
+    "engine_inventory_remove": "0xa4335e0",
+    "engine_inventory_take_artefact": "0xa433600",
     "engine_item_by_id": "0xa433280",
     "engine_log_passes": "0xa433300",
     "engine_malloc": "0xa433040",
@@ -144,6 +146,7 @@
     "engine_profile_assign": "0xa4332a0",
     "engine_profile_construct": "0xa4332c0",
     "engine_query_resources": "0xa4333a0",
+    "engine_quick_inventory_slot": "0xa433620",
     "engine_ray_test": "0xa4334d0",
     "engine_register_cook": "0xa433130",
     "engine_release_object": "0xa433510",

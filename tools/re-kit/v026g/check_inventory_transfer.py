@@ -47,11 +47,14 @@ class InventoryGame(Game):
         self.word(item + 0x24C, 1)
         return item
 
-    def slots(self, items):
+    def slots(self, items, before=False):
+        external = self.block(max(4, len(items) * 4)) if before else None
         inventory = self.block(0x190)
-        self.word(inventory + 0x168, inventory + 0x10C + 20 * 4)
+        external = external or self.block(max(4, len(items) * 4))
+        self.word(inventory + 0x168, external)
         self.emu.mem_write(inventory + 0x16C, bytes([len(items)]))
-        for index, item in enumerate(items, 20):
+        for ordinal, item in enumerate(items):
+            index = self.encoded_slot(inventory, ordinal)
             if item:
                 reference = self.block(4)
                 self.word(reference, item)
@@ -59,9 +62,14 @@ class InventoryGame(Game):
         self.events.clear()
         return inventory
 
+    def encoded_slot(self, inventory, ordinal):
+        relative = (self.read(inventory + 0x168) - inventory - 0x10C) & 0xFFFFFFFF
+        signed = struct.unpack("<i", struct.pack("<I", relative))[0]
+        return ((signed >> 2) + ordinal) & 0xFFFFFFFF
+
     def contents(self, inventory, count):
-        return [self.read(inventory + 0x10C + 4 * index)
-                for index in range(20, 20 + count)]
+        first = self.read(inventory + 0x168)
+        return [self.read(first + 4 * index) for index in range(count)]
 
     def take(self, inventory, item):
         reference = self.block(4)
@@ -74,14 +82,14 @@ def run(data):
     a, b, incoming = [g.item() for _ in range(3)]
     inventory = g.slots([a, 0, b])
     # Empty artefact containers occupy a quick-slot ordinal too.
-    for quick, expected in enumerate([20, 21, 22, 23]):
+    for quick, expected in enumerate([g.encoded_slot(inventory, i) for i in range(3)] + [23]):
         g.call(0x2FE7F0, (inventory, quick))
         assert g.emu.reg_read(UC_X86_REG_EAX) == expected
     g.take(inventory, incoming)
     assert g.contents(inventory, 3) == [a, incoming, b]
     assert g.events == [("taken", incoming)]
     assert g.read(incoming + 0x250) == inventory
-    assert g.read(incoming + 0x254) == 21
+    assert g.read(incoming + 0x254) == g.encoded_slot(inventory, 1)
     assert g.read(incoming + 0xD0) == 3
 
     g = InventoryGame(data)
@@ -99,7 +107,7 @@ def run(data):
     donor, recipient = g.slots([item]), g.slots([0])
     # Retain before removal, as a future owned transfer guard must do.
     g.word(item + 0xD0, g.read(item + 0xD0) + 1)
-    g.call(0x2FC680, esi=donor, eax=20)
+    g.call(0x2FC680, esi=donor, eax=g.encoded_slot(donor, 0))
     assert g.contents(donor, 1) == [0]
     g.take(recipient, item)
     g.word(item + 0xD0, g.read(item + 0xD0) - 1)
@@ -107,6 +115,21 @@ def run(data):
     assert g.read(item + 0x250) == recipient
     assert g.read(item + 0xD0) == 3
     assert g.events == [("removed", item), ("taken", item)]
+
+    # A container allocation below the inventory creates a wrapped negative
+    # native slot. Quick lookup, remove and take must all reconstruct it.
+    g = InventoryGame(data)
+    item = g.item()
+    donor = g.slots([item], before=True)
+    slot = g.encoded_slot(donor, 0)
+    assert slot > 0xF0000000
+    g.call(0x2FE7F0, (donor, 0))
+    assert g.emu.reg_read(UC_X86_REG_EAX) == slot
+    g.call(0x2FC680, esi=donor, eax=slot)
+    assert g.contents(donor, 1) == [0]
+    g.take(donor, item)
+    assert g.contents(donor, 1) == [item]
+    assert g.read(item + 0x254) == slot
 
     g = InventoryGame(data)
     world = g.block(0x19040)

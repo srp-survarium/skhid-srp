@@ -45,13 +45,14 @@ impl ArtefactId {
     }
 }
 
-/// One of the native inventory's 23 slots, not a quick-slot ordinal.
+/// Ordinal in the separately allocated artefact container array.
+/// Never a native address-relative inventory slot or quick-use ordinal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InventorySlot(u8);
+pub struct ContainerIndex(u8);
 
-impl InventorySlot {
+impl ContainerIndex {
     pub const fn parse(raw: u8) -> Option<Self> {
-        if raw < 23 { Some(Self(raw)) } else { None }
+        if raw < u8::MAX { Some(Self(raw)) } else { None }
     }
 
     pub const fn get(self) -> u8 {
@@ -78,7 +79,7 @@ impl Place {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Artefact {
     pub id: ArtefactId,
-    pub slot: InventorySlot,
+    pub slot: ContainerIndex,
 }
 
 /// An interaction names a particular offer, not merely a player address.
@@ -296,7 +297,7 @@ impl Adapter {
             1 | 2 => {
                 let artefact = Artefact {
                     id: ArtefactId::parse(item).ok_or(InvalidSnapshot)?,
-                    slot: InventorySlot::parse(slot).ok_or(InvalidSnapshot)?,
+                    slot: ContainerIndex::parse(slot).ok_or(InvalidSnapshot)?,
                 };
                 let previous = ActiveObjectId::parse(previous).ok_or(InvalidSnapshot)?;
                 if previous == self.id {

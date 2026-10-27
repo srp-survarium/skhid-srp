@@ -7,7 +7,7 @@ const ADAPTER: ActiveObjectId = ActiveObjectId(120);
 const WEAPON: ActiveObjectId = ActiveObjectId(9);
 const ITEM: Artefact = Artefact {
     id: ArtefactId(7),
-    slot: InventorySlot(20),
+    slot: ContainerIndex(0),
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -276,7 +276,7 @@ fn malformed_snapshot_is_rejected_without_mutation() {
         (0, 2),
         (5, 9),
         (6, 255),
-        (7, 23),
+        (7, 255),
         (8, 255),
         (8, ADAPTER.get()),
     ] {

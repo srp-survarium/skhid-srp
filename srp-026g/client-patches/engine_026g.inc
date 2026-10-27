@@ -168,3 +168,12 @@ extern engine_update_skeleton
 ; unsigned int engine_point_to_screen(void *game, const float *point, float *out)
 ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
 extern engine_point_to_screen
+; void engine_inventory_remove(void *inventory, unsigned int slot)
+; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
+extern engine_inventory_remove
+; void engine_inventory_take_artefact(void *inventory, const unsigned int *incoming)
+; 0x2fc850 survarium::inventory::take_artefact: inventory EAX, incoming ESP+4; pops 4
+extern engine_inventory_take_artefact
+; unsigned int engine_quick_inventory_slot(void *inventory, unsigned int ordinal)
+; 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX
+extern engine_quick_inventory_slot

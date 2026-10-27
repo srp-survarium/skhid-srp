@@ -51,3 +51,6 @@ engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performa
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)	thunk	
 engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int engine_point_to_screen(void *game, const float *point, float *out)	thunk
+engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(void *inventory, unsigned int slot)	thunk
+engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(void *inventory, const unsigned int *incoming)	thunk
+engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(void *inventory, unsigned int ordinal)	thunk
