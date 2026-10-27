@@ -47,6 +47,19 @@ fn the_new_files_are_the_old_ones_and_the_zones_part_names() {
         if before.artefact_cores.is_empty() {
             after.artefact_cores.clear();
         }
+        for (what, same) in [
+            ("spawns", before.spawns == after.spawns),
+            ("containers", before.containers == after.containers),
+            ("battery_spawners", before.battery_spawners == after.battery_spawners),
+            ("stations", before.stations == after.stations),
+            ("zones", before.zones == after.zones),
+            ("anomalies", before.anomalies == after.anomalies),
+            ("artefact_cores", before.artefact_cores == after.artefact_cores),
+            ("libraries", before.libraries == after.libraries),
+            ("placements", before.placements == after.placements),
+        ] {
+            assert!(same, "{name:?}: {what} differ beyond the part names");
+        }
         assert!(before == after, "{name:?} differs beyond the part names");
         files += 1;
     }
