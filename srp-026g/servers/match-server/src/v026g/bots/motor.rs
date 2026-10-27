@@ -1440,22 +1440,24 @@ impl Motor {
         // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
         // walked into from wherever the line is clear (it presses there).
         let run_up = match leap {
-            // A band jump runs up over the grid's run (the floor it proved straight behind the take-off), not less.
+            // A band jump runs up over the grid's run (the floor it proved straight behind the take-off), not less. The
+            // point of the run may be out of sight from where the body is (it arrives along the route, round a corner):
+            // then the grid's run is taken and the route is followed to the take-off; only a body that has backed off
+            // from the take-off and still has no clear run behind it gives the jump up, so the route is planned again.
             Leap::Ledge if band => {
                 let found = [SPRINT_RUN_UP_M, mapdata::grid::SPRINT_RUN_UP_M].into_iter().find(|&m| clear(at(m)));
-                if found.is_none() && jump.tries < JUMP_TRIES {
-                    // No run for the speed the client asks: given up at once, the route is planned again.
+                if found.is_none() && jump.band != BandTry::Approaching && jump.tries < JUMP_TRIES {
                     jump.tries = JUMP_TRIES;
                     band_jumps::no_run_up();
                     #[cfg(test)]
                     eprintln!(
-                        "band-no-run-up take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2}) rise {:.2}; feet ({:.2}, {:.2}, {:.2}), {:.2} m of route to the take-off; the points {} m and {} m behind it: {:?} {:?}",
+                        "band-no-run-up take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2}) rise {:.2}; feet ({:.2}, {:.2}, {:.2}); the points {} m and {} m behind it: {:?} {:?}",
                         take_off.x, take_off.y, take_off.z, landing.x, landing.y, landing.z, landing.y - take_off.y,
-                        feet.x, feet.y, feet.z, before_route,
+                        feet.x, feet.y, feet.z,
                         SPRINT_RUN_UP_M, mapdata::grid::SPRINT_RUN_UP_M, at(SPRINT_RUN_UP_M), at(mapdata::grid::SPRINT_RUN_UP_M)
                     );
                 }
-                found.unwrap_or(0.0)
+                found.unwrap_or(mapdata::grid::SPRINT_RUN_UP_M)
             }
             Leap::Ledge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
                 .into_iter()
