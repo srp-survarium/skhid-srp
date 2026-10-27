@@ -1555,6 +1555,17 @@ pub(crate) fn real_bot_cost() {
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
+            // The bots' bear traps: the habit's counts (activity: placed; harm: the team's own catches, lives
+            // that ended while placing) and the response to the traps of others, one line each, always.
+            {
+                let habit = bots.place_counts();
+                let own = bots.own_trap_counts();
+                eprintln!(
+                    "  trap habit: placed {} died_placing {} fired {} own_team_caught {}",
+                    habit.placed, habit.died_placing, own.fired, own.own_team_caught
+                );
+                eprintln!("  {}", bots.react_counts().line());
+            }
             // The stand-in's bear traps (none carried: no line, the log as it was).
             if !game.traps.events.is_empty() {
                 let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
