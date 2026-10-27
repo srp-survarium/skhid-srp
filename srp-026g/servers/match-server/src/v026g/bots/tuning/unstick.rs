@@ -34,6 +34,11 @@ pub struct UnstickTuning {
     pub suicide_wait_ms: u32,
     /// The bit is held this many ticks (the J0 run's, `SUICIDE_TICKS`).
     pub suicide_ticks: u8,
+    /// A body that held walk keys this long, ms, without getting [`PROGRESS_M`](super::super::stuck::PROGRESS_M) further along
+    /// its route is not getting there (it goes round a post it cannot pass: J0 0cec7eab, the notch of the team 0 deck, 95 s):
+    /// the leg it fails on is kept clear of for the spot's time and the route is planned again. None: the watch is off (the
+    /// default; the held-keys watch only sees a body that stays within half a metre).
+    pub progress_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -48,6 +53,7 @@ impl Default for UnstickTuning {
             suicide_min_tickets: 5,
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
+            progress_ms: None,
         }
     }
 }

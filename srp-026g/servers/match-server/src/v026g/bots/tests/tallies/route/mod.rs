@@ -116,6 +116,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         stranded(),
         foliage(),
         self_kills(),
+        progress_watch(),
         fall_locks(),
         asks(),
         route_ends(),

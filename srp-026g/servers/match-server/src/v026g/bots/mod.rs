@@ -1207,6 +1207,25 @@ impl Bots {
             }
             return notes;
         }
+        // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
+        if let Some(window_ms) = self.tuning.unstick.progress_ms
+            && let Some((route, goal)) = bot.route.as_ref()
+        {
+            let length = route.length();
+            let (s, off) = route.clone().progress(feet);
+            if off < stuck::PROGRESS_OFF_M {
+                let leg = route.point_at((s + stuck::PROGRESS_LEG_M).min(length));
+                if bot.stuck.no_progress(time, s, keys, *goal, length, window_ms, leg) {
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!("makes no progress: {s:.1} of {length:.1} m along its route in {window_ms} ms; keeps clear of {:?} and plans again", leg.to_array()),
+                    );
+                    bot.end_route(RouteEnd::NoProgress, time);
+                    return notes;
+                }
+            }
+        }
         let error = self
             .tracker
             .body(place)

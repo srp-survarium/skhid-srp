@@ -212,6 +212,14 @@ pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bodies the progress watch stopped, and those that came to the same leg again within 20 s (`stuck::progress_watch`).
+pub(super) fn progress_watch() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::progress_watch::counts().to_vec(),
+        |d, line| line.ends.push(format!("progress_stalls {} progress_stalls_again {}", d[0], d[1])),
+    )
+}
+
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
 /// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {

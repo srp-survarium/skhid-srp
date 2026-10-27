@@ -80,6 +80,15 @@ pub const HELD_AFTER_MS: u32 = 3_000;
 /// metres. GUESS: a walk of 3 s is 10 m, a crouched one 5 m; a body
 /// nudged by a wall it slides along moves more.
 pub const HELD_MOVED_M: f32 = 0.5;
+/// The progress watch ([`Stuck::no_progress`]): the distance along its route a walking body must gain within the window, metres.
+/// A walk of the window (6 s) is 20 m, a crouched one 15 m; a loop round a post gains none.
+pub const PROGRESS_M: f32 = 1.5;
+/// … and the route it is still short of its end by at least this, metres (a body at the end of its route holds keys and gains none).
+pub const PROGRESS_END_M: f32 = 1.5;
+/// … and only a body this near its route counts (off it, the motor's own replan acts), metres.
+pub const PROGRESS_OFF_M: f32 = 3.0;
+/// … the leg kept clear of is the point this far ahead of where the body got to along the route, metres.
+pub const PROGRESS_LEG_M: f32 = 1.0;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
 /// â€¦ if the earlier one was within this, ms.
@@ -217,6 +226,17 @@ pub struct Stuck {
     heights: Vec<(u32, f32)>,
     /// A hard fall locks the body till this time ([`HARD_FALL_M`]): it is not stuck while it cannot move.
     fall_lock_until: u32,
+    /// The progress watch's window ([`Self::no_progress`]).
+    progress: Option<ProgressWindow>,
+}
+
+/// The window of the progress watch: since when, how far along the route the body was then, and which route (its goal and length).
+#[derive(Clone, Copy, Debug)]
+struct ProgressWindow {
+    since: u32,
+    from_s: f32,
+    goal: Vec3,
+    length: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -256,6 +276,43 @@ impl Stuck {
     pub fn reset(&mut self) {
         self.walked_from = None;
         self.held_from = None;
+        self.progress = None;
+    }
+
+    /// The progress watch: a world showed the body `s` metres along its route (to `goal`, `length` long) with `keys` held. True when
+    /// it held a walk key for `window_ms` without gaining [`PROGRESS_M`] and is not at the route's end; then the leg ahead (`leg`,
+    /// the route's point [`PROGRESS_LEG_M`] on) is kept clear of ([`Self::avoided`]) and the watch starts again. A new route (another
+    /// goal or length), keys let go, or a gain of [`PROGRESS_M`] starts the window again.
+    #[allow(clippy::too_many_arguments)]
+    pub fn no_progress(&mut self, time: u32, s: f32, keys: u32, goal: Vec3, length: f32, window_ms: u32, leg: Vec3) -> bool {
+        let fresh = ProgressWindow { since: time, from_s: s, goal, length };
+        let Some(window) = self.progress.filter(|w| w.goal == goal && (w.length - length).abs() < 0.05) else {
+            self.progress = Some(fresh);
+            return false;
+        };
+        if keys & HELD_KEYS == 0 || s >= window.from_s + PROGRESS_M {
+            self.progress = Some(fresh);
+            return false;
+        }
+        if time < window.since + window_ms {
+            return false;
+        }
+        self.progress = Some(fresh);
+        if length - window.from_s < PROGRESS_END_M {
+            return false;
+        }
+        let again = self.spots.iter().any(|spot| spot.last + AGAIN_MS > time && near(spot.at, leg));
+        #[cfg(test)]
+        progress_watch::count(usize::from(again));
+        match self.spots.iter_mut().find(|spot| spot.last + SPOT_KEPT_MS > time && near(spot.at, leg)) {
+            Some(spot) => {
+                spot.last = time;
+                spot.times = spot.times.max(AVOID_AFTER);
+            }
+            None => self.spots.push(Spot { at: leg, first: time, last: time, times: AVOID_AFTER, fell: false }),
+        }
+        self.told.push((leg, false));
+        true
     }
 
     /// A world showed the body at `feet` while it had a route since the
@@ -766,6 +823,27 @@ pub mod fall_locks {
     }
 }
 
+/// The bench's counts of the progress watch: bodies it stopped (activity), and those that came to the same leg again within
+/// [`AGAIN_MS`] (harm: the watch did not take them off it).
+#[cfg(test)]
+pub mod progress_watch {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// `0`: stopped one; `1`: stopped one that was at the same leg lately (also counted as stopped).
+    pub fn count(again: usize) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        if again == 1 {
+            COUNTS[1].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts of the self-kills ([`SelfKillAct`]): sent, sent again,
 /// barred after two.
 #[cfg(test)]
@@ -822,6 +900,48 @@ mod tests {
     /// searches for as long as the motor refuses the jump, and a floor within
     /// the motor's "same jump" of it is shut with it; no other floor, nor
     /// after the lockout.
+    /// A body that walks without gaining on its route is stopped after the window and the leg is kept clear of; a gain, keys let go,
+    /// the route's end and a new route start the window again.
+    #[test]
+    fn a_body_that_walks_without_gaining_on_its_route_is_stopped() {
+        let goal = Vec3::new(40.0, 0.0, 0.0);
+        let leg = Vec3::new(11.0, 0.0, 0.0);
+        let walk = |stuck: &mut Stuck, time: u32, s: f32, keys: u32, length: f32| stuck.no_progress(time, s, keys, goal, length, 6_000, leg);
+        let mut stuck = Stuck::default();
+        // Round a post: 10 to 10.6 m along, back and forth, keys held.
+        let mut fired = None;
+        for k in 0..20u32 {
+            let s = 10.0 + 0.6 * (k % 2) as f32;
+            if walk(&mut stuck, 1_000 + k * 500, s, key::FORWARD, 40.0) {
+                fired = Some(1_000 + k * 500);
+                break;
+            }
+        }
+        assert_eq!(fired, Some(7_000), "six seconds after the window began");
+        assert!(stuck.near_spot(7_000, leg), "the leg is kept clear of");
+        // The window began again: nothing for six seconds more.
+        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0));
+        // A gain of PROGRESS_M starts it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 5_000, 11.6, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 7_000, 11.7, key::FORWARD, 40.0), "the window is 2 s old");
+        assert!(walk(&mut stuck, 11_000, 11.8, key::FORWARD, 40.0));
+        // Keys let go start it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 5_000, 10.0, 0, 40.0));
+        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0));
+        // At the route's end holding keys is no stall.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 39.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 8_000, 39.0, key::FORWARD, 40.0));
+        // Another route (its length) starts it again.
+        let mut stuck = Stuck::default();
+        assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 8_000, 10.0, key::FORWARD, 52.0));
+    }
+
     #[test]
     fn a_failed_jumps_landing_is_shut_for_the_motors_lockout() {
         let (take_off, landing) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 1.0, 1.5));
