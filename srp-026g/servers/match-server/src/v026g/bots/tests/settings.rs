@@ -68,6 +68,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_MAPDATA_DIR", "unset: the bench is skipped", "the folder of the map dumps"),
     s("SRP_BOT_ROUTES", "unset: no human routes", "the routes table (JSON)"),
     s("SRP_BOT_FOLIAGE", "unset: bot-foliage.json of the mapdata folder, if any", "the bushes a sight line crosses (JSON, scripts/foliage-volumes); empty or `off`: none"),
+    s("SRP_BOT_GRASS", "unset: bot-grass.json of the mapdata folder, if any", "the grass a sight line crosses (JSON, scripts/foliage-volumes --grass); empty or `off`: none"),
     s("SRP_GAME_DATA", "unset: the built-in test archive, said in a loud line", "the server's game data (`server-game-data.db`) the run is on, read and checked as srp reads it (`game_data::init`); a file that fails refuses the run"),
     s("SRP_BENCH_MAPS", "6/2, 1/4, 3/3 (level/mode)", "the maps: `level/mode,...`"),
     s("SRP_BENCH_SIDES", "4,8,10", "the sizes, bots a side: `n,...`"),

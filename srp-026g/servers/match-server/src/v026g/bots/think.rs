@@ -379,10 +379,10 @@ pub(super) fn sense_batteries(
 pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
         now,
+        view,
         me,
         tuning,
         tactics,
-        ..
     } = *due;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
@@ -402,7 +402,23 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
             let delayed = super::foliage::noticing_ms(base, metres, tuning.sense.bush_notice, tuning.sense.foliage_cap);
             #[cfg(test)]
             super::foliage::through::count(metres, delayed - base);
-            delayed
+            if tuning.sense.grass_notice <= 0.0 {
+                return delayed;
+            }
+            // And through grass (`grass.rs`): the chest of the body as he is, standing or crouched.
+            let chest = match view.place(p.who) {
+                Some(body) if body.crouched() => super::grass::CROUCHED_CHEST_M,
+                _ => super::foliage::CHEST_M,
+            };
+            let hidden = tactics.grass.metres(me.eye(), p.at + Vec3::new(0.0, chest, 0.0));
+            let delayed_in_grass = super::foliage::noticing_ms_hidden(
+                base,
+                tuning.sense.bush_notice * metres + tuning.sense.grass_notice * hidden,
+                tuning.sense.foliage_cap,
+            );
+            #[cfg(test)]
+            super::grass::through::count(hidden, delayed_in_grass - delayed);
+            delayed_in_grass
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
         tuning.sense.drop_ms,

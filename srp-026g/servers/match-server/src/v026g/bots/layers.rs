@@ -1,5 +1,5 @@
 //! What the match is told of its map besides the walk grid, gathered as it is made before the map is built
-//! ([`Bots::set_routes`], [`Bots::set_foliage`]) and put on the map's tactics when it is ([`MapLayers::attach`]).
+//! ([`Bots::set_routes`], [`Bots::set_foliage`], [`Bots::set_grass`]) and put on the map's tactics when it is ([`MapLayers::attach`]).
 //! A new layer (the human routes, the bushes, ...) is a field here and a line in `attach`; `Bots::tactics_ready`
 //! does not list them.
 
@@ -12,6 +12,8 @@ pub(super) struct MapLayers {
     pub(super) routes: Vec<routes::HumanRoute>,
     /// The map's bushes a sight line crosses (`foliage.rs`).
     pub(super) foliage: foliage::Foliage,
+    /// The map's grass a sight line crosses (`grass.rs`).
+    pub(super) grass: grass::Grass,
     /// The places humans spend time high on this map and their share of alive time (V-S2b).
     pub(super) perches: Vec<routes::Perch>,
     pub(super) perch_share: Option<routes::PerchShare>,
@@ -23,5 +25,6 @@ impl MapLayers {
         tactics.set_routes(self.routes);
         tactics.set_perches(self.perches, self.perch_share);
         tactics.foliage = Arc::new(self.foliage);
+        tactics.grass = Arc::new(self.grass);
     }
 }

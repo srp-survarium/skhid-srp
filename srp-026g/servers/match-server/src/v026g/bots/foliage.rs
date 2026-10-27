@@ -40,21 +40,27 @@ const SAMPLE_M: f32 = 1.0;
 /// Where a match's bush boxes come from.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Source {
-    /// `SRP_BOT_FOLIAGE` names a file.
+    /// The variable (`SRP_BOT_FOLIAGE`) names a file.
     Set(PathBuf),
-    /// `SRP_BOT_FOLIAGE` unset, and the mapdata folder has `bot-foliage.json`.
+    /// The variable unset, and the mapdata folder has the file (`bot-foliage.json`).
     Default(PathBuf),
-    /// `SRP_BOT_FOLIAGE` empty or `off`, or unset with no file in the mapdata folder.
+    /// The variable empty or `off`, or unset with no file in the mapdata folder.
     None,
 }
 
 impl Source {
     /// `var` is `SRP_BOT_FOLIAGE`, `mapdata` the mapdata folder.
     pub fn choose(var: Option<&OsStr>, mapdata: Option<&Path>) -> Self {
+        Self::choose_file(var, mapdata, DEFAULT_FILE)
+    }
+
+    /// The same for another file of the mapdata folder (`bot-grass.json`):
+    /// `var` names one, empty or `off` none, unset the folder's `file`.
+    pub fn choose_file(var: Option<&OsStr>, mapdata: Option<&Path>, file: &str) -> Self {
         match var {
             Some(var) if var.is_empty() || var == "off" => Self::None,
             Some(var) => Self::Set(PathBuf::from(var)),
-            None => match mapdata.map(|dir| dir.join(DEFAULT_FILE)) {
+            None => match mapdata.map(|dir| dir.join(file)) {
                 Some(path) if path.is_file() => Self::Default(path),
                 _ => Self::None,
             },
@@ -226,7 +232,13 @@ impl Foliage {
 /// The noticing delay `base_ms` of a sight that begins through `metres` of bush:
 /// times `1 + per_m * metres`, at most `cap` times (`SenseTuning::bush_notice`).
 pub fn noticing_ms(base_ms: u32, metres: f32, per_m: f32, cap: f32) -> u32 {
-    let factor = (1.0 + per_m * metres).clamp(1.0, cap.max(1.0));
+    noticing_ms_hidden(base_ms, per_m * metres, cap)
+}
+
+/// The same for what hides him in all: `hidden` is the sum of each cover's metres times its
+/// strength (bushes and grass, `SenseTuning::grass_notice`).
+pub fn noticing_ms_hidden(base_ms: u32, hidden: f32, cap: f32) -> u32 {
+    let factor = (1.0 + hidden).clamp(1.0, cap.max(1.0));
     (base_ms as f32 * factor).round() as u32
 }
 
@@ -334,6 +346,15 @@ mod tests {
             300,
             "a cap under 1 is no shortening"
         );
+    }
+
+    /// Bushes and grass add up before the cap; `noticing_ms` is the bush alone.
+    #[test]
+    fn bush_and_grass_add_before_the_cap() {
+        assert_eq!(noticing_ms_hidden(300, 0.0, 3.0), 300);
+        assert_eq!(noticing_ms_hidden(300, 0.5 * 1.0 + 0.5 * 1.0, 3.0), 600);
+        assert_eq!(noticing_ms_hidden(300, 5.0, 3.0), 900, "capped");
+        assert_eq!(noticing_ms(300, 2.0, 0.5, 3.0), noticing_ms_hidden(300, 1.0, 3.0));
     }
 
     /// A sight through a bush is noticed later; one that goes on (the enemy
