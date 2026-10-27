@@ -168,6 +168,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_BOT_STAMINA").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stamina", true.into());
     }
+    // The sprint gap links are run up to at a sprint and pressed at speed (`Feel::sprint_gaps`; off by default).
+    if settings.var("SRP_BENCH_SPRINT_GAPS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/sprint_gaps", true.into());
+    }
     // A body on no floor plans from the floor it drops to, up to 5 m below (`ThinkTuning::stranded_start`; off by default).
     if settings.var("SRP_BENCH_STRANDED_START").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stranded_start", true.into());
