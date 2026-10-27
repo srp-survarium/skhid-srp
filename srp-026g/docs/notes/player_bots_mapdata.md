@@ -425,6 +425,27 @@ the previous point's pick (with no previous pick, the lower). 2 m first: at 5 m 
 floor beside pulled the median off the point's own floor (36 points moved 1.5 m+ when 2 m
 came first). Mode 3 rows keep no heights (a follow-up).
 
+**Route points on floors the players walked (2026-10-27).** A route point is a median of
+the players' positions, and a median of two sides of a thin wall can lie a few decimetres
+past it. `on_floors` puts a point on the nearest floor in height and xz (never asked whether
+anyone stood there), so the floor is the far side's: Tarakanovsky Fort route 88's point 2 lay
+0.36 m past a 3.8 m wall, the nearest floor was the one behind it, 94 m of walking from the
+point before (24 m to the deck the players walked). Root cause: points placed with no check
+that a floor near them was walked. The check (the ignored test
+`route_points_stand_where_the_players_stood`, `bots/routes.rs`; `HumanRoute::floors_for`
+gives it `on_floors`' candidates): for each point, the human samples within 3 m (live
+matches of 12+ players, feet, not jumping), each on the grid floor within 0.6 m of it; a
+sample is on a floor's side when that floor is reached from the floor by a walk over the
+grid's links inside 3 m of it (a wall splits the sides, a link does not). Fewer than 10
+samples: not judged. A sample on the nearest floor's side: kept. Else the floor within 1 m of
+the point's level with 3+ samples on its side (the most; the nearest among equals) takes the
+point; else the same within 2.5 m, any level; else the point is dropped. The test writes a
+TSV a point and `scripts/bot-routes/walked_floors.py` applies it to the table (the table, the
+samples and the verdicts are private; the script holds no data). On the 2026-10-27 release
+table (gap links and the clients' numbers on): 1,312 points, 204 not judged, 11 moved, none
+dropped; hard-pass of the recheck 222 of 231 kept (Fort 88 passes). A route table made
+before this check is checked with the same test.
+
 **Human perches (V-S2b, 2026-10-26).** The table may also carry two top-level lists, read by no
 server yet (a server without this code ignores them and plays as before; the reader is a
 follow-up, with both keys optional):
