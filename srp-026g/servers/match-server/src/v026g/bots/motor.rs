@@ -142,6 +142,11 @@ pub struct Feel {
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
     pub lip_look_ahead_m: Metres,
+    /// A body above a drop of the route that is within its look-ahead aims at the drop's landing, not past it
+    /// (`false`, the default, looks as far as anywhere). The route's distance is across the ground, so the look-ahead
+    /// of a drop 0.35 m across (B8, Vector Laboratory) reaches the legs that come back under the way in and the body
+    /// turns round on the upper floor instead of stepping off.
+    pub drop_aim: bool,
     /// When no point of the route ahead is one the body walks to in a line (it is on the other side of a wall from the
     /// route's next legs): `false` (the default; the bench's trains switch it on) steers at the unclear point all the
     /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
@@ -202,6 +207,7 @@ impl Default for Feel {
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
             lip_look_ahead_m: Metres::of(0.0),
+            drop_aim: false,
             unclear_aim: false,
             carrier_jump_m: None,
             drop_walk: false,
@@ -413,6 +419,8 @@ const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 #[derive(Clone, Debug)]
 pub struct Motor {
     pub feel: Feel,
+    /// Walk ticks in a row whose look-ahead was cut to a drop's landing ([`Feel::drop_aim`]).
+    drop_aim_run: u32,
     /// The view's turning speed now (yaw, pitch), radians a second.
     rate: (f32, f32),
     walking: bool,
@@ -541,6 +549,12 @@ pub enum JumpBy {
     Hop,
 }
 
+/// The aim past a drop's landing when the look-ahead is cut to it, metres (the target is just past the landing's point).
+const DROP_AIM_PAST_M: f32 = 0.05;
+/// A run of cut ticks longer than this, ticks (2 s), counts as the body staying above the drop.
+#[cfg(test)]
+const DROP_AIM_LONG_TICKS: u32 = 40;
+
 impl Motor {
     pub fn new(feel: Feel, rng: &mut Rng) -> Self {
         Self {
@@ -560,6 +574,7 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: None,
+            drop_aim_run: 0,
             ahead_cap: None,
             clock: 0,
             trail: VecDeque::new(),
@@ -694,6 +709,31 @@ impl Motor {
         self.feel.sway * (self.phase + self.t * 2.0 * PI / self.feel.sway_period_s).sin()
     }
 
+    /// With [`Feel::drop_aim`], the look-ahead cut to the landing of a drop within it that the body (`feet`) is still
+    /// above: the target is the landing, and the walk goes off the edge. A run of ticks it applies to is counted
+    /// (`drop_aim`), and a long one (the body stays above the drop) is the harm.
+    fn drop_cap(&mut self, route: &Route, s: f32, feet: Vec3, ahead: f32) -> f32 {
+        if !self.feel.drop_aim {
+            return ahead;
+        }
+        let cap = route
+            .next_drop(s, ahead)
+            .filter(|&(_, landing)| feet.y - landing.y >= mapdata::grid::LIP_DROP_M)
+            .map(|(along, _)| (along - s).max(0.0) + DROP_AIM_PAST_M);
+        match cap {
+            Some(cap) if cap < ahead => {
+                self.drop_aim_run += 1;
+                #[cfg(test)]
+                drop_aim::tick(self.drop_aim_run);
+                cap
+            }
+            _ => {
+                self.drop_aim_run = 0;
+                ahead
+            }
+        }
+    }
+
     /// The point of the route the walk steers at: `ahead` metres on from `s`, nearer by 0.6 while the body does not walk
     /// to it in a line (`clear`), down to [`MIN_AHEAD_M`]. Where even that is not clear the body is on the wrong side of
     /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
@@ -765,6 +805,7 @@ impl Motor {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
+                ahead = self.drop_cap(route, s, pose.feet, ahead);
                 match self.aim_point(route, s, ahead, &clear) {
                     Aim::Clear(target) | Aim::Unclear(target) => target,
                     // No point of the route is one the body walks to in a line: it is off it.
@@ -1651,6 +1692,26 @@ pub mod sprint_jumps {
     }
 }
 
+/// The bench's counts of the walk ticks whose look-ahead was cut to a drop's landing ([`Feel::drop_aim`]), and of
+/// the ticks of a run that went on past [`DROP_AIM_LONG_TICKS`] (the body stays above the drop it aims off).
+#[cfg(test)]
+pub mod drop_aim {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn tick(run: u32) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        if run > super::DROP_AIM_LONG_TICKS {
+            COUNTS[1].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts (all matches of the run): the route jumps got up at
 /// the first press and later, those given up ([`JUMP_TRIES`]), the cuts of
 /// a look-ahead to a point a line is not clear to, and the fight's side
@@ -2124,6 +2185,59 @@ mod tests {
         // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
         // the corner's, straight ahead.
         assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
+    }
+
+    /// B8 (Vector Laboratory, match 223ad08c bot 3, 138-200 s): a Drop of 3.58 m over 0.35 m across whose later legs come
+    /// back under the way in (the route is a hairpin on one line). The route's distance is across the ground, so at the
+    /// take-off the look-ahead (about 2.5 m, even 0.8 m under the lip cap) reaches the lower legs, horizontally the way the
+    /// bot came from: it turns 115-173 degrees and walks back along the upper floor instead of off the edge.
+    /// `Feel::drop_aim` cuts the look-ahead to the landing.
+    #[test]
+    fn at_a_hairpin_drops_take_off_the_walk_aims_at_the_landing_only_with_drop_aim() {
+        let p = |x, y, z| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let hairpin = || {
+            Route::new(vec![
+                p(10.01, 21.0, -22.04),
+                p(6.51, 21.03, -22.54),
+                p(6.01, 21.07, -23.04),
+                p(5.76, 17.49, -23.29),
+                p(6.0, 17.47, -22.8),
+                p(6.51, 17.45, -22.29),
+                p(8.76, 17.45, -21.54),
+            ])
+        };
+        let landing = Vec3::new(5.76, 17.49, -23.29);
+        // The body at the take-off, walking.
+        let feet = Vec3::new(6.01, 21.07, -23.04);
+        let yaw = yaw_of([landing.x - feet.x, landing.z - feet.z]);
+        let pose = Pose { feet, yaw: yaw + std::f32::consts::PI, pitch: 0.0, speed: 2.5, ..Default::default() };
+        let turn = |feel: Feel, cap: Option<f32>, pose: &Pose| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..feel }, &mut rng);
+            motor.ahead_cap = cap;
+            let (decision, walked) = motor.walk(&mut hairpin(), pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0
+        };
+        // Facing the landing already: with drop_aim the turn needed is nil; without, the aim lies behind and the
+        // turn is the half circle.
+        let facing = Pose { yaw, ..pose };
+        let off = turn(Feel::default(), None, &facing).abs();
+        let capped = turn(Feel::default(), Some(0.8), &facing).abs();
+        let on = turn(Feel { drop_aim: true, ..Feel::default() }, None, &facing).abs();
+        println!("B8 turn when facing the landing: off {off:.3}, lip cap {capped:.3}, drop_aim {on:.3}");
+        assert!(off > 0.05, "without the rule it turns away from the edge: {off}");
+        assert!(capped > 0.05, "the lip cap alone still aims past the landing: {capped}");
+        assert!(on < off * 0.3, "with drop_aim it stays on the landing: {on} {off}");
+        // The rule changes nothing where there is no drop (a straight route).
+        let straight = || Route::new(vec![p(0.0, 0.0, 0.0), p(5.0, 0.0, 0.0), p(10.0, 0.0, 0.0)]);
+        let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 3.0, ..Default::default() };
+        let run = |drop_aim| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, drop_aim, ..Feel::default() }, &mut rng);
+            motor.walk(&mut straight(), &pose, 5.0, |_| true).0
+        };
+        assert_eq!(run(false), run(true));
     }
 
     /// A doorway in a thin wall (School's spawn room exit, x 24.04-25.91 in the wall strip z 182.62-183.07): the route goes

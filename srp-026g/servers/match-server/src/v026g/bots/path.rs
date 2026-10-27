@@ -1127,6 +1127,19 @@ impl Route {
             .collect()
     }
 
+    /// The first drop of a lip's height or more the route makes from `s` to `within` metres on (as
+    /// [`Self::drop_landings`]): how far along its landing is, and the landing.
+    pub fn next_drop(&self, s: f32, within: f32) -> Option<(f32, Vec3)> {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .find(|&k| {
+                self.points[k].jump.is_none()
+                    && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M
+            })
+            .map(|k| (self.along[k], self.points[k].at))
+    }
+
     /// Whether the body went over the edge of a drop of a lip's height or more (the take-off of a leg that is a
     /// planned fall) between the progress `before` and `s` of two ticks. A step of more than [`DROP_EDGE_STEP_M`]
     /// is a new route, not a walk.
