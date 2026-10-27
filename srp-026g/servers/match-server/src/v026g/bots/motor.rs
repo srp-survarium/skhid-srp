@@ -152,6 +152,12 @@ pub struct Feel {
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
     /// link of the grid (up to `Body::max_jump`, 1.05).
     pub carrier_jump_m: Option<Positive>,
+    /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
+    /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
+    /// walk's keys are the ones against the run until it is slow (the owner's rule, 2026-10-27: a landing run is
+    /// cancelled when it is against the bot's direction and path, and a wall is no direction). 0 is off (the
+    /// default; the counters ([`landings`]) count the landings either way). 60 is a GUESS to tune on the bench.
+    pub landing_cancel_deg: f32,
 }
 
 impl Default for Feel {
@@ -186,6 +192,7 @@ impl Default for Feel {
             lip_look_ahead_m: Metres::of(0.0),
             unclear_aim: false,
             carrier_jump_m: None,
+            landing_cancel_deg: 0.0,
         }
     }
 }
@@ -198,6 +205,8 @@ pub struct Pose {
     pub pitch: f32,
     /// Ground speed, m/s.
     pub speed: f32,
+    /// The planar velocity (x, z), m/s: the way the body is carried.
+    pub velocity: [f32; 2],
     /// Hurt so it does not jump now ([`Hurt::may_jump`]): the motor
     /// presses no jump and counts no try at one.
     pub no_jump: bool,
@@ -278,6 +287,16 @@ pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
 pub const SPRINT_RUN_UP_M: f32 = 2.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
+/// The landing window after a route jump's press, seconds: from the first ground the jump can land on (a
+/// 1 m jump is in the air about 0.6 s) to the end of the coast (the J0 rows: a sprint coasts 1.3 m, a walk 0.45 m).
+const LANDING_FROM_S: f32 = 0.6;
+const LANDING_TO_S: f32 = 1.6;
+/// Only a body carried at this speed at least is braked, m/s.
+const LANDING_MIN_SPEED_MS: f32 = 2.5;
+/// A run's coast, seconds of its speed (5 m/s coasts 1.3 m).
+const LANDING_COAST_S: f32 = 0.26;
+/// The route's next leg is looked at this far on, metres.
+const LANDING_LEG_M: f32 = 1.5;
 /// On the jump's line: within this of it to a side, metres …
 const LINED_SIDE_M: f32 = 0.3;
 /// … from this far behind the run-up …
@@ -384,6 +403,8 @@ pub struct Motor {
     lining_up: bool,
     /// The route jump this tick's decision pressed, if any.
     pressed: Option<RoutePress>,
+    /// The clock tick of the last press of a route jump, and whether its landing is counted ([`landings`]).
+    last_press: Option<(u32, bool)>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -503,6 +524,7 @@ impl Motor {
             jump_try: None,
             lining_up: false,
             pressed: None,
+            last_press: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -800,10 +822,50 @@ impl Motor {
             }
             keys |= self.jump_key(&jump, still, pose);
         }
+        // A landing run against the way is braked, not walked out.
+        if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
+            keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
+        }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
+    }
+
+    /// The keys against a landing run ([`Feel::landing_cancel_deg`]): in the window after a route jump's press
+    /// ([`LANDING_FROM_S`] .. [`LANDING_TO_S`]), the body carried at [`LANDING_MIN_SPEED_MS`] or more, whose run
+    /// goes into a wall within its coast ([`LANDING_COAST_S`]) or away from both the route's next leg
+    /// ([`LANDING_LEG_M`] on) and the goal. Counted once per jump ([`landings`]), braked only when the feel
+    /// says so. None when there is nothing to cancel.
+    fn landing_brake(
+        &mut self,
+        route: &Route,
+        pose: &Pose,
+        s: f32,
+        clear: &impl Fn(Vec3) -> bool,
+    ) -> Option<u32> {
+        let (at, counted) = self.last_press?;
+        let t = self.since(at);
+        if !(LANDING_FROM_S..LANDING_TO_S).contains(&t) {
+            return None;
+        }
+        let [vx, vz] = pose.velocity;
+        let speed = vx.hypot(vz);
+        if speed < LANDING_MIN_SPEED_MS {
+            return None;
+        }
+        let carried = yaw_of([vx, vz]);
+        let off = |to: Vec3| wrap(yaw_of([to.x - pose.feet.x, to.z - pose.feet.z]) - carried).abs();
+        let against = off(route.point_at(s + LANDING_LEG_M)).min(off(route.end()));
+        let coast = LANDING_COAST_S * speed;
+        let blocked = !clear(pose.feet + Vec3::new(vx / speed * coast, 0.0, vz / speed * coast));
+        let limit = self.feel.landing_cancel_deg.to_radians();
+        let cancel = limit > 0.0 && (blocked || against > limit);
+        if !counted {
+            self.last_press = Some((at, true));
+            landings::seen(against, blocked, cancel);
+        }
+        cancel.then(|| keys_toward(wrap(carried + PI - pose.yaw)))
     }
 
     /// Whether the route is walked to its end: within [`Feel::arrive_m`] of
@@ -897,6 +959,10 @@ impl Motor {
             }
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
             keys |= self.jump_key(&jump, still, pose);
+        }
+        // A landing run against the way is braked, not walked out.
+        if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
+            keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
@@ -1121,6 +1187,7 @@ impl Motor {
             facing: still,
         });
         self.jump = Some(JumpBy::Route);
+        self.last_press = Some((self.clock, false));
         if ahead.sprint {
             sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
         }
@@ -1397,6 +1464,31 @@ pub fn keys_toward(relative: f32) -> u32 {
     }
 }
 
+/// The landings of route jumps by how far the carried run is from the way (the smaller of its angle to the route's
+/// next leg and to the goal): 0-30, 30-60, 60-90, over 90 degrees, and those with a wall within the coast; and how
+/// many of them were braked ([`Feel::landing_cancel_deg`]).
+pub mod landings {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const BANDS: usize = 4;
+    /// The bands, then the walls, of the landings seen; the same of those braked.
+    static COUNTS: [[AtomicU64; BANDS + 1]; 2] = [const { [const { AtomicU64::new(0) }; BANDS + 1] }; 2];
+
+    /// A landing run at `against` radians from the way, into a wall or not, braked or not.
+    pub fn seen(against: f32, wall: bool, braked: bool) {
+        let band = if wall { BANDS } else { ((against.to_degrees() / 30.0) as usize).min(BANDS - 1) };
+        COUNTS[0][band].fetch_add(1, Ordering::Relaxed);
+        if braked {
+            COUNTS[1][band].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Seen and braked, by band (the last is the walls).
+    pub fn counts() -> [[u64; BANDS + 1]; 2] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
+    }
+}
+
 /// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_JUMP_RISE_M`]: pressed, got up, given up, for the
 /// bench's failed-jump counter.
 pub mod sprint_jumps {
@@ -1476,6 +1568,27 @@ pub mod counts {
     /// Of those, ticks with no clear route point at all: reported off the route.
     pub fn unclear_off() {
         add(10);
+    }
+
+    static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+
+    /// A refused side step of the reflex's own, asked the other side too: whether that side is clear (the
+    /// step could slide to it) or both are refused (the bot stands), standing to aim or weaving a walk,
+    /// from a floor in a lip's band or not.
+    pub fn slide_asked(other_clear: bool, weave: bool, in_band: bool) {
+        SLIDES[usize::from(!other_clear) * 4 + usize::from(weave) * 2 + usize::from(in_band)]
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The step was taken to the other side (`clear_step_slides_along`).
+    pub fn slid() {
+        SLIDES[8].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// (other side clear: still out of the band, still in it, weave out, weave in; both refused: the same
+    /// four; slid).
+    pub fn slides() -> [u64; 9] {
+        std::array::from_fn(|k| SLIDES[k].load(Ordering::Relaxed))
     }
 
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
@@ -2057,6 +2170,46 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A landing run carried across the route's way and the goal is braked by the keys against it once the feel
+    /// says so (`landing_cancel_deg`); one along the way is not; one into a wall (nothing clear within its coast) is;
+    /// off, the walk's keys are the route's as always. Counted either way.
+    #[test]
+    fn a_landing_run_against_the_way_is_braked_only_when_the_feel_says_so() {
+        let p = |x: f32| Waypoint { at: Vec3::new(x, 0.0, 0.0), node: 0, jump: None, low: false };
+        let keys_of = |deg: f32, velocity: [f32; 2], open: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, landing_cancel_deg: deg, ..Feel::default() }, &mut rng);
+            motor.last_press = Some((motor.clock.wrapping_sub((0.8 / TICK_S) as u32), false));
+            let mut route = Route::new(vec![p(0.0), p(10.0)]);
+            let pose = Pose {
+                feet: Vec3::new(3.0, 0.0, 0.0),
+                yaw: yaw_of([1.0, 0.0]),
+                speed: velocity[0].hypot(velocity[1]),
+                velocity,
+                ..Default::default()
+            };
+            motor.walk(&mut route, &pose, 5.0, |_| open).0.keys
+        };
+        let before = landings::counts();
+        // Across the way (z+ while the route goes x+): braked with the keys toward z-, no forward.
+        let keys = keys_of(60.0, [0.0, 4.0], true);
+        assert_eq!(keys & key::FORWARD, 0, "{keys:#x}");
+        assert_ne!(keys & (key::LEFT | key::RIGHT), 0, "{keys:#x}");
+        // Off: the route's keys.
+        assert_ne!(keys_of(0.0, [0.0, 4.0], true) & key::FORWARD, 0);
+        // Along the way: forward as ever.
+        assert_ne!(keys_of(60.0, [4.0, 0.0], true) & key::FORWARD, 0);
+        // Along the way but into a wall: braked, back.
+        let keys = keys_of(60.0, [4.0, 0.0], false);
+        assert_ne!(keys & key::BACK, 0, "{keys:#x}");
+        assert_eq!(keys & key::FORWARD, 0, "{keys:#x}");
+        // Too slow to be a run: no brake.
+        assert_ne!(keys_of(60.0, [0.0, 1.0], true) & key::FORWARD, 0);
+        let after = landings::counts();
+        assert!(after[0].iter().sum::<u64>() >= before[0].iter().sum::<u64>() + 4);
+        assert!(after[1].iter().sum::<u64>() >= before[1].iter().sum::<u64>() + 2);
     }
 
     /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
