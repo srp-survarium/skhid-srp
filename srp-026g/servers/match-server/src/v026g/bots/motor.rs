@@ -629,9 +629,13 @@ struct BandWatch {
     at: u32,
     landing: Vec3,
     /// The feet and the take-off at the press, the speed and the sprint key then (the trace of #673).
+    #[cfg(test)]
     from: Vec3,
+    #[cfg(test)]
     take_off: Vec3,
+    #[cfg(test)]
     speed: f32,
+    #[cfg(test)]
     sprint: bool,
 }
 
@@ -1588,15 +1592,19 @@ impl Motor {
                 let watch = BandWatch {
                     at: self.clock,
                     landing: jump.landing,
+                    #[cfg(test)]
                     from: pose.feet,
+                    #[cfg(test)]
                     take_off: jump.take_off,
+                    #[cfg(test)]
                     speed,
+                    #[cfg(test)]
                     sprint: self.sprinting,
                 };
-                if let Some(old) = self.band_watch.replace(watch) {
+                if let Some(_old) = self.band_watch.replace(watch) {
                     band_jumps::strict(false);
                     #[cfg(test)]
-                    band_jumps::trace("second press", self.since(old.at), &old, pose.feet);
+                    band_jumps::trace("second press", self.since(_old.at), &_old, pose.feet);
                 }
             }
         }

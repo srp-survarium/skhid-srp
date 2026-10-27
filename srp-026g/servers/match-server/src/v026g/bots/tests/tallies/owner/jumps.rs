@@ -589,6 +589,9 @@ impl JumpCounts {
         let (mut wrong, mut failed) = (0u32, 0u32);
         let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
         let mut route_landed = [0u32; 2];
+        // The route jumps of a rise over the walk jump's top ([`crate::v026g::bots::motor::WALK_JUMP_TOP_M`]), by the honest
+        // stand-in's own landing: presses, landed up, landed down, of those that were sprint jumps, and with no landing.
+        let mut band = [0u32; 5];
         let (mut missed_pre, mut not_freed_pre) = (PreCounts::default(), PreCounts::default());
         for (i, p) in presses.iter().enumerate() {
             let flags = run.press_flags(presses, i);
@@ -609,6 +612,18 @@ impl JumpCounts {
                 && let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t)
             {
                 route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
+            }
+            if let Some((from, to)) = p.route
+                && to.y - from.y > crate::v026g::bots::motor::WALK_JUMP_TOP_M
+            {
+                band[0] += 1;
+                match self.landings.iter().find(|l| l.place == p.place && l.at == p.t) {
+                    Some(l) => {
+                        band[1 + usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
+                        band[3] += u32::from(l.sprint);
+                    }
+                    None => band[4] += 1,
+                }
             }
         }
         let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
@@ -640,6 +655,7 @@ impl JumpCounts {
             "route_landed_up": route_landed[0],
             "route_landed_down": route_landed[1],
             "sprint_jumps": sprint_jumps,
+            "band_jumps": band,
         });
         if let Some(g) = &gaps {
             json["gaps"] = g.json();
