@@ -20,6 +20,24 @@ pub struct HazardTuning {
     /// merged switched off): the worlds' fields are not read, today's decisions (the bench's switch,
     /// `SRP_BENCH_LIVE_ZONES=1` on).
     pub live_zones: bool,
+    /// What a battery's crossing of a damage zone is weighed against (F2, [`ZonePools`]): the body
+    /// pool and the zone's raw hit (the default, as it was), or the pools the zone's hits really
+    /// take from, through the bot's armour on the parts it hits (`zone_cost.rs`). The bench's
+    /// switch, `SRP_BENCH_ZONE_POOLS=routed`.
+    pub zone_pools: ZonePools,
+}
+
+/// What a crossing of a damage zone is weighed against (`HazardTuning::zone_pools`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZonePools {
+    /// The body pool and the zone's raw hit: toxic and radiation zones are measured against a pool they
+    /// never touch, and no armour counts.
+    #[default]
+    Raw,
+    /// The pools the zone's type routes to (infection, pain, body, head), by the armour the bot wears on the
+    /// parts the zone hits.
+    Routed,
 }
 
 impl Default for HazardTuning {
@@ -29,6 +47,7 @@ impl Default for HazardTuning {
             escape: EscapeRule::UnderStartZone,
             artefact_know: false,
             live_zones: false,
+            zone_pools: ZonePools::Raw,
         }
     }
 }

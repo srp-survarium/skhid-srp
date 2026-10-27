@@ -18,6 +18,8 @@ use mapdata::grid::{MARGINAL_JUMP_M, STEP_UP_M};
 use mapdata::regions::Regions;
 use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
+mod progress;
+
 use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
@@ -140,6 +142,10 @@ pub struct TacticsBase {
     /// zone off). A goal on any other floor (a roof one only drops from, a
     /// shelf's top past the jump) has no way from where bots are.
     walkable: Vec<u64>,
+    /// How far forward each region is, by the walk ([`progress`]): worked out
+    /// at the first ask (`roam.join_ahead`), once for the map, not stored
+    /// with the base; a map no switch asks it of never makes it.
+    progress: std::sync::OnceLock<progress::Progress>,
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -229,8 +235,8 @@ const SPAWN_BITS: u32 = 8;
 
 /// The version of what [`TacticsBase::build`] gives, in its key: raised
 /// with any change that changes the tactics of a map (the hazard marks,
-/// the spawn areas, the regions, the exits and the searches they come
-/// from), so a stored base of the old build is never read for the new.
+/// the spawn areas, the regions, the exits and the searches
+/// they come from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
 pub const TACTICS_ALGO: u32 = 3;
 
@@ -399,6 +405,7 @@ impl TacticsBase {
             spawn_areas,
             regions,
             walkable,
+            progress: std::sync::OnceLock::new(),
         };
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
@@ -524,10 +531,19 @@ impl TacticsBase {
                     spawn_areas,
                     regions,
                     walkable,
+                    progress: std::sync::OnceLock::new(),
                 })
             },
             Self::digest,
         )
+    }
+
+    /// The progress of each region, worked out at the first call: two floods
+    /// of the walk grid, once for the map (shared by its matches).
+    fn progress(&self) -> &progress::Progress {
+        self.progress.get_or_init(|| {
+            progress::Progress::build(&self.world.grid, &self.regions, &self.world.map.spawns)
+        })
     }
 
     /// Bytes held, beyond the world.
@@ -892,6 +908,13 @@ impl Tactics {
     /// Whether `point` is in a spawn area of `side` (any side if `None`).
     pub fn in_spawn_area(&self, point: Vec3, side: Option<i32>) -> bool {
         self.base.in_spawn_area(point, side)
+    }
+
+    /// How far forward `point` is for `side` by the walk: 0 at its own
+    /// spawns, 1 at the enemy's, 0.5 where unknown ([`progress`]).
+    pub fn progress_at(&self, point: Vec3, side: i32) -> f32 {
+        let base = &self.base;
+        base.progress().at(&base.world.grid, &base.regions, point, side)
     }
 
     /// The map side whose spawn is nearest `point`.
@@ -2319,6 +2342,71 @@ pub(super) mod tests {
             new_t / checked as u32,
             kept_t / checked as u32
         );
+    }
+
+    /// The progress table is made at the first ask, not with the base: a map
+    /// nothing asks it of (every switch off) never pays for its floods.
+    #[test]
+    fn the_progress_table_is_made_at_the_first_ask() {
+        let tactics = Tactics::new(field(), 1.0);
+        assert!(tactics.base.progress.get().is_none());
+        let a = tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0);
+        assert!(tactics.base.progress.get().is_some());
+        assert_eq!(a, tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0));
+    }
+
+    /// What the progress table (R2: two grid floods) costs next to the whole
+    /// base, per offered map. Run with `SRP_MAPDATA_DIR` set, in release:
+    /// `cargo test -p match-server --release progress_cost -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement; needs the private map files"]
+    fn progress_cost_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+            panic!("set SRP_MAPDATA_DIR");
+        };
+        for level in 1..=8u8 {
+            for mode in [2u8, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+                let start = std::time::Instant::now();
+                let base = TacticsBase::build(world.clone(), 1.0);
+                let whole = start.elapsed();
+                let mut each = Vec::new();
+                for _ in 0..5 {
+                    let start = std::time::Instant::now();
+                    let again = progress::Progress::build(&world.grid, &base.regions, &world.map.spawns);
+                    each.push(start.elapsed());
+                    assert_eq!(&again, base.progress());
+                }
+                each.sort();
+                let known = (0..base.regions.len() as u32)
+                    .filter(|&r| base.progress().of_region(r, 0) != progress::UNKNOWN)
+                    .count();
+                if known == 0 {
+                    for sp in &world.map.spawns {
+                        eprintln!(
+                            "  no numbers, spawn team {} at {:?}: locate 1.5 {:?}, 3 {:?}, 8 {:?}",
+                            sp.team,
+                            sp.position,
+                            world.grid.locate(sp.position, 1.5),
+                            world.grid.locate(sp.position, 3.0),
+                            world.grid.locate(sp.position, 8.0)
+                        );
+                    }
+                }
+                let teams: std::collections::BTreeSet<i32> = world.map.spawns.iter().map(|s| s.team).collect();
+                eprintln!(
+                    "progress level {level} day {mode}: teams {teams:?} known regions {known} floors {} regions {} progress median {:?} min {:?} max {:?}, whole base {:?}",
+                    world.grid.len(),
+                    base.regions.len(),
+                    each[2],
+                    each[0],
+                    each[4],
+                    whole
+                );
+            }
+        }
     }
 
     /// F4: a stuck body finds the ledge it can jump up (more than the

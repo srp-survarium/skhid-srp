@@ -80,6 +80,10 @@ pub const HELD_AFTER_MS: u32 = 3_000;
 /// metres. GUESS: a walk of 3 s is 10 m, a crouched one 5 m; a body
 /// nudged by a wall it slides along moves more.
 pub const HELD_MOVED_M: f32 = 0.5;
+/// A world this long after the one before it, ms, is noted with the gap: a note after it (a stuck body, a body off
+/// its reckoning) may come of the worlds that did not reach the bot, not of the bot. The longest gap between two
+/// uploads of the J0 matches' healthy streams was 2.85 s; one missed regular world is 4 s.
+pub const FIX_GAP_MS: u32 = 3_000;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
 /// … if the earlier one was within this, ms.
@@ -185,6 +189,8 @@ pub struct Stuck {
     /// The last world's feet and time while walking, and how far its keys
     /// meant to move it since (none: not known).
     walked_from: Option<(u32, Vec3, Option<f32>)>,
+    /// How far its keys meant to move it over the last window the reckoned watch checked (none: not known).
+    meant_checked: Option<f32>,
     /// The first of the worlds since that showed the walk keys held and
     /// the body near where it was then: time and feet ([`HELD_AFTER_MS`]).
     held_from: Option<(u32, Vec3)>,
@@ -317,6 +323,12 @@ impl Stuck {
         Some((recovery, by_keys && !by_reckoning))
     }
 
+    /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window
+    /// (none: not known, taken as walking).
+    pub fn meant_checked(&self) -> Option<f32> {
+        self.meant_checked
+    }
+
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
     fn reckoned(&mut self, time: u32, feet: Vec3, meant: Option<f32>) -> bool {
@@ -330,6 +342,7 @@ impl Stuck {
             return false;
         }
         self.walked_from = Some((time, feet, Some(0.0)));
+        self.meant_checked = meant_since;
         from.distance_xz(feet) < STUCK_MOVED_M && meant_since.is_none_or(|m| m >= MEANT_M)
     }
 
@@ -745,6 +758,58 @@ pub fn self_kill_step(
     }
 }
 
+/// What a note's text says without the evidence tags the notes above end with (they are for the reader of the log,
+/// not decisions: the bench's decision digest leaves them out).
+pub fn without_evidence(text: &str) -> &str {
+    [" [meant ", " [fix gap ", " [beside "]
+        .iter()
+        .filter_map(|tag| text.find(tag))
+        .min()
+        .map_or(text, |at| &text[..at])
+}
+
+/// The note of how far a stuck body's keys meant to move it, when the reckoned watch told (not the held keys alone).
+pub fn meant_note(by_keys: bool, meant: Option<f32>) -> String {
+    if by_keys {
+        return String::new();
+    }
+    meant.map_or_else(|| " [meant unknown]".to_owned(), |m| format!(" [meant {m:.1} m]"))
+}
+
+/// A body this near a stuck one, metres, is beside it: enemy bodies block each other in the game (the J0 matches'
+/// enemies head-on on one route line, or at one start); friends pass through each other.
+pub const BESIDE_M: f32 = 1.2;
+
+/// The note of the body beside a stuck one, if one is within [`BESIDE_M`].
+pub fn beside_note(beside: Option<super::view::Beside>) -> String {
+    beside.filter(|b| b.distance_m <= BESIDE_M).map_or_else(String::new, |b| {
+        format!(" [beside {} place {}, {:.1} m]", if b.enemy { "enemy" } else { "friend" }, b.place, b.distance_m)
+    })
+}
+
+/// The note for a world that came `gap` ms after the one before it (none when the gap is not one).
+pub fn gap_note(gap: Option<u32>) -> String {
+    gap.filter(|&gap| gap >= FIX_GAP_MS)
+        .map_or_else(String::new, |gap| format!(" [fix gap {gap} ms]"))
+}
+
+/// The bench's counts of the worlds that came [`FIX_GAP_MS`] or more after the one before: all, the stuck notes
+/// after one, the off-reckoning notes after one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, beside.
+#[cfg(test)]
+pub mod fix_gaps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 6] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts of the hard falls ([`Stuck::track_fall`]): bodies locked, and worlds the stuck watch kept quiet
 /// for them.
 #[cfg(test)]
@@ -822,6 +887,16 @@ mod tests {
     /// searches for as long as the motor refuses the jump, and a floor within
     /// the motor's "same jump" of it is shut with it; no other floor, nor
     /// after the lockout.
+    #[test]
+    fn the_evidence_tags_of_a_note_are_cut_off() {
+        let plain = "is stuck at [1.0, 0.0, 2.0]: BackOff";
+        assert_eq!(without_evidence(plain), plain);
+        let tagged = format!("{plain} [meant 3.2 m] [fix gap 7000 ms] [beside enemy place 1, 0.8 m]");
+        assert_eq!(without_evidence(&tagged), plain);
+        let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
+        assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
+    }
+
     #[test]
     fn a_failed_jumps_landing_is_shut_for_the_motors_lockout() {
         let (take_off, landing) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 1.0, 1.5));

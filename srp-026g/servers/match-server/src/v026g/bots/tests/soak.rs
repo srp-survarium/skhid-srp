@@ -37,6 +37,22 @@ pub(crate) fn soak_tuned(
     seed: u64,
     tuning: Tuning,
 ) -> Outcome {
+    soak_volume(per_team, win, tdm_tickets, timed_s, limit_s, seed, tuning, HitVolume::Disc)
+}
+
+/// [`soak_tuned`] with the stand-in's shots tested against `volume` (the soaks keep the old disc; the bench sets
+/// its own, [`HitVolume::bench`]).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn soak_volume(
+    per_team: usize,
+    win: u32,
+    tdm_tickets: u32,
+    timed_s: Option<u32>,
+    limit_s: u32,
+    seed: u64,
+    tuning: Tuning,
+    volume: HitVolume,
+) -> Outcome {
     let world = soak_world();
     let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
     let driven = vec![true; teams.len()];
@@ -66,6 +82,7 @@ pub(crate) fn soak_tuned(
     bots.map_ready(world.clone());
     let tickets = (win == 0).then_some(tdm_tickets);
     let mut game = Game::new(world, &teams, seed, tickets, timed_s.map(|s| s * 1000));
+    game.volume = volume;
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
     }

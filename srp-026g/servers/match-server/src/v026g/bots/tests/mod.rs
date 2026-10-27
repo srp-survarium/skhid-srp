@@ -65,6 +65,7 @@ mod camper;
 mod driving;
 mod eye;
 mod fights;
+mod fix_gap;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
@@ -77,10 +78,12 @@ mod soaks;
 mod sorted;
 mod sorted_use;
 mod standin;
+mod standin_body;
 mod standin_damage;
 mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
+mod standin_hitbox;
 mod standin_jump;
 mod standin_stamina;
 mod standin_traps;
@@ -100,6 +103,7 @@ pub(crate) use camper::*;
 use settings::*;
 use soak::*;
 use standin::*;
+use standin_hitbox::HitVolume;
 use standin_jump::*;
 
 

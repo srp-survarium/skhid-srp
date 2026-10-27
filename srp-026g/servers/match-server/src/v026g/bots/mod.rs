@@ -75,6 +75,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod zone_cost;
 
 mod commander;
 mod drive;
@@ -83,6 +84,8 @@ mod features;
 #[cfg(test)]
 pub mod hold_trace;
 mod layers;
+#[cfg(test)]
+pub mod pair_counts;
 mod search;
 mod think;
 
@@ -831,6 +834,14 @@ impl Bots {
         self.tracker.set_shot_reach(reach);
     }
 
+    /// What a bot wears against a zone's hits (F2, `zone_cost.rs`), from its kit; it is read when
+    /// `HazardTuning::zone_pools` says.
+    pub fn set_zone_armour(&mut self, place: Place, armour: zone_cost::ZoneArmour) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.features.crossing.armour = std::sync::Arc::new(armour);
+        }
+    }
+
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.features.weapons = weapons;
@@ -1103,6 +1114,20 @@ impl Bots {
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
+        // The time since the world before: a long one is noted with the notes that follow it, counted, and (tuned)
+        // ends the stuck check, as the bot was not shown the body for that long.
+        let gap = self.tracker.body(place).and_then(|body| body.gap_of(time));
+        #[cfg(test)]
+        let after_gap = gap.is_some_and(|gap| gap >= stuck::FIX_GAP_MS);
+        #[cfg(test)]
+        if after_gap {
+            stuck::fix_gaps::count(0);
+        }
+        let ends_check = self
+            .tuning
+            .unstick
+            .fix_gap_ms
+            .is_some_and(|ms| gap.is_some_and(|gap| gap > ms));
         // [pockets] A try at a pocket's exit runs up to its rim and jumps:
         // not stuck, and the try has its own clock (`escape::TRY_MS`). No
         // note, no spot for the team, no recovery fighting the try.
@@ -1113,19 +1138,36 @@ impl Bots {
             .is_some_and(escape::Escape::trying);
         if trying {
             bot.stuck.reset();
+        } else if ends_check {
+            #[cfg(test)]
+            stuck::fix_gaps::count(3);
+            bot.stuck.reset();
         } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
+            #[cfg(test)]
+            if after_gap {
+                stuck::fix_gaps::count(1);
+            }
+            let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
+            let beside = self.tracker.neighbour_of(place, feet);
+            #[cfg(test)]
+            if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
+                stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
+            }
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
                     } else {
                         ""
-                    }
+                    },
+                    meant_text,
+                    stuck::gap_note(gap),
+                    stuck::beside_note(beside)
                 ),
             );
             let (side, other) = if bot.rng.unit() < 0.5 {
@@ -1213,12 +1255,17 @@ impl Bots {
             .and_then(|body| body.last_error())
             .unwrap_or(0.0);
         if error > REPLAN_ERROR_M {
+            #[cfg(test)]
+            if after_gap {
+                stuck::fix_gaps::count(2);
+            }
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "was {error:.1} m off its reckoning; plans again to {:?}",
-                    goal.to_array()
+                    "was {error:.1} m off its reckoning; plans again to {:?}{}",
+                    goal.to_array(),
+                    stuck::gap_note(gap)
                 ),
             );
             bot.end_route(RouteEnd::ReckoningError, time);

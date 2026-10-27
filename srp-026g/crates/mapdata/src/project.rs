@@ -176,6 +176,9 @@ pub struct Damage {
     pub continuous: bool,
     /// How many body parts each hit goes to (`hit_parts_filter`).
     pub parts: u8,
+    /// The parts' names, as the project gives them (`face`, `left_foot`, ...), in its order.
+    /// Empty in a file written before format 4 (the count in `parts` is all it knew).
+    pub part_names: Vec<String>,
     /// `hit_curve` keys as `(d, value)`, sorted by `d`.
     pub hit_curve: Vec<(f32, f32)>,
 }
@@ -817,6 +820,10 @@ fn damage_of(object: &ConfigValue) -> Damage {
         interval_ms: u32_or_0(object, "interval_in_msec"),
         continuous: bool_or(object, "continuous_hit", false),
         parts: u8::try_from(children(object, "hit_parts_filter").len()).unwrap_or(u8::MAX),
+        part_names: children(object, "hit_parts_filter")
+            .into_iter()
+            .filter_map(|part| part.as_str().map(str::to_owned))
+            .collect(),
         hit_curve,
     }
 }
