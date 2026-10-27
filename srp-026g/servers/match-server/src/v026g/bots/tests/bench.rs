@@ -562,6 +562,20 @@ pub(crate) fn real_bot_cost() {
                 })
                 .collect();
             bots.set_shot_reach(reach);
+            // The armour each bot wears against a zone's hits, as the stand-in's body wears it (the kit of the
+            // bench's tier and rusher kit that has the bot's gun): read only with `HazardTuning::zone_pools`
+            // routed, which also makes the stand-in's zones hurt the pools their hits take from.
+            {
+                let model = super::standin_damage::Model::default();
+                for place in 0..bots.bots.len() {
+                    let gun = bots.bots[place]
+                        .as_ref()
+                        .and_then(|bot| bot.kits.get(bot.kit).map(|kit| kit.0.primary.0.item));
+                    if let Some(gun) = gun {
+                        bots.set_zone_armour(place, super::standin_damage::zone_armour_of(model.tier, model.rusher, gun));
+                    }
+                }
+            }
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
@@ -753,6 +767,7 @@ pub(crate) fn real_bot_cost() {
             // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
             // owner's CG-20 test): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
+            game.zone_routed = bots.tuning.hazard.zone_pools == super::tuning::ZonePools::Routed;
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -1542,6 +1557,8 @@ pub(crate) fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
+                    "zone_pool_lost": game.zone_pool_lost,
+                    "zone_pool_deaths": game.zone_pool_deaths,
                     "zone_spells": zone_spells,
                     // Crossings' searches (`crossing.rs`): searched, taken,
                     // ring walks, refused, floors expanded, wanted for a long

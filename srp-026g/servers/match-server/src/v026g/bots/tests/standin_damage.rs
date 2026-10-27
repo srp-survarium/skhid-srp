@@ -309,6 +309,18 @@ fn kit_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> Option<&'static Rol
     })
 }
 
+/// What the kit of `tier` and `rusher` that has `weapon` wears against a zone's hits (the largest of its
+/// items on each part and type, `zone_cost::ZoneArmour`); nothing if no kit has the weapon.
+pub(crate) fn zone_armour_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> crate::v026g::bots::zone_cost::ZoneArmour {
+    crate::v026g::bots::zone_cost::ZoneArmour::of_items(
+        kit_of(tier, rusher, weapon)
+            .map_or(&[][..], |kit| kit.armour)
+            .iter()
+            .filter_map(|(_, name)| damage::armour_named(name))
+            .map(|item| item.dict_id),
+    )
+}
+
 /// The largest `ranged` armour on `hit_box` among `kit`'s items.
 pub(crate) fn armour_on(kit: Option<&RoleGear>, hit_box: &str) -> f32 {
     kit.map_or(0.0, |kit| {
