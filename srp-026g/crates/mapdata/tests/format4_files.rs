@@ -58,6 +58,16 @@ fn the_new_files_are_the_old_ones_and_the_zones_part_names() {
             ("libraries", before.libraries == after.libraries),
             ("placements", before.placements == after.placements),
         ] {
+            if !same && what == "zones" {
+                for (i, (b, a)) in before.zones.iter().zip(&after.zones).enumerate() {
+                    if b != a {
+                        panic!("{name:?}: zone {i} {} differs:
+ before {b:?}
+ after {a:?}", b.name);
+                    }
+                }
+                panic!("{name:?}: zone counts {} and {}", before.zones.len(), after.zones.len());
+            }
             assert!(same, "{name:?}: {what} differ beyond the part names");
         }
         assert!(before == after, "{name:?} differs beyond the part names");
