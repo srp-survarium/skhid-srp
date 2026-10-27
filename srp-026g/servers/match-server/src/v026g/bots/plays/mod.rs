@@ -472,6 +472,9 @@ pub struct BotFacts<'a> {
     /// The goal its motor walks a crossing or a ring's walk out to, across
     /// zones on all match (`crossing.rs`), while it has a route there.
     pub crossing: Option<Vec3>,
+    /// Where its Crossfire's enemy was when the play began, and when
+    /// (`commit.crossfire_point`).
+    pub held_choke: Option<(Place, Vec3, u32)>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -622,6 +625,15 @@ impl Ctx<'_> {
             .iter()
             .find(|t| t.who == place)
             .map(|t| t.at)
+            .or_else(|| {
+                // The memory forgot him; a Crossfire on his place goes on
+                // for `crossfire_point_s`.
+                let keep = (self.tuning.commit.crossfire_point_s * 1000.0) as u32;
+                self.bot
+                    .held_choke
+                    .filter(|&(who, _, since)| who == place && self.now < since.saturating_add(keep))
+                    .map(|(_, at, _)| at)
+            })
     }
 
     /// Where a battery lies as far as the bot may know: with the battery
@@ -875,6 +887,38 @@ impl Ctx<'_> {
 
     /// A candidate of `kind` at `target`, scored by its tuning's
     /// considerations; `None` at 0.
+    /// Why `kind` on `target` is not offered by [`Ctx::candidate`] now (the
+    /// bench's trace of holds that stop being candidates).
+    #[cfg(test)]
+    pub fn drop_reason(&self, kind: PlayKind, target: TargetRef) -> String {
+        if self
+            .bot
+            .set_aside
+            .iter()
+            .any(|&(k, t, until)| k == kind && t == target && self.now < until)
+        {
+            return "set aside".to_string();
+        }
+        if self.bot.dry && kind.seeks_fight() {
+            return "dry".to_string();
+        }
+        let play = self.play(kind);
+        let (score, why) = curve::score(&play.considerations, |input| self.input(input, kind, target));
+        if score.is_zero() {
+            let zero = why.parts.iter().find(|(_, _, s)| *s <= 0.0);
+            return zero.map_or("zero score".to_string(), |(i, v, _)| format!("zero {i:?} ({v:.2})"));
+        }
+        if kind == PlayKind::Crossfire {
+            if self.point_of(target).is_none() {
+                return "crossfire: the choke has no point (track forgotten)".to_string();
+            }
+            if self.view.team(self.me.team).all(|p| p.place == self.me.place) {
+                return "crossfire: no teammate alive".to_string();
+            }
+        }
+        "its candidates() left it out".to_string()
+    }
+
     pub fn candidate(
         &self,
         kind: PlayKind,
@@ -1018,6 +1062,17 @@ pub enum Running {
 }
 
 impl Running {
+    /// Whether the play is a hold still walking to the spot it holds from
+    /// (`commit.hold_to_arrival`).
+    pub fn travelling(&self) -> bool {
+        matches!(
+            self,
+            Self::Crossfire(crossfire::State::Going { .. })
+                | Self::HoldExit(hold_exit::State::Going { .. })
+                | Self::Cut(cut::State::Going { .. })
+        )
+    }
+
     pub fn kind(&self) -> PlayKind {
         match self {
             Self::Roam(_) => PlayKind::Roam,

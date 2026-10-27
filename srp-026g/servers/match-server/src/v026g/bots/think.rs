@@ -597,6 +597,7 @@ pub(super) fn decide(
             dry: bot.reflex.dry(),
             ammo: bot.ammo(),
             crossing: walks_crossing(bot),
+            held_choke: bot.held_choke,
         },
         memory: &bot.memory,
         team: &state.knowledge,
@@ -607,6 +608,8 @@ pub(super) fn decide(
         memo,
     };
     let mut rng = bot.rng.clone();
+    #[cfg(test)]
+    super::hold_trace::at(me.feet);
     let step = plays::step(&mut running, target, &cx, &mut rng);
     // A hold on a spot a teammate of a lower place has claimed gives way
     // (S1); the point it means to be at is its claim.

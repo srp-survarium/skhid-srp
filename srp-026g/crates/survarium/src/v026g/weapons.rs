@@ -62,6 +62,11 @@ pub struct WeaponParams {
     /// card's rate of fire is `60 / (60 / rpm + this)`, floored, for every
     /// weapon that has one).
     pub chamber_a_round_time: f32,
+    /// `parameters.movement_speed_modifier`: added to the character's
+    /// movement speed while the weapon is held (+0.05 on 20 of the live
+    /// weapons, -0.05 on 10; LIKELY the client's reading, added to the
+    /// player modifier 4).
+    pub movement_speed_modifier: f32,
     /// The reload's `state_type` ([`STATE_RELOAD_MAGAZINE`], ...).
     pub reload_state: u16,
     /// It has a [`STATE_CHAMBER`] state.
@@ -80,6 +85,9 @@ pub struct WeaponParams {
     /// from `min_damage_distance` on): [`super::damage`].
     pub bullet_pierce: f32,
     pub min_damage_amount: f32,
+    /// `stamina_damage`: what a bullet (a pellet) that hits takes off the
+    /// victim's stamina bar, before its skill 211 (the bots have none).
+    pub stamina_damage: f32,
     /// `recoil`: `min/max_top_recoil`, `min/max_left_recoil`,
     /// `min/max_right_recoil` (the config's degrees), `recoil_power`, and
     /// the controller's gains (proportional, integral, derivational).
@@ -246,6 +254,33 @@ pub fn character_dispersion() -> &'static CharacterDispersion {
 }
 
 impl WeaponParams {
+    /// The weapon with the changes its `modifications` make to the keys the
+    /// bots read from it: `parameters/reload_time`, `parameters/rounds_per_minute`,
+    /// `parameters/chamber_a_round_time` and `dispersion/base_dispersion`, by
+    /// the client's rule ([`super::modifications::apply`]). The damage keys are
+    /// the clients' own to compute and are left; `reload_start_time` and
+    /// `reload_end_time` are other keys, no modification reaches them. No
+    /// modification gives the weapon as it is.
+    pub fn with_mods(&self, modifications: &[(u32, bool)]) -> Self {
+        if modifications.is_empty() {
+            return *self;
+        }
+        let table = super::modifications::Modifications::shared();
+        let changed = |path: &str, base: f32| table.modified(modifications, path, base);
+        Self {
+            reload_time: changed("parameters/reload_time", self.reload_time),
+            rounds_per_minute: changed("parameters/rounds_per_minute", self.rounds_per_minute as f32)
+                .round()
+                .max(1.0) as u32,
+            chamber_a_round_time: changed("parameters/chamber_a_round_time", self.chamber_a_round_time),
+            dispersion: Dispersion {
+                base: changed("dispersion/base_dispersion", self.dispersion.base),
+                ..self.dispersion
+            },
+            ..*self
+        }
+    }
+
     /// Its first fire mode empties the magazine while the trigger is held.
     pub fn automatic(&self) -> bool {
         self.first_fire_mode < 0
@@ -321,6 +356,7 @@ impl WeaponParams {
             reload_start_time: number(Some(p), "reload_start_time")?,
             reload_end_time: number(Some(p), "reload_end_time")?,
             chamber_a_round_time: number(Some(p), "chamber_a_round_time")?,
+            movement_speed_modifier: number(Some(p), "movement_speed_modifier")?,
             reload_state,
             has_chamber,
             show_time: number(Some(p), "show_time")?,
@@ -331,6 +367,7 @@ impl WeaponParams {
             min_damage_distance: number(Some(p), "min_damage_distance")?,
             bullet_pierce: number(Some(p), "bullet_pierce")?,
             min_damage_amount: number(Some(p), "min_damage_amount")?,
+            stamina_damage: number(Some(p), "stamina_damage")?,
             top_recoil: range("top")?,
             left_recoil: range("left")?,
             right_recoil: range("right")?,
@@ -441,26 +478,108 @@ impl GrenadeParams {
     }
 }
 
-/// Every grenade of the game data (an item whose config's
-/// `parameters.type` is `grenade`), by name, read once.
+/// Every grenade of `data` (an item of `dictionary` whose config's
+/// `parameters.type` is `grenade`), by name. A test reads a patched copy of
+/// the data with this ([`grenades`] is the process's own).
+pub fn derive_grenades(
+    data: &super::game_data::GameData,
+    dictionary: &'static Dictionary,
+) -> Vec<(&'static str, GrenadeParams)> {
+    dictionary
+        .items
+        .iter()
+        .filter_map(|item| {
+            let config = super::game_data::config(data, &item.cfg_name).ok()??;
+            let kind = config.get("parameters")?.get("type")?.as_str()?;
+            (kind == "grenade")
+                .then(|| GrenadeParams::from_config(&config).ok())
+                .flatten()
+                .map(|params| (item.name.as_str(), params))
+        })
+        .collect()
+}
+
+/// Every grenade of the game data, by name, read once.
 pub fn grenades() -> &'static [(&'static str, GrenadeParams)] {
     static SHARED: std::sync::OnceLock<Vec<(&'static str, GrenadeParams)>> =
         std::sync::OnceLock::new();
-    SHARED.get_or_init(|| {
-        let data = super::game_data::shared();
-        Dictionary::shared()
-            .items
-            .iter()
-            .filter_map(|item| {
-                let config = super::game_data::config(data, &item.cfg_name).ok()??;
-                let kind = config.get("parameters")?.get("type")?.as_str()?;
-                (kind == "grenade")
-                    .then(|| GrenadeParams::from_config(&config).ok())
-                    .flatten()
-                    .map(|params| (item.name.as_str(), params))
-            })
-            .collect()
-    })
+    SHARED.get_or_init(|| derive_grenades(super::game_data::shared(), Dictionary::shared()))
+}
+
+impl GrenadeParams {
+    /// Whether the blast hurts: a fragmentation grenade. A grenade that does
+    /// not (the smoke `rdg-m`: no splash damage) is a danger to no one.
+    pub fn is_frag(&self) -> bool {
+        self.splash_radius > 0.0 && self.splash_max_damage > 0.0
+    }
+}
+
+/// Whether the item `name` is a grenade of any kind: an item whose config's
+/// `parameters.type` is `grenade`, whether or not its `data` block reads as
+/// [`GrenadeParams`] (a smoke grenade need not have a blast).
+pub fn is_grenade_item(name: &str) -> bool {
+    static SHARED: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    SHARED
+        .get_or_init(|| {
+            let data = super::game_data::shared();
+            Dictionary::shared()
+                .items
+                .iter()
+                .filter(|item| {
+                    super::game_data::config(data, &item.cfg_name)
+                        .ok()
+                        .flatten()
+                        .and_then(|config| {
+                            config
+                                .get("parameters")?
+                                .get("type")?
+                                .as_str()
+                                .map(|kind| kind == "grenade")
+                        })
+                        .unwrap_or(false)
+                })
+                .map(|item| item.name.as_str())
+                .collect()
+        })
+        .contains(&name)
+}
+
+/// `stock` with the numbers of the `data` block of the grenade `name`'s config changed to `numbers`
+/// (`(key, value)`, an integer key stays an integer): what a grenade patch does. For tests of what
+/// reads a grenade's numbers from the game data.
+#[cfg(any(test, feature = "fixtures"))]
+pub fn with_grenade_patched(stock: &GameData, name: &str, numbers: &[(&str, f32)]) -> GameData {
+    let item = Dictionary::shared()
+        .item_named(name)
+        .unwrap_or_else(|| panic!("no item {name}"));
+    let mut config = super::game_data::config(stock, &item.cfg_name)
+        .unwrap()
+        .unwrap_or_else(|| panic!("no config {}", item.cfg_name));
+    let ConfigValue::Named(root) = &mut config else {
+        panic!("{} is not a named table", item.cfg_name);
+    };
+    let (_, data) = root
+        .iter_mut()
+        .find(|(key, _)| key == "data")
+        .unwrap_or_else(|| panic!("{} has no data block", item.cfg_name));
+    let ConfigValue::Named(entries) = data else {
+        panic!("data is not a named table");
+    };
+    for &(key, new) in numbers {
+        let (_, value) = entries
+            .iter_mut()
+            .find(|(k, _)| k == key)
+            .unwrap_or_else(|| panic!("no data.{key}"));
+        match value {
+            ConfigValue::Integer(i) => *i = new as i32,
+            ConfigValue::Float(f) => *f = new,
+            other => panic!("data.{key} is {other:?}"),
+        }
+    }
+    stock.laid_over(
+        "the test data and a grenade patch",
+        vec![(item.cfg_name.clone(), config.to_bytes().unwrap())],
+    )
 }
 
 /// The grenade `name` (`items_dict`).
@@ -472,6 +591,74 @@ pub fn grenade_named(name: &str) -> Option<GrenadeParams> {
 mod tests {
     use super::*;
     use crate::v026g::item_params::item_params;
+
+    /// The keys `with_mods` changes.
+    const MODDED_KEYS: [&str; 4] = [
+        "parameters/reload_time",
+        "parameters/rounds_per_minute",
+        "parameters/chamber_a_round_time",
+        "dispersion/base_dispersion",
+    ];
+
+    #[test]
+    fn a_weapons_mods_make_the_numbers_the_bots_read() {
+        let ak = weapon_named("ak_74u").unwrap();
+        assert_eq!(ak.with_mods(&[]), *ak);
+        // 2044: the reload time -15 % (3.167 s to 2.692 s); nothing else moves.
+        let fast = ak.with_mods(&[(2044, false)]);
+        assert!((fast.reload_time - ak.reload_time * 0.85).abs() < 1e-5);
+        assert_eq!(
+            WeaponParams {
+                reload_time: ak.reload_time,
+                ..fast
+            },
+            *ak
+        );
+        // 2034: the rate of fire +10 %; 2024: the base dispersion -10 %.
+        let rate = ak.with_mods(&[(2034, false)]);
+        assert_eq!(
+            rate.rounds_per_minute,
+            (ak.rounds_per_minute as f32 * 1.10).round() as u32
+        );
+        let rifled = ak.with_mods(&[(2024, false)]);
+        assert!((rifled.dispersion.base - ak.dispersion.base * 0.90).abs() < 1e-5);
+        // 2054: the bolt's chamber time -15 %.
+        let mosin = weapon_named("mosin_nagant").unwrap();
+        assert!(mosin.chamber_a_round_time > 0.0);
+        let bolt = mosin.with_mods(&[(2054, false)]);
+        assert!((bolt.chamber_a_round_time - mosin.chamber_a_round_time * 0.85).abs() < 1e-5);
+        // Aim time (2074) and recoil (2084) change no key of a weapon, and the
+        // damage keys are the clients' own to compute.
+        for id in [2074, 2084, 2000, 2010, 2110] {
+            assert_eq!(ak.with_mods(&[(id, false)]), *ak, "{id}");
+        }
+    }
+
+    /// `with_mods` counts only the item's own mods: no weapon's default
+    /// modifications touch a key it reads, so that leaves nothing out.
+    #[test]
+    fn no_weapon_has_a_default_modification_on_a_key_the_bots_read() {
+        let table = super::super::modifications::Modifications::shared();
+        for w in all() {
+            let defaults = item_params(w.dict_id).unwrap().default_modifications;
+            for row in defaults.iter().filter_map(|&id| table.modification(id)) {
+                for modifier in &row.modifiers {
+                    assert!(
+                        !MODDED_KEYS.contains(&modifier.path.as_str()),
+                        "{}: {}",
+                        w.name,
+                        modifier.path
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_weapons_own_speed_modifier_is_read() {
+        assert_eq!(weapon_named("ak_74u").unwrap().movement_speed_modifier, 0.05);
+        assert_eq!(weapon_named("rem_700").unwrap().movement_speed_modifier, -0.05);
+    }
 
     #[test]
     fn the_weapons_are_read_from_their_configs() {
@@ -529,6 +716,38 @@ mod tests {
         assert!(!rgd.explode_on_contact);
         assert_eq!(grenade_named("rgd-5"), Some(rgd));
         assert_eq!(grenade_named("no such grenade"), None);
+    }
+
+    /// A frag hurts and a smoke does not; both are grenade items.
+    #[test]
+    fn the_grenades_are_told_apart_by_their_blast() {
+        assert!(grenade_named("rgd-5").unwrap().is_frag());
+        assert!(is_grenade_item("rgd-5") && is_grenade_item("rdg-m"));
+        assert!(!is_grenade_item("uzi") && !is_grenade_item("no such item"));
+        if let Some(smoke) = grenade_named("rdg-m") {
+            assert!(!smoke.is_frag(), "{smoke:?}");
+        }
+    }
+
+    /// What a grenade patch changes is what is read: the fuse, the blast and the throw speed of
+    /// a patched copy of the data; the process's own data is untouched.
+    #[test]
+    fn a_grenade_patch_is_what_is_read() {
+        let stock = GameData::test_archive();
+        let patched = with_grenade_patched(
+            &stock,
+            "rgd-5",
+            &[("ttl_ms", 3_000.0), ("splash_radius", 8.0), ("throw_power", 20.0)],
+        );
+        let rows = derive_grenades(&patched, Dictionary::shared());
+        let rgd = rows.iter().find(|(name, _)| *name == "rgd-5").unwrap().1;
+        assert_eq!(
+            (rgd.ttl_ms, rgd.splash_radius, rgd.throw_power),
+            (3_000, 8.0, 20.0)
+        );
+        let before = derive_grenades(&stock, Dictionary::shared());
+        assert_eq!(before.iter().find(|(name, _)| *name == "rgd-5").unwrap().1, grenade_named("rgd-5").unwrap());
+        assert_eq!(grenade_named("rgd-5").unwrap().ttl_ms, 4_000);
     }
 
     /// The `dispersion` blocks and the player's character dispersion, as

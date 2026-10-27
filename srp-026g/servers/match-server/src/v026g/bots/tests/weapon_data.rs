@@ -19,20 +19,18 @@
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data;
 use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, Loadout, RusherKits, bot_kits};
+use survarium::v026g::skills::MODIFIERS;
 use survarium::v026g::weapons::fixtures::{ConfigValue, patched_item};
 use survarium::v026g::weapons::{self, WeaponParams};
 
 use super::standin::{DRAW_MS, draw_ms_of};
 use crate::v026g::bots::guns::{
-    self, Arms, Gun, Load, MG_CATEGORY, PISTOL_CATEGORY, RIFLE_CATEGORY, Reload, SHOTGUN_CATEGORY,
-    SMG_CATEGORY, SNIPER_CATEGORY, arms_in, gun_in, guns_of,
+    self, Arms, Factors, Gun, Load, MG_CATEGORY, PISTOL_CATEGORY, RIFLE_CATEGORY, Reload,
+    SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, Table, arms_in, gun_in, gun_with,
+    gun_with_in, guns_of,
 };
 use crate::v026g::bots::recoil::{self, Kick, kick_in, kicks_of};
 use crate::v026g::bots::reflex::WeaponKind;
-
-fn leak<T>(values: Vec<T>) -> &'static [T] {
-    Box::leak(values.into_boxed_slice())
-}
 
 /// The test data's weapon table with the AK-74U's config patched: every
 /// number the bots read of a weapon, changed.
@@ -74,7 +72,8 @@ fn a_patched_weapon_reaches_the_gun_the_load_the_arms_the_kick_and_the_draw() {
     let stock_kick = kick_in(recoil::kicks(), "ak_74u");
 
     let table = patched_table();
-    let patched_guns = leak(guns_of(&table));
+    let patched = Table::of(table.clone());
+    let patched_guns = patched.guns;
     let patched_kicks = kicks_of(&table);
     let gun = ak(patched_guns);
 
@@ -106,11 +105,27 @@ fn a_patched_weapon_reaches_the_gun_the_load_the_arms_the_kick_and_the_draw() {
 
     // Arms: the support's first kit carries the patched gun, with the rounds
     // of its own ammo slots (the ammo is another item, not patched).
-    let arms = arms_in(patched_guns, Dictionary::shared(), support_kit()).expect("the kit's gun");
+    let none = [0.0; MODIFIERS];
+    let arms = arms_in(patched, Dictionary::shared(), support_kit(), &none, false)
+        .expect("the kit's gun");
     assert!(std::ptr::eq(arms.primary.0, gun));
     assert_eq!(arms.primary.0.magazine, 45);
     assert_eq!(arms.primary.1, Arms::fallback().primary.1);
     assert_eq!(arms.reserve, Arms::fallback().reserve);
+
+    // The upgrades go on top of the patched numbers, not the stock ones: the
+    // reload-time mod 2044 (-15 %) of the patched 2.0 s, and the Arms with the
+    // upgrades on carry that gun. The stock gun of the same mod is another.
+    let fast = gun_with_in(patched, "ak_74u", &[2044], Factors::default()).unwrap();
+    assert_eq!(fast.reload, Reload::Magazine { ms: 1_700 });
+    let stock_fast = gun_with("ak_74u", &[2044], Factors::default()).unwrap();
+    assert_ne!(stock_fast.reload, fast.reload);
+    assert!(std::ptr::eq(
+        fast,
+        gun_with_in(patched, "ak_74u", &[2044], Factors::default()).unwrap()
+    ));
+    let on = arms_in(patched, Dictionary::shared(), support_kit(), &none, true).unwrap();
+    assert!(std::ptr::eq(on.primary.0, gun), "no mods or factors: the table's own gun");
 
     // The stock is untouched: the process's tables read the process's data,
     // and the same builders over the process's weapons give the process's

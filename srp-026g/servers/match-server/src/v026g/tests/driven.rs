@@ -261,7 +261,11 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
         }],
         ..MapData::default()
     };
-    let dir = std::env::temp_dir().join(format!("srp-walking-map-{}", std::process::id()));
+    // A folder of its own for each call: the tests that call this run in parallel threads of one process,
+    // and one must not read the file while the other writes it.
+    static CALLS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("srp-walking-map-{}-{call}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     map.write(&dir.join(mapdata::format::file_name(project)))
         .unwrap();

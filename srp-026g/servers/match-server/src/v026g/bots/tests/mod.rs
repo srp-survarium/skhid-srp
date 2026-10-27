@@ -68,6 +68,7 @@ mod fights;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
+mod live_zones;
 mod no_way;
 mod pocket_runs;
 mod settings;
@@ -77,14 +78,18 @@ mod sorted;
 mod sorted_use;
 mod standin;
 mod standin_damage;
+mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
+mod standin_hitbox;
 mod standin_jump;
+mod standin_stamina;
 mod standin_traps;
 mod standin_weapon;
 mod tallies;
 mod trap_react;
 mod traps;
+mod unclear_aim;
 mod walkway;
 mod weapon_data;
 mod world_facts;
@@ -97,6 +102,7 @@ pub(crate) use camper::*;
 use settings::*;
 use soak::*;
 use standin::*;
+use standin_hitbox::HitVolume;
 use standin_jump::*;
 
 

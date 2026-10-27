@@ -34,4 +34,4 @@ libc = { workspace = true }
 session = { workspace = true, features = ["test-support"] }
 # A patched copy of the game data (`GameData::laid_over`, `weapons::fixtures`) for the
 # test that a patched value reaches the bots' numbers (`bots::tests::weapon_data`).
-survarium = { workspace = true, features = ["fixtures"] }
+survarium ={ workspace = true, features = ["fixtures"] }

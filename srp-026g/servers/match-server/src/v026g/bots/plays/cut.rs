@@ -239,7 +239,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if !runs && fine_spots(cx, at, from).is_empty() {
             continue;
         }
-        if let Some(mut c) = cx.candidate(PlayKind::Cut, TargetRef::Point(at), Some(index as u32)) {
+        // A Cut the bot runs is not judged by the crowd that has come to its
+        // point (the friends there are the cut): `commit.cut_given_crowd`.
+        let given: &[(Input, f32)] = if runs && cx.tuning.commit.cut_given_crowd {
+            &[(Input::FriendsNearTarget, 0.0)]
+        } else {
+            &[]
+        };
+        if let Some(mut c) =
+            cx.candidate_given(PlayKind::Cut, TargetRef::Point(at), Some(index as u32), given)
+        {
             c.score = Score::new(c.score.get() * worth * weight);
             if !c.score.is_zero() {
                 out.push(c);
@@ -334,7 +343,7 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
 
 /// A spot to cut the way through `at` (coming from `from`).
 fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
-    let fine = fine_spots(cx, at, from);
+    let fine = super::goals::perch_first(cx, at, rng, fine_spots(cx, at, from));
     let n = fine.len().min(cx.num(PlayKind::Cut, "pick_of").max(1.0) as usize);
     (n > 0).then(|| fine[rng.below(n)])
 }
@@ -571,6 +580,31 @@ mod tests {
         assert_eq!(ways(&s), vec![1, 2]);
         let cuts = cuts(&s.cx(0));
         assert!((cuts[0].3 - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_crowd_at_the_cut_drops_a_running_cut_unless_the_switch_is_on() {
+        let mut s = field(Mode::TeamDeathmatch);
+        let (_, at, _, _) = cuts(&s.cx(0))[0];
+        // Three friends at the cut: no Cut is offered there to start.
+        for place in 1..=3 {
+            s.bot(place, 0, at + Vec3::new(2.0 * place as f32, 0.0, 0.0));
+        }
+        let offered = |s: &Scenario| {
+            cut_candidates(s)
+                .iter()
+                .any(|c| c.kind == PlayKind::Cut && c.target == TargetRef::Point(at))
+        };
+        assert!(!offered(&s));
+        // The bot runs it already: off, the crowd still ends it ...
+        s.current = Some((PlayKind::Cut, TargetRef::Point(at), 0));
+        assert!(!offered(&s));
+        // ... on, the crowd is no reason to leave it.
+        s.tuning.commit.cut_given_crowd = true;
+        assert!(offered(&s));
+        // And a Cut it does not run is still not started into the crowd.
+        s.current = None;
+        assert!(!offered(&s));
     }
 
     #[test]

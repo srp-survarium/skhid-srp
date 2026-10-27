@@ -52,6 +52,7 @@ use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
+use crate::v026g::bots::arc::Grenade;
 use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
@@ -331,7 +332,7 @@ fn weapon_in_slot_7(
 }
 
 /// A player's pockets (profile slots 13..=18 of its first kit) for the
-/// throw keys: what each holds, a frag (`rgd-5`), a smoke (`rdg-m`) or
+/// throw keys: what each holds, a frag (a grenade whose blast hurts, with its own fuse and radius: the game data's `rgd-5`), a smoke (another grenade item, `rdg-m`) or
 /// something else the quick-use keys count, and the units. A server bot's
 /// throw key is a frag, so it has none. The first kit is the one the
 /// player spawns in unless it picked another (LIKELY: `kit_changes`
@@ -349,14 +350,23 @@ fn pockets_of(
         let (index, units) = kit.slots[slot]?;
         let item = profile.items.get(usize::from(index))?;
         let name = dictionary.item(item.dict_id)?.name.as_str();
-        let held = match name {
-            "rgd-5" => Pocketed::Frag,
-            "rdg-m" => Pocketed::Smoke,
-            _ => Pocketed::Other,
+        // By the game data: a frag is a grenade whose blast hurts (with its own fuse and radius), a smoke
+        // any other grenade item.
+        let held = match (Grenade::named(name), survarium::v026g::weapons::is_grenade_item(name)) {
+            (Some(_), _) => Pocketed::Frag,
+            (None, true) => Pocketed::Smoke,
+            (None, false) => Pocketed::Other,
         };
         Some((held, units))
     });
-    Some(Pockets::new(slots))
+    let grenades = std::array::from_fn(|i| {
+        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+        let (index, _) = kit.slots[slot]?;
+        let item = profile.items.get(usize::from(index))?;
+        let name = dictionary.item(item.dict_id)?.name.as_str();
+        Grenade::named(name).copied()
+    });
+    Some(Pockets::new(slots).with_grenades(grenades))
 }
 
 /// How far a shot of a place's weapon 1 (the item in slot 7 of its first

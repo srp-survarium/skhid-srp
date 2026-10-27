@@ -30,12 +30,14 @@
 pub mod aimpoint;
 pub mod anomalies;
 pub mod arc;
+pub mod artefact_know;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
+pub mod field_source;
 pub mod foliage;
 pub mod friends;
 pub mod grenade_threat;
@@ -46,6 +48,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod live_grenades;
+pub mod live_zones;
 pub mod maps;
 pub mod motor;
 pub mod path;
@@ -53,6 +56,7 @@ pub mod plays;
 pub mod pools;
 pub mod recoil;
 pub mod reflex;
+pub mod rest;
 pub mod rng;
 pub mod route_end;
 pub mod route_filter;
@@ -76,6 +80,8 @@ mod commander;
 mod drive;
 mod facts;
 mod features;
+#[cfg(test)]
+pub mod hold_trace;
 mod layers;
 mod search;
 mod think;
@@ -90,6 +96,8 @@ use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::loadouts::BotTier;
 use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
+use survarium::v026g::match_msgs::traps::PlacedTrap;
+use survarium::v026g::match_msgs::traps::TrapState;
 
 use crate::v026g::drive::half_value;
 use crate::v026g::drive::key;
@@ -184,6 +192,8 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its rest, kept off a lip ([`rest`]).
+    rest: rest::RestWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -215,6 +225,9 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The enemy and the place its Crossfire began on, and when
+    /// (`commit.crossfire_point`): the choke after the memory forgot him.
+    held_choke: Option<(Place, Vec3, u32)>,
     /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
     lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
@@ -357,6 +370,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            rest: rest::RestWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
@@ -374,6 +388,7 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            held_choke: None,
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
@@ -454,6 +469,7 @@ impl Bot {
         self.kit_chosen = 0;
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -575,6 +591,14 @@ impl Bot {
 
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
+        #[cfg(test)]
+        if let Some(a) = self.assignment.as_ref() {
+            let dist = match self.intent.go {
+                Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
+                _ => None,
+            };
+            hold_trace::ended(a.kind, a.target, now.saturating_sub(a.since), why, dist);
+        }
         if let Some(running) = self.running.take() {
             let kind = running.kind();
             self.last_ran.retain(|(k, _)| *k != kind);
@@ -582,6 +606,7 @@ impl Bot {
             self.note(notes, now, format!("ends {kind:?}: {why}"));
         }
         self.assignment = None;
+        self.held_choke = None;
         self.end_route(RouteEnd::EndPlay, now);
         self.intent = Intent::stay();
     }
@@ -591,6 +616,7 @@ impl Bot {
     /// respawn by being carried (owner's word; being checked in the
     /// client's code).
     fn new_life(&mut self, skill: f32, tactics: Option<&Tactics>, feet: Vec3) {
+        self.held_choke = None;
         self.running = None;
         self.assignment = None;
         self.route = None;
@@ -608,6 +634,7 @@ impl Bot {
             kit.1 = left;
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -832,10 +859,16 @@ impl Bots {
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
         tactics.escape = self.tuning.hazard.escape;
+        tactics.clear_step_sees_lip = self.tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
+        self.features.artefacts = self
+            .tuning
+            .hazard
+            .artefact_know
+            .then(|| artefact_know::ArtefactKnow::of(&tactics.world.map));
         let teams = self.container_teams;
         let mut containers: Vec<(u8, Vec3)> = Vec::new();
         for container in &tactics.world.map.containers {
@@ -862,6 +895,14 @@ impl Bots {
                 .map(|side| (*side, tactics.routes_of(*side).count()))
                 .collect::<Vec<_>>()
         );
+        let summary = match &self.features.artefacts {
+            Some(know) => format!(
+                "{summary}; {} artefact spots ({} names unlinked)",
+                know.spots().len(),
+                know.unlinked()
+            ),
+            None => summary,
+        };
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary
@@ -871,6 +912,8 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.layers.routes = table.for_map(self.level, self.mode);
+        self.layers.perches = table.perches_for(self.level);
+        self.layers.perch_share = table.perch_share(self.level, self.mode);
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
@@ -954,6 +997,7 @@ impl Bots {
             return;
         }
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -1028,6 +1072,7 @@ impl Bots {
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1040,6 +1085,7 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
@@ -1183,9 +1229,64 @@ impl Bots {
     /// A trusted world's objects section: the anomalies' states put right.
     /// Returns (cores read, cores missed).
     pub fn anomalies_from_world(&mut self, objects: &[u8], time: u32) -> (usize, usize) {
-        self.tactics.as_mut().map_or((0, 0), |tactics| {
+        // What the simulation said of the cores' artefacts, to count against the world
+        // (`artefact_know`; none while it is off).
+        let predicted = self.features.artefacts.as_ref().and_then(|_| {
+            let anomalies = self.tactics.as_ref()?.hazards.anomalies()?;
+            Some(artefact_know::ArtefactKnow::predicted(anomalies))
+        });
+        let mut synced: Vec<usize> = Vec::new();
+        let read = self.tactics.as_mut().map_or((0, 0), |tactics| {
             let report = tactics.hazards.sync_from_world(objects, time);
+            synced = report.synced.iter().map(|s| s.core).collect();
             (report.synced.len(), report.missed.len())
+        });
+        if let (Some(predicted), Some(know), Some(anomalies)) = (
+            predicted,
+            self.features.artefacts.as_mut(),
+            self.tactics.as_ref().and_then(|t| t.hazards.anomalies()),
+        ) {
+            know.observe(&predicted, anomalies, &synced, time);
+        }
+        // The same world, as the live zones (the timed cores' states).
+        self.fields_from_world(time);
+        read
+    }
+
+    /// The artefact places of the map and how well the cores' artefacts are known
+    /// (`tuning.hazard.artefact_know`; none while it is off or before the map is ready).
+    pub fn artefact_know(&self) -> Option<&artefact_know::ArtefactKnow> {
+        self.features.artefacts.as_ref()
+    }
+
+    /// The anomaly fields the cores show after a trusted world (`field_source::v1`) at match time `time`: the live
+    /// zones of this match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the
+    /// board holds.
+    pub fn fields_from_world(&mut self, time: u32) -> usize {
+        if !self.tuning.hazard.live_zones {
+            return 0;
+        }
+        self.tactics.as_mut().map_or(0, |tactics| {
+            let fields = tactics
+                .hazards
+                .anomalies()
+                .map(|anomalies| field_source::v1(anomalies, &tactics.world.map))
+                .unwrap_or_default();
+            tactics.hazards.set_fields(&fields, &tactics.world.grid, time);
+            tactics.hazards.live.fields().len()
+        })
+    }
+
+    /// The bench's source (`standin_fields`): the fields of a world as the generator lists them, with no world bytes.
+    /// As [`Self::fields_from_world`], off with `Tuning::live_zones`.
+    #[cfg(test)]
+    pub fn fields_given(&mut self, fields: &[live_zones::WorldField], time: u32) -> usize {
+        if !self.tuning.hazard.live_zones {
+            return 0;
+        }
+        self.tactics.as_mut().map_or(0, |tactics| {
+            tactics.hazards.set_fields(fields, &tactics.world.grid, time);
+            tactics.hazards.live.fields().len()
         })
     }
 
@@ -1194,11 +1295,15 @@ impl Bots {
     /// the traps the world shows (0 while no bot has put one down).
     pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
         let react = self.tuning.traps.react.on;
+        let hear = self.tuning.traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
-        if !own && !react {
+        if !own && !react && !hear {
             return 0;
         }
         let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        if hear {
+            self.hear_snaps(&found, time);
+        }
         // The armed traps of the world, for the bots' notice (off: none).
         let armed = Arc::new(if react {
             trap_react::armed_of(&found)
@@ -1220,6 +1325,35 @@ impl Bots {
             self.count_own_traps(time, &went_off);
         }
         found.len()
+    }
+
+    /// A trap the last world showed armed that this one shows fired went off
+    /// under the body nearest it: a sound of that body, heard like its steps
+    /// (`SoundKind::Trap`, `traps.react.hear`). A disarmed trap makes none.
+    fn hear_snaps(&mut self, found: &[PlacedTrap], time: u32) {
+        let at = |trap: &PlacedTrap| Vec3::new(trap.position[0], trap.position[1], trap.position[2]);
+        let near = self.tuning.traps.react.snap_near_m;
+        for fired in found.iter().filter(|trap| trap.state == TrapState::Fired) {
+            let spot = at(fired);
+            if !self.features.snaps.armed.iter().any(|armed| armed.distance_xz(spot) < trap_know::MATCH_M)
+            {
+                continue;
+            }
+            if let Some(victim) = self.tracker.nearest_body(spot, near) {
+                self.tracker.snap(victim, spot, time);
+                self.features.snaps.heard += 1;
+            }
+        }
+        self.features.snaps.armed = found
+            .iter()
+            .filter(|trap| trap.state == TrapState::Armed)
+            .map(at)
+            .collect();
+    }
+
+    /// Snaps given to the bots' ears, for the bench.
+    pub fn snaps_heard(&self) -> u32 {
+        self.features.snaps.heard
     }
 
     /// A team's trap went off: counted, and whether a body of the team with
@@ -1265,9 +1399,26 @@ impl Bots {
         sum
     }
 
+    /// What the weapon mods did to the bots' reloads, over all the bots and
+    /// lives (`guns.rs`), and which bots now hold a modded weapon, by what is
+    /// modded and whether past what a player can have.
+    pub fn mod_counts(&self) -> (guns::ModCounts, guns::HeldMods) {
+        let mut sum = guns::ModCounts::default();
+        let mut held = guns::HeldMods::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.weapon_mods.0);
+            sum.add(&bot.reflex.mod_counts());
+            if let Some(arms) = bot.reflex.arms() {
+                held.add(arms.primary.0);
+            }
+        }
+        (sum, held)
+    }
+
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

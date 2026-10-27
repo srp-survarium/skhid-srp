@@ -50,7 +50,7 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
     )
 }
 
-/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard.
+/// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::counts::counts().to_vec(),
@@ -58,6 +58,22 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
             line.main.push(format!(
                 "jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} lip_guard_changed {} lip_guard_none {}",
                 d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
+            ));
+            line.tail.push(format!("look_unclear {} look_unclear_back {} look_unclear_off {}", d[8], d[9], d[10]));
+        },
+    )
+}
+
+/// The reflex's own side steps refused at a lip and asked the other side (`drive_tick`, `clear_step_sees_lip`):
+/// the other side clear, or both refused (the bot stands), standing to aim or weaving a walk, from a floor in a
+/// lip's band or out of it; and the steps taken to the other side (`clear_step_slides_along`).
+pub(super) fn side_slides() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::counts::slides().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "side_other_clear_still_out {} side_other_clear_still_band {} side_other_clear_walk_out {} side_other_clear_walk_band {} side_both_refused_still_out {} side_both_refused_still_band {} side_both_refused_walk_out {} side_both_refused_walk_band {} side_slid {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]
             ));
         },
     )
@@ -90,11 +106,73 @@ pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The holder's picks with the stand-sight rule on, those that kept spots seeing the stand, and
+/// those that fell back to the box rule (`guard_lead::stand_sight`).
+pub(super) fn holder_stand_sight() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::guard_lead::stand_sight::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "holder_stand_picks {} holder_stand_kept {} holder_stand_fallback {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
         || vec![super::super::path::below_walk::counts()],
         |d, line| line.ends.push(format!("off_below_walk {}", d[0])),
+    )
+}
+
+/// The rest points moved off a lip (`path::rests`).
+pub(super) fn rests() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::rests::counts()],
+        |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
+    )
+}
+
+/// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
+/// (`rest::stops`): the owner's symptom, on and off.
+pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::rest::stops::counts().to_vec(),
+        |d, line| line.ends.push(format!("rests_on_lip {} rest_seconds_on_lip {:.1}", d[0], d[1] as f32 / 1000.0)),
+    )
+}
+
+/// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
+pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_jumps::counts().iter().flatten().copied().collect(),
+        |d, line| {
+            let band = |k: usize| d[k * 6..k * 6 + 6].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("sprint_jumps_pressed {} sprint_jumps_up {} sprint_jumps_gave_up {}", band(0), band(1), band(2)));
+        },
+    )
+}
+
+/// The landings of route jumps by the carried run's angle from the way (`motor::landings`): seen / braked, bands
+/// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
+pub(super) fn landings() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::landings::counts().iter().flatten().copied().collect(),
+        |d, line| {
+            let bands = |k: usize| d[k * 5..k * 5 + 5].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("landings {} landings_cancelled {}", bands(0), bands(1)));
+        },
+    )
+}
+
+/// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
+pub(super) fn stranded() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::stranded::counts()],
+        |d, line| line.ends.push(format!("plans_from_stranded_stand {}", d[0])),
     )
 }
 
@@ -123,6 +201,14 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
                 d[0], d[1], d[2]
             ));
         },
+    )
+}
+
+/// Bodies locked by a hard fall and the worlds the stuck watch kept quiet for them (`stuck::fall_locks`).
+pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::fall_locks::counts().to_vec(),
+        |d, line| line.ends.push(format!("fall_locks {} fall_lock_worlds {}", d[0], d[1])),
     )
 }
 

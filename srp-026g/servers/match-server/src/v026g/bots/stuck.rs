@@ -57,6 +57,7 @@
 
 use mapdata::Vec3;
 
+use super::hazards::ZoneSet;
 use super::path::Route;
 use super::tuning::UnstickTuning;
 use crate::v026g::drive::key;
@@ -146,6 +147,15 @@ pub const ZONE_OUT_KEPT_MS: u32 = 2_000;
 /// then three GiveUps.
 pub const HOPELESS_GIVE_UPS: u32 = 3;
 const HOPELESS_TIMES: u32 = 2 + HOPELESS_GIVE_UPS;
+/// A fall of this much or more, metres (a landing at 10.8 m/s: the first that hurts a leg), leaves the body unable to
+/// move for [`FALL_LOCK_MS`]: in the J0 worlds the bodies that landed from 6.2-6.9 m stood 6.5-8.0 s at speed 0 with
+/// the walk keys held and the stuck unsticking keys too (match 2a2e5b76 bots 5 and 11 at the foot of the g2 ledge,
+/// 8.0 and 8.5 s; 12939af6 bot 3, 7.6 s), then walked on; the falls of 5.2 m and less stood 0-2 s.
+pub const HARD_FALL_M: f32 = 6.0;
+/// The lock of a hard fall, ms (a broken leg is 8 s, `motor::Hurt`).
+pub const FALL_LOCK_MS: u32 = 8_500;
+/// The heights of the worlds are kept this long to see a fall, ms.
+const FALL_WINDOW_MS: u32 = 2_000;
 
 /// A bot with nothing left to try (`Stuck::hopeless`): since when, and why.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -190,7 +200,7 @@ pub struct Stuck {
     /// Its ways out of zones lately: the zones' set, the goal, the time,
     /// and whether it was off those zones' floors since
     /// ([`Self::zone_escape`], [`Self::zone_on`]).
-    zone_escapes: Vec<(u16, Vec3, u32, bool)>,
+    zone_escapes: Vec<(ZoneSet, Vec3, u32, bool)>,
     /// When its held route was last looked over for zones
     /// ([`ZONE_CHECK_MS`]).
     pub zone_checked: u32,
@@ -203,6 +213,10 @@ pub struct Stuck {
     /// till when every search of this body keeps off them
     /// ([`JUMP_SHUT_MS`]).
     shut_landings: Vec<(Vec3, u32)>,
+    /// The worlds' heights of the last [`FALL_WINDOW_MS`] (time, y), for [`Self::track_fall`].
+    heights: Vec<(u32, f32)>,
+    /// A hard fall locks the body till this time ([`HARD_FALL_M`]): it is not stuck while it cannot move.
+    fall_lock_until: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -218,6 +232,25 @@ struct Spot {
 }
 
 impl Stuck {
+    /// A world showed the body at `feet`: after a fall of [`HARD_FALL_M`] or more within [`FALL_WINDOW_MS`] that has
+    /// landed (the height is no longer dropping), the body is locked for [`FALL_LOCK_MS`] ([`Self::walking`] says
+    /// nothing meanwhile). `on`: the switch (`think.fall_lock`); off, nothing is kept.
+    pub fn track_fall(&mut self, time: u32, feet: Vec3, on: bool) {
+        if !on {
+            return;
+        }
+        self.heights.retain(|&(at, _)| at + FALL_WINDOW_MS > time);
+        let dropped = self.heights.iter().map(|&(_, y)| y).fold(f32::MIN, f32::max) - feet.y;
+        let landed = self.heights.last().is_some_and(|&(_, y)| feet.y > y - 0.05);
+        if dropped >= HARD_FALL_M && landed {
+            self.fall_lock_until = time + FALL_LOCK_MS;
+            self.heights.clear();
+            #[cfg(test)]
+            fall_locks::locked();
+        }
+        self.heights.push((time, feet.y));
+    }
+
     /// It stopped walking (a new route, a pause, a death): the next world
     /// starts the watch again.
     pub fn reset(&mut self) {
@@ -238,6 +271,13 @@ impl Stuck {
         meant: Option<f32>,
         keys: u32,
     ) -> Option<(Recovery, bool)> {
+        if time < self.fall_lock_until {
+            // Landed hard: the body cannot move yet, whatever the keys; not stuck, nothing to back off from.
+            #[cfg(test)]
+            fall_locks::paused();
+            self.reset();
+            return None;
+        }
         let by_keys = self.held(time, feet, keys);
         let by_reckoning = self.reckoned(time, feet, meant);
         if !(by_keys || by_reckoning) {
@@ -335,11 +375,11 @@ impl Stuck {
     /// zone the body left is not held as on meanwhile: the Cologne anomaly
     /// bench's 15 s memory shut the only way's open windows (run 8: 11
     /// back-outs, 79.5 s to the goal against 41.7 s).
-    pub fn zone_escape(&mut self, time: u32, set: u16, goal: Vec3) -> bool {
+    pub fn zone_escape(&mut self, time: u32, set: ZoneSet, goal: Vec3) -> bool {
         self.zone_escapes
             .retain(|&(_, _, at, _)| time < at.saturating_add(ZONE_AGAIN_MS));
         let same =
-            |&(s, g, _, _): &(u16, Vec3, u32, bool)| s == set && g.distance_xz(goal) <= ZONE_GOAL_M;
+            |&(s, g, _, _): &(ZoneSet, Vec3, u32, bool)| s == set && g.distance_xz(goal) <= ZONE_GOAL_M;
         let again = self.zone_escapes.iter().any(|e| same(e) && e.3);
         match self.zone_escapes.iter_mut().find(|e| same(e) && !e.3) {
             Some(stay) => stay.2 = time,
@@ -350,7 +390,7 @@ impl Stuck {
 
     /// The body is on a floor of the zones of set `set` (0: none): the
     /// ways out of other zones' floors are left ([`Self::zone_escape`]).
-    pub fn zone_on(&mut self, set: u16) {
+    pub fn zone_on(&mut self, set: ZoneSet) {
         for escape in self.zone_escapes.iter_mut().filter(|e| e.0 != set) {
             escape.3 = true;
         }
@@ -705,6 +745,27 @@ pub fn self_kill_step(
     }
 }
 
+/// The bench's counts of the hard falls ([`Stuck::track_fall`]): bodies locked, and worlds the stuck watch kept quiet
+/// for them.
+#[cfg(test)]
+pub mod fall_locks {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn locked() {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn paused() {
+        COUNTS[1].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The bench's counts of the self-kills ([`SelfKillAct`]): sent, sent again,
 /// barred after two.
 #[cfg(test)]
@@ -726,6 +787,36 @@ pub mod self_kills {
 mod tests {
     use super::*;
     use crate::v026g::bots::path::Waypoint;
+
+    /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds): with `think.fall_lock`
+    /// the walk-keys-held watch keeps quiet that long and says stuck only after it; off, it says so 3 s after the
+    /// landing, as it did. A fall of 3 m locks nothing.
+    #[test]
+    fn a_body_that_landed_hard_is_not_stuck_while_it_cannot_move() {
+        let first_stuck = |on: bool, from: f32| {
+            let mut stuck = Stuck::default();
+            for i in 0..100u32 {
+                let time = 1_000 + i * 150;
+                let y = match i {
+                    0 => from,
+                    1 => from - 2.5,
+                    2 => from - 5.0,
+                    _ => 3.0,
+                };
+                let feet = Vec3::new(0.0, y.max(3.0), 0.0);
+                stuck.track_fall(time, feet, on);
+                if stuck.walking(time, feet, Some(0.0), key::FORWARD).is_some() {
+                    return Some(time - 1_000);
+                }
+            }
+            None
+        };
+        let off = first_stuck(false, 9.5).expect("stuck after the landing");
+        let on = first_stuck(true, 9.5).expect("stuck once the lock ends");
+        assert!(off < 4_500 && on >= off + 5_000, "{off} {on}");
+        let short = first_stuck(true, 6.0).expect("a 3 m fall locks nothing");
+        assert!(short < 4_500, "{short}");
+    }
 
     /// (iii): the landing of a jump the motor gave up is shut to the body's
     /// searches for as long as the motor refuses the jump, and a floor within

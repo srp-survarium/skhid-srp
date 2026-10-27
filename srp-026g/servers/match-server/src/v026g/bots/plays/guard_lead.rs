@@ -34,6 +34,7 @@
 //! the commander's role budget, CG-13, decides it).
 
 use super::*;
+use mapdata::UseStand;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::SpotQuery;
 
@@ -70,9 +71,37 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("holder_lane_m", 30.0),
     // its spots within this of the way a thief comes, seen from the box;
     ("holder_face_deg", 60.0),
-    // the need off this long ends the hold.
+    // the need off this long ends the hold;
     ("holder_off_s", 20.0),
+    // F6: above 0 (off by default), a holder's spot must also see a body at the container's use
+    // stand nearest the way a thief comes, not only the box: 43-49 % of the spots that see the
+    // box do not see the stand (`boxprobe ringsee`, Vector Laboratory). Where no spot does, the
+    // box rule stays (`stand_sight::counts`).
+    ("stand_sight", 0.0),
 ];
+
+/// A holder's spots checked against the thief's stand at most per pick (two rays each).
+const STAND_CHECKS: usize = 24;
+/// The height of a standing thief's chest over his feet, metres (the head is [`still_eye`]'s).
+const CHEST_M: f32 = 1.0;
+
+/// How the holder's stand-sight picks went (the bench's tally): picks with the rule on, those
+/// that kept spots seeing the stand, and those that found none and fell back to the box rule.
+#[cfg(test)]
+pub mod stand_sight {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+
+    pub fn count(kept: bool) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        COUNTS[if kept { 1 } else { 2 }].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
+        [0, 1, 2].map(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
 
 /// The container holder's slot key: `HOLDER_SLOT` plus the container's id
 /// (the end-game guards' keys are twice the id and the next).
@@ -254,18 +283,69 @@ impl Ctx<'_> {
                 off.min(std::f32::consts::TAU - off) <= num("holder_face_deg").to_radians()
             })
         };
-        let spots: Vec<Vec3> = if found.iter().any(|&at| facing(at)) {
-            found
-                .into_iter()
-                .filter(|&at| facing(at))
-                .take(pick)
-                .collect()
+        let pool: Vec<Vec3> = if found.iter().any(|&at| facing(at)) {
+            found.into_iter().filter(|&at| facing(at)).collect()
         } else if face.is_some() && last.is_some() {
             Vec::new()
         } else {
-            found.into_iter().take(pick).collect()
+            found
+        };
+        let stand = face
+            .filter(|_| num("stand_sight") > 0.0)
+            .and_then(|face| self.thief_stand(container, face));
+        let spots: Vec<Vec3> = match stand {
+            Some(stand) => {
+                let seeing: Vec<Vec3> = pool
+                    .iter()
+                    .take(STAND_CHECKS)
+                    .copied()
+                    .filter(|&at| self.sees_stand(at, &stand))
+                    .take(pick)
+                    .collect();
+                #[cfg(test)]
+                if !pool.is_empty() {
+                    stand_sight::count(!seeing.is_empty());
+                }
+                if seeing.is_empty() {
+                    pool.into_iter().take(pick).collect()
+                } else {
+                    seeing
+                }
+            }
+            None => pool.into_iter().take(pick).collect(),
         };
         (!spots.is_empty()).then(|| spots[rng.below(spots.len())])
+    }
+
+    /// The use stand of the container at `container` nearest `approach`, where a thief coming
+    /// that way stands.
+    fn thief_stand(&self, container: Vec3, approach: Vec3) -> Option<UseStand> {
+        let id = self
+            .view
+            .containers
+            .iter()
+            .find(|c| c.at.distance_xz(container) < 0.5)?
+            .id;
+        self.use_stands(id)
+            .iter()
+            .min_by(|a, b| {
+                a.feet
+                    .distance_xz(approach)
+                    .total_cmp(&b.feet.distance_xz(approach))
+                    .then(a.feet.x.total_cmp(&b.feet.x))
+                    .then(a.feet.z.total_cmp(&b.feet.z))
+            })
+            .copied()
+    }
+
+    /// Whether a holder crouched at `spot` sees a body standing at `stand` (head or chest).
+    fn sees_stand(&self, spot: Vec3, stand: &UseStand) -> bool {
+        use crate::v026g::bots::view::still_eye;
+        let eye = still_eye(spot, true);
+        self.tactics.sees(eye, still_eye(stand.feet, false))
+            || self
+                .tactics
+                .sees(eye, stand.feet + Vec3::new(0.0, CHEST_M, 0.0))
     }
 
     /// The way a thief comes to our container: the best of the thieves'
@@ -478,6 +558,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 2);
@@ -630,6 +711,64 @@ mod tests {
         )));
     }
 
+    /// The holder's spot with the stand-sight rule (F6): a wall north of the way a thief comes
+    /// (z = 32, from x = 16 on) hides the stand east of the box from the spots behind it, which
+    /// still see the box. Off, the holder takes such a spot; on, every spot it takes sees the
+    /// stand, and where no spot does it falls back to the box rule.
+    #[test]
+    fn a_holders_spot_sees_the_stand_a_thief_comes_to_when_the_rule_is_on() {
+        use crate::v026g::bots::tactics::{Tactics, tests::field_with_solids};
+        use mapdata::{Container, Rotation, Shape, ShapeKind};
+        let middle = OURS + Vec3::new(0.0, 1.0, 0.0);
+        let half = Vec3::new(1.0, 0.85, 0.65);
+        let body = Shape {
+            kind: ShapeKind::Box,
+            center: middle,
+            rotation: Rotation::IDENTITY,
+            half,
+        };
+        let mut solids = solid_box(middle, half);
+        solids.extend(solid_box(
+            Vec3::new(28.0, 1.5, 32.0),
+            Vec3::new(12.0, 1.5, 0.1),
+        ));
+        let world = field_with_solids(&solids, |map| {
+            map.containers.push(Container {
+                position: OURS,
+                team: 0,
+                id: 0,
+                use_shapes: vec![body],
+            });
+        });
+        let pick = |on: f32, seed: u64| {
+            let mut s = holder_scene();
+            s.team.thefts_match = 1;
+            s.tactics = Tactics::new(world.clone(), 1.0);
+            s.tuning
+                .plays
+                .entry(PlayKind::GuardLead)
+                .or_insert_with(|| default_tuning(PlayKind::GuardLead))
+                .numbers
+                .insert("stand_sight".into(), on);
+            let cx = s.cx(0);
+            let approach = cx.holder_approach(OURS);
+            let stand = cx.thief_stand(OURS, approach).expect("a stand");
+            let spot = cx
+                .guard_spot(OURS, None, Some(approach), &mut Rng::new(seed))
+                .expect("a spot");
+            (spot, cx.sees_stand(spot, &stand), stand)
+        };
+        let (mut off_blind, mut on_blind) = (0, 0);
+        for seed in 1..=40 {
+            off_blind += usize::from(!pick(0.0, seed).1);
+            on_blind += usize::from(!pick(1.0, seed).1);
+        }
+        let stand = pick(1.0, 1).2;
+        assert!(stand.feet.x > OURS.x, "the stand east of the box: {stand:?}");
+        assert!(off_blind > 0, "the wall hides the stand from some spots the box rule takes");
+        assert_eq!(on_blind, 0, "every spot the rule takes sees the stand");
+    }
+
     /// Level, mid-match, our container holding 2 batteries; bots 0, 2 and
     /// 4 of team 0 out in the field.
     fn holder_scene() -> Scenario {
@@ -701,6 +840,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         let given = assign(asking, s.view.clock);

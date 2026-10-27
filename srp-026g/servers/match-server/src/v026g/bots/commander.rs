@@ -226,6 +226,8 @@ impl Bots {
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
         let mut shaky: Vec<Place> = Vec::new();
+        // Bots whose hold walks to its spot (`commit.hold_to_arrival`).
+        let mut committed: Vec<Place> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -257,6 +259,7 @@ impl Bots {
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -268,6 +271,22 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            if let Some(a) = bot.assignment.as_ref()
+                && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
+            {
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::dropped(
+                    a.kind,
+                    a.target,
+                    now.saturating_sub(a.since),
+                    &cx.drop_reason(a.kind, a.target),
+                    dist,
+                );
+            }
             // Collect's answers read, not asked again (`take_blocks`).
             blocks.push((bot.place, plays::collect::take_blocks(&cx, &candidates)));
             #[cfg(test)]
@@ -286,6 +305,11 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if tuning.commit.hold_to_arrival
+                && bot.running.as_ref().is_some_and(plays::Running::travelling)
+            {
+                // A hold still walking to its spot (no way lately: not).
+                committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -295,6 +319,7 @@ impl Bots {
                 place: *place,
                 candidates: candidates.clone(),
                 current: current.as_ref(),
+                committed: committed.contains(place),
             })
             .collect();
         let gap = state.signals.score_gap;
@@ -321,6 +346,35 @@ impl Bots {
             {
                 escape::counts::handed();
             }
+            #[cfg(test)]
+            if let Some(old) = bot.assignment.as_ref() {
+                let incumbent = asked
+                    .iter()
+                    .find(|(p, _, _)| *p == place)
+                    .and_then(|(_, c, _)| c.iter().find(|c| c.kind == old.kind && c.target == old.target))
+                    .map(|c| (c.rank, c.score.get()));
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::switched(
+                    old.kind,
+                    old.target,
+                    now.saturating_sub(old.since),
+                    incumbent,
+                    assignment.kind,
+                    asked
+                        .iter()
+                        .find(|(p, _, _)| *p == place)
+                        .and_then(|(_, c, _)| {
+                            c.iter().find(|c| c.kind == assignment.kind && c.target == assignment.target)
+                        })
+                        .map(|c| c.rank),
+                    assignment.score,
+                    assignment.reason,
+                    dist,
+                );
+            }
             // The new play starts.
             bot.give_way(assignment.kind, now);
             let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
@@ -345,6 +399,7 @@ impl Bots {
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -362,6 +417,16 @@ impl Bots {
                 &cx,
                 &mut rng,
             );
+            // A Crossfire on an enemy's last known place keeps the place
+            // when the memory forgets him (`commit.crossfire_point`).
+            let held_choke = match (assignment.kind, assignment.target) {
+                (plays::PlayKind::Crossfire, plays::TargetRef::Place(who))
+                    if tuning.commit.crossfire_point =>
+                {
+                    cx.point_of(assignment.target).map(|at| (who, at, now))
+                }
+                _ => None,
+            };
             bot.rng = rng;
             bot.note(
                 notes,
@@ -415,6 +480,7 @@ impl Bots {
                     "skill": state.skill.skill,
                 }));
             }
+            bot.held_choke = held_choke;
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);

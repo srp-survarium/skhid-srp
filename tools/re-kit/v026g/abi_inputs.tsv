@@ -510,8 +510,14 @@ va	name	location	role	basis
 0x0006f561		entry ESP+8		auto
 0x0006f561		entry ESP+4		auto
 0x0006f561		entry ESP+16		auto
+0x00070c00	vostok::physics::bt_animated_rigid_body::get_triangle_material	ECX	the animated body	observed
+0x00070f40	vostok::physics::new_bt_element_joint	EAX	the config node of one element (keys type, position, rotation, scale)	observed
+0x00071080	vostok::physics::new_compound_shape_from_hit_targets_config	EAX	the config node (key hit_targets: per child hit_param, animation_bone, type, position, rotation, scale; 6Ch bytes per child in the body's list)	observed
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	ECX	the physics world (vtable 0x9E2EBC +48h; a player's +350h, the lobby menu's +3104h)	observed
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+4	the result (28h bytes), then from*, direction*, length (float), filter group, filter mask, 0, 1 (the lobby: 10h, 8)	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	EDX	engine shape type: 0 sphere, 1 box, 2 cylinder, 3 capsule	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ECX	float3 scale: sphere (radius), box (half extents), cylinder (radius, half height), capsule (radius, cylinder length between the hemisphere centres)	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ESI	the allocator object (vtable +10h allocates)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed

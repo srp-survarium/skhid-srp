@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use mapdata::stands::{GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
+use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
@@ -139,10 +139,11 @@ impl Memo {
     /// map).
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
         self.stands.get_or_init(|| {
+            let ray_m = crate::v026g::bots::view::use_ray_m();
             if crate::v026g::bots::view::live_eye() {
-                UseStands::build(&tactics.world)
+                UseStands::build_ray(&tactics.world, EYE_STANDING, EYE_CROUCHED, ray_m)
             } else {
-                UseStands::build_with(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED)
+                UseStands::build_ray(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED, ray_m)
             }
         })
     }
@@ -207,10 +208,10 @@ impl Ctx<'_> {
     }
 
     fn press_on(&self, eye: Vec3, shape: &mapdata::Shape) -> Option<Vec3> {
-        if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
+        if (shape.center - eye).length() > shape.half.length() + crate::v026g::bots::view::use_ray_m() {
             return None;
         }
-        mapdata::stands::press(&self.tactics.world.sight, eye, shape).map(|(aim, _)| aim)
+        mapdata::stands::press(&self.tactics.world.sight, eye, shape, crate::v026g::bots::view::use_ray_m()).map(|(aim, _)| aim)
     }
 
     /// The stands of the resupply zone at `zone`: floors from which the

@@ -89,9 +89,9 @@ pub fn search_memory_bytes() -> usize {
 }
 pub use math::{PhysicsPoint, Rotation, Transform, Vec3};
 pub use project::{
-    Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, BatterySpawner, CollisionFilter,
-    Container, Damage, MapData, Placement, Shape, ShapeKind, Spawn, Triangle, Zone, ZoneGroup,
-    ZoneKind,
+    Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
+    BatterySpawner, CollisionFilter, Container, Damage, MapData, Placement, Shape, ShapeKind,
+    Spawn, Triangle, Zone, ZoneGroup, ZoneKind,
 };
 pub use resources::{Error, Resources};
 pub use sight::{RayHit, RayTree};
@@ -112,7 +112,7 @@ pub const GRID_ALGO: u32 = 11;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 1;
+pub const GAP_LINKS_ALGO: u32 = 2;
 /// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
 pub const SIGHT_ALGO: u32 = 2;

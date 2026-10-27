@@ -89,6 +89,9 @@ const ESCAPE_WALK_MPS: f32 = 3.0;
 /// ways out are compared by it ([`Tactics::escape`]): a zone the map file
 /// gives no hit for is infinite (`Hazard::hit_per_s`).
 const ESCAPE_HIT_CAP: f32 = 1.0;
+/// The floors [`Tactics::live_exit_of`] looks over for the way out of a live field: most of a big map's, for a field
+/// wider than [`ESCAPE_FLOORS`] reaches (it runs only when the escape search found nothing).
+const LIVE_EXIT_FLOORS: usize = 100_000;
 /// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
 /// as `BodyView::health` and the zones' hits), may be walked on through to a
 /// way out further on while on. GUESS: under a tenth of a body's health in a
@@ -152,6 +155,10 @@ pub struct Tactics {
     /// The routes humans took on this map and mode (play 17), on its
     /// floors; empty without `SRP_BOT_ROUTES`.
     pub routes: Vec<super::routes::HumanRoute>,
+    /// The places humans spend time high on this map, put on its floors, and
+    /// their share of alive time (V-S2b); empty without the table's keys.
+    pub perches: Vec<super::routes::Perch>,
+    pub perch_share: Option<super::routes::PerchShare>,
     /// [`Self::past_fixed_zones`]'s regions, and the zones it was made for
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
@@ -174,6 +181,9 @@ pub struct Tactics {
     pub escape: super::tuning::EscapeRule,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
+    /// Whether the fight's side step is refused onto the band of a lip
+    /// (`Tuning::aim.combat.clear_step_sees_lip`, [`Self::clear_step_for`]).
+    pub clear_step_sees_lip: bool,
 }
 
 /// [`Tactics::exit_of`]'s field: each marked floor's way out.
@@ -359,7 +369,7 @@ impl TacticsBase {
         let grid = &world.grid;
         // The zones' set in the high bits, the sides' spawn areas in the low.
         let mut labels: Vec<u32> = (0..grid.len() as NodeId)
-            .map(|node| u32::from(hazards.set_of(node)) << SPAWN_BITS)
+            .map(|node| u32::from(hazards.set_of(node).baked()) << SPAWN_BITS)
             .collect();
         for spawn in &world.map.spawns {
             let bit = 1u32 << (spawn.team.clamp(0, SPAWN_BITS as i32 - 1));
@@ -656,6 +666,8 @@ impl Tactics {
             world: base.world.clone(),
             hazards: base.hazards.clone(),
             routes: Vec::new(),
+            perches: Vec::new(),
+            perch_share: None,
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
@@ -664,6 +676,7 @@ impl Tactics {
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
             foliage: Default::default(),
+            clear_step_sees_lip: false,
             base,
         }
     }
@@ -680,6 +693,36 @@ impl Tactics {
             .map(|route| route.on_floors(&self.world.grid))
             .filter(|route| !route.points.is_empty())
             .collect();
+    }
+
+    /// The humans' perches of this map (and their share of time), each put on
+    /// the floor under it within a storey of its height; one with none is
+    /// dropped, and one the planner cannot get to from the spawns of both
+    /// sides (a floor the owner reached, 2026-10-26, that no walk of the
+    /// planner leads to) is dropped here, once, not tried at every pick.
+    pub fn set_perches(&mut self, perches: Vec<super::routes::Perch>, share: Option<super::routes::PerchShare>) {
+        let world = self.world.clone();
+        let grid = &world.grid;
+        let teams: std::collections::BTreeSet<i32> = world.map.spawns.iter().map(|s| s.team).collect();
+        let reach: Vec<Vec<u64>> = if perches.is_empty() {
+            Vec::new()
+        } else {
+            teams
+                .iter()
+                .map(|&team| walk_from_spawns(&world, |s| s.team == team))
+                .collect()
+        };
+        self.perches = perches
+            .into_iter()
+            .filter_map(|perch| {
+                let node = grid.locate(perch.at, 1.5)?;
+                let on = grid.position(node);
+                let reached = |bits: &Vec<u64>| bits.get(node as usize / 64).is_some_and(|w| w >> (node % 64) & 1 == 1);
+                ((on.y - perch.at.y).abs() < 1.5 && reach.iter().all(reached))
+                    .then_some(super::routes::Perch { at: on, ..perch })
+            })
+            .collect();
+        self.perch_share = share;
     }
 
     /// The human routes out of `side`'s base.
@@ -887,7 +930,7 @@ impl Tactics {
         objective: bool,
         from: Vec3,
     ) -> bool {
-        let zoned = self.hazards.zone_of(node).is_some();
+        let zoned = self.hazards.marked_at(node);
         (!zoned || {
             let d = self.world.grid.position(node).distance_xz(from);
             self.hazards.allowed_arriving(node, time, d)
@@ -1265,7 +1308,7 @@ impl Tactics {
         // Floors open to the search under a ceiling on a zone's hit.
         let open_under = |ceiling: f32| {
             move |n: NodeId| {
-                self.hazards.set_of(n) == 0
+                self.hazards.set_of(n).is_none()
                     || self.hazards.set_of(n) == start_set
                     || ok(n)
                     || self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) <= ceiling
@@ -1315,7 +1358,7 @@ impl Tactics {
         }
         let nearest = outs.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1));
         // Out of a spawn area (no zone there): the nearest way, as ever.
-        let goal = goal.filter(|_| self.hazards.zone_of(from).is_some());
+        let goal = goal.filter(|_| self.hazards.marked_at(from));
         let out = match (goal, nearest) {
             (Some(goal), Some(nearest)) => {
                 let mild = mild(self.hazards.hit_per_s(from));
@@ -1423,7 +1466,7 @@ impl Tactics {
         let grid = &self.world.grid;
         let start_hit = self.hazards.hit_per_s(from).min(ESCAPE_HIT_CAP);
         let bad = |n: NodeId| {
-            self.hazards.set_of(n) != 0
+            !self.hazards.set_of(n).is_none()
                 && !self.allowed(n, time, side, objective)
                 && self.hazards.hit_per_s(n).min(ESCAPE_HIT_CAP) > start_hit + 1e-6
         };
@@ -1448,6 +1491,10 @@ impl Tactics {
     /// [`Self::escape`]'s search reaches (the Cologne bench's run 5: 25 m
     /// into a big zone, 73 escapes found nothing and it stood 37 s).
     pub fn exit_of(&self, from: NodeId) -> Option<NodeId> {
+        // The field is made of the baked marks alone; a floor only a live field marks has its own way out.
+        if self.hazards.set_of(from).baked() == 0 {
+            return self.live_exit_of(from);
+        }
         let field = {
             let mut cache = self
                 .exit_field
@@ -1460,10 +1507,36 @@ impl Tactics {
         field.get(&from).copied()
     }
 
+    /// The floor no zone marks that a breadth-first walk from `from`, a floor only live fields mark (`Hazards::live`),
+    /// first comes to over the marked floors, within [`LIVE_EXIT_FLOORS`] (the live fields come and go, so there is
+    /// no field kept as for the baked zones). None when no live field lies on `from`.
+    fn live_exit_of(&self, from: NodeId) -> Option<NodeId> {
+        if self.hazards.live.set_of(from) == 0 {
+            return None;
+        }
+        let grid = &self.world.grid;
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = std::collections::VecDeque::from([from]);
+        while let Some(a) = queue.pop_front() {
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) || !seen.insert(b) {
+                    continue;
+                }
+                if self.hazards.set_of(b).is_none() {
+                    return Some(b);
+                }
+                if seen.len() < LIVE_EXIT_FLOORS {
+                    queue.push_back(b);
+                }
+            }
+        }
+        None
+    }
+
     /// [`Self::exit_of`]'s field: each marked floor's way out.
     fn exit_field(&self) -> std::collections::HashMap<NodeId, NodeId> {
         let grid = &self.world.grid;
-        let marked = |n: NodeId| self.hazards.set_of(n) != 0;
+        let marked = |n: NodeId| self.hazards.set_of(n).baked() != 0;
         let mut field = std::collections::HashMap::new();
         // The marked floors each marked floor is a link from.
         let mut into: std::collections::HashMap<NodeId, Vec<NodeId>> =
@@ -1530,7 +1603,7 @@ impl Tactics {
         (0..=steps).any(|k| {
             let point = route.floor_point((from + k as f32 * HELD_STEP_M).min(to));
             grid.locate(point, 0.6).is_some_and(|node| {
-                self.hazards.zone_of(node).is_some()
+                self.hazards.marked_at(node)
                     && !(crossing && self.hazards.only_fixed_at(node))
                     && !self
                         .hazards
@@ -1636,6 +1709,17 @@ impl Tactics {
     /// edge (a third of the falls off route that keeping such edges
     /// added were side steps: `player_bots_mapdata.md`, "Grid: walls at
     /// the body's height").
+    ///
+    /// With [`Self::clear_step_sees_lip`] the same holds for a lip's band
+    /// ([`WalkGrid::near_lip`], which holds the lip floors too): the step
+    /// does not end in it, and does not cross it unless the body starts in
+    /// it (then it may step out of it, over the band's floors; one that
+    /// stays in it, or goes along it, is refused). The band is a body's
+    /// width past the lip, and a stride's overshoot ends over the lip
+    /// (28 % of the unplanned falls on lips in the Cologne trace came from
+    /// a step or weave in the last 0.5 s). Where no step is cleared the
+    /// caller leaves the keys as they were (`drive_tick`: no weave, the
+    /// body stands or walks straight).
     pub fn clear_step_for(
         &self,
         a: Vec3,
@@ -1656,9 +1740,15 @@ impl Tactics {
                         && !super::escape::standing_exit(grid, &self.escapes, pocket)
                 })
         };
-        !trap(to)
+        // The lip band: its end always, its floors on the line unless the
+        // body starts in it (`near_lip` holds the lip floors themselves).
+        let sees_lip = self.clear_step_sees_lip;
+        let leaving = grid.near_lip(from);
+        !(trap(to) || (sees_lip && grid.near_lip(to)))
             && path::straight_where(grid, from, to, |node| {
-                self.allowed(node, time, side, objective) && !trap(node)
+                self.allowed(node, time, side, objective)
+                    && !trap(node)
+                    && !(sees_lip && !leaving && grid.near_lip(node))
             })
     }
 
@@ -1989,6 +2079,12 @@ impl Tactics {
 /// The floors a walk from a spawn's floor gets to, a bit each; every
 /// floor when no spawn is on a floor (a map without spawns).
 fn walkable_from_spawns(world: &World) -> Vec<u64> {
+    walk_from_spawns(world, |_| true)
+}
+
+/// The floors a walk from the floors of the spawns `of` gets to
+/// ([`walkable_from_spawns`] for all of them).
+fn walk_from_spawns(world: &World, of: impl Fn(&mapdata::Spawn) -> bool) -> Vec<u64> {
     let grid = &world.grid;
     let mut bits = vec![0u64; grid.len().div_ceil(64)];
     let mut queue: Vec<NodeId> = Vec::new();
@@ -1999,7 +2095,7 @@ fn walkable_from_spawns(world: &World) -> Vec<u64> {
             queue.push(node);
         }
     };
-    for spawn in &world.map.spawns {
+    for spawn in world.map.spawns.iter().filter(|s| of(s)) {
         if let Some(node) = grid.locate(spawn.position, 1.5) {
             mark(&mut bits, node, &mut queue);
         }
@@ -2384,6 +2480,170 @@ pub(super) mod tests {
         assert!(tactics.clear_step_for(middle, Vec3::new(54.0, 6.0, 33.0), 0, Some(0), false));
         // The walk there is still a line on allowed floors.
         assert!(tactics.clear_line_for(middle, edge, 0, Some(0), false));
+    }
+
+    /// A slab 2 m over the field, its edges no wall (a lip: a drop the body
+    /// makes, no fall): the lip's band is the floors a body's width in from
+    /// its east edge.
+    fn lip_slab() -> Arc<World> {
+        field_with_solids(&floor(50.0, 30.0, 56.0, 36.0, 2.0), |_| {})
+    }
+
+    /// The side step ends on a floor in a lip's band, and a stride there goes
+    /// over the lip: it is refused (the other side is clear), the line along
+    /// the band too; a body already in the band steps out of it over the
+    /// band's floors. With `clear_step_sees_lip` off every one is clear, as
+    /// it was.
+    #[test]
+    fn no_side_step_onto_a_lips_band() {
+        let world = lip_slab();
+        let grid = &world.grid;
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let at = |x: f32, z: f32| Vec3::new(x, 2.0, z);
+        let floor_at = |x: f32, z: f32| grid.locate(at(x, z), 0.3).unwrap();
+        let (inside, band) = (floor_at(54.2, 33.0), floor_at(55.7, 33.0));
+        assert!(grid.is_lip(floor_at(55.9, 33.0)));
+        assert!(grid.near_lip(band) && !grid.near_lip(inside));
+        assert!(!grid.near_fall(band), "a lip, not a fall");
+        let step =
+            |tactics: &Tactics, a: Vec3, b: Vec3| tactics.clear_step_for(a, b, 0, Some(0), false);
+        // OFF by default (the merge switched off): the old step.
+        assert!(!tactics.clear_step_sees_lip);
+        tactics.clear_step_sees_lip = true;
+        // Toward the lip: the end is in the band; away from it: clear.
+        assert!(!step(&tactics, at(54.2, 33.0), at(55.7, 33.0)));
+        assert!(step(&tactics, at(54.2, 33.0), at(52.7, 33.0)));
+        // In the band: out of it (over its floors) is clear, along it or
+        // further in is not.
+        assert!(step(&tactics, at(55.7, 33.0), at(54.2, 33.0)));
+        assert!(!step(&tactics, at(55.7, 33.0), at(55.7, 34.5)));
+        assert!(!step(&tactics, at(55.7, 33.0), at(55.7, 31.5)));
+        tactics.clear_step_sees_lip = false;
+        assert!(step(&tactics, at(54.2, 33.0), at(55.7, 33.0)));
+        assert!(step(&tactics, at(54.2, 33.0), at(52.7, 33.0)));
+        assert!(step(&tactics, at(55.7, 33.0), at(54.2, 33.0)));
+        assert!(step(&tactics, at(55.7, 33.0), at(55.7, 34.5)));
+    }
+
+    /// With the switch off the step is the old one exactly (falls and
+    /// pockets, the end floor and the line); on, it only refuses more: from
+    /// every floor of the slab and the field around it, in eight ways.
+    #[test]
+    fn the_lip_switch_off_is_the_old_step_and_on_refuses_more() {
+        let world = lip_slab();
+        let grid = &world.grid;
+        let mut on = Tactics::new(world.clone(), 1.0);
+        on.clear_step_sees_lip = true;
+        let off = Tactics::new(world.clone(), 1.0);
+        let old = |a: Vec3, b: Vec3| {
+            let (Some(from), Some(to)) = (grid.locate(a, 1.0), grid.locate(b, 0.6)) else {
+                return false;
+            };
+            let home = grid.pocket_of(from);
+            let trap = |node: NodeId| {
+                grid.near_fall(node)
+                    || grid.pocket_of(node).is_some_and(|pocket| {
+                        Some(pocket) != home
+                            && !crate::v026g::bots::escape::standing_exit(
+                                grid,
+                                &off.escapes,
+                                pocket,
+                            )
+                    })
+            };
+            !trap(to)
+                && path::straight_where(grid, from, to, |node| {
+                    off.allowed(node, 0, Some(0), false) && !trap(node)
+                })
+        };
+        let (mut asked, mut refused, mut cleared) = (0, 0, 0);
+        for node in grid.floors_in([46.0, 26.0, 60.0, 40.0]) {
+            let a = grid.position(node);
+            for d in 0..8 {
+                let angle = d as f32 * std::f32::consts::FRAC_PI_4;
+                let b = a + Vec3::new(angle.cos(), 0.0, angle.sin()) * 1.5;
+                let before = off.clear_step_for(a, b, 0, Some(0), false);
+                assert_eq!(before, old(a, b), "{a:?} to {b:?}");
+                let after = on.clear_step_for(a, b, 0, Some(0), false);
+                assert!(
+                    before || !after,
+                    "on cleared what off refused: {a:?} to {b:?}"
+                );
+                asked += 1;
+                refused += usize::from(before && !after);
+                cleared += usize::from(after);
+            }
+        }
+        // The slab's edges refuse some, and plenty stay clear.
+        assert!(
+            refused > 20 && cleared > refused,
+            "{refused} refused, {cleared} clear of {asked}"
+        );
+    }
+
+    /// The slide in the world: a body facing north-west of the lip so that its left side step ends in the band
+    /// is turned to its right (the side step `drive::choose_step` asks `clear_step_for` about, over the move of
+    /// its keys); in the band, facing the lip, both sides run along it and both are refused, so it stands.
+    #[test]
+    fn a_side_step_toward_a_lip_slides_to_the_other_side() {
+        use super::super::drive::{Step, choose_step, side_step};
+        use crate::v026g::drive::key;
+        use super::super::kin;
+        let world = lip_slab();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        tactics.clear_step_sees_lip = true;
+        // Facing so that the body's left is +x, toward the slab's east lip at x = 56.
+        let yaw = kin::yaw_of([1.0, 0.0]) - std::f32::consts::FRAC_PI_2;
+        let [lx, lz] = kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+        assert!((lx - 1.0).abs() < 1e-4 && lz.abs() < 1e-4, "{lx} {lz}");
+        let choose = |tactics: &Tactics, at: Vec3, keys: u32, strafe: u32, slides: bool| {
+            let ask = |keys: u32, strafe: u32| {
+                let to = at + side_step(keys, strafe, yaw, tactics.clear_step_sees_lip);
+                tactics.clear_step_for(at, to, 0, Some(0), false)
+            };
+            choose_step(
+                keys,
+                strafe,
+                false,
+                tactics.clear_step_sees_lip,
+                slides,
+                false,
+                ask,
+            )
+            .0
+        };
+        let from = Vec3::new(54.2, 2.0, 33.0);
+        for walk in [0, key::FORWARD] {
+            let (own, other) = (walk | key::LEFT, walk | key::RIGHT);
+            // Left (east) ends in the band: refused; right (west) is clear.
+            assert_eq!(
+                choose(&tactics, from, own, key::LEFT, true),
+                Step::Slid(other),
+                "walk {walk:#x}"
+            );
+            assert_eq!(choose(&tactics, from, own, key::LEFT, false), Step::Stand);
+            // The right side first is clear and taken as it is.
+            assert_eq!(
+                choose(&tactics, from, other, key::RIGHT, true),
+                Step::Own(other)
+            );
+            // With the lip switch off the left side is clear: the old step.
+            tactics.clear_step_sees_lip = false;
+            assert_eq!(choose(&tactics, from, own, key::LEFT, true), Step::Own(own));
+            tactics.clear_step_sees_lip = true;
+        }
+        // In the band, facing the lip (yaw toward +x): the sides run along it, both ends in the band.
+        let facing = kin::yaw_of([1.0, 0.0]);
+        let in_band = Vec3::new(55.7, 2.0, 33.0);
+        let ask_along = |keys: u32, strafe: u32| {
+            let to = in_band + side_step(keys, strafe, facing, true);
+            tactics.clear_step_for(in_band, to, 0, Some(0), false)
+        };
+        assert!(!ask_along(key::LEFT, key::LEFT) && !ask_along(key::RIGHT, key::RIGHT));
+        assert_eq!(
+            choose_step(key::LEFT, key::LEFT, false, true, true, false, ask_along).0,
+            Step::Stand
+        );
     }
 
     /// A line's end over no floor is not clear, though a floor is within
@@ -2842,6 +3102,121 @@ pub(super) mod tests {
         assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
         cache.keep(4, Arc::new(vec![0.0; 10]), 3);
         assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
+    // The live zones (`live_zones.rs`): a world's anomaly fields next to the baked zones.
+
+    fn live_field(id: u32, at: Vec3, radius: f32, phase: super::super::live_zones::FieldPhase) -> super::super::live_zones::WorldField {
+        use super::super::live_zones::{FieldId, FieldKind, WorldField};
+        use mapdata::{Rotation, Shape, ShapeKind};
+        WorldField {
+            id: FieldId(id),
+            kind: FieldKind::Spring,
+            shape: Shape {
+                kind: ShapeKind::Cylinder,
+                center: Vec3::new(at.x, 1.0, at.z),
+                rotation: Rotation::IDENTITY,
+                half: Vec3::new(radius, 2.0, radius),
+            },
+            phase,
+        }
+    }
+
+    const LIVE_ON: super::super::live_zones::FieldPhase = super::super::live_zones::FieldPhase::Damaging { until: None };
+
+    /// Floors only: a region is not shut because a live field lies on a few of its floors (its test is the baked
+    /// zone's), while the floors' own test shuts them.
+    #[test]
+    fn a_live_field_shuts_floors_and_not_regions() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let from = Vec3::new(5.0, 0.0, 20.0);
+        let region = tactics.base.regions.of(inside);
+        assert!(tactics.allowed(inside, 0, Some(0), false));
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON)], &c.grid, 0);
+        assert!(!tactics.allowed(inside, 0, Some(0), false), "the floor is shut");
+        assert!(!tactics.allowed_from(inside, 0, Some(0), false, from), "and by the arrival test");
+        assert!(tactics.region_allowed_from(region, 0, Some(0), false, from), "the region is open");
+        assert!(tactics.hazards.zone_of(tactics.base.regions.middle(region)).is_none());
+    }
+
+    /// A body inside a live field gets out to the nearest floor that is open, and the route to it does not cross a
+    /// second field.
+    #[test]
+    fn a_body_in_a_live_field_walks_out_and_not_through_a_second() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        tactics.hazards.set_fields(
+            &[
+                live_field(1, Vec3::new(20.0, 0.0, 20.0), 3.0, LIVE_ON),
+                live_field(2, Vec3::new(28.0, 0.0, 20.0), 3.0, LIVE_ON),
+            ],
+            &c.grid,
+            0,
+        );
+        let inside = grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.0).unwrap();
+        let second = grid.locate(Vec3::new(28.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(!tactics.hazards.set_of(inside).is_none());
+        assert_ne!(tactics.hazards.set_of(inside), tactics.hazards.set_of(second));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end = out.point_at(out.length());
+        let end_node = grid.locate(end, 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false), "out onto an open floor: {end:?}");
+        let mut s = 0.0;
+        while s <= out.length() {
+            let node = grid.locate(out.point_at(s), 1.0).unwrap();
+            assert!(tactics.hazards.live.at(node).all(|f| f.id.0 != 2), "not over the second field");
+            s += 0.5;
+        }
+    }
+
+    /// A body deeper in a live field than the breadth-first search reaches ([`ESCAPE_FLOORS`]) still gets out: the
+    /// board has its own way out, since the exit field is the baked zones'.
+    #[test]
+    fn a_body_deep_in_a_wide_live_field_still_gets_out() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let c = tactics.world.clone();
+        // 25 m round, on a floor 40 m across: the nearest open floor is 26 m off, past the 20,000 floors the escape
+        // search expands before it gives up, so the way out is the board's own (`Tactics::live_exit_of`).
+        tactics.hazards.set_fields(&[live_field(1, Vec3::new(30.0, 0.0, 20.0), 25.0, LIVE_ON)], &c.grid, 0);
+        let inside = grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.0).unwrap();
+        assert!(tactics.exit_of(inside).is_some_and(|n| tactics.hazards.set_of(n).is_none()));
+        let out = tactics
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
+            .expect("a way out");
+        let end_node = grid.locate(out.point_at(out.length()), 0.5).unwrap();
+        assert!(tactics.allowed(end_node, 0, Some(0), false));
+    }
+
+    /// A step out of a blast does not end on a live field's floor: the nearest floor outside the radius that is
+    /// open, round the field.
+    #[test]
+    fn a_step_out_of_a_blast_avoids_a_live_field() {
+        let world = field();
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let open = RouteFilter::open();
+        let plain = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let c = tactics.world.clone();
+        // A field right on where the step would end.
+        tactics.hazards.set_fields(&[live_field(1, plain, 2.5, LIVE_ON)], &c.grid, 0);
+        let plain_node = grid.locate(plain, 0.5).unwrap();
+        assert!(!tactics.allowed(plain_node, 0, Some(0), false), "the plain step now ends on the field");
+        let out = tactics.step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open).unwrap();
+        let node = grid.locate(out, 0.5).unwrap();
+        assert!(tactics.allowed(node, 0, Some(0), false), "not onto the field: {out:?}");
+        assert!(out.distance_xz(plain) > 2.0, "{out:?} against {plain:?}");
     }
 
 }

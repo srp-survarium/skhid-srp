@@ -15,8 +15,10 @@
 //! - the kit worn: the armour of the tier's kit that has the target's held
 //!   gun (a weapon is in one kit of a tier), the largest `ranged` armour of
 //!   its items on the box hit (LIKELY, `damage` module doc);
-//! - the part hit, drawn by [`HIT_SHARES`] of the shooter's weapon class and
-//!   then a box of the part by chance;
+//! - the part hit: with the boxes volume ([`super::standin_hitbox`],
+//!   `SRP_BENCH_HIT_MODEL=on`) the shape the shot ray met says the hit box
+//!   ([`hit_boxes`]); with the old disc, drawn by [`HIT_SHARES`] of the
+//!   shooter's weapon class and then a box of the part by chance ([`hit`]);
 //! - the pools: the box's `bdb_coeff` of the damage after armour taken from
 //!   `body` (the body's `health`), `head` and `pain` ([`Pools`]); a pool at 0
 //!   kills. The leg and hand pools do not kill and the stand-in's own leg
@@ -34,6 +36,7 @@ use survarium::v026g::weapons::{self, WeaponParams};
 use crate::v026g::bots::guns::Gun;
 use crate::v026g::bots::rng::Rng;
 
+use super::standin_hitbox::HitParam;
 use super::{Body, bench_rusher_kits, bench_settings, bench_tier};
 
 /// The parts a hit lands on, as the live matches show it.
@@ -46,6 +49,16 @@ pub(crate) enum Part {
 }
 
 impl Part {
+    /// The part's place in [`HIT_SHARES`]' columns: torso, head, arm, leg.
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Part::Torso => 0,
+            Part::Head => 1,
+            Part::Arm => 2,
+            Part::Leg => 3,
+        }
+    }
+
     /// The hit boxes of the part (`human_hit_params`), each as likely as
     /// another (GUESS: the recordings do not say which box).
     pub(crate) fn boxes(self) -> &'static [&'static str] {
@@ -349,13 +362,72 @@ fn pools_taken(body: &BodyParams, hit_box: &str, amount: f32, arp: f32, armor: f
 /// One hit of `shooter_gun` at `distance` metres on `target`: takes the
 /// damage off its pools and, when a lethal pool is empty, its `health` to 0
 /// (the stand-in's death rule reads it). Draws the part and the box from
-/// `rng`.
+/// `rng`. Gives the stamina the hit takes from the target's bar: the
+/// weapon's `stamina_damage` for each pellet or bullet that lands (none for
+/// a flat hit).
 pub(crate) fn hit(
     model: &Model,
     target: &mut Body,
     shooter_gun: &Gun,
     distance: f32,
     rng: &mut Rng,
+    now: u32,
+) -> f32 {
+    if model.flat {
+        target.health -= FLAT_HIT;
+        return 0.0;
+    }
+    let Some(weapon) = weapons::weapon_named(shooter_gun.item) else {
+        target.health -= FLAT_HIT;
+        return 0.0;
+    };
+    let ammo = kit_of(model.tier, model.rusher, shooter_gun.item)
+        .and_then(|kit| damage::ammo_named(kit.ammo))
+        .unwrap_or(&PLAIN_AMMO);
+    let worn = kit_of(model.tier, model.rusher, target.gun.item);
+    let bullet = damage::bullet_at(weapon, ammo, distance);
+    let class = Class::of(weapon);
+    let body = damage::human();
+    let pellets = pellets_hitting(ammo.buck_shot, distance);
+    for _ in 0..pellets {
+        let part = part_for(class, rng.unit());
+        let boxes = part.boxes();
+        let hit_box = boxes[rng.below(boxes.len())];
+        let [on_body, on_head, on_pain] = pools_taken(
+            body,
+            hit_box,
+            bullet.damage,
+            bullet.arp,
+            armour_on(worn, hit_box),
+        );
+        target.health -= on_body;
+        for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
+            if taken > 0.0 {
+                target.pools.hurt(pool, taken, now);
+            }
+        }
+    }
+    if target.pools.dead() {
+        target.health = target.health.min(0.0);
+    }
+    weapon.stamina_damage * pellets as f32
+}
+
+/// The ammunition the bench's kits give `gun` (the tier's kit that has it, else any tier's), or a plain bullet.
+pub(crate) fn ammo_of(model: &Model, gun: &Gun) -> &'static AmmoParams {
+    kit_of(model.tier, model.rusher, gun.item)
+        .and_then(|kit| damage::ammo_named(kit.ammo))
+        .unwrap_or(&PLAIN_AMMO)
+}
+
+/// The bullets or pellets of one shot of `shooter_gun` that landed on `target`, each with the hit box the shot
+/// ray met and its distance, metres (the shapes of [`super::standin_hitbox`] say the box; nothing is drawn).
+/// The pools and the death rule are [`hit`]'s.
+pub(crate) fn hit_boxes(
+    model: &Model,
+    target: &mut Body,
+    shooter_gun: &Gun,
+    landed: &[(HitParam, f32)],
     now: u32,
 ) {
     if model.flat {
@@ -366,17 +438,12 @@ pub(crate) fn hit(
         target.health -= FLAT_HIT;
         return;
     };
-    let ammo = kit_of(model.tier, model.rusher, shooter_gun.item)
-        .and_then(|kit| damage::ammo_named(kit.ammo))
-        .unwrap_or(&PLAIN_AMMO);
+    let ammo = ammo_of(model, shooter_gun);
     let worn = kit_of(model.tier, model.rusher, target.gun.item);
-    let bullet = damage::bullet_at(weapon, ammo, distance);
-    let class = Class::of(weapon);
     let body = damage::human();
-    for _ in 0..pellets_hitting(ammo.buck_shot, distance) {
-        let part = part_for(class, rng.unit());
-        let boxes = part.boxes();
-        let hit_box = boxes[rng.below(boxes.len())];
+    for &(param, distance) in landed {
+        let bullet = damage::bullet_at(weapon, ammo, distance);
+        let hit_box = param.name();
         let [on_body, on_head, on_pain] = pools_taken(
             body,
             hit_box,
@@ -409,6 +476,7 @@ const PLAIN_AMMO: AmmoParams = AmmoParams {
     air_resistance: 1.0,
     distance: 1000.0,
     buck_shot: 1,
+    buck_dispersion: 0.0,
 };
 
 #[cfg(test)]

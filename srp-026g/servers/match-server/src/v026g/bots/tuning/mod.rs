@@ -45,8 +45,10 @@ pub struct Tuning {
     pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    pub commit: CommitTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
+    pub perch: PerchTuning,
     pub grid: GridTuning,
     pub hazard: HazardTuning,
     pub personalities: Personalities,
@@ -88,7 +90,9 @@ pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use team::AvoidTuning;
+pub use team::CommitTuning;
 pub use team::ModTuning;
+pub use team::PerchTuning;
 pub use team::Personalities;
 pub use team::Personality;
 pub use team::SEARCH_FLOORS_PER_POLL;
@@ -114,6 +118,11 @@ impl Tuning {
     /// The off-mesh links of the maps' grids ([`GridTuning::gap_links`]).
     pub fn off_mesh_links(&self) -> mapdata::OffMeshLinks {
         self.grid.off_mesh_links()
+    }
+
+    /// The body of the maps' grids ([`GridTuning::client_numbers`]).
+    pub fn grid_body(&self) -> mapdata::Body {
+        self.grid.body()
     }
 
     /// The defaults with the file's changes.
@@ -241,6 +250,8 @@ mod tests {
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
         assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
+        assert_eq!(wrong(|t| t.sense.use_ray_m = 0.0), "sense.use_ray_m");
+        assert_eq!(wrong(|t| t.sense.use_ray_m = 5.5), "sense.use_ray_m");
         assert_eq!(
             wrong(|t| t.sense.shots = ShotRanges::ByWeapon { unknown_m: 0.0 }),
             "sense.shots.by_weapon.unknown_m"
