@@ -678,7 +678,7 @@ impl Game {
         }
         let tier = self.damage.tier;
         // Where the bodies stood at the start of the tick, for the enemy block (`body_block_m`).
-        let standing: Vec<(Vec3, u8, bool)> = if self.body_block_m.is_some() {
+        let mut standing: Vec<(Vec3, u8, bool)> = if self.body_block_m.is_some() {
             self.bodies.iter().map(|b| (b.feet, b.team, b.alive)).collect()
         } else {
             Vec::new()
