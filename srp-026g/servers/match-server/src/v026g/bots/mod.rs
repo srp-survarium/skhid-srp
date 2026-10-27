@@ -74,6 +74,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod zone_cost;
 
 mod commander;
 mod drive;
