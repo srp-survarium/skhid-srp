@@ -80,7 +80,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::arc;
-use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd};
+use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd, ModCounts};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
@@ -2388,6 +2388,8 @@ pub struct Reflex {
     gates: Gates,
     /// [measure] The last reload ([`Reflex::reload_note`]).
     reload_note: Option<ReloadNote>,
+    /// [measure] What the weapon mods did to the reloads of this life.
+    mod_counts: ModCounts,
     /// [measure] The bench's gate tally: every gate is tested each tick,
     /// `clear_shot`'s rays too, though an earlier one failed (no decision
     /// changes; only the rays cost).
@@ -2687,6 +2689,11 @@ impl Reflex {
     /// running ([`gate`]).
     pub fn gates(&self) -> Gates {
         self.gates
+    }
+
+    /// [measure] What the weapon mods did to this life's reloads.
+    pub fn mod_counts(&self) -> ModCounts {
+        self.mod_counts
     }
 
     /// [measure] The last reload started, if any.
@@ -4212,6 +4219,8 @@ impl Reflex {
         }
         let (left, magazine) = (load.rounds, load.gun.magazine);
         let ms = load.reload(now);
+        let gun = load.gun;
+        self.mod_counts.reload(gun);
         self.reload_note = Some(ReloadNote {
             at: now,
             until: now + ms,
@@ -4496,6 +4505,8 @@ impl Reflex {
             return;
         };
         self.loop_end = Some(end);
+        let gun = self.hands().held().gun;
+        self.mod_counts.loop_end(gun, &end);
         if self.busy_why == gate::RELOAD && end.ready < self.busy_until {
             self.busy_until = end.ready.max(now);
             if let Some(note) = self.reload_note.as_mut() {
@@ -8670,6 +8681,10 @@ mod tests {
         let end = reflex.loop_end().expect("the loop ended");
         assert_eq!((end.at, end.loaded, end.target), (press, 8, 8));
         assert!(!end.cut());
+        // Counted as a reload and a loop of a plain gun, not cut.
+        let counts = reflex.mod_counts();
+        assert_eq!((counts.reloads, counts.reloads_modded), (1, 0));
+        assert_eq!((counts.loops, counts.loops_cut, counts.loops_modded), (1, 0, 0));
         let load = *reflex.hands().held();
         assert_eq!((load.rounds, load.spare), (8, 24));
         // The sights come back for the finish clip, and the bot waits the
@@ -8702,6 +8717,7 @@ mod tests {
         let end = reflex.loop_end().expect("the loop ended");
         assert_eq!((end.at, end.loaded, end.target), (press, 1, 8));
         assert!(end.cut());
+        assert_eq!(reflex.mod_counts().loops_cut, 1);
         assert_eq!(end.ended, press + 1_000 + 375);
         // The weapon is free at the finish clip's end.
         let ready = press + 1_000 + 375 + 1_000 + guns::CLIENT_LAG_MS;

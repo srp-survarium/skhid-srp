@@ -463,6 +463,7 @@ impl Bot {
         self.kit_chosen = 0;
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -619,6 +620,7 @@ impl Bot {
             kit.1 = left;
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -1375,6 +1377,23 @@ impl Bots {
             sum.add(&bot.features.traps.react.counts());
         }
         sum
+    }
+
+    /// What the weapon mods did to the bots' reloads, over all the bots and
+    /// lives (`guns.rs`), and how many bots now hold a modded weapon.
+    pub fn mod_counts(&self) -> (guns::ModCounts, u32) {
+        let mut sum = guns::ModCounts::default();
+        let mut modded = 0;
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.weapon_mods.0);
+            sum.add(&bot.reflex.mod_counts());
+            modded += u32::from(
+                bot.reflex
+                    .arms()
+                    .is_some_and(|arms| arms.primary.0.is_modded()),
+            );
+        }
+        (sum, modded)
     }
 
     /// The inputs due with the clock at `clock`.

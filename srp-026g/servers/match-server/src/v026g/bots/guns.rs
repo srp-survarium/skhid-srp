@@ -70,10 +70,13 @@
 //! the weapon's [`Gun::cycle_ms`], so each press is one shot whatever that
 //! answer is.
 
+use survarium::v026g::bot_skills::{bot_modifiers, item_added, wire_mods};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{
     BOT_AMMO_SLOTS, BotEquipment, BotRole, BotTier, Loadout, RusherKit, RusherKits, bot_kits,
+    upgrades_on,
 };
+use survarium::v026g::skills::{MODIFIERS, modifier_index};
 use survarium::v026g::weapons::Dispersion;
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
@@ -298,6 +301,120 @@ impl Gun {
     }
 }
 
+/// What the character gives a weapon's times besides its own mods: the sums of
+/// the player modifiers the client reads for it (the kit's skills and the worn
+/// items' default and upgrade modifications; getter 0x2D5AE0).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Factors {
+    /// `reload_speed_modifier` (13: skill 108, gloves 1140..1144): a reload
+    /// takes `reload_time / (1 + this)` [LIKELY: the speed given to the reload
+    /// state's animation, 0x30F61D; the form is not traced to the state's
+    /// clock].
+    pub reload_speed: f32,
+    /// `aim_time_modifier` (49: skill 101, gloves 1080..1084): the sights
+    /// take `aim_time * max(0, 1 + this)` [PROVEN, 0x2E1B9A / 0x2E1C3B].
+    pub aim_time: f32,
+}
+
+impl Factors {
+    /// The factors of the kit `kit` of a bot whose skills give `modifiers`:
+    /// those plus what the kit's items add.
+    pub fn of_kit(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Self {
+        let index = |name| modifier_index(name).expect("a modifier of the 68");
+        let worn = |parameter: &str| -> f32 {
+            kit.items
+                .iter()
+                .map(|item| item_added(item.dict_id, &wire_mods(item.mods), parameter))
+                .sum()
+        };
+        Self {
+            reload_speed: modifiers[index("reload_speed")] + worn("reload_speed_modifier"),
+            aim_time: modifiers[index("aim_time")] + worn("aim_time_modifier"),
+        }
+    }
+}
+
+impl Gun {
+    /// The weapon `w` of a kit whose weapon carries `mods` and whose character
+    /// gives `factors`: the weapon's own modifications make its times
+    /// (`WeaponParams::with_mods`), then the reload speed shortens the reload
+    /// (the loop's round, for a weapon loaded round by round: its start and
+    /// finish clips are other keys) and the aim time the sights'. With neither
+    /// it is [`Gun::of`].
+    pub fn of_kit(
+        w: &survarium::v026g::weapons::WeaponParams,
+        mods: &[(u32, bool)],
+        factors: Factors,
+    ) -> Self {
+        let mut w = w.with_mods(mods);
+        w.reload_time /= (1.0 + factors.reload_speed).max(MIN_RELOAD_SPEED);
+        w.aim_time *= (1.0 + factors.aim_time).max(0.0);
+        Self::of(&w)
+    }
+}
+
+impl Gun {
+    /// Its numbers are not its weapon's base config's: a mod or a factor of
+    /// the character ([`gun_with`]) made them.
+    pub fn is_modded(&self) -> bool {
+        gun(self.item).is_some_and(|base| base != self)
+    }
+}
+
+/// [measure] What the weapon mods did to a bot's reloads: how many reloads
+/// and round-by-round loops there were, how many of them with a [`Gun::is_modded`]
+/// weapon, and how many loops the sights or the trigger cut short
+/// ([`LoopEnd::cut`]). Only the game's own count of the rounds could tell the
+/// ledger wrong; the server has none, so these show whether the modded guns
+/// are cut more often than the plain ones.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ModCounts {
+    pub reloads: u32,
+    pub reloads_modded: u32,
+    pub loops: u32,
+    pub loops_modded: u32,
+    pub loops_cut: u32,
+    pub loops_cut_modded: u32,
+}
+
+impl ModCounts {
+    pub fn add(&mut self, other: &Self) {
+        self.reloads += other.reloads;
+        self.reloads_modded += other.reloads_modded;
+        self.loops += other.loops;
+        self.loops_modded += other.loops_modded;
+        self.loops_cut += other.loops_cut;
+        self.loops_cut_modded += other.loops_cut_modded;
+    }
+
+    /// A reload of `gun` began.
+    pub fn reload(&mut self, gun: &Gun) {
+        self.reloads += 1;
+        self.reloads_modded += u32::from(gun.is_modded());
+    }
+
+    /// A round-by-round loop of `gun` ended as `end`.
+    pub fn loop_end(&mut self, gun: &Gun, end: &LoopEnd) {
+        let modded = u32::from(gun.is_modded());
+        let cut = u32::from(end.cut());
+        self.loops += 1;
+        self.loops_modded += modded;
+        self.loops_cut += cut;
+        self.loops_cut_modded += cut * modded;
+    }
+}
+
+/// What a bot banks of its [`ModCounts`] when its reflex is made anew at a life
+/// (`BotFeatures`); the live reflex has the rest.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ModBank(pub ModCounts);
+
+impl super::features::Feature for ModBank {}
+
+/// The least a reload's speed factor is, so that a pile of modifiers never
+/// divides by 0.
+const MIN_RELOAD_SPEED: f32 = 0.1;
+
 /// The submachine guns' category (`categories_dict`).
 pub const SMG_CATEGORY: u8 = 15;
 
@@ -315,6 +432,32 @@ pub fn guns() -> &'static [Gun] {
 /// The facts of the weapon item `item`.
 pub fn gun(item: &str) -> Option<&'static Gun> {
     guns().iter().find(|gun| gun.item == item)
+}
+
+/// The facts of the weapon `item` as a kit with the weapon's `mods` and a
+/// character with `factors` has it ([`Gun::of_kit`]): the table's own `Gun`
+/// when there is nothing to change, else one made once for the combination and
+/// kept for good, so that a `Gun` stays a `&'static`.
+pub fn gun_with(item: &str, mods: &[u32], factors: Factors) -> Option<&'static Gun> {
+    let base = gun(item)?;
+    if mods.is_empty() && factors == Factors::default() {
+        return Some(base);
+    }
+    type Key = (&'static str, Vec<u32>, [u32; 2]);
+    static MADE: std::sync::Mutex<Vec<(Key, &'static Gun)>> = std::sync::Mutex::new(Vec::new());
+    let key: Key = (
+        base.item,
+        mods.to_vec(),
+        [factors.reload_speed.to_bits(), factors.aim_time.to_bits()],
+    );
+    let mut made = MADE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, gun)) = made.iter().find(|(made, _)| *made == key) {
+        return Some(gun);
+    }
+    let weapon = survarium::v026g::weapons::weapon_named(item)?;
+    let gun: &'static Gun = Box::leak(Box::new(Gun::of_kit(weapon, &wire_mods(mods), factors)));
+    made.push((key, gun));
+    Some(gun)
 }
 
 /// How far the client's clock may be behind the bot's, ms: a key reaches the
@@ -494,9 +637,23 @@ pub struct Arms {
 }
 
 /// A kit's [`Arms`]: its weapon 1, the rounds of its ammo slots
-/// (`BOT_AMMO_SLOTS`) and their storage.
-fn arms_of(kit: &Loadout) -> Option<Arms> {
-    let weapon = Dictionary::shared().item(kit.slot(7)?.dict_id)?;
+/// (`BOT_AMMO_SLOTS`) and their storage. With the bots' upgrades on
+/// ([`upgrades_on`]) the weapon is the one the client fires: its own mods,
+/// the reload speed and aim time of the bot's skills (`modifiers`) and worn
+/// items; off, the weapon's base config as ever.
+fn arms_of(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Option<Arms> {
+    arms_of_in(kit, modifiers, upgrades_on())
+}
+
+/// [`arms_of`] with the upgrades `on` or off.
+fn arms_of_in(kit: &Loadout, modifiers: &[f32; MODIFIERS], on: bool) -> Option<Arms> {
+    let slot = kit.slot(7)?;
+    let weapon = Dictionary::shared().item(slot.dict_id)?;
+    let primary = if on {
+        gun_with(&weapon.name, slot.mods, Factors::of_kit(kit, modifiers))?
+    } else {
+        gun(&weapon.name)?
+    };
     let ammo = kit
         .items
         .iter()
@@ -504,7 +661,7 @@ fn arms_of(kit: &Loadout) -> Option<Arms> {
     let rounds = ammo.clone().map(|item| item.count).sum();
     let reserve = ammo.map(|item| item.stored.max(item.count)).sum();
     Some(Arms {
-        primary: (gun(&weapon.name)?, rounds),
+        primary: (primary, rounds),
         pistol: None,
         reserve,
     })
@@ -560,8 +717,10 @@ impl Arms {
                     }
                     for role in BotRole::ALL {
                         let equipment = BotEquipment { tier, rusher };
-                        for (k, kit) in bot_kits(equipment, role).into_iter().enumerate() {
-                            table.push(((tier, rusher, role, k), arms_of(kit)));
+                        let kits = bot_kits(equipment, role);
+                        let modifiers = bot_modifiers(&kits);
+                        for (k, kit) in kits.into_iter().enumerate() {
+                            table.push(((tier, rusher, role, k), arms_of(kit, &modifiers)));
                         }
                     }
                 }
@@ -848,6 +1007,145 @@ mod tests {
         assert_eq!(camper.held().gun.item, "tt_33");
         assert_eq!((camper.held().rounds, camper.held().spare), (8, 42));
         assert_eq!(camper.switch_ms(), None);
+    }
+
+    #[test]
+    fn a_mod_reaches_the_guns_numbers() {
+        let none = Factors::default();
+        let ak = gun("ak_74u").unwrap();
+        assert_eq!(ak.reload, Reload::Magazine { ms: 3167 });
+        // 2044: -15 %, 3167 ms to 2692.
+        let fast = gun_with("ak_74u", &[2044], none).unwrap();
+        assert_eq!(fast.reload, Reload::Magazine { ms: 2692 });
+        assert_eq!(Gun { reload: ak.reload, ..*fast }, *ak);
+        assert!(fast.is_modded() && !ak.is_modded());
+        // The same combination is the same `Gun`; nothing to change is the table's.
+        assert!(std::ptr::eq(fast, gun_with("ak_74u", &[2044], none).unwrap()));
+        assert!(std::ptr::eq(gun_with("ak_74u", &[], none).unwrap(), ak));
+        // Gloves with +15 % reload speed (1144) on top: 2692 / 1.15.
+        let gloves = Factors { reload_speed: 0.15, aim_time: 0.0 };
+        assert_eq!(gun_with("ak_74u", &[2044], gloves).unwrap().reload, Reload::Magazine { ms: 2341 });
+        // The aim time follows its factor (skill 101: -10 %).
+        let aim = Factors { reload_speed: 0.0, aim_time: -0.10 };
+        let aimed = gun_with("ak_74u", &[], aim).unwrap();
+        assert_eq!(aimed.aim_ms, (ak.aim_ms as f32 * 0.9).round() as u32);
+        assert_eq!(Gun { aim_ms: ak.aim_ms, ..*aimed }, *ak);
+        // Inert types leave every field.
+        for inert in [2074, 2084] {
+            assert_eq!(*gun_with("ak_74u", &[inert], none).unwrap(), *ak, "{inert}");
+        }
+        // The rate of fire and the bolt's chamber follow their types.
+        let rate = gun_with("ak_74u", &[2034], none).unwrap();
+        assert!(rate.rpm > ak.rpm && rate.shot_ms() < ak.shot_ms());
+        let mosin = gun("mosin_nagant").unwrap();
+        assert!(gun_with("mosin_nagant", &[2054], none).unwrap().chamber_ms < mosin.chamber_ms);
+    }
+
+    /// A mod on a weapon loaded round by round shortens the loop's round
+    /// only, and the ledger counts the first round in at the start plus the
+    /// shorter round.
+    #[test]
+    fn a_reload_mod_on_a_shotgun_moves_the_ledger() {
+        let plain = gun("spas_12").unwrap();
+        let fast = gun_with("spas_12", &[2042], Factors::default()).unwrap();
+        let (Reload::Rounds { start_ms, round_ms, finish_ms }, Reload::Rounds { start_ms: s, round_ms: r, finish_ms: f }) =
+            (plain.reload, fast.reload)
+        else {
+            panic!("round by round");
+        };
+        assert_eq!((start_ms, finish_ms, round_ms), (1_000, 1_000, 375));
+        assert_eq!((s, f), (1_000, 1_000));
+        assert_eq!(r, 2_700 / 8);
+        let mut load = Load {
+            rounds: 0,
+            spare: 30,
+            ..Load::of(fast, 0)
+        };
+        assert_eq!(load.reload(0), 1_000 + 8 * r + 1_000);
+        assert_eq!(load.advance(1_000 + r - 1, false), None);
+        assert_eq!((load.rounds, load.spare), (0, 30));
+        assert_eq!(load.advance(1_000 + r, false), None);
+        assert_eq!((load.rounds, load.spare), (1, 29));
+    }
+
+    /// The kits' weapons with the upgrades on carry their mods, the gloves'
+    /// reload speed and the bots' aim skill; off, they are the table's.
+    #[test]
+    fn the_upgrades_switch_decides_whether_a_kit_has_modded_guns() {
+        use survarium::v026g::bot_skills::bot_modifiers;
+        use survarium::v026g::loadouts::bot_kits_in;
+        for tier in [BotTier::Mid, BotTier::High] {
+            for role in BotRole::ALL {
+                let equipment = BotEquipment::of(tier, RusherKits::default());
+                let kits = bot_kits_in(equipment, role, false, true);
+                let refs: Vec<&Loadout> = kits.iter().collect();
+                let modifiers = bot_modifiers(&refs);
+                for kit in &kits {
+                    let weapon = Dictionary::shared().item(kit.slot(7).unwrap().dict_id).unwrap();
+                    let base = gun(&weapon.name).unwrap();
+                    let at = format!("{tier} {role} {}", weapon.name);
+                    let off = arms_of_in(kit, &modifiers, false).unwrap();
+                    assert!(std::ptr::eq(off.primary.0, base), "{at}");
+                    let on = arms_of_in(kit, &modifiers, true).unwrap().primary.0;
+                    // Skill 101, five levels: the sights up 10 % sooner.
+                    assert_eq!(on.aim_ms, (base.aim_ms as f32 * 0.9).round() as u32, "{at}");
+                    let light = matches!(role, BotRole::Rusher | BotRole::Flanker);
+                    // The gloves of the light roles at 9-10 (`edge_gloves_2`) carry
+                    // +8 % reload speed by default (1141); at 13-15 the upgrade's 10 %.
+                    let (weapon_mod, gloves) = match (tier, light) {
+                        (BotTier::Mid, true) => (0.10, 0.08),
+                        (BotTier::High, true) => (0.12, 0.10),
+                        _ => (0.0, 0.0),
+                    };
+                    let w = survarium::v026g::weapons::weapon_named(&weapon.name).unwrap();
+                    let time = |w: &survarium::v026g::weapons::WeaponParams| {
+                        Gun::of(w).reload_ms(0, w.magazine_capacity)
+                    };
+                    let want = survarium::v026g::weapons::WeaponParams {
+                        reload_time: w.reload_time * (1.0 - weapon_mod) / (1.0 + gloves),
+                        ..*w
+                    };
+                    assert_eq!(on.reload_ms(0, w.magazine_capacity), time(&want), "{at}");
+                    // The weight upgrade of the heavy roles changes no gun number
+                    // but the sights.
+                    if !light {
+                        assert_eq!(Gun { aim_ms: base.aim_ms, ..*on }, *base, "{at}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_counters_tell_modded_reloads_and_cut_loops_apart() {
+        let plain = gun("spas_12").unwrap();
+        let fast = gun_with("spas_12", &[2042], Factors::default()).unwrap();
+        let mut counts = ModCounts::default();
+        counts.reload(plain);
+        counts.reload(fast);
+        let end = |loaded| LoopEnd {
+            at: 0,
+            loaded,
+            target: 8,
+            ended: 0,
+            ready: 0,
+        };
+        counts.loop_end(plain, &end(8));
+        counts.loop_end(fast, &end(3));
+        let mut sum = ModCounts::default();
+        sum.add(&counts);
+        sum.add(&counts);
+        assert_eq!(
+            sum,
+            ModCounts {
+                reloads: 4,
+                reloads_modded: 2,
+                loops: 4,
+                loops_modded: 2,
+                loops_cut: 2,
+                loops_cut_modded: 2,
+            }
+        );
     }
 
     /// The SPAS-12 with `rounds` in it and `spare` to load.
