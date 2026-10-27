@@ -2351,12 +2351,15 @@ in full. The asm patches still call by hand; moving them is a follow-up
 update (0x23B7A0). `vostok::QuickSlotActivity` reads the live local player's
 mapped item. Only the medkit primary vtable permits reading medical state.
 Inactive/dead, waiting for the native use delay, and active are distinct states;
-active carries the remaining milliseconds and the skill-modified duration.
+waiting and active each carry their remaining milliseconds and skill-modified
+duration. Waiting uses modifier 33 with weight 1, active uses modifier 34 with
+the medicine's skill weight, matching native set_active.
 No inventory, simulation timer, or snapshot is modified.
 
 The HUD receives `set_quick_slot_activity(slot, phase, remaining, duration)`.
 QuickSlots owns the combination of that snapshot with the native slot descriptor:
 an exhausted stack retains its icon during its remaining delay/effect, and is
-removed when the native effect ends. The renderer displays ceiling seconds and
-an outlined remaining-time arc only during activity. Artefacts retain their
+removed when the native effect ends. Waiting maps to the existing gray icon and
+filled cooldown sector. Active displays only ceiling seconds in the native
+countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.

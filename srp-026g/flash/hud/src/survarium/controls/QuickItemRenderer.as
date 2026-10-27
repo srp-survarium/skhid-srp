@@ -53,8 +53,6 @@ package survarium.controls
       
       public var glow:MovieClip;
       
-      private var _activeRing:Sprite = new Sprite();
-
       protected var _lastCount:int = -1;
       
       protected var _lastTimer:int = -1;
@@ -74,10 +72,6 @@ package survarium.controls
          this._timer.repeatCount = 10;
          this._timer.start();
          this.artifact_background.visible = false;
-         _activeRing.name = "consumableActivityRing";
-         _activeRing.mouseEnabled = false;
-         _activeRing.mouseChildren = false;
-         addChild(_activeRing);
          this.glow.gotoAndStop(1);
          if(contentCanvas)
          {
@@ -234,7 +228,6 @@ package survarium.controls
       
       protected function updateSlot() : void
       {
-         _activeRing.graphics.clear();
          var _scale:Number;
          var sec:int;
          var contentContainer:MovieClip;
@@ -344,11 +337,8 @@ package survarium.controls
                {
                   contentContainer.gotoAndStop(1);
                }
+               this.count_timer.text = "";
                this.timerBack.visible = false;
-            }
-            if(_data.activitySeconds > 0)
-            {
-               drawActiveRing(Number(_data.activityFraction) / 100);
             }
             if(_data.cooldown != undefined && _data.cooldown > 0)
             {
@@ -368,6 +358,7 @@ package survarium.controls
             }
             else
             {
+               if(this.overCooldown) this.overCooldown.graphics.clear();
                trace("!cooldnown::",_data.timer,_data.is_artefact,_data.icon_id,_data.grayIcon);
                if(_data.icon_id != 13 && _data.icon_id != 42 && _data.icon_id != 67 && _data.icon_id != 74 && _data.icon_id != 110 && _data.icon_id != 113)
                {
@@ -383,6 +374,7 @@ package survarium.controls
          else
          {
             content = null;
+            if(this.overCooldown) this.overCooldown.graphics.clear();
             _lastCount = -1;
             _lastTimer = -1;
             _lastId = -1;
@@ -405,21 +397,6 @@ package survarium.controls
          }
       }
       
-      private function drawActiveRing(fraction:Number) : void
-      {
-         var cx:Number = -11;
-         var cy:Number = -6;
-         var radius:Number = 34;
-         var end:Number = -Math.PI / 2 + Math.PI * 2 * Math.min(1,Math.max(0,fraction));
-         _activeRing.graphics.lineStyle(2,0xFFFFFF,0.22);
-         _activeRing.graphics.drawCircle(cx,cy,radius);
-         _activeRing.graphics.lineStyle(3,0xFFFFFF,0.95);
-         _activeRing.graphics.moveTo(cx,cy - radius);
-         for(var angle:Number = -Math.PI / 2; angle < end; angle += 0.08)
-            _activeRing.graphics.lineTo(cx + radius * Math.cos(angle),cy + radius * Math.sin(angle));
-         _activeRing.graphics.lineTo(cx + radius * Math.cos(end),cy + radius * Math.sin(end));
-      }
-
       private function drawSegment(target:Sprite, x:Number, y:Number, r:Number, aStart:Number, aEnd:Number, step:Number = 10) : void
       {
          var degreesPerRadian:Number = Math.PI / 180;

@@ -33,10 +33,10 @@ package survarium.controls
       {
          if(slot >= 6) return false;
          var seconds:uint = phase == 2 ? Math.ceil(remaining / 1000) : 0;
-         var fraction:uint = phase == 2 && duration > 0 ? Math.ceil(100 * remaining / duration) : 0;
+         var activation:uint = phase == 1 && duration > 0 ? Math.min(100,Math.ceil(100 * remaining / duration)) : 0;
          var old:Object = _activities[slot];
-         if(old && old.phase == phase && old.seconds == seconds && old.fraction == fraction) return false;
-         _activities[slot] = {phase:phase, seconds:seconds, fraction:fraction};
+         if(old && old.phase == phase && old.seconds == seconds && old.activation == activation) return false;
+         _activities[slot] = {phase:phase, seconds:seconds, activation:activation};
          return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
       }
 
@@ -46,17 +46,16 @@ package survarium.controls
          for(var key:String in nativeSlot) result[key] = nativeSlot[key];
          var activity:Object = _activities[uint(nativeSlot.slot_id)];
          // An exhausted stack still owns its ongoing native effect. Keep its
-         // icon through the delay, but show no ring or time before activation.
+         // gray icon and native radial sweep during activation, then seconds only.
          if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
          {
             result.enabled = true;
             result.activitySeconds = activity.seconds;
-            result.activityFraction = activity.fraction;
+            result.cooldown = activity.phase == 1 ? Math.max(1,activity.activation) : 0;
          }
          else
          {
             result.activitySeconds = 0;
-            result.activityFraction = 0;
          }
          return result;
       }
@@ -113,7 +112,7 @@ package survarium.controls
                else
                {
                   origin = this._slots_items[i];
-                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activitySeconds == origin.activitySeconds && _p.activityFraction == origin.activityFraction)
+                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activitySeconds == origin.activitySeconds)
                   {
                      return false;
                   }
@@ -254,7 +253,6 @@ package survarium.controls
             hotkey:value.hotkey,
             timer:value.timer,
             activitySeconds:value.activitySeconds,
-            activityFraction:value.activityFraction,
             is_artefact:value.is_artefact
          };
       }

@@ -91,3 +91,4 @@ survarium::medkit	active	0x2B0	u8	set_active's activity flag; includes the initi
 survarium::player	kit	0x115	u8	current kit, used by medkit::set_active at 0x33D3D5
 survarium::player_profile	kit_modifiers	0xF4	u8	first kit's modifiers; kits are 704h bytes apart (0x33D3E2..0x33D3E8)
 survarium::profile_kit	end	0x704	u8	stride of profile kits (0x33D3E2)
+survarium::medkit	use_delay	0x2A4	u32	configured activation delay ms; native set_active applies modifier 33 with weight 1 at 0x33D45A..0x33D491

@@ -11,20 +11,20 @@ struct Milliseconds(u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Activity {
     Inactive,
-    Waiting,
+    Waiting { remaining: Milliseconds, duration: Milliseconds },
     Active { remaining: Milliseconds, duration: Milliseconds },
 }
 
 impl Activity {
     fn parse(active: bool, delay: u32, remaining: u32, duration: u32) -> Self {
         if !active || remaining == 0 { Self::Inactive }
-        else if delay != 0 { Self::Waiting }
+        else if delay != 0 { Self::Waiting { remaining: Milliseconds(delay), duration: Milliseconds(duration.max(delay)) } }
         else { Self::Active { remaining: Milliseconds(remaining), duration: Milliseconds(duration.max(remaining)) } }
     }
     fn arguments(self) -> [u32; 3] {
         match self {
             Self::Inactive => [0, 0, 0],
-            Self::Waiting => [1, 0, 0],
+            Self::Waiting { remaining, duration } => [1, remaining.0, duration.0],
             Self::Active { remaining, duration } => [2, remaining.0, duration.0],
         }
     }
@@ -69,9 +69,15 @@ impl<'t> QuickSlotActivity<'t> {
                 let mut kit_base = profile;
                 for _ in 0..kit { kit_base = raw::profile_kit::end(kit_base).cast(); }
                 let modifiers = raw::player_profile::kit_modifiers(kit_base).cast();
-                let duration = if active && delay == 0 && remaining != 0 {
-                    raw::engine_apply_modifier(modifiers, 34, *raw::medkit::duration(item) as f32,
-                                               *raw::medkit::skill_weight(item)) as u32
+                let duration = if active && remaining != 0 {
+                    if delay != 0 {
+                        // Native set_active uses drug_use_time (33), weight 1.
+                        raw::engine_apply_modifier(modifiers, 33, *raw::medkit::use_delay(item) as f32,
+                                                   1.0) as u32
+                    } else {
+                        raw::engine_apply_modifier(modifiers, 34, *raw::medkit::duration(item) as f32,
+                                                   *raw::medkit::skill_weight(item)) as u32
+                    }
                 } else { 0 };
                 Activity::parse(active, delay, remaining, duration)
             };
@@ -91,7 +97,8 @@ mod tests {
     #[test]
     fn native_delay_effect_and_teardown() {
         assert_eq!(Activity::parse(false, 1000, 5000, 5000), Activity::Inactive);
-        assert_eq!(Activity::parse(true, 1, 5000, 5000), Activity::Waiting);
+        assert_eq!(Activity::parse(true, 1, 5000, 1000).arguments(), [1, 1, 1000]);
+        assert_eq!(Activity::parse(true, 1000, 5000, 1000).arguments(), [1, 1000, 1000]);
         assert_eq!(Activity::parse(true, 0, 4999, 5000).arguments(), [2, 4999, 5000]);
         assert_eq!(Activity::parse(true, 0, 1, 5000).arguments(), [2, 1, 5000]);
         assert_eq!(Activity::parse(true, 0, 0, 5000), Activity::Inactive);

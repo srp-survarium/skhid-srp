@@ -3605,9 +3605,10 @@ site from the game's code on the game's own static baker:
 
 The Rust `consumable_activity` hook publishes the medkit class's current use-delay
 and activity state to the HUD quick slot. Anesthetic, medkit and other medical
-consumables display a remaining-time arc and ceiling seconds during the actual
-native effect, including after the last item in a stack is spent. The initial
-use delay has neither an active ring nor a countdown. End, cancellation, death
+consumables display the native artefact-style countdown in ceiling seconds during
+the actual effect, including after the last item in a stack is spent. During the
+initial use delay the icon is gray with the native filled radial sweep, without
+a numeric countdown. The sweep uses the skill-modified native activation delay. End, cancellation, death
 and HUD cleanup clear the presentation; artefacts retain their existing display.
 This is presentation only. See `docs/notes/client_patch.md` and
 `check_consumable_activity_026g.py`; the Flash lifecycle check is

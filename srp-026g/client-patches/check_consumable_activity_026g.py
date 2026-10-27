@@ -23,6 +23,7 @@ class Run(hide.Run):
         self.word(INVENTORY + 0x10c + 4*7, ITEM)
         self.word(ITEM, 0xA1C79C)
         self.word(ITEM + 0x29c, 5000)
+        self.word(ITEM + 0x2a4, 1000)
         self.emu.mem_write(ITEM + 0x2a0, struct.pack('<f', 0.5))
         self.modifiers = []
         self.emu.hook_add(UC_HOOK_CODE, self.modifier, begin=0x2d5ae0, end=0x2d5ae0)
@@ -30,10 +31,11 @@ class Run(hide.Run):
     def modifier(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
         assert emu.reg_read(UC_X86_REG_EAX) == PROFILE + 2*0x704 + 0xf4
-        assert emu.reg_read(UC_X86_REG_ESI) == 34
-        assert struct.unpack('<ff', self.read(sp+4, 8)) == (5000.0, 0.5)
-        self.modifiers.append(34)
-        emu.reg_write(UC_X86_REG_XMM0, struct.unpack('<I', struct.pack('<f', 7500.0))[0])
+        modifier = emu.reg_read(UC_X86_REG_ESI)
+        assert modifier in (33, 34)
+        assert struct.unpack('<ff', self.read(sp+4, 8)) == ((1000.0, 1.0) if modifier == 33 else (5000.0, 0.5))
+        self.modifiers.append(modifier)
+        emu.reg_write(UC_X86_REG_XMM0, struct.unpack('<I', struct.pack('<f', 1500.0 if modifier == 33 else 7500.0))[0])
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
         emu.reg_write(UC_X86_REG_ESP, sp + 12)
 
@@ -63,8 +65,10 @@ def main():
     r = Run(patched)
     for label, args, expected in [
         ('idle', (False, 0, 0), (1, 0, 0, 0)),
-        ('use delay', (True, 1000, 7500), (1, 1, 0, 0)),
-        ('last delay millisecond', (True, 1, 7500), (1, 1, 0, 0)),
+        ('use delay', (True, 1000, 7500), (1, 1, 1000, 1500)),
+        ('last delay millisecond', (True, 1, 7500), (1, 1, 1, 1500)),
+        ('death during delay', (True, 500, 7500, False), (1, 0, 0, 0)),
+        ('cancel during delay', (False, 500, 7500), (1, 0, 0, 0)),
         ('effect starts', (True, 0, 7500), (1, 2, 7500, 7500)),
         ('last item remains active', (True, 0, 4501, True, 0), (1, 2, 4501, 7500)),
         ('last active millisecond', (True, 0, 1), (1, 2, 1, 7500)),
@@ -85,7 +89,7 @@ def main():
     assert r.update(True, 0, 7500) == [(1, 0, 0, 0)]
     r.word(hide.HUD + 8, 0)
     assert r.update(True, 0, 7500) == []
-    assert len(r.modifiers) == 3
+    assert r.modifiers == [33, 33, 34, 34, 34]
     print('ok slot reuse, no item, missing movie; registers/stack and simulation unchanged')
 
 if __name__ == '__main__': main()
