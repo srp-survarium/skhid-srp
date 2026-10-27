@@ -181,6 +181,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/honest_drops", true.into());
     }
+    // What a route's drop is for all its readers (`Feel::drop_truth`; the height test by default).
+    if settings.var("SRP_BENCH_DROP_TRUTH").is_ok_and(|v| v == "links") {
+        set(&mut tuning, "/feel/drop_truth", "links".into());
+    }
     // A planned drop unsafe at a sprint is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
     if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/drop_walk", true.into());
@@ -567,6 +571,17 @@ pub(crate) fn real_bot_cost() {
         // memory of the world as the server holds it.
         mapdata::free_search_memory();
         let world_mb = memory_mb().map(|(now, _)| now);
+        // The audit of the grid's erosion (`GridTuning::exact_erosion`): the floors with a wall nearer than the exact clearance
+        // (none with the exact pass on) and the nearest such wall, metres.
+        {
+            let walker = world.map.walker_triangles();
+            let clearance = world.grid.exact_clearance();
+            let (near, nearest) = world.grid.floors_near_walls(&walker, clearance);
+            eprintln!(
+                "  exact_erosion audit: {} floors, {near} nearer to a wall than {clearance:.3} m (nearest {nearest:.3} m)",
+                world.grid.len()
+            );
+        }
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];

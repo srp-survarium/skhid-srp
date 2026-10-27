@@ -40,7 +40,7 @@ use mapdata::Vec3;
 
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::path::{Leap, Route, RouteHeight};
+use super::path::{DropTruth, Leap, Route, RouteHeight};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
@@ -183,6 +183,11 @@ pub struct Feel {
     /// ([`Route::left_drop_edge`]), and the run it lands with is braked by the same rule (the owner's rule,
     /// 2026-10-27: after a jump or a drop). Off (the default): drop landings are counted, never braked.
     pub landing_cancel_drops: bool,
+    /// What every reader of the route's drops takes a drop to be: the lip guard's planned landings, the drop aim, the
+    /// landing watch, the drop walk ([`DropTruth`]). [`DropTruth::Height`] (the default) is a waypoint a lip's height
+    /// under the one before it, so a stair or a ramp counts and a Drop link of 0.8-1.0 m does not;
+    /// [`DropTruth::Links`] is the planner's Drop links.
+    pub drop_truth: DropTruth,
 }
 
 impl Default for Feel {
@@ -223,6 +228,7 @@ impl Default for Feel {
             sprint_gaps: false,
             landing_cancel_deg: 0.0,
             landing_cancel_drops: false,
+            drop_truth: DropTruth::Height,
         }
     }
 }
@@ -772,8 +778,8 @@ impl Motor {
             return ahead;
         }
         let cap = route
-            .next_drop(s, ahead)
-            .filter(|&(_, landing)| feet.y - landing.y >= mapdata::grid::LIP_DROP_M)
+            .next_drop(s, ahead, self.feel.drop_truth)
+            .filter(|&(_, landing)| feet.y - landing.y >= self.feel.drop_truth.above_m())
             .map(|(along, _)| (along - s).max(0.0) + DROP_AIM_PAST_M);
         match cap {
             Some(cap) if cap < ahead => {
@@ -881,7 +887,7 @@ impl Motor {
         self.under_jump(route, pose.feet);
         route.set_below_walk(self.feel.off_walk_below_m);
         let (s, off) = route.progress(pose.feet);
-        if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s)) {
+        if self.last_s.replace(s).is_some_and(|before| route.left_drop_edge(before, s, self.feel.drop_truth)) {
             self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Drop });
             if self.feel.drop_walk && self.sprinting {
                 self.sprinted_drop = Some((self.clock, pose.feet.y));
@@ -986,15 +992,15 @@ impl Motor {
         self.sprint_by_the_bar(route, s);
         // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
         // within the harmless fall as well.
-        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
-            let record = route.drop_record(s, DROP_WALK_AHEAD_M);
+        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).is_empty() {
+            let record = route.drop_record(s, DROP_WALK_AHEAD_M, self.feel.drop_truth);
             match record {
                 // A drop a sprint would not land within the harmless fall, or one nothing is known of.
                 super::path::DropRecord::Unsafe | super::path::DropRecord::Unknown => {
                     self.sprinting = false;
                     drop_walks::released(record);
                     if self.release.is_none() {
-                        let dist = route.next_drop_edge_along(s, DROP_WALK_AHEAD_M).map_or(0.0, |edge| (edge - s).max(0.0));
+                        let dist = route.next_drop_edge_along(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).map_or(0.0, |edge| (edge - s).max(0.0));
                         self.release = Some(Release { start: self.clock, dist, edge: None });
                         drop_walks::episode(record);
                     }

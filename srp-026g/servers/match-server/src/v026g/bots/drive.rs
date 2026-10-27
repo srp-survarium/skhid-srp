@@ -1511,9 +1511,10 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         }
         return;
     }
+    let truth = bot.motor.feel.drop_truth;
     let planned = bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
         let (walked, _) = route.progress(me.feet);
-        route.drop_landings(walked, PLANNED_DROP_M)
+        route.drop_landings(walked, PLANNED_DROP_M, truth)
     });
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
