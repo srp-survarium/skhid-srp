@@ -33,16 +33,12 @@
 
 use mapdata::Vec3;
 
-use super::arc;
 use super::hazards::ARRIVE_MPS;
 use super::kin;
 use super::live_grenades::{LiveGrenade, Phase};
 use super::rng::Rng;
 use super::tuning::AvoidTuning;
 use super::view::{Place, PlaceView};
-
-/// The blast's radius, metres (`splash_radius` 10, PROVEN).
-pub const BLAST_M: f32 = arc::SPLASH_M;
 
 /// Which grenade: its thrower and the press (a place throws one at a time).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -91,6 +87,8 @@ impl Notice {
 pub struct Known {
     pub id: GrenadeId,
     pub rest: Vec3,
+    /// The blast's radius, metres: the grenade's `splash_radius` (10 for the RGD-5, PROVEN).
+    pub radius_m: f32,
     pub blast_at: u32,
     pub how: Notice,
     pub first: u32,
@@ -262,7 +260,7 @@ pub fn step(
                 };
                 if now >= g.blast_at()
                     || pick.is_some_and(|p| p.blast_at <= g.blast_at())
-                    || !relevant(me, rest, c)
+                    || !relevant(me, rest, g.grenade.splash_m, c)
                 {
                     continue;
                 }
@@ -270,6 +268,7 @@ pub fn step(
                     pick = Some(Known {
                         id: GrenadeId::of(g),
                         rest,
+                        radius_m: g.grenade.splash_m,
                         blast_at: g.blast_at(),
                         how,
                         first,
@@ -304,7 +303,7 @@ pub fn step(
             if now < act_at {
                 return (state, Action::None);
             }
-            if !relevant(me, known.rest, c) {
+            if !relevant(me, known.rest, known.radius_m, c) {
                 stats.out_at_act[known.how.index()] += 1;
                 return (clear(known, now, c), Action::None);
             }
@@ -313,7 +312,7 @@ pub fn step(
         GrenadeThreat::Stepping { known, to } => {
             if now >= known.blast_at {
                 let k = known.how.index();
-                if (me.chest() - known.rest).length() >= BLAST_M {
+                if (me.chest() - known.rest).length() >= known.radius_m {
                     stats.escaped[k] += 1;
                 } else {
                     stats.caught[k] += 1;
@@ -332,7 +331,7 @@ pub fn step(
             if now < recheck {
                 return (state, Action::None);
             }
-            if relevant(me, known.rest, c) {
+            if relevant(me, known.rest, known.radius_m, c) {
                 attempt(now, me, known, c, around, stats, false)
             } else {
                 (clear(known, now, c), Action::None)
@@ -360,7 +359,7 @@ fn attempt(
 ) -> (GrenadeThreat, Action) {
     let blast = Blast {
         rest: known.rest,
-        radius: BLAST_M + c.margin_m,
+        radius: known.radius_m + c.margin_m,
         blast_at: known.blast_at,
     };
     let reach_m = ARRIVE_MPS * known.blast_at.saturating_sub(now) as f32 / 1000.0;
@@ -395,14 +394,14 @@ fn attempt(
 
 /// Whether a grenade that will lie at `rest` is the bot's business: its chest is within the blast's radius and the
 /// margin, or its walk of the next `ahead_ms` would put it within the radius.
-fn relevant(me: &PlaceView, rest: Vec3, c: &AvoidTuning) -> bool {
+fn relevant(me: &PlaceView, rest: Vec3, radius_m: f32, c: &AvoidTuning) -> bool {
     let chest = me.chest();
-    if (chest - rest).length() < BLAST_M + c.margin_m {
+    if (chest - rest).length() < radius_m + c.margin_m {
         return true;
     }
     let ahead = c.ahead_ms as f32 / 1000.0;
     let walked = chest + Vec3::new(me.velocity[0] * ahead, 0.0, me.velocity[1] * ahead);
-    (walked - rest).length() < BLAST_M
+    (walked - rest).length() < radius_m
 }
 
 /// How the bot knows of grenade `g` now, if it does, and when it could first have known.
@@ -453,6 +452,7 @@ impl super::features::Feature for Avoid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::arc;
 
     /// The surroundings of a test: whether a line is clear, and the floor to step to.
     struct Around {
@@ -505,6 +505,7 @@ mod tests {
                 lands: 2_600,
                 rest: Vec3::new(0.0, 0.0, 12.0),
             },
+            grenade: *arc::Grenade::bots(),
         }
     }
 
@@ -679,6 +680,7 @@ mod tests {
         let known = Known {
             id: GrenadeId::of(&gs[0]),
             rest: Vec3::new(0.0, 0.0, 12.0),
+            radius_m: arc::Grenade::bots().splash_m,
             blast_at: 5_000,
             how: Notice::Told,
             first: 2_100,

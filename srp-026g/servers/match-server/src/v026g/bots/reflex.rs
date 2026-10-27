@@ -2025,7 +2025,7 @@ fn can_retreat(
     let Some(from) = tactics.world.grid.locate(me.feet, 1.5) else {
         return false;
     };
-    let radius = arc::SPLASH_M + retreat.margin_m;
+    let radius = arc::Grenade::bots().splash_m + retreat.margin_m;
     tactics
         .step_out(from, rest, radius, reach_m, now, side, false, &RouteFilter::open())
         .is_some_and(|out| (out + Vec3::new(0.0, CHEST, 0.0) - rest).length() >= radius)
