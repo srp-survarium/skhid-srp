@@ -60,8 +60,8 @@ pub(super) fn motor() -> Box<dyn RouteTopic> {
                 d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]
             ));
             line.tail.push(format!(
-                "look_unclear {} look_unclear_back {} look_unclear_off {} look_cut_false {} look_unclear_floor {}",
-                d[8], d[9], d[10], d[11], d[12]
+                "look_unclear {} look_unclear_back {} look_unclear_off {} look_cut_false {} look_unclear_floor {} look_unclear_link {}",
+                d[8], d[9], d[10], d[11], d[12], d[13]
             ));
         },
     )

@@ -783,6 +783,15 @@ impl Motor {
                 return Aim::Clear(target);
             }
         }
+        // The unclear point is no wall when the route itself leaves the ground within reach (a jump, a drop): a walk in a line
+        // to the far side of a ledge does not exist (a 1.3-2 m drop: `clear` is right), and the route goes over it. The body
+        // steers on as with the rule off (the drop's own aim and the lip guard act at the edge); stepping back along the
+        // route would be away from the edge it is to take.
+        if route.link_ahead(s, ahead.max(self.feel.look_ahead_m) + MIN_AHEAD_M, mapdata::Body::client().step) {
+            #[cfg(test)]
+            counts::unclear_link();
+            return Aim::Unclear(target);
+        }
         let mut back = MIN_AHEAD_M;
         while back > -BACK_AIM_M {
             back -= 0.5;
@@ -1815,7 +1824,7 @@ pub mod drop_aim {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 13] = [const { AtomicU64::new(0) }; 13];
+    static COUNTS: [AtomicU64; 14] = [const { AtomicU64::new(0) }; 14];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1861,6 +1870,11 @@ pub mod counts {
     /// the false clear tests of a hump ([`Feel::floor_height_clear`] off).
     pub fn cut_false() {
         add(11);
+    }
+
+    /// Of the unclear look-aheads (rule on), those with a planned jump or drop within reach: steered at, not back.
+    pub fn unclear_link() {
+        add(13);
     }
 
     /// Of the unclear look-aheads (rule on), those clear at the floor's heights: steered at, not back.
@@ -1914,7 +1928,7 @@ pub mod counts {
     /// steps clear, side steps refused, lip guard changed, lip guard none, look-ahead ended unclear, of them steered back
     /// to a clear point, of them off the route, ahead cuts by a false clear at a hump, unclear look-aheads clear at the floor's
     /// heights).
-    pub fn counts() -> [u64; 13] {
+    pub fn counts() -> [u64; 14] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2431,6 +2445,53 @@ mod tests {
         // Off the hump nothing differs: the same point either way.
         let flat = |feel| motor(feel).aim_point(&route, 2.0, 1.0, &|_| true);
         assert_ne!(flat(Feel { floor_height_clear: true, ..Feel::default() }), Aim::None);
+    }
+
+    /// The Mamayev Kurgan spawn exits (smoke 2, `exit_on_grid`): the platform's lip cell has only a Drop link toward the
+    /// route's next points, so `clear` is false for them and right to be; the route itself goes over the ledge. The
+    /// unclear look-ahead steers on (not back along the route, not off it) while a planned jump or drop is within reach,
+    /// and keeps its answers where the unclear point is a wall.
+    #[test]
+    fn an_unclear_look_ahead_is_no_wall_at_a_planned_drop() {
+        let p = |x, y, z| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let aim = |feel: Feel, route: &Route, s: f32, clear: &dyn Fn(Vec3) -> bool| {
+            Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3)).aim_point(route, s, 0.8, &clear)
+        };
+        let ua = Feel { unclear_aim: true, ..Feel::default() };
+        // Team 1's exit: the platform (y 29.14) to the next floor 0.95 m down, then on down; a body on the platform walks
+        // in a line to the platform's points only.
+        let team1 = Route::new(vec![
+            p(98.6, 29.88, 136.1),
+            p(97.9, 29.14, 136.1),
+            p(97.4, 28.19, 136.6),
+            p(97.1, 28.08, 136.9),
+            p(96.9, 27.97, 136.9),
+            p(96.4, 27.83, 137.4),
+        ]);
+        let platform = |q: Vec3| q.y > 28.9;
+        assert!(team1.link_ahead(0.9, 1.3, 0.8));
+        assert!(matches!(aim(ua, &team1, 0.9, &platform), Aim::Unclear(_)), "steers on at the edge");
+        // Team 0's exit: a 3.9 m drop in the second leg after the lip.
+        let team0 = Route::new(vec![p(-25.1, 39.0, 142.6), p(-22.6, 37.4, 143.4), p(-22.1, 33.5, 143.4), p(-20.1, 33.8, 145.4)]);
+        let top = |q: Vec3| q.y > 36.0;
+        assert!(matches!(aim(ua, &team0, 2.5, &top), Aim::Unclear(_)));
+        // The rule off answers the same.
+        assert_eq!(aim(Feel::default(), &team1, 0.9, &platform), aim(ua, &team1, 0.9, &platform));
+        // No drop within reach: the walls of before. The same heights without the drop (a flat way, a wall at x > 97.5):
+        // steered back to the clear point behind, or off the route when none is.
+        let flat = Route::new(vec![p(98.6, 29.1, 136.1), p(97.9, 29.1, 136.1), p(97.4, 29.1, 136.6), p(97.1, 29.1, 136.9)]);
+        let wall = |q: Vec3| q.x > 97.6;
+        assert!(!flat.link_ahead(0.9, 1.3, 0.8));
+        assert!(matches!(aim(ua, &flat, 0.9, &wall), Aim::Clear(_)), "steered back");
+        assert_eq!(aim(ua, &flat, 0.9, &|_| false), Aim::None);
+        // A drop further than the look-ahead reaches is not one in reach.
+        let far = Route::new(vec![p(0.0, 5.0, 0.0), p(20.0, 5.0, 0.0), p(21.0, 3.0, 0.0)]);
+        assert!(!far.link_ahead(0.0, 2.0, 0.8));
+        assert!(far.link_ahead(0.0, 20.5, 0.8));
+        // A jump is a planned link as well.
+        let leap = Waypoint { jump: Some(Leap::Ledge), ..p(2.0, 6.0, 0.0) };
+        let hop = Route::new(vec![p(0.0, 5.0, 0.0), leap]);
+        assert!(hop.link_ahead(0.0, 2.5, 0.8));
     }
 
     /// The walk reports the route lost (off it) when no route point back of the progress is clear either, so the drive

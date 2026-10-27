@@ -1181,6 +1181,15 @@ impl Route {
             })
     }
 
+    /// Whether the route from `s` to `within` metres on makes a planned link: a jump, or a leg that goes down by `drop_m`
+    /// or more (a Drop link: the body leaves the ground there, and no walk in a line goes with it).
+    pub fn link_ahead(&self, s: f32, within: f32, drop_m: f32) -> bool {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .any(|k| self.points[k].jump.is_some() || self.points[k - 1].at.y - self.points[k].at.y >= drop_m)
+    }
+
     /// Whether the route from `s` to `within` metres on goes over a floor
     /// a standing body does not fit under ([`Waypoint::low`]).
     pub fn low_ahead(&self, s: f32, within: f32) -> bool {
