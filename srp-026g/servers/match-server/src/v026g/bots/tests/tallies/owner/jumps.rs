@@ -679,7 +679,13 @@ impl JumpCounts {
         if grid.off_links().is_empty() {
             return None;
         }
-        let mut g = GapCounts::default();
+        let mut g = GapCounts {
+            sprint: SprintGapCounts {
+                built: grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::Sprint(_))).count() as u32,
+                ..SprintGapCounts::default()
+            },
+            ..GapCounts::default()
+        };
         for (i, p) in presses.iter().enumerate() {
             let Some((take_off, landing)) = p.route else {
                 continue;
@@ -690,11 +696,17 @@ impl JumpCounts {
             let Some(link) = grid.off_link(a, b) else {
                 continue;
             };
+            let sprint = matches!(link.press, mapdata::grid::gap::Takeoff::Sprint(_));
             g.takes += 1;
+            g.sprint.takes += u32::from(sprint);
             *g.by_kind.entry(format!("{:?}", link.kind)).or_default() += 1;
             if let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t) {
-                g.landed[usize::from(l.to.y < landing.y - UP_SLACK_M)] += 1;
-                g.hurt += u32::from(take_off.y - l.to.y > HARMLESS_FALL_M);
+                let short = l.to.y < landing.y - UP_SLACK_M;
+                let hurt = take_off.y - l.to.y > HARMLESS_FALL_M;
+                g.landed[usize::from(short)] += 1;
+                g.hurt += u32::from(hurt);
+                g.sprint.landed_short += u32::from(sprint && short);
+                g.sprint.hurt += u32::from(sprint && hurt);
             }
             let outcomes: Vec<&str> = run
                 .press_flags(presses, i)
@@ -702,6 +714,7 @@ impl JumpCounts {
                 .filter(|f| OUTCOMES.contains(f) && !SECOND_NUMBERS.contains(f))
                 .collect();
             g.failed += u32::from(!outcomes.is_empty());
+            g.sprint.failed += u32::from(sprint && !outcomes.is_empty());
             for f in outcomes {
                 *g.failed_by.entry(f).or_default() += 1;
             }
@@ -724,6 +737,19 @@ pub(crate) struct GapCounts {
     pub(crate) failed: u32,
     pub(crate) failed_by: BTreeMap<&'static str, u32>,
     pub(crate) hurt: u32,
+    /// Of them, the sprint jumps (`mapdata::grid::gap::Takeoff::Sprint`).
+    pub(crate) sprint: SprintGapCounts,
+}
+
+/// The sprint gap links: built in the grid (activity), taken, and of those
+/// taken the harm: landed under the landing's level, failed, hurt.
+#[derive(Default)]
+pub(crate) struct SprintGapCounts {
+    pub(crate) built: u32,
+    pub(crate) takes: u32,
+    pub(crate) landed_short: u32,
+    pub(crate) failed: u32,
+    pub(crate) hurt: u32,
 }
 
 impl GapCounts {
@@ -736,13 +762,29 @@ impl GapCounts {
             "gap_failed": self.failed,
             "gap_failed_by": self.failed_by,
             "gap_hurt": self.hurt,
+            "sprint_gap_built": self.sprint.built,
+            "sprint_gap_takes": self.sprint.takes,
+            "sprint_gap_landed_short": self.sprint.landed_short,
+            "sprint_gap_failed": self.sprint.failed,
+            "sprint_gap_hurt": self.sprint.hurt,
         })
     }
 
     fn text(&self) -> String {
         format!(
-            "; gap links: takes {} by {:?}, landed up {} down {}, failed {} by {:?}, hurt {}",
-            self.takes, self.by_kind, self.landed[0], self.landed[1], self.failed, self.failed_by, self.hurt
+            "; gap links: takes {} by {:?}, landed up {} down {}, failed {} by {:?}, hurt {}; sprint gap links: built {} takes {} landed short {} failed {} hurt {}",
+            self.takes,
+            self.by_kind,
+            self.landed[0],
+            self.landed[1],
+            self.failed,
+            self.failed_by,
+            self.hurt,
+            self.sprint.built,
+            self.sprint.takes,
+            self.sprint.landed_short,
+            self.sprint.failed,
+            self.sprint.hurt
         )
     }
 }

@@ -68,6 +68,10 @@ pub enum Leap {
     /// take-off, along the way to the landing, where the grid found the
     /// client's jump comes down on it.
     Gap(mapdata::PressLead),
+    /// Across a gap link at a sprint (`mapdata::grid::gap::Takeoff::Sprint`):
+    /// run into at a sprint, facing the landing, pressed this far before the
+    /// take-off. The sprint itself is the motor's sprint-jump line-up (A55).
+    SprintGap(mapdata::PressLead),
 }
 
 /// A corner of a route.
@@ -703,6 +707,7 @@ fn pull_straight(
                     // with no key (a plain leg the body falls along).
                     kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).and_then(|l| match l.press {
                         mapdata::grid::gap::Takeoff::Press(press) => Some(Leap::Gap(press)),
+                        mapdata::grid::gap::Takeoff::Sprint(press) => Some(Leap::SprintGap(press)),
                         mapdata::grid::gap::Takeoff::WalkOff => None,
                     }),
                     _ => None,
