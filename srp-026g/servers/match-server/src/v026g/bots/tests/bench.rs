@@ -517,6 +517,7 @@ pub(crate) fn real_bot_cost() {
         }
     };
     say_the_rusher_kit();
+    say_the_switches();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
@@ -1815,6 +1816,41 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
 
 /// The bots' rusher kit as the run has it, in a line (like the game data's):
 /// the setting and what the data lets the tier's rusher wear.
+/// Once per run, before the matches (`switches ON:`, `switches OFF:`, `switch values:`, `changed numbers:`, `data files:`,
+/// `env switches:`, `bench models:`): what the bots of this run have on and off, the data they read and the stand-in's
+/// models, so a switch left off, or a model nobody set, shows in the log at once. Team 1's block (`side1 ...`) follows when
+/// `SRP_BENCH_ONE_SIDE` makes its tuning differ. Logging only.
+fn say_the_switches() {
+    let settings = bench_settings();
+    for line in bench_tuning().switch_report().lines() {
+        eprintln!("{line}");
+    }
+    if settings.flag("SRP_BENCH_ONE_SIDE") {
+        for line in bench_tuning_of(true).switch_report().lines() {
+            eprintln!("side1 {line}");
+        }
+    }
+    let patch = settings.var("SRP_BENCH_TUNING").unwrap_or_default();
+    let tuning = if patch.trim().is_empty() {
+        "tuning=defaults+lists".to_owned()
+    } else {
+        format!("tuning=SRP_BENCH_TUNING ({} bytes, {})", patch.len(), crate::v026g::bots::switch_log::bytes_sha(patch.as_bytes()))
+    };
+    let mapdata = settings.var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from);
+    eprintln!(
+        "{}",
+        crate::v026g::bots::switch_log::data_files(
+            &tuning,
+            settings.var_os("SRP_BOT_ROUTES").as_deref(),
+            settings.var_os("SRP_BOT_FOLIAGE").as_deref(),
+            settings.var_os("SRP_BOT_GRASS").as_deref(),
+            mapdata.as_deref(),
+        )
+    );
+    eprintln!("{}", crate::v026g::bots::switch_log::env_switches());
+    eprintln!("{}", super::settings::models_line(settings));
+}
+
 fn say_the_rusher_kit() {
     let tier = bench_tier();
     let asked = bench_rusher_kits().of(tier);

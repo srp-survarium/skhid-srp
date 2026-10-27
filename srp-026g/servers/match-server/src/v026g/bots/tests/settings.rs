@@ -165,6 +165,28 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 
+/// Settings that shape the stand-in's world or the bots' roster though they are not tagged `**model**`: the line of the
+/// bench's models names them too.
+const WORLD_SETTINGS: [&str; 5] = ["SRP_BENCH_PING", "SRP_BENCH_WEAPONS", "SRP_BENCH_TIER", "SRP_BENCH_RUSHER", "SRP_BENCH_ONE_SIDE"];
+
+/// The `bench models:` line: every `**model**` setting of [`SETTINGS`] (and [`WORLD_SETTINGS`]) with the value this run
+/// has: the one in the environment, else its default as the table words it. Read from the table, so a setting added
+/// there shows here with no second list.
+pub(crate) fn models_line(settings: &BenchSettings) -> String {
+    let mut parts = Vec::new();
+    for setting in SETTINGS {
+        if !setting.what.starts_with("**model**") && !WORLD_SETTINGS.contains(&setting.name) {
+            continue;
+        }
+        let name = setting.name.strip_prefix("SRP_BENCH_").unwrap_or(setting.name);
+        match settings.var_os(setting.name) {
+            Some(value) => parts.push(format!("{name}={}", value.to_string_lossy())),
+            None => parts.push(format!("{name}=({})", setting.default)),
+        }
+    }
+    format!("bench models: {}", parts.join(" "))
+}
+
 /// The read environment: each setting of [`SETTINGS`] (and `SRP_BENCH_<name>` and
 /// `SRP_BENCH_SIDE1_<name>` of [`TUNING_NAMES`]) as `std::env::var_os` gave it.
 pub(crate) struct BenchSettings {
@@ -303,6 +325,29 @@ mod tests {
     }
 
     /// Every `SRP_BENCH_*` name written in the tests tree is in the list.
+    /// The `bench models:` line names every `**model**` setting of the table (and the world settings), with the value the
+    /// run has or the default the table words: a setting added to the table is in the line with no second list.
+    #[test]
+    fn the_models_line_covers_every_model_setting() {
+        let line = models_line(&BenchSettings::from_pairs(&[]));
+        assert!(line.starts_with("bench models: "), "{line}");
+        let mut models = 0;
+        for setting in SETTINGS {
+            if setting.what.starts_with("**model**") || WORLD_SETTINGS.contains(&setting.name) {
+                let name = setting.name.strip_prefix("SRP_BENCH_").unwrap();
+                assert!(line.contains(&format!(" {name}=")), "{name} is not in `{line}`");
+                models += 1;
+            }
+        }
+        assert!(models >= 20, "the table has more than twenty models: {models}");
+        for name in ["STAMINA", "HIT_MODEL", "BODY_BLOCK_M", "DRAW_TIME", "SPREAD", "USE_LINE", "LIVE_FIELDS", "PING", "WEAPONS"] {
+            assert!(line.contains(&format!(" {name}=")), "{name} is not in `{line}`");
+        }
+        assert!(line.contains(" STAMINA=(off)"), "the default as the table words it: {line}");
+        let set = models_line(&BenchSettings::from_pairs(&[("SRP_BENCH_STAMINA", "on"), ("SRP_BENCH_PING", "20-150")]));
+        assert!(set.contains(" STAMINA=on") && set.contains(" PING=20-150"), "{set}");
+    }
+
     #[test]
     fn every_bench_setting_the_tests_read_is_listed() {
         fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
