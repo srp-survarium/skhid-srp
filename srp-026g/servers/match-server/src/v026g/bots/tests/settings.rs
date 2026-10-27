@@ -151,6 +151,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_STAMINA", "off", "**model** `on`: the stand-in's bodies have the client's stamina bar (the sprint lockout, the jump's cost, a hit's stamina damage: `standin_stamina.rs`); off, they sprint and jump whenever their keys ask and the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
+    s("SRP_BENCH_DRAW_TIME", "DRAW_MS (800)", "**model** `weapon`: a carrier's weapon fires again its own `show_time` after he drops a battery (0.5 s for eight weapons, 1.0 s for two) instead of 800 ms for every weapon (standin.rs `draw_ms`)"),
     s("SRP_BENCH_BODY_BLOCK_M", "off", "**model** enemy bodies block each other on the ground within this distance, m (0.76 in the game; friends never block)"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
