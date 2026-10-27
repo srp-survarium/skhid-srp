@@ -68,8 +68,13 @@ def bits(value):
 
 
 def state_va(data):
-    late_join = open(base.late_join_bin(), "rb").read()
-    return base.late_join_state_va(late_join) + base.DEATH_CAMERA_STATE_OFFSET
+    """The turn (a yaw and a pitch): the asm's at the late join's state page
+    +E60h before the Rust port, the Rust patch death_camera's static TURN
+    after."""
+    if "DEATH_CAMERA_STATE_OFFSET" in dir(base):
+        late_join = open(base.late_join_bin(), "rb").read()
+        return base.late_join_state_va(late_join) + base.DEATH_CAMERA_STATE_OFFSET
+    return next(va for name, va, _, _ in base.arena().every if "death_camera" in name and "TURN" in name)
 
 
 def map_state(emu, state):
@@ -358,29 +363,35 @@ def main():
     # A build that turns a live player's camera, one that gives the drag on
     # to the player's handler, one that drags without a button, one with no
     # limit on the pitch, one that leaves a borrowed field as it set it, one
-    # that never clears the turn, and one that turns a spectator's view fail.
-    view_at = base.death_camera_va(late_join) + base.DEATH_VIEW_OFFSET
-    death = open(base.death_camera_bin(), "rb").read()
-    at = death.index(bytes.fromhex("83b858030000000f85"), base.DEATH_VIEW_OFFSET)
-    CMP_MODE = death[at:at + 13].hex()                 # the mode's test and its `jnz near`
-    for old, new, check in (("80b83c030000007405", "80b83c03000000eb05", "look"),
-                            ("b0015f5e5bc21000", "30c05f5e5bc21000", "look"),
-                            ("a8530f84", "a8530f85", "look"),
-                            ("920a863f", "00002041", "look"),              # 60 degrees up -> 10 radians
-                            ("8f804c030000", "8f8000000000", "view"),
-                            ("8325" + struct.pack("<I", state_va(patched)).hex() + "00",
-                             "8325" + struct.pack("<I", state_va(patched)).hex() + "ff", "view"),
-                            (CMP_MODE, CMP_MODE[:14] + "90" * 6, "view"),
-                            ("0f107220", "0f107210", "view")):        # the head's forward row taken as its up
-        old, new = bytes.fromhex(old), bytes.fromhex(new)
-        assert len(old) == len(new)
+    # that never clears the turn, one that turns a spectator's view, and one
+    # that takes the head's up row for its forward fail: the Rust patch
+    # death_camera's code in the arena (`.srpx`), as the lock links it, each
+    # pattern there once.
+    turn = struct.pack("<I", state_va(patched))
+    pitch_up = None
+    for old, new, check in (("80b83c030000000f8561ffffff", "80b83c03000000909090909090", "look"),
+                            ("31db4385d2", "31db9085d2", "look"),
+                            ("f6c1530f84", "f6c1530f85", "look"),
+                            ("f30f5d0d", None, "look"),                  # 60 degrees up -> 10 radians
+                            ("899e4c030000", "899e00000000", "view"),
+                            ("a3" + turn.hex() + "a3" + struct.pack("<I", state_va(patched) + 4).hex(),
+                             "90" * 10, "view"),
+                            ("83be5803000000740b", "83be5803000000eb0b", "view"),
+                            ("f30f106c1440", "f30f106c1430", "view")):  # the head's forward row taken as its up
+        old = bytes.fromhex(old)
         broken = bytearray(patched)
-        # `.srpc` by its name (patch 44's `.srpw` follows it)
         [(rva, vsize, raw)] = [(rva, vsize, raw) for name, rva, vsize, raw, _, _ in base.Headers(broken).sections(broken)
-                               if name == base.DEATH_CAMERA_NAME]
-        start = raw + (view_at - base.IMAGE_BASE - rva if check == "view" else 0)
-        at = broken.find(old, start, raw + vsize)
+                               if name == base.ARENA_NAME]
+        at = broken.find(old, raw, raw + vsize)
         assert at >= 0 and broken.find(old, at + 1, raw + vsize) < 0, old.hex()
+        if new is None:                                # the pitch's limit: the constant `minss xmm1,[..]` reads
+            limit = struct.unpack_from("<I", broken, at + len(old))[0]
+            at, old, new = raw + limit - base.IMAGE_BASE - rva, struct.pack("<f", PITCH_UP), struct.pack("<f", 10.0)
+            assert bytes(broken[at:at + 4]) == old, "the pitch's upper limit"
+            pitch_up = limit
+        else:
+            new = bytes.fromhex(new)
+        assert len(old) == len(new)
         broken[at:at + len(old)] = new
         try:
             if check == "look":
@@ -393,6 +404,7 @@ def main():
             checks += 1
         else:
             sys.exit(f"a broken build ({new.hex()}) passed")
+    assert pitch_up is not None
     print(f"patch 46: {checks} runs as expected (the original, the build and eight broken builds)")
 
 

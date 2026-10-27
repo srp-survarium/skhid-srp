@@ -38,6 +38,8 @@ engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsi
 engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	import	
 engine_write_file	0x870108	-	unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)	import	
 engine_close_handle	0x870040	-	unsigned int engine_close_handle(void *handle)	import	
+engine_spottable_can_be_spotted_by	0x301ca0	ECX:spottable ESP+4:spotter	unsigned char engine_spottable_can_be_spotted_by(void *spottable, void *spotter)	virtual+0x4	
+engine_spottable_set_spotted	0x301c40	ECX:spottable ESP+4:spotter	void engine_spottable_set_spotted(void *spottable, void *spotter)	virtual+0x0	
 engine_ray_test	0x075e20	ECX:world ESP+4:result ESP+8:origin ESP+12:direction ESP+16:length ESP+20:group ESP+24:mask ESP+28:delegate ESP+32:unflipped	void engine_ray_test(void *world, void *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)	thunk	
 engine_release_object	0x0e0210	ECX:instance EAX:count	void engine_release_object(void *object, unsigned int *count)	thunk	
 engine_material_pair	0x306d50	ECX:manager EDX:first EDI:second	const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second)	thunk	
@@ -50,3 +52,57 @@ engine_query_performance_counter	0x870158	-	unsigned int engine_query_performanc
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)	thunk	
+engine_delayed_sounds_destroy	0x245c50	EAX:begin ESP+4:end	void engine_delayed_sounds_destroy(void *begin, void **end)	thunk	
+engine_set_constant_float4	0x1a8900	ECX:value ESP+4:compiler ESP+8:name	void engine_set_constant_float4(const float *value, void *compiler, const char *name)	thiscall	
+engine_shared_string	0x0e0b50	ESP+4:text	void *engine_shared_string(const char *text)	stdcall	
+engine_shared_string_destroy	0x0e0ae0	ESP+4:string	void engine_shared_string_destroy(void *string)	stdcall	
+engine_register_constant_binding	0x3bccc0	EAX:binding ESP+4:manager	void engine_register_constant_binding(const void *binding, void *manager)	thunk	
+engine_gfx_set_member	0x677000	ECX:interface ESP+4:data ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(void *interface, void *data, const char *name, const void *value, unsigned int display)	virtual+0x14	
+engine_add_message	0x208ad0	ESP+4:handler ESP+8:channel ESP+12:body ESP+16:name ESP+20:tag	void engine_add_message(void *handler, unsigned int channel, const void *body, const void *name, const void *tag)	stdcall	handler: ChatHandler, channel: Channel, body: ChatText, name: ChatText, tag: ChatText
+engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
+engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import	
+engine_get_temp_path_a	kernel32.dll!GetTempPathA	-	unsigned int engine_get_temp_path_a(unsigned int size, char *buffer)	proc	
+engine_get_module_file_name_w	0x870074	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)	import	
+engine_create_process_w	kernel32.dll!CreateProcessW	-	unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *process)	proc	
+engine_usable_get_transform	0x300a20	ECX:battery ESP+4:matrix	void *engine_usable_get_transform(void *usable, float *matrix)	virtual+0x44	
+engine_new_packet	0x37a0e0	EAX:receiver ESP+4:channel	void *engine_new_packet(void *client, unsigned int id)	thunk	
+engine_buffer_resize	0x07ab30	EAX:buffer ESP+4:size	void engine_buffer_resize(void *buffer, unsigned int size)	thunk	
+engine_enqueue	0x379640	ESP+4:receiver ESP+8:value	void engine_enqueue(void *client, void *packet)	stdcall	
+engine_process_detach_upgrade	0x275220	ESP+4:client ESP+8:upgrade	unsigned int engine_process_detach_upgrade(void *client, unsigned int upgrade)	stdcall	
+engine_physical_path	0x04bc10	EDI:path ESP+4:node	void engine_physical_path(void *path, void *node)	thunk	
+engine_strcmp	0x03b5a0	EAX:first ECX:second	unsigned int engine_strcmp(const char *first, const char *second)	thunk	
+engine_file_offset	0x047160	ECX:node	unsigned long long engine_file_offset(void *node)	thunk	
+engine_replay_place_mine	0x054e10	ECX:client ESP+4:place	unsigned char engine_replay_place_mine(void *client, unsigned int place)	thiscall	client: ReplayClient, place: Place -> bool
+engine_is_player_current	0x242a40	EAX:client ESP+4:place	unsigned int engine_is_player_current(void *client, unsigned int place)	thunk	
+engine_query_mount_archive	0x0e7ef0	ESI:allocator ESP+4:virtual ESP+8:table ESP+12:archive ESP+16:descriptor ESP+20:callback	void engine_query_mount_archive(void *allocator, const void *virtual_path, const void *table, const void *archive, const char *descriptor, const void *callback)	thunk	
+engine_format_path	0x018190	ESI:path ESP+4:format ESP+8:name ESP+12:number	void *engine_format_path(void *path, const char *format, const char *name, unsigned int number)	thunk	
+engine_unmount	0x0dfe30	EAX:mount	void engine_unmount(void *mount)	thunk	
+engine_terminate	0x113580	ESP+4:format ESP+8:first ESP+12:second	void engine_terminate(const char *format, unsigned int first, unsigned int second)	cdecl	
+engine_on_mounted_resources	0x0147e0	ESP+4:holder ESP+8:bound ESP+12:result	void engine_on_mounted_resources(void *holder, void *bound, const void *result)	cdecl	
+engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	
+engine_world_set_pointer	0x25d160	ECX:world ESP+4:x ESP+8:y ESP+12:wheel	void engine_world_set_pointer(void *world, unsigned int x, unsigned int y, unsigned int wheel)	virtual+0x30	
+engine_world_set_cursor	0x25d130	ECX:world ESP+4:x ESP+8:y	void engine_world_set_cursor(void *world, unsigned int x, unsigned int y)	virtual+0x3c	
+engine_window_size	0x018d60	ECX:window ESP+4:size	void *engine_window_size(void *window, float *size)	virtual+0x1c	
+engine_view_update	0x2422b0	ESP+4:handler ESP+8:transform	void engine_view_update(void *handler, const float *transform)	stdcall	
+engine_damage_model_ptr	0x1f1790	ECX:holder	void *engine_damage_model_ptr(void *holder)	virtual+0x8	
+engine_remove_from_world	0x2da790	ECX:player ESP+4:flag	void engine_remove_from_world(void *player, unsigned int flag)	virtual+0x24	
+engine_respawn_spawn	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_respawn_spawn(void *rule, unsigned int place, const void *point, unsigned int time)	virtual+0x5c	
+engine_switch_to_warmup_camera	0x1f8190	EDX:receiver	void engine_switch_to_warmup_camera(void *world)	thunk	
+engine_show_stamina	0x23a1a0	EAX:shown EDX:ui	void engine_show_stamina(unsigned int shown, void *ui)	thunk	
+engine_show_profiles_selector	0x2383b0	EAX:hud ESP+4:shown	void engine_show_profiles_selector(void *hud, unsigned int shown)	thunk	
+engine_modifier_unlink	0x2d5d00	ESI:list EAX:node	void engine_modifier_unlink(void *list, void *node)	thunk	
+engine_holder_player	0x1f17a0	ECX:interface	void *engine_holder_player(void *interface)	virtual+0xc	
+engine_enable_active	0x3128c0	ECX:artefact ESP+4:time	void engine_enable_active(void *artefact, unsigned int time)	virtual+0x80	
+engine_delete_folder	0x1e8da0	EAX:path	void engine_delete_folder(void *folder)	thunk	
+engine_baked_texture_resource	0x12de30	EAX:bytes	void *engine_baked_texture_resource(void *memory)	thunk	
+engine_set_unmanaged_resource	0x0f0080	EDX:query ESP+4:resource ESP+8:allocator ESP+12:size	void engine_set_unmanaged_resource(void *query, void *resource, void *allocator, unsigned int size)	thunk	
+engine_finish_query	0x0f0d00	ESP+4:query ESP+8:result ESP+12:assert ESP+16:error	void engine_finish_query(void *query, unsigned int result, unsigned int assert_on_fail, unsigned int error)	stdcall	
+engine_resource_release	0x3bee00	EAX:texture ESP+4:receiver	void engine_resource_release(void *texture, void *manager)	thunk	
+engine_translate_query	0x12d1d0	ECX:cook ESP+4:query	void engine_translate_query(void *cook, void *query)	thiscall	
+engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
+engine_delete_file_a	0x87021c	-	unsigned int engine_delete_file_a(const char *name)	import	
+engine_create_directory_a	0x870220	-	unsigned int engine_create_directory_a(const char *name, void *security)	import	
+engine_get_tick_count	0x870090	-	unsigned int engine_get_tick_count(void)	import	
+engine_find_first_file_a	0x870238	-	void *engine_find_first_file_a(const char *pattern, void *data)	import	
+engine_find_next_file_a	0x87023c	-	unsigned int engine_find_next_file_a(void *find, void *data)	import	
+engine_find_close	0x870228	-	unsigned int engine_find_close(void *find)	import	

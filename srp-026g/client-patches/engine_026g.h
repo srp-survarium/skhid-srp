@@ -163,4 +163,130 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_i
 /* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
 void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count);
 
+/* 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0 */
+void engine_delayed_sounds_destroy(void *begin, void **end);
+
+/* 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, void *compiler, const char *name);
+
+/* 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly */
+void *__attribute__((stdcall)) engine_shared_string(const char *text);
+
+/* 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(void *string);
+
+/* 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4 */
+void engine_register_constant_binding(const void *binding, void *manager);
+
+/* 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly */
+void __attribute__((stdcall)) engine_add_message(void *handler, unsigned int channel, const void *body, const void *name, const void *tag);
+
+/* the IAT slot 0x87003c (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
+
+/* the IAT slot 0x870084 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
+
+/* the IAT slot 0x870074 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_module_file_name_w)(void * module, unsigned short * name, unsigned int size);
+
+/* 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX */
+void *engine_new_packet(void *client, unsigned int id);
+
+/* 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4 */
+void engine_buffer_resize(void *buffer, unsigned int size);
+
+/* 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_enqueue(void *client, void *packet);
+
+/* 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly */
+unsigned int __attribute__((stdcall)) engine_process_detach_upgrade(void *client, unsigned int upgrade);
+
+/* 0x4bc10 vostok::vfs::vfs_iterator::get_physical_path: path EDI, node ESP+4; pops 0 */
+void engine_physical_path(void *path, void *node);
+
+/* 0x3b5a0 vostok::detail::strcmp_s: first EAX, second ECX; pops 0; EAX */
+unsigned int engine_strcmp(const char *first, const char *second);
+
+/* 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX */
+unsigned long long engine_file_offset(void *node);
+
+/* 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_replay_place_mine(void *client, unsigned int place);
+
+/* 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX */
+unsigned int engine_is_player_current(void *client, unsigned int place);
+
+/* 0xe7ef0 vostok::resources::query_mount_archive: allocator ESI, virtual_path ESP+4, table ESP+8, archive ESP+12, descriptor ESP+16, callback ESP+20; pops 0 */
+void engine_query_mount_archive(void *allocator, const void *virtual_path, const void *table, const void *archive, const char *descriptor, const void *callback);
+
+/* 0x18190 vostok::fs::native_path_string::assignf: path ESI, format ESP+4, name ESP+8, number ESP+12; pops 0; EAX */
+void *engine_format_path(void *path, const char *format, const char *name, unsigned int number);
+
+/* 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0 */
+void engine_unmount(void *mount);
+
+/* 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_terminate(const char *format, unsigned int first, unsigned int second);
+
+/* 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_on_mounted_resources(void *holder, void *bound, const void *result);
+
+/* the IAT slot 0x87005c (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void);
+
+/* 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_view_update(void *handler, const float *transform);
+
+/* 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0 */
+void engine_switch_to_warmup_camera(void *world);
+
+/* 0x23a1a0 survarium::game_world_ui::show_stamina: shown EAX, ui EDX; pops 0 */
+void engine_show_stamina(unsigned int shown, void *ui);
+
+/* 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4 */
+void engine_show_profiles_selector(void *hud, unsigned int shown);
+
+/* 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0 */
+void engine_modifier_unlink(void *list, void *node);
+
+/* 0x1e8da0 survarium::delete_folder: folder EAX; pops 0 */
+void engine_delete_folder(void *folder);
+
+/* 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX */
+void *engine_baked_texture_resource(void *memory);
+
+/* 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12 */
+void engine_set_unmanaged_resource(void *query, void *resource, void *allocator, unsigned int size);
+
+/* 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly */
+void __attribute__((stdcall)) engine_finish_query(void *query, unsigned int result, unsigned int assert_on_fail, unsigned int error);
+
+/* 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4 */
+void engine_resource_release(void *texture, void *manager);
+
+/* 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_translate_query(void *cook, void *query);
+
+/* the IAT slot 0x870064 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_read_file)(void * file, void * bytes, unsigned int size, unsigned int * read, void * overlapped);
+
+/* the IAT slot 0x87021c (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870220 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_create_directory_a)(const char * name, void * security);
+
+/* the IAT slot 0x870090 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_tick_count)(void);
+
+/* the IAT slot 0x870238 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_find_first_file_a)(const char * pattern, void * data);
+
+/* the IAT slot 0x87023c (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_next_file_a)(void * find, void * data);
+
+/* the IAT slot 0x870228 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_close)(void * find);
+
 #endif

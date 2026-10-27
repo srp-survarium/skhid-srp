@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Run patch 25's sign-in check (stale_dll_026g.asm) in the default build
-on made-up machines.
+"""Run patch 25's sign-in check (the Rust patch stale_dll, until its port
+stale_dll_026g.asm) in the default build on made-up machines.
 
     python check_stale_dll_026g.py <original survarium.exe>
 
 Requires Python `unicorn`. The hook at 0x380889 and the code it calls run
-as machine code, the exe's sections loaded as they are and again 1 MiB
-higher (a rebased image: only the hook and its code run, and neither may
-need a relocation); GetModuleHandleA, GetProcAddress, GetTempPathA,
+as machine code, the exe's sections loaded as they are (the exe is never
+rebased, and the Rust arena's code holds absolute addresses: the asm's run
+1 MiB higher went with the asm); GetModuleHandleA, GetProcAddress, GetTempPathA,
 CreateFileA and CloseHandle are stubs. Each machine must give its flags in
 byte 8 of the version field (80h, 81h with %TEMP%\\shell_32.dll), zeros in
 bytes 9..11, the EULA byte in 12, every register as the game had it but
@@ -24,7 +24,8 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 
 import patch_026g as base
 
-AFTER = base.STALE_DLL_VA + len(base.STALE_DLL[1])
+SITE, ORIGINAL = 0x380889, bytes.fromhex("894708" "88570c")    # sites_026g.tsv sign_in.version_tail
+AFTER = SITE + len(ORIGINAL)
 IMPORTS = {0x87003C: "GetModuleHandleA", 0x870040: "CloseHandle", 0x870048: "CreateFileA",
            0x870084: "GetProcAddress"}
 ARGUMENTS = {"GetModuleHandleA": 1, "CloseHandle": 1, "CreateFileA": 7, "GetProcAddress": 2,
@@ -114,7 +115,7 @@ class Run:
         emu.reg_write(UC_X86_REG_EDX, 0x77777700 | EULA)
         emu.reg_write(UC_X86_REG_EDI, MESSAGE + 0x100)
         emu.reg_write(UC_X86_REG_ESP, STACK + 0x8000)
-        emu.emu_start(base.STALE_DLL_VA + self.delta, AFTER + self.delta, count=100000)
+        emu.emu_start(SITE + self.delta, AFTER + self.delta, count=100000)
         message = bytes(emu.mem_read(MESSAGE + 0x100, 16))
         expected = GAME | {UC_X86_REG_EDX: 0x77777700 | EULA, UC_X86_REG_EDI: MESSAGE + 0x100,
                            UC_X86_REG_ESP: STACK + 0x8000}
@@ -146,19 +147,20 @@ def main():
         ("a temporary folder too long for the name", dict(files={too_long + "shell_32.dll"}, temp=too_long), 0x80),
     ]
     failed = 0
-    for delta in (0, 0x100000):
+    for delta in (0,):
         for name, machine, flags in machines:
             got = Run(data, delta, **machine).go()
             ok = got == flags
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name}{' (rebased)' if delta else ''}: {got:#04x}"
                   + ("" if ok else f", not {flags:#04x}"))
-    va, original_bytes, new = base.STALE_DLL
-    at = base.file_offset(va)
-    ok = data[at:at + len(new)] == new and without[at:at + len(original_bytes)] == original_bytes
+    at = base.file_offset(SITE)
+    hook = [h for h in base.rust_hooks(original) if h[0] == SITE]
+    ok = len(hook) == 1 and data[at:at + len(ORIGINAL)] != ORIGINAL and data[at] == 0xE9 \
+        and without[at:at + len(ORIGINAL)] == ORIGINAL
     failed += not ok
-    print(f"{'ok  ' if ok else 'FAIL'} {va:#x}: `call` + nop in the default build, the original "
-          "in the build without the late join")
+    print(f"{'ok  ' if ok else 'FAIL'} {SITE:#x}: the Rust lohook's `jmp` + nop in the default build, the "
+          "original in the build without the late join")
     sys.exit(1 if failed else 0)
 
 

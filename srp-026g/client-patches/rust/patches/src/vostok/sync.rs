@@ -14,7 +14,9 @@ use super::hook::Thread;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-/// A value behind a spin lock, reached only from inside a hook.
+/// A value behind a spin lock, reached only from inside a hook. Its owner
+/// word first (`repr(C)`): the equivalence gate holds it for another thread.
+#[repr(C)]
 pub struct Lock<T> {
     /// The thread that holds it (its id), 0 when free.
     owner: AtomicU32,

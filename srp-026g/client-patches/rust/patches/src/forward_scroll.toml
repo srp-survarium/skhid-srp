@@ -1,0 +1,22 @@
+# Patch 28: the transparent effects scroll their textures as in 0.29. Only
+# the decisions: which sites, and the handlers. The sites (their VAs and
+# spans) are sites_026g.tsv's; the configs, the compile's frame and the
+# renderer's binding are vostok's (vostok::config, vostok::render); the
+# logic is forward_scroll.rs.
+name = "forward_scroll"
+patch = 28
+
+# compile, before compile_begin: use_uv_scrolling into the configuration
+[[hook]]
+site = "forward_compile.switch"
+handler = "on_switch"
+
+# compile, after the uv distortion's constants: uv_scrolling_parameters0/1
+[[hook]]
+site = "forward_compile.constants"
+handler = "on_constants"
+
+# renderer_context's constructor, after scene_time's binding: scene_slomo
+[[hook]]
+site = "renderer_context.scene_time_bound"
+handler = "on_scene_time_bound"

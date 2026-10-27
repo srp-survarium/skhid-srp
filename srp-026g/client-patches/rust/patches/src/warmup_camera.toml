@@ -1,0 +1,14 @@
+# Patch 31, its camera: the warmup camera before the start as the lobby's
+# character view. Only the decisions: which site, and the handler. The site
+# is sites_026g.tsv's; the mouse, the handlers and the camera are vostok's
+# (vostok::world_mouse); the logic is warmup_camera.rs. Its mouse moves are
+# taken at patch 46's hook (death_camera.toml, world_mouse.move), which
+# goes on to warmup_camera::mouse_move.
+name = "warmup_camera"
+patch = 31
+
+# process_warmup_mode's store of the pitch: the pitch and the distance
+# within the lobby camera's limits
+[[hook]]
+site = "warmup_camera.pitch_store"
+handler = "on_pitch_store"

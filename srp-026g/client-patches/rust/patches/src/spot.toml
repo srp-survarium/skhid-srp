@@ -1,0 +1,12 @@
+# Patch 38: a spot that hits a battery's body spots the battery. Only the
+# decisions: which site, and the handler. The site (its VA, span and exits)
+# is sites_026g.tsv's; the battery's spottable and the fields are vostok's
+# (vostok::spotting); the logic is spot.rs. The no-cooldown half of the
+# patch is one immediate in place (patch_026g.py SPOT_COOLDOWN).
+name = "spot"
+patch = 38
+
+# a spottable hit with no player behind it: its owner, before the geometry
+[[hook]]
+site = "spot.hit_owner"
+handler = "on_hit_owner"

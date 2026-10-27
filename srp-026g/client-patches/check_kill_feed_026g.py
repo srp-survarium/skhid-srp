@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 67 (kill_feed_026g.asm: the kill feed's wall, ricochet and pain icons) in
+"""Run patch 67 (the Rust patch kill_feed: the kill feed's wall, ricochet and pain icons) in
 the default build on made-up game objects.
 
     python check_kill_feed_026g.py <original survarium.exe>

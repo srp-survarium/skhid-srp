@@ -12,8 +12,10 @@
 //! **memcpy, memmove and memset**: LLVM calls them for a large copy, move
 //! or fill, and the game gives none to the arena (one crate: one copy); `rep
 //! movsb` (backward for a move onto its own tail) and `rep stosb`, which
-//! LLVM cannot turn back into a call of themselves. Not in `cargo test`'s
-//! binaries (std has its own).
+//! LLVM cannot turn back into a call of themselves. **bcmp and strlen**
+//! likewise, for a comparison of two byte slices and a loop to a NUL
+//! (volatile reads, which LLVM does not turn back into a call). Not in
+//! `cargo test`'s binaries (std has its own).
 
 /// `(unsigned)value` as gcc -m32 compiles it (the C patches' flags): x87
 /// `fistp` to 64 bits, truncating, and the low 32 bits. A negative value
@@ -71,6 +73,34 @@ mod game {
                              options(nostack, preserves_flags));
         }
         to
+    }
+
+    /// # Safety
+    /// As C's: `a` and `b` valid for `size` bytes. 0 when they are equal
+    /// (LLVM's `==` of two byte slices).
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
+        for i in 0..size {
+            // volatile: LLVM cannot turn the loop back into a call of itself
+            if unsafe { a.add(i).read_volatile() != b.add(i).read_volatile() } {
+                return 1;
+            }
+        }
+        0
+    }
+
+    /// # Safety
+    /// As C's: `text` a NUL-ended string (LLVM's loop to a NUL).
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn strlen(text: *const u8) -> usize {
+        let mut n = 0;
+        // volatile, as bcmp's
+        while unsafe { text.add(n).read_volatile() } != 0 {
+            n += 1;
+        }
+        n
     }
 
     #[panic_handler]

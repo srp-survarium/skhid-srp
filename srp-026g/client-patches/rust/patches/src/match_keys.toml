@@ -1,0 +1,22 @@
+# Patch 58: the keys 1, 2 and 3 pick a kit; a match chat option. Only the
+# decisions: which sites, and the handlers. The sites (their VAs and spans)
+# are sites_026g.tsv's; the key, the chat handler and the console variable
+# are vostok's (vostok::world_input, vostok::chat, vostok::console); the
+# logic is match_keys.rs.
+name = "match_keys"
+patch = 58
+
+# the game world's on_keyboard_action, its kind's test: the keys 1 to 3
+[[hook]]
+site = "world_keyboard.kind_test"
+handler = "on_kind_test"
+
+# the game world's constructor right after its hud's: the option's variable
+[[hook]]
+site = "world.hud_made"
+handler = "on_hud_made"
+
+# a received chat line: dropped with the option on, in a match
+[[hook]]
+site = "chat.add_message"
+handler = "on_add_message"

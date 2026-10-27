@@ -55,6 +55,48 @@ global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
+global engine_delayed_sounds_destroy
+global engine_set_constant_float4
+global engine_shared_string
+global engine_shared_string_destroy
+global engine_register_constant_binding
+global engine_add_message
+global engine_get_module_handle_a
+global engine_get_proc_address
+global engine_get_module_file_name_w
+global engine_new_packet
+global engine_buffer_resize
+global engine_enqueue
+global engine_process_detach_upgrade
+global engine_physical_path
+global engine_strcmp
+global engine_file_offset
+global engine_replay_place_mine
+global engine_is_player_current
+global engine_query_mount_archive
+global engine_format_path
+global engine_unmount
+global engine_terminate
+global engine_on_mounted_resources
+global engine_get_last_error
+global engine_view_update
+global engine_switch_to_warmup_camera
+global engine_show_stamina
+global engine_show_profiles_selector
+global engine_modifier_unlink
+global engine_delete_folder
+global engine_baked_texture_resource
+global engine_set_unmanaged_resource
+global engine_finish_query
+global engine_resource_release
+global engine_translate_query
+global engine_read_file
+global engine_delete_file_a
+global engine_create_directory_a
+global engine_get_tick_count
+global engine_find_first_file_a
+global engine_find_next_file_a
+global engine_find_close
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -65,6 +107,29 @@ engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_ac
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (kernel32, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (kernel32, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (kernel32, stdcall)
+engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 (unnamed): value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_shared_string equ 0xe0b50   ; 0xe0b50 (unnamed): text ESP+4; pops 4; EAX; stdcall, called directly
+engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 (unnamed): string ESP+4; pops 4; stdcall, called directly
+engine_add_message equ 0x208ad0   ; 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
+engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (kernel32, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (kernel32, stdcall)
+engine_get_module_file_name_w equ 0x870074   ; the IAT slot 0x870074 (kernel32, stdcall)
+engine_enqueue equ 0x379640   ; 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
+engine_process_detach_upgrade equ 0x275220   ; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
+engine_replay_place_mine equ 0x54e10   ; 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
+engine_terminate equ 0x113580   ; 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly
+engine_on_mounted_resources equ 0x147e0   ; 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
+engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (kernel32, stdcall)
+engine_view_update equ 0x2422b0   ; 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
+engine_finish_query equ 0xf0d00   ; 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+engine_translate_query equ 0x12d1d0   ; 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+engine_read_file equ 0x870064   ; the IAT slot 0x870064 (kernel32, stdcall)
+engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (kernel32, stdcall)
+engine_create_directory_a equ 0x870220   ; the IAT slot 0x870220 (kernel32, stdcall)
+engine_get_tick_count equ 0x870090   ; the IAT slot 0x870090 (kernel32, stdcall)
+engine_find_first_file_a equ 0x870238   ; the IAT slot 0x870238 (kernel32, stdcall)
+engine_find_next_file_a equ 0x87023c   ; the IAT slot 0x87023c (kernel32, stdcall)
+engine_find_close equ 0x870228   ; the IAT slot 0x870228 (kernel32, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -772,6 +837,317 @@ engine_update_skeleton:
     push dword [esp + 36]   ; instance -> 4
     mov edi, [esp + 36]   ; scene_renderer
     call 0x22490
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_delayed_sounds_destroy:
+    ; 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; end -> 4
+    mov eax, [esp + 24]   ; begin
+    call 0x245c50
+    add esp, 4                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_constant_binding:
+    ; 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; manager -> 4
+    mov eax, [esp + 24]   ; binding
+    call 0x3bccc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_new_packet:
+    ; 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; id -> 4
+    mov eax, [esp + 24]   ; client
+    call 0x37a0e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_buffer_resize:
+    ; 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; size -> 4
+    mov eax, [esp + 24]   ; buffer
+    call 0x7ab30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_physical_path:
+    ; 0x4bc10 vostok::vfs::vfs_iterator::get_physical_path: path EDI, node ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; node -> 4
+    mov edi, [esp + 24]   ; path
+    call 0x4bc10
+    add esp, 4                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_strcmp:
+    ; 0x3b5a0 vostok::detail::strcmp_s: first EAX, second ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; first
+    mov ecx, [esp + 24]   ; second
+    call 0x3b5a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_file_offset:
+    ; 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; node
+    call 0x47160
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_is_player_current:
+    ; 0x242a40 survarium::network_client::is_player_current: client EAX, place ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov eax, [esp + 24]   ; client
+    call 0x242a40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_query_mount_archive:
+    ; 0xe7ef0 vostok::resources::query_mount_archive: allocator ESI, virtual_path ESP+4, table ESP+8, archive ESP+12, descriptor ESP+16, callback ESP+20; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; callback -> 20
+    push dword [esp + 40]   ; descriptor -> 16
+    push dword [esp + 40]   ; archive -> 12
+    push dword [esp + 40]   ; table -> 8
+    push dword [esp + 40]   ; virtual_path -> 4
+    mov esi, [esp + 40]   ; allocator
+    call 0xe7ef0
+    add esp, 20                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_format_path:
+    ; 0x18190 vostok::fs::native_path_string::assignf: path ESI, format ESP+4, name ESP+8, number ESP+12; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; number -> 12
+    push dword [esp + 32]   ; name -> 8
+    push dword [esp + 32]   ; format -> 4
+    mov esi, [esp + 32]   ; path
+    call 0x18190
+    add esp, 12                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_unmount:
+    ; 0xdfe30 vostok::resources::intrusive_fs_task_unmount_base::destroy: mount EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; mount
+    call 0xdfe30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_warmup_camera:
+    ; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8190
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_stamina:
+    ; 0x23a1a0 survarium::game_world_ui::show_stamina: shown EAX, ui EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; shown
+    mov edx, [esp + 24]   ; ui
+    call 0x23a1a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_profiles_selector:
+    ; 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov eax, [esp + 24]   ; hud
+    call 0x2383b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_modifier_unlink:
+    ; 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; list
+    mov eax, [esp + 24]   ; node
+    call 0x2d5d00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_delete_folder:
+    ; 0x1e8da0 survarium::delete_folder: folder EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; folder
+    call 0x1e8da0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_baked_texture_resource:
+    ; 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; memory
+    call 0x12de30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_unmanaged_resource:
+    ; 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; size -> 12
+    push dword [esp + 32]   ; allocator -> 8
+    push dword [esp + 32]   ; resource -> 4
+    mov edx, [esp + 32]   ; query
+    call 0xf0080
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_resource_release:
+    ; 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; manager -> 4
+    mov eax, [esp + 24]   ; texture
+    call 0x3bee00
     pop edi
     pop esi
     pop ebx

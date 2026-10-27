@@ -83,6 +83,48 @@ TYPES = {
         "pass": "&mut {n}",
         "null": "{a} as usize as *mut _",
     },
+    "ChatHandler": {
+        "raw": "*mut c_void",
+        "fallible": True,
+        "build": "ChatHandler::from_raw(&thread, {a})",
+        "orig_type": "&mut ChatHandler",
+        "orig_raw": "{n}.ptr()",
+        "pass": "&mut {n}",
+        "null": "{a} as usize as *mut _",
+    },
+    "Channel": {
+        "raw": "u32",
+        "binding": "let {n} = Channel({a});",
+        "orig_type": "Channel",
+        "orig_raw": "{n}.0",
+        "pass": "{n}",
+        "null": "{a}",
+    },
+    "ReplayClient": {
+        "raw": "*mut c_void",
+        "fallible": True,
+        "build": "ReplayClient::from_raw(&thread, {a})",
+        "orig_type": "&mut ReplayClient",
+        "orig_raw": "{n}.ptr()",
+        "pass": "&mut {n}",
+        "null": "{a} as usize as *mut _",
+    },
+    "Place": {
+        "raw": "u32",
+        "binding": "let {n} = Place({a});",
+        "orig_type": "Place",
+        "orig_raw": "{n}.0",
+        "pass": "{n}",
+        "null": "{a}",
+    },
+    "ChatText": {
+        "raw": "*const c_void",
+        "binding": "let {n} = ChatText({a});",
+        "orig_type": "ChatText",
+        "orig_raw": "{n}.ptr()",
+        "pass": "{n}",
+        "null": "{a} as usize as *const _",
+    },
 }
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
@@ -90,6 +132,9 @@ TYPES = {
 RESULTS = {
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
+    # void (the vostok column names no result): the handler returns (), the
+    # shim leaves 0 in EAX, which a void function's callers do not read.
+    None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
 }
 
 
@@ -131,12 +176,37 @@ def read_sites(path=None):
         name = row["site"].strip()
         if not re.fullmatch(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+", name):
             raise Bad(f"sites_026g.tsv: {name!r} is no site name (dotted, e.g. input_builder.spot_query)")
-        exits = [] if row["exits"].strip() in ("", "-") else [
-            (e.split("@")[0], engine_026g.number(e.split("@")[1])) for e in row["exits"].split(";")]
+        exits = [] if row["exits"].strip() in ("", "-") else [exit_of(name, e) for e in row["exits"].split(";")]
         out[name] = {"site": name, "va": engine_026g.number(row["va"]), "kind": row["kind"].strip(),
                      "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
                      else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
     return out
+
+
+def exit_of(site, text):
+    """A lohook exit of sites_026g.tsv: `name@0xVA`, a jump to that address
+    (inside the host function, the stack as at the site); `name@0xVA:N`, the
+    same after popping N bytes (a site at a `call` of a function that pops
+    its pushed arguments: the exit past the call is the stack as the callee
+    leaves it); or `name@ret` / `name@ret:N`, a return from the host
+    function popping N bytes after the return address (the stack at the
+    site its entry's: the site is a function's start), EAX what the handler
+    left. (name, VA), (name, ("pop", VA, N)) or (name, ("ret", N))."""
+    name, _, where = text.strip().partition("@")
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not where:
+        raise Bad(f"sites_026g.tsv: {site}: {text!r} is no exit (name@0xVA, name@0xVA:N, name@ret or name@ret:N)")
+    if where == "ret" or where.startswith("ret:"):
+        pop = engine_026g.number(where[4:]) if where != "ret" else 0
+        if pop % 4 or not 0 <= pop < 0x100:
+            raise Bad(f"sites_026g.tsv: {site}: {text!r} pops a multiple of 4 below 0x100")
+        return name, ("ret", pop)
+    if ":" in where:
+        va, _, pop = where.partition(":")
+        pop = engine_026g.number(pop)
+        if pop % 4 or not 0 < pop < 0x100:
+            raise Bad(f"sites_026g.tsv: {site}: {text!r} pops a multiple of 4 from 4 below 0x100")
+        return name, ("pop", engine_026g.number(va), pop)
+    return name, engine_026g.number(where)
 
 
 def site_of(patch_name, kind, row, sites):
@@ -152,28 +222,29 @@ def site_of(patch_name, kind, row, sites):
     return site
 
 
-def _branch_free(bytes_, where):
-    """Decode whole instructions before copying a span to another address.
-    Opcode-looking bytes inside immediates/displacements are harmless; near
-    conditional branches and prefixed branches still need relocation.
-    ndisasm prints undecodable/truncated instructions as db or lone prefixes.
-    """
+def _instructions(bytes_, where, va):
+    """The span's whole instructions at `va`, [(offset, bytes, text)], decoded
+    with ndisasm (opcode-looking bytes inside immediates/displacements are
+    harmless); an undecodable or truncated instruction (ndisasm's db or a lone
+    prefix) is refused."""
     tool = os.path.join(os.environ.get("NASM_DIR", ""), "ndisasm")
     try:
-        done = subprocess.run([tool, "-b", "32", "-"], input=bytes_, capture_output=True,
+        done = subprocess.run([tool, "-b", "32", "-o", str(va), "-"], input=bytes_, capture_output=True,
                               check=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as error:
         raise Bad(f"{where}: cannot decode the span with ndisasm: {error}") from error
     prefixes = {"o16", "o32", "a16", "a32", "lock", "rep", "repe", "repne", "repz", "repnz",
                 "cs", "ds", "es", "fs", "gs", "ss", "bnd", "xacquire", "xrelease"}
-    decoded = bytearray()
+    out, decoded = [], bytearray()
     for line in done.stdout.decode().splitlines():
         continuation = re.fullmatch(r"\s+-([0-9A-F]+)", line)
         if continuation:
             decoded.extend(bytes.fromhex(continuation[1]))
+            offset, code, text = out[-1]
+            out[-1] = (offset, code + bytes.fromhex(continuation[1]), text)
             continue
         row = re.fullmatch(r"([0-9A-F]+)\s+([0-9A-F]+)\s+(.+)", line)
-        if row is None or int(row[1], 16) != len(decoded):
+        if row is None or int(row[1], 16) - va != len(decoded):
             raise Bad(f"{where}: cannot decode the complete span: {line!r}")
         decoded.extend(bytes.fromhex(row[2]))
         instruction = row[3].strip()
@@ -182,12 +253,43 @@ def _branch_free(bytes_, where):
             words.pop(0)
         if not words or words[0] == "db":
             raise Bad(f"{where}: the span contains an invalid or incomplete instruction: {instruction}")
-        if re.search(r"\b(?:j[a-z]+|loop[a-z]*|call|xbegin)\s+"
-                     r"(?:(?:near|short|word|dword)\s+)*0x[0-9a-f]+$", instruction):
-            raise Bad(f"{where}: the bytes have a relative branch; they cannot be relocated or replayed "
-                      "(use a code hook)")
+        out.append((int(row[1], 16) - va, bytes.fromhex(row[2]), instruction))
     if decoded != bytes_:
         raise Bad(f"{where}: ndisasm did not decode the complete span")
+    return out
+
+
+# A relative branch or call ndisasm prints with its absolute target.
+RELATIVE = re.compile(r"(j[a-z]+|loop[a-z]*|call|xbegin)\s+(?:(?:near|short|word|dword)\s+)*(0x[0-9a-f]+)$")
+
+
+def relocated(bytes_, va, where):
+    """NASM lines that do what `bytes_` do at `va`, from any address: each
+    instruction its own bytes, except a relative `call`, `jmp` or `jcc`,
+    made again to the same absolute target (NASM and the link give the new
+    displacement). Refused: a branch into the span itself (its bytes are
+    replaced), and `loop`/`jecxz`/`xbegin` (no rel32 form)."""
+    lines = []
+    for offset, code, text in _instructions(bytes_, where, va):
+        branch = RELATIVE.search(text)
+        if branch is None:
+            lines.append("    db " + ", ".join(f"0x{b:02x}" for b in code))
+            continue
+        mnemonic, target = branch[1], int(branch[2], 16)
+        if text.split()[0] in ("o16", "a16") or " word " in f" {text} ":
+            raise Bad(f"{where}: `{text}` is a prefixed branch (its target truncated); it cannot be relocated "
+                      "(use a code hook)")
+        if va < target < va + len(bytes_):
+            raise Bad(f"{where}: `{text}` branches into the span itself; it cannot be relocated (use a code hook)")
+        if mnemonic.startswith(("loop", "jcxz", "jecxz", "xbegin")):
+            raise Bad(f"{where}: `{text}` has no rel32 form; it cannot be relocated (use a code hook)")
+        if mnemonic == "call":
+            lines.append(f"    call {target:#x}")
+        elif mnemonic == "jmp":
+            lines.append(f"    jmp {target:#x}")
+        else:
+            lines.append(f"    {mnemonic} near {target:#x}")
+    return lines
 
 
 def _typed(patch_name, patch_no, kind, site, handler, f):
@@ -209,7 +311,7 @@ def _typed(patch_name, patch_no, kind, site, handler, f):
         args.append((label, vtype))
     returns = v["result"]
     if returns not in RESULTS:
-        raise Bad(f"{patch_name}: {f['symbol']}'s vostok result {returns!r} is unknown (have {', '.join(RESULTS)})")
+        raise Bad(f"{patch_name}: {f['symbol']}'s vostok result {returns!r} is unknown (have {', '.join(map(str, RESULTS))})")
     if f["result"] not in RESULTS[returns]["raw"]:
         raise Bad(f"{patch_name}: the vostok result is {returns}, but {f['symbol']}'s is {f['result']}")
     return args, {"patch": patch_name, "patch_no": patch_no, "kind": kind, "site": site["va"],
@@ -263,7 +365,8 @@ def splice_hook(patch, row, sites, functions, exe=None):
     """A `[[splice]]`: the function start jumps to our entry (the game calls
     it in the function's convention), and the `Original` is a trampoline --
     the relocated prologue then a jump past it. The prologue is the site's
-    span, read from the exe and checked branch-free."""
+    span, read from the exe; a relative branch in it is made again to its
+    target (relocated())."""
     name = patch["name"]
     site = site_of(name, "splice", row, sites)
     f = engine_row(site["callee"], functions)
@@ -271,7 +374,7 @@ def splice_hook(patch, row, sites, functions, exe=None):
     if convention not in ("stdcall", "cdecl", "thiscall"):
         raise Bad(f"{name}: {site['callee']} is {convention}; a splice needs stdcall, cdecl or thiscall")
     prologue = span_bytes(name, site, exe)
-    _branch_free(prologue, f"{name} splice at {site['va']:#x}")
+    replay = relocated(prologue, site["va"], f"{name} splice at {site['va']:#x}")
     args, h = _typed(name, patch["patch"], "splice", site, row["handler"], f)
     this = convention == "thiscall"
     nargs = len(args) - (1 if this else 0)
@@ -280,7 +383,7 @@ def splice_hook(patch, row, sites, functions, exe=None):
     macro = {"stdcall": ("RUST_CALL", nargs, f["cleanup"]), "cdecl": ("RUST_CDECL", nargs),
              "thiscall": ("RUST_THISCALL", nargs)}[convention]
     h.update(original=prologue, convention=convention, this=this, entry_macro=macro, install=("splice", 0xE9),
-             orig_kind="trampoline", trampoline=(prologue, site["va"] + len(prologue)))
+             orig_kind="trampoline", trampoline=(replay, site["va"] + len(prologue)))
     # A splice's Original must call this entry's trampoline, not the direct
     # function (which now detours) or another hook's trampoline.
     h["orig"] += "For" + camel(name) + "_" + camel(row["handler"])
@@ -321,17 +424,19 @@ def span_bytes(patch_name, site, exe):
 
 
 def lohook_hook(patch, row, sites, exe=None):
-    """A `[[lohook]]`: a detour at the site's span (read from the exe,
-    branch-free so Continue can replay it). The handler gets a Context and
-    returns a Flow; the site's `exits` name the jump targets."""
+    """A `[[lohook]]`: a detour at the site's span (read from the exe; its
+    relative branches and calls made again to their targets, relocated(), so
+    Continue can replay it anywhere). The handler gets a Context and returns
+    a Flow; the site's `exits` name the jump targets and host returns."""
     name = patch["name"]
     site = site_of(name, "lohook", row, sites)
     span = span_bytes(name, site, exe)
     if len(span) < 5:
         raise Bad(f"{name}: the lohook span at {site['va']:#x} is {len(span)} bytes; a jump needs 5")
-    _branch_free(span, f"{name} lohook at {site['va']:#x}")
+    replay = relocated(span, site["va"], f"{name} lohook at {site['va']:#x}")
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
-            "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
+            "site_name": site["site"], "original": span, "replay": replay, "handler": row["handler"],
+            "what": site["what"],
             "exits": site["exits"], "install": ("lohook", 0xE9),
             "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
 
@@ -354,12 +459,24 @@ def lohook_entry(h):
              "    cmp eax, 0", f"    je {e}_go",
              f"    mov edx, {past:#x}",                 # 1: Skip
              "    cmp eax, 1", f"    je {e}_go"]
-    for i, (_, addr) in enumerate(h["exits"]):          # 2 + i: the named exits
-        lines += [f"    mov edx, {addr:#x}", f"    cmp eax, {2 + i}", f"    je {e}_go"]
+    returns = []
+    for i, (name, addr) in enumerate(h["exits"]):       # 2 + i: the named exits
+        if isinstance(addr, tuple):                     # a return from the host, or a pop: its stub below
+            returns.append((f"{e}_{name}", addr))
+            addr = returns[-1][0]
+        else:
+            addr = f"{addr:#x}"
+        lines += [f"    mov edx, {addr}", f"    cmp eax, {2 + i}", f"    je {e}_go"]
     lines += ["    ud2",                                # an undeclared Flow: a bug
               f"{e}_go:", "    mov [ebp + 36], edx",
               "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
-              f"{e}_replay:", "    db " + ", ".join(f"0x{b:02x}" for b in h["original"]), f"    jmp {past:#x}"]
+              f"{e}_replay:", *(h.get("replay") or ["    db " + ", ".join(f"0x{b:02x}" for b in h["original"])]),
+              f"    jmp {past:#x}"]
+    for label, how in returns:                          # the stack is the site's
+        if how[0] == "ret":                             # its return address on top
+            lines += [f"{label}:", f"    ret {how[1]:#x}" if how[1] else "    ret"]
+        else:                                           # the callee's pushed arguments popped (`lea`: the flags kept)
+            lines += [f"{label}:", f"    lea esp, [esp + {how[2]:#x}]", f"    jmp {how[1]:#x}"]
     return lines
 
 
@@ -488,7 +605,8 @@ def rs_text(hs):
                 "",
                 f"impl {h['orig']} {{",
                 "    /// The game's own function, with these typed arguments.",
-                f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
+                f"    pub fn call(&self, {orig_params})" + ("" if result["type"] == "()" else f" -> {result['type']}")
+                + " {",
                 f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
                 "        // typed by the row (engine_026g.tsv).",
                 f"        unsafe {{ {orig_body} }}",
@@ -551,9 +669,8 @@ def asm_text(hs):
         else:                                          # RUST_THISCALL / RUST_CDECL define the label themselves
             lines.append(f"    {macro[0]} {h['entry']}, {h['shim']}, {macro[1]}")
         if h.get("trampoline"):                        # splice: the relocated prologue, then a jump past it
-            prologue, past = h["trampoline"]
-            lines += [f"global {h['entry']}_tramp", f"{h['entry']}_tramp:",
-                      "    db " + ", ".join(f"0x{b:02x}" for b in prologue), f"    jmp {past:#x}"]
+            replay, past = h["trampoline"]
+            lines += [f"global {h['entry']}_tramp", f"{h['entry']}_tramp:", *replay, f"    jmp {past:#x}"]
     return "\n".join(lines) + "\n"
 
 
@@ -568,16 +685,28 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     bytes are derived (a `call rel32` to the callee), so the exe is not
     needed for one; a span hook (splice, lohook, code) reads its bytes from
     `exe`. patch_026g.py's apply() checks every write against the exe. A
-    pointer, vtable or callback hook is installed by a pointer write or at
-    run time, not here; it is refused until patch_026g.py integrates it."""
+    pointer hook is pointer_installs()'; a vtable or callback hook is
+    installed at run time, not here, and is refused until patch_026g.py
+    integrates it."""
     out = []
     for h in hooks(tomls, functions, sites, exe):
         how, opcode = h["install"]
+        if how == "pointer":
+            continue
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
         out.append((h["site"], h["original"], h["entry"], opcode, h["patch"]))
     return out
+
+
+def pointer_installs(exe=None, tomls=None, functions=None, sites=None):
+    """(the slot's VA, its original 4 bytes: the callee's VA, the entry
+    symbol, owner) of each `pointer` hook: patch_026g.py writes the entry's
+    VA over the pointer (the slot keeps its base relocation, a pointer it
+    still is), and checks the old value against the exe."""
+    return [(h["site"], h["original"], h["entry"], h["patch"]) for h in hooks(tomls, functions, sites, exe)
+            if h["install"][0] == "pointer"]
 
 
 def arena_sources(tomls=None, functions=None, sites=None, exe=None):
@@ -599,6 +728,15 @@ def lohook_sites(tomls=None, sites=None):
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
             for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+
+
+def pointer_sites(tomls=None, sites=None):
+    """(the slot's VA, owner patch, what) of every pointer hook, from the TOML
+    and the sites alone (patch_026g.py's INSTALLS declares them SLOT)."""
+    tomls = read_tomls() if tomls is None else tomls
+    sites = read_sites() if sites is None else sites
+    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "pointer"]
 
 
 def install_sites(tomls=None, sites=None):

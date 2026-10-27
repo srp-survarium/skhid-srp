@@ -1,0 +1,20 @@
+# Patch 46: on the death screen a drag turns the camera. Only the
+# decisions: which sites, and the handlers. The sites (their VAs, spans and
+# exits) are sites_026g.tsv's; the mouse, the handlers and the view are
+# vostok's (vostok::world_mouse); the logic is death_camera.rs, which uses
+# patch 31's warmup camera (warmup_camera.rs: the drag, its end, and every
+# move but the death screen's).
+name = "death_camera"
+patch = 46
+uses = ["warmup_camera"]
+
+# the game world's on_mouse_move: the death screen's drag, else the warmup
+# camera's, else the original's
+[[hook]]
+site = "world_mouse.move"
+handler = "on_mouse_move"
+
+# update_camera's call of the view's update: the eyes turned as a head turns
+[[hook]]
+site = "camera.view_update"
+handler = "on_view_update"

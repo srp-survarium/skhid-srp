@@ -276,13 +276,19 @@ def test_code():
 LOHOOK_PAST = 0xB900000         # the lohook span's reconvergence (site + len), mapped
 
 
-def run_lohook(h, stub_src, until, regs=None, flags=0x202):
+def run_lohook(h, stub_src, until, regs=None, flags=0x202, code=None, stack=()):
     """Assemble a lohook entry (hooks_026g.lohook_entry) with a stub shim and
-    run it from the entry to `until`, returning the machine state."""
+    run it from the entry to `until`, returning the machine state. `code`
+    {VA: bytes} is written on the span's page (a function the span calls);
+    `stack` the dwords at ESP."""
     entry_src = "\n".join(hooks_026g.lohook_entry(h)) + "\n"
     blob, labels = assemble(entry_src, stub_src)
     m = Machine(bytes(ORIGINAL), blob, TEST_VA)
     m.uc.mem_map(LOHOOK_PAST & ~0xFFF, 0x1000, UC_PROT_ALL)
+    for va, body in (code or {}).items():
+        m.uc.mem_write(va, body)
+    for i, value in enumerate(stack):
+        m.uc.mem_write(STACK + 0x80000 + 4 * i, struct.pack("<I", value))
     uc = m.uc
     for name, reg in GP.items():
         uc.reg_write(reg, (regs or {}).get(name, SENTINELS.get(name, 0)))
@@ -336,6 +342,56 @@ def test_lohook():
                  "    or dword [eax+32], 1\n    and dword [eax+32], ~0x40\n    xor eax, eax\n    ret\n")
     out = run_lohook(dict(base, original=nop), set_flags, LOHOOK_PAST, flags=0x246)
     check(out["eflags"] == 0x207, "lohook: applies a Context flag edit (set CF, clear ZF)")
+    test_lohook_relocated(base, noop_stub)
+
+
+def test_lohook_relocated(base, noop_stub):
+    """A span with a relative call and a jcc replays from the entry: each
+    made again to its absolute target (hooks_026g.relocated); a host-return
+    exit returns from the site with the handler's EAX, popping its bytes."""
+    func = LOHOOK_PAST + 0x100                          # `mov eax,0x77 / add eax,ecx / ret`, on the span's page
+    taken = LOHOOK_PAST + 0x200
+    body = {func: bytes.fromhex("b877000000" "01c8" "c3")}
+    # call func (5) / test eax,eax (2) / jnz taken (6): 13 bytes ending at LOHOOK_PAST
+    site = LOHOOK_PAST - 13
+    span = (b"\xE8" + struct.pack("<i", func - (site + 5)) + bytes.fromhex("85c0")
+            + b"\x0F\x85" + struct.pack("<i", taken - (site + 13)))
+    replay = hooks_026g.relocated(span, site, "the test span")
+    check(replay[0] == f"    call {func:#x}" and replay[2] == f"    jnz near {taken:#x}",
+          f"relocated: the span's call and jnz are made again to their targets ({'; '.join(replay)})")
+    h = dict(base, site=site, original=span, replay=replay)
+    out = run_lohook(h, noop_stub, taken, regs={"ecx": 0x100}, code=body)
+    check(out["eip"] == taken and out["eax"] == 0x177 and all(out[r] == SENTINELS[r] for r in SAVED if r != "ecx")
+          and out["esp"] == STACK + 0x80000,
+          f"lohook Continue: the relocated call ran (eax {out['eax']:#x}) and its jnz was taken, the stack the site's")
+    out = run_lohook(h, noop_stub, LOHOOK_PAST, regs={"ecx": (-0x77) & 0xFFFFFFFF}, code=body)
+    check(out["eip"] == LOHOOK_PAST and out["eax"] == 0,
+          "lohook Continue: the relocated jnz not taken goes on past the span")
+    for bad, what in ((bytes.fromhex("7400" "9090909090"), "a branch into the span"),
+                      (bytes.fromhex("e2fe" "909090"), "a loop (no rel32 form)")):
+        try:
+            hooks_026g.relocated(bad, site, "the test span")
+            check(False, f"relocated must refuse {what}")
+        except hooks_026g.Bad:
+            check(True, f"relocated refuses {what}")
+    # a host return: the site is a function's start ([esp] its return address)
+    back = LOHOOK_PAST + 0x300
+    ret_stub = ("global hook_fix_h\nhook_fix_h:\n    mov eax, [esp+4]\n    mov eax, [eax]\n"
+                "    mov dword [eax+28], 0x5eed\n    mov eax, 2\n    ret\n")      # EAX 5EEDh, Exit 0
+    out = run_lohook(dict(base, original=b"\x90" * 5, exits=[("done", ("ret", 8))]), ret_stub, back,
+                     stack=(back, 1, 2), code={back: b"\x90"})
+    check(out["eip"] == back and out["eax"] == 0x5EED and out["esp"] == STACK + 0x80000 + 12
+          and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Exit (host return): `ret 8` to the site's return address, EAX the handler's "
+          f"(esp +{out['esp'] - STACK - 0x80000:#x})")
+    # a pop: the site a `call` whose callee pops its two pushed arguments
+    past = LOHOOK_PAST + 0x380
+    out = run_lohook(dict(base, original=b"\x90" * 5, exits=[("popped", ("pop", past, 8))]), ret_stub, past,
+                     stack=(1, 2, 3), code={past: b"\x90"})
+    check(out["eip"] == past and out["eax"] == 0x5EED and out["esp"] == STACK + 0x80000 + 8
+          and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Exit (a pop): the two pushed arguments popped, then {past:#x}, EAX the handler's "
+          f"(esp +{out['esp'] - STACK - 0x80000:#x})")
 
 
 ORIGINAL = b""

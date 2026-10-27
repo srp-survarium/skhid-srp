@@ -31,6 +31,26 @@ mod raw {
 
 pub mod vostok;
 
+pub mod artefacts;
+pub mod bake_cache;
+pub mod read_order;
+pub mod replay_link;
+pub mod replay_viewer;
+pub mod forward_scroll;
+pub mod hide_ui;
+pub mod kill_feed;
+pub mod match_keys;
+pub mod mount_patches;
+pub mod kit_state;
+pub mod kit_change;
+pub mod shared_upgrades;
+pub mod spot;
+pub mod pickup_below;
 pub mod ragdoll;
 pub mod blackout;
+pub mod stale_dll;
+pub mod warmup_keys;
+pub mod warmup_camera;
+pub mod death_camera;
 pub mod suicide_key;
+pub mod weapon_random;

@@ -54,7 +54,7 @@ too, for screenshots.
 
 ## How
 
-- Exe patch 62 (`hide_ui_026g.asm`; `client_patch.md` 3.54): in a match it calls the hud and
+- Exe patch 62 (the Rust patch `hide_ui`, `client-patches/rust/patches/src/hide_ui.rs`; `hide_ui_026g.asm` until the Rust port; `client_patch.md` 3.54): in a match it calls the hud and
   player icons' movies' `hide_interface`; in the lobby the lobby movie's `toggle_interface`.
 - The movies (lobby, hud, player icons): the interface is the movie's root, hidden in one step;
   what the game put on the stage is in the root's `_stageLayer` (kept the root's last child, at

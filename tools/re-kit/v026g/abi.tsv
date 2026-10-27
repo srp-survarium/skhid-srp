@@ -1987,3 +1987,23 @@ va	name	source	ret_cleanup	result
 0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	manual	0	EAX: the record
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
+0x00245c50	survarium::delayed_callbacks_queue::destroy_range	manual	0	
+0x001a8900		manual	8	EAX: the effect compiler (its first stack argument, kept in ebp)
+0x000e0b50		manual	4	EAX: the shared string of the text (its reference count at +0), found in the pool or made
+0x000e0ae0		manual	4	
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	manual	16	AL: the member set (0 on one way out, 0x677061; `ret 10h` 0x677067)
+0x00275220	survarium::lobby_client::process_detach_upgrade	manual	8	EAX: no value (what its last call left; the 83 46 02 case returns it at 0x275765)
+0x0004bc10	vostok::vfs::vfs_iterator::get_physical_path	manual	0	
+0x0003b5a0	vostok::detail::strcmp_s	manual	0	EAX: -1, 0 or 1 (a null text is "")
+0x00047160	vostok::vfs::get_file_offs<1>	manual	0	EDX:EAX: the file's offset in its archive (0 for a node not in one)
+0x00242a40	survarium::network_client::is_player_current	manual	4	EAX: 1 when the client's player (+4) is in the place, else 0
+0x00018190	vostok::fs::native_path_string::assignf	manual	0	EAX: the path string (ESI), its text the formatted one (mov eax,esi at 0x181A6)
+0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	manual	0	
+0x00113580	vostok::debug::terminate	manual	0	never returns; cdecl, printf-like: the caller would take the arguments (on_mounted_resources 0x147F8 pushes one)
+0x00018d60	vostok::engine::engine_world::get_render_output_window_size	manual	4	EAX: the size's address; the window's client width and height (GetClientRect through [0xAEFED0]), 1.0 both when it fails (0xA2D75C)
+0x001f1790	survarium::base_player::get_damage_model_ptr	manual	0	EAX: the damage model's pointer's address, this+1D8h (the player's +2E0h)
+0x002da790	survarium::base_player::remove_from_world	manual	4	
+0x00316da0	survarium::player_respawn_rule_base::spawn	manual	12	
+0x0023a1a0	survarium::game_world_ui::show_stamina	manual	0	
+0x002d5d00	survarium::player_params_modifiers_list::remove	manual	0	
+0x001f17a0	survarium::base_player::get_player	manual	0	EAX: the player, this-108h (the interface at the player's +108h)

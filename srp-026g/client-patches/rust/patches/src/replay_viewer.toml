@@ -1,0 +1,22 @@
+# The replay viewer (README "24 to 26", patch revision 11): only the
+# decisions, which sites and the handlers. The sites (their VAs, spans and
+# exits) are sites_026g.tsv's; what the seek walks is vostok's
+# (vostok::replay); the logic is replay_viewer.rs. `patch` is the section's
+# last number (its 24 and 25 are not README's patches 24 and 25).
+name = "replay_viewer"
+patch = 26
+
+# 26: a user seek empties every client weapon's delayed sounds
+[[hook]]
+site = "replay.seek"
+handler = "on_seek"
+
+# 25: a weapon's full sound queue drops the new sound
+[[hook]]
+site = "weapon_sounds.added"
+handler = "on_sound_added"
+
+# 24: the replay's "is this place mine" is the place the camera is on
+[[hook]]
+site = "replay_client.place_mine"
+handler = "on_place_mine"

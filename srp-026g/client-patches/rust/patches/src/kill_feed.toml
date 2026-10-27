@@ -1,0 +1,18 @@
+# Patch 67: the kill feed shows a kill through a wall, by a ricochet and by
+# pain. Only the decisions: which sites, and the handlers. The sites (their
+# VAs and spans) are sites_026g.tsv's; the event, the row and their fields
+# are vostok's (vostok::kill_feed); the logic is kill_feed.rs. The wider
+# load of the fifth argument (0x23B6F0) is one byte in place (patch_026g.py
+# KILL_FEED_ARGUMENT).
+name = "kill_feed"
+patch = 67
+
+# the kill event, before its cause icon's store: its +5 the icons
+[[hook]]
+site = "killed_event.cause_icon"
+handler = "on_cause_icon"
+
+# the hud's kill log row, after extra_icon: the three icons' members
+[[hook]]
+site = "player_killed.mastery_icon"
+handler = "on_mastery_icon"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Run patch 58 (match_keys_026g.asm: the kit keys and the match chat option)
-in the default build on made-up game objects.
+"""Run patch 58 (the Rust patch match_keys: the kit keys and the match chat
+option) in the default build on made-up game objects.
 
     python check_match_keys_026g.py <original survarium.exe>
 
@@ -18,8 +18,9 @@ arena with them; the patch's three entries run from the game's own sites:
   there, and arrive where the original exe does with every register, the
   frame and the stack as the original's;
 - the variable: the game world's constructor's call of the hud's (0x1F6845)
-  runs with the hud's constructor a stub that pops its argument and leaves
-  made-up registers; the game's own cc_value<bool> constructor (0x1DDB0)
+  runs, to the instruction after it (0x1F684A, the patch's lohook, which
+  replays it), with the hud's constructor a stub that pops its argument and
+  leaves made-up registers; the game's own cc_value<bool> constructor (0x1DDB0)
   runs. The call must reach the hud's constructor with the game world and the
   hud, come back with the stub's registers and its stack balanced, and put a
   cc_bool (0x9E7C4C) named "g_private_messages_in_game" (0xA064FC) on the
@@ -44,8 +45,9 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 
 import patch_026g as base
 
-KIND_TEST, BACKS = 0x25CD41, base.MATCH_KEYS_BACKS
+KIND_TEST, BACKS = 0x25CD41, (0x25CD4B, 0x25CF0D)   # on_keyboard_action: a key down, any other
 HUD_SITE, HUD_BACK, HUD_CONSTRUCTOR = 0x1F6845, 0x1F684A, 0x233810
+HUD_PAST = 0x1F6850                    # past `mov [ebp+1D88h],ebx`, the lohook's span at HUD_BACK
 CHAT_SITE, CHAT_BACK, ADD_MESSAGE = 0x26B916, 0x26B91B, 0x208AD0
 INVOKE = 0x511600
 LOOKUP, EXECUTE = 0xEB7C0, 0xEB980
@@ -129,7 +131,7 @@ class Run:
         before = bytes(emu.mem_read(STACK, 0x10000))
         regs, esp = self.run(KIND_TEST, 0, sp, {**GAME, UC_X86_REG_EDI: HANDLER, UC_X86_REG_EBP: frame})
         after = bytes(emu.mem_read(STACK, 0x10000))
-        changed = [i for i in range(len(before)) if before[i] != after[i] and not sp - 0x200 <= STACK + i < sp]
+        changed = [i for i in range(len(before)) if before[i] != after[i] and not sp - 0x1000 <= STACK + i < sp]   # below esp: scratch (the Rust entry saves the machine there)
         return self.stopped, regs, esp, list(self.calls), bytes(emu.mem_read(HANDLER, 0x4000)), changed
 
     def stop(self, emu, address, size, _):
@@ -145,7 +147,7 @@ class Run:
             self.word(sp, HUD_BACK)
             self.word(sp + 4, WORLD + 0x1FC)
             self.calls = []
-            regs, esp = self.run(HUD_SITE, HUD_BACK, sp + 4, {**GAME, UC_X86_REG_EAX: WORLD})
+            regs, esp = self.run(HUD_SITE, HUD_PAST, sp + 4, {**GAME, UC_X86_REG_EAX: WORLD})
             out.append((regs, esp - (sp + 8), list(self.calls), self.read(COMMANDS)))
         return out
 
@@ -214,8 +216,10 @@ def main():
                    + f", at {b[0]:#x} with the registers, frame, stack and objects the original's")
 
     print("the variable (the hud's constructor call, 0x1F6845)")
-    option = linked.symbols["hide_chat"]
-    variable = linked.symbols["chat_variable"]
+    # the patch's static HIDE_CHAT (vostok::console::ConsoleBool): the
+    # command (48h bytes), then its byte
+    variable = next(va for name, va, _, _ in linked.every if name.endswith("10match_keys9HIDE_CHAT"))
+    option = variable + 0x48
     # A command the game registered before: the list's head, "minimap_position".
     for run in (stock, patched):
         run.emu.mem_write(TEXT + 0x800, b"minimap_position\0")
@@ -257,7 +261,9 @@ def main():
                 b = patched.chat(hide, in_match, channel, option)
                 drop = hide and in_match and (channel == 3 or 5 <= channel <= 9)
                 given = [("add_message", *b[3])]
-                keep = {reg: value for reg, value in GAME.items() if reg != UC_X86_REG_EAX}
+                # add_message is a stdcall function: ECX and EDX are its to clobber (the RUST_CALL
+                # entry leaves them so too); EBX, ESI, EDI, EBP are the caller's
+                keep = {reg: value for reg, value in GAME.items() if reg not in (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX)}
                 ok = a[2] == given and a[1] == 0 and b[1] == 0 \
                     and all(b[0][reg] == value for reg, value in keep.items()) \
                     and (b[2] == [] if drop else b[2] == given)

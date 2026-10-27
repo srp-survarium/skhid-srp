@@ -48,23 +48,14 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425000 snapshot_upload_026g.asm -o snapshot_upload_026g.section.bin
         nasm -f bin -DCAVE=0x325A60  snapshot_upload_026g.asm -o snapshot_upload_026g.hash-mismatch.bin
     (both .bin files are checked in; --bin=<file> names another one).
-    The stale shell_32.dll check comes from stale_dll_026g.asm:
-        nasm -f bin -DCAVE=0xA425E00 stale_dll_026g.asm -o stale_dll_026g.section.bin
-    (checked in). The mount of resources.db's patches comes from
-    mount_patches_026g.asm:
-        nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
-    (checked in; STATE is 0x800 of the late join's state page, checked).
-    The forward effect's UV scrolling comes from forward_scroll_026g.asm:
-        nasm -f bin -DCAVE=0xA425B00 forward_scroll_026g.asm -o forward_scroll_026g.section.bin
-    (checked in). "Watch replay"'s link code comes from replay_link_026g.asm:
-        nasm -f bin -DCAVE=0xA425220 replay_link_026g.asm -o replay_link_026g.section.bin
-    (checked in). One upgrade on several items comes from shared_upgrades_026g.asm:
-        nasm -f bin -DCAVE=0xA425700 shared_upgrades_026g.asm -o shared_upgrades_026g.section.bin
-    (checked in). A kit chosen before the start comes from kit_change_026g.asm:
-        nasm -f bin -DCAVE=0xA425EC0 kit_change_026g.asm -o kit_change_026g.section.bin
-    (checked in). The archive reads' order comes from read_order_026g.asm, which
-    replaces hdd_manager_sorting_predicate's body in place:
-        nasm -f bin read_order_026g.asm -o read_order_026g.bin
+    The stale shell_32.dll check is the Rust patch stale_dll (the arena's
+    block patches.code), the mount of resources.db's patches the Rust patch
+    mount_patches.
+    The forward effect's UV scrolling is the Rust patch forward_scroll, in
+    the arena's block patches.code, and so is "Watch replay"'s link, the
+    Rust patch replay_link, and so is one upgrade on several items, the Rust
+    patch shared_upgrades. A kit chosen before the start is the Rust patch
+    kit_change. The archive reads' order is the Rust patch read_order.
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
         nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
@@ -83,20 +74,13 @@ USAGE (this script never touches the source exe):
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
     (checked in). The warmup camera turned by a drag and moved by the wheel while
-    the kits are shown before the start comes from warmup_look_026g.asm and
-    warmup_limits_026g.asm:
-        nasm -f bin -DCAVE=0xA425D40 -DSTATE=0xA428E20 -DLIMITS=0xA425A98 warmup_look_026g.asm -o warmup_look_026g.section.bin
-        nasm -f bin -DCAVE=0xA425A98 warmup_limits_026g.asm -o warmup_limits_026g.section.bin
-    (checked in; STATE is 0xE20 of the late join's state page, checked)
-    (checked in). The commit_suicide key is the Rust patch suicide_key, in
+    the kits are shown before the start is the Rust patch warmup_camera. The
+    commit_suicide key is the Rust patch suicide_key, in
     the arena's block patches.code (rust/patches, hooks_026g.py, link_026g.py;
-    docs/notes/rust_patches.md). A spot's hit on a battery's body comes from
-    spot_026g.asm:
-        nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
-    (checked in). The camera on the death screen comes from death_camera_026g.asm,
-    a section of its own, `.srpc`, on the page after the late join's state page:
-        nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
-    (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
+    docs/notes/rust_patches.md). A spot's hit on a battery's body is the Rust
+    patch spot, in the same block. The camera on the death screen is the Rust
+    patch death_camera; its section of before, `.srpc`, on the page after
+    the late join's state page, stays a page of int3 (`.srpw` follows it).
     A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
     own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
     the decals) and the decal editor on a weapon from weapon_decals_026g.asm, on
@@ -238,7 +222,7 @@ Patches:
   world, which holds the current kit's player alone: a game that loaded one
   during a match had the other kits' weapons at 1, the others had them
   drawn from, and a respawn into such a kit put it out of step. The
-  respawn rule's spawn (0x316DA0) calls into the new code at 0x316EA0,
+  respawn rule's spawn (0x316DA0) is the Rust patch weapon_random's lohook at 0x316EA0,
   after the new kit's player is initialised and before it is put into the
   world: each weapon of its inventory gets a state from its place, kit,
   slot and the spawn's time, the same in every game. And a game's first
@@ -262,7 +246,7 @@ Patches:
   instead; the revision 12 that was built drops that code);
 - the game mounts resources.db's patches (patch revision 12,
   client_patch.md section 0.2): query_db's call of query_mount_archive at
-  0xE7E3E calls mount_patches_026g.asm at 0x400 of `.srp`, which mounts
+  0xE7E3E is the Rust patch mount_patches' lohook, which mounts
   ../../resources.db as the game did and then every
   ../../resources.db.patch_<n> that is there, n from 1 to 255 in order (a
   patch is numbered by the patch revision that brought it; a missing number
@@ -282,28 +266,30 @@ Patches:
   use_sequence is on) and with it sends uv_scrolling_parameters0/1 from the
   four *_map_scroll_*_direction values (a jump at 0x1D94CB); the renderer
   binds scene_slomo, which 0.29's shaders multiply the time by, to a 1.0 (a
-  jump at 0x14990F). The code is forward_scroll_026g.asm at 0xB00 of
-  `.srp`. With the retail resources.db no shader the game loads changes
+  jump at 0x14990F). The code is the Rust patch forward_scroll (the
+  block patches.code; forward_scroll.toml, sites_026g.tsv forward_compile.*
+  and renderer_context.scene_time_bound). With the retail resources.db no shader the game loads changes
   (shaders/masks lists no such macro for forward_base);
 - the sign-in reports a stale shell_32.dll in the temporary folder (patch
   revision 12, written as revision 13, client_patch.md section 3.25): sign_in_on_connected's
-  `mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889 become a call of
-  stale_dll_026g.asm at 0xE00 of `.srp`, which writes both, with byte 8 of
-  the version field 80h, or 81h when %TEMP%\\shell_32.dll exists;
+  `mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889 are the Rust patch
+  stale_dll's lohook (stale_dll.toml, sites_026g.tsv sign_in.version_tail),
+  which replays both, with byte 8 of the version field 80h, or 81h when
+  %TEMP%\\shell_32.dll exists;
 - "Watch replay" (patch revision 14, with the late join, client_patch.md
   section 3.27). The lobby's video_tutorial_link_clicked (0x28CDA0) opened
   whatever text the server's 9E put into the lobby client's link buffer with
-  ShellExecuteA. A jump at 0x28CDB6 goes to replay_link
-  (replay_link_026g.asm, .srp+220h, after the upload code and the default
-  server, before the patches' mount): only `replay <8 hex> <32 hex> <64 hex>
+  ShellExecuteA. 0x28CDB6 is the Rust patch replay_link's lohook (the block
+  patches.code; replay_link.toml, sites_026g.tsv lobby.replay_link_clicked):
+  only `replay <8 hex> <32 hex> <64 hex>
   <1..10 digits>` starts updater_skhid.exe of this exe's folder with the
   command line `updater_skhid.exe <link>`; anything else does nothing;
 - one upgrade (a camouflage, a decal) on several items at once (patch 30,
   with the late join, client_patch.md section 3.28). Taking an upgrade off
   named no item: the lobby's `46 02 <kit> <upgrade>` and the server's
   answer `83 46 02 <upgrade>`, which took it off the first item of the
-  inventory holding it. Four calls or jumps into shared_upgrades_026g.asm
-  (.srp+700h, after the patches' mount, before the pickup code): the
+  inventory holding it. The Rust patch shared_upgrades' four lohooks
+  (shared_upgrades.toml): the
   upgrade window's drop (0x29AAD5) sends `46 02 <kit> <upgrade> <item>`, the
   item the window shows; `83 46 02 <upgrade> <item>` (0x275756) and
   `83 46 01`'s detach_first (0x275589, the item the answer puts it on)
@@ -321,9 +307,9 @@ Patches:
   past a click's few moves, or the lobby's buttons) turns the warmup camera
   and the wheel moves it nearer or further, as the lobby's character view
   (0x25D0E0, the game world's input handler's mouse move), within the
-  lobby's limits (0x24225E). The code is kit_change_026g.asm at 0xEC0 of
-  `.srp`, warmup_look_026g.asm at 0xD40 and warmup_limits_026g.asm at
-  0xA98;
+  lobby's limits (0x24225E). The code is the Rust patches kit_change and
+  warmup_camera (until the Rust port kit_change_026g.asm at 0xEC0 of `.srp`,
+  warmup_look_026g.asm at 0xD40 and warmup_limits_026g.asm at 0xA98);
 - a weapon's upgrade window ("Optika", the scope slot) shows the weapon
   (patch 32, with the late join, client_patch.md section 3.30): the lobby's
   character shows the kit whose held weapon (slot 7, or 10 without a 7) is
@@ -342,7 +328,8 @@ Patches:
   pending reads (0x10BE80, std::sort with unguarded loops) used a predicate
   (0x10BCC0) that cycles when a batch reads from two archives (resources.db
   and a patch mounted over it), and the sort then read past its array: the
-  lobby crash of round 4d. Its 0x1A0 bytes are read_order_026g.asm: a null
+  lobby crash of round 4d. The Rust patch read_order answers for it (a
+  lohook at its start, read_order.toml; once read_order_026g.asm): a null
   iterator first, then the priority (+2B8h) descending, archive reads before
   others, then the archive's path and the file offset (others: the parent
   +158h or the query);
@@ -393,8 +380,9 @@ Patches:
   (0x2D87C1); it is set to 0, so the next press spots again. A ray hit on a
   battery's rigid body (group 0A18h) found neither a player nor a geometry
   through its owner (victory_item_core+58h, vtable 0xA13EEC) and spotted
-  nothing; 0x2D8A0F jumps to spot_026g.asm at 0x7C0 of `.srp`, which spots
-  the battery through its spottable interface (+54h), as its use box does;
+  nothing; 0x2D8A0F is the Rust patch spot's lohook (the block patches.code;
+  spot.toml, sites_026g.tsv spot.hit_owner), which spots the battery through
+  its spottable interface (+54h), as its use box does;
 - a baked camouflage/decal texture that is no longer in the baker's list
   is baked again instead of stopping the game (patch 35, with the late
   join, client_patch.md section 3.33). The baker keeps a list of the
@@ -446,23 +434,24 @@ Patches:
   death-camera.md). A death leaves the player's input handler in the first
   person mode: the camera is the corpse's eyes (player+44Ch), and with the
   kits shown the cursor takes every move. The game world's on_mouse_move
-  (0x25D0E0, WARMUP_LOOK_HOOK) jumps to death_look first: while the kits
+  (0x25D0E0) is the Rust patch death_camera's lohook: while the kits
   are shown, the handler is in the first person mode and the local player
   is dead, a drag as patch 31's (the lobby's buttons at once, the left one
   past a click) turns a yaw and a pitch of its own (within 70 degrees
   either side, 60 up, 40 down) and takes the move, and the wheel stays the
-  cursor's; any other move goes on to warmup_look. update_camera's call of
-  the view's update (0x1F364B) calls death_view, which turns the eyes' view
+  cursor's; any other move goes on to the warmup camera's. update_camera's
+  call of the view's update (0x1F364B), its other lohook, turns the eyes' view
   by them relative to the head's pose (the update's own third-person step
   on the identity, times the eyes' transform) while that player is dead; a
-  live one clears them. The code
-  is death_camera_026g.asm, the section `.srpc`; a dead player sends no
+  live one clears them. (Until the Rust port
+  death_camera_026g.asm, the section `.srpc`.) A dead player sends no
   input (0x1F7883), so nothing a match computes changes;
 - the artefacts as the owner set them (patch 54, with the late join,
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
   the configs, release/content.tsv artefacts-1.json). A Spring's loader
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
-  none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
+  none of them the aim time; the Rust patch artefacts (until the Rust port
+  artefacts_026g.asm, the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
@@ -481,19 +470,21 @@ Patches:
   activation hint (0x25F9DD) shows once a press, for the active's time;
 - the keys 1, 2 and 3 pick kit 1, 2 and 3 while the kits are shown, and an
   option hides the other players' chat lines in a match (patch 58, with the
-  late join; docs/notes/match-hud-options.md). match_keys_026g.asm (the
-  arena's blocks match_keys.code and .state): the game world's
-  on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
-  movie's root.select_kit_key for a key 1 to 3 going down while the hud
-  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
-  registers a cc_bool named as the gameplay options' dead option 4
+  late join; docs/notes/match-hud-options.md). The Rust patch match_keys
+  (the arena's block patches.code; match_keys.toml, sites_026g.tsv
+  world_keyboard.kind_test, world.hud_made and chat.add_message): the game
+  world's on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes
+  the hud movie's root.select_kit_key for a key 1 to 3 going down while the
+  hud shows the cursor, and goes on as before; right after the hud's
+  constructor call (0x1F6845, at 0x1F684A) it registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
   player's line in a match while it is on (channels 3 and 5 to 9);
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
   game's action toggle_replay_ui (19h, F11), which only worked in a replay.
-  hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
+  The Rust patch hide_ui (until the Rust port hide_ui_026g.asm, the arena's
+  blocks hide_ui.code and .data): the game
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
   asks the hud movie root.interface_hidden and gives it and the player icons'
   movie root.hide_interface(not that), the kits before the start too (the
@@ -506,9 +497,11 @@ Patches:
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
-  with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
-  (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
-  0x2DA3D1) writes after the event's cause icon a byte of flags, for a
+  with the late join; docs/notes/kill-feed-icons.md). The Rust patch
+  kill_feed (the arena's block patches.code; kill_feed.toml, sites_026g.tsv
+  killed_event.cause_icon and player_killed.mastery_icon):
+  generate_killed_event (0x2DA170, at 0x2DA3D1) writes after the event's
+  cause icon a byte of flags, for a
   bullet and someone else the killer (the cause icon not 3), 0.69d0's
   penetration_icon and ricochet_icon rules: 4 when it ricocheted (its
   reflections +88h not 0), else 1 when it went through something first
@@ -527,13 +520,13 @@ Patches:
   whole ticks bit for bit as before. A simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
-  once (patch 70, with the late join; docs/notes/baked-textures.md).
-  bake_cache_026g.asm and .c (the arena's blocks bake_cache.code and
-  .state): game::game deletes user_data/streamed_textures only when its
+  once (patch 70, with the late join; docs/notes/baked-textures.md). The
+  Rust patch bake_cache (the arena's blocks patches.code and
+  patches.state): game::game deletes user_data/streamed_textures only when its
   stamp file names another revision (0x1E9455), and puts its whole DDS
   files back into the baker's list (CRC 0, the first load's taken at
   0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
-  look-up (0x12D4CD) lets a query whose path is under way wait, and the
+  look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
@@ -568,6 +561,7 @@ import re
 import struct
 import sys
 
+import engine_026g
 import hooks_026g
 import link_026g as linker
 
@@ -669,20 +663,21 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # below; a replay watched in first or third person died at that player's
 # first respawn into another kit), a weapon's full sound queue drops the new
 # sound (SOUND_QUEUE below; a replay died about 50 s after a seek), and a
-# replay's seek empties the weapons' sound queues (SEEK_CLEAR below; sounds
+# replay's seek empties the weapons' sound queues (the Rust patch
+# replay_viewer, the replay's seek below; sounds
 # played late after a seek). Nothing a match computes: no revision of their
 # own (owner, 2026-10-15).
 # 12: the resources.db signature is not checked at all (DB_SIGNATURE below):
 # a retail archive and one with new files both start the game; the game
-# mounts resources.db.patch_<n> over resources.db (MOUNT_PATCHES below); and
-# the sign-in reports whether %TEMP%\shell_32.dll exists (STALE_DLL below),
+# mounts resources.db.patch_<n> over resources.db (the Rust patch mount_patches); and
+# the sign-in reports whether %TEMP%\shell_32.dll exists (the Rust patch stale_dll below),
 # in byte 8 of the version field. Nothing a match computes: 11 and 12 play
 # together. (Owner, 2026-10-16: this build is revision 12. The numbers 12
 # to 14 were used while it was written, never released: a 12 that started
 # only with a resources.db Skhid's key signed, a 13 that added the
 # shell_32.dll report to it, a 14 with the signature skip and the patches.)
 # 13: the transparent effects (forward_default) scroll their textures as in
-# 0.29 when a material asks for it (FORWARD_SCROLL_HOOKS below). Rendering
+# 0.29 when a material asks for it (the Rust patch forward_scroll). Rendering
 # only, nothing a match computes: 12 and 13 play together.
 # 14: "Watch replay" from the lobby's History (REPLAY_LINK below): the lobby's
 # link callback starts updater_skhid.exe with a link of the one form
@@ -780,12 +775,12 @@ MEMORY_DEFAULTS = (
 # new kit object when it says yes, as the live client's 0x27B550 does for
 # its own place; the replay never did, kept drawing the old kit's object as
 # the one watched and gave the new one's weapon a HUD of 0 + 0x2E4
-# (weapon::draw 0x24502B). The slot gets a thunk in the int3 padding after
+# (weapon::draw 0x24502B). The slot names the Rust patch replay_viewer's
+# pointer hook (sites_026g.tsv replay_client.place_mine), which asks
 # is_player_current 0x242A40 (the client in eax, the place on the stack,
-# `ret 4`): `mov eax,ecx` / `jmp 242A40h`, so "mine" is "the place the
-# camera is on". The slot keeps its base relocation.
-REPLAY_REATTACH_THUNK = (0x242A69, bytes.fromhex("cc") * 7, bytes.fromhex("8bc1e9d0ffffff"))
-REPLAY_REATTACH_SLOT = (0x9FF398, struct.pack("<I", 0x54E10), struct.pack("<I", 0x242A69))
+# `ret 4`): "mine" is "the place the camera is on". The slot keeps its base
+# relocation. (Until the Rust port the slot named a 7-byte thunk written
+# into the int3 padding at 0x242A69, `mov eax,ecx` / `jmp 242A40h`.)
 
 # A weapon's delayed sounds (delayed_callbacks_queue<64>, weapon+9FCh:
 # begin, end, capacity end; 0x38 bytes an item) are emptied by nothing but
@@ -802,15 +797,10 @@ REPLAY_REATTACH_SLOT = (0x9FF398, struct.pack("<I", 0x54E10), struct.pack("<I", 
 # queue is not touched); otherwise it does the two instructions and goes
 # back to 0x2454C6. A weapon with a full queue drops its new sounds until it
 # drains, where the game died. Sounds only: nothing a match computes.
+# Since the Rust port the site 0x2454C1 is the Rust patch replay_viewer's
+# lohook (sites_026g.tsv weapon_sounds.added, its exit drop 0x24569A); until
+# then 20 bytes of machine code written into int3 padding at 0x835A20.
 SOUND_QUEUE_HOOK_VA, SOUND_QUEUE_RETURN, SOUND_QUEUE_DROP = 0x2454C1, 0x2454C6, 0x24569A
-SOUND_QUEUE_CAVE_VA = 0x835A20
-SOUND_QUEUE_PADDING = (0x835A16, 42)          # the int3 run the cave is in
-SOUND_QUEUE_CAVE = (bytes.fromhex("8b4e04" "3b4e08" "7307" "8b06")
-                    + bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_RETURN - (SOUND_QUEUE_CAVE_VA + 15))
-                    + bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_DROP - (SOUND_QUEUE_CAVE_VA + 20)))
-SOUND_QUEUE_CAVE_SITE = (SOUND_QUEUE_CAVE_VA, bytes.fromhex("cc") * len(SOUND_QUEUE_CAVE), SOUND_QUEUE_CAVE)
-SOUND_QUEUE_HOOK = (SOUND_QUEUE_HOOK_VA, bytes.fromhex("8b068b4e04"),
-                    bytes([0xE9]) + struct.pack("<i", SOUND_QUEUE_CAVE_VA - (SOUND_QUEUE_HOOK_VA + 5)))
 
 # vfs::mounter::finish 0x469F0, the last step of every mount: `mov
 # eax,[eax+34h]` (the mount's root) / `test eax,eax` / `jnz 46B0Fh`, then
@@ -871,46 +861,36 @@ DB_SIGNATURE = (DB_SIGNATURE_VA, bytes.fromhex("e8d8f6ffff"), bytes.fromhex("31c
 # the descriptor, the callback, cdecl) once, at 0xE7E3E. Its callback,
 # on_mounted_resources (0x147E0, the only one: its one reference is the
 # bind at 0x14E34), keeps the mount in engine_world+2D4h (m_resources_mount;
-# +2C0h is the shaders' masks) and goes on with the start-up. The call at 0xE7E3E calls mount_all of mount_patches_026g.asm
-# (MOUNT_PATCHES_OFFSET of `.srp`, after the upload code and the default
-# server's stub and name, before the pickup code) instead; the first six bytes of 0x147E0 (`push ebp` / `mov ebp,esp` /
-# `and esp,-8`) jump to its on_mounted and a nop. What the code does: the
-# .asm's head. Neither site holds an address: no base relocation is under
-# them. The code keeps its state at MOUNT_STATE_OFFSET of the late join's
-# state page (the late join's own state is its first 60 bytes); the .bin
-# ends with the address it was assembled for, which build() checks. A patch
-# is numbered by the patch revision that brought it, a byte: n = 1..255,
-# each that is there, in order.
-MOUNT_PATCHES_OFFSET = 0x400
-MOUNT_PATCHES_VA = SECTION_VA + MOUNT_PATCHES_OFFSET
-MOUNTED_OFFSET, MOUNT_ALL_OFFSET = 0, 0x88      # the .asm's two entries
-MOUNT_STATE_OFFSET = 0x800
+# +2C0h is the shaders' masks) and goes on with the start-up. The call at
+# 0xE7E3E and the first six bytes of 0x147E0 (`push ebp` / `mov ebp,esp` /
+# `and esp,-8`) are the Rust patch mount_patches' two lohooks
+# (rust/patches/src/mount_patches.toml; sites_026g.tsv mount.query and
+# mount.mounted). What it does: mount_patches.rs's head. Neither site holds
+# an address: no base relocation is under them. (Until the Rust port,
+# mount_patches_026g.asm at 0x400 of `.srp`, its state at 0x800 of the late
+# join's state page.) A patch is numbered by the patch revision that
+# brought it, a byte: n = 1..255, each that is there, in order.
 MOUNT_MAX_PATCHES = 255
-MOUNT_STATE_SIZE = 8 + 4 * (1 + MOUNT_MAX_PATCHES) + MOUNT_MAX_PATCHES
 # The patches an exe requires (patch 49, README; client_patch.md section 3.46):
 # a missing resources.db.patch_<n> whose bit is set stops the game at its
 # start with the "Cannot open resources.db.patch_<n> (error 2)" fatal, as
-# one that cannot be opened. The bitmap (bit n of byte n/8) is the .asm's
-# `needed`, the MOUNT_REQUIRED_SIZE bytes before the state's address at the
-# .bin's end, right after the "Cannot open" text (release/lib.sh's
-# exe_required_patches finds it so). build() writes it; the checked-in .bin
-# holds zeros, and a build without required_patches requires none. A
+# one that cannot be opened. The bitmap (bit n of byte n/8) is the
+# MOUNT_REQUIRED_SIZE bytes of vostok::mount's SRP_REQUIRED_PATCHES right
+# after its "Cannot open" text (release/lib.sh's exe_required_patches finds
+# it so). build() writes it into the arena's bytes; the link holds zeros,
+# and a build without required_patches requires none. A
 # release passes its offered-patch list's numbers (release/build-zip), so
 # its exe never runs on older content than its server offers.
 MOUNT_REQUIRED_SIZE = (MOUNT_MAX_PATCHES + 1) // 8
 MOUNT_UNREADABLE = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
-MOUNT_QUERY_VA, MOUNTED_VA = 0xE7E3E, 0x147E0
 MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
-MOUNT_QUERY = (MOUNT_QUERY_VA, b"\xE8" + struct.pack("<i", MOUNT_QUERY_MOUNT_ARCHIVE - MOUNT_QUERY_VA - 5),
-               b"\xE8" + struct.pack("<i", MOUNT_PATCHES_VA + MOUNT_ALL_OFFSET - MOUNT_QUERY_VA - 5))
-MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
-           b"\xE9" + struct.pack("<i", MOUNT_PATCHES_VA + MOUNTED_OFFSET - MOUNTED_VA - 5) + b"\x90")
 
 # UV scrolling for the transparent effects (patch 28, README; client_patch.md
-# section 3.26): forward_scroll_026g.asm at FORWARD_SCROLL_OFFSET of `.srp`,
-# after the replay's seek code and before the shell_32.dll check, three
-# entries the three jumps below go to. effect_fstage_default_materials::
-# compile (0x1D8F40): at 0x1D90DC (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`,
+# section 3.26): the Rust patch forward_scroll (rust/patches/src/
+# forward_scroll.rs, its three lohooks the sites forward_compile.switch,
+# forward_compile.constants and renderer_context.scene_time_bound of
+# sites_026g.tsv; until the Rust port, forward_scroll_026g.asm at 0xB00 of
+# `.srp`). effect_fstage_default_materials::compile (0x1D8F40): at 0x1D90DC (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`,
 # after use_angle_depended_attenuation is read, before compile_begin at
 # 0x1D9126) the switch use_uv_scrolling sets bit 6 of the shader
 # configuration's byte 0Ch, unless use_sequence is on; at 0x1D94CB (`mov
@@ -920,41 +900,26 @@ MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
 # renderer_context's constructor (0x148570): at 0x14990F (`mov
 # [esp+2Ch],edi` / `lea esi,[ebx+123Ch]`, after its last
 # register_constant_binding, scene_time's) the constant scene_slomo is bound
-# to a 1.0 in the code. No site holds an address: no base relocation is
-# under them. The .bin ends with the address it was assembled for, which
-# build() checks. Rendering only: nothing a match computes reads any of it.
-FORWARD_SCROLL_OFFSET = 0xB00
-FORWARD_SCROLL_VA = SECTION_VA + FORWARD_SCROLL_OFFSET
-FORWARD_SWITCH_OFFSET, FORWARD_CONSTANTS_OFFSET, SCENE_SLOMO_OFFSET = 0, 0x40, 0x100   # the .asm's entries
-FORWARD_COMPILE_VA = 0x1D8F40
-RENDERER_CONTEXT_VA = 0x148570
-FORWARD_SWITCH_HOOK = (0x1D90DC, bytes.fromhex("8a542456" "8b7510"), FORWARD_SWITCH_OFFSET, 0xE9)
-FORWARD_CONSTANTS_HOOK = (0x1D94CB, bytes.fromhex("8a4c2457" "80e103"), FORWARD_CONSTANTS_OFFSET, 0xE9)
-SCENE_SLOMO_HOOK = (0x14990F, bytes.fromhex("897c242c" "8db33c120000"), SCENE_SLOMO_OFFSET, 0xE9)
-FORWARD_SCROLL_HOOKS = (FORWARD_SWITCH_HOOK, FORWARD_CONSTANTS_HOOK, SCENE_SLOMO_HOOK)
+# to a 1.0 of the crate's. No site holds an address: no base relocation is
+# under them. Rendering only: nothing a match computes reads any of it.
 
 # sign_in_on_connected 0x380800, where it finishes the 12-byte version field
 # (section 6 of client_patch.md): `mov [edi+8],eax` (bytes 8..11, eax 0) /
-# `mov [edi+0Ch],dl` (the EULA byte). Both become a call of
-# stale_dll_026g.asm and a nop; the code there does both after its check,
-# with the result in byte 8. It sits at STALE_DLL_OFFSET in the first page
-# of `.srp`, after the replay's seek code (SEEK_CLEAR_OFFSET; 0xC00 to
-# 0xE00 held the never-released first revision 12's signature code); build() checks that they do not
-# overlap. The two instructions hold no address: no base relocation is
-# under them.
-STALE_DLL_VA = 0x380889
-STALE_DLL_OFFSET = 0xE00
-STALE_DLL_ENTRY = SECTION_VA + STALE_DLL_OFFSET
-STALE_DLL = (STALE_DLL_VA, bytes.fromhex("894708" "88570c"),
-             b"\xE8" + struct.pack("<i", STALE_DLL_ENTRY - STALE_DLL_VA - 5) + b"\x90")
+# `mov [edi+0Ch],dl` (the EULA byte). Both are the Rust patch stale_dll's
+# lohook (rust/patches/src/stale_dll.toml, sites_026g.tsv
+# sign_in.version_tail; until its port stale_dll_026g.asm at .srp+E00h):
+# its check sets EAX to the flags and the two writes are replayed, the
+# result in byte 8. The two instructions hold no address: no base
+# relocation is under them.
 
 # A kit chosen before the match starts is played at once (patch 31, README;
 # client_patch.md section 3.29; the rules: docs/notes/kit-change-before-start.md):
-# kit_change_026g.asm at KIT_CHANGE_OFFSET of `.srp`, after the shell_32.dll
-# check and before the late join, four entries, and nops at one site.
+# the Rust patch kit_change (rust/patches/src/kit_change.toml, four lohooks;
+# until the Rust port kit_change_026g.asm at 0xEC0 of `.srp`), and nops at
+# one site.
 # - The respawn rule's tick (0x316820, slot +50h of every respawn rule's
-#   vtable; `push ebp` / `mov ebp,esp` / `sub esp,34h`) jumps first to
-#   kit_change: while the time rule's state (core+18FE4h) is 1 or 2, a place
+#   vtable; `push ebp` / `mov ebp,esp` / `sub esp,34h`; respawn_rule.tick)
+#   first: while the time rule's state (core+18FE4h) is 1 or 2, a place
 #   whose next kit (place+0Dh, the relayed kit choice as the place's tick
 #   0x321790 took it) is another than the kit in use (place+0Ch), whose
 #   player is alive and in the world, and whose statistics record is all
@@ -991,23 +956,14 @@ STALE_DLL = (STALE_DLL_VA, bytes.fromhex("894708" "88570c"),
 #   is, for another pick, before the start and on the death screen; they
 #   are hidden when the player becomes alive in play, as before.
 # No site holds an address: no base relocation under them.
-KIT_CHANGE_OFFSET = 0xEC0
-KIT_CHANGE_VA = SECTION_VA + KIT_CHANGE_OFFSET
 KIT_CHANGE_TICK_VA = 0x316820                 # player_respawn_rule's tick
 KIT_CHANGE_SHOWN_STATE = 0x1F1C60             # network client: the state the camera is set for
-KIT_CHANGE_HOOKS = (
-    (KIT_CHANGE_TICK_VA, bytes.fromhex("558bec83ec34"), 0, 0xE9),   # the respawn rule's tick: kit_change
-    (0x26794D, bytes.fromhex("6a01e8ac08f9ff"), 0xE1, 0xE8),        # the view of a kit change: kit_view
-    (0x23B7DA, bytes.fromhex("e8c1e9ffff6a00"), 0xF9, 0xE9),        # the local player alive: ui_alive
-    (0x23B7FC, bytes.fromhex("8d85d0000000"), 0x108, 0xE8),         # every update: ui_start
-)
 KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pick: the kits stay
-# The same patch's camera before the start: warmup_look_026g.asm at
-# WARMUP_LOOK_OFFSET of `.srp` (after the weapon preview's draw, before the
-# shell_32.dll check) and warmup_limits_026g.asm at WARMUP_LIMITS_OFFSET
-# (after the seek code, before the forward effect's scrolling); a state of
-# 12 bytes at WARMUP_LOOK_STATE_OFFSET of the late join's state page (after
-# the weapon preview's). The input world gives a mouse move to its handlers
+# The same patch's camera before the start: the Rust patch warmup_camera
+# (rust/patches/src/warmup_camera.toml; its mouse moves at patch 46's hook,
+# death_camera.toml; until the Rust port warmup_look_026g.asm at 0xD40 of
+# `.srp`, warmup_limits_026g.asm at 0xA98, a state of 12 bytes at 0xE20 of
+# the late join's state page). The input world gives a mouse move to its handlers
 # in their priority's order until one answers 1 (0x3B9F10): the game world's
 # (game world+1F8h, priority 7) before the player's input handler (game
 # world+4D58h, priority 10), whose warmup mode turns the warmup camera and
@@ -1015,8 +971,8 @@ KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pi
 # on_mouse_move (0x25D0E0) moves the hud's cursor and answers whether the
 # cursor is shown; the kits show it (0x2383B0 -> 0x23A930), so with them
 # shown before the start the cursor took every move and the camera stood
-# still. Its first four instructions (ten bytes) are a jump to warmup_look
-# and five nops: while the kits are shown and the player's handler is in the
+# still. Its first four instructions (ten bytes) are the lohook
+# world_mouse.move: while the kits are shown and the player's handler is in the
 # warmup mode (+358h = 3, set by the warmup camera 0x1F8190 alone: before
 # play), a move with a button held is a drag as the lobby camera's
 # (0x283D30: its buttons 2, 5 and 7 at once; the left one past CLICK of
@@ -1024,39 +980,24 @@ KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pi
 # hud's pointer kept off the screen, put back at the drag's end; a move of
 # the wheel goes on to it alone; any other move is the cursor's. process_
 # warmup_mode's store of the pitch (`movss [esi+350h],xmm0` at 0x24225E,
-# eight bytes) is a call of warmup_limits and three nops: the pitch within
+# eight bytes) is the lohook warmup_camera.pitch_store: the pitch within
 # the lobby camera's +-60 degrees, the distance within its 1.5 and 4.6
 # (0x283EF0). No base relocation under either site.
-WARMUP_LOOK_OFFSET = 0xD40
-WARMUP_LOOK_VA = SECTION_VA + WARMUP_LOOK_OFFSET
-WARMUP_LOOK_HOOK = (0x25D0E0, bytes.fromhex("5356" "8bf1" "8b8e704b0000"), 0, 0xE9)   # on_mouse_move: warmup_look
-WARMUP_LOOK_STATE_OFFSET = 0xE20
-WARMUP_LOOK_STATE_SIZE = 12
-WARMUP_LIMITS_OFFSET = 0xA98
-WARMUP_LIMITS_VA = SECTION_VA + WARMUP_LIMITS_OFFSET
-WARMUP_DRAG_END_OFFSET, WARMUP_LIMITS_ENTRY_OFFSET = 0, 0x20       # the .asm's two entries
-WARMUP_LIMITS_HOOK = (0x24225E, bytes.fromhex("f30f118650030000"), WARMUP_LIMITS_ENTRY_OFFSET, 0xE8)   # the pitch's store
 # And a mouse button held from before the start is not the player's until it
-# is let go: warmup_keys_026g.asm at WARMUP_KEYS_OFFSET of `.srp` (after the
-# suicide key, before the seek code), the buttons marked in a dword at
-# WARMUP_KEYS_STATE_OFFSET of the late join's state page (after the warmup
-# look's). The input world tells its handlers of each button each frame
+# is let go: the Rust patch warmup_keys (rust/patches/src/warmup_keys.toml,
+# sites_026g.tsv warmup_keys.mouse_key; until the Rust port
+# warmup_keys_026g.asm at 0x9A8 of `.srp`, its state at 0xE30 of the late
+# join's state page). The input world tells its handlers of each button each frame
 # until one answers 1 (0x3B9D90): kind 0 and 2 when it goes down, 1 when it
 # is let go, 2 at every frame it stays held; the game world's
 # on_mouse_key_action (0x25CF60) takes them while the cursor is shown, the
 # player's input handler queues each kind with the action (0x23FF50) and its
 # play step takes the weapon's action at any kind (0x242460): a drag of the
 # warmup camera still held at the start fired the weapon at the next frame
-# and again at its release. Its first five instructions (ten bytes) are a
-# jump to warmup_keys and five nops: a button pressed while the cursor is
-# shown is marked, and while the cursor is not shown a marked button's kind
-# 2 and its release are taken there, the release unmarking it. No base
-# relocation under the site.
-WARMUP_KEYS_OFFSET = 0x9A8
-WARMUP_KEYS_VA = SECTION_VA + WARMUP_KEYS_OFFSET
-WARMUP_KEYS_HOOK = (0x25CF60, bytes.fromhex("5556" "8bf1" "8b4c240c" "8b01"), 0, 0xE9)   # on_mouse_key_action: warmup_keys
-WARMUP_KEYS_STATE_OFFSET = 0xE30
-WARMUP_KEYS_STATE_SIZE = 4
+# and again at its release. Its first five instructions (ten bytes) are the
+# lohook: a button pressed while the cursor is shown is marked, and while
+# the cursor is not shown a marked button's kind 2 and its release are taken
+# there, the release unmarking it. No base relocation under the site.
 
 # The camera on the death screen (patch 46, README; client_patch.md section
 # 3.43; the rules: docs/notes/death-camera.md). A death leaves the player's
@@ -1064,35 +1005,24 @@ WARMUP_KEYS_STATE_SIZE = 4
 # mode): update_camera (0x1F3480) gives the view's update (0x2422B0) the
 # eyes' transform (player+44Ch), which it copies (modes 0 and 4); the kits
 # and the cursor are shown, so the game world's handler takes every move and
-# the wheel. death_camera_026g.asm, in a section of its own (`.srpc`, code,
-# the page after the late join's state page, death_camera_va), has two
-# entries: death_look (DEATH_LOOK_OFFSET), where WARMUP_LOOK_HOOK's jump goes
-# instead of warmup_look, which it goes on to for every move but a dead local
-# player's with the kits shown in the first person mode: a drag as patch 31's
-# (its state, its drag_end) turns a yaw and a pitch of its own (8 bytes at
-# DEATH_CAMERA_STATE_OFFSET of the late join's state page) and is taken (1),
-# a move without a button the cursor's; and death_view (DEATH_VIEW_OFFSET),
-# which update_camera's `call 0x2422B0` (0x1F364B) calls: while that player
-# is dead, in the first person mode, the kits shown and a turn kept, the
-# update's own third-person step (0x2422DE) on the identity with that yaw
-# and pitch and the distance 0 (the handler's warmup fields borrowed and put
-# back), the turn times the eyes' (the head's) transform; a live
-# player clears the turn. No base relocation under the site; a dead local
-# player sends no input (game_world::tick 0x1F7883).
+# the wheel. The Rust patch death_camera (rust/patches/src/death_camera.toml):
+# the game world's on_mouse_move (0x25D0E0, world_mouse.move) goes on to
+# the warmup camera's for every move but a dead local player's with the kits
+# shown in the first person mode: a drag as patch 31's turns a yaw and a
+# pitch of its own and is taken (1), a move without a button the cursor's;
+# and update_camera's `call 0x2422B0` (0x1F364B, camera.view_update): while
+# that player is dead, in the first person mode, the kits shown and a turn
+# kept, the update in its third-person step on the identity with that yaw
+# and pitch and the distance 0 (the handler's warmup fields and mode
+# borrowed and put back), the turn times the eyes' (the head's) transform; a
+# live player clears the turn. No base relocation under the sites; a dead
+# local player sends no input (game_world::tick 0x1F7883). Until the Rust
+# port death_camera_026g.asm in a section of its own, `.srpc` (code, the
+# page after the late join's state page, death_camera_va): it stays, a page
+# of int3, so that `.srpw` after it keeps its place.
 DEATH_CAMERA_NAME = b".srpc\0\0\0"
 DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
 DEATH_CAMERA_SIZE = 0x1000                     # .srpc's one page: `.srpw` follows it
-DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
-DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
-DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
-DEATH_CAMERA_STATE_SIZE = 8
-DEATH_UPDATE_VA, DEATH_THIRD_VA = 0x2422B0, 0x2422DE   # the view's update and its third-person step
-# What the code leaves to: warmup_look (twice: not a death screen's move, a
-# move that is the cursor's), drag_end, the view's update and its step.
-DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET, DEATH_UPDATE_VA, DEATH_THIRD_VA)
-DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
-                                      (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
-                                      (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -1101,8 +1031,11 @@ DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK
 # hdd_manager::grab_sorted_queries (0x10BE80) alone: its fifteen calls are in
 # the sort's helpers 0x10BF70..0x10C3ED. Its body, 0x1A0 bytes to the next
 # function (code to 0x10BE58, int3 after), holds no address (no base
-# relocation) and nothing aims inside it; read_order_026g.asm replaces it in
-# place, the same entry and convention.
+# relocation) and nothing aims inside it. The Rust patch read_order
+# (rust/patches/src/read_order.rs) is a lohook at its start
+# (sites_026g.tsv read_order.predicate) that answers for it and returns
+# (`ret 4`); the body stays, never reached. (Until the Rust port
+# read_order_026g.asm replaced the body in place.)
 READ_ORDER_VA, READ_ORDER_SIZE = 0x10BCC0, 0x1A0
 READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112d0aa8"
 # A weapon's upgrade window shows the weapon (patch 32, README; client_patch.md
@@ -1183,11 +1116,19 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # before it, a Rust crate per patch with a tail jump.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
 
-# The Rust exe patches (docs/notes/rust_patches.md): the module names (for
+# The Rust exe patches (docs/notes/rust_patches.md): the module names, one a
+# <patch>.toml of rust/patches/src (for
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout")
+RUST_PATCHES = tuple(patch["name"] for patch in hooks_026g.read_tomls())
+# The base relocations under the Rust hooks' spans, which the build disables
+# (an absolute operand there is the exe's, which is never rebased; a lohook
+# replays it at its own address or skips it). Any other relocation under a
+# hook stops the build.
+RUST_HOOK_RELOCS = (
+    0x2D84EB,       # use_scan.reach: fld dword [usable_objects_detection_distance] (patch 23 skips it)
+)
 
 
 def rust_hooks(original):
@@ -1333,18 +1274,14 @@ STAGE_FOCUS = (0x771FED,
 # battery's rigid body (group 0A18h, 0x301CF5) has the owner
 # victory_item_core+58h, vtable 0xA13EEC (written by the two constructors
 # alone, 0x30011D and 0x3004EA), whose slots 1 and 2 return 0; its use box
-# answers through slot 1. SPOT_HOOK jumps to spot_026g.asm at SPOT_OFFSET
-# of `.srp` (after the shared upgrades' code, before the pickup code): for
+# answers through slot 1. The site 0x2D8A0F is the Rust patch spot's
+# lohook (rust/patches/src/spot.toml, sites_026g.tsv spot.hit_owner): for
 # that owner it spots the battery through its spottable interface at +54h
-# (vtable 0xA13EE0: set_spotted 0x301C40, can_be_spotted_by 0x301CA0) and
-# ends the walk as a spotted target does (0x2D888F); any other owner goes
-# on to 0x2D8A14 as before. No base relocation under the site.
+# (vtable 0xA13EE0: set_spotted 0x301C40, can_be_spotted_by 0x301CA0,
+# through the vtable as the game's calls) and ends the walk as a spotted
+# target does (0x2D888F); any other owner goes on to 0x2D8A14 as before.
+# No base relocation under the site.
 SPOT_COOLDOWN = (0x2D87C1, bytes.fromhex("c7874c030000b80b0000"), bytes.fromhex("c7874c03000000000000"))
-SPOT_OFFSET = 0x7C0
-SPOT_VA = SECTION_VA + SPOT_OFFSET
-SPOT_HOOK = (0x2D8A0F, bytes.fromhex("8b0e8b490c"), 0, 0xE9)
-SPOT_OWNER_VTABLE = 0xA13EEC                  # victory_item_core at +58h: its rigid body's owner
-SPOT_EXITS = (0x2D888F, 0x2D8A8F, 0x2D8A14)   # spotted; not spotted, the next hit; the original
 
 # Fall speed (patch 72, ../docs/notes/fall_damage.md "Split ticks"). The
 # world steps to each precise input (a change of the fire bit, 0xDD) inside
@@ -1385,55 +1322,42 @@ FALL_GRAVITY = (
 # enable_element("root.statusPanel.videoTutorial", 1) (0x22A660). The buffer
 # is what the server's 9E sent, UTF-8 with its zero (0x271426..0x271444):
 # any text the server sent was opened as a file, a program or a URL. `push 1`
-# / `push 0` / `push 0` at 0x28CDB6 becomes a jump to replay_link
-# (replay_link_026g.asm at REPLAY_LINK_VA: in the first page of `.srp`,
-# after the upload code, the default server's stub and its address, 0x21D
-# at the most, and before the patches' mount at MOUNT_PATCHES_OFFSET; the
-# page has no other room for it; build() checks that they do not overlap):
+# / `push 0` / `push 0` at 0x28CDB6 is the Rust patch replay_link's lohook
+# (rust/patches/src/replay_link.rs, the site lobby.replay_link_clicked, its
+# exit the function's own `mov al,1 / pop esi / ret 4` at 0x28CDDD; until
+# the Rust port replay_link_026g.asm at .srp+220h):
 # only a link `replay <8 hex> <32 hex> <64 hex> <1..10 digits>` (lower-case
 # hex) starts <this exe's folder>\updater_skhid.exe with the command line
 # `updater_skhid.exe <link>` (CreateProcessW); anything else does nothing,
 # and the element is not enabled. The rest of the original's body stays,
 # never reached. No base relocation is under the hook.
-REPLAY_LINK_OFFSET = 0x220
-REPLAY_LINK_VA = SECTION_VA + REPLAY_LINK_OFFSET
 REPLAY_LINK_HANDLER = 0x28CDA0
-REPLAY_LINK_HOOK = (0x28CDB6, bytes.fromhex("6a016a006a00"), 0, 0xE9)
-REPLAY_LINK_BUFFER = 0x1E6144                 # in the lobby client
+REPLAY_LINK_BUFFER = engine_026g.field("survarium::lobby_client", "replay_link")   # 0x1E6144
 
-# One upgrade on several items (patch 30, client_patch.md section 3.28):
-# shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
-# patches' mount (which ends at +6C3h) and before the pickup code; its four
-# entries at fixed offsets, one for each site:
+# One upgrade on several items (patch 30, client_patch.md section 3.28): the
+# Rust patch shared_upgrades (rust/patches/src/shared_upgrades.rs; until the
+# Rust port shared_upgrades_026g.asm at .srp+700h), a lohook at each site
+# (sites_026g.tsv lobby_upgrade.drop_sent, inventory_action.detach_answer
+# and .detach_first, detach_upgrade.find_holder):
 # - drop_upgrade_item's handler 0x29A9D0 (the delegate {lobby ui, 0x29A9D0},
 #   `mov eax,0x29a9d0` at 0x2818FA; Flash drop_upgrade_item(<item>,
 #   <upgrade>): the upgrade window's drop and cancel, and on_item_sold) at
 #   0x29AAD5: `push edi` / `push ecx` / `call 0x2708C0` (the only call of
-#   0x2708C0, which writes `46 02 <kit> <upgrade>`) -> a call of
-#   drop_upgrade, which writes `46 02 <kit> <upgrade> <item>`, and two nops;
+#   0x2708C0, which writes `46 02 <kit> <upgrade>`): `46 02 <kit> <upgrade>
+#   <item>` instead;
 # - process_succeeded_inventory_action 0x275520, case 2 (`83 46 02`) at
 #   0x275756: `mov ecx,[eax]` / `push ecx` / `add eax,4` / `push ebp` /
-#   `mov [esi+4],eax` / `call 0x275220` -> a jump to detach_answer, which
-#   reads `<upgrade> <item>`, and ten nops;
+#   `mov [esi+4],eax` / `call 0x275220`: `<upgrade> <item>` read, and the
+#   upgrade off that item;
 # - case 1 (`83 46 01`), detach_first, at 0x275589: `push edi` / `push
-#   ebp` / `call 0x275220` -> a call of detach_first (the item the answer
-#   puts the upgrade on, in ebx) and two nops;
+#   ebp` / `call 0x275220`: off the item the answer puts the upgrade on (in
+#   ebx);
 # - process_detach_upgrade 0x275220 (called from those two sites alone), at
 #   0x27534D: `call 0x277CF0` (find_if: the first item of the inventory
-#   holding the upgrade, the only call of it) -> a call of find_host, the
-#   item of the id its callers now give it as a third argument.
+#   holding the upgrade, the only call of it): the item its two callers
+#   name (the asm passed it as a third argument, the port keeps it in a
+#   GameCell for the call's time), or with none named the original's.
 # No site holds an address: no base relocation is under them.
-SHARED_UPGRADES_OFFSET = 0x700
-SHARED_UPGRADES_VA = SECTION_VA + SHARED_UPGRADES_OFFSET
-SHARED_UPGRADES_HOOKS = (
-    (0x29AAD5, bytes.fromhex("5751" "e8e45dfdff"), 0x00, 0xE8),                          # drop_upgrade
-    (0x275756, bytes.fromhex("8b08" "51" "83c004" "55" "894604" "e8bbfaffff"), 0x60, 0xE9),  # detach_answer
-    (0x275589, bytes.fromhex("5755" "e890fcffff"), 0x80, 0xE8),                          # detach_first
-    (0x27534D, bytes.fromhex("e89e290000"), 0x90, 0xE8),                                 # find_host
-)
-# The first bytes of each entry, as the .bin must have them.
-SHARED_UPGRADES_ENTRIES = {0x00: bytes.fromhex("8b5508"), 0x60: bytes.fromhex("8b08"),
-                           0x80: bytes.fromhex("535755"), 0x90: bytes.fromhex("8b542458")}
 DROP_UPGRADE_HANDLER = 0x29A9D0
 PROCESS_DETACH_UPGRADE = 0x275220
 INVENTORY_ACTION = 0x275520
@@ -1490,22 +1414,20 @@ STATISTICS_COUNT = (0x26D8F3, bytes.fromhex("8a82b5770500"), b"\xb0\x14" + b"\x9
 # current (0x316DE3), initialises its player (vtable+1Ch: the inventory from
 # the profile, a weapon in hand) and puts it into the world (vtable+20h).
 # Between the two, at 0x316EA0 (`mov edx,[esi]` / `mov eax,[edx+20h]`, the
-# load of that call; esi = the player, ebp = the spawn's time), a call into
-# weapon_random_hook (late_join_026g.asm) gives each weapon of the player's
-# inventory a state from its place, kit, slot and the spawn's time, in
-# 1..2^31-2, then does the two instructions. A weapon is an item whose
-# vtable+70h is weapon_core's bind 0x2E30F0, which only the vtables of
-# weapon_core and the client's weapon hold.
-WEAPON_RANDOM_VA, WEAPON_RANDOM_OFFSET = 0x316EA0, 3712
-WEAPON_RANDOM_HOOK = (WEAPON_RANDOM_VA, bytes.fromhex("8b168b4220"), WEAPON_RANDOM_OFFSET, 0xE8)
+# load of that call; esi = the player, ebp = the spawn's time), the Rust
+# patch weapon_random's lohook (rust/patches/src/weapon_random.rs, the site
+# spawn.weapon_random) gives each weapon of the player's inventory a state
+# from its place, kit, slot and the spawn's time, in 1..2^31-2, then the two
+# instructions are replayed. A weapon is an item whose vtable+70h is
+# weapon_core's bind 0x2E30F0 (fields_026g.tsv weapon_core_bind), which only
+# the vtables of weapon_core and the client's weapon hold.
 WEAPON_SPAWN_VA = 0x316DA0                    # the respawn rule's spawn
-WEAPON_BIND_VA = 0x2E30F0                     # weapon_core's bind, vtable+70h of its item
-WEAPON_RANDOM_FIELD = 0x5BC                   # weapon_core's random state
 WEAPON_RANDOM_MODULUS = 0x7FFFFFFF
 
 
 def weapon_random_state(place, kit, slot, time):
-    """The state weapon_random_hook gives a weapon at a spawn."""
+    """The state weapon_random gives a weapon at a spawn (the checks'
+    model; the cargo test holds weapon_random::state to it)."""
     h = ((((place & 0xFF) << 16 | (kit & 0xFF) << 8 | slot) * 0x85EBCA6B)
          ^ (time * 0x9E3779B1)) & 0xFFFFFFFF
     return (h ^ h >> 15) % (WEAPON_RANDOM_MODULUS - 1) + 1
@@ -1514,8 +1436,8 @@ def weapon_random_state(place, kit, slot, time):
 # The same spawn, before the initialize: at 0x316E57 (`mov edx,[esi]` /
 # `mov edx,[edx+1Ch]`, the load of the initialize's call; esi = the new
 # kit's player, [esp+10h] the kit before, [esp+18h] the new kit, as
-# 0x316E02/0x316E06 put them) a call into kit_state_hook
-# (late_join_026g.asm). Each weapon of the inventory gets -1 (the
+# 0x316E02/0x316E06 put them) the Rust patch kit_state's lohook
+# (rust/patches/src/kit_state.rs, the site spawn.kit_state). Each weapon of the inventory gets -1 (the
 # constructor's) as m_last_tick_time_in_ms (+5A4h): only the weapon in hand
 # is ticked, and the activation (0x2E2A30) the initialize runs for the
 # weapon it puts in hand sets the field to the spawn's time before any tick.
@@ -1524,8 +1446,6 @@ def weapon_random_state(place, kit, slot, time):
 # again, or set only for the weapon in hand, get the constructor's values
 # (0x2DF0D0): KIT_STATE_FIELDS. A respawn into the same kit keeps them: that
 # kit's player is in every world.
-KIT_STATE_VA, KIT_STATE_OFFSET = 0x316E57, 3168
-KIT_STATE_HOOK = (KIT_STATE_VA, bytes.fromhex("8b168b521c"), KIT_STATE_OFFSET, 0xE8)
 KIT_STATE_TICK_FIELD = 0x5A4                  # m_last_tick_time_in_ms, -1 at every spawn
 # (weapon offset, size, the constructor's value) set at a spawn into another kit
 KIT_STATE_FIELDS = (
@@ -1576,16 +1496,14 @@ FIRST_LOAD_DESERIALIZE_VA = 0x2D0B70
 # times of the old timeline, and the re-simulated ones all come due at once:
 # sounds late by the seek's distance, a burst, a queue that fills. For a
 # user seek only (`test bl,bl` / `jnz 1EE3B5h`, a key frame in play takes the
-# jnz), `lea eax,[edi-3E8h]` at 0x1EE3A3 becomes a jump to seek_clear
-# (replay_seek_026g.asm at SEEK_CLEAR_VA, after the pickup code): every
-# client weapon (item vtable 0xA0422C) in the 23
-# inventory slots of each place's three kits has its queue's functors
-# destroyed (0x245C50, which plays nothing), the queue emptied, and its fx
-# history (weapon+828h, the duplicate check) emptied, as ~weapon 0x243790
-# does; then the lea, and back. A live game never runs the seek.
-SEEK_CLEAR_OFFSET = 0xA00
-SEEK_CLEAR_VA = SECTION_VA + SEEK_CLEAR_OFFSET
-SEEK_CLEAR_HOOK = (0x1EE3A3, bytes.fromhex("8d8718fcffff"), 0, 0xE9)
+# jnz), `lea eax,[edi-3E8h]` at 0x1EE3A3 is the Rust patch replay_viewer's
+# lohook (rust/patches/src/replay_viewer.toml, sites_026g.tsv replay.seek;
+# until its port replay_seek_026g.asm at .srp+A00h): every client weapon
+# (item vtable 0xA0422C) in the 23 inventory slots of each place's three
+# kits has its queue's functors destroyed (0x245C50, which plays nothing),
+# the queue emptied, and its fx history (weapon+828h, the duplicate check)
+# emptied, as ~weapon 0x243790 does; then the lea, and on. A live game
+# never runs the seek. No base relocation under the site.
 
 # Rewritten in place: (address, the original's bytes, the new ones). The
 # actual roster count stays what resources and the countdown read; only
@@ -1636,8 +1554,6 @@ LATE_JOIN_HOOKS = (
     (0x219E60, bytes.fromhex("558bec83e4f8"), 2432, 0xE9),       # network_client's destructor: client_destroyed_hook
     (0x23572B, bytes.fromhex("8b8c2498000000"), 3456, 0xE9),     # the hud's lists of players, made again: lists_hook
     (0x39E52, bytes.fromhex("f30f7e00660fd64704"), 3520, 0xE9),  # a box that is no box, in the tree: box_hook
-    WEAPON_RANDOM_HOOK,                                          # a spawn's weapons' random state: weapon_random_hook
-    KIT_STATE_HOOK,                                              # a spawn's weapons' kept state: kit_state_hook
     FIRST_LOAD_INPUT_HOOK,                                       # a first world's inputs, in time order: first_load_input
     FIRST_LOAD_KIT_HOOK,                                         # a first world's kit choices: first_load_kit
     FOV_PROJECTION_HOOK,                                         # the camera's angle: fov_projection
@@ -1795,19 +1711,13 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
-# A battery under the floor (patch 23, pickup_below_026g.asm at
-# PICKUP_VA): client_patch.md section 3.23.
-PICKUP_OFFSET = 0x800
-PICKUP_VA = SECTION_VA + PICKUP_OFFSET
-PICKUP_ACROSS = 1.0
+# A battery under the floor (patch 23, client_patch.md section 3.23): the
+# Rust patch pickup_below (rust/patches/src/pickup_below.rs, three lohooks:
+# use_scan.reach, .solid and .candidate of sites_026g.tsv; until the Rust
+# port pickup_below_026g.asm at .srp+800h), and the scan's frame grown by 8
+# for its `crossed` byte. The one address under the sites, the distance's in
+# the reach site, is in RUST_HOOK_RELOCS.
 PICKUP_FRAME = (0x2D84C9, bytes.fromhex("83ec34"), bytes.fromhex("83ec3c"))
-PICKUP_HOOKS = (
-    (0x2D84E9, bytes.fromhex("d905d810a700"), 0, 0xE8),          # the ray's length: reach
-    (0x2D861C, bytes.fromhex("240a3c0a744b"), 32, 0xE9),         # a wall or a floor: solid
-    (0x2D85BE, bytes.fromhex("8b45088b168b5230"), 64, 0xE9),     # a usable object: candidate
-)
-# The one address in what is replaced: the distance's, in the reach hook.
-PICKUP_RELOC = 0x2D84EB
 
 RUN_UNFOCUSED_VA = 0x1A0E1
 RUN_UNFOCUSED_BRANCH_VA = 0x1A0EE
@@ -1894,7 +1804,7 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # camera, tick, cull, m
 # (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
-# `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
+# `.srpd`, before patch
 # 32's (WEAPON_PREVIEW_STATE_OFFSET). Seven `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
@@ -1974,10 +1884,11 @@ WEAPON_DECALS_HOOKS = (
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
-# ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
-# artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts-1.json). It begins with eight
-# `jmp near`, one for each site, each a global symbol the hook jumps to:
+# ../docs/notes/artefacts.md): the Rust patch artefacts
+# (rust/patches/src/artefacts.toml), eight lohooks (until the Rust port
+# artefacts_026g.asm in the arena's block artefacts.code). Its numbers are
+# the artefacts' configs' (release/content.tsv, artefacts-1.json). The
+# sites:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
 #   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
@@ -2010,20 +1921,9 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The two nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
-# site and no branch aims inside one; the code holds the absolute addresses
-# of its two names (the exe is never rebased).
-ARTEFACTS_HOOKS = (
-    (0x33AE13, bytes.fromhex("c7464813000000"), "artefacts_loader", 0xE9),        # Spring's loader: its active's third node
-    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link", 0xE9),    # Spring's active link
-    (0x311DA0, bytes.fromhex("538b5c2408"), "artefacts_unlink", 0xE9),            # Spring's active unlink
-    (0x3122AA, bytes.fromhex("8b8f50020000"), "artefacts_lifebone", 0xE9),        # Lifebone's enable_active
-    (0x313300, bytes.fromhex("568bf183be8002000003"), "artefacts_fire", 0xE9),    # artefact_base::action: its entry
-    (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
-    (0x312C03, bytes.fromhex("83b98002000003"), "artefacts_onyx", 0xE9),          # Onyx's hit callback: its state test
-    (0x25F9DD, bytes.fromhex("8b8bd0f3ffff68b80b0000"), "artefacts_popup", 0xE9), # Onyx's client update: its pop-up
-)
-ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
-                   0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
+# site and no branch aims inside one. The pop-up's lohook is at 0x25F9E8,
+# after `push 0BB8h` (artefacts.onyx_hint: the pushed time made the active's
+# time left; its skip pops it), where the asm's jump was at 0x25F9DD.
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2031,34 +1931,28 @@ ARTEFACTS_SIZES = (
 )
 
 # The kit keys and the match chat option (patch 58, README; client_patch.md
-# section 3.53; the rules: ../docs/notes/match-hud-options.md):
-# match_keys_026g.asm in the arena's blocks match_keys.code and
-# match_keys.state (ARENA below), three entries:
+# section 3.53; the rules: ../docs/notes/match-hud-options.md): the Rust
+# patch match_keys (rust/patches/src/match_keys.toml), three hooks:
 # - the game world's on_keyboard_action 0x25CD00 at its kind's test,
-#   `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` at 0x25CD41 (after the Tab
-#   test; edi = its input handler): a key 1, 2 or 3 going down while the hud
-#   shows the cursor (the kits) invokes the hud movie's
-#   root.select_kit_key(kit), then the function goes on as before at
-#   0x25CD4B or 0x25CF0D (the key is not taken);
-# - the game world's constructor's `call 0x233810` (the hud's constructor)
-#   at 0x1F6845: the hud made, then a cc_bool named as the gameplay options'
-#   dead option 4 ("g_private_messages_in_game" 0xA064FC) registered on the
-#   option's byte, saved in user.cfg, before the configs run and the options
-#   look their variables up;
+#   `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` at 0x25CD41
+#   (world_keyboard.kind_test, a lohook that replays it; edi = its input
+#   handler): a key 1, 2 or 3 going down while the hud shows the cursor (the
+#   kits) invokes the hud movie's root.select_kit_key(kit), then the function
+#   goes on as before at 0x25CD4B or 0x25CF0D (the key is not taken);
+# - the game world's constructor right after its `call 0x233810` (the hud's
+#   constructor, 0x1F6845), at 0x1F684A (world.hud_made, a lohook): a cc_bool
+#   named as the gameplay options' dead option 4 ("g_private_messages_in_game"
+#   0xA064FC) registered on the option's byte, saved in user.cfg, before the
+#   configs run and the options look their variables up;
 # - process_incoming_text_message's `call 0x208AD0` (add_message) at
-#   0x26B916: with the option on, in a match, a player's line on a channel
-#   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
+#   0x26B916 (chat.add_message, a call hook): with the option on, in a match,
+#   a player's line on a channel the hud shows (3, 5..9) is dropped.
 # No base relocation is under a site and no branch aims inside one.
-MATCH_KEYS_HOOKS = (
-    (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
-    (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
-    (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
-)
-MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
 
 # The key that hides the interface (patch 62, README; client_patch.md section
-# 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
-# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
+# 3.54; the rules: ../docs/notes/hide-ui-key.md): the Rust patch hide_ui
+# (rust/patches/src/hide_ui.toml), three lohooks (until the Rust port
+# hide_ui_026g.asm in the arena's blocks hide_ui.code and hide_ui.data):
 # - the game world's on_keyboard_action 0x25CD00, its case of action 19h
 #   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
 #   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
@@ -2081,16 +1975,11 @@ MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down,
 #   root.hide_interface(false): a new match starts shown (the movies are the
 #   last match's).
 # No base relocation is under a site and no branch aims inside one.
-HIDE_UI_HOOKS = (
-    (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
-    (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
-    (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
-)
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
-# them the address is, the row's field it names) and (site, its bytes, where
-# the count 28h is).
+# that read the table of 28h rows at 0xA9DB28 read vostok::interface's
+# SRP_CONTROLS (29h rows, the 29th toggle_replay_ui; build() fills them,
+# controls_rows) instead: (site, its bytes, where in them the address is,
+# the row's field it names) and (site, its bytes, where the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
 HIDE_UI_ROWS = 0x28
 HIDE_UI_TABLE_REFS = (
@@ -2114,68 +2003,63 @@ HIDE_UI_TABLE_COUNTS = (
 def hide_ui_table_writes(linked):
     """[(site, its bytes, the new bytes)] of the six functions' table and
     counts, `controls` being the link's."""
-    table = linked.symbols["controls"]
+    table = linked.symbols["SRP_CONTROLS"]
     out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
            for va, old, at, field in HIDE_UI_TABLE_REFS]
     out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
     return out
 
 
-HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
-# the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
+HIDE_UI_ROW = (0x19, 2, 1)       # the 29th row: toggle_replay_ui, the game's group, the type of the game's rows
+HIDE_UI_ROW_SIZE = 0x68
+HIDE_UI_LABEL = b"st_hide_interface_action\0"   # its label (SRP_CONTROLS' own, after the rows)
+
+
+def controls_rows(data, table_va):
+    """SRP_CONTROLS' rows as the build has them, at `table_va`: the game's
+    28h rows of 0xA9DB28 (`data`'s) copied (the action, the label, the
+    group, the type), then patch 62's, each row's two empty buffer_strings
+    pointing into their own 32 bytes; the label after the rows."""
+    at = next((raw + HIDE_UI_TABLE - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
+               if IMAGE_BASE + rva <= HIDE_UI_TABLE < IMAGE_BASE + rva + min(vsize, rsize)), None)
+    if at is None:
+        sys.exit(f"the options' controls at {HIDE_UI_TABLE:#x} are in no section's file data")
+    heads = [struct.unpack_from("<4I", data, at + HIDE_UI_ROW_SIZE * i) for i in range(HIDE_UI_ROWS)]
+    label = table_va + HIDE_UI_ROW_SIZE * (HIDE_UI_ROWS + 1)
+    heads.append((HIDE_UI_ROW[0], label, HIDE_UI_ROW[1], HIDE_UI_ROW[2]))
+    out = b""
+    for i, head in enumerate(heads):
+        row = table_va + HIDE_UI_ROW_SIZE * i
+        out += struct.pack("<4I", *head)
+        out += struct.pack("<3I", row + 0x1C, row + 0x1C, row + 0x3C) + bytes(32)
+        out += struct.pack("<3I", row + 0x48, row + 0x48, row + 0x68) + bytes(32)
+    return out
 
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
-# section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
-# kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
-# entries called in place of the site's instructions (INLINE), and one load
+# section 3.55; the rules: ../docs/notes/kill-feed-icons.md): the Rust patch
+# kill_feed (rust/patches/src/kill_feed.toml), two lohooks, and one load
 # widened:
 # - generate_killed_event 0x2DA170, `mov [eax+4],bl / mov edx,[esi+120h]` at
-#   0x2DA3D1 (eax = the event's node, esi = the victim, ebp = the bullet or
-#   0): kill_feed_event writes the cause icon and the flags byte (+5), and
-#   edx as the site did;
+#   0x2DA3D1 (sites_026g.tsv killed_event.cause_icon; eax = the event's node,
+#   esi = the victim, ebp = the bullet or 0): the flags byte (+5), then the
+#   two instructions;
 # - the hud's event handler 0x23B5F0, `movzx edx,byte [edi+4]` at 0x23B6F0
 #   (the fifth argument of on_player_killed): the word, the flags its second
 #   byte (KILL_FEED_ARGUMENT);
 # - on_player_killed 0x237C70, `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` at
-#   0x23814F (after extra_icon): kill_feed_row sets penetration_icon,
-#   ricochet_icon and pain_icon and does the two moves.
+#   0x23814F (player_killed.mastery_icon, after extra_icon): penetration_icon,
+#   ricochet_icon and pain_icon, then the two moves.
 # No base relocation is under a site and no branch aims inside one.
-KILL_FEED_HOOKS = (
-    (0x2DA3D1, bytes.fromhex("885804" "8b9620010000"), "kill_feed_event", 0xE8),   # the event's cause icon
-    (0x23814F, bytes.fromhex("8b542430" "8b4c242c"), "kill_feed_row", 0xE8),       # before mastery_icon
-)
 KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
 
 # The baked camouflage and decal textures kept, and baked or loaded once while
 # asked for again (patch 70, README; client_patch.md section 3.57; the rules:
-# ../docs/notes/baked-textures.md): bake_cache_026g.asm and .c in the arena's
-# blocks bake_cache.code and .state (ARENA below):
-# - game::game's delete of user_data/streamed_textures (`call 0x1E8DA0`,
-#   0x1E9455): bake_cache_start, the delete only for another revision's
-#   folder, else the kept files back in the baker's list (CALLEE);
-# - check_loaded_baked_texture's `cmp eax,[edi+114h]` (0x131C90): a kept
-#   file's record takes the CRC loaded (INLINE);
-# - translate_query's look-up (`call 0x131ED0`, 0x12D4CD): a path under way
-#   waits (CALLEE);
-# - process_compression's and on_baked_texture_loaded's `call 0x420789`
-#   (0x12F18F, 0x12DDB4), the texture made: the waiting queries get it
-#   (CALLEE);
-# - finish_query's entry (0xF0D00): a path's owner ended otherwise, its
-#   waiting queries made again (ENTRY);
-# - the CRC-32 step (0x42050, a byte a step; every bake and every load of a
-#   baked texture runs it over the whole file): the same value eight bytes a
-#   step (ENTRY);
-# and game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
-# No base relocation is under a site and no branch aims inside one.
-BAKE_CACHE_HOOKS = (
-    (0x1E9455, bytes.fromhex("e846f9ffff"), "bake_cache_start", 0xE8),       # game::game's delete
-    (0x131C90, bytes.fromhex("3b8714010000"), "bake_cache_adopt", 0xE8),     # check_loaded's CRC compare
-    (0x12D4CD, bytes.fromhex("e8fe490000"), "bake_cache_lookup", 0xE8),      # translate_query's look-up
-    (0x12F18F, bytes.fromhex("e8f5152f00"), "bake_cache_baked", 0xE8),       # a bake's texture made
-    (0x12DDB4, bytes.fromhex("e8d0292f00"), "bake_cache_loaded", 0xE8),      # a load's texture made
-    (0xF0D00, bytes.fromhex("558bec83e4f8"), "bake_cache_finish", 0xE9),     # finish_query
-    (0x42050, bytes.fromhex("8b4c240457"), "bake_cache_crc32", 0xE9),        # the CRC-32 step, slice by 8
-)
+# ../docs/notes/baked-textures.md): the Rust patch bake_cache (its lohooks
+# rust/patches/src/bake_cache.toml, sites_026g.tsv bake.* and crc32.step:
+# game::game's delete 0x1E9455, check_loaded's CRC compare 0x131C90,
+# translate_query's look-up 0x12D4C5, the textures made 0x12F18F and 0x12DDB4,
+# finish_query 0xF0D00, the CRC-32 step 0x42050), and game::exit's delete
+# (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
 
@@ -2228,8 +2112,6 @@ INSTALLS = {
     0x219E60: (ENTRY, "network_client's destructor: client_destroyed_hook", None, None),
     0x23572B: (JUMP, "the hud's lists made again: lists_hook", None, None),
     0x39E52: (JUMP, "a box that is no box: box_hook", None, None),
-    0x316EA0: (INLINE, "a spawn's weapons' random state: weapon_random_hook", None, None),
-    0x316E57: (INLINE, "a spawn's weapons' kept state: kit_state_hook", None, None),
     0x2D1050: (CALLEE, "a first world's inputs: first_load_input", None, None),
     0x2D1055: (CALLEE, "a first world's kit choices: first_load_kit", None, None),
     0x242900: (ENTRY, "the camera's projection: fov_projection", None, None),
@@ -2240,19 +2122,6 @@ INSTALLS = {
                "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
     0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
     # patch 23, 26, 25, 31, 34, 32, 46
-    0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
-    0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
-    0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
-    0x1EE3A3: (JUMP, "the replay's seek: seek_clear", None, None),
-    0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
-    0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
-    0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
-    0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
-    0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
-    0x25D0E0: (ENTRY, "the game world's on_mouse_move: death_look, then warmup_look", None, None),
-    0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
-    0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
-    0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
@@ -2264,17 +2133,7 @@ INSTALLS = {
     # patch 27/49, 28, 29, 30, 33
     0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
     0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
-    0x1D90DC: (JUMP, "the forward compile's switch: use_uv_scrolling", None, None),
-    0x1D94CB: (JUMP, "the forward compile's constants: uv_scrolling_parameters", None, None),
-    0x14990F: (JUMP, "renderer_context: scene_slomo", None, None),
-    0x28CDB6: (JUMP, "video_tutorial_link_clicked: replay_link", None, None),
-    0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
-    0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
-    0x275589: (CALLEE, "`83 46 01`'s detach: detach_first", None, None),
-    0x27534D: (CALLEE, "process_detach_upgrade's find_if: find_host", None, None),
-    READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
     # patch 38, 44, 45, 47, 48
-    0x2D8A0F: (JUMP, "the spot's owner: spot", None, None),
     0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
     0x284020: (INLINE, "the lobby camera's tick: tick", None, None),
     0x247576: (INLINE, "mt_draw's culled player: cull", None, None),
@@ -2292,75 +2151,19 @@ INSTALLS = {
     0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
     0x284F7F: (INLINE, "on_player_ready: made", None, None),
     0x284B7C: (INLINE, "setup_profile's early return: early", None, None),
-    # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
-    REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
-                              "the thunk to is_player_current", None, None),
-    SOUND_QUEUE_HOOK_VA: (JUMP, "a weapon's delayed sound: the full queue's cave", None, None),
     # Research, patch 53 (in `.srpx`)
     0x1E9B4C: (INLINE, "the game's constructor, `mov eax,ebx / call 0x1EC170`: register (it does both, the call "
                        "as a tail jump with the return address moved past the nops)", None, None),
     0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
     0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
-    # the artefacts, patch 54 (in `.srpx`)
-    0x33AE13: (JUMP, "Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` (esi = the config, ebx = `data`): "
-                     "loader", None, None),
-    0x311BC0: (ENTRY, "add_active_modifiers, the link of Spring's active nodes (eax = the Spring): link_active, "
-                      "then the function", None, None),
-    0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
-                      "function", None, None),
-    0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
-                     "lifebone_active", None, None),
-    0x313300: (ENTRY, "artefact_base::action (thiscall: pressed, time; inventory::action's vtable +2Ch call): "
-                      "fire_kind, a key-up back in the function", None, None),
-    0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
-               None, None),
-    0x25F9DD: (JUMP, "Onyx's client update 0x25F640 (ebx = the Onyx +F20h, esi the game), `mov ecx,[ebx-0C30h] / "
-                     "push 0BB8h` before set_parameterized_message: onyx_popup, back at 0x25F9E8 with the hint in "
-                     "ecx and the time pushed, or at 0x25F9F8 (not shown)", None, None),
-    0x312C03: (JUMP, "Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour piercing; `ret 0Ch`), "
-                     "`cmp dword [ecx+280h],3` after its hit type test: onyx_hit, back at 0x312C0A with the "
-                     "flags of that test, or `ret 0Ch`", None, None),
-    # the kit keys and the match chat option, patch 58 (in `.srpx`)
-    0x25CD41: (JUMP, "the game world's on_keyboard_action 0x25CD00, `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` "
-                     "(edi = its input handler): keyboard", None, None),
-    0x1F6845: (CALLEE, "the game world's constructor's call of the hud's (eax the game world, the hud): hud, "
-                       "which calls it and registers the chat option's variable", None, None),
+    # the kit keys and the match chat option, patch 58: the Rust patch match_keys
+    # (its lohooks 0x25CD41 and 0x1F684A are declared from its TOML, below)
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
-                       "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
-    # the key that hides the interface, patch 62 (in `.srpx`)
-    0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
-                     "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
-                     "replay's controls, esi the handler) or 0x25CF0D", None, None),
-    0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
-                       "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
-                       "icons", None, None),
-    0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
-                       "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
-                       "instead", None, None),
-    # the kill feed's wall, ricochet and pain icons, patch 67 (in `.srpx`)
-    0x2DA3D1: (INLINE, "generate_killed_event's `mov [eax+4],bl / mov edx,[esi+120h]` (eax the event, esi the "
-                       "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
-    0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
-                       "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
-    # the baked textures kept and baked or loaded once, patch 70 (in `.srpx`)
-    0x1E9455: (CALLEE, "game::game's delete of user_data/streamed_textures (0x1E8DA0, eax the folder's "
-                       "buffer_string): start, which deletes it for another revision's folder only", None, None),
-    0x131C90: (INLINE, "check_loaded_baked_texture's `cmp eax,[edi+114h]` (eax the CRC loaded, edi the record): "
-                       "adopt, which gives a kept file's record (CRC 0) that CRC, then compares", None, None),
-    0x12D4CD: (CALLEE, "translate_query's look-up 0x131ED0 (eax the cook, the path; `ret 4`): lookup, which "
-                       "tail-jumps to it, or leaves translate_query at 0x12D42D (its own `ret 4`) for a path "
-                       "under way", None, None),
-    0x12F18F: (CALLEE, "process_compression's `call 0x420789` (ecx 0xAC3334) after its texture's slot: baked, "
-                       "which shares the texture and returns ecx+8", None, None),
-    0x12DDB4: (CALLEE, "on_baked_texture_loaded's `call 0x420789` (ecx 0xAC3334) after its texture's slot: "
-                       "loaded, which shares the texture and returns ecx+8", None, None),
-    0xF0D00: (ENTRY, "finish_query (stdcall: the query, the result, two more; `ret 10h`): finish, then the "
-                     "function (or the function, then the waiting queries made again)", None, None),
-    0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
-                     "value eight bytes a step", None, None),
+                       "body, the name, the tag): match_keys (Rust `call` hook), which drops the line or "
+                       "gives it to add_message", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
-BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
+BODIES = {}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
 # the game calls through its slots, so each slot of ours must pop what the
 # game's own vtable pops in the same place (the self-test's generalisation of
@@ -2510,6 +2313,17 @@ def audit_installs(data, writes, installs=None):
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
+# The Rust pointer hooks: each slot names its generated entry.
+for _va, _owner, _what in hooks_026g.pointer_sites():
+    INSTALLS[_va] = (SLOT, f"{_what}: {_owner} (Rust pointer)", None, None)
+
+
+def rust_pointers(original):
+    """The Rust pointer hooks' installs (the slot's VA, its old 4 bytes, the
+    entry's arena symbol), the old bytes checked against `original`'s."""
+    read = lambda va, n: bytes(original[file_offset(va):file_offset(va) + n]) if TEXT_VA <= va < TEXT_VA + TEXT_VSIZE \
+        else None
+    return tuple((va, old, symbol) for va, old, symbol, _owner in hooks_026g.pointer_installs(exe=read))
 
 
 # `.srpx`, the arena of the later patches (client_patch.md section 0.3;
@@ -2550,15 +2364,7 @@ ARENA = (
                ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
     # its rule's cook and the hud's cache (research_native_026g.c rn_state)
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
-    ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
-    ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
-    ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
-    ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
-    ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
-    ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
-    ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
     # The Rust exe patches (the framework's example is patch 34, the
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
@@ -2605,16 +2411,44 @@ def arena_target(linked, symbol):
     return va
 
 
-def add_arena(data, linked):
+def add_arena(data, linked, required=bytes(MOUNT_REQUIRED_SIZE)):
     """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
-    section; returns the new file. No arena (None): `data` as it is."""
+    section, with the build's own data (arena_image); returns the new file.
+    No arena (None): `data` as it is."""
     if linked is None:
         return data
     headers = Headers(data)
     if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
         sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
                  f"past its three pages?)")
-    return add_code_section(data, ARENA_NAME, ARENA_VA, linked.image, ARENA_CHARACTERISTICS)
+    return add_code_section(data, ARENA_NAME, ARENA_VA, arena_image(data, linked, required), ARENA_CHARACTERISTICS)
+
+
+def arena_image(data, linked, required=bytes(MOUNT_REQUIRED_SIZE)):
+    """The arena's bytes as a build has them: the link's, with
+    `required` (required_bitmap()) the bitmap of vostok::mount's
+    SRP_REQUIRED_PATCHES and vostok::interface's SRP_CONTROLS filled
+    (controls_rows, from `data`'s own table). A link without the crate (a
+    test's) has neither."""
+    image = bytearray(linked.image)
+    if "SRP_REQUIRED_PATCHES" not in linked.symbols and "SRP_CONTROLS" not in linked.symbols:
+        if any(required):
+            sys.exit(".srpx: required patches, but no SRP_REQUIRED_PATCHES in the link (patch 49)")
+        return bytes(image)
+    at = linked.symbols["SRP_REQUIRED_PATCHES"] - ARENA_VA + len(MOUNT_UNREADABLE)
+    if image[at - len(MOUNT_UNREADABLE):at] != MOUNT_UNREADABLE or any(image[at:at + MOUNT_REQUIRED_SIZE]) \
+            or len(required) != MOUNT_REQUIRED_SIZE or image.count(MOUNT_UNREADABLE) != 1:
+        sys.exit(".srpx: SRP_REQUIRED_PATCHES is not the \"Cannot open\" text once with a zeroed bitmap after it "
+                 "(patch 49)")
+    image[at:at + MOUNT_REQUIRED_SIZE] = required
+    # the options' controls (patch 62): their rows, the label after them
+    table = linked.symbols["SRP_CONTROLS"]
+    at = table - ARENA_VA
+    size = HIDE_UI_ROW_SIZE * (HIDE_UI_ROWS + 1)
+    if any(image[at:at + size]) or image[at + size:at + size + len(HIDE_UI_LABEL)] != HIDE_UI_LABEL:
+        sys.exit(".srpx: SRP_CONTROLS is not 29h zeroed rows and the label after them (patch 62)")
+    image[at:at + size] = controls_rows(data, table)
+    return bytes(image)
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
@@ -2721,7 +2555,7 @@ APPLIED = []
 # Install tables that hold other named tables' rows: a write in both is the
 # aggregate's (one patch's whole install set) - GATHER is the gather events
 # and the gather lock, the late join's hooks and patches its many parts.
-INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES", "FORWARD_SCROLL_HOOKS")
+INSTANCE_AGGREGATES = ("GATHER", "LATE_JOIN_HOOKS", "LATE_JOIN_PATCHES", "FOV_PATCHES")
 _INSTANCE_INDEX = {}
 _BUILDING = [False]                # inside build(): apply() records
 
@@ -3031,13 +2865,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     late-join code (late_join_026g.section.bin), in "section" builds only:
     with it the build is patch revision REVISION, without it
     REVISION_WITHOUT_LATE_JOIN; with it the game also checks no resources.db
-    signature, mounts resources.db's patches (mount_patches_026g.section.bin),
+    signature, mounts resources.db's patches (the Rust patch mount_patches),
     its sign-in says whether %TEMP%\\shell_32.dll exists
-    (stale_dll_026g.section.bin), and its transparent effects scroll as in
-    0.29 (forward_scroll_026g.section.bin), and the lobby's link starts the
-    updater for a replay link alone (replay_link_026g.section.bin), and an
+    (the Rust patch stale_dll), and its transparent effects scroll as in
+    0.29 (the Rust patch forward_scroll), and the lobby's link starts the
+    updater for a replay link alone (the Rust patch replay_link), and an
     upgrade taken off names the item it comes off
-    (shared_upgrades_026g.section.bin).
+    (the Rust patch shared_upgrades).
     revision: what the build with the late join says instead of REVISION
     (a release's, REVISION to 255). It is the revision byte and nothing
     else: every patch above is chosen by the kind of build, never by its
@@ -3078,30 +2912,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         revision = REVISION_WITHOUT_LATE_JOIN
     elif revision is None:
         revision = REVISION
-    if late_join is not None:
-        stale_dll = open(stale_dll_bin(), "rb").read()
-        mount_patches = open(mount_patches_bin(), "rb").read()
-        state = late_join_state_va(late_join) + MOUNT_STATE_OFFSET
-        if mount_patches[-4:] != struct.pack("<I", state):
-            sys.exit(f"mount_patches_026g.section.bin keeps its state elsewhere: assemble it with -DSTATE={state:#x}")
-        if mount_patches[MOUNTED_OFFSET:MOUNTED_OFFSET + 5] != bytes.fromhex("e800000000") \
-                or mount_patches[MOUNT_ALL_OFFSET] != 0x60:
-            sys.exit("mount_patches_026g.section.bin: its entries are not where patch_026g.py calls them")
-        needed = len(mount_patches) - 4 - MOUNT_REQUIRED_SIZE
-        if mount_patches[needed - len(MOUNT_UNREADABLE):needed] != MOUNT_UNREADABLE \
-                or any(mount_patches[needed:needed + MOUNT_REQUIRED_SIZE]):
-            sys.exit("mount_patches_026g.section.bin: no zeroed bitmap of the required patches after its "
-                     "\"Cannot open\" text (patch 49)")
-        mount_patches = mount_patches[:needed] + required_bitmap(required_patches or ()) + mount_patches[-4:]
-        forward_scroll = open(forward_scroll_bin(), "rb").read()
-        if forward_scroll[-4:] != struct.pack("<I", FORWARD_SCROLL_VA):
-            sys.exit(f"forward_scroll_026g.section.bin was assembled for another address: -DCAVE={FORWARD_SCROLL_VA:#x}")
-        # The first instruction of each entry: `test byte [esp+54h],10h`,
-        # `test byte [esp+5Ch],40h`, `pushad`.
-        if forward_scroll[FORWARD_SWITCH_OFFSET:FORWARD_SWITCH_OFFSET + 5] != bytes.fromhex("f644245410") \
-                or forward_scroll[FORWARD_CONSTANTS_OFFSET:FORWARD_CONSTANTS_OFFSET + 5] != bytes.fromhex("f644245c40") \
-                or forward_scroll[SCENE_SLOMO_OFFSET] != 0x60:
-            sys.exit("forward_scroll_026g.section.bin: its entries are not where patch_026g.py jumps to them")
     data = bytearray(original)
     linked = None
     WRITES.clear()
@@ -3212,13 +3022,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
-        patch(data, *REPLAY_REATTACH_THUNK)
-        sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
-        # An address: its relocation stays.
-        patch_section_value(data, *REPLAY_REATTACH_SLOT)
-        for site in (SOUND_QUEUE_CAVE_SITE, SOUND_QUEUE_HOOK):
-            patch(data, *site)
-            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REMOVE_MODEL)
         # The one address in what is replaced: the loader must not add to it.
         if neutralize_relocs(data, [(REMOVE_MODEL_VA, REMOVE_MODEL_VA + len(REMOVE_MODEL[1]))]) != [REMOVE_MODEL_VA + 2]:
@@ -3251,124 +3054,21 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in FOV_LOD_HOOKS])) \
                 != FOV_LOD_RELOCS:
             sys.exit("the base relocations under the FOV LOD sites are not where they were read")
-        pickup = open(pickup_bin(), "rb").read()
-        if len(cave) > PICKUP_OFFSET or PICKUP_OFFSET + len(pickup) > LATE_JOIN_OFFSET:
-            sys.exit("the upload code and the pickup code do not fit before the late join")
         patch(data, *PICKUP_FRAME)
-        sites = [(PICKUP_FRAME[0], PICKUP_FRAME[0] + len(PICKUP_FRAME[1]))]
-        for va, expected, offset, opcode in PICKUP_HOOKS:
-            patch(data, va, expected, hook_bytes(PICKUP_VA, va, expected, offset, opcode))
-            sites.append((va, va + len(expected)))
-        if neutralize_relocs(data, sites) != [PICKUP_RELOC]:
-            sys.exit("the base relocations under the pickup sites are not where they were read")
-        seek_clear = open(seek_clear_bin(), "rb").read()
-        if PICKUP_OFFSET + len(pickup) > SEEK_CLEAR_OFFSET or SEEK_CLEAR_OFFSET + len(seek_clear) > LATE_JOIN_OFFSET:
-            sys.exit("the pickup code and the seek code do not fit before the late join")
-        va, expected, offset, opcode = SEEK_CLEAR_HOOK
-        patch(data, va, expected, hook_bytes(SEEK_CLEAR_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the seek's hook")
+        if neutralize_relocs(data, [(PICKUP_FRAME[0], PICKUP_FRAME[0] + len(PICKUP_FRAME[1]))]):
+            sys.exit("a base relocation under the use scan's frame")
         patch(data, *DB_SIGNATURE)
         if neutralize_relocs(data, [(DB_SIGNATURE_VA, DB_SIGNATURE_VA + len(DB_SIGNATURE[1]))]):
             sys.exit("a base relocation under verify_sign's call")
-        patch(data, *STALE_DLL)
-        if neutralize_relocs(data, [(STALE_DLL_VA, STALE_DLL_VA + len(STALE_DLL[1]))]):
-            sys.exit("a base relocation under the version field's last two writes")
-        kit_change = open(kit_change_bin(), "rb").read()
-        if STALE_DLL_OFFSET + len(stale_dll) > KIT_CHANGE_OFFSET \
-                or KIT_CHANGE_OFFSET + len(kit_change) > LATE_JOIN_OFFSET:
-            sys.exit("the shell_32.dll check and the kit change do not fit before the late join")
-        # The first instruction of each entry: `pushad`, `cmp dword
-        # [esi+1F1C60h],3`, `call 0x23A1A0`, `cmp byte [ebp+33Ch],0`.
-        view, alive, update = (offset for _, _, offset, _ in KIT_CHANGE_HOOKS[1:])
-        to_ui = b"\xE8" + struct.pack("<i", 0x23A1A0 - (KIT_CHANGE_VA + alive) - 5)
-        if kit_change[0] != 0x60 \
-                or kit_change[view:view + 7] != bytes.fromhex("83be601c1f0003") \
-                or kit_change[alive:alive + 5] != to_ui \
-                or kit_change[update:update + 7] != bytes.fromhex("80bd3c03000000"):
-            sys.exit(f"kit_change_026g.section.bin: its entries are not where patch_026g.py jumps to them "
-                     f"(assembled with -DCAVE={KIT_CHANGE_VA:#x}?)")
-        for va, expected, offset, opcode in KIT_CHANGE_HOOKS:
-            patch(data, va, expected, hook_bytes(KIT_CHANGE_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the kit change")
         patch(data, *KIT_PICK)
         if neutralize_relocs(data, [(KIT_PICK[0], KIT_PICK[0] + len(KIT_PICK[1]))]):
             sys.exit("a base relocation under the hiding of the kits after a pick")
-        warmup_look = open(warmup_look_bin(), "rb").read()
-        warmup_limits = open(warmup_limits_bin(), "rb").read()
-        # warmup_look begins `cmp byte [ecx+2E3h],0` and keeps its state where
-        # the late join's page has room for it; it calls warmup_limits'
-        # drag_end, which begins `mov ecx,[ebx]`; warmup_limits begins
-        # `movd eax,xmm0`.
-        if warmup_look[:7] != bytes.fromhex("80b9e302000000") \
-                or warmup_look_state(warmup_look) != late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET \
-                or warmup_look_calls(warmup_look) != [WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET] \
-                or warmup_limits[WARMUP_DRAG_END_OFFSET:WARMUP_DRAG_END_OFFSET + 2] != bytes.fromhex("8b0b") \
-                or warmup_limits[WARMUP_LIMITS_ENTRY_OFFSET:WARMUP_LIMITS_ENTRY_OFFSET + 4] != bytes.fromhex("660f7ec0"):
-            sys.exit(f"warmup_look_026g.section.bin or warmup_limits_026g.section.bin: their entries or the state "
-                     f"are not where patch_026g.py puts them (assembled with -DCAVE={WARMUP_LOOK_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET:#x} "
-                     f"-DLIMITS={WARMUP_LIMITS_VA:#x} and -DCAVE={WARMUP_LIMITS_VA:#x}?)")
-        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > WARMUP_LOOK_STATE_OFFSET \
-                or WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the warmup look's state is not between the weapon preview's and the page's end")
-        warmup_keys = open(warmup_keys_bin(), "rb").read()
-        # warmup_keys begins `mov eax,[esp+8]` and ends with the ten bytes it
-        # replaced and the jump back.
-        tail = WARMUP_KEYS_HOOK[1] + b"\xE9" + struct.pack(
-            "<i", WARMUP_KEYS_HOOK[0] + len(WARMUP_KEYS_HOOK[1]) - (WARMUP_KEYS_VA + len(warmup_keys)))
-        if warmup_keys[:4] != bytes.fromhex("8b442408") or not warmup_keys.endswith(tail) \
-                or warmup_keys_state(warmup_keys) != late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:
-            sys.exit(f"warmup_keys_026g.section.bin: its entry, its end or its state are not where patch_026g.py "
-                     f"puts them (assembled with -DCAVE={WARMUP_KEYS_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:#x}?)")
-        if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > WARMUP_KEYS_STATE_OFFSET \
-                or WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the warmup keys' state is not between the warmup look's and the page's end")
-        # Patch 46: the mouse move's jump goes to death_look, which goes on
-        # to warmup_look; update_camera's call of the view's update calls
-        # death_view.
-        death_camera = open(death_camera_bin(), "rb").read()
-        death_va = death_camera_va(late_join)
-        death_state = late_join_state_va(late_join) + DEATH_CAMERA_STATE_OFFSET
-        look_state = late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET
-        if death_camera[DEATH_LOOK_OFFSET:DEATH_LOOK_OFFSET + 7] != bytes.fromhex("80b9e302000000") \
-                or death_camera[DEATH_VIEW_OFFSET:DEATH_VIEW_OFFSET + 4] != bytes.fromhex("8b442404") \
-                or death_camera_exits(death_camera, death_va, DEATH_CAMERA_EXITS) != DEATH_CAMERA_EXITS_EXPECTED \
-                or death_camera.count(b"\xBB" + struct.pack("<I", look_state)) != 1 \
-                or not death_camera.count(struct.pack("<I", death_state)) \
-                or not death_camera.count(struct.pack("<I", death_state + 4)):
-            sys.exit(f"death_camera_026g.section.bin: its entries, its exits or its states are not where "
-                     f"patch_026g.py puts them (assembled with -DCAVE={death_va:#x} -DSTATE={death_state:#x} "
-                     f"-DLOOK={WARMUP_LOOK_VA:#x} -DLOOK_STATE={look_state:#x} "
-                     f"-DDRAG_END={WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET:#x}?)")
-        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > DEATH_CAMERA_STATE_OFFSET \
-                or DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the death camera's state is not between the FOV LOD scale's and the page's end")
-        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, death_va + DEATH_LOOK_OFFSET),
-                                                     (WARMUP_LIMITS_HOOK, WARMUP_LIMITS_VA),
-                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA),
-                                                     (DEATH_VIEW_HOOK, death_va)):
-            patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup or the death camera")
-        read_order = open(read_order_bin(), "rb").read()
-        at = file_offset(READ_ORDER_VA)
-        if len(read_order) != READ_ORDER_SIZE:
-            sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
-        if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
-            sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
-        apply(data, at, READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order, owner="READ_ORDER")
-        if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
-            sys.exit("a base relocation under hdd_manager_sorting_predicate")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
         if LATE_JOIN_OFFSET + len(late_join) > WEAPON_PREVIEW_OFFSET \
                 or WEAPON_PREVIEW_VA + len(weapon_preview) > late_join_state_va(late_join):
             sys.exit("the late join and the weapon preview do not fit before the late join's state page")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET \
-                or WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the weapon preview's state is not between the patches' mount's and the page's end")
+        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon preview's state does not end before the page's end")
         if weapon_preview_state(weapon_preview) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or any(weapon_preview[offset] != first for (_, _, offset, _), first
                        in zip(WEAPON_PREVIEW_HOOKS, (0x60, 0x60, 0x50, 0x50, 0x50, 0x50))):
@@ -3391,11 +3091,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
         weapon_draw = open(weapon_draw_bin(), "rb").read()
-        if FORWARD_SCROLL_OFFSET + len(forward_scroll) > WEAPON_DRAW_OFFSET \
-                or WEAPON_DRAW_OFFSET + len(weapon_draw) > WARMUP_LOOK_OFFSET \
-                or WARMUP_LOOK_OFFSET + len(warmup_look) > STALE_DLL_OFFSET:
-            sys.exit("the weapon preview's draw and the warmup look do not fit between the forward effect's "
-                     "scrolling and the shell_32.dll check")
+        if WEAPON_DRAW_OFFSET + len(weapon_draw) > LATE_JOIN_OFFSET:
+            sys.exit("the weapon preview's draw does not fit before the late join")
         if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
@@ -3405,16 +3102,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
-        if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
-                or WARMUP_KEYS_OFFSET + len(warmup_keys) > SEEK_CLEAR_OFFSET:
-            sys.exit("the pickup code, the warmup keys and the seek code do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
                      "not where patch_026g.py puts them")
-        if WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > TAB_LIST_STATE_OFFSET \
+        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > TAB_LIST_STATE_OFFSET \
                 or TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the scoreboard's state is not between the warmup keys' and the page's end")
+            sys.exit("the scoreboard's state is not between the weapon preview's and the page's end")
         sites = []
         for va, expected, offset, opcode in TAB_LIST_HOOKS:
             patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
@@ -3423,42 +3117,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((TAB_LIST_LOOP_VA, TAB_LIST_LOOP_VA + len(TAB_LIST_LOOP[1])))
         if neutralize_relocs(data, sites):
             sys.exit("a base relocation under a site of the scoreboard's rows")
-        for site in (MOUNT_QUERY, MOUNTED):
-            patch(data, *site)
-            if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
-                sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
-        for va, expected, offset, opcode in FORWARD_SCROLL_HOOKS:
-            patch(data, va, expected, hook_bytes(FORWARD_SCROLL_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the forward effect's scrolling")
-        if SEEK_CLEAR_OFFSET + len(seek_clear) > WARMUP_LIMITS_OFFSET \
-                or WARMUP_LIMITS_OFFSET + len(warmup_limits) > FORWARD_SCROLL_OFFSET \
-                or FORWARD_SCROLL_OFFSET + len(forward_scroll) > STALE_DLL_OFFSET \
-                or STALE_DLL_OFFSET + len(stale_dll) > LATE_JOIN_OFFSET:
-            sys.exit("the seek code, the warmup camera's limits, the forward effect's scrolling and the "
-                     "shell_32.dll check do not fit before the late join")
-        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > PICKUP_OFFSET:
-            sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the patches' mount keeps more state than the late join's page has")
-        replay_link = open(replay_link_bin(), "rb").read()
-        if len(cave) > REPLAY_LINK_OFFSET or REPLAY_LINK_OFFSET + len(replay_link) > MOUNT_PATCHES_OFFSET:
-            sys.exit("the upload code (and the default server), the replay link code and the patches' mount "
-                     "do not fit before the pickup code")
-        va, expected, offset, opcode = REPLAY_LINK_HOOK
-        patch(data, va, expected, hook_bytes(REPLAY_LINK_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the replay link's hook")
-        shared_upgrades = open(shared_upgrades_bin(), "rb").read()
-        if MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET \
-                or SHARED_UPGRADES_OFFSET + len(shared_upgrades) > PICKUP_OFFSET:
-            sys.exit("the patches' mount, the shared upgrades' code and the pickup code do not fit")
-        if any(shared_upgrades[at:at + len(first)] != first for at, first in SHARED_UPGRADES_ENTRIES.items()):
-            sys.exit("shared_upgrades_026g.section.bin: its entries are not where patch_026g.py calls them")
-        for va, expected, offset, opcode in SHARED_UPGRADES_HOOKS:
-            patch(data, va, expected, hook_bytes(SHARED_UPGRADES_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
+        if len(cave) > WEAPON_DRAW_OFFSET:
+            sys.exit("the upload code (and the default server) do not fit before the weapon preview's draw")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
@@ -3490,7 +3150,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
                 or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
             sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
-        if DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
                 or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon table's state is not between the others' and the page's end")
         # Its state routine as patch 32's; its one read of patch 32's mode is
@@ -3542,9 +3202,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
             sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
-        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
-                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
-            sys.exit("the upgrade preview's state is not between the patches' mount's and the weapon preview's")
+        if UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit("the upgrade preview's state does not end before the weapon preview's")
         if upgrade_preview_targets(upgrade_preview, upgrade_preview_va) \
                 != (stash_va + WEAPON_STASH_FIND, upgrade_preview_state, preview_state):
             sys.exit(f"upgrade_preview_026g.section.bin: its entries, its state or its find are not where "
@@ -3564,42 +3223,17 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon camouflage's hook")
-        spot = open(spot_bin(), "rb").read()
-        if SHARED_UPGRADES_OFFSET + len(shared_upgrades) > SPOT_OFFSET or SPOT_OFFSET + len(spot) > PICKUP_OFFSET:
-            sys.exit("the shared upgrades' code, the spot code and the pickup code do not fit")
-        # It begins `mov ecx,[esi]; mov ecx,[ecx+0Ch]` (the five bytes it
-        # replaces) and leaves by its three jumps.
-        exits = [SPOT_VA + at + 5 + struct.unpack_from("<i", spot, at + 1)[0]
-                 for at in range(len(spot) - 4) if spot[at] == 0xE9]
-        if spot[:5] != SPOT_HOOK[1] or exits != list(SPOT_EXITS):
-            sys.exit(f"spot_026g.section.bin was assembled for another address: -DCAVE={SPOT_VA:#x}")
-        va, expected, offset, opcode = SPOT_HOOK
-        patch(data, va, expected, hook_bytes(SPOT_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the spot's hook")
 
     if mode == "section":
         if late_join is not None:
-            cave = cave + b"\xCC" * (REPLAY_LINK_OFFSET - len(cave)) + replay_link
-            cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
-            cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
-            cave = cave + b"\xCC" * (SPOT_OFFSET - len(cave)) + spot
-            cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
-            cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
-            cave = cave + b"\xCC" * (SEEK_CLEAR_OFFSET - len(cave)) + seek_clear
-            cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
-            cave = cave + b"\xCC" * (FORWARD_SCROLL_OFFSET - len(cave)) + forward_scroll
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
-            cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
-            cave = cave + b"\xCC" * (STALE_DLL_OFFSET - len(cave)) + stale_dll
-            cave = cave + b"\xCC" * (KIT_CHANGE_OFFSET - len(cave)) + kit_change
             cave = cave + b"\xCC" * (LATE_JOIN_OFFSET - len(cave)) + late_join
             cave = cave + b"\xCC" * (WEAPON_PREVIEW_OFFSET - len(cave)) + weapon_preview
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
-                                    DEATH_CAMERA_CHARACTERISTICS)
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                    b"\xCC" * DEATH_CAMERA_SIZE, DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
             # `.srpx`, the arena: its blocks linked from their sources
@@ -3607,19 +3241,20 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
-                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                    disabled = neutralize_relocs(data, [(va, va + len(expected))])
+                    if not set(disabled) <= set(RUST_HOOK_RELOCS):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                # a pointer hook: the slot names its entry (an address: its
+                # base relocation stays)
+                for va, old, symbol in rust_pointers(original):
+                    patch_section_value(data, va, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
-                if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
-                    sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
-                             "says")
-            data = add_arena(data, linked)
+            data = add_arena(data, linked, required_bitmap(required_patches or ()))
     if arena_blocks is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
@@ -3643,7 +3278,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a first world's kit choices are the world's and in time order, "
                      "a Team Deathmatch rule counts a death after its own end, "
                      f"a field-of-view setting (uro_fov, {FOV_MIN:g} to 100) the camera follows, a scope's view the original's, "
-                     f"a battery under the floor one stands on taken (within {PICKUP_ACROSS:g} m across), "
+                     f"a battery under the floor one stands on taken (within 1 m across), "
                      "a replay's camera follows its player into another kit, "
                      "a weapon with a full sound queue drops the new sound, "
                      "a replay's seek empties the weapons' sound queues, "
@@ -3732,108 +3367,14 @@ def default_server_bin(mode):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), f"default_server_026g.{mode}.bin")
 
 
-def replay_link_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay_link_026g.section.bin")
-
-
-def shared_upgrades_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared_upgrades_026g.section.bin")
-
-
-def stale_dll_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "stale_dll_026g.section.bin")
-
-
-def mount_patches_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mount_patches_026g.section.bin")
 
 
 def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
 
 
-def spot_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "spot_026g.section.bin")
 
 
-def pickup_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "pickup_below_026g.section.bin")
-
-
-def forward_scroll_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "forward_scroll_026g.section.bin")
-
-
-def seek_clear_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay_seek_026g.section.bin")
-
-
-def read_order_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "read_order_026g.bin")
-
-
-def kit_change_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "kit_change_026g.section.bin")
-
-
-def warmup_look_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_look_026g.section.bin")
-
-
-def warmup_limits_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_limits_026g.section.bin")
-
-
-def warmup_keys_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_keys_026g.section.bin")
-
-
-def warmup_keys_state(code):
-    """The state address warmup_keys_026g.asm was assembled for: its one
-    `call $+5` / `pop edx` / `add edx,imm32`; 0 when it is not there once."""
-    find = bytes.fromhex("e800000000" "5a" "81c2")
-    at = code.find(find)
-    if at < 0 or code.find(find, at + 1) >= 0:
-        return 0
-    return (WARMUP_KEYS_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]) & 0xFFFFFFFF
-
-
-def warmup_look_state(code):
-    """The state address warmup_look_026g.asm was assembled for: its one
-    `call $+5` / `pop ebx` / `add ebx,imm32`; 0 when it is not there once."""
-    find = bytes.fromhex("e800000000" "5b" "81c3")
-    at = code.find(find)
-    if at < 0 or code.find(find, at + 1) >= 0:
-        return 0
-    return (WARMUP_LOOK_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]) & 0xFFFFFFFF
-
-
-def warmup_look_calls(code):
-    """The target of warmup_look_026g.asm's call at the end of a drag:
-    `call rel32` / `xor eax,eax` / `cmp [edi+0Ch],eax`, once; [] when not."""
-    find = bytes.fromhex("31c039470c")
-    at = code.find(find)
-    if at < 5 or code.find(find, at + 1) >= 0 or code[at - 5] != 0xE8:
-        return []
-    return [(WARMUP_LOOK_VA + at + struct.unpack_from("<i", code, at - 4)[0]) & 0xFFFFFFFF]
-
-
-def death_camera_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "death_camera_026g.section.bin")
-
-
-def death_camera_exits(code, va, targets):
-    """[(opcode, target)] of each `jmp rel32` (E9) or `call rel32` (E8) in
-    death_camera_026g.section.bin, assembled for `va`, whose target is one of
-    `targets`: what the code leaves to (a .bin assembled for another place,
-    or with other addresses, has none of them)."""
-    out = []
-    for at in range(len(code) - 4):
-        if code[at] in (0xE8, 0xE9):
-            target = (va + at + 5 + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF
-            if target in targets:
-                out.append((code[at], target))
-    return sorted(out)
 
 
 def weapon_stash_bin():
@@ -3850,25 +3391,6 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
-
-
-def artefacts_backs(linked):
-    """Where each of the artefacts' eight entries (ARTEFACTS_HOOKS' symbols)
-    goes on: the target of the first `jmp near` back into .text after the
-    entry's own code, when the entry is a `jmp near`; else None."""
-    block = linked.blocks["artefacts.code"]
-    code, va = linker.block_bytes(linked, "artefacts.code"), block.va
-    entries = [linked.symbols.get(symbol, 0) - va for _, _, symbol, _ in ARTEFACTS_HOOKS]
-    if any(not 0 <= at < len(code) - 4 or code[at] != 0xE9 for at in entries):
-        return None
-    backs = []
-    for at in entries:
-        start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
-        target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
-                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
-                      None)
-        backs.append(target)
-    return backs
 
 
 def upgrade_preview_targets(code, va):

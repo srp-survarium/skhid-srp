@@ -1,0 +1,17 @@
+# Patches 27 and 49: resources.db's patches mounted over it, and the ones an
+# exe requires. Only the decisions: which sites, and the handlers. The sites
+# (their VAs, spans and exit) are sites_026g.tsv's; the queries, the
+# callback, the mounts and the list of required patches are vostok's
+# (vostok::mount); the logic is mount_patches.rs.
+name = "mount_patches"
+patch = 27
+
+# query_db's query of resources.db: every patch there queued after it
+[[hook]]
+site = "mount.query"
+handler = "on_query"
+
+# each mount's callback: the start-up's held, the last handed to the game
+[[hook]]
+site = "mount.mounted"
+handler = "on_mounted"

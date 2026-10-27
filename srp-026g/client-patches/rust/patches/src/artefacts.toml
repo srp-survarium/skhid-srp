@@ -1,0 +1,45 @@
+# Patch 54: the artefacts. Only the decisions: which sites, and the
+# handlers. The sites are sites_026g.tsv's; the artefacts, their configs,
+# the modifier lists, the pools and the inventory's slots are vostok's
+# (vostok::artefact); the logic is artefacts.rs. A Spring's two sizes grow
+# for its two nodes (patch_026g.py ARTEFACTS_SIZES).
+name = "artefacts"
+patch = 54
+
+# a Spring's loader: the passive's aim time, the active's two nodes
+[[hook]]
+site = "artefacts.spring_loader"
+handler = "on_spring_loader"
+
+# the active's link and unlink: the two nodes with the active's three
+[[hook]]
+site = "artefacts.spring_link"
+handler = "on_spring_link"
+
+[[hook]]
+site = "artefacts.spring_unlink"
+handler = "on_spring_unlink"
+
+# Lifebone's active: the pain, body and head pools full
+[[hook]]
+site = "artefacts.lifebone"
+handler = "on_lifebone"
+
+# a press fires every ready artefact of its kind
+[[hook]]
+site = "artefacts.action"
+handler = "on_action"
+
+# the stagger: times max(0, 1 + list 42)
+[[hook]]
+site = "artefacts.stagger"
+handler = "on_stagger"
+
+# n active Onyx reduce a hit once, and show the hint once a press
+[[hook]]
+site = "artefacts.onyx_hit"
+handler = "on_onyx_hit"
+
+[[hook]]
+site = "artefacts.onyx_hint"
+handler = "on_onyx_hint"

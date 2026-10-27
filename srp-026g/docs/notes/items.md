@@ -226,7 +226,7 @@ What the stock client does with one id in the upgrades of several items
 
 So the client holds one cosmetic on several items as it is; only taking it
 off one of them is ambiguous. **Patch 30** (`client-patches`,
-`shared_upgrades_026g.asm`, 181 bytes at `.srp`+700h, four sites; `client_patch.md`
+the Rust patch `shared_upgrades`, four lohooks, once `shared_upgrades_026g.asm`; `client_patch.md`
 §3.28) makes `46 02 <kit> <upgrade> <item>` (the item the window shows),
 `83 46 02 <upgrade> <item>` take it off that item alone, and `detach_first`
 take it off the host of the answer (it was in another slot of it). No

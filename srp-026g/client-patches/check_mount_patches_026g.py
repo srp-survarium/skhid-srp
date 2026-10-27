@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Run patch 27, the mount of resources.db's patches (mount_patches_026g.asm),
-in the default build on made-up game folders.
+"""Run patch 27, the mount of resources.db's patches (the Rust patch
+mount_patches; mount_patches_026g.asm before the Rust port), in the default
+build on made-up game folders.
 
     python check_mount_patches_026g.py <original survarium.exe>
 
-Requires Python `unicorn`. The exe's sections are loaded as they are and
-again 1 MiB higher with its base relocations applied (a rebased image).
-What runs as machine code: query_db's call at 0xE7E3E with the code it
+Requires Python `unicorn`. The exe's sections are loaded as they are. (Until
+the Rust port they were loaded again 1 MiB higher with the base relocations
+applied, for the asm's position independence; the exe is never rebased and
+the arena is absolute code.) What runs as machine code: query_db's call at 0xE7E3E with the code it
 calls, and on_mounted_resources 0x147E0 with the code its first six bytes
 jump to and the game's own code after them, to the start of its next step
 (0x14827: the reference it takes, the store into engine_world, the release
@@ -14,7 +16,9 @@ of the mount that was there). Stubs: CreateFileA, GetLastError and
 CloseHandle (a folder's files, each there or failing with a Windows error),
 the path formatting 0x18190 (as its code reads: the text from the string's
 start, within its buffer, a '/' or '\\' made the string's separator; the C
-library under it needs a started process), query_mount_archive 0xE7EF0
+library under it needs a started process; the game's functions leave
+every register but ESP another, the imports EBX, ESI, EDI and EBP as the
+Windows ABI keeps them), query_mount_archive 0xE7EF0
 (it records what it was asked to mount), the fatal error 0x113580 (it
 records the message), the unmount of a mount nobody holds 0xDFE30 (it
 records the mount) and the game's next step at 0x14827 (it records what
@@ -61,6 +65,8 @@ FATAL = 0x113580
 FORMAT_PATH = 0x18190
 UNMOUNT = 0xDFE30
 NEXT_STEP, END = 0x14827, 0x148A0       # on_mounted_resources' next step, its own end
+MOUNTED_VA = 0x147E0                    # on_mounted_resources
+QUERY_DB_CALL, QUERY_DB_ON = 0xE7E3E, 0xE7E43   # query_db's call of query_mount_archive, the instruction after
 GAME_FATAL = 0x9DB7A0                   # "Cannot mount resources. ..."
 STUBS, HEAP, STACK = 0x30000000, 0x31000000, 0x32000000
 RETURN = STUBS + 0x800                  # where the made-up callers continue
@@ -159,6 +165,9 @@ class Run:
             emu.emu_stop()
             return
         sp = emu.reg_read(UC_X86_REG_ESP)
+        if name == "query_done":
+            emu.reg_write(UC_X86_REG_EIP, RETURN)
+            return
         if name == "fatal":
             fmt, args, out = self.text(self.read(sp + 4)), sp + 8, ""
             pieces = fmt.split("%u")
@@ -214,11 +223,14 @@ class Run:
             args = [self.read(sp + 4 + 4 * i) for i in range(ARGUMENTS[name])]
             result = getattr(self, name)(*args)
             sp += 4 * len(args)                 # stdcall
-        # Every register but esp may be another after a call of the game's.
+        # Every register but esp may be another after a call of the game's;
+        # an import keeps ebx, esi, edi and ebp (the Windows ABI).
         emu.reg_write(UC_X86_REG_EAX, result)
+        kept = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP) if name in ARGUMENTS else ()
         for register in (UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI,
                          UC_X86_REG_EDI, UC_X86_REG_EBP):
-            emu.reg_write(register, 0xDEAD0000 | register)
+            if register not in kept:
+                emu.reg_write(register, 0xDEAD0000 | register)
         emu.reg_write(UC_X86_REG_EIP, self.read(emu.reg_read(UC_X86_REG_ESP)))
         emu.reg_write(UC_X86_REG_ESP, sp + 4)
 
@@ -254,11 +266,12 @@ class Run:
         for register, value in GAME.items():
             emu.reg_write(register, value + (self.delta if register == UC_X86_REG_ESI else 0))
         # The patched call at 0xE7E3E, with a made-up return address.
-        call = bytes(emu.mem_read(base.MOUNT_QUERY_VA + self.delta, 5))
-        assert call[0] == 0xE8
-        target = base.MOUNT_QUERY_VA + self.delta + 5 + struct.unpack("<i", call[1:])[0]
-        emu.reg_write(UC_X86_REG_ESP, sp)
-        emu.emu_start(target, RETURN, count=2_000_000)
+        # (the site jumps to the patch's lohook, which skips the call and
+        # comes back after it, 0xE7E43: the stub there returns)
+        self.stubs[QUERY_DB_ON + self.delta] = "query_done"
+        emu.hook_add(UC_HOOK_CODE, self.stub, begin=QUERY_DB_ON + self.delta, end=QUERY_DB_ON + self.delta)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
+        emu.emu_start(QUERY_DB_CALL + self.delta, RETURN, count=2_000_000)
         assert self.closed == self.opened, "a handle left open"
         if self.fatal is not None:
             return [archive for _, (archive, _), _, _ in self.mounts]
@@ -292,7 +305,7 @@ class Run:
         for register, value in GAME.items():
             emu.reg_write(register, value)
         emu.reg_write(UC_X86_REG_ESP, sp)
-        emu.emu_start(base.MOUNTED_VA + self.delta, RETURN, count=100000)
+        emu.emu_start(MOUNTED_VA + self.delta, RETURN, count=100000)
         if self.fatal is None:
             assert emu.reg_read(UC_X86_REG_ESP) == sp + 4, "cdecl: the stack as the caller left it"
             kept = {register: emu.reg_read(register) for register in GAME}
@@ -305,10 +318,15 @@ class Run:
         return mount, len(self.kept) > before
 
     def state_mounts(self):
-        state = struct.unpack_from("<I", self.emu.mem_read(base.MOUNT_PATCHES_VA + self.delta
-                                                           + len(open(base.mount_patches_bin(), "rb").read()) - 4,
-                                                           4))[0] + self.delta
-        return [self.read(state + 8 + 4 * i) for i in range(self.read(state + 4))]
+        """The mounts the patch's state holds (its SEEN and MOUNTS)."""
+        if "mount_patches_bin" in dir(base):   # the asm, before the Rust port: its state's address ends the .bin
+            bin_ = open(base.mount_patches_bin(), "rb").read()
+            state = struct.unpack_from("<I", self.emu.mem_read(base.MOUNT_PATCHES_VA + len(bin_) - 4, 4))[0]
+            return [self.read(state + 8 + 4 * i) for i in range(self.read(state + 4))]
+        statics = {name: va for name, va, _, _ in base.arena().every if "mount_patches" in name}
+        seen = next(va for name, va in statics.items() if "SEEN" in name)
+        mounts = next(va for name, va in statics.items() if "MOUNTS" in name)
+        return [self.read(mounts + 4 * i) for i in range(self.read(seen))]
 
 
 def patch(n):
@@ -382,7 +400,7 @@ def main():
         failed += not ok
         print(f"{'ok  ' if ok else 'FAIL'} {text}")
 
-    for delta in (0, 0x100000):
+    for delta in (0,):                  # the image as it is (never rebased)
         rebased = " (rebased)" if delta else ""
         for name, files, expected in folders:
             run = Run(data, delta, files)

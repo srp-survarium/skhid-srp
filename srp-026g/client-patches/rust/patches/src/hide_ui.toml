@@ -1,0 +1,24 @@
+# Patch 62: one key (toggle_replay_ui, F11) hides the whole interface and
+# shows it again, in a match and in the lobby. Only the decisions: which
+# sites, and the handlers. The sites (their VAs, spans and exits) are
+# sites_026g.tsv's; the key's case, the lobby's binder call, the reset and
+# the options' controls are vostok's (vostok::interface); the logic is
+# hide_ui.rs. game_options' six functions read vostok's SRP_CONTROLS
+# (patch_026g.py HIDE_UI_TABLE_REFS).
+name = "hide_ui"
+patch = 62
+
+# the game world's case of action 19h: the hud and the icons hidden or shown
+[[hook]]
+site = "hide_ui.match_toggle"
+handler = "on_match_toggle"
+
+# the lobby's binder call: the key toggles the lobby movie's interface
+[[hook]]
+site = "hide_ui.lobby_action"
+handler = "on_lobby_action"
+
+# a match's root.reset: a new match starts shown
+[[hook]]
+site = "hide_ui.match_reset"
+handler = "on_match_reset"

@@ -1,0 +1,28 @@
+# Patch 31: a kit chosen before the match starts is played at once. Only
+# the decisions: which sites, and the handlers. The sites are
+# sites_026g.tsv's; the respawn rule, the places, the view and the hud are
+# vostok's (vostok::kit_choice); the logic is kit_change.rs. The hiding of
+# the kits after a pick is nops (patch_026g.py KIT_PICK); the camera is
+# warmup_camera's, the keys warmup_keys'.
+name = "kit_change"
+patch = 31
+
+# the respawn rule's tick: a place's kit choice before play respawns it
+[[hook]]
+site = "respawn_rule.tick"
+handler = "on_tick"
+
+# the client's view of a spawn into another kit: the warmup's camera before play
+[[hook]]
+site = "kit_view.camera"
+handler = "on_kit_view"
+
+# the local player just alive: the kits shown before play
+[[hook]]
+site = "hud.alive"
+handler = "on_alive"
+
+# every update: a live local player's kits shown before play, hidden in play
+[[hook]]
+site = "hud.update"
+handler = "on_update"

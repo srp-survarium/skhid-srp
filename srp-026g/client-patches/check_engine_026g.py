@@ -163,7 +163,8 @@ def at_entry(run, f, entry, pops):
 
     def real(run):
         sp = emu.reg_read(UC_X86_REG_ESP)
-        seen.append(({name: emu.reg_read(r) for name, r in REG.items()},
+        seen.append(({**{name: emu.reg_read(r) for name, r in REG.items()},
+                      "XMM0": emu.reg_read(UC_X86_REG_XMM0) & 0xFFFFFFFF},
                      [run.read(sp + 4 * k) for k in range(len(f["args"]) + 1)]))
         for name in KEPT:
             emu.reg_write(REG[name], 0xBAD00000 + len(name))
@@ -183,7 +184,7 @@ def at_entry(run, f, entry, pops):
     regs, stack = seen[0]
     where = []
     for i, location in enumerate(f["args"]):
-        got = regs[location] if location in REG else stack[int(location[4:]) // 4]
+        got = regs[location] if location in regs else stack[int(location[4:]) // 4]
         if got != marker(i):
             where.append(f"{f['params'][i][1]} not in {location} ({got:#x})")
     out.append((not where and run.lo <= stack[0] < run.hi,

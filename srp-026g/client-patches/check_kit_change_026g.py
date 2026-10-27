@@ -945,6 +945,12 @@ def check_death(data, patched):
     return checks
 
 
+def warmup_drag():
+    """The Rust patch warmup_camera's drag (its static's first word, the
+    moves of the buttons held), by the arena's symbol."""
+    return next(va for name, va, _, _ in base.arena().every if "warmup_camera" in name and "DRAG" in name)
+
+
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -963,21 +969,42 @@ def main():
     # drag in any mode, one that drags at the first move of a click, one
     # with no nearest distance, one that never marks a button, and one that
     # gives a marked button's release on (the player's handler fires at it).
-    for old, new, check in ((bytes.fromhex("837c8afc00"), bytes.fromhex("39c0909090"), check_tick),
-                            (bytes.fromhex("48d1e8750d"), bytes.fromhex("48d1e8eb00"), check_boundary),
-                            (bytes.fromhex("3b865c84010073ee"), bytes.fromhex("3b865c8401009090"), check_tick),
-                            (bytes.fromhex("29e8770489e8f7d0"), bytes.fromhex("29e8770431c09090"), check_tick),
-                            (bytes.fromhex("83be601c1f000375"), bytes.fromhex("83be601c1f0003eb"), check_view),
-                            (bytes.fromhex("83b858030000037416"), bytes.fromhex("83b85803000003eb16"), check_look),
-                            (bytes.fromhex("890b83f90876b4"), bytes.fromhex("890b83f908eb00"), check_look),
-                            (bytes.fromhex("39d00f4cc2"), bytes.fromhex("39d0909090"), check_limits),
-                            (bytes.fromhex("0fab02"), bytes.fromhex("909090"), check_keys),
-                            (bytes.fromhex("0fb302731c"), bytes.fromhex("0fb302eb1c"), check_keys)):
+    # Each broken build mutates the Rust patches' code in the arena (`.srpx`,
+    # as the lock links it; a pattern there once): kit_change's statistics
+    # test always equal, its state's `ja` gone, its places' end's `jnc`
+    # gone, its "no protection left" (-1 - time) made 0, its view's `jz` to
+    # the player camera gone; then the cameras' and the keys'.
+    for old, new, check in ((bytes.fromhex("83bc889801000000"), bytes.fromhex("39c0909090909090"), check_tick),
+                            (bytes.fromhex("4883f8010f874e010000"), bytes.fromhex("4883f801909090909090"),
+                             check_boundary),
+                            (bytes.fromhex("01d0741b39c87317"), bytes.fromhex("01d0741b39c89090"), check_tick),
+                            (bytes.fromhex("8b882c0300008b542414"), bytes.fromhex("8b882c03000031d29090"), check_tick),
+                            (bytes.fromhex("83fa03740b"), bytes.fromhex("83fa039090"), check_view),
+                            # the warmup camera, the Rust patch warmup_camera in the
+                            # arena (its code as the lock links it): the warmup mode's
+                            # test gone (a drag in any mode); a left press's click test
+                            # gone (a drag at its first move); the nearest distance's
+                            # `cmovnl` an unconditional `mov`
+                            (bytes.fromhex("83f8030f85b6000000"), bytes.fromhex("83f803909090909090"), check_look),
+                            (bytes.fromhex("83fe098935") + struct.pack("<I", warmup_drag()) + bytes.fromhex("7241"),
+                             bytes.fromhex("83fe098935") + struct.pack("<I", warmup_drag()) + bytes.fromhex("9090"),
+                             check_look),
+                            (bytes.fromhex("3d0100c03f0f4dd0"), bytes.fromhex("3d0100c03f89c290"), check_limits),
+                            # the keys, the Rust patch warmup_keys in the arena (its
+                            # handler's code as the lock links it): the mark's `or`
+                            # gone; the held and released buttons' `jnz` to the
+                            # original's made a `jmp`
+                            (bytes.fromhex("89ca09faf7d7"), bytes.fromhex("89ca9090f7d7"), check_keys),
+                            (bytes.fromhex("08cb7525"), bytes.fromhex("08cbeb25"), check_keys)):
         broken = bytearray(patched)
-        _, _, _, raw, size, _ = next(section for section in base.Headers(broken).sections(broken)
-                                     if section[0] == base.SECTION_NAME)
+        sections = {section[0]: section for section in base.Headers(broken).sections(broken)}
+        _, _, _, raw, size, _ = sections[base.SECTION_NAME]
         at = broken.rfind(old, raw, raw + size)    # in `.srp`
-        assert at > raw
+        if at < 0:                                 # in `.srpx`, the arena: there once
+            _, _, _, raw, size, _ = sections[base.ARENA_NAME]
+            at = broken.find(old, raw, raw + size)
+            assert broken.count(old, raw, raw + size) == 1, old.hex()
+        assert at > raw, old.hex()
         broken[at:at + len(old)] = new
         try:
             check(bytes(broken), True)

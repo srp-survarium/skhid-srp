@@ -1,0 +1,11 @@
+# Patch 33: the order of the archive reads is a strict weak ordering. Only
+# the decisions: which site, and the handler. The site (its VA, span and
+# exit) is sites_026g.tsv's; the queries and their nodes are vostok's
+# (vostok::resources); the logic is read_order.rs.
+name = "read_order"
+patch = 33
+
+# hdd_manager_sorting_predicate's start: the whole predicate, then its return
+[[hook]]
+site = "read_order.predicate"
+handler = "on_predicate"

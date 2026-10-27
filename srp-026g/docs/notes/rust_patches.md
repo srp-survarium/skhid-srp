@@ -71,7 +71,9 @@ one crate, `client-patches/rust/patches`, in three layers:
   `fields_026g.tsv` (the fields). A function Rust can call directly (stdcall,
   cdecl, thiscall) is declared in that convention at its VA; one the game
   takes in registers keeps its cdecl thunk (block `engine.code`). kernel32's
-  imports are declarations over their IAT slots. Only `vostok` names `raw`.
+  imports are declarations over their IAT slots; an export the exe does not
+  import (a `proc` row, `kernel32.dll!GetTempPathA`) is a function of the
+  address GetProcAddress gives vostok at run time. Only `vostok` names `raw`.
 - **`vostok`** (the engine, safe and typed): handles (`InputHandler`),
   enums and newtypes (`Action`, `ActionState`, `ActionMask`), and the hook
   system. It is the only place with `unsafe`, each block with its invariant.
@@ -132,12 +134,20 @@ NH3API's HiHook/LoHook applied at build time:
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
-(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
-frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
-the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
-hook's named exits, so a continuation is never return-address arithmetic in
-Rust. An exit is a jump inside the host function or a `host_return { pop,
-value }`.
+(`xmm_f32`/`set_xmm_f32`, f64), an x87 result pushed as an `fld` would
+(`push_st`, exact in 80 bits), ST0 multiplied as an `fmul dword` would
+(`fmul_st0`, in the x87 under the game's control word), the site's stack by its ESP offsets
+(`stack`/`set_stack`, `stack_u8`/`set_stack_u8`; `site_esp`) and typed frame
+locals (fields_026g.tsv rows with a negative offset). **`Flow`**:
+`Continue` (apply the context's writes, then replay the overwritten bytes),
+`Skip`, or `Exit(E)` -- a generated enum of the hook's named exits, so a
+continuation is never return-address arithmetic in Rust. An exit is a site
+row's `name@0xVA`, a jump inside the host function with the stack as at the
+site; `name@0xVA:N`, the same after N bytes popped (a site at a `call` whose
+callee pops its pushed arguments: the stack as the callee leaves it); or
+`name@ret` / `name@ret:N`, a return from the host function popping N bytes
+after the return address (the site is the function's start), EAX what the
+handler left.
 
 Every `lohook`/`splice` entry saves and restores the full register, flag and
 FPU/SSE state (`fxsave`/`fxrstor`); the result register the row declares is
@@ -189,11 +199,24 @@ same typed signature.
 
 Direct hooks of the same function share one generated `Original` type. A
 splice has its own `Orig<Function>For<Patch>_<Handler>` type because its
-`call` must enter that hook's trampoline. Replayable spans are decoded into
-complete instructions with ndisasm; relative branches and truncated
-instructions are refused, while opcode-looking bytes in operands are safe.
+`call` must enter that hook's trampoline. Replayable spans (a lohook's
+replay, a splice's trampoline) are decoded into complete instructions with
+ndisasm; a relative `call`, `jmp` or `jcc` among them is made again to the
+same absolute target (hooks_026g.py `relocated()`: NASM and the link give
+the new displacement; a replayed `call` returns into the replay), so a
+lohook can sit on a call or a branch. Refused: a branch into the span
+itself, `loop`/`jecxz` (no rel32 form) and a truncated instruction;
+opcode-looking bytes in operands are safe.
 
-Generated and tested (check_hooks_026g.py runs each kind's entry template
+**A game function reached through a vtable** (the game's `call [eax+N]`)
+is a row of engine_026g.tsv whose `call` is `virtual+0xN`: its `va` is a
+function some vtable holds in that slot (the model whose re-kit rows give
+the thiscall convention, checked as a direct thiscall's), and the raw layer
+calls whatever the object's own vtable names there, as the game does.
+
+A span's base
+relocation stops the build unless patch_026g.py's RUST_HOOK_RELOCS names it
+(the build disables it: the exe is never rebased). Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
 ECX delivered in order, the result passed back, the callee-saved registers
 kept, the right bytes cleaned):
@@ -218,17 +241,20 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
-five; patch 65, Blackout's five) ship; the other kinds' generators are proven by check_hooks_026g.py and
-wait for their first patch to wire the install into patch_026g.py. A span
-hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
-reads them from the exe it builds from (hooks_026g.py and the checks take
+thunk (a lohook over the call, its replay the relocated call, covers those
+sites). `call` (the suicide-key example) and `lohook` (patch 76, the
+ragdoll's; patch 65, Blackout's; the ports, from patch 38's spot on) ship;
+the other kinds' generators are proven by check_hooks_026g.py and wait for
+their first patch to wire the install into patch_026g.py. A span hook's
+bytes come from the original exe: patch_026g.py's `rust_hooks()` reads them
+from the exe it builds from (hooks_026g.py and the checks take
 `SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
 Which register or frame slot a site holds is said once, in vostok's view of
-that site (`vostok::draw`, `vostok::bullet`, ...); the site row's `what`
-says it for the reader. A frame local is a `fields_026g.tsv` row with a
-negative offset (by EBP); a data VA the code compares with (a vtable) is a
-row of the kind `<...>::image`, generated as a constant.
+that site (`vostok::draw`, `vostok::bullet`, `vostok::spotting`, ...); the
+site row's `what` says it for the reader. A frame local is a
+`fields_026g.tsv` row with a negative offset (by EBP); a data VA the code
+compares with (a vtable) is a row of the kind `<...>::image`, generated as a
+constant.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not
@@ -269,8 +295,7 @@ bit when the key went down.
    bit, and asks the game's own function for the spot the site wanted.
 3. **The declaration** (names only): `rust/patches/src/suicide_key.toml` with
    `[[hook]] site = "input_builder.spot_query"`, `handler = "on_spot"`;
-   `pub mod suicide_key` in `lib.rs`, `"suicide_key"` in `RUST_PATCHES`
-   (patch_026g.py).
+   `pub mod suicide_key` in `lib.rs` (patch_026g.py's `RUST_PATCHES` is the TOMLs' names).
 4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
    `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
 5. **Check** (section 5).
@@ -322,6 +347,21 @@ Unicorn check against the original exe (`check_<patch>_026g.py`), which runs
 to the reconvergence point; the gate stays for shape-preserving ports and as
 the porting model.
 
+A spec compares what a pointer argument points to where the builds' addresses
+differ (a frame's buffer, a string of the code: `arg0:str`, `:wstr`,
+`:mem:N`), names an exit that only ran a `call` site's nops after it as the
+port's (`aliases`), takes a tail jump into a game function as its call
+(`tails`; an External's `tail` in every hook), and may compare AL alone or
+the x87 top (`live` "al", "st0"). A patch that keeps state between its hooks
+(patch 70's owners and waiters) has cases that are sequences (a Case's
+`before`, run in the same machine, each step compared) and names its state
+blocks `PRIVATE` (laid out apart by the two builds, not compared byte by
+byte: what the later steps do with them is). An External may be entered past
+a copied prologue (`frame`), record a pointer as what it points to
+(`record`), or be the port's own bookkeeping (`silent`: the lock's
+GetCurrentThreadId). A Case's `release` holds a lock's word for another
+thread and lets it go at the first `pause`, so a lock's wait is run too.
+`EQUIV_FAULTS=1` prints each faulting run.
 The equivalence gate may skip an out-pointer argument and a slot the game
 never reads again (declared in the spec, with the proof cited), and a new
 Rust patch that is not a port needs no spec -- its Unicorn check and cargo

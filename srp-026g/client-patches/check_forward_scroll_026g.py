@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Run patch 28, UV scrolling for the transparent effects
-(forward_scroll_026g.asm), in the default build on made-up materials.
+"""Run patch 28, UV scrolling for the transparent effects (the Rust patch
+forward_scroll, rust/patches/src/forward_scroll.rs), in the default build on
+made-up materials.
 
-    python check_forward_scroll_026g.py <original survarium.exe> [--rev12=<exe> [--server=host:port]]
+    python check_forward_scroll_026g.py <original survarium.exe> [--server=host:port]
 
-Requires Python `unicorn`. The exe's sections are loaded as they are and
-again 1 MiB higher with its base relocations applied (a rebased image).
+Requires Python `unicorn`. The exe's sections are loaded as they are (the
+exe is never rebased, and the arena's code holds absolute addresses; until
+the Rust port, the asm in `.srp` was also run rebased).
 
 What runs as machine code: effect_fstage_default_materials::compile
 (0x1D8F40) from its first instruction to its `ret 0Ch`, of the original exe
@@ -32,13 +34,10 @@ original; no lookup of a missing key. The constructor must bind
 scene_slomo with the game's own calls for scene_time: the shared string of
 the name, held while register_constant_binding is given {&value, 4, name,
 0, 4} and the resource manager, then let go (destroyed at a count of 0),
-the value being a 1.0 in `.srp`, the stack's alignment at the call the
-game's, every register after the hook as the original's.
-
-With --rev12 (the revision 12 exe that the tool of revision 12 made from the
-same original, with the same --server if any) the build is compared with it
-byte by byte: only the three sites, patch 28's bytes in `.srp`, the revision
-byte and the PE checksum may differ. Says nothing about what the GPU does.
+the value being a 1.0 in the arena (`.srpx`), the stack dword-aligned at
+the call (the arena aligns its own; the asm kept the game's), every register after the hook as the original's. (Until
+the Rust port, --rev12= compared the build with revision 12's exe byte by
+byte.) Says nothing about what the GPU does.
 """
 import hashlib
 import struct
@@ -54,6 +53,7 @@ REGISTERS = {"eax": UC_X86_REG_EAX, "ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX
              "esp": UC_X86_REG_ESP, "ebp": UC_X86_REG_EBP, "esi": UC_X86_REG_ESI, "edi": UC_X86_REG_EDI}
 COMPILE = 0x1D8F40
 SWITCH_AFTER, CONSTANTS_AFTER, SLOMO_AFTER = 0x1D90E3, 0x1D94D2, 0x149919
+SLOMO_SITE = 0x14990F                   # the third site (sites_026g.tsv renderer_context.scene_time_bound)
 SCENE_TIME_BINDING = 0x1498A6
 KEY_EXISTS, CHILD = 0xF6C00, 0xF6B10
 RESOURCE_MANAGER = 0x226047C
@@ -328,14 +328,14 @@ def f32(value):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = dict(a[2:].split("=", 1) for a in sys.argv[1:] if a.startswith("--") and "=" in a)
-    if len(args) != 1 or set(options) - {"rev12", "server"}:
+    if len(args) != 1 or set(options) - {"server"}:
         sys.exit(__doc__)
     original = open(args[0], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
     server = options.get("server")
     data, _ = base.build(original, "section", upload, server, open(base.late_join_bin(), "rb").read())
-    srp = base.SECTION_VA + base.FORWARD_SCROLL_OFFSET
-    code = open(base.forward_scroll_bin(), "rb").read()
+    arena = base.arena()                # the code is the arena's (the Rust patch, the engine's thunks)
+    ours = lambda caller: arena.va <= caller < arena.va + arena.size
     failed = 0
 
     def say(ok, text):
@@ -343,7 +343,7 @@ def main():
         failed += not ok
         print(f"{'ok  ' if ok else 'FAIL'} {text}")
 
-    for delta in (0, 0x100000):
+    for delta in (0,):
         rebased = " (rebased)" if delta else ""
         for name, keys, bit, expected in CASES:
             try:
@@ -356,8 +356,8 @@ def main():
             # The build's calls from the exe are the original's, the
             # configuration's bit aside; the code's own come between the
             # last call before 0x1D94CB and the first after it.
-            from_code = [(i, record) for i, (caller, record) in enumerate(after) if srp <= caller < srp + len(code)]
-            from_exe = [record for caller, record in after if not srp <= caller < srp + len(code)]
+            from_code = [(i, record) for i, (caller, record) in enumerate(after) if ours(caller)]
+            from_exe = [record for caller, record in after if not ours(caller)]
             originals = []
             for _, record in before:
                 if record[0] == "compile_begin" and bit:
@@ -397,11 +397,11 @@ def main():
                                          (0, False, "no name")):
             try:
                 game = Run(original, delta)
-                game_sp, _, _ = game.constructor(SCENE_TIME_BINDING, base.SCENE_SLOMO_HOOK[0], count, has_shared)
+                game_sp, _, _ = game.constructor(SCENE_TIME_BINDING, SLOMO_SITE, count, has_shared)
                 stock = Run(original, delta)
-                stock_sp, stock_regs, stock_slot = stock.constructor(base.SCENE_SLOMO_HOOK[0], SLOMO_AFTER, count, has_shared)
+                stock_sp, stock_regs, stock_slot = stock.constructor(SLOMO_SITE, SLOMO_AFTER, count, has_shared)
                 built = Run(data, delta)
-                built_sp, built_regs, built_slot = built.constructor(base.SCENE_SLOMO_HOOK[0], SLOMO_AFTER, count, has_shared)
+                built_sp, built_regs, built_slot = built.constructor(SLOMO_SITE, SLOMO_AFTER, count, has_shared)
             except Failed as error:
                 say(False, f"scene_slomo, {label}{rebased}: {error}")
                 continue
@@ -415,42 +415,23 @@ def main():
             ok &= [s[1] for s in shape(game) if s[0] == "shared_string"] == ["scene_time"]
             ok &= [s[1:] for s in shape(built) if s[0] != "shared_string"] == \
                 [s[1:] for s in shape(game) if s[0] != "shared_string"]
-            ok &= len(ours) == 1 and ours[0][1] == MANAGER and ours[0][3] == (1.0,) and ours[0][4] == ".srp" \
+            ok &= len(ours) == 1 and ours[0][1] == MANAGER and ours[0][3] == (1.0,) and ours[0][4] == base.ARENA_NAME.rstrip(b"\0").decode() \
                 and ours[0][2][1:] == (4, built.shared, 0, 4) and theirs[0][2][0] == CONTEXT + 0x4140
             ok &= (built.read(built.shared) if has_shared else 0) == (game.read(game.shared) if has_shared else 0)
-            ok &= sps(built, built_sp) == sps(game, game_sp)
+            # The arena aligns its own stack (16 at every Rust call): at the call the
+            # stack is dword-aligned, which is all MSVC's x86 code assumes (the
+            # constructor aligns its own frame to 8; until the Rust port the
+            # asm kept the game's alignment mod 16, which this compared).
+            ok &= len(sps(built, built_sp)) == 1 and all(s % 4 == 0 for s in sps(built, built_sp) + sps(game, game_sp))
             ok &= built_regs == stock_regs and built_slot == stock_slot and not stock.calls
             say(ok, f"scene_slomo, {label}{rebased}: the game's calls for scene_time with the name scene_slomo, "
-                    f"bound to {ours[0][3][0] if ours else None} in .srp; registers and [esp+2Ch] after the hook "
-                    "as the original's; the stack's alignment at the call the game's"
+                    f"bound to {ours[0][3][0] if ours else None} in .srpx; registers and [esp+2Ch] after the hook "
+                    "as the original's; the stack dword-aligned at the call"
                     + ("" if ok else f"\n     ours {shape(built)}\n     game {shape(game)}\n     "
-                       f"{built_regs} / {stock_regs}"))
+                       f"{built_regs} / {stock_regs}\n     alignment {sps(built, built_sp)} / {sps(game, game_sp)}"))
 
     sha = hashlib.sha256(data).hexdigest()
     print(f"     the build{' with ' + server if server else ''}: {len(data)} bytes, sha256 {sha}")
-    if "rev12" in options:
-        old = open(options["rev12"], "rb").read()
-        headers = base.Headers(data)
-        srp_raw = next(raw for name, _, _, raw, _, _ in headers.sections(data) if name == base.SECTION_NAME)
-        allowed = [(headers.checksum_at, 4), (base.file_offset(base.REVISION_VA) + 4, 1),
-                   (srp_raw + base.FORWARD_SCROLL_OFFSET, len(code))]
-        allowed += [(base.file_offset(va), len(expected)) for va, expected, _, _ in base.FORWARD_SCROLL_HOOKS]
-        mask = bytearray(len(data))
-        for at, size in allowed:
-            mask[at:at + size] = b"\1" * size
-        changed = [i for i in range(len(data)) if i >= len(old) or old[i] != data[i]]
-        stray = [i for i in changed if not mask[i]]
-        runs = []
-        for i in changed:
-            if runs and i == runs[-1][1] + 1:
-                runs[-1][1] = i
-            else:
-                runs.append([i, i])
-        say(len(old) == len(data) and not stray and old[base.file_offset(base.REVISION_VA) + 4] == 12,
-            f"against revision 12 (sha256 {hashlib.sha256(old).hexdigest()}): {len(changed)} bytes differ, in "
-            + ", ".join(f"file {a:#x}+{b - a + 1}" for a, b in runs)
-            + "; all in the PE checksum, the revision byte, the three sites and patch 28's bytes in .srp"
-            + "".join(f"\n     stray file {i:#x}" for i in stray[:8]))
     sys.exit(1 if failed else 0)
 
 

@@ -1,7 +1,8 @@
 # The camera on the death screen (patch 46)
 
-The rules the code and the tests follow. Code: `client-patches/death_camera_026g.asm`
-(section `.srpc`), README patch 46, `client_patch.md` section 3.43; checks:
+The rules the code and the tests follow. Code: the Rust patch `death_camera`
+(`client-patches/rust/patches/src/death_camera.rs`; `death_camera_026g.asm` in `.srpc` until
+the Rust port), README patch 46, `client_patch.md` section 3.43; checks:
 `check_death_camera_026g.py`, `selftest_026g.py` check 46.
 
 The owner (2026-10-21): "when player dies they can still move camera around, with holding a

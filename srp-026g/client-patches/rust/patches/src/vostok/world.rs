@@ -11,54 +11,12 @@
 
 use core::ffi::c_void;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
+pub(in crate::vostok) use super::object::{Object, floats, pointer, read};
 use crate::raw;
-
-/// A game object's address, never null.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::vostok) struct Object(NonNull<c_void>);
-
-impl Object {
-    pub(in crate::vostok) fn at(raw: u32) -> Option<Object> {
-        NonNull::new(raw as usize as *mut c_void).map(Object)
-    }
-
-    pub(in crate::vostok) fn ptr(self) -> *mut c_void {
-        self.0.as_ptr()
-    }
-
-    pub(in crate::vostok) fn id(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// Reads a field (its address from `raw`).
-///
-/// # Safety
-/// `at` is the field's address in a live object of its kind.
-pub(in crate::vostok) unsafe fn read<T: Copy>(at: *mut T) -> T {
-    unsafe { at.read_volatile() }
-}
-
-/// An object a pointer field names (0: none).
-///
-/// # Safety
-/// As `read`.
-pub(in crate::vostok) unsafe fn pointer(at: *mut u32) -> Option<Object> {
-    Object::at(unsafe { read(at) })
-}
-
-/// `count` f32 from a field on.
-///
-/// # Safety
-/// As `read`, for the whole run.
-pub(in crate::vostok) unsafe fn floats<const N: usize>(at: *mut f32) -> [f32; N] {
-    unsafe { at.cast::<[f32; N]>().read_unaligned() }
-}
 
 /// The game world, at `game_world.after_move` (EBX, sites_026g.tsv).
 pub struct GameWorld<'t> {

@@ -1,7 +1,8 @@
 # Kill feed: wall, ricochet and pain icons (patch 67)
 
-The rules the code and the tests follow. Code: `client-patches/kill_feed_026g.asm` and
-`KILL_FEED_*` in `client-patches/patch_026g.py` (README patch 67, `client_patch.md` section 3.55),
+The rules the code and the tests follow. Code: the Rust patch
+`client-patches/rust/patches/src/kill_feed.rs` (its sites `killed_event.cause_icon` and
+`player_killed.mastery_icon` in `sites_026g.tsv`) and `KILL_FEED_ARGUMENT` in `client-patches/patch_026g.py` (README patch 67, `client_patch.md` section 3.55),
 the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; the check:
 `client-patches/check_kill_feed_026g.py`; the hud's rows in Ruffle:
 `scripts/kill-feed-icons/check-combat-log/check.sh <hud.swf>`.

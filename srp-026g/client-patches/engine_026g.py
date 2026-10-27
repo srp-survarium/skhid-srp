@@ -19,16 +19,28 @@ global symbol of its own, which the link resolves for every caller):
     symbol     the C name (engine_...)
     va         the real function's VA (0.26g never rebases)
     arguments  per C parameter, in order, LOCATION:word: where the real
-               function takes it (EAX ECX EDX EBX ESI EDI EBP, or ESP+n, n =
-               4, 8, ...: the stack slot above the return address) and a word
-               of the re-kit's role for that location; "-" for none
+               function takes it (EAX ECX EDX EBX ESI EDI EBP, XMM0 for a
+               float, or ESP+n, n = 4, 8, ...: the stack slot above the
+               return address) and a word of the re-kit's role for that
+               location; "-" for none
     prototype  the C declaration, `ret name(type param, ...)`
     call       how every caller calls it: "thunk" (the default: a cdecl
                thunk, below), "stdcall", "cdecl" or "thiscall" (directly, in
                that convention, which the re-kit's rows must be: the symbol
                is the real VA, no thunk), "import" (va is the exe's IAT slot
                of a kernel32 function, stdcall; the symbol is the slot;
-               arguments "-", no re-kit row)
+               arguments "-", no re-kit row), or "virtual+0xN": a thiscall
+               virtual function, called through the slot at +N of `this`'s
+               vtable; va is a function a vtable holds there (the model: its
+               re-kit rows give the convention, checked as thiscall's), so a
+               call reaches whatever the object's own vtable names, as the
+               game's `call [eax+N]` does. Rust alone (no C or NASM symbol);
+               or "proc": a kernel32 export the exe does not import, va
+               `module!Export` (kernel32.dll!GetTempPathA), stdcall,
+               arguments "-", no re-kit row: vostok asks GetModuleHandleA and
+               GetProcAddress for its address at run time, as the asm did,
+               and the raw function calls that address (its first parameter,
+               then the prototype's). Rust alone
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): `raw::<kind>::<field>(this)`, the field's
@@ -49,7 +61,8 @@ two parameters given each other's locations are refused (a swap the thunk
 would follow faithfully, which no entry check can see). A result is read
 from abi.tsv's `result` (EAX, AL widened to EAX, EDX:EAX for a 64-bit
 return, XMM0 moved to ST0 for a float).
-Anything else (an XMM or byte-register argument, varargs, a range) is
+A float argument in XMM0 is moved there (`movss`, a thunk's only). Anything
+else (another XMM or a byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
 Each function is a thunk, the global symbol `engine_...`, that keeps EBX,
@@ -74,7 +87,7 @@ REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
 FIELDS = HERE / "fields_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
-CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "proc")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
@@ -102,7 +115,7 @@ def location(text):
     stack slot ("ESP+4"); a byte register is its register, a slot's
     qualifier ("low byte", "float32") its slot."""
     text = text.strip()
-    if text.upper() in REGISTERS:
+    if text.upper() in REGISTERS or text.upper() == "XMM0":
         return text.upper()
     if text.upper() in ("AL", "CL", "DL", "BL"):
         return "E" + text[0].upper() + "X"
@@ -138,8 +151,9 @@ def rows_of(va, abi=None, inputs=None):
     for row in inputs:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
-            out["locations"].add(location(row["location"]))
-            out["roles"].setdefault(location(row["location"]), []).append(row["role"])
+            for part in row["location"].split(","):     # a row of several locations ("EAX, entry ESP+4")
+                out["locations"].add(location(part))
+                out["roles"].setdefault(location(part), []).append(row["role"])
     out["names"].discard("")
     return out
 
@@ -202,14 +216,30 @@ def parse_vostok(text, name, params):
 def function(row, abi=None, inputs=None):
     """A spec row checked against the re-kit: {symbol, va, args: [location],
     params, ret, cleanup, result, name, call, vostok}."""
-    va = number(row["va"])
     ret, name, params = parse_prototype(row["prototype"])
     vostok = parse_vostok(row.get("vostok"), name, params)
     call = (row.get("call") or "thunk").strip()
+    if call == "proc":
+        export = re.fullmatch(r"([A-Za-z0-9_]+\.dll)!([A-Za-z_][A-Za-z0-9_]*)", row["va"].strip())
+        if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name) or export is None \
+                or row["arguments"].strip() != "-":
+            raise Refused(f"{row['symbol']}: a proc is engine_<what>, its va module.dll!Export, its arguments \"-\"")
+        return {"symbol": name, "va": None, "module": export.group(1), "export": export.group(2),
+                "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params, "ret": ret,
+                "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
+                "name": f"{export.group(1)}!{export.group(2)}", "prototype": row["prototype"].strip(),
+                "call": call, "vostok": vostok, "slot": None}
+    va = number(row["va"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
-    if call not in CALLS:
-        raise Refused(f"{name}: call {call!r}, one of {', '.join(CALLS)}")
+    slot = None
+    if call.startswith("virtual+"):
+        slot = number(call[len("virtual+"):])
+        if slot % 4 or not 0 <= slot < 0x1000:
+            raise Refused(f"{name}: {call!r}: a vtable slot is a multiple of 4 below 0x1000")
+        call = "virtual"
+    elif call not in CALLS:
+        raise Refused(f"{name}: call {call!r}, one of {', '.join(CALLS)} or virtual+0xN")
     if call == "import":
         if row["arguments"].strip() != "-":
             raise Refused(f"{name}: an import's arguments are \"-\" (stdcall, its prototype's)")
@@ -239,6 +269,8 @@ def function(row, abi=None, inputs=None):
             if fits(word, args[j]) and fits(words[j], at):
                 raise Refused(f"{name}: {word!r} and {words[j]!r} fit both {at} and {args[j]}: words that tell "
                               "the two apart")
+    if any(at == "XMM0" and (kind.strip() != "float" or call != "thunk") for (kind, _), at in zip(params, args)):
+        raise Refused(f"{name}: XMM0 takes a float, through a thunk")
     slots = sorted(int(a[4:]) for a in args if a.startswith("ESP+"))
     if slots != list(range(4, 4 * len(slots) + 4, 4)):
         raise Refused(f"{name}: the stack slots {slots} have a gap")
@@ -257,15 +289,16 @@ def function(row, abi=None, inputs=None):
         if result not in fits:
             raise Refused(f"{name}: returns {ret}, but {va:#x}'s result is {result}")
     if call != "thunk":
-        stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - (call == "thiscall"))]
-        if args != (["ECX"] if call == "thiscall" else []) + stack \
+        this = call in ("thiscall", "virtual")
+        stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - this)]
+        if args != (["ECX"] if this else []) + stack \
                 or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AL"):
             raise Refused(f"{name}: not {call} ({describe_args(params, args)}; pops {cleanup}; {result})")
         if result == "AL" and not re.fullmatch(r"(unsigned )?char", ret.strip()):
             raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
     return {"symbol": name, "va": va, "args": args, "params": params, "ret": ret, "cleanup": cleanup,
             "result": result, "name": sorted(rows["names"])[0] if rows["names"] else "",
-            "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
+            "prototype": row["prototype"].strip(), "call": call, "vostok": vostok, "slot": slot}
 
 
 def describe_args(params, args):
@@ -284,14 +317,31 @@ def every_function(spec=None, abi=None, inputs=None):
     return out
 
 
+def functions_by_symbol(spec=None, abi=None, inputs=None):
+    """{symbol: row} of every function (the checks read a row's VA here)."""
+    return {f["symbol"]: f for f in every_function(spec, abi, inputs)}
+
+
 def functions(spec=None, abi=None, inputs=None):
     """The rows called through a thunk (what check_engine_026g.py proves)."""
     return [f for f in every_function(spec, abi, inputs) if f["call"] == "thunk"]
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
-# An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
+# An `::image` row's VA: inside the exe's image (its data sections), the
+# original's whole SizeOfImage: .data's zero-filled part runs past 16 MiB (the
+# renderer's resource manager pointer is at 0x226047C) up to 0xA425000, where
+# our first section, `.srp`, begins.
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA425000
+
+
+def field(kind, name, path=None):
+    """The offset (or an `::image` row's VA) of `kind`'s field `name`, for
+    the checks: the one place the fact is written is fields_026g.tsv."""
+    rows = [f for f in fields(path) if f["kind"] == kind and f["field"] == name]
+    if len(rows) != 1:
+        raise Refused(f"fields_026g.tsv: no {kind} {name}")
+    return rows[0]["offset"]
 
 
 def fields(path=None):
@@ -318,10 +368,13 @@ def fields(path=None):
 def describe(f):
     if f["call"] == "import":
         return f"the IAT slot {f['va']:#x} (kernel32, stdcall)"
+    if f["call"] == "proc":
+        return f"{f['name']}, not imported: its address from GetProcAddress at run time (stdcall)"
     where = describe_args(f["params"], f["args"])
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
             + (f"; {f['result']}" if f["result"] else "")
-            + ("" if f["call"] == "thunk" else f"; {f['call']}, called directly"))
+            + ("" if f["call"] == "thunk" else f"; through its vtable's slot +{f['slot']:#x} (thiscall; this the "
+                                              f"model)" if f["call"] == "virtual" else f"; {f['call']}, called directly"))
 
 
 GENERATED = "generated by engine_026g.py from engine_026g.tsv and tools/re-kit/v026g/abi*.tsv: do not edit"
@@ -339,7 +392,8 @@ def thunk(f):
         pushed += 4
     for i, a in enumerate(f["args"]):
         if not a.startswith("ESP+"):
-            lines.append(f"    mov {a.lower()}, [esp + {frame + 4 * i + pushed}]   ; {f['params'][i][1]}")
+            move = "movss" if a == "XMM0" else "mov"
+            lines.append(f"    {move} {a.lower()}, [esp + {frame + 4 * i + pushed}]   ; {f['params'][i][1]}")
     lines.append(f"    call {f['va']:#x}")
     left = pushed - f["cleanup"]
     if left:
@@ -356,6 +410,7 @@ def thunk(f):
 def asm_text(fs):
     """`fs`: every row; a thunk for each called through one, the address of
     each other (a direct function's VA, an import's IAT slot)."""
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     thunks = [f for f in fs if f["call"] == "thunk"]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
@@ -372,6 +427,7 @@ def asm_text(fs):
 
 
 def header_text(fs):
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     tags = sorted({t for f in fs for t in re.findall(r"\bstruct\s+(\w+)", f["prototype"])})
     lines = [f"/* The engine-function library ({GENERATED}).",
              " *",
@@ -396,6 +452,7 @@ def header_text(fs):
 
 
 def include_text(fs):
+    fs = [f for f in fs if f["call"] not in ("virtual", "proc")]   # Rust's alone
     lines = [f"; The engine-function library's functions ({GENERATED}).",
              "; cdecl: push the arguments right to left, call, add esp, 4 x their count;",
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
@@ -407,8 +464,8 @@ def include_text(fs):
     return "\n".join(lines) + "\n"
 
 
-RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
-              "unsigned long long": "u64"}
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned short": "u16", "unsigned int": "u32",
+              "float": "f32", "unsigned long long": "u64"}
 # C parameter names that are Rust keywords: written as raw identifiers.
 RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",
                  "extern", "false", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "match", "mod", "move",
@@ -461,6 +518,42 @@ def rust_text(fs, fields_=()):
                 params, ret = signature(f)
                 lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
             lines.append("}")
+    for f in (f for f in fs if f["call"] == "virtual"):
+        params, ret = signature(f)
+        types = ", ".join(rust_type(kind) for kind, _ in f["params"])
+        names = ", ".join(f"{'r#' if n in RUST_KEYWORDS else ''}{n}" for _, n in f["params"])
+        this = f"{'r#' if f['params'][0][1] in RUST_KEYWORDS else ''}{f['params'][0][1]}"
+        lines += ["", f"/// {describe(f)}", "///", "/// # Safety",
+                  f"/// `{this}` is an object whose vtable's slot +{f['slot']:#x} is a function of the model's "
+                  "convention and arguments.", "#[allow(dead_code, clippy::too_many_arguments)]", "#[inline(always)]",
+                  f"pub unsafe fn {f['symbol']}({params}){ret} {{",
+                  "    unsafe {",
+                  f"        let slot = (*({this} as *const *const u32)).byte_add({f['slot']:#x}).read() as usize;",
+                  f'        let function: unsafe extern "thiscall" fn({types}){ret} = core::mem::transmute(slot);',
+                  f"        function({names})",
+                  "    }", "}"]
+    procs = [f for f in fs if f["call"] == "proc"]
+    if procs:
+        lines += ["", "/// A kernel32 export the exe does not import: the module and the export's name, for",
+                  "/// GetModuleHandleA and GetProcAddress (vostok asks them at run time).",
+                  "#[allow(dead_code)]", "pub struct Proc {", "    pub module: &'static core::ffi::CStr,",
+                  "    pub name: &'static core::ffi::CStr,", "}"]
+    for f in procs:
+        params, ret = signature(f)
+        types = ", ".join(rust_type(kind) for kind, _ in f["params"])
+        names = ", ".join(f"{'r#' if n in RUST_KEYWORDS else ''}{n}" for _, n in f["params"])
+        lines += ["", f"/// {describe(f)}: {f['prototype']}", "#[allow(dead_code)]",
+                  f"pub const {f['symbol'].upper()}: Proc = Proc {{ module: c\"{f['module']}\", "
+                  f"name: c\"{f['export']}\" }};",
+                  "", f"/// {f['name']} at `proc_address`, stdcall.", "///", "/// # Safety",
+                  f"/// `proc_address` is GetProcAddress's answer (not null) for {f['symbol'].upper()}.",
+                  "#[allow(dead_code, clippy::too_many_arguments)]", "#[inline(always)]",
+                  f"pub unsafe fn {f['symbol']}(proc_address: *const c_void"
+                  + (", " + params if params else "") + f"){ret} {{",
+                  "    unsafe {",
+                  f'        let function: unsafe extern "stdcall" fn({types}){ret} = core::mem::transmute(proc_address);',
+                  f"        function({names})",
+                  "    }", "}"]
     imports = [f for f in fs if f["call"] == "import"]
     if imports:
         lines += ["", "#[allow(dead_code, non_upper_case_globals)]", 'unsafe extern "C" {']

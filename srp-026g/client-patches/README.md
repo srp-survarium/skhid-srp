@@ -72,34 +72,33 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
-| `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/pickup_below.rs`, `pickup_below.toml`, `port/equiv/pickup_below.py` | Patch 23 (a battery under the floor one stands on) as the Rust patch `pickup_below` (lohooks at `use_scan.reach`, `.solid`, `.candidate`), and its equivalence spec against the asm it replaced |
 | `check_pickup_below_026g.py` | Runs the original and patch 23's use scan on made-up ray hits (needs Unicorn) |
-| `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README |
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
-| `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
+| `rust/patches/src/stale_dll.rs`, `stale_dll.toml`, `port/equiv/stale_dll.py` | Patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`) as the Rust patch `stale_dll` (a lohook at `sign_in.version_tail`), and its equivalence spec against the asm it replaced |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
-| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
-| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
-| `forward_scroll_026g.asm`, `forward_scroll_026g.section.bin` | The code of patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0) and that code assembled for 0xB00 of `.srp`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
-| `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/mount_patches.rs`, `mount_patches.toml`, `rust/patches/src/vostok/mount.rs`, `port/equiv/mount_patches.py` | Patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) as the Rust patch `mount_patches` (two lohooks, `sites_026g.tsv` `mount.query` and `mount.mounted`); the required patches' bitmap is `vostok::mount`'s `SRP_REQUIRED_PATCHES`, which `patch_026g.py` writes into the build's arena; and its equivalence spec against the asm it replaced. Until the Rust port, `mount_patches_026g.asm` at 0x400 of `.srp`, its state at 0x800 of `.srpd` |
+| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is (needs Unicorn) |
+| `rust/patches/src/forward_scroll.rs`, `forward_scroll.toml`, `port/equiv/forward_scroll.py` | Patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0), the Rust patch: three lohooks (`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`, `renderer_context.scene_time_bound`) in the block `patches.code`, and its spec for the port-only equivalence gate. Until the Rust port, `forward_scroll_026g.asm` at 0xB00 of `.srp` |
+| `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
-| `shared_upgrades_026g.asm`, `shared_upgrades_026g.section.bin` | The source of patch 30's code (one upgrade on several items: taking it off names the item) and that code assembled for 0x700 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/shared_upgrades.rs`, `shared_upgrades.toml`, `port/equiv/shared_upgrades.py` | Patch 30 (one upgrade on several items: taking it off names the item) as the Rust patch `shared_upgrades` (four lohooks), and its equivalence spec against the asm it replaced |
+| `check_replay_reattach_026g.py` | Calls replay_network_client's "is this place mine" slot of the original and the build on made-up clients: the build says yes for the camera player's place alone (needs Unicorn) |
+| `check_sound_queue_026g.py` | Runs the original's and the build's delayed sounds' add after its drain on queues up to and past their capacity: the build drops the new sound at it (needs Unicorn) |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
-| `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `warmup_keys_026g.asm`, `warmup_keys_026g.section.bin` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, and that code assembled for 0x9A8 of `.srp`, its state at 0xE30 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/kit_change.rs`, `kit_change.toml`, `rust/patches/src/vostok/kit_choice.rs`, `port/equiv/kit_change.py` | Patch 31 (a kit chosen before the match starts is played at once) as the Rust patch `kit_change` (four lohooks: `respawn_rule.tick`, `kit_view.camera`, `hud.alive`, `hud.update`), and its equivalence spec against the asm it replaced. Until the Rust port, `kit_change_026g.asm` at 0xEC0 of `.srp` |
+| `rust/patches/src/warmup_camera.rs`, `warmup_camera.toml` | Patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view; the end of a drag; the lobby camera's limits: distance 1.5 to 4.6, pitch within 60 degrees) as the Rust patch `warmup_camera` (a lohook, `warmup_camera.pitch_store`; its mouse moves at `death_camera`'s). Until the Rust port, `warmup_look_026g.asm` at 0xD40 of `.srp` (its state at 0xE20 of `.srpd`) and `warmup_limits_026g.asm` at 0xA98 |
+| `rust/patches/src/death_camera.rs`, `death_camera.toml`, `rust/patches/src/vostok/world_mouse.rs`, `port/equiv/cameras.py` | Patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) as the Rust patch `death_camera` (two lohooks, `world_mouse.move` and `camera.view_update`), and the equivalence spec of both cameras against the asm they replaced. Until the Rust port, `death_camera_026g.asm` in `.srpc` (0xA429000; a page of int3 since, so that `.srpw` keeps its place), its state at 0xE60 of `.srpd` |
+| `rust/patches/src/warmup_keys.rs`, `warmup_keys.toml`, `port/equiv/warmup_keys.py`, `check_warmup_keys_026g.py` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, as the Rust patch `warmup_keys` (a lohook, `sites_026g.tsv` `warmup_keys.mouse_key`), its equivalence spec against the asm it replaced, and a check that runs it on made-up mouse events (needs Unicorn). Until the Rust port, `warmup_keys_026g.asm` at 0x9A8 of `.srp`, its state at 0xE30 of `.srpd` |
+| `rust/patches/src/read_order.rs`, `read_order.toml`, `port/equiv/read_order.py` | Patch 33 (the order of the archive reads is a strict weak ordering) as the Rust patch `read_order` (a lohook at the predicate's start that returns for it), and its equivalence spec against the asm it replaced |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
 | `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
-| `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `rust/patches/src/artefacts.rs`, `artefacts.toml`, `rust/patches/src/vostok/artefact.rs`, `port/equiv/artefacts.py`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the Rust patch `artefacts` (eight lohooks), and its equivalence spec against the asm it replaced (until the Rust port `artefacts_026g.asm`, the arena's block `artefacts.code`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the players' markers on Tab: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
@@ -112,11 +111,11 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
-| `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
+| `rust/patches/src/match_keys.rs`, `match_keys.toml`, `check_match_keys_026g.py`, `port/equiv/match_keys.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the Rust patch `match_keys`: lohooks at `world_keyboard.kind_test` and `world.hud_made`, a call hook at `chat.add_message`, its variable the static `HIDE_CHAT` in `patches.state`; until the port, NASM in the blocks `match_keys.code` and `match_keys.state`); its check runs the three hooks from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `rust/patches/src/hide_ui.rs`, `hide_ui.toml`, `rust/patches/src/vostok/interface.rs`, `port/equiv/hide_ui.py`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby, as the Rust patch `hide_ui` (three lohooks); and the options' 41st controls row (vostok's `SRP_CONTROLS`, which `patch_026g.py` fills in the build: the game's 40 rows copied, then the 41st); its equivalence spec against the asm it replaced (until the Rust port `hide_ui_026g.asm`, the arena's blocks `hide_ui.code` and `hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `rust/patches/src/kill_feed.rs`, `kill_feed.toml`, `check_kill_feed_026g.py`, `port/equiv/kill_feed.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the Rust patch `kill_feed`, lohooks at the sites `killed_event.cause_icon` and `player_killed.mastery_icon`, in the block `patches.code`; until the port, NASM in the block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
-| `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `rust/patches/src/bake_cache.rs`, `bake_cache.toml`, `rust/patches/src/vostok/baker.rs`, `files.rs`, `crc32.rs`, `port/equiv/bake_cache.py`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again; the Rust patch `bake_cache` (seven lohooks), and its equivalence spec against the asm and C it replaced (until the Rust port `bake_cache_026g.asm` and `.c`, the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -129,7 +128,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
-| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
+| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time` (needs Unicorn) |
 | `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature, and what the late join adds to the build without it); needs the original exe, nasm (2.16) and, for the arena, gcc (`-m32`) and GNU ld |
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
@@ -194,13 +193,8 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | Block | Patch | Language |
 |---|---|---|
 | `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
-| `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
-| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
-| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
-| `kill_feed.code` | 67, the kill feed's flags | NASM |
-| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
-| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
+| `patches.code`, `patches.state` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 58, 67), its zeroed statics | Rust, generated hook entries |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
 moving one would take).
@@ -1271,8 +1265,10 @@ slot +0x5C; every spawn of a match, the first too, and every replay of its
 tick goes through it) makes the new kit current, initialises its player
 (the inventory set up from the profile) and then puts it into the world.
 Between the two, the five bytes at 0x316EA0 (`mov edx,[esi]` /
-`mov eax,[edx+20h]`) become a call into `weapon_random_hook`
-(`late_join_026g.asm`, 118 bytes at offset 3712): each weapon of the
+`mov eax,[edx+20h]`) are the Rust patch weapon_random's lohook
+(`rust/patches/src/weapon_random.rs`, the site `spawn.weapon_random`;
+ported from `late_join_026g.asm`'s weapon_random_hook with no change of
+behaviour, proven by `port/equiv/weapon_random.py`): each weapon of the
 player's inventory (an item whose vtable+0x70 is weapon_core's bind
 0x2E30F0, which only the vtables of weapon_core and the client's weapon
 hold) gets the state
@@ -1282,7 +1278,7 @@ hold) gets the state
 
 from the player's place and kit, the slot and the spawn's time (the
 place's respawn time, which is in the world), the same in every game; then
-the two instructions. Nothing else is written. Only in the builds with the
+the two instructions are replayed. Nothing else is written. Only in the builds with the
 late join (revision 10).
 
 **Revisions.** What a match computes changes at a match's first spawn: a
@@ -1372,8 +1368,10 @@ player before a spawn already puts each magazine and chambered round back
 into the ammunition stack, 0x2E18E0.)
 
 **The patch.** At 0x316E57 in the respawn rule's spawn, the load of the
-initialize's call (`8B 16 8B 52 1C`) becomes a call into `kit_state_hook`
-(`late_join_026g.asm`, offset 3168, 129 bytes). Before the initialize, each
+initialize's call (`8B 16 8B 52 1C`) is the Rust patch kit_state's lohook
+(`rust/patches/src/kit_state.rs`, the site `spawn.kit_state`; ported from
+`late_join_026g.asm`'s kit_state_hook with no change of behaviour, proven
+by `port/equiv/kit_state.py`). Before the initialize, each
 weapon of the new kit gets -1 as the time of its last tick (the
 constructor's) at every spawn, and at a spawn into another kit than the one
 before also the constructor's fire mode and ammunition kind, and as a safety
@@ -1523,8 +1521,12 @@ or beyond 2 m is taken only if it is a battery whose centre is below the
 player's feet and at most 1 m from them across: down to about 2.3 m,
 through more than one floor too. Look down at the battery and press use. A battery in plain view within 2 m is taken as before; one
 seen through a wall at one's own height is not, nor is anything else
-behind a wall (containers, traps). The code (`pickup_below_026g.asm`) is
-at `.srp`+800h; `../docs/notes/client_patch.md` section 3.23 has the details.
+behind a wall (containers, traps). The code is the Rust patch
+`pickup_below` (`rust/patches/src/pickup_below.rs`, lohooks at the sites
+`use_scan.reach`, `.solid` and `.candidate`; ported from
+`pickup_below_026g.asm` with no change of behaviour, proven by
+`port/equiv/pickup_below.py`); `../docs/notes/client_patch.md` section 3.23
+has the details.
 
 **Revisions.** Every game runs every player's use: a game of 11 takes a
 battery an older game leaves, so they part there; a server asks for 11
@@ -1546,20 +1548,24 @@ of them changes what a match computes, so they have no revision of their own.
 
 - **24. The camera follows its player into another kit.** In first or third
   person, the replay died at the watched player's first respawn into another
-  kit. The replay client's "is this place mine" slot now points at a thunk
-  in int3 padding (0x242A69) that answers "the place the camera is on", so
-  the camera re-attaches as a live game's does.
+  kit. The replay client's "is this place mine" slot now names the Rust
+  patch `replay_viewer`'s pointer hook (`replay_client.place_mine`; once a
+  thunk in int3 padding at 0x242A69), which answers "the place the camera is
+  on", so the camera re-attaches as a live game's does.
 - **25. A weapon with a full sound queue drops the new sound.** A weapon's
   delayed sounds (64 items) asserted when full, which killed a replay about
-  50 s after a seek. A cave in int3 padding (0x835A20) checks for a full
-  queue and takes the game's own drop exit. This is in live games too, where
+  50 s after a seek. The Rust patch `replay_viewer`'s lohook at 0x2454C1
+  (`weapon_sounds.added`; once a cave in int3 padding at 0x835A20) checks
+  for a full queue and takes the game's own drop exit. This is in live games too, where
   a full queue also killed the game.
 - **26. A replay's seek empties the weapons' sound queues.** After a seek,
   sounds waited behind the old timeline's (late reloads) and the
-  re-simulated ones came all at once. At a user seek, `seek_clear`
-  (`replay_seek_026g.asm` at `.srp`+A00h) empties every client weapon's queue
-  and fx history as the weapon's destructor does. A live game never runs
-  the seek.
+  re-simulated ones came all at once. At a user seek, the Rust patch
+  `replay_viewer`'s lohook at the site `replay.seek` (0x1EE3A3,
+  `rust/patches/src/replay_viewer.rs`; ported from `replay_seek_026g.asm`
+  with no change of behaviour, proven by `port/equiv/replay_viewer.py`)
+  empties every client weapon's queue and fx history as the weapon's
+  destructor does. A live game never runs the seek.
 
 Checked: `selftest_026g.py` (`test_replay_reattach`, `test_sound_queue`,
 `test_seek_clear`); `check_late_join_026g.py` runs the seek's end on made-up
@@ -1596,9 +1602,11 @@ to learn whether the cheat is here at all. The file is a good signal because
 the cheat never removes it, so it also marks a PC where the cheat ran before.
 
 Patch 25 sends `sign_in_on_connected`'s last two writes of the version field
-(`mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889) to `stale_dll_026g.asm`
-at 0xE00 of `.srp`, which asks Windows whether `%TEMP%\shell_32.dll` exists
-and does the two writes with the answer in byte 8: `0x80` the check ran,
+(`mov [edi+8],eax` / `mov [edi+0Ch],dl` at 0x380889) to the Rust patch
+`stale_dll` (`rust/patches/src/stale_dll.rs`, a lohook at the site
+`sign_in.version_tail`; ported from `stale_dll_026g.asm` with no change of
+behaviour, proven by `port/equiv/stale_dll.py`), which asks Windows whether
+`%TEMP%\shell_32.dll` exists and does the two writes with the answer in byte 8: `0x80` the check ran,
 `0x81` it ran and the file is there. The text still ends at byte 6 and the
 revision stays in byte 7, so older servers read the exe unchanged. The login
 server logs byte 8 as `cheat_flags` and warns on `0x01`. How it works and
@@ -1622,8 +1630,9 @@ take a file away.
 
 The game mounts its one archive in one place: `query_db` (0xE7D90) formats
 `../../resources.db` and calls `query_mount_archive` (0xE7EF0) once, at
-0xE7E3E. Patch 27 makes that call go to `mount_patches_026g.asm` at 0x400 of
-`.srp`. The code first looks for `..\..\resources.db.patch_<n>` for every n
+0xE7E3E. Patch 27, the Rust patch `mount_patches` (`rust/patches/src/mount_patches.rs`),
+takes that call with a lohook (until the Rust port, `mount_patches_026g.asm` at
+0x400 of `.srp`). The code first looks for `..\..\resources.db.patch_<n>` for every n
 from 1 to 255, the revision being a byte (the game's own path format with
 `.patch_%u` after it; `CreateFileA` asking no access, as patch 25 does), and
 notes each one that is there; a missing number is skipped. A number is
@@ -1638,9 +1647,9 @@ path. The file system runs its tasks in that order.
 Every mount calls `on_mounted_resources` (0x147E0) when it is done. That
 function keeps the mount in the game's world (engine_world+2D4h) and goes on
 with the start-up, so only the last call may get there. Its first six bytes
-become a jump into the same code: each start-up mount takes a reference (a
-mount nobody holds is unmounted) and is kept at 0x800 of `.srpd`, the late
-join's writable page; all but the last then return. The last calls the
+become the patch's other lohook: each start-up mount takes a reference (a
+mount nobody holds is unmounted) and is kept in the patch's state; all but
+the last then return. The last calls the
 game's code with `resources.db`'s mount, which the world keeps (its own
 reference) as without patches, and then lets the state's reference of
 `resources.db` go. So `resources.db` ends with the one reference it has in
@@ -1670,16 +1679,17 @@ that ends in `.db`, so such a patch would be read from `resources.db`. What
 the game does at a mount, and why later mounts win:
 `../docs/notes/client_patch.md` section 0.2.
 
-Checked: `selftest_026g.py` check 27 (`test_mount_patches`), check 15's
-layout of `.srp`'s first page, and `check_mount_patches_026g.py`, which runs
+Checked: `selftest_026g.py` check 27 (`test_mount_patches`), the
+equivalence gate against the asm (`port/equiv/mount_patches.py`, 2000 cases,
+0 differences), and `check_mount_patches_026g.py`, which runs
 both hooks, the code and the game's own `on_mounted_resources` up to its
 next step on made-up folders (no patch; 1 to 3; 1 to 4 and 6; 14 and 17
 alone; 255 alone; `.patch_1.db`, `_01`, `_0`, `_256`, none of them a patch;
 0 to 300, of which 1 to 255 are mounted; 1 and 3 with 2 path not found; a
 folder named `resources.db.patch_3`, patch 1 access denied and patch 255 in
 use, each stopping before any mount; 14, 17, 20 with the first, the middle
-or the last failing to mount; the retail archive failing), loaded as is and
-rebased (Unicorn 2.1.4). Each ends with `resources.db` held once and each
+or the last failing to mount; the retail archive failing), loaded as is
+(Unicorn 2.1.4; until the Rust port also rebased). Each ends with `resources.db` held once and each
 patch once, nothing unmounted. In a game: the first writing of patch 27 (the
 build numbered 14, `770f7c04…5b09`) mounted patches 14, 15 and 16 in Wine on
 2026-10-16 and they worked; its quit was not watched, and this build has not
@@ -1703,24 +1713,30 @@ constants `uv_scrolling_parameters0/1` and the function that sends them.
 Patch 28 adds to `effect_fstage_default_materials::compile` (0x1D8F40) what
 0.29's (0x7F2600 of 0.29a3) does for the switch, and nothing else of 0.29:
 
-- a jump at 0x1D90DC (after `use_angle_depended_attenuation` is read, before
+- at 0x1D90DC (after `use_angle_depended_attenuation` is read, before
   `compile_begin`) sets the bit when the material has `use_uv_scrolling`
   true and `use_sequence` is not on (0.29 ignores the switch for a flipbook);
-- a jump at 0x1D94CB (after the uv distortion's constants) sends, when the
+- at 0x1D94CB (after the uv distortion's constants) it sends, when the
   bit is set, `uv_scrolling_parameters0 = (0, 0, tu, tv)` and
   `uv_scrolling_parameters1 = (eu, ev, 0, 0)` with `set_constant<float4>`
   (0x1A8900), the four values read as compile reads its numbers (a float, or
   an integer made a float), a value the material does not have being 0;
-- a jump at 0x14990F in `renderer_context`'s constructor (after its last
-  `register_constant_binding`, `scene_time`'s) binds `scene_slomo` to a
-  constant 1.0 in `.srp`, with the game's own calls for `scene_time`; the
-  binding only reads it.
+- at 0x14990F in `renderer_context`'s constructor (after its last
+  `register_constant_binding`, `scene_time`'s) it binds `scene_slomo` to a
+  constant 1.0 of the crate's, with the game's own calls for `scene_time`;
+  the binding only reads it.
 
-The code is `forward_scroll_026g.asm` at 0xB00 of `.srp` (540 bytes, after
-the replay's seek code and before the shell_32.dll check; 0xC00..0xE00 alone,
-which revision 12 freed, is 512 bytes). Each jump's two instructions are
-done there after the new work, every register is restored, and the image
-may be rebased (the delta in ebp, as in the other caves).
+The code is the Rust patch `forward_scroll` (`rust/patches/src/forward_scroll.rs`,
+`vostok::config` and `vostok::render`): three lohooks at those sites
+(`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`,
+`renderer_context.scene_time_bound`), each replaying the two instructions it
+replaces after the new work, every register restored. Until the Rust port it
+was `forward_scroll_026g.asm` at 0xB00 of `.srp` (540 bytes); the port
+changed no behaviour (`port/equiv/forward_scroll.py`: 2000 cases against the
+asm, no difference, its 39 basic blocks covered). One thing is not as it
+was: `register_constant_binding` is entered with the stack the arena aligns
+(dword-aligned, as MSVC's code needs; the asm kept the constructor's own
+alignment mod 16).
 
 What it changes for players depends on the data: the game picks a compiled
 shader by a key made of the macros that `shaders/masks` lists for it, and
@@ -1732,9 +1748,9 @@ shader does not have is skipped (`shader_constant_table::apply_bindings`
 to the masks and the scrolling shaders (the London plan, phase 2). Details:
 `../docs/notes/client_patch.md` section 3.26.
 
-Checked: `selftest_026g.py` check 28 (`test_forward_scroll`), check 15's
-layout of `.srp`'s first page, and `check_forward_scroll_026g.py` (Unicorn
-2.1.4, the image as is and rebased): the original's and the build's whole
+Checked: `selftest_026g.py` check 28 (`test_forward_scroll`: the original's
+facts and the Rust lohooks) and `check_forward_scroll_026g.py` (Unicorn
+2.1.4; until the Rust port also rebased): the original's and the build's whole
 compile run on 11 made-up materials (no switch, the switch false, true with
 no values, four floats, integers, two values, with `use_sequence` on and
 off, with uv distortion, angle fade and soft edges, a constant emissive),
@@ -1742,8 +1758,8 @@ the config, compile_begin and the effect compiler's calls being stubs: the
 build makes the original's calls with the original's values, the bit aside,
 and the two constants right after the uv distortion's, every register after
 both hooks as the original's; the third hook against the game's own binding
-of `scene_time` with three made-up name counts. And the byte comparison with
-revision 12 (Revision 13 above). **Not run: a game**; no scrolling shader
+of `scene_time` with three made-up name counts. (Until the Rust port, also
+the byte comparison with revision 12, Revision 13 above.) **Not run: a game**; no scrolling shader
 exists in any `resources.db` yet.
 
 ### 29. "Watch replay" (patch revision 14)
@@ -1755,11 +1771,11 @@ the movie's "Download and watch" calls `video_tutorial_link_clicked`. The
 original callback (0x28CDA0) opened whatever text was in that buffer with
 ShellExecute: a file, a program or a URL of the server's choice.
 
-**The patch.** Only in the builds with the late join (revision 14): a jump at
-0x28CDB6 goes to `replay_link` (`replay_link_026g.asm`, 472 bytes at
-`.srp`+220h, after the upload code and the default server, 0x21D at the
-most, and ending at +3F8h before the patches' mount at +400h; the first page
-has no other gap that large). Exactly
+**The patch.** Only in the builds with the late join (revision 14): 0x28CDB6
+is the Rust patch `replay_link`'s lohook (`rust/patches/src/replay_link.rs`,
+the site `lobby.replay_link_clicked`; until the Rust port `replay_link_026g.asm`
+at `.srp`+220h, ported with no change of behaviour, proven by
+`port/equiv/replay_link.py`). Exactly
 `replay ` + 8 + ` ` + 32 + ` ` + 64 lower-case hex digits + ` ` + 1 to 10
 digits starts `updater_skhid.exe` from the game exe's own folder (a fixed name;
 the link is only its arguments: the command line `updater_skhid.exe <link>`)
@@ -1792,9 +1808,12 @@ window's `drop_upgrade_item(item, upgrade)` sent `46 02 <kit> <upgrade>`, and
 the answer `83 46 02 <upgrade>` (and `83 46 01`'s `detach_first`) took it off
 the first item of the inventory that holds it.
 
-**The patch.** Only in the builds with the late join: four sites call or jump
-into `shared_upgrades_026g.asm` (181 bytes at `.srp`+700h, after the patches'
-mount and before the pickup code):
+**The patch.** Only in the builds with the late join: four sites are the Rust
+patch `shared_upgrades`' lohooks (`rust/patches/src/shared_upgrades.rs`; ported
+from `shared_upgrades_026g.asm` with no change of behaviour, proven by
+`port/equiv/shared_upgrades.py`; the item the two callers name reaches the
+search through a GameCell for the call's time, where the asm passed it as a
+third argument):
 
 - 0x29AAD5 (drop_upgrade_item's handler): `46 02 <kit> <upgrade> <item>`, the
   item the window shows;
@@ -1830,11 +1849,14 @@ the next spawn (`../docs/notes/match.md` section 23). Every game runs the
 whole simulation, so a server alone cannot put a player into another kit:
 each game must do it, at the same tick.
 
-**The patch.** Only in the builds with the late join; `kit_change_026g.asm`,
-319 bytes at `.srp`+EC0h (after the shell_32.dll check, before the late
-join), four sites, nine nops at a fifth, and `warmup_look_026g.asm` and
-`warmup_limits_026g.asm` at a sixth and a seventh (the camera before the
-start, below):
+**The patch.** Only in the builds with the late join; the Rust patch
+`kit_change` (four lohooks at the four sites below; proven against the asm
+by `port/equiv/kit_change.py`, 2000 cases, 0 differences, and by
+`check_kit_change_026g.py`; until the Rust port `kit_change_026g.asm`,
+319 bytes at `.srp`+EC0h, after the shell_32.dll check, before the late
+join), four sites, nine nops at a fifth, and the Rust patch `warmup_camera`
+at a sixth and a seventh (the camera before the start, below; until the
+Rust port `warmup_look_026g.asm` and `warmup_limits_026g.asm`):
 
 - The respawn rule's tick (0x316820, its first three instructions) first
   goes over the places while the time rule's state is "waiting for players"
@@ -1878,9 +1900,10 @@ start, below):
   gets a mouse move before the player's input handler (priority 7 before
   10), moves the cursor and keeps the move while the cursor is shown
   (0x25D0E0), so the warmup camera, which the player's handler turns and
-  moves by the wheel, stood still. The first ten bytes of 0x25D0E0 jump to
-  `warmup_look_026g.asm` (184 bytes at `.srp`+D40h, after the weapon
-  preview's draw; 12 bytes of state at `.srpd`+E20h). While the kits are
+  moves by the wheel, stood still. The first ten bytes of 0x25D0E0 are
+  patch 46's lohook, which goes on to the Rust patch `warmup_camera` (until
+  the Rust port a jump to `warmup_look_026g.asm`, 184 bytes at `.srp`+D40h;
+  12 bytes of state at `.srpd`+E20h). While the kits are
   shown and the player's handler is in the warmup mode (3, before play), as
   the lobby's character view (`lobby_camera`, 0x283D30):
   - plain moves are the cursor's; a left press that moves no more than 8
@@ -1892,9 +1915,9 @@ start, below):
     the first move after the release, as the lobby does;
   - the wheel goes on to the player's handler alone (no turn): nearer
     forward, further back, 0.12 a notch, the lobby's step.
-  `warmup_limits_026g.asm` (101 bytes at `.srp`+A98h, after the seek code)
-  has the end of a drag and, called from the warmup mode's store of the
-  pitch (0x24225E, eight bytes), the lobby camera's limits: the pitch within
+  `warmup_camera` (until the Rust port `warmup_limits_026g.asm`, 101 bytes
+  at `.srp`+A98h) has the end of a drag and, at the warmup mode's store of
+  the pitch (0x24225E, eight bytes, its lohook), the lobby camera's limits: the pitch within
   60 degrees, the distance within 1.5 and 4.6 (the stock warmup had none,
   and starts at 1.0: it now starts at 1.5). On the death screen the cursor
   takes every move as before. The warmup mode gives the player's input no
@@ -1910,9 +1933,10 @@ start, below):
   kits went at the start fired the weapon at the next frame and once more at
   its release (and aimed with the right button; a pick held through a
   respawn did the same).
-  The first ten bytes of 0x25CF60 jump to `warmup_keys_026g.asm` (88 bytes
-  at `.srp`+9A8h, after the suicide key, up to the seek code; the buttons
-  marked in a dword at `.srpd`+E30h): a button that goes down while the
+  The first ten bytes of 0x25CF60 are the Rust patch `warmup_keys`'
+  lohook (until the Rust port a jump to `warmup_keys_026g.asm`, 88 bytes at
+  `.srp`+9A8h, the buttons marked in a dword at `.srpd`+E30h; proven by
+  `port/equiv/warmup_keys.py` and `check_warmup_keys_026g.py`): a button that goes down while the
   cursor is shown is marked; while the cursor is not shown a marked button's
   kind 2 and its release are taken there, and the release unmarks it. The
   owner, on the first writing, which gave the release on: "when mouse is
@@ -2089,10 +2113,12 @@ cycle, and the sort then reads past the front of its array (the round 4d
 dump: the 0 before a 58-slot buffer taken as a query). With `resources.db`
 alone this could not happen between archives.
 
-**The patch.** Only in the builds with the late join. The predicate's 0x1A0
-bytes are `read_order_026g.asm` in place (the same entry and convention;
-the body holds no address, nothing outside aims inside it, only the sort's
-helpers call it): a strict lexicographic order, a null iterator first
+**The patch.** Only in the builds with the late join. The Rust patch
+`read_order` (`rust/patches/src/read_order.rs`, a lohook at the predicate's
+start, the site `read_order.predicate`, which answers and returns `ret 4`
+for it; ported from `read_order_026g.asm`, which replaced the 0x1A0 bytes in
+place, with no change of behaviour, proven by `port/equiv/read_order.py`;
+only the sort's helpers call it): a strict lexicographic order, a null iterator first
 (nulls by address), then the priority descending, reads from an archive
 before others, then for archive reads the archive's path and the file
 offset, for others the parent or the query. Reads of one archive keep
@@ -2335,8 +2361,9 @@ ends the walk. Two faults made a spot of a battery fail:
 at 0x2D87C1 becomes 0 (two bytes): the field is 0 at every tick, so every
 press spots, and every snapshot saves 0 (the countdown 0x2DAB44 keeps 0, a
 spawn sets 0). And 0x2D8A0F, where the walk asks the owner for a geometry,
-jumps to `spot_026g.asm` (50 bytes at `.srp`+7C0h, after the shared
-upgrades' code, before the pickup code): for a battery's body owner it asks
+is the Rust patch spot's lohook (`rust/patches/src/spot.rs`, the site
+`spot.hit_owner`; ported from `spot_026g.asm` with no change of behaviour,
+proven by `port/equiv/spot.py`): for a battery's body owner it asks
 the battery's spottable interface (+54h, vtable 0xA13EE0) and spots it as
 the use box's path does (can_be_spotted_by 0x301CA0, set_spotted 0x301C40:
 the spotter's team bit into +1A4h, event 4 to the match statistics) and
@@ -2747,10 +2774,16 @@ third-person and warmup steps add it to the distance). The game builds and
 sends the local player's input only while it is alive (game_world::tick,
 `cmp byte [eax+33Ch],0` at 0x1F7883): a dead player sends nothing.
 
-**The patch** (builds with the late join; `death_camera_026g.asm`, 860
-bytes, in a section of its own, `.srpc`, on the page after the late join's
-state page, 0xA429000; its state, a yaw and a pitch, 8 bytes at the late
-join's state page +E60h):
+**The patch** (builds with the late join; the Rust patch `death_camera`,
+two lohooks, proven against the asm by `port/equiv/cameras.py`, 2000 cases,
+0 differences, and by `check_death_camera_026g.py`; its turn a static of
+the crate. Until the Rust port `death_camera_026g.asm`, 860 bytes, in a
+section of its own, `.srpc`, on the page after the late join's state page,
+0xA429000, which stays as a page of int3; its state, a yaw and a pitch, 8
+bytes at the late join's state page +E60h; below as it was written. The
+port's view update is the game's own update called with the mode borrowed,
+2, for its third-person step, where the asm ran the update's start and
+jumped to the step: the update reads the mode once, at 0x2422C6):
 
 - `WARMUP_LOOK_HOOK`'s jump (the first ten bytes of the game world's
   on_mouse_move, 0x25D0E0) goes to `death_look` (`.srpc`+0) instead of
@@ -2959,7 +2992,7 @@ missing number, so the game ran on older content than the server's and crashed i
 unknown item id in a profile, other animation ids in a world snapshot). Now each release's exe
 knows the patches of its release and does not start without them.
 
-In `mount_patches_026g.asm` (patch 27), the probe's missing case (`CreateFileA` fails with 2, file
+In `mount_patches_026g.asm` (patch 27; since the Rust port `mount_patches.rs`, the same rule), the probe's missing case (`CreateFileA` fails with 2, file
 not found, or 3, path not found) tests n in a bitmap of 32 bytes (`needed`, bit n of byte n/8,
 `bt [edx+needed],ecx`): a clear bit is a number skipped, as before; a set bit goes on to the same
 fatal call as a file that cannot be opened, before anything is mounted: "Cannot open
@@ -2967,10 +3000,10 @@ resources.db.patch_<n> (error 2). Please run the Skhid launcher again." (error 3
 folder on the way), the lowest such n. The code grows from 707 to 759 bytes at `.srp`+400h (before
 patch 30's +700h); nothing else changes and no new site.
 
-The bitmap sits right after the "Cannot open" text, before the state's address at the .bin's end.
-The checked-in .bin holds zeros: a build without the option requires no patch (local and test
-builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
-writes it into the build's copy; only those bytes and the PE checksum differ. `release/build-zip`
+The bitmap sits right after the "Cannot open" text (since the Rust port `vostok::mount`'s
+`SRP_REQUIRED_PATCHES`, read volatile; before it the .bin's, before the state's address at its end).
+The link holds zeros: a build without the option requires no patch (local and test builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
+writes it into the build's copy of the arena; only those bytes and the PE checksum differ. `release/build-zip`
 passes the numbers of every row of the offered-patch list (`release/patches.tsv`; `--test`:
 `patches-test.tsv`), which `release/release.sh` gives it with `--patches` after `upload-patch`
 added the release's new patch: one command, and each release's exe requires exactly what its
@@ -2984,10 +3017,10 @@ match. A patch is never removed from a player's folder by this; one the list no 
 simply not required by the next release's exe (and still mounted when it is there). The lobby
 only (start-up): no row in `../crates/session/src/v026g/simulation_changes.tsv`.
 
-Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the `bt` and its way to the
-fatal; against the build without the option only the bitmap and the checksum differ; the list
+Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the code addresses the
+bitmap; against the build without the option only the bitmap and the checksum differ; the list
 read back by `patch_026g.py` and by `release/lib.sh`; bad lists refused) and check 27 (the texts,
-the ways out); `check_mount_patches_026g.py` (Unicorn, as is and rebased: a build requiring 1,
+the texts); `check_mount_patches_026g.py` (Unicorn, as is: a build requiring 1,
 12, 14, 17 and 255 on folders with all of them, with more, with a required one missing, path not
 found or a folder by its name; revision 27's list without 26 and 27, the case of 2026-10-21,
 stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, the new patch
@@ -3119,7 +3152,7 @@ does what no config of 0.26g could.
 - **Spring's aim time.** Its loader 0x33ACF0 reads a fixed set of keys into five character
   modifier nodes (passive: movement speed, max_carried_weight, 0 in retail; active: movement
   speed, stamina regeneration and spending) and the duration; none is aim time. At 0x33AE13 (its
-  active's third node) `artefacts_026g.asm` makes the passive's second node aim_time (49) with
+  active's third node) the Rust patch `artefacts` (until the Rust port `artefacts_026g.asm`) makes the passive's second node aim_time (49) with
   `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`
   (and a seventh at +3C8h, below). The two are after a Spring's own fields: its two sizes
   (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become
@@ -3166,9 +3199,13 @@ does what no config of 0.26g could.
   the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
   other name nothing (the owner's test of `{s}`: "for  s.").
 
-The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
-`artefacts.code`, a code page after Research's two (0xA431000 today, as linked): eight `jmp near`
-entries, global symbols the hooks jump to (artefacts_loader ... artefacts_popup), 1088 bytes in
+The code is the Rust patch `artefacts` (`rust/patches/src/artefacts.rs`, `vostok::artefact`): eight
+lohooks (`sites_026g.tsv` `artefacts.*`; the pop-up's at 0x25F9E8, after the game's `push 0BB8h`,
+where it makes the pushed time the active's time left, its skip popping it); proven against the asm
+by `port/equiv/artefacts.py` (2000 cases, 0 differences) and by `check_artefacts_026g.py`. Until the
+Rust port `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
+`artefacts.code`, a code page after Research's two (0xA431000, as linked): eight `jmp near`
+entries, global symbols the hooks jumped to (artefacts_loader ... artefacts_popup), 1088 bytes in
 all. No base relocation is under a site and nothing aims inside one. Only in the builds with the
 late join.
 
@@ -3232,11 +3269,11 @@ handler hands keys to it, while the chat is typed in), so the movie cannot see 1
 itself. The kits are shown by the hud (`root.show_profiles_selector`, 0x2383B0) together with
 the cursor (`show_cursor` 0x23A930, the hud's +2DCh, the handler's +2E0h): on the death screen
 and before the start (patch 31). After its Tab test the function asks the kind at 0x25CD41
-(`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch jumps there to
-`match_keys_keyboard`, which for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
+(`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch's lohook there
+(`world_keyboard.kind_test`, which then replays the test), for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
 shown invokes the hud movie's `root.select_kit_key(0, 1 or 2)` (an unsigned int, as the hud's
-other calls on `[[[hud+8]+108h]+4]`), then goes on at 0x25CD4B (or 0x25CF0D for any other
-kind) as the original: the key is not taken, the player's handler gets it as before (a dead
+other calls on `[[[hud+8]+108h]+4]`), then the function goes on at 0x25CD4B (or 0x25CF0D for
+any other kind) as the original: the key is not taken, the player's handler gets it as before (a dead
 player sends no input, 0x1F7883). The movie (`HUD.select_kit_key`) does what a click on that
 kit's tab does (`ProfileSelector.pickByKey`: `tabPage.selectedIndex`, whose change calls
 `profile_changed` as a click's does), and nothing when the kits are not shown, the chat is
@@ -3248,8 +3285,8 @@ labelled "Disable private messages at the time of battle") names no console vari
 options' constructor finds no command of that name (0x260E90), the timeline greys the checkbox,
 and nothing reads it. The game world's constructor calls the hud's at 0x1F6845 (`game::game`
 makes the game world before it queries the configs, so before `startup.cfg` and `user.cfg` are
-run and before the options look their variables up); the patch calls `match_keys_hud` there,
-which calls the hud's constructor and then registers, once, a `cc_bool` of that name on a byte
+run and before the options look their variables up); right after that call (0x1F684A,
+`world.hud_made`, a lohook replaying `mov [ebp+1D88h],ebx`) the patch registers, once, a `cc_bool` of that name on a byte
 of its own, saved in `user.cfg` (`cc_value<bool>` 0x1DDB0 through the engine library, then the
 cc_bool vtable 0x9E7C4C, as the hud registers its own `show_quests_progress` at 0x2339C9). So
 the option is live and kept. The main menu enables its checkbox (where its timeline makes it,
@@ -3258,25 +3295,27 @@ the option is live and kept. The main menu enables its checkbox (where its timel
 ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою).
 A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the handler, the
 channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
-0x26B916; the patch calls `match_keys_chat` there, which with the option on, in a match (the
+0x26B916; the patch's call hook there (`chat.add_message`), with the option on, in a match (the
 handler's +0Dh, `set_mode`'s flag) and on a channel the hud shows (3 clan, 5 match, 6 and 7 the
-teams, 8 squad, 9) returns as add_message does without it; any other line goes to add_message.
+teams, 8 squad, 9) returns without calling it; any other line goes to add_message.
 Kept: the server's lines (0, 2), the general and private channels (1, 4: in a match
 add_message gives them to the lobby's movie), the player's own lines (the local echo, another
 call), and every line in the lobby.
 
-All three in the arena's blocks `match_keys.code` and `match_keys.state`
-(`match_keys_026g.asm`), with the late join. No address and no base relocation under the sites
-(0x25CD41 ten bytes, 0x1F6845 and 0x26B916 a `call` each); nothing aims inside them.
+All three are the Rust patch `match_keys` (`rust/patches/src/match_keys.rs`; the variable its
+static `HIDE_CHAT`, a `vostok::console::ConsoleBool`, in the block `patches.state`), with the late
+join; ported from `match_keys_026g.asm` with no change of behaviour, proven by
+`port/equiv/match_keys.py`. No address and no base relocation under the sites (0x25CD41 ten
+bytes, 0x1F684A six, 0x26B916 a `call`); nothing aims inside them.
 
 Rendering and input only: a kit choice goes as a click's; no row in
 `../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section
 3.53.
 
 Checked: `selftest_026g.py` check 58 (the three sites before and after, the code around them,
-the option's name used once, the block's code, exits, calls and data, the movies' and the
-manifest's parts) and the call shapes (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as
-their models; 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
+the option's name used once, the Rust hooks (the lohooks' entries and replays, the call
+hook's RUST_CALL entry, `ret 14h` as add_message), the variable in patches.state, the movies'
+and the manifest's parts) and the call shapes; `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
 the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie: Invoke with
 `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down with the cursor and the
 movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers, frame and
@@ -3310,8 +3349,9 @@ binder, `root.set_keybind`) and 0x201F2B (accept: `bind <action> <key>` or `unbi
 through the console for each row whose key changed). The movie only names an action
 (`start_bind_key`), so a row for 19h cannot be the movie's alone: a key set for an action without
 a row is kept nowhere (0x2013A0) and never applied. The patch links the table again, its 40 rows
-and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in the arena's block
-`hide_ui.data`, and points the six functions at it (their immediates) with counts of 29h. Saving
+and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as vostok's `SRP_CONTROLS` (the
+rows filled by `patch_026g.py` in the build from the exe's own table; until the Rust port `controls`
+in the arena's block `hide_ui.data`), and points the six functions at it (their immediates) with counts of 29h. Saving
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
 `hide-interface-1.json` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
@@ -3356,8 +3396,10 @@ which presses Play at 0x26CDA2). The movie shows the interface and takes that ke
 its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
 Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
 
-All three in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
-(`hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
+All three the Rust patch `hide_ui`'s lohooks (`sites_026g.tsv` `hide_ui.match_toggle`,
+`hide_ui.lobby_action` and `hide_ui.match_reset`, whose exits pop the call's arguments; proven against
+the asm by `port/equiv/hide_ui.py`, 2000 cases, 0 differences; until the Rust port the arena's block
+`hide_ui.code`, the controls in `hide_ui.data`, `hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
 library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 and
 0x234AE8 a `call` each); nothing aims inside them (the switch's table aims at 0x25CED1, the
 jump's own first byte).
@@ -3433,9 +3475,11 @@ the evidence: `client_patch.md` 3.55.
 **The flags.** A death makes a kill event in every game's simulation:
 `base_player::generate_killed_event` (0x2DA170, the victim in esi, the killing bullet or 0 in
 ebp) writes the victim, the killer, the weapon's icon and the cause icon (+4: 1 headshot, 3 no
-killer) into an event node whose first 12 bytes its allocation zeroes. The patch
-(`kill_feed_event`, called at 0x2DA3D1 in place of `mov [eax+4],bl / mov edx,[esi+120h]`)
-writes the cause icon and, in the node's +5, the flags. For a bullet, someone else the
+killer) into an event node whose first 12 bytes its allocation zeroes. The patch (the Rust
+patch `kill_feed`, `rust/patches/src/kill_feed.rs`, a lohook at the site
+`killed_event.cause_icon`, 0x2DA3D1 `mov [eax+4],bl / mov edx,[esi+120h]`, which it then
+replays; ported from `kill_feed_026g.asm` with no change of behaviour, proven by
+`port/equiv/kill_feed.py`) writes, in the node's +5, the flags. For a bullet, someone else the
 killer (the cause icon not 3) and no melee hit, retail 0.69d0's rules for its `ricochet_icon` and
 `penetration_icon` (its exe: the hit carries the bullet's segments and reflections,
 generate_killed_event sets ricochet for any reflection, else penetration for segments, neither
@@ -3450,10 +3494,11 @@ written.
 
 **To the movie.** The hud's event handler (0x23B5F0) pushes the node's byte +4 as
 `on_player_killed`'s fifth argument; at 0x23B6F0 it pushes the word (`KILL_FEED_ARGUMENT`), and
-on_player_killed reads the first byte alone for extra_icon (0x2380EA). `kill_feed_row`, called at
-0x23814F (after extra_icon, before mastery_icon), sets the description's `penetration_icon`,
-`ricochet_icon` and `pain_icon` (GFx ints, 0 or 1; 0.69d0's names for the first two) the way the
-function sets its own members, then does the site's two moves.
+on_player_killed reads the first byte alone for extra_icon (0x2380EA). The lohook at
+0x23814F (`player_killed.mastery_icon`, after extra_icon, before mastery_icon) sets the
+description's `penetration_icon`, `ricochet_icon` and `pain_icon` (GFx ints, 0 or 1; 0.69d0's
+names for the first two) the way the function sets its own members (SetMember, its interface's
+vtable +14h: 0x677000 in the movies' 0x8CE2A8), then replays the site's two moves.
 
 **The movie.** `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's `icon_penetration.png`),
 `CombatLogRicochetIcon` (0.69d0's `icon_ricochet.png`) and `CombatLogPainIcon` (a white
@@ -3461,9 +3506,9 @@ lightning bolt for pain shock, drawn) after the weapon and before the cause icon
 suicide row, in 0.69d0's order; the build adds the three bitmaps (`../flash/hud/bitmaps/`, made
 by `../scripts/kill-feed-icons/make_icons.py`).
 
-**Checked:** `selftest_026g.py` check 67 (the sites' original code, the hooks, no relocation under
-them and no branch into them, the code the link's, its one jump into the game the part lookup;
-the movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
+**Checked:** `selftest_026g.py` check 67 (the sites' original code, the Rust lohooks (the
+generated entries, their replays), no relocation under them and no branch into them; the
+movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
 in 26 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head
 together (damage, not pain), a headshot through pain, pain all but empty, a toxic death, through
 a wall, a ricochet, pierces and a ricochet (the ricochet only), a ricochet then a pierce, a
@@ -3491,8 +3536,10 @@ three kits, often wearing the same items) bake the same textures 2 or 3 times: t
 match baked 115 textures into 62 files. Revision 32's starter kit (#400: three kits wearing the
 same items for every new account) makes each newcomer cost three times the same bakes.
 
-**The patch** (with the late join; bake_cache_026g.asm and .c in the arena's blocks
-bake_cache.code and .state):
+**The patch** (with the late join; the Rust patch `bake_cache`, `rust/patches/src/bake_cache.rs`
+with `vostok::baker`, `::files` and `::crc32`, seven lohooks at `sites_026g.tsv`'s `bake.*` and
+`crc32.step`; until the Rust port bake_cache_026g.asm and .c in the arena's blocks bake_cache.code
+and .state, whose entry names follow):
 - `game::game`'s delete (`call 0x1E8DA0` at 0x1E9455) calls `bake_cache_start`. The folder is
   deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
   it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
@@ -3528,9 +3575,12 @@ bake_cache.code and .state):
 - The stamp is written only when no `.dds` is left after the delete (one held open by another game
   is not deleted): otherwise the next start deletes the folder again.
 
-Textures only; games with and without it play together. Sites: 0x1E9455 (CALLEE), 0x131C90
-(INLINE), 0x12D4CD, 0x12F18F, 0x12DDB4 (CALLEE), 0xF0D00 (ENTRY); no base relocation under them,
-no branch into them.
+Textures only; games with and without it play together. Sites (lohooks): 0x1E9455, 0x131C90,
+0x12D4C5 (the asm's call was at 0x12D4CD, inside the span), 0x12F18F, 0x12DDB4, 0xF0D00, 0x42050;
+no base relocation under them, no branch into them. Proven against the asm and C by
+`port/equiv/bake_cache.py` (2000 cases, sequences of look-ups, textures made and finishes, the
+tables' lock held by another thread once; 0 differences, 240/240 blocks of the old code) and by
+`check_bake_cache_026g.py` (26 checks, as on the asm's build).
 
 **Checked:** `selftest_026g.py` check 70 (the sites' original code, the hooks, the nop, no
 relocation or branch inside, the link's code). `check_bake_cache_026g.py` (Unicorn) runs every

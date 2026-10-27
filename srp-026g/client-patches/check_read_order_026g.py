@@ -6,8 +6,10 @@ hdd_manager::grab_sorted_queries (introsort 0x10BF70, final insertion sort
 
     python check_read_order_026g.py <original survarium.exe>
 
-Requires Python `unicorn` (2.1.4). Each image is loaded as is and again
-1 MiB higher with its base relocations applied (a rebased image). The
+Requires Python `unicorn` (2.1.4). Each image is loaded as it is (the exe is
+never rebased: since the Rust port the patch is arena code with absolute
+addresses, so the rebased load this check once made of the asm is gone).
+The
 predicate runs with the game's own get_physical_path (0x4BC10), strcmp_s
 (0x3B5A0) and get_file_offs (0x47160): a made-up archive node has the flags
 4 | 2000h (in an archive, its offset beside it), its mount's path at +28h.
@@ -222,7 +224,7 @@ def main():
         checks += 1
         print(f"  ok    {text}")
 
-    for delta in (0, 0x100000):
+    for delta in (0,):                  # the exe is never rebased (the Rust arena is absolute)
         rebased = " (rebased)" if delta else ""
         old, new = Image(original, delta), Image(patched, delta)
         cycles = 0
