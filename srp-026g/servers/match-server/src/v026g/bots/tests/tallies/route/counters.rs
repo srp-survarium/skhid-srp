@@ -240,7 +240,7 @@ pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
                 .join("/");
             line.ends.push(format!(
                 "band_press_speed {}/{}/{}/{} band_press_no_sprint {} band_refused_by slow/no_key/aiming/busy/reload/stagger/tired/carrying {refused} \
-                 band_no_run_up {} band_face_still_ticks {} band_repicked {} band_strict_up/not_up {}/{}",
+                 band_no_run_up {} band_face_still_ticks {} band_repicked {} band_strict_up/not_up {}/{} band_held_off/hold_over/pressed_after_hold {}/{}/{}",
                 at(PressUnder35),
                 at(Press35To40),
                 at(Press40To45),
@@ -250,7 +250,10 @@ pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
                 at(FaceStill),
                 at(Repicked),
                 at(StrictUp),
-                at(StrictNotUp)
+                at(StrictNotUp),
+                at(HeldOff),
+                at(HoldOver),
+                at(PressedAfterHold)
             ));
             // The faces with the most presses and backed-off arrivals so far (all the run's, not this tally's change).
             let faces = super::super::motor::band_jumps::top_faces(6)

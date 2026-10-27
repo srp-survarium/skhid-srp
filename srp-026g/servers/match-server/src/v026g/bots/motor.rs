@@ -411,6 +411,9 @@ const BAND_UP_S: f32 = 1.5;
 const BAND_UP_FLOOR_M: f32 = 0.2;
 /// ... and this near the landing, metres (the jump carries it on past the face).
 const BAND_UP_NEAR_M: f32 = 4.5;
+/// A sprint-band press held off by a block that passes (aiming, a reload, a stagger, the weapon busy) waits this long,
+/// seconds, without spending a try; then the arrival counts as one backed off from.
+const BAND_HOLD_S: f32 = 3.0;
 /// A face given up and picked again within this, seconds, is counted ([`band_jumps::repicked`]).
 const BAND_REPICK_S: f32 = 10.0;
 /// A body this near a band jump's take-off along its way, metres, and under [`STILL_MS`], is standing at its face.
@@ -604,21 +607,25 @@ enum BandTry {
     Approaching,
     /// Backed off from `refused` arrivals short of the speed (or blocked), the last at the motor's tick `at`.
     BackedOff { refused: u32, at: u32 },
+    /// Held off the face since the motor's tick `since`, by a block that passes (aiming, a reload, a stagger, the
+    /// weapon busy): no try is spent for it until [`BAND_HOLD_S`] is up; `refused` arrivals were backed off from before.
+    Held { since: u32, refused: u32 },
 }
 
 impl BandTry {
     fn refused(self) -> u32 {
         match self {
             Self::Approaching => 0,
-            Self::BackedOff { refused, .. } => refused,
+            Self::BackedOff { refused, .. } | Self::Held { refused, .. } => refused,
         }
     }
 
-    /// The tick of the last arrival backed off from.
+    /// The tick of the last arrival backed off from or held off at its start.
     fn last(self) -> Option<u32> {
         match self {
             Self::Approaching => None,
             Self::BackedOff { at, .. } => Some(at),
+            Self::Held { since, .. } => Some(since),
         }
     }
 }
@@ -1440,6 +1447,13 @@ impl Motor {
                     // No run for the speed the client asks: given up at once, the route is planned again.
                     jump.tries = JUMP_TRIES;
                     band_jumps::no_run_up();
+                    #[cfg(test)]
+                    eprintln!(
+                        "band-no-run-up take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2}) rise {:.2}; feet ({:.2}, {:.2}, {:.2}), {:.2} m of route to the take-off; the points {} m and {} m behind it: {:?} {:?}",
+                        take_off.x, take_off.y, take_off.z, landing.x, landing.y, landing.z, landing.y - take_off.y,
+                        feet.x, feet.y, feet.z, before_route,
+                        SPRINT_RUN_UP_M, mapdata::grid::SPRINT_RUN_UP_M, at(SPRINT_RUN_UP_M), at(mapdata::grid::SPRINT_RUN_UP_M)
+                    );
                 }
                 found.unwrap_or(0.0)
             }
@@ -1556,19 +1570,43 @@ impl Motor {
         }
         if band && !sprinted {
             // At the take-off short of the speed the client asks of a sprint jump: a walk jump would not get up. Back
-            // off for another run-up; the try is spent, so it is no loop (`JUMP_TRIES`).
-            jump.tries += 1;
-            let refused = jump.band.refused() + 1;
-            jump.band = BandTry::BackedOff { refused, at: self.clock };
-            jump.back = true;
-            if refused >= BAND_REFUSALS {
-                // Backed off enough: the next arrival gives it up, the route is planned again.
-                jump.tries = JUMP_TRIES;
+            // off for another run-up. A block that passes (aiming, a reload, a stagger, busy hands) is waited out
+            // for [`BAND_HOLD_S`] without a try; anything else, and a wait that is over, spends one, so it is no loop
+            // (`JUMP_TRIES`).
+            let passes = matches!(
+                block,
+                Some(SprintBlock::Aiming | SprintBlock::Reloading | SprintBlock::Staggered | SprintBlock::Busy)
+            );
+            let waited = match jump.band {
+                BandTry::Held { since, .. } => self.since(since),
+                _ => 0.0,
+            };
+            if passes && waited <= BAND_HOLD_S {
+                if !matches!(jump.band, BandTry::Held { .. }) {
+                    jump.band = BandTry::Held { since: self.clock, refused: jump.band.refused() };
+                    band_jumps::held_off();
+                }
+            } else {
+                if passes {
+                    band_jumps::hold_over();
+                }
+                jump.tries += 1;
+                let refused = jump.band.refused() + 1;
+                jump.band = BandTry::BackedOff { refused, at: self.clock };
+                if refused >= BAND_REFUSALS {
+                    // Backed off enough: the next arrival gives it up, the route is planned again.
+                    jump.tries = JUMP_TRIES;
+                }
             }
+            jump.back = true;
             self.jump_try = Some(jump);
             band_jumps::refused(block, self.sprinting);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
+        }
+        if let BandTry::Held { refused, .. } = jump.band {
+            band_jumps::pressed_after_hold();
+            jump.band = if refused == 0 { BandTry::Approaching } else { BandTry::BackedOff { refused, at: self.clock } };
         }
         jump.tries += 1;
         jump.pressed = Some(self.clock);
@@ -2036,9 +2074,12 @@ pub mod band_jumps {
         Repicked,
         StrictUp,
         StrictNotUp,
+        HeldOff,
+        HoldOver,
+        PressedAfterHold,
     }
 
-    pub const COUNT: usize = Slot::StrictNotUp as usize + 1;
+    pub const COUNT: usize = Slot::PressedAfterHold as usize + 1;
     static COUNTS: [AtomicU64; COUNT] = [const { AtomicU64::new(0) }; COUNT];
 
     fn add(slot: Slot) {
@@ -2084,6 +2125,20 @@ pub mod band_jumps {
 
     pub fn repicked() {
         add(Slot::Repicked);
+    }
+
+    /// A hold off the face begun (a block that passes), one that ran out ([`super::BAND_HOLD_S`]: the try counts), a press
+    /// made after a hold.
+    pub fn held_off() {
+        add(Slot::HeldOff);
+    }
+
+    pub fn hold_over() {
+        add(Slot::HoldOver);
+    }
+
+    pub fn pressed_after_hold() {
+        add(Slot::PressedAfterHold);
     }
 
     /// A band press followed to its end: on the landing's floor within 1.5 s with no second press (up), or not.
