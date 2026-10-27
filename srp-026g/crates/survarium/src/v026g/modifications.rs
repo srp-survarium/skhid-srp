@@ -67,9 +67,11 @@
 //!   to the second at condition 0 [LIKELY]; when the roll is made is not in
 //!   the data [srp: once for each match that wore the item,
 //!   [`Modifications::roll_defect`]].
-//! - A modifier's `type` 1 adds its value and 2 multiplies by `1 + value`
-//!   [LIKELY: armour and slot counts are type 1 with absolute steps, damage,
-//!   weight and wear type 2 with small fractions].
+//! - A modifier's `type` 0 sets the key, 1 adds its value and 2 multiplies by
+//!   `max(0, 1 + sum)` of all the item's changes to that key, once
+//!   ([`apply`]; PROVEN, 0x357F10 / 0x357F80 / 0x358010: armour and slot
+//!   counts are type 1 with absolute steps, damage, weight and wear type 2
+//!   with small fractions).
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
 
@@ -146,8 +148,39 @@ pub struct Modifier {
     /// Where in the item's config, e.g. `parameters/bullet_damage`.
     pub path: String,
     pub value: f32,
-    /// 1 adds, 2 multiplies by `1 + value` (LIKELY).
+    /// The client's `type` ([`apply`]): 0 sets, 1 adds, 2 multiplies by
+    /// `max(0, 1 + sum)`. PROVEN, 0x357F10 / 0x357F80 / 0x358010.
     pub kind: u8,
+}
+
+/// A modifier sets the config value to the last of its values.
+pub const MODIFIER_SET: u8 = 0;
+/// A modifier adds to the config value.
+pub const MODIFIER_ADD: u8 = 1;
+/// A modifier multiplies the config value by `1 + value`.
+pub const MODIFIER_MULTIPLY: u8 = 2;
+
+/// An item config value `base` after the changes `modifiers` make to its key,
+/// the way the client applies them (PROVEN, the per-key apply 0x3585D0..0x3586B0
+/// reads the `type` of the first node and sums over all nodes of the key):
+/// type 0 ([`MODIFIER_SET`], 0x357F10) gives the last value; type 1
+/// ([`MODIFIER_ADD`], `apply_add_modifiers` 0x357F80) `base + sum`; type 2
+/// ([`MODIFIER_MULTIPLY`], `apply_multiply_modifiers` 0x358010)
+/// `base * max(0, 1 + sum)`. So several changes to one key add their values
+/// first and take effect once, and nothing but the floor of 0 caps them. Types
+/// that are mixed on one key are not handled by the client: the first one's
+/// rule is the only one. No changes leave `base`.
+pub fn apply(base: f32, modifiers: &[&Modifier]) -> f32 {
+    let Some(first) = modifiers.first() else {
+        return base;
+    };
+    let sum: f32 = modifiers.iter().map(|modifier| modifier.value).sum();
+    match first.kind {
+        MODIFIER_SET => modifiers.last().map_or(base, |modifier| modifier.value),
+        MODIFIER_ADD => base + sum,
+        MODIFIER_MULTIPLY => base * (1.0 + sum).max(0.0),
+        _ => base,
+    }
 }
 
 /// A row of `modifications`.
@@ -944,6 +977,27 @@ impl Modifications {
             .map(|row| weight(row.drop_weight))
             .collect();
         rng.pick(&weights).map(|index| candidates[index].id)
+    }
+
+    /// `base`, a number at `path` of an item's config (`parameters/reload_time`),
+    /// after the changes of the item's `modifications` (its `{id, state}`,
+    /// defects too) to that key ([`apply`]). The item's default modifications
+    /// are not counted: [`WeaponParams::with_mods`](super::weapons::WeaponParams::with_mods)
+    /// is the caller, and no weapon's defaults touch the keys it reads.
+    pub fn modified(&self, modifications: &[(u32, bool)], path: &str, base: f32) -> f32 {
+        let changes: Vec<&Modifier> = modifications
+            .iter()
+            .filter_map(|&(id, state)| {
+                if state {
+                    self.defect(id).map(|row| &row.modifiers)
+                } else {
+                    self.modification(id).map(|row| &row.modifiers)
+                }
+            })
+            .flatten()
+            .filter(|modifier| modifier.path == path)
+            .collect();
+        apply(base, &changes)
     }
 
     /// What the item's wear is multiplied by: the product of `1 + value`

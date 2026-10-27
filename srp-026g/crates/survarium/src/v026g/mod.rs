@@ -17,6 +17,7 @@ pub mod prices;
 pub mod quests;
 pub mod scopes;
 pub mod shop_offers;
+pub mod shot_reach;
 pub mod skills;
 pub mod tables;
 pub mod weapons;

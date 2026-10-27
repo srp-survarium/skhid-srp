@@ -4,12 +4,17 @@ use std::collections::{BinaryHeap, HashMap};
 use mapdata::{LinkKind, NodeId};
 
 use super::*;
+use crate::v026g::bots::reflex::LegsWhy;
 
 /// The moving counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
 pub(super) struct MoveCounts {
     pub(super) takes: Vec<Vec<u32>>,
     pub(super) no_way: Vec<Vec<u32>>,
+    /// By place: the goal a bot with no route stands short of this tick, and why it stands ([`StoodRead`]).
+    pub(super) stood_now: Vec<Option<StoodRead>>,
+    /// Ticks stood with a goal and no route, by [`Stood::name`] (the bench's `stood with a goal and no route`).
+    pub(super) stood: BTreeMap<&'static str, u32>,
 }
 
 impl MoveCounts {
@@ -17,7 +22,62 @@ impl MoveCounts {
         Self {
             takes: vec![Vec::new(); n],
             no_way: vec![Vec::new(); n],
+            stood_now: vec![None; n],
+            stood: BTreeMap::new(),
         }
+    }
+}
+
+/// Why a bot with a goal and no route stood (the guard `stood with a goal and no route`, split): the reflex had
+/// its legs ([`LegsWhy`]; first, when a play was also just taken), else its play was taken since its last driven
+/// tick, else nothing explains it (the bench's `stood with no route, not fighting nor a play just taken`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Stood {
+    Legs(LegsWhy),
+    NewPlay,
+    Nothing,
+}
+
+impl Stood {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Legs(LegsWhy::Punish) => "punish",
+            Self::Legs(LegsWhy::BreakSight) => "break_sight",
+            Self::Legs(LegsWhy::RePeek) => "re_peek",
+            Self::Legs(LegsWhy::Range) => "range",
+            Self::Legs(LegsWhy::AfterGrenade) => "after_grenade",
+            Self::Legs(LegsWhy::Throwing) => "throwing",
+            Self::NewPlay => "new_play",
+            Self::Nothing => "none",
+        }
+    }
+}
+
+/// A bot with a goal it has no route to (and does not walk straight to): the goal, how near counts as there, and why
+/// it stands if it does. It stands when its body is alive and farther than `within_m` ([`MoveCounts`] checks that).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct StoodRead {
+    pub(crate) at: Vec3,
+    pub(crate) within_m: f32,
+    pub(crate) why: Stood,
+}
+
+impl StoodRead {
+    /// What `bot` reads as, as `tests/bench.rs`'s count of the stood ticks takes it.
+    pub(crate) fn of(bot: &Bot) -> Option<Self> {
+        let Go::To { at, within_m } = bot.intent.go else {
+            return None;
+        };
+        if bot.route.is_some() || bot.intent.straight {
+            return None;
+        }
+        let new_play = bot.assignment.as_ref().is_some_and(|a| a.since > bot.bench_driven);
+        let why = match bot.bench_legs_why {
+            Some(legs) => Stood::Legs(legs),
+            None if new_play => Stood::NewPlay,
+            None => Stood::Nothing,
+        };
+        Some(Self { at, within_m, why })
     }
 }
 
@@ -222,6 +282,53 @@ pub(crate) fn status_of(play: &str, step: &str, goal_m: Option<f32>) -> (bool, b
     (hold, travel)
 }
 
+/// A perch visit (V-S2b): each second of a run within this of its first, m.
+const PERCH_RADIUS_M: f32 = 1.5;
+/// A run of this many seconds or more is a perch visit.
+const PERCH_MIN_S: u32 = 3;
+
+/// The seconds of `samples` (one a second: alive, feet) spent on perch visits:
+/// runs of seconds above `p75`, each within [`PERCH_RADIUS_M`] of the run's
+/// first, lasting [`PERCH_MIN_S`] or more; a death or a second below `p75` ends
+/// a run.
+pub(crate) fn perch_visit_seconds(samples: impl Iterator<Item = (bool, Vec3)>, p75: f32) -> u64 {
+    let count = |run: Option<(Vec3, u32)>| run.map_or(0, |(_, n)| if n >= PERCH_MIN_S { u64::from(n) } else { 0 });
+    let mut total = 0u64;
+    let mut run: Option<(Vec3, u32)> = None;
+    for (alive, feet) in samples {
+        run = match (alive && feet.y >= p75, run) {
+            (true, Some((first, n))) if first.distance_xz(feet) <= PERCH_RADIUS_M => Some((first, n + 1)),
+            (true, ended) => {
+                total += count(ended);
+                Some((feet, 1))
+            }
+            (false, ended) => {
+                total += count(ended);
+                None
+            }
+        };
+    }
+    total + count(run)
+}
+
+#[test]
+pub(crate) fn a_perch_visit_is_three_seconds_or_more_high_on_one_spot() {
+    let at = |x: f32, y: f32| (true, Vec3::new(x, y, 0.0));
+    // 4 s high on one spot (counts), 2 s high (not), 1 s low, then 3 s high but
+    // walking 2 m a second (a run of 1, 1, 1: not), and a death in a visit.
+    let samples = [
+        at(0.0, 30.0), at(0.5, 30.0), at(1.0, 30.0), at(1.0, 30.0),
+        at(1.0, 5.0),
+        at(10.0, 30.0), at(10.0, 30.0),
+        at(1.0, 5.0),
+        at(20.0, 30.0), at(22.0, 30.0), at(24.0, 30.0),
+        at(30.0, 30.0), at(30.0, 30.0), (false, Vec3::new(30.0, 30.0, 0.0)), at(30.0, 30.0),
+    ];
+    assert_eq!(perch_visit_seconds(samples.into_iter(), 22.0), 4);
+    assert_eq!(perch_visit_seconds([at(0.0, 30.0), at(0.0, 30.0), at(0.0, 30.0)].into_iter(), 22.0), 3);
+    assert_eq!(perch_visit_seconds(std::iter::empty(), 22.0), 0);
+}
+
 impl Topic for MoveCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -238,6 +345,26 @@ impl Topic for MoveCounts {
             NoteKind::Takes { .. } => at(&mut self.takes),
             NoteKind::NoWay => at(&mut self.no_way),
             _ => {}
+        }
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        self.stood_now[place] = bot.and_then(StoodRead::of);
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.stood_now[place] = now.and_then(|n| n.stood);
+    }
+
+    /// A bot stood with a goal and no route this tick.
+    fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+        let body = &at.game.bodies[at.place];
+        if let Some(read) = self.stood_now[at.place]
+            && body.alive
+            && body.feet.distance_xz(read.at) > read.within_m
+        {
+            *self.stood.entry(read.why.name()).or_default() += 1;
         }
     }
 
@@ -525,11 +652,18 @@ impl MoveCounts {
             .find(|(name, ..)| game.world.map.project.starts_with(name));
         let (mut drops, mut climbs, mut km) = (0u32, 0u32, 0f64);
         let (mut high, mut alive) = (0u64, 0u64);
+        // Seconds on perches (V-S2b, the humans' definition in `v2_perches.py`):
+        // a run of seconds of one life above the map's p75 height, each within
+        // `PERCH_RADIUS_M` of the run's first, lasting `PERCH_MIN_S` or more.
+        let mut perch_s = 0u64;
         let budget = VERT_WALK_MPS * VERT_SAMPLE_TICKS as f32 * TICK_S + VERT_WALK_SLACK_M;
         for recs in run.recs.iter().enumerate().filter(|&(p, _)| run.is_bot[p]).map(|(_, r)| r) {
             for r in recs.iter().filter(|r| r.alive) {
                 alive += 1;
                 high += u64::from(level.is_some_and(|&(_, p75, _)| r.feet.y >= p75));
+            }
+            if let Some(&(_, p75, _)) = level {
+                perch_s += perch_visit_seconds(recs.iter().step_by(TPS).map(|r| (r.alive, r.feet)), p75);
             }
             let mut s = 0;
             while s + VERT_SAMPLE_TICKS < recs.len() {
@@ -552,6 +686,7 @@ impl MoveCounts {
         }
         let per_km = |n: u32| if km > 0.0 { (100.0 * f64::from(n) / km).round() / 100.0 } else { 0.0 };
         let high_pct = Scale::pct(high as f64, alive as f64);
+        let perch_pct = Scale::pct((perch_s * TPS as u64) as f64, alive as f64);
         let json = serde_json::json!({
             "drops_certain": drops,
             "climbs_1_5m": climbs,
@@ -559,6 +694,7 @@ impl MoveCounts {
             "drops_per_km": per_km(drops),
             "climbs_per_km": per_km(climbs),
             "high_time_pct": high_pct,
+            "perch_time_pct": perch_pct,
         });
         let players = level
             .map(|&(name, p75, rates)| match rates {
@@ -567,7 +703,7 @@ impl MoveCounts {
             })
             .unwrap_or_else(|| "no players' values for this map".to_owned());
         let text = format!(
-            "owner-test vertical: certain drops {drops} ({:.2} a km), climbs of 1.5 m+ {climbs} ({:.2} a km) over {km:.1} km walked; {high_pct:.1} % of the time above the players' p75 height ({players}; players 25 %)",
+            "owner-test vertical: certain drops {drops} ({:.2} a km), climbs of 1.5 m+ {climbs} ({:.2} a km) over {km:.1} km walked; {high_pct:.1} % of the time above the players' p75 height ({players}; players 25 %), {perch_pct:.1} % on perches (3 s or more high on one spot; players 4-8 %)",
             per_km(drops),
             per_km(climbs),
         );
@@ -762,6 +898,7 @@ impl MoveCounts {
             "stuck_s": stuck_s.round(),
             "stuck_by": round(stuck),
             "stuck_by_cause": round(stuck_cause),
+            "stood_by_legs": self.stood,
             "stuck_pre_5s": pre.by_json(),
             "stuck_play": pre.plays,
             "stuck_per_bot_min": per_min(stuck_n.into()),
@@ -789,7 +926,7 @@ impl MoveCounts {
             "one_body_still_plays_s": (f64::from(moved_ticks) * tick_s).round(),
         });
         let text = format!(
-            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s); the 5 s before a stuck episode: {}",
+            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s); stood with a goal and no route {} by why {}; the 5 s before a stuck episode: {}",
             stuck_n,
             stuck_s,
             json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
@@ -811,6 +948,8 @@ impl MoveCounts {
             close_s,
             one_eps,
             f64::from(one_ticks) * tick_s,
+            self.stood.values().sum::<u32>(),
+            json["stood_by_legs"],
             pre.text(),
         );
         Part::new(json, text)
@@ -1040,4 +1179,77 @@ pub(crate) fn a_walk_within_the_budget_is_a_walk_and_one_beyond_it_is_not() {
     let b = grid.locate(Vec3::new(14.0, 0.0, 10.0), 1.0).unwrap();
     assert!(walks_within(grid, a, b, 5.0));
     assert!(!walks_within(grid, a, b, 3.0));
+}
+
+#[test]
+pub(crate) fn ticks_stood_with_a_goal_and_no_route_are_counted_by_why() {
+    // Four bots on the soak field, each with a goal 30 m on (within 2 m) it has no route to: bot 0's legs are the
+    // reflex's (range) all 10 ticks; bot 1's play was just taken for 4 ticks, then nothing explains it; bot 2 is at
+    // its goal; bot 3 is dead. Only the first two stand.
+    let (mut game, mut tally) = made_up(&[0, 0, 0, 0]);
+    play(&mut game, &mut tally, 10, |k, game| {
+        for place in 0..4 {
+            put(game, place, 10.0, 10.0 + 5.0 * place as f32, 0);
+        }
+        game.bodies[3].alive = false;
+        let goal = |z: f32, x: f32| Some(StoodRead { at: Vec3::new(x, 0.0, z), within_m: 2.0, why: Stood::Nothing });
+        let mut nows = vec![bot_now(); 4];
+        nows[0].as_mut().unwrap().stood = goal(10.0, 40.0).map(|s| StoodRead { why: Stood::Legs(LegsWhy::Range), ..s });
+        nows[1].as_mut().unwrap().stood =
+            goal(15.0, 40.0).map(|s| StoodRead { why: if k < 4 { Stood::NewPlay } else { Stood::Nothing }, ..s });
+        nows[2].as_mut().unwrap().stood = goal(20.0, 10.5);
+        nows[3].as_mut().unwrap().stood = goal(25.0, 40.0);
+        nows
+    });
+    let (text, json) = tally.finish(&game);
+    assert_eq!(json["stood_by_legs"], serde_json::json!({"none": 6, "new_play": 4, "range": 10}), "{json}");
+    assert!(text.contains("stood with a goal and no route 20 by why"), "{text}");
+    // The names are the reasons', each once.
+    let names = [
+        Stood::Legs(LegsWhy::Punish),
+        Stood::Legs(LegsWhy::BreakSight),
+        Stood::Legs(LegsWhy::RePeek),
+        Stood::Legs(LegsWhy::Range),
+        Stood::Legs(LegsWhy::AfterGrenade),
+        Stood::Legs(LegsWhy::Throwing),
+        Stood::NewPlay,
+        Stood::Nothing,
+    ]
+    .map(Stood::name);
+    let mut sorted = names.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    assert_eq!(sorted.len(), names.len());
+}
+
+#[test]
+pub(crate) fn a_bot_reads_as_stood_only_with_a_goal_and_no_route() {
+    use crate::v026g::bots::tuning::Tuning;
+    let mut bots = Bots::new(
+        0xBE7C,
+        survarium::v026g::maps::mode::BATTERIES,
+        6,
+        &[0, 1],
+        &[true, true],
+        &[None, None],
+        std::sync::Arc::new(Tuning::default()),
+        crate::v026g::bots::trace::Trace::none(0),
+    );
+    let bot = bots.bots[0].as_mut().expect("a bot");
+    let goal = Vec3::new(5.0, 0.0, 5.0);
+    // No goal: nothing to stand short of.
+    assert_eq!(StoodRead::of(bot), None);
+    bot.intent.go = Go::To { at: goal, within_m: 1.0 };
+    bot.route = None;
+    bot.intent.straight = false;
+    assert_eq!(
+        StoodRead::of(bot),
+        Some(StoodRead { at: goal, within_m: 1.0, why: Stood::Nothing })
+    );
+    // The reflex's legs are the reason when it has them.
+    bot.bench_legs_why = Some(LegsWhy::RePeek);
+    assert_eq!(StoodRead::of(bot).map(|s| s.why), Some(Stood::Legs(LegsWhy::RePeek)));
+    // A step walked straight has no route and is no stand.
+    bot.intent.straight = true;
+    assert_eq!(StoodRead::of(bot), None);
 }

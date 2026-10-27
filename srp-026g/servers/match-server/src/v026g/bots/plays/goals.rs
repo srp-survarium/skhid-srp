@@ -15,6 +15,8 @@
 //! - [`keep_apart`]: the one place a hold's intent is moved off a spot a
 //!   teammate of a lower place has claimed (two bots on one spot: the higher
 //!   place gives way, held [`YIELD_HOLD_MS`]).
+//! - [`perch_first`]: the humans' perches (the routes table, V-S2b) offered
+//!   first in a hold's spot pick, for a share of the picks.
 //! - [`repick_if_shut`]: a play holding a spot swaps it for another pick
 //!   only on that proof, and asks for the pick only then (a pick draws
 //!   from the bot's random stream, so asking it earlier would change every
@@ -25,6 +27,7 @@
 use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent, Look, PlayKind};
+use crate::v026g::bots::rng::Rng;
 use crate::v026g::bots::view::{PlaceView, still_eye};
 
 /// How near another bot's claim on a spot (`know::Claim`) a spot may be,
@@ -271,6 +274,296 @@ impl Ctx<'_> {
     pub fn can_go(&self, at: Vec3) -> bool {
         self.reachable(at, false) && !self.no_way_lately(at)
     }
+}
+
+/// The spots a hold may pick from, with the humans' perches first for a share
+/// of the picks (V-S2b). Humans spend 4.0-8.1 % of their alive time on a
+/// perch (a run of 3 s or more above the map's p75 height); the stand-in bots
+/// 0.3-1.6 % (`push-record.md`, V-S2b data): the hold plays pick a spot to
+/// watch an anchor from, and the table's perches that see the anchor are
+/// the high places humans watch from.
+///
+/// `fine` is the play's own list of spots it may take now, best first. The
+/// perches within `PerchTuning::min_m..max_m` of `anchor` that pass the same
+/// tests as a ring spot (a fine goal, a way, not a spawn area, not taken by a
+/// teammate's claim, the climb to it not in sight of an enemy the bot knows
+/// of: [`Ctx::exposed_climb`]), off the edges (`near_lip`, `near_fall`) and
+/// in sight of the anchor, go in front of `fine` with probability the map's
+/// perch share over `PerchTuning::hold_share` (a GUESS, 0.4; times
+/// `p_scale`, 1; at most `p_max`) replace `fine` altogether, in an order
+/// drawn by their visit rates (Efraimidis and Spirakis' weighted sampling
+/// without replacement: key `u^(1/rate)`), so the play's "one of the best n"
+/// takes a perch by its weight. A perch that proves no way is repicked
+/// by the play (`repick_if_shut`), which asks this again. No table, no perch in range, or the switch
+/// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
+pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
+    #[cfg(test)]
+    let ring = fine.clone();
+    let out = perch_first_of(cx, anchor, rng, fine);
+    #[cfg(test)]
+    if out == ring {
+        // the control: a pick from the ring, watched the same way
+        PERCH_GOALS.with(|g| {
+            g.borrow_mut().insert(
+                cx.me.place,
+                Watch::new(&out, cx, true),
+            );
+        });
+        perch_count(27);
+    }
+    out
+}
+
+fn perch_first_of(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
+    let tuning = &cx.tuning.perch;
+    perch_count(0);
+    let Some(share) = cx.tactics.perch_share.filter(|_| tuning.on && !cx.tactics.perches.is_empty()) else {
+        return fine;
+    };
+    perch_count(1);
+    let grid = &cx.tactics.world.grid;
+    let target = anchor + Vec3::new(0.0, 1.0, 0.0);
+    let in_range: Vec<&crate::v026g::bots::routes::Perch> = cx
+        .tactics
+        .perches
+        .iter()
+        .filter(|p| (tuning.min_m..=tuning.max_m).contains(&p.at.distance_xz(anchor)))
+        .collect();
+    perch_count_n(2, in_range.len());
+    let mut candidates: Vec<(Vec3, f32)> = Vec::new();
+    for p in in_range {
+        if !cx.tactics.fine_goal(p.at, cx.now, cx.bot.side) {
+            perch_count(3);
+            continue;
+        }
+        if cx.tactics.in_spawn_area(p.at, None) {
+            perch_count(10);
+            continue;
+        }
+        match grid.locate(p.at, 0.5) {
+            None => {
+                perch_count(11);
+                continue;
+            }
+            Some(n) if grid.near_fall(n) => {
+                perch_count(12);
+                continue;
+            }
+            Some(n) if grid.near_lip(n) => {
+                perch_count(13);
+                continue;
+            }
+            Some(_) => {}
+        }
+        if !cx.tactics.sees(still_eye(p.at, false), target) {
+            perch_count(4);
+            continue;
+        }
+        if cx.spot_taken(p.at, APART_M) {
+            perch_count(5);
+            continue;
+        }
+        if !cx.can_go(p.at) {
+            perch_count(6);
+            continue;
+        }
+        if cx.exposed_climb(p.at, anchor) {
+            perch_count(7);
+            continue;
+        }
+        candidates.push((p.at, p.rate));
+    }
+    if candidates.is_empty() {
+        return fine;
+    }
+    perch_count(8);
+    let p = (share.share / tuning.hold_share * tuning.p_scale).clamp(0.0, tuning.p_max);
+    if rng.unit() >= p {
+        return fine;
+    }
+    perch_count(9);
+    #[cfg(test)]
+    PERCH_GOALS.with(|g| {
+        // a new offer before the last one was reached
+        if let Some(Watch { reached: false, ring: false, closest, .. }) = g.borrow_mut().remove(&cx.me.place) {
+            perch_count(16);
+            lost_at(closest);
+        }
+    });
+    let mut keyed: Vec<(f32, Vec3)> = candidates
+        .into_iter()
+        .map(|(at, rate)| (rng.unit().max(1e-6).powf(1.0 / rate.max(0.1)), at))
+        .collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
+    // Perches only: the plays take one of the best few of the list, and with
+    // the ring behind the perches a taken perch was picked a third of the time
+    // (the bench's counts: 3-19 takes a match, perch time unmoved).
+    let out: Vec<Vec3> = keyed.into_iter().map(|(_, at)| at).collect();
+    #[cfg(test)]
+    PERCH_GOALS.with(|g| {
+        // the plays take one of the first three at random
+        g.borrow_mut().insert(cx.me.place, Watch::new(&out, cx, false));
+    });
+    out
+}
+
+/// The bench's look at the bot at `place`, at `feet`, alive or not: the perch
+/// it was last offered first is reached (within 2 m, once) and stood on.
+#[cfg(test)]
+pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::PlayKind>) {
+    PERCH_GOALS.with(|g| {
+        let mut g = g.borrow_mut();
+        let Some(watch) = g.get_mut(&place) else { return };
+        let Watch { spots, reached, age, closest, first_play, left, ring } = watch;
+        let ring = *ring;
+        if !alive {
+            if !*reached && ring {
+                perch_count(32);
+            } else if !*reached {
+                // dying within 20 s of the take, or long after the play moved on
+                perch_count(if *age <= 400 { 17 } else { 19 });
+                lost_at(*closest);
+            }
+            g.remove(&place);
+            return;
+        }
+        if !*reached {
+            match *first_play {
+                None => *first_play = Some(play),
+                Some(first) if first != play => {
+                    // the bot's play changed before it got there (the first change only)
+                    if !*left && ring {
+                        *left = true;
+                        perch_count(30);
+                        perch_count_n(31, *age as usize);
+                    } else if !*left {
+                        *left = true;
+                        perch_count(25);
+                        perch_count_n(26, *age as usize);
+                        PERCH_LEFT.with(|m| {
+                            *m.borrow_mut().entry(format!("{first:?}->{play:?}")).or_insert(0) += 1;
+                        });
+                    }
+                    *first_play = Some(play);
+                }
+                Some(_) => {}
+            }
+            *age += 1;
+            if *age > 1400 {
+                // longer than a play's give-up time: the take is lost
+                if !ring {
+                    perch_count(20);
+                    lost_at(*closest);
+                }
+                g.remove(&place);
+                return;
+            }
+        }
+        for at in spots.iter() {
+            *closest = closest.min(feet.distance_xz(*at));
+        }
+        if spots.iter().any(|at| feet.distance_xz(*at) <= 2.0 && (feet.y - at.y).abs() < 1.5) {
+            if !*reached {
+                *reached = true;
+                if ring {
+                    perch_count(28);
+                    perch_count_n(29, *age as usize);
+                } else {
+                    perch_count(14);
+                    perch_count_n(18, *age as usize);
+                }
+            }
+            if !ring {
+                perch_count(15);
+            }
+        }
+    });
+}
+
+/// The plays the bots left before reaching an offered perch (`from->to`, counts).
+#[cfg(test)]
+pub fn perch_left() -> String {
+    PERCH_LEFT.with(|m| format!("{:?}", m.borrow()))
+}
+
+/// How near a lost take came to its perches: at most 2.5 m (a wrong
+/// height), 6 m, 15 m, farther.
+#[cfg(test)]
+fn lost_at(closest: f32) {
+    perch_count(match closest {
+        d if d <= 2.5 => 21,
+        d if d <= 6.0 => 22,
+        d if d <= 15.0 => 23,
+        _ => 24,
+    });
+}
+
+/// What the bench watches of a bot after a pick (`perch_first`): the first three spots the pick was made from
+/// (the plays take one of them at random), a pick from the ring (`ring`) or a perch, and how it went.
+#[cfg(test)]
+struct Watch {
+    spots: Vec<Vec3>,
+    reached: bool,
+    /// Ticks since the pick while it is not reached.
+    age: u32,
+    /// The nearest it came to a spot, m.
+    closest: f32,
+    /// The play it had when picked (none: no play), then the play it had at the last look.
+    first_play: Option<Option<super::PlayKind>>,
+    /// Its play changed before it reached a spot (counted once).
+    left: bool,
+    ring: bool,
+}
+
+#[cfg(test)]
+impl Watch {
+    fn new(out: &[Vec3], cx: &Ctx, ring: bool) -> Self {
+        Self {
+            spots: out.iter().take(3).copied().collect(),
+            reached: false,
+            age: 0,
+            closest: f32::MAX,
+            first_play: Some(cx.bot.current.map(|c| c.0)),
+            left: false,
+            ring,
+        }
+    }
+}
+
+// The bench's counts of what `perch_first` did: calls, with a table, perches
+// in range (summed), dropped for the fine goal/edge, the sight, a claim, no
+// way, an exposed climb, calls with a candidate, calls that took a perch.
+#[cfg(test)]
+thread_local! {
+    static PERCHED: std::cell::Cell<[u64; 33]> = const { std::cell::Cell::new([0; 33]) };
+    static PERCH_LEFT: std::cell::RefCell<std::collections::BTreeMap<String, u32>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, Watch>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+#[cfg(test)]
+fn perch_count_n(k: usize, n: usize) {
+    PERCHED.with(|c| {
+        let mut v = c.get();
+        v[k] += n as u64;
+        c.set(v);
+    });
+}
+
+#[cfg(test)]
+fn perch_count(k: usize) {
+    perch_count_n(k, 1);
+}
+
+#[cfg(not(test))]
+fn perch_count_n(_: usize, _: usize) {}
+
+#[cfg(not(test))]
+fn perch_count(_: usize) {}
+
+/// The counts of `perch_first` so far ([`perch_count`]).
+#[cfg(test)]
+pub fn perch_counts() -> [u64; 33] {
+    PERCHED.with(|c| c.get())
 }
 
 /// A spot proved no way to is swapped for the pick `pick` makes. `pick` is
@@ -537,5 +830,52 @@ mod tests {
         let mut kept = spot;
         let swapped = repick_if_shut(&s.cx(0), &mut kept, || None);
         assert!(!swapped && kept == spot);
+    }
+
+    #[test]
+    fn a_hold_pick_takes_a_perch_for_a_share_of_the_picks_and_draws_nothing_without_one() {
+        use crate::v026g::bots::routes::{Perch, PerchShare};
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let anchor = Vec3::new(30.0, 0.0, 30.0);
+        let ring = vec![Vec3::new(25.0, 0.0, 28.0)];
+        let mut rng = Rng::new(5);
+        let untouched = rng.clone().next_u64();
+        // No table: the list as it was, and the stream not drawn from.
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut rng, ring.clone()), ring);
+        assert_eq!(rng.clone().next_u64(), untouched);
+        let perch = |x: f32, z: f32, rate: f32| Perch { at: Vec3::new(x, 0.0, z), rate, dwell_s: 5.0, visits: 10.0 };
+        // 20 m north (rate 100), 20 m east (rate 1), 4 m off (too near), 60 m off (too far).
+        let table = vec![perch(30.0, 10.0, 100.0), perch(50.0, 30.0, 1.0), perch(32.0, 32.0, 50.0), perch(75.0, 30.0, 50.0)];
+        s.tactics.set_perches(table, Some(PerchShare { p75: 0.0, share: 0.2 }));
+        s.tuning.perch.hold_share = 0.2;
+        s.tuning.perch.p_max = 1.0;
+        // A share of 1: the two in range, the ring not offered.
+        let mut first_is_heavy = 0;
+        for k in 0..200 {
+            let mut rng = Rng::new(100 + k);
+            let out = perch_first(&s.cx(0), anchor, &mut rng, ring.clone());
+            assert_eq!(out.len(), 2, "{out:?}");
+            // (The perches stand on the floor cell under them.)
+            let at = |p: Vec3, x: f32, z: f32| p.distance_xz(Vec3::new(x, 0.0, z)) < 1.0;
+            assert!(out[..2].iter().any(|&p| at(p, 30.0, 10.0)) && out[..2].iter().any(|&p| at(p, 50.0, 30.0)));
+            first_is_heavy += usize::from(at(out[0], 30.0, 10.0));
+        }
+        assert!(first_is_heavy > 180, "the rate-100 perch first {first_is_heavy} of 200");
+        // A share of 0 never takes one.
+        s.tactics.perch_share = Some(PerchShare { p75: 0.0, share: 0.0 });
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut Rng::new(7), ring.clone()), ring);
+        // A share of 0.1 over holds of 0.2: about half the picks.
+        s.tactics.perch_share = Some(PerchShare { p75: 0.0, share: 0.1 });
+        s.tuning.perch.p_max = 0.5;
+        let taken = (0..400)
+            .filter(|&k| perch_first(&s.cx(0), anchor, &mut Rng::new(900 + k), ring.clone()).len() == 2)
+            .count();
+        assert!((150..250).contains(&taken), "{taken} of 400");
+        // The switch off: the list as it was.
+        s.tuning.perch.on = false;
+        let mut rng = Rng::new(5);
+        assert_eq!(perch_first(&s.cx(0), anchor, &mut rng, ring.clone()), ring);
+        assert_eq!(rng.next_u64(), untouched);
     }
 }
