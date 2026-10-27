@@ -112,7 +112,7 @@ pub const GRID_ALGO: u32 = 11;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 2;
+pub const GAP_LINKS_ALGO: u32 = 3;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before.
 pub const EXACT_EROSION_ALGO: u32 = 1;
