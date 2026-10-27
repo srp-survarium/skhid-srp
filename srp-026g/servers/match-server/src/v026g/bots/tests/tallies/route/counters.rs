@@ -230,12 +230,25 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
 /// and the faces picked again within 10 s of giving them up (the harm; the jumps given up are in
 /// `sprint_jumps_gave_up`).
 pub(super) fn band_jumps() -> Box<dyn RouteTopic> {
+    use super::super::motor::band_jumps::Slot::{self, *};
     Delta::of(
         || super::super::motor::band_jumps::counts().to_vec(),
         |d, line| {
+            let at = |slot: Slot| d[slot as usize];
+            let refused = [RefusedSlow, RefusedNoKey, RefusedAiming, RefusedBusy, RefusedReloading, RefusedStaggered, RefusedTired, RefusedCarrying]
+                .map(|slot| at(slot).to_string())
+                .join("/");
             line.ends.push(format!(
-                "band_press_speed {}/{}/{}/{} band_press_no_sprint {} band_refused_by slow/no_key/aiming/busy/reload/stagger/tired/carrying                  {}/{}/{}/{}/{}/{}/{}/{} band_no_run_up {} band_face_still_ticks {} band_repicked {}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]
+                "band_press_speed {}/{}/{}/{} band_press_no_sprint {} band_refused_by slow/no_key/aiming/busy/reload/stagger/tired/carrying {refused} \
+                 band_no_run_up {} band_face_still_ticks {} band_repicked {}",
+                at(PressUnder35),
+                at(Press35To40),
+                at(Press40To45),
+                at(Press45Up),
+                at(PressNoSprint),
+                at(NoRunUp),
+                at(FaceStill),
+                at(Repicked)
             ));
         },
     )
