@@ -80,7 +80,10 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::arc;
-use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd, ModCounts};
+use super::guns::{
+    Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
+    RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY,
+};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
@@ -121,16 +124,47 @@ impl WeaponKind {
     /// `item_params` kind (`wpn_*`): category 13 is the sniper category
     /// and 14 the shotguns' (`loadouts.rs` tests); else by the kind (an
     /// SVD is `wpn_aslt` in the sniper category, so the category goes
-    /// first).
+    /// first). A kind this code does not know (a patch's new `wpn_*`
+    /// type) takes its category's: [`Self::of_category`], so a new weapon
+    /// has a band and is not one without a kind.
     pub fn of_item(kind: &str, category: u8) -> Option<Self> {
+        Self::by_type(kind, category).or_else(|| Self::of_category(category))
+    }
+
+    /// The kind by the category and the `wpn_*` types this code knows; none
+    /// for a type it does not.
+    fn by_type(kind: &str, category: u8) -> Option<Self> {
         Some(match (category, kind) {
-            (13, _) => Self::Sniper,
-            (14, _) => Self::Shotgun,
+            (SNIPER_CATEGORY, _) => Self::Sniper,
+            (SHOTGUN_CATEGORY, _) => Self::Shotgun,
             (_, "wpn_dbrl" | "wpn_stgn" | "wpn_asgn") => Self::Shotgun,
             (_, "wpn_bolt") => Self::Sniper,
             (_, "wpn_smg") => Self::Smg,
             (_, "wpn_pstl" | "wpn_rvlr" | "wpn_apst") => Self::Pistol,
             (_, "wpn_aslt") => Self::Rifle,
+            _ => return None,
+        })
+    }
+
+    /// The kind of this weapon came from its category, because its type is
+    /// none this code knows ([`Self::of_item`]'s fallback): 0 of the 83 weapons
+    /// of the live data. The count of these is the fallback's activity.
+    pub fn by_fallback(kind: &str, category: u8) -> bool {
+        Self::by_type(kind, category).is_none() && Self::of_category(category).is_some()
+    }
+
+    /// The kind a weapon of the dictionary category `category` has when
+    /// its `wpn_*` type is none this code knows: the kind most of the
+    /// category's weapons have (the 83 weapons of the live data: 8 rifles,
+    /// 13 snipers, 14 shotguns, 15 SMGs, 16 machine guns taking a rifle's
+    /// band, 17 pistols). `None` for a category that holds no weapons.
+    pub fn of_category(category: u8) -> Option<Self> {
+        Some(match category {
+            RIFLE_CATEGORY | MG_CATEGORY => Self::Rifle,
+            SNIPER_CATEGORY => Self::Sniper,
+            SHOTGUN_CATEGORY => Self::Shotgun,
+            SMG_CATEGORY => Self::Smg,
+            PISTOL_CATEGORY => Self::Pistol,
             _ => return None,
         })
     }
@@ -890,9 +924,6 @@ impl Default for FireTuning {
     }
 }
 
-/// The machine guns' category (`categories_dict`).
-const MACHINE_GUN_CATEGORY: u8 = 16;
-
 /// A marksman rifle: one round a press, of the rifles' or the sniper
 /// rifles' category (the SVD, the SKS, the VSK-94's one-round copies).
 fn marksman(gun: &Gun) -> bool {
@@ -949,7 +980,7 @@ impl FireTuning {
     pub fn crouch_chance(&self, gun: &Gun, sniper: f32) -> f32 {
         match gun.handling {
             Handling::Bolt => sniper,
-            Handling::Burst(_) if gun.category == MACHINE_GUN_CATEGORY => self.crouch_machine_gun,
+            Handling::Burst(_) if gun.category == MG_CATEGORY => self.crouch_machine_gun,
             Handling::Burst(_) => self.crouch_auto,
             _ if marksman(gun) => self.crouch_marksman,
             _ => self.crouch_other,
