@@ -168,6 +168,14 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_BOT_STAMINA").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/stamina", true.into());
     }
+    // A Drop link is kept only where the body that walks off comes down within the harmless fall (`GridTuning::honest_drops`; off by default).
+    if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/honest_drops", true.into());
+    }
+    // A planned drop is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
+    if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/drop_walk", true.into());
+    }
     // The sprint gap links are run up to at a sprint and pressed at speed (`Feel::sprint_gaps`; off by default).
     if settings.var("SRP_BENCH_SPRINT_GAPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/sprint_gaps", true.into());

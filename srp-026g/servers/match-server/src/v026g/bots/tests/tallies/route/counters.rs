@@ -149,6 +149,14 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::motor::drop_walks::ticks()],
+        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+    )
+}
+
 /// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
 /// and over m/s) and given up.
 pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
