@@ -291,12 +291,15 @@ pub struct Habit {
 pub struct PlaceCounts {
     pub placed: u32,
     pub died_placing: u32,
+    /// Bots that carry traps (their habit was told them).
+    pub armed: u32,
 }
 
 impl PlaceCounts {
     pub fn add(&mut self, other: &PlaceCounts) {
         self.placed += other.placed;
         self.died_placing += other.died_placing;
+        self.armed += other.armed;
     }
 }
 
@@ -347,6 +350,7 @@ impl Habit {
         PlaceCounts {
             placed: self.placed_total,
             died_placing: self.died_placing,
+            armed: u32::from(self.kit.is_some()),
         }
     }
 
@@ -552,28 +556,42 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             s.feet.z + d[1] * t.reach_m,
         );
         let Some(spot) = good_floor(s.grid, spot, t) else {
+            #[cfg(test)]
+            gates::count(gates::R_FLOOR);
             continue;
         };
         if (s.in_spawn)(spot) {
+            #[cfg(test)]
+            gates::count(gates::R_SPAWN);
             continue;
         }
         if s.own.iter().any(|own| own.distance_xz(spot) < t.near_own_m) {
+            #[cfg(test)]
+            gates::count(gates::R_OWN);
             continue;
         }
         // Off its own route ahead, unless it stands.
         if !s.staying && off_route_m(s.ahead, spot) < t.lateral_m.max(AVOID_M) - 1e-3 {
+            #[cfg(test)]
+            gates::count(gates::R_ROUTE);
             continue;
         }
         // Where its own body will be: it keeps off the disc.
         if s.feet.distance_xz(spot) < AVOID_M - 0.2 {
+            #[cfg(test)]
+            gates::count(gates::R_BODY);
             continue;
         }
         let friends = friend_flow(s.mates, spot, t.friend_m);
         if friends > 0 {
+            #[cfg(test)]
+            gates::count(gates::R_FRIEND);
             continue;
         }
         let value = score(presence(s.lanes, spot, s.now), friends, t);
         if value < t.min_score {
+            #[cfg(test)]
+            gates::count(gates::R_SCORE);
             continue;
         }
         // The better score wins; a look that turns the view less is worth a
@@ -726,11 +744,22 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         team_standing: state.knowledge.traps.standing_count(),
     };
     // The cheap gate first; the route is read only once it passes.
-    if gate(&facts, t).is_err() || bot.rng.unit() >= t.chance {
+    #[cfg(test)]
+    gates::count(gates::THINKS);
+    if let Err(_refusal) = gate(&facts, t) {
+        #[cfg(test)]
+        gates::count(gates::of(_refusal));
+        return;
+    }
+    if bot.rng.unit() >= t.chance {
+        #[cfg(test)]
+        gates::count(gates::CHANCE);
         return;
     }
     let (ahead, jump) = route_ahead(bot, me, t);
     if jump {
+        #[cfg(test)]
+        gates::count(gates::JUMP);
         return;
     }
     let mates: Vec<(Vec3, [f32; 2])> = due
@@ -761,7 +790,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         own: &own,
         in_spawn: &in_spawn,
     };
-    if let Some(chosen) = choose(&search) {
+    let chosen = choose(&search);
+    #[cfg(test)]
+    gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
+    if let Some(chosen) = chosen {
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         if bot.tracing {
             bot.traced.push(serde_json::json!({
@@ -769,6 +801,64 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
                 "score": chosen.score,
             }));
         }
+    }
+}
+
+/// The bench's counts of what the habit's thinks came to (the places it was refused at, the chance missed, a jump
+/// ahead, no spot, a spot planned), for the `trap habit` line.
+#[cfg(test)]
+pub mod gates {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::Refusal;
+
+    pub const THINKS: usize = 0;
+    pub const CHANCE: usize = 1;
+    pub const JUMP: usize = 2;
+    pub const NO_SPOT: usize = 3;
+    pub const PLANNED: usize = 4;
+    const FIRST_REFUSAL: usize = 5;
+    /// The names of the counts, in order.
+    pub const R_FLOOR: usize = 13;
+    pub const R_SPAWN: usize = 14;
+    pub const R_OWN: usize = 15;
+    pub const R_ROUTE: usize = 16;
+    pub const R_BODY: usize = 17;
+    pub const R_FRIEND: usize = 18;
+    pub const R_SCORE: usize = 19;
+    pub const NAMES: [&str; 20] = [
+        "thinks", "chance", "jump", "no_spot", "planned", "play", "carrying", "health", "enemy", "hit", "reloading",
+        "team_cap", "other", "cand_floor", "cand_spawn", "cand_own", "cand_route", "cand_body", "cand_friend",
+        "cand_score",
+    ];
+
+    static COUNTS: [AtomicU64; 20] = [const { AtomicU64::new(0) }; 20];
+
+    pub fn of(refusal: Refusal) -> usize {
+        FIRST_REFUSAL
+            + match refusal {
+                Refusal::Play(_) => 0,
+                Refusal::Carrying => 1,
+                Refusal::Health => 2,
+                Refusal::Enemy => 3,
+                Refusal::Hit => 4,
+                Refusal::Reloading => 5,
+                Refusal::TeamCap => 6,
+                _ => 7,
+            }
+    }
+
+    pub fn count(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        NAMES
+            .iter()
+            .zip(&COUNTS)
+            .map(|(name, count)| format!("{name} {}", count.load(Ordering::Relaxed)))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 
@@ -929,7 +1019,7 @@ mod tests {
         assert_eq!(Habit::of_kit(None), Habit::none());
         let habit = Habit::of_kit(Some((2, 16)));
         assert_eq!(habit.kit(), Some(TrapKit { count: 2, key: 0x1_0000 }));
-        assert_eq!(habit.counts(), PlaceCounts::default());
+        assert_eq!(habit.counts(), PlaceCounts { armed: 1, ..PlaceCounts::default() });
         let mut habit = habit;
         habit.new_life();
         assert_eq!(habit.counts().died_placing, 0, "a life that began idle");

@@ -1178,9 +1178,22 @@ impl TeamKnowledge {
         tracks: impl Iterator<Item = &'a Track>,
         now: u32,
     ) {
+        self.learn_humans_as(team, view, tracks, now, false);
+    }
+
+    /// [`Self::learn_humans`], with every body of the other team taken for a human if `enemy_all` (the bench's model of
+    /// Player vs Bots, where every enemy of a bot is one: `SRP_BENCH_ENEMY_HUMAN_LANES`; only the lanes read it).
+    pub fn learn_humans_as<'a>(
+        &mut self,
+        team: u8,
+        view: &MatchView,
+        tracks: impl Iterator<Item = &'a Track>,
+        now: u32,
+        enemy_all: bool,
+    ) {
         let human = |who: Place| {
             view.place(who)
-                .is_some_and(|p| !p.bot && p.team & 1 != team & 1)
+                .is_some_and(|p| (enemy_all || !p.bot) && p.team & 1 != team & 1)
         };
         let mut latest: Vec<(Place, Vec3, u32, f32)> = Vec::new();
         for t in tracks {
