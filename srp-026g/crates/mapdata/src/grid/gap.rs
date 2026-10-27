@@ -472,8 +472,11 @@ impl WalkGrid {
             let ahead = x + lead;
             let y = h + short_jump_rise(ahead).unwrap_or(0.0);
             // Coming down onto a floor at the root: landed (before the
-            // faces: its own top is under the feet).
+            // faces: its own top is under the feet), only while no face
+            // holds the body back: the root runs on past a wall the body
+            // stands at (a wall thinner than a cell is no landing beyond).
             if ahead >= APEX_AHEAD_M
+                && body + ds + 1e-3 >= x
                 && let Some(f) = landing(x, y, last)
             {
                 return Some(Flight::Landed(f, x, 0.0));
@@ -1545,6 +1548,27 @@ mod tests {
         let post = face_x(6.5, 0.0, 10.0, 0.0, 6.0);
         let grid = world(2.0, 2.0, 1.0, 0.0, &post);
         assert!(way_across(&grid, 2.0, 2.0).is_none());
+    }
+
+    /// A wall thinner than a cell and as tall as the room across level ground (a way round it far off): the
+    /// clip's root runs on past the wall and over the floor beyond, but the body is held at the wall's face, so
+    /// no link lands beyond it (the Cologne favela's east wall: a link through it kept bots jumping at it).
+    #[test]
+    fn a_thin_wall_holds_a_jump_whose_root_lands_beyond_it() {
+        let area = [0.0, 0.0, 14.0, 30.0];
+        // Level ground to x 5.9, a step block 0.5 m up from x 7.3, a way round at z 25-30.
+        let mut open = quad(0.0, 0.0, 5.9, 30.0, 0.0).to_vec();
+        open.extend(quad(7.3, 0.0, 14.0, 30.0, 0.5));
+        open.extend(face_x(7.3, 0.0, 30.0, 0.0, 0.5));
+        open.extend(quad(0.0, 25.0, 14.0, 30.0, 0.0));
+        let mut walled = open.clone();
+        walled.extend(face_x(6.4, 0.0, 25.0, 0.0, 6.0));
+        walled.extend(face_x(6.74, 0.0, 25.0, 0.0, 6.0));
+        let grid = WalkGrid::build_with_links(&walled, area, 0.25, Body::default(), OffMeshLinks::Gaps);
+        assert!(!walked_past(&grid, 7.0), "{}", grid.off_links().len());
+        // The same without the wall is jumped (else the wall's test is vacuous).
+        let grid = WalkGrid::build_with_links(&open, area, 0.25, Body::default(), OffMeshLinks::Gaps);
+        assert!(walked_past(&grid, 7.0), "{}", grid.off_links().len());
     }
 
     /// A wall over the gap with a door narrower than the body (0.5 m):

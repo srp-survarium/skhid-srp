@@ -112,7 +112,7 @@ pub const GRID_ALGO: u32 = 11;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 2;
+pub const GAP_LINKS_ALGO: u32 = 3;
 /// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
 pub const SIGHT_ALGO: u32 = 2;
