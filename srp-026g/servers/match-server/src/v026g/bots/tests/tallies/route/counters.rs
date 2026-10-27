@@ -163,6 +163,14 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// Ticks the sprint was let go of before a planned drop (`motor::drop_walks`).
+pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::motor::drop_walks::ticks()],
+        |d, line| line.ends.push(format!("drop_walk_ticks {}", d[0])),
+    )
+}
+
 /// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
 /// and over m/s) and given up.
 pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
@@ -194,14 +202,42 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bots' reckoned stamina (`stamina::counts`): lockouts begun, ticks locked out, of those with the sprint keys held
+/// (the harm), jump presses the bar refused, sprints let go at the empty bar, sprint segments short of the bar when
+/// first seen, and the seconds of sprint saved for them.
+pub(super) fn stamina() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || {
+            let mut v = super::super::stamina::counts::counts().to_vec();
+            v.push(super::super::stamina::counts::saved_ms());
+            v
+        },
+        |d, line| {
+            line.ends.push(format!(
+                "stamina_lockouts {} stamina_low_ticks {} stamina_sprint_keys_low {} stamina_jumps_refused {} stamina_released_low {} segments_short_of_stamina {} sprint_saved_s {:.1}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6] as f32 / 1000.0
+            ));
+        },
+    )
+}
+
 /// The landings of route jumps by the carried run's angle from the way (`motor::landings`): seen / braked, bands
 /// 0-30, 30-60, 60-90, over 90 degrees, and walls within the coast.
 pub(super) fn landings() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::motor::landings::counts().iter().flatten().copied().collect(),
+        || {
+            let (jumps, drops) = (super::super::motor::landings::counts(), super::super::motor::landings::drop_counts());
+            jumps.iter().chain(&drops).flatten().copied().collect()
+        },
         |d, line| {
             let bands = |k: usize| d[k * 5..k * 5 + 5].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
-            line.ends.push(format!("landings {} landings_cancelled {}", bands(0), bands(1)));
+            line.ends.push(format!(
+                "landings {} landings_cancelled {} drop_landings {} drop_landings_cancelled {}",
+                bands(0),
+                bands(1),
+                bands(2),
+                bands(3)
+            ));
         },
     )
 }
