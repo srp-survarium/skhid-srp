@@ -438,26 +438,108 @@ impl GrenadeParams {
     }
 }
 
-/// Every grenade of the game data (an item whose config's
-/// `parameters.type` is `grenade`), by name, read once.
+/// Every grenade of `data` (an item of `dictionary` whose config's
+/// `parameters.type` is `grenade`), by name. A test reads a patched copy of
+/// the data with this ([`grenades`] is the process's own).
+pub fn derive_grenades(
+    data: &super::game_data::GameData,
+    dictionary: &'static Dictionary,
+) -> Vec<(&'static str, GrenadeParams)> {
+    dictionary
+        .items
+        .iter()
+        .filter_map(|item| {
+            let config = super::game_data::config(data, &item.cfg_name).ok()??;
+            let kind = config.get("parameters")?.get("type")?.as_str()?;
+            (kind == "grenade")
+                .then(|| GrenadeParams::from_config(&config).ok())
+                .flatten()
+                .map(|params| (item.name.as_str(), params))
+        })
+        .collect()
+}
+
+/// Every grenade of the game data, by name, read once.
 pub fn grenades() -> &'static [(&'static str, GrenadeParams)] {
     static SHARED: std::sync::OnceLock<Vec<(&'static str, GrenadeParams)>> =
         std::sync::OnceLock::new();
-    SHARED.get_or_init(|| {
-        let data = super::game_data::shared();
-        Dictionary::shared()
-            .items
-            .iter()
-            .filter_map(|item| {
-                let config = super::game_data::config(data, &item.cfg_name).ok()??;
-                let kind = config.get("parameters")?.get("type")?.as_str()?;
-                (kind == "grenade")
-                    .then(|| GrenadeParams::from_config(&config).ok())
-                    .flatten()
-                    .map(|params| (item.name.as_str(), params))
-            })
-            .collect()
-    })
+    SHARED.get_or_init(|| derive_grenades(super::game_data::shared(), Dictionary::shared()))
+}
+
+impl GrenadeParams {
+    /// Whether the blast hurts: a fragmentation grenade. A grenade that does
+    /// not (the smoke `rdg-m`: no splash damage) is a danger to no one.
+    pub fn is_frag(&self) -> bool {
+        self.splash_radius > 0.0 && self.splash_max_damage > 0.0
+    }
+}
+
+/// Whether the item `name` is a grenade of any kind: an item whose config's
+/// `parameters.type` is `grenade`, whether or not its `data` block reads as
+/// [`GrenadeParams`] (a smoke grenade need not have a blast).
+pub fn is_grenade_item(name: &str) -> bool {
+    static SHARED: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    SHARED
+        .get_or_init(|| {
+            let data = super::game_data::shared();
+            Dictionary::shared()
+                .items
+                .iter()
+                .filter(|item| {
+                    super::game_data::config(data, &item.cfg_name)
+                        .ok()
+                        .flatten()
+                        .and_then(|config| {
+                            config
+                                .get("parameters")?
+                                .get("type")?
+                                .as_str()
+                                .map(|kind| kind == "grenade")
+                        })
+                        .unwrap_or(false)
+                })
+                .map(|item| item.name.as_str())
+                .collect()
+        })
+        .contains(&name)
+}
+
+/// `stock` with the numbers of the `data` block of the grenade `name`'s config changed to `numbers`
+/// (`(key, value)`, an integer key stays an integer): what a grenade patch does. For tests of what
+/// reads a grenade's numbers from the game data.
+#[cfg(any(test, feature = "fixtures"))]
+pub fn with_grenade_patched(stock: &GameData, name: &str, numbers: &[(&str, f32)]) -> GameData {
+    let item = Dictionary::shared()
+        .item_named(name)
+        .unwrap_or_else(|| panic!("no item {name}"));
+    let mut config = super::game_data::config(stock, &item.cfg_name)
+        .unwrap()
+        .unwrap_or_else(|| panic!("no config {}", item.cfg_name));
+    let ConfigValue::Named(root) = &mut config else {
+        panic!("{} is not a named table", item.cfg_name);
+    };
+    let (_, data) = root
+        .iter_mut()
+        .find(|(key, _)| key == "data")
+        .unwrap_or_else(|| panic!("{} has no data block", item.cfg_name));
+    let ConfigValue::Named(entries) = data else {
+        panic!("data is not a named table");
+    };
+    for &(key, new) in numbers {
+        let (_, value) = entries
+            .iter_mut()
+            .find(|(k, _)| k == key)
+            .unwrap_or_else(|| panic!("no data.{key}"));
+        match value {
+            ConfigValue::Integer(i) => *i = new as i32,
+            ConfigValue::Float(f) => *f = new,
+            other => panic!("data.{key} is {other:?}"),
+        }
+    }
+    stock.laid_over(
+        "the test data and a grenade patch",
+        vec![(item.cfg_name.clone(), config.to_bytes().unwrap())],
+    )
 }
 
 /// The grenade `name` (`items_dict`).
@@ -526,6 +608,38 @@ mod tests {
         assert!(!rgd.explode_on_contact);
         assert_eq!(grenade_named("rgd-5"), Some(rgd));
         assert_eq!(grenade_named("no such grenade"), None);
+    }
+
+    /// A frag hurts and a smoke does not; both are grenade items.
+    #[test]
+    fn the_grenades_are_told_apart_by_their_blast() {
+        assert!(grenade_named("rgd-5").unwrap().is_frag());
+        assert!(is_grenade_item("rgd-5") && is_grenade_item("rdg-m"));
+        assert!(!is_grenade_item("uzi") && !is_grenade_item("no such item"));
+        if let Some(smoke) = grenade_named("rdg-m") {
+            assert!(!smoke.is_frag(), "{smoke:?}");
+        }
+    }
+
+    /// What a grenade patch changes is what is read: the fuse, the blast and the throw speed of
+    /// a patched copy of the data; the process's own data is untouched.
+    #[test]
+    fn a_grenade_patch_is_what_is_read() {
+        let stock = GameData::test_archive();
+        let patched = with_grenade_patched(
+            &stock,
+            "rgd-5",
+            &[("ttl_ms", 3_000.0), ("splash_radius", 8.0), ("throw_power", 20.0)],
+        );
+        let rows = derive_grenades(&patched, Dictionary::shared());
+        let rgd = rows.iter().find(|(name, _)| *name == "rgd-5").unwrap().1;
+        assert_eq!(
+            (rgd.ttl_ms, rgd.splash_radius, rgd.throw_power),
+            (3_000, 8.0, 20.0)
+        );
+        let before = derive_grenades(&stock, Dictionary::shared());
+        assert_eq!(before.iter().find(|(name, _)| *name == "rgd-5").unwrap().1, grenade_named("rgd-5").unwrap());
+        assert_eq!(grenade_named("rgd-5").unwrap().ttl_ms, 4_000);
     }
 
     /// The `dispersion` blocks and the player's character dispersion, as
