@@ -91,6 +91,19 @@ pub(super) fn shots_heard() -> Box<dyn RouteTopic> {
     )
 }
 
+/// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
+pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::zone_cost::asks::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "zone_cross_asked {} zone_cross_borne {} zone_cross_refused {}",
+                d[0], d[1], d[2]
+            ));
+        },
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

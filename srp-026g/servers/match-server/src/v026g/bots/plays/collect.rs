@@ -689,7 +689,12 @@ impl Crossing {
     /// Whether a bot with `budget` makes it: at most [`CROSS_SHARE`] of each pool it takes from, leaving
     /// [`CROSS_LEFT`] ([`bears`] for the body pool alone).
     pub fn fits(&self, budget: &Budget) -> bool {
-        budget.reserve.bears(self.cost(), CROSS_SHARE, CROSS_LEFT)
+        let borne = budget.reserve.bears(self.cost(), CROSS_SHARE, CROSS_LEFT);
+        #[cfg(test)]
+        if budget.armour.is_some() {
+            crate::v026g::bots::zone_cost::asks::count(borne);
+        }
+        borne
     }
 }
 

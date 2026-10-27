@@ -225,6 +225,24 @@ impl ZoneArmour {
     }
 }
 
+/// How a battery's crossing was weighed with the pools routed (the bench's tally): asked, borne, refused.
+/// Raw asks are not counted.
+#[cfg(test)]
+pub mod asks {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+
+    pub fn count(borne: bool) {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+        COUNTS[if borne { 1 } else { 2 }].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
+        [0, 1, 2].map(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The reserve a decision weighs a cost against, and the armour the cost is worked out with
 /// (`None`: the raw hit in the body pool, the model off).
 #[derive(Clone, Debug, PartialEq)]
