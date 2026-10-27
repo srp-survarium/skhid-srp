@@ -61,6 +61,7 @@ mod arrival_height;
 mod batteries;
 mod bench;
 mod bench_spread;
+mod blind_walk;
 mod camper;
 mod driving;
 mod eye;
