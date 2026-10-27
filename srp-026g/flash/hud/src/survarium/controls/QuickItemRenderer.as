@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.text.TextField;
+   import flash.geom.ColorTransform;
    import flash.utils.Timer;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.DragSlot;
@@ -88,6 +89,7 @@ package survarium.controls
             container = (contentCanvas as MovieClip).container;
             if(_content)
             {
+               _content.transform.colorTransform = new ColorTransform();
                if(container.contains(_content))
                {
                   container.removeChild(_content);
@@ -394,6 +396,14 @@ package survarium.controls
             {
                this.timerBack.visible = false;
             }
+         }
+         if(_content)
+         {
+            // Medical icons are mostly white already. Desaturation alone is
+            // invisible; dim the icon itself while the native delay is pending.
+            // This dynamic child is not controlled by the renderer's timeline.
+            var shade:Number = _data && _data.activityPhase == 1 ? 0.5 : 1;
+            _content.transform.colorTransform = new ColorTransform(shade,shade,shade);
          }
       }
       

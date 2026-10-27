@@ -4,6 +4,7 @@ package {
  import flash.net.URLRequest;
  import flash.system.*;
  import flash.utils.Dictionary;
+ import flash.geom.ColorTransform;
  public class ActivityHarness extends Sprite {
   private var loader:Loader = new Loader();
   private var slots:Object;
@@ -48,9 +49,31 @@ package {
     if(Boolean(renderer.overCooldown && renderer.overCooldown.width > 0) != activation) throw new Error("activation sweep");
     if(activation && renderer.content != renderer.data.grayIcon) throw new Error("waiting icon not gray");
     if(!activation && seconds != "" && renderer.content != renderer.data.icon) throw new Error("active icon not colored");
+    checkIconPixels(renderer,activation && !renderer.data.is_artefact);
     if(renderer.timerBack.visible != (seconds != "")) throw new Error("timer backdrop");
     trace("ACTIVITY visual " + seconds + " activation=" + activation);
    } catch(err:Error) { failures.push("frame " + frame + ": " + err); }
+  }
+  private function checkIconPixels(renderer:Object, waiting:Boolean):void {
+   var source:BitmapData = renderer.content.bitmap.bitmapData;
+   var rendered:BitmapData = new BitmapData(source.width,source.height,true,0);
+   // BitmapData.draw does not inherit the source root's transform; pass it as
+   // the display list would. Sample opaque real-icon pixels, not just identity.
+   var transform:ColorTransform = renderer.content.transform.colorTransform;
+   rendered.draw(renderer.content,null,transform);
+   var samples:uint = 0;
+   for(var y:uint=0; y<source.height; y++) for(var x:uint=0; x<source.width; x++) {
+    var before:uint = source.getPixel32(x,y);
+    if((before >>> 24) != 255) continue;
+    var red:uint = (before >> 16) & 255;
+    if(red < 100) continue;
+    var after:uint = (rendered.getPixel32(x,y) >> 16) & 255;
+    var expected:Number = waiting ? red / 2 : red;
+    if(Math.abs(after - expected) > 2) throw new Error("icon pixel brightness " + after + " expected " + expected);
+    samples++;
+   }
+   rendered.dispose();
+   if(samples == 0) throw new Error("no opaque icon pixels checked");
   }
   private function tick(e:Event):void {
    frame++;

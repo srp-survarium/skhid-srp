@@ -50,11 +50,13 @@ package survarium.controls
          if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
          {
             result.enabled = true;
+            result.activityPhase = activity.phase;
             result.activitySeconds = activity.seconds;
             result.cooldown = activity.phase == 1 ? Math.max(1,activity.activation) : 0;
          }
          else
          {
+            result.activityPhase = 0;
             result.activitySeconds = 0;
          }
          return result;
@@ -112,7 +114,7 @@ package survarium.controls
                else
                {
                   origin = this._slots_items[i];
-                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activitySeconds == origin.activitySeconds)
+                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activityPhase == origin.activityPhase && _p.activitySeconds == origin.activitySeconds)
                   {
                      return false;
                   }
@@ -252,6 +254,7 @@ package survarium.controls
             enabled:value.enabled,
             hotkey:value.hotkey,
             timer:value.timer,
+            activityPhase:value.activityPhase,
             activitySeconds:value.activitySeconds,
             is_artefact:value.is_artefact
          };
