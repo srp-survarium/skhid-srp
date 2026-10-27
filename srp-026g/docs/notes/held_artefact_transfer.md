@@ -1,6 +1,7 @@
 # Held artefact transfer: engine investigation
 
-Status: research for Shift + artefact number to offer an artefact in the hand.
+Status: the deterministic Rust adapter state/snapshot core is implemented
+in `crates/artefact-carry`; native binding and input integration are pending.
 No executable hook or gameplay feature is installed by this branch yet.
 The requested interaction is another character pressing the normal Use key;
 the recipient must have a free container. Full inventories must refuse the
@@ -196,3 +197,32 @@ model without an attachment transform.
 HUD QuickSlots/QuickItemRenderer and the native quick-slot description are
 deliberately outside the anticipated hook surface; the separate consumable
 activity-ring work owns those areas.
+
+## Implemented deterministic adapter core
+
+`artefact-carry` has one state owner and one transition function:
+Stowed -> Equipping -> Offering -> Unequipping -> Stowed. The artefact is
+not available to another player while the weapon's hide is still running.
+Only Offering exposes a token. Cancel/owner teardown removes that token;
+successful transfer does so before a second request can run. A failed
+transfer keeps the offer and both inventories intact. The native `Transfer`
+implementation must perform the retained-reference transaction described
+above, including range/ownership/capacity validation at its commit point.
+
+The versioned nine-byte snapshot includes phase, generation, artefact ID,
+inventory slot and previous active-object ID. Parsing is atomic: malformed
+snapshots leave the old state unchanged. Native identity/owner are bound
+at construction and cannot be supplied by snapshot bytes. **The core must
+be serialized for every player even while Stowed**: it preserves the
+generation counter between offers. Writing it only from the native
+`m_carried_item` branch would omit that counter when stowed and would not
+be a valid rollback implementation.
+
+Ten unit tests pass, covering hide completion, cancellation during equip,
+stale requests, competing takers, full/missing containers, ownership
+changes, owner teardown, every snapshot phase, malformed input and replay
+after rollback. `cargo clippy -p artefact-carry --all-targets -- -D warnings`
+also passes. These are state/inventory-contract tests; they do not prove
+native animation selection, in-game snapshots or hand rendering. The
+crate is not yet a dependency of the native patches crate, so it does not
+alter the shipped executable or an existing match's computation.
