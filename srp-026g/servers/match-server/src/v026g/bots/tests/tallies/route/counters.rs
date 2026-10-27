@@ -149,6 +149,17 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
+/// and over m/s) and given up.
+pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_gaps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {}", d[0], d[1], d[2], d[3]));
+        },
+    )
+}
+
 /// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
 /// (`rest::stops`): the owner's symptom, on and off.
 pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
