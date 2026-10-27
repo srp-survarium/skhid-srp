@@ -88,6 +88,8 @@ pub mod hold_trace;
 mod layers;
 #[cfg(test)]
 pub mod pair_counts;
+#[cfg(test)]
+pub mod route_twins;
 mod search;
 mod think;
 
