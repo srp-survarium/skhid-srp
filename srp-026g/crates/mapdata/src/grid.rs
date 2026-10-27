@@ -585,6 +585,11 @@ pub struct BuildStats {
     pub floors_kept: usize,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
+    /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
+    /// (a chain of steps included) or none found, and for no fall at all (the flight lands within a step of the
+    /// take-off: a slot the deck goes on past).
+    pub drops_deep: usize,
+    pub drops_slotted: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -741,7 +746,7 @@ impl WalkGrid {
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
-        grid.drop_deep_flights(&mut wide);
+        (stats.drops_deep, stats.drops_slotted) = grid.drop_deep_flights(&mut wide);
         grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         let walls = (body.erosion == Erosion::Exact).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
@@ -889,22 +894,27 @@ impl WalkGrid {
     /// [`Body::max_drop`], the chain of harmless drops included (the cell model sees each step of it as one), and
     /// those it is no fall at all: the flight comes down on a floor within a step of the take-off's (the floor
     /// goes on past a slot or a hole one cell wide, with the lower floor stacked under it: Vector Laboratory, B8).
-    fn drop_deep_flights(&self, wide: &mut Wide) {
+    ///
+    /// How many went for the deep fall and how many for no fall at all.
+    fn drop_deep_flights(&self, wide: &mut Wide) -> (usize, usize) {
         if self.body.drop_flight_mps <= 0.0 {
-            return;
+            return (0, 0);
         }
+        let (mut deep, mut slotted) = (0, 0);
         for a in 0..self.height.len() {
             for d in 0..8 {
-                if wide.links[a][d] != NONE
-                    && wide.kinds[a][d] == LinkKind::Drop
-                    && self
-                        .flight_fall(a, d, self.body.drop_flight_mps)
-                        .is_none_or(|fall| fall > self.body.max_drop || fall <= self.body.step)
-                {
-                    wide.links[a][d] = NONE;
+                if wide.links[a][d] == NONE || wide.kinds[a][d] != LinkKind::Drop {
+                    continue;
                 }
+                match self.flight_fall(a, d, self.body.drop_flight_mps) {
+                    Some(fall) if fall > self.body.step && fall <= self.body.max_drop => continue,
+                    Some(fall) if fall <= self.body.step => slotted += 1,
+                    _ => deep += 1,
+                }
+                wide.links[a][d] = NONE;
             }
         }
+        (deep, slotted)
     }
 
     /// Takes away the jumps that land on no room ([`Self::lands`]).
@@ -4172,6 +4182,11 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.5).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert!(drops_east(&ledge, 3.5, flying) > 0, "a real ledge keeps its drop");
+        // Counted: the slot's drops went for no fall, the ledge's none; the default body counts nothing.
+        let stats = |tris: &[Triangle], body: Body| WalkGrid::build_with_stats(tris, [0.0, 0.0, 24.0, 10.0], 0.25, body).1;
+        assert!(stats(&slot, flying).drops_slotted > 0);
+        assert_eq!((stats(&ledge, flying).drops_slotted, stats(&ledge, flying).drops_deep), (0, 0));
+        assert_eq!((stats(&slot, Body::default()).drops_slotted, stats(&slot, Body::default()).drops_deep), (0, 0));
     }
 
     #[test]
