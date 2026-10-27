@@ -65,7 +65,7 @@ pub(crate) struct StoodRead {
 impl StoodRead {
     /// What `bot` reads as, as `tests/bench.rs`'s count of the stood ticks takes it.
     pub(crate) fn of(bot: &Bot) -> Option<Self> {
-        let Go::To { at, within_m } = bot.intent.go else {
+        let Some(Go::To { at, within_m }) = bot.bench_go else {
             return None;
         };
         if bot.route.is_some() || bot.intent.straight {
@@ -1239,7 +1239,11 @@ pub(crate) fn a_bot_reads_as_stood_only_with_a_goal_and_no_route() {
     let goal = Vec3::new(5.0, 0.0, 5.0);
     // No goal: nothing to stand short of.
     assert_eq!(StoodRead::of(bot), None);
-    bot.intent.go = Go::To { at: goal, within_m: 1.0 };
+    // The play's goal is not the walked one: a tick that walked to none (the reflex's legs, the rest point, an unstick)
+    // reads as no stand, whatever the play wants.
+    bot.intent.go = Go::To { at: Vec3::new(90.0, 0.0, 90.0), within_m: 1.0 };
+    assert_eq!(StoodRead::of(bot), None);
+    bot.bench_go = Some(Go::To { at: goal, within_m: 1.0 });
     bot.route = None;
     bot.intent.straight = false;
     assert_eq!(
