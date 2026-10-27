@@ -182,6 +182,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Some(m) = settings.number::<f32>("SRP_BENCH_FRIEND_NEAR_M") {
         set(&mut tuning, "/aim/friends/near_m", m.into());
     }
+    // A landing run against the way and the path, or into a wall, is braked (`Feel::landing_cancel_deg`; 0 off).
+    if let Some(d) = settings.number::<f32>("SRP_BENCH_LANDING_CANCEL_DEG") {
+        set(&mut tuning, "/feel/landing_cancel_deg", d.into());
+    }
     // The teammates led to the tick decided (`FriendlyFireTuning::lead`): 0 off, 1 on; and the lead's extra, ms.
     if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
         set(&mut tuning, "/aim/friends/lead", (v != "0").into());
