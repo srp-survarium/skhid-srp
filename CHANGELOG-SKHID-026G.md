@@ -681,3 +681,16 @@ update changes what a match computes.
   Windows cannot save a memory dump, with a **Copy** button for reporting
   them. Reports also retain game logs containing Cyrillic, Polish or
   other supported local characters instead of discarding those logs.
+
+## 27 Oct, 21:18 — TODO: the owner's words (update required)
+
+<!-- Revision 36 (026g-rev36), released 2026-10-27 21:18 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #556 Changelog: revision 35 for players
+- TODO: #558 release: ship and check the bots' data files (maps, routes table) with the release
+- TODO: #566 release: the bots' foliage file in the bot data list
+- TODO: #578 Bots at every equipment level, in the top players' kits
+- TODO: #569 Rooms: a private room has no max level
+- TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
+- TODO: #686 Fix Research markers and countdown layout using Rust
+- TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending
