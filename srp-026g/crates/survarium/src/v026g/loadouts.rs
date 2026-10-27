@@ -365,9 +365,12 @@ pub const BOT_TRAP: BotKitItem = kit_item("base_trap", 15, 2, Some(QUICK_USE_FIR
 pub fn new_kit() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| {
-        std::env::var("SRP_BOT_KIT")
+        let on = std::env::var("SRP_BOT_KIT")
             .map(|value| matches!(value.trim(), "1" | "on" | "true"))
-            .unwrap_or(false)
+            .unwrap_or(false);
+        // Said once, when it is read: the logs show what the environment gave (this is read once per process).
+        log::info!("SRP_BOT_KIT is {}", if on { "ON" } else { "OFF" });
+        on
     })
 }
 
@@ -384,9 +387,12 @@ pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
 pub fn upgrades_on() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| {
-        std::env::var("SRP_BOT_UPGRADES")
+        let on = std::env::var("SRP_BOT_UPGRADES")
             .map(|value| matches!(value.trim(), "1" | "on" | "true"))
-            .unwrap_or(false)
+            .unwrap_or(false);
+        // Said once, when it is read: the logs show what the environment gave (this is read once per process).
+        log::info!("SRP_BOT_UPGRADES is {}", if on { "ON" } else { "OFF" });
+        on
     })
 }
 
