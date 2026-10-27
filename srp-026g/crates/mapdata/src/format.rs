@@ -20,6 +20,9 @@
 //! list artefact_cores (version 3):
 //!                   string core, list (u32 dict_id, u32 count) pool,
 //!                   list (string name, f32 search_s, f32 cooldown_s) containers
+//! list zone_hit_parts (version 4):
+//!                   per zone, in the zones' order: list string (the names of
+//!                   the parts its hits go to, `hit_parts_filter`)
 //! list libraries:   string name, u32 primitives, list vec3 vertices,
 //!                   list [u32; 3] triangles, then one u8 walker behaviour
 //!                   per triangle
@@ -51,6 +54,12 @@
 //! version 2 file is still read, with none (what the bots know of the
 //! artefact places then stays unknown until the map is dumped again).
 //!
+//! Version 4 (2026-10-27) added the names of the parts a zone's hits go to
+//! after the artefact cores (a zone's pools and the armour it meets depend on
+//! them); a version 2 or 3 file is still read, with no names (the zones keep
+//! their count of parts, and everything that read the file before reads it
+//! the same).
+//!
 //! Reading checks every count against the bytes left, so a damaged file is
 //! an error, never a panic or a huge allocation.
 
@@ -67,7 +76,7 @@ use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
 /// The file name extension.
@@ -195,6 +204,12 @@ impl MapData {
                 });
             });
         }
+        if version >= 4 {
+            w.list(&self.zones, |w, z| {
+                let names = z.damage.as_ref().map_or(&[][..], |d| &d.part_names[..]);
+                w.list(names, |w, n| w.str(n));
+            });
+        }
         w.list(&self.libraries, |w, l| {
             w.str(&l.name);
             w.u32(l.primitives);
@@ -273,6 +288,7 @@ impl MapData {
                         interval_ms: r.u32()?,
                         continuous: r.bool()?,
                         parts: r.u8()?,
+                        part_names: Vec::new(),
                         hit_curve: r.list(8, |r| Ok((r.f32()?, r.f32()?)))?,
                     })
                 } else {
@@ -349,6 +365,21 @@ impl MapData {
                     })?,
                 })
             })?;
+        }
+        if version >= 4 {
+            let names = r.list(4, |r| r.list(4, Reader::str))?;
+            if names.len() != map.zones.len() {
+                return Err(Error(format!(
+                    "map data names the parts of {} zones, the file has {}",
+                    names.len(),
+                    map.zones.len()
+                )));
+            }
+            for (zone, names) in map.zones.iter_mut().zip(names) {
+                if let Some(damage) = &mut zone.damage {
+                    damage.part_names = names;
+                }
+            }
         }
         map.libraries = r.list(16, |r| {
             let name = r.str()?;
@@ -598,6 +629,7 @@ mod tests {
                     interval_ms: 1000,
                     continuous: false,
                     parts: 2,
+                    part_names: vec!["face".into(), "left_foot".into()],
                     hit_curve: vec![(0.8, 1.0), (1.0, 0.5)],
                 }),
                 shapes: vec![
@@ -697,7 +729,25 @@ mod tests {
             old
         );
         assert!(MapData::from_bytes(&map.to_bytes_of(1)).is_err());
-        assert!(MapData::from_bytes(&map.to_bytes_of(4)).is_err());
+        assert!(MapData::from_bytes(&map.to_bytes_of(5)).is_err());
+    }
+
+    /// A version 3 file (written before the zones' part names) is still read, with none: the rest
+    /// of the map is what the version 4 file says.
+    #[test]
+    fn a_version_3_file_is_read_without_the_part_names() {
+        let map = sample();
+        let old = MapData::from_bytes(&map.to_bytes_of(3)).unwrap();
+        let named = &map.zones[0].damage.as_ref().unwrap().part_names;
+        assert_eq!(named.len(), 2, "the sample names its parts");
+        assert!(old.zones[0].damage.as_ref().unwrap().part_names.is_empty());
+        assert_eq!(old.zones[0].damage.as_ref().unwrap().parts, 2);
+        let mut unnamed = map.clone();
+        unnamed.zones[0].damage.as_mut().unwrap().part_names.clear();
+        assert_eq!(unnamed, old);
+        // And the version 4 file keeps them.
+        let new = MapData::from_bytes(&map.to_bytes()).unwrap();
+        assert_eq!(&new.zones[0].damage.as_ref().unwrap().part_names, named);
     }
 
     #[test]
