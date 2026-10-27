@@ -164,6 +164,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/client_numbers", true.into());
     }
+    // The bot's reckoned stamina steers its sprint and jumps (`ThinkTuning::stamina`; off by default).
+    if settings.var("SRP_BENCH_BOT_STAMINA").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/stamina", true.into());
+    }
     // The floors nearer a wall than the body's radius are taken exactly after the cell rounds (`GridTuning::exact_erosion`; off by default).
     if settings.var("SRP_BENCH_EXACT_EROSION").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/exact_erosion", true.into());

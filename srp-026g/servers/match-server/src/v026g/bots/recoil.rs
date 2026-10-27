@@ -112,33 +112,46 @@ impl Kick {
 /// rebalances kicks by its own numbers. PROVEN (the configs).
 pub fn kicks() -> &'static [Kick] {
     static ALL: std::sync::OnceLock<Vec<Kick>> = std::sync::OnceLock::new();
-    ALL.get_or_init(|| {
-        survarium::v026g::weapons::all()
-            .iter()
-            .map(|w| Kick {
-                item: w.name,
-                rpm: w.rounds_per_minute,
-                top_deg: w.top_recoil,
-                left_deg: w.left_recoil,
-                right_deg: w.right_recoil,
-                power: w.recoil_power,
-                gains: w.recoil_gains,
-            })
-            .collect()
-    })
+    ALL.get_or_init(|| kicks_of(survarium::v026g::weapons::all()))
+}
+
+/// The kicks of the weapon table `weapons`: what [`kicks`] makes of the
+/// process's own, and a test makes of a patched copy's.
+pub fn kicks_of(weapons: &[survarium::v026g::weapons::WeaponParams]) -> Vec<Kick> {
+    weapons
+        .iter()
+        .map(|w| Kick {
+            item: w.name,
+            rpm: w.rounds_per_minute,
+            top_deg: w.top_recoil,
+            left_deg: w.left_recoil,
+            right_deg: w.right_recoil,
+            power: w.recoil_power,
+            gains: w.recoil_gains,
+        })
+        .collect()
 }
 
 /// The weapon whose kick a weapon the data does not know takes: the
-/// AK-74M.
+/// AK-74M. Reached by [`Recoil::default`] (a reflex with no arms yet,
+/// `Reflex::default`, until `Reflex::in_hand` gives it its weapon's) and by
+/// an item that is not in the table; a `Gun` of the same table always has
+/// its own kick.
 pub const DEFAULT_KICK: &str = "ak_74m";
 
-/// The kick of the weapon item `item`; the AK-74M's for one not known.
-pub fn kick_of(item: &str) -> &'static Kick {
-    let all = kicks();
+/// The kick of `item` among `all`: [`DEFAULT_KICK`]'s for one not there,
+/// and the table's first when a patch has taken the AK-74M out too.
+pub fn kick_in<'a>(all: &'a [Kick], item: &str) -> &'a Kick {
     all.iter()
         .find(|k| k.item == item)
         .or_else(|| all.iter().find(|k| k.item == DEFAULT_KICK))
-        .expect("the AK-74M is in the game data")
+        .or_else(|| all.first())
+        .expect("the game data has a weapon")
+}
+
+/// The kick of the weapon item `item`; the AK-74M's for one not known.
+pub fn kick_of(item: &str) -> &'static Kick {
+    kick_in(kicks(), item)
 }
 
 /// One weapon's kick as the client keeps it (0x331FF0's fields).

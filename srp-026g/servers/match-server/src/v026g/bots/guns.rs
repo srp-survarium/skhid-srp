@@ -137,12 +137,12 @@ impl Gun {
     /// category split by its bolt.
     pub fn class(&self) -> &'static str {
         match (self.category, self.handling) {
-            (15, _) => "smg",
-            (16, _) => "mg",
-            (17, _) => "pistol",
-            (14, _) => "shotgun",
-            (13, Handling::Bolt) => "bolt",
-            (13, _) => "marksman",
+            (SMG_CATEGORY, _) => "smg",
+            (MG_CATEGORY, _) => "mg",
+            (PISTOL_CATEGORY, _) => "pistol",
+            (SHOTGUN_CATEGORY, _) => "shotgun",
+            (SNIPER_CATEGORY, Handling::Bolt) => "bolt",
+            (SNIPER_CATEGORY, _) => "marksman",
             _ => "rifle",
         }
     }
@@ -460,23 +460,70 @@ impl super::features::Feature for ModBank {}
 /// divides by 0.
 const MIN_RELOAD_SPEED: f32 = 0.1;
 
-/// The submachine guns' category (`categories_dict`).
+/// The weapon categories of the dictionary (`categories_dict`), named once.
+/// The rifles'.
+pub const RIFLE_CATEGORY: u8 = 8;
+/// The sniper rifles' (bolt and marksman).
+pub const SNIPER_CATEGORY: u8 = 13;
+/// The shotguns'.
+pub const SHOTGUN_CATEGORY: u8 = 14;
+/// The submachine guns'.
 pub const SMG_CATEGORY: u8 = 15;
+/// The machine guns'.
+pub const MG_CATEGORY: u8 = 16;
+/// The pistols' (revolvers, automatic pistols).
+pub const PISTOL_CATEGORY: u8 = 17;
+
+/// The guns of the weapon table `weapons`, as the bots fire them. The
+/// process's own is [`guns`]; a table made of other game data (a patched
+/// copy, in a test) is read the same way.
+pub fn guns_of(weapons: &[survarium::v026g::weapons::WeaponParams]) -> Vec<Gun> {
+    weapons.iter().map(Gun::of).collect()
+}
 
 /// Every weapon of the game data, as the bots fire it.
 pub fn guns() -> &'static [Gun] {
     static ALL: std::sync::OnceLock<Vec<Gun>> = std::sync::OnceLock::new();
-    ALL.get_or_init(|| {
-        survarium::v026g::weapons::all()
-            .iter()
-            .map(Gun::of)
-            .collect()
-    })
+    ALL.get_or_init(|| guns_of(survarium::v026g::weapons::all()))
+}
+
+/// The facts of the weapon item `item` among `guns`.
+pub fn gun_in<'a>(guns: &'a [Gun], item: &str) -> Option<&'a Gun> {
+    guns.iter().find(|gun| gun.item == item)
 }
 
 /// The facts of the weapon item `item`.
 pub fn gun(item: &str) -> Option<&'static Gun> {
-    guns().iter().find(|gun| gun.item == item)
+    gun_in(guns(), item)
+}
+
+/// The weapon table the bots' guns are made from: the guns of the rows
+/// and the rows themselves. The process's is [`Table::process`]; a test makes
+/// one of a patched copy of the game data ([`Table::of`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Table {
+    pub guns: &'static [Gun],
+    pub weapons: &'static [survarium::v026g::weapons::WeaponParams],
+}
+
+impl Table {
+    /// The process's own: every weapon of the game data.
+    pub fn process() -> Self {
+        Self {
+            guns: guns(),
+            weapons: survarium::v026g::weapons::all(),
+        }
+    }
+
+    /// The table of the weapon rows `weapons` (kept for good: a `Gun` is a
+    /// `&'static`).
+    pub fn of(weapons: Vec<survarium::v026g::weapons::WeaponParams>) -> Self {
+        let weapons: &'static [_] = Box::leak(weapons.into_boxed_slice());
+        Self {
+            guns: Box::leak(guns_of(weapons).into_boxed_slice()),
+            weapons,
+        }
+    }
 }
 
 /// The facts of the weapon `item` as a kit with the weapon's `mods` and a
@@ -484,13 +531,26 @@ pub fn gun(item: &str) -> Option<&'static Gun> {
 /// when there is nothing to change, else one made once for the combination and
 /// kept for good, so that a `Gun` stays a `&'static`.
 pub fn gun_with(item: &str, mods: &[u32], factors: Factors) -> Option<&'static Gun> {
-    let base = gun(item)?;
+    gun_with_in(Table::process(), item, mods, factors)
+}
+
+/// [`gun_with`] over the table `table`. The combination is kept with the
+/// table it was made from, so a patched table never takes a gun made from
+/// another's numbers.
+pub fn gun_with_in(
+    table: Table,
+    item: &str,
+    mods: &[u32],
+    factors: Factors,
+) -> Option<&'static Gun> {
+    let base = gun_in(table.guns, item)?;
     if mods.is_empty() && factors == Factors::default() {
         return Some(base);
     }
-    type Key = (&'static str, Vec<u32>, [u32; 2]);
+    type Key = (usize, &'static str, Vec<u32>, [u32; 2]);
     static MADE: std::sync::Mutex<Vec<(Key, &'static Gun)>> = std::sync::Mutex::new(Vec::new());
     let key: Key = (
+        table.guns.as_ptr() as usize,
         base.item,
         mods.to_vec(),
         [factors.reload_speed.to_bits(), factors.aim_time.to_bits()],
@@ -499,7 +559,7 @@ pub fn gun_with(item: &str, mods: &[u32], factors: Factors) -> Option<&'static G
     if let Some((_, gun)) = made.iter().find(|(made, _)| *made == key) {
         return Some(gun);
     }
-    let weapon = survarium::v026g::weapons::weapon_named(item)?;
+    let weapon = table.weapons.iter().find(|w| w.name == item)?;
     let gun: &'static Gun = Box::leak(Box::new(Gun::of_kit(weapon, &wire_mods(mods), factors)));
     made.push((key, gun));
     Some(gun)
@@ -690,14 +750,29 @@ fn arms_of(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Option<Arms> {
     arms_of_in(kit, modifiers, upgrades_on())
 }
 
-/// [`arms_of`] with the upgrades `on` or off.
+/// [`arms_of`] with the upgrades `on` or off, over the process's weapons.
 fn arms_of_in(kit: &Loadout, modifiers: &[f32; MODIFIERS], on: bool) -> Option<Arms> {
+    arms_in(Table::process(), Dictionary::shared(), kit, modifiers, on)
+}
+
+/// [`arms_of_in`] over the weapon table `table` and the dictionary
+/// `dictionary` that names its items: the process's kits use the process's
+/// ([`Table::process`], the shared dictionary); a test hands it the table of a
+/// patched copy of the game data, and the mods and factors then apply to
+/// that copy's numbers ([`gun_with_in`]).
+pub fn arms_in(
+    table: Table,
+    dictionary: &Dictionary,
+    kit: &Loadout,
+    modifiers: &[f32; MODIFIERS],
+    on: bool,
+) -> Option<Arms> {
     let slot = kit.slot(7)?;
-    let weapon = Dictionary::shared().item(slot.dict_id)?;
+    let weapon = dictionary.item(slot.dict_id)?;
     let primary = if on {
-        gun_with(&weapon.name, slot.mods, Factors::of_kit(kit, modifiers))?
+        gun_with_in(table, &weapon.name, slot.mods, Factors::of_kit(kit, modifiers))?
     } else {
-        gun(&weapon.name)?
+        gun_in(table.guns, &weapon.name)?
     };
     let ammo = kit
         .items
