@@ -431,6 +431,6 @@ Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs`
   trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
 - On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
   was paid 2.7k a match, the top quarter 21.9k; the lowest were also the lowest levels (16.9
-  against 31.2). With the floor the lowest quarter's pay rises to about 4.6k; all silver paid
-  rises about 7 %.
+  against 31.2). With the floor the lowest quarter's pay rises to about 4.2k (91 of 555
+  players raised); all silver paid rises about 6 %.
 - `rewards.rs` `Shared::money_floor`, applied in `settle_player`.
