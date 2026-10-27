@@ -2457,7 +2457,7 @@ mod tests {
         let aim = |feel: Feel, route: &Route, s: f32, clear: &dyn Fn(Vec3) -> bool| {
             Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3)).aim_point(route, s, 0.8, &clear)
         };
-        let ua = Feel { unclear_aim: true, ..Feel::default() };
+        let ua = || Feel { unclear_aim: true, ..Feel::default() };
         // Team 1's exit: the platform (y 29.14) to the next floor 0.95 m down, then on down; a body on the platform walks
         // in a line to the platform's points only.
         let team1 = Route::new(vec![
@@ -2470,20 +2470,20 @@ mod tests {
         ]);
         let platform = |q: Vec3| q.y > 28.9;
         assert!(team1.link_ahead(0.9, 1.3, 0.8));
-        assert!(matches!(aim(ua, &team1, 0.9, &platform), Aim::Unclear(_)), "steers on at the edge");
+        assert!(matches!(aim(ua(), &team1, 0.9, &platform), Aim::Unclear(_)), "steers on at the edge");
         // Team 0's exit: a 3.9 m drop in the second leg after the lip.
         let team0 = Route::new(vec![p(-25.1, 39.0, 142.6), p(-22.6, 37.4, 143.4), p(-22.1, 33.5, 143.4), p(-20.1, 33.8, 145.4)]);
         let top = |q: Vec3| q.y > 36.0;
-        assert!(matches!(aim(ua, &team0, 2.5, &top), Aim::Unclear(_)));
+        assert!(matches!(aim(ua(), &team0, 2.5, &top), Aim::Unclear(_)));
         // The rule off answers the same.
-        assert_eq!(aim(Feel::default(), &team1, 0.9, &platform), aim(ua, &team1, 0.9, &platform));
+        assert_eq!(aim(Feel::default(), &team1, 0.9, &platform), aim(ua(), &team1, 0.9, &platform));
         // No drop within reach: the walls of before. The same heights without the drop (a flat way, a wall at x > 97.5):
         // steered back to the clear point behind, or off the route when none is.
         let flat = Route::new(vec![p(98.6, 29.1, 136.1), p(97.9, 29.1, 136.1), p(97.4, 29.1, 136.6), p(97.1, 29.1, 136.9)]);
         let wall = |q: Vec3| q.x > 97.6;
         assert!(!flat.link_ahead(0.9, 1.3, 0.8));
-        assert!(matches!(aim(ua, &flat, 0.9, &wall), Aim::Clear(_)), "steered back");
-        assert_eq!(aim(ua, &flat, 0.9, &|_| false), Aim::None);
+        assert!(matches!(aim(ua(), &flat, 0.9, &wall), Aim::Clear(_)), "steered back");
+        assert_eq!(aim(ua(), &flat, 0.9, &|_| false), Aim::None);
         // A drop further than the look-ahead reaches is not one in reach.
         let far = Route::new(vec![p(0.0, 5.0, 0.0), p(20.0, 5.0, 0.0), p(21.0, 3.0, 0.0)]);
         assert!(!far.link_ahead(0.0, 2.0, 0.8));
