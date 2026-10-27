@@ -18,7 +18,7 @@ impl Decisions {
     }
 
     pub(crate) fn note(&mut self, note: &Note) {
-        self.text(&format!("{} {} {}", note.place, note.time, note.text));
+        self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&note.text)));
         self.notes += 1;
     }
 
