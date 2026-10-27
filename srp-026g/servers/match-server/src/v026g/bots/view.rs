@@ -273,6 +273,10 @@ pub struct PlaceView {
     pub carrying: Option<usize>,
     /// The time of the world (or input) the body was last put right by.
     pub seen_at: u32,
+    /// For a player: how late his inputs reach the server, ms (a running
+    /// mean over his last accepted inputs, `Tracker::lateness`); 0 for a
+    /// bot and until his first input. Not the world's age (`seen_at`).
+    pub late_ms: u32,
     /// The time (ms) `feet` and `velocity` are for: a bot's last decided
     /// tick (up to [`super::encode::LEAD_TICKS`] past the clock), a human's
     /// reckoning to the clock. A bot's input for a tick runs then, so what
@@ -522,6 +526,8 @@ struct PlaceState {
     keys: u32,
     /// The last input's tick.
     last_input: Option<u32>,
+    /// A running mean of how late his inputs came, ms.
+    late: Option<f32>,
     alive: bool,
     health: f32,
     spawned: u32,
@@ -538,6 +544,10 @@ struct PlaceState {
     /// has a spot for: one spot a life.
     death_spotted: Option<u32>,
 }
+
+/// A player's lateness is the mean of about this many of his last inputs
+/// (a second or so of play).
+const LATE_MEAN_INPUTS: f32 = 16.0;
 
 /// The view's keeper.
 pub struct Tracker {
@@ -571,7 +581,27 @@ pub struct Tracker {
     /// live human is.
     #[cfg(test)]
     pub seen_late: Option<Vec<u32>>,
+    /// The bench only (`SRP_BENCH_PING_JITTER`): each place's `seen_late`
+    /// is off by a random walk within this many ms either way, one step a
+    /// tick of at most [`JITTER_STEP_MS`] (the live lateness changes by
+    /// 14 ms a tick at the 99th percentile), from the seed. Spikes of
+    /// 150 ms are the live 90th percentile.
+    #[cfg(test)]
+    pub seen_jitter: (u32, u32),
+    /// The walks: by place, the tick last drawn for and the offset there.
+    #[cfg(test)]
+    jitter_walks: std::cell::RefCell<Vec<(u32, i32)>>,
+    /// The bench only: by place, the lateness above which the relay
+    /// discards an input (`Game::late_relay_reach`): a body late by more is
+    /// shown as it is, with no error, for the input never came (nor to
+    /// the game's other clients).
+    #[cfg(test)]
+    pub seen_reach: Vec<u32>,
 }
+
+/// The most a bench jitter walk moves in a tick, ms.
+#[cfg(test)]
+pub const JITTER_STEP_MS: i32 = 14;
 
 impl Tracker {
     /// `teams[place]`, `bots[place]`; `containers[id]` = (team, place).
@@ -606,6 +636,12 @@ impl Tracker {
             world_time: 0,
             #[cfg(test)]
             seen_late: None,
+            #[cfg(test)]
+            seen_jitter: (0, 0),
+            #[cfg(test)]
+            jitter_walks: Default::default(),
+            #[cfg(test)]
+            seen_reach: Vec::new(),
         }
     }
 
@@ -613,6 +649,57 @@ impl Tracker {
     pub fn set_containers(&mut self, containers: Vec<(u8, Vec3)>) {
         self.container_counts.resize(containers.len(), 0);
         self.containers = containers;
+    }
+
+    /// The jitter of a place's ping at `clock`, ms: a random walk within
+    /// `seen_jitter`, a step at most [`JITTER_STEP_MS`] each tick, the same
+    /// for a place and a seed, advanced to the tick of `clock` (asking again
+    /// for it gives the same).
+    #[cfg(test)]
+    fn jitter(&self, place: usize, clock: u32) -> i32 {
+        let (ms, seed) = self.seen_jitter;
+        if ms == 0 {
+            return 0;
+        }
+        let bound = ms as i32;
+        let tick = clock / 50;
+        let mut walks = self.jitter_walks.borrow_mut();
+        if walks.len() <= place {
+            walks.resize(place + 1, (tick, 0));
+        }
+        let (mut at, mut offset) = walks[place];
+        while at < tick {
+            at += 1;
+            let mut z = u64::from(seed) << 32 | u64::from(at);
+            z = z.wrapping_add((place as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^= z >> 31;
+            let step = (z % (2 * JITTER_STEP_MS as u64 + 1)) as i32 - JITTER_STEP_MS;
+            offset = (offset + step).clamp(-bound, bound);
+        }
+        walks[place] = (at, offset);
+        offset
+    }
+
+    /// A player's input reached the server `late_ms` after its tick: his
+    /// running mean of that (each input weighs 1/[`LATE_MEAN_INPUTS`]),
+    /// which the view gives as [`PlaceView::late_ms`]. Called for an input
+    /// the server accepted, not one it discarded for being later than
+    /// the relay's reach.
+    pub fn lateness(&mut self, place: Place, late_ms: u32) {
+        if let Some(state) = self.places.get_mut(place) {
+            let late = late_ms as f32;
+            state.late = Some(state.late.map_or(late, |mean| {
+                mean + (late - mean) / LATE_MEAN_INPUTS
+            }));
+        }
+    }
+
+    /// TEST ONLY: the tick of the last input taken for `place`.
+    #[cfg(test)]
+    pub fn last_input(&self, place: Place) -> Option<u32> {
+        self.places.get(place).and_then(|state| state.last_input)
     }
 
     /// A place added (a late joiner).
@@ -1297,7 +1384,16 @@ impl Tracker {
                     // The bench's bots seen as humans are (`seen_late`).
                     #[cfg(test)]
                     let own = match self.seen_late.as_ref().and_then(|late| late.get(place)) {
-                        Some(&late) => own.map(|e| state.body.seen_late(e, clock.clock, late)),
+                        Some(&late) => {
+                            let late = late.saturating_add_signed(self.jitter(place, clock.clock));
+                            // Later than the relay takes: never came.
+                            let late = if self.seen_reach.get(place).is_some_and(|&r| late > r) {
+                                0
+                            } else {
+                                late
+                            };
+                            own.map(|e| state.body.seen_late(e, clock.clock, late))
+                        }
                         None => own,
                     };
                     own
@@ -1328,6 +1424,7 @@ impl Tracker {
                     streak: state.stats.2,
                     carrying,
                     seen_at: state.body.fix().map_or(0, |fix| fix.time),
+                    late_ms: state.late.map_or(0, |late| late.round() as u32),
                     known_at: estimate.map_or(clock.clock, |e| e.time),
                 }
             })
@@ -1880,5 +1977,68 @@ mod tests {
                 .any(|n| n.ends_with("now still player 0, no one else whose use met it")),
             "{notes:?}"
         );
+    }
+
+    /// The bench's ping jitter is a bounded random walk: within its bound
+    /// either way (a spike of 150 ms is the live 90th percentile), a step of
+    /// at most the live 99th percentile of the lateness's change a tick, the
+    /// same for a place and a seed however it is asked, different from place
+    /// to place and seed to seed, and none when it is 0.
+    #[test]
+    fn the_bench_jitter_is_a_seeded_bounded_walk_with_small_steps() {
+        let tracker = |seed| {
+            let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+            tracker.seen_jitter = (150, seed);
+            tracker
+        };
+        let walk = |tracker: &Tracker, place| -> Vec<i32> {
+            (0..2_000).map(|k| tracker.jitter(place, 1_000 + k * 50)).collect()
+        };
+        let mut off = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        assert_eq!(off.jitter(0, 1_000), 0);
+        off.seen_jitter = (0, 7);
+        assert_eq!(off.jitter(0, 2_000), 0);
+        let one = tracker(7);
+        let draws = walk(&one, 0);
+        assert!(draws.iter().all(|d| d.abs() <= 150));
+        assert!(draws.windows(2).all(|w| (w[1] - w[0]).abs() <= JITTER_STEP_MS));
+        // It wanders: both sides of the bound are reached in 100 s.
+        assert!(draws.iter().any(|&d| d > 100) && draws.iter().any(|&d| d < -100));
+        // The same tick asked again, or within it, gives the same.
+        assert_eq!(one.jitter(0, 1_000 + 1_999 * 50), draws[1_999]);
+        assert_eq!(one.jitter(0, 1_000 + 1_999 * 50 + 49), draws[1_999]);
+        assert_eq!(walk(&tracker(7), 0), draws);
+        assert_ne!(walk(&one, 1), draws);
+        assert_ne!(walk(&tracker(8), 0), draws);
+    }
+
+    /// A player's lateness is the running mean of his accepted inputs'; a
+    /// bot has none.
+    #[test]
+    fn a_players_lateness_is_the_running_mean_of_his_inputs() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        tracker.fixed(1, fix(1_000, Vec3::ZERO), None, &kin, None);
+        let clock = Clock {
+            clock: 1_100,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        assert_eq!(tracker.view(&clock, &kin, None).place(1).unwrap().late_ms, 0);
+        for _ in 0..200 {
+            tracker.lateness(1, 100);
+        }
+        let late = |tracker: &Tracker| tracker.view(&clock, &kin, None).place(1).unwrap().late_ms;
+        assert_eq!(late(&tracker), 100);
+        // A spike moves the mean by a sixteenth of it; a run of them, all.
+        tracker.lateness(1, 420);
+        assert_eq!(late(&tracker), 120);
+        for _ in 0..200 {
+            tracker.lateness(1, 20);
+        }
+        assert_eq!(late(&tracker), 20);
+        assert_eq!(tracker.view(&clock, &kin, None).place(0).unwrap().late_ms, 0);
     }
 }
