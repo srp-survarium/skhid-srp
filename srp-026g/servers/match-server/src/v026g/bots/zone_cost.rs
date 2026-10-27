@@ -11,7 +11,8 @@
 //! the body pool (part 0) and counted the raw hit: a toxic cloud they could cross in the books
 //! killed them through a pool they never looked at, and a mask did nothing for them.
 //!
-//! [`Cost`] is a walk's loss in the pools that kill (body, head, infection), [`Reserve`] what a
+//! [`Cost`] is a walk's loss in the pools that kill at 0 (body, head, infection and pain: the
+//! table's thresholds), [`Reserve`] what a
 //! body has left of them, and [`Budget`] the pair a decision needs: a reserve and the armour the
 //! cost is worked out with. With no armour ([`Budget::raw`], the switch off) a zone costs its raw
 //! hit in the body pool and the other pools are never short: the numbers the code always had.
@@ -30,6 +31,7 @@ pub struct Cost {
     pub body: f32,
     pub head: f32,
     pub infection: f32,
+    pub pain: f32,
 }
 
 impl Cost {
@@ -37,6 +39,7 @@ impl Cost {
         body: 0.0,
         head: 0.0,
         infection: 0.0,
+        pain: 0.0,
     };
 
     /// A loss of the body pool alone (the raw hit).
@@ -59,18 +62,25 @@ impl Cost {
                 infection: amount,
                 ..Self::ZERO
             },
+            "pain" => Self {
+                pain: amount,
+                ..Self::ZERO
+            },
             _ => Self::ZERO,
         }
     }
 
     /// Whether every pool's loss is finite.
     pub fn is_finite(&self) -> bool {
-        self.body.is_finite() && self.head.is_finite() && self.infection.is_finite()
+        self.body.is_finite()
+            && self.head.is_finite()
+            && self.infection.is_finite()
+            && self.pain.is_finite()
     }
 
     /// The largest loss of any pool.
     pub fn most(&self) -> f32 {
-        self.body.max(self.head).max(self.infection)
+        self.body.max(self.head).max(self.infection).max(self.pain)
     }
 }
 
@@ -82,6 +92,7 @@ impl Add for Cost {
             body: self.body + other.body,
             head: self.head + other.head,
             infection: self.infection + other.infection,
+            pain: self.pain + other.pain,
         }
     }
 }
@@ -94,6 +105,7 @@ impl Mul<f32> for Cost {
             body: self.body * k,
             head: self.head * k,
             infection: self.infection * k,
+            pain: self.pain * k,
         }
     }
 }
@@ -110,6 +122,7 @@ pub struct Reserve {
     pub body: f32,
     pub head: f32,
     pub infection: f32,
+    pub pain: f32,
 }
 
 impl Reserve {
@@ -119,6 +132,7 @@ impl Reserve {
             body: health,
             head: f32::INFINITY,
             infection: f32::INFINITY,
+            pain: f32::INFINITY,
         }
     }
 
@@ -128,6 +142,7 @@ impl Reserve {
             body: pools.body,
             head: pools.head,
             infection: pools.infection,
+            pain: pools.pain,
         }
     }
 
@@ -139,6 +154,7 @@ impl Reserve {
         pool(self.body, cost.body)
             && (cost.head <= 0.0 || pool(self.head, cost.head))
             && (cost.infection <= 0.0 || pool(self.infection, cost.infection))
+            && (cost.pain <= 0.0 || pool(self.pain, cost.pain))
     }
 
     /// Whether `cost` leaves at least `left` in every pool it takes from (the body pool always).
@@ -146,6 +162,7 @@ impl Reserve {
         self.body - cost.body >= left
             && (cost.head <= 0.0 || self.head - cost.head >= left)
             && (cost.infection <= 0.0 || self.infection - cost.infection >= left)
+            && (cost.pain <= 0.0 || self.pain - cost.pain >= left)
     }
 }
 
@@ -313,11 +330,13 @@ mod tests {
         assert_eq!(raw, Cost::body(0.25 * 1.0));
     }
 
-    /// Fire on the feet takes the legs' pools and pain, which do not kill: no cost in any pool.
+    /// Fire on the feet takes the pain pool (it kills at 0, and regenerates) and the legs' own
+    /// pools, which do not kill: the cost is pain alone, 0.8 of the hit a foot.
     #[test]
-    fn fire_on_the_feet_costs_no_killing_pool() {
+    fn fire_on_the_feet_costs_the_pain_pool() {
         let fire = zone("fire", &["left_foot", "right_foot"], 0.1, 0.0);
-        assert_eq!(fire.cost_per_s(&ZoneArmour::default()), Cost::ZERO);
+        let cost = fire.cost_per_s(&ZoneArmour::default());
+        assert!(near(cost.pain, 0.16) && cost.body == 0.0 && cost.infection == 0.0, "{cost:?}");
         // Fire on the torso takes the body pool too.
         let torso = zone("fire", &["front"], 0.1, 0.0);
         assert!(near(torso.cost_per_s(&ZoneArmour::default()).body, 0.1));
@@ -337,6 +356,7 @@ mod tests {
             body: 1.0,
             head: 0.4,
             infection: 1.0,
+            pain: 1.0,
         };
         // Share 0.5 and left 0.4 of a pool, as `collect::bears`.
         assert!(full.bears(Cost::body(0.4), 0.5, 0.4));
@@ -364,12 +384,12 @@ mod tests {
 
     /// The pools that kill are the ones the table says kill.
     #[test]
-    fn body_head_and_infection_kill_and_pain_and_legs_do_not() {
+    fn body_head_infection_and_pain_kill_and_the_limbs_do_not() {
         let human = damage::human();
-        for name in ["body", "head", "infection"] {
+        for name in ["body", "head", "infection", "pain"] {
             assert!(human.part(name).unwrap().lethal, "{name}");
         }
-        for name in ["pain", "right_leg", "left_hand"] {
+        for name in ["right_leg", "left_hand"] {
             assert!(!human.part(name).unwrap().lethal, "{name}");
         }
     }
