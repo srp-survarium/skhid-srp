@@ -1163,6 +1163,9 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            if new_life {
+                bot.stuck.forget_heights();
+            }
             bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
         }
         // A world ends a blind stop (`UnstickTuning::blind_stop_ms`); its reckoning is put right by the world itself.

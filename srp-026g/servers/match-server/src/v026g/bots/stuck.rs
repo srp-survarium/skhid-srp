@@ -174,7 +174,9 @@ const HOPELESS_TIMES: u32 = 2 + HOPELESS_GIVE_UPS;
 pub const HARD_FALL_M: f32 = 6.0;
 /// The lock of a hard fall, ms (a broken leg is 8 s, `motor::Hurt`).
 pub const FALL_LOCK_MS: u32 = 8_500;
-/// The heights of the worlds are kept this long to see a fall, ms.
+/// The heights of the worlds are kept this long to see a fall, ms; the newest one is kept for [`FIX_GAP_MS`] whatever
+/// the window (a world a second apart leaves one height, one every 2 s at the live cadence none: the fall is between
+/// two worlds, not inside a window).
 const FALL_WINDOW_MS: u32 = 2_000;
 
 /// A bot with nothing left to try (`Stuck::hopeless`): since when, and why.
@@ -271,23 +273,33 @@ struct Spot {
 }
 
 impl Stuck {
-    /// A world showed the body at `feet`: after a fall of [`HARD_FALL_M`] or more within [`FALL_WINDOW_MS`] that has
-    /// landed (the height is no longer dropping), the body is locked for [`FALL_LOCK_MS`] ([`Self::walking`] says
-    /// nothing meanwhile). `on`: the switch (`think.fall_lock`); off, nothing is kept.
+    /// A world showed the body at `feet`: if it is [`HARD_FALL_M`] or more under the heights the worlds of the window
+    /// showed (or under the newest one before it, up to [`FIX_GAP_MS`] old), it fell that far since: the body is locked
+    /// for [`FALL_LOCK_MS`] ([`Self::walking`] says nothing meanwhile). The first world to show the fall locks, in the air
+    /// or landed (a body in the air lands within a second, inside the lock). `on`: the switch (`think.fall_lock`); off,
+    /// nothing is kept.
     pub fn track_fall(&mut self, time: u32, feet: Vec3, on: bool) {
         if !on {
             return;
         }
+        let newest = self.heights.last().copied();
         self.heights.retain(|&(at, _)| at + FALL_WINDOW_MS > time);
+        if let Some((at, y)) = newest.filter(|&(at, _)| self.heights.is_empty() && at + FIX_GAP_MS > time) {
+            self.heights.push((at, y));
+        }
         let dropped = self.heights.iter().map(|&(_, y)| y).fold(f32::MIN, f32::max) - feet.y;
-        let landed = self.heights.last().is_some_and(|&(_, y)| feet.y > y - 0.05);
-        if dropped >= HARD_FALL_M && landed {
+        if dropped >= HARD_FALL_M {
             self.fall_lock_until = time + FALL_LOCK_MS;
             self.heights.clear();
             #[cfg(test)]
             fall_locks::locked();
         }
         self.heights.push((time, feet.y));
+    }
+
+    /// A new life: the heights of the last one show no fall.
+    pub fn forget_heights(&mut self) {
+        self.heights.clear();
     }
 
     /// It stopped walking (a new route, a pause, a death): the next world
@@ -1099,6 +1111,41 @@ mod tests {
         assert!(off < 4_500 && on >= off + 5_000, "{off} {on}");
         let short = first_stuck(true, 6.0).expect("a 3 m fall locks nothing");
         assert!(short < 4_500, "{short}");
+    }
+
+    /// The lock needs only two worlds, the last before the fall and the first to show it: at the bench's one world a second
+    /// and the live one every 2 s, where the old rule (a height still dropping and the body landed, in a window of 2 s)
+    /// never fired. Off, nothing; a fall of 5 m, a stream with a gap past [`FIX_GAP_MS`], and a new life lock nothing.
+    #[test]
+    fn a_hard_fall_between_two_worlds_locks_at_any_cadence() {
+        let locked = |every: u32, from: f32, to: f32, on: bool| {
+            let mut stuck = Stuck::default();
+            stuck.track_fall(10_000, Vec3::new(0.0, from, 0.0), on);
+            stuck.track_fall(10_000 + every, Vec3::new(0.0, to, 0.0), on);
+            stuck.fall_lock_until > 0
+        };
+        for every in [150, 1_000, 2_000, 2_900] {
+            assert!(locked(every, 9.5, 3.0, true), "{every} ms apart");
+            assert!(!locked(every, 9.5, 3.0, false), "{every} ms apart, off");
+            assert!(!locked(every, 9.5, 4.5, true), "{every} ms apart: 5 m");
+        }
+        assert!(!locked(4_000, 9.5, 3.0, true), "4 s apart: not known to be a fall");
+        // The lock runs from the world that showed the fall; the watch is quiet through it and speaks after.
+        let mut stuck = Stuck::default();
+        stuck.track_fall(10_000, Vec3::new(0.0, 9.5, 0.0), true);
+        let feet = Vec3::new(0.0, 3.0, 0.0);
+        stuck.track_fall(11_000, feet, true);
+        assert_eq!(stuck.fall_lock_until, 11_000 + FALL_LOCK_MS);
+        for t in (11_000..11_000 + FALL_LOCK_MS).step_by(1_000) {
+            stuck.track_fall(t + 1_000, feet, true);
+            assert!(stuck.walking(t, feet, Some(0.0), key::FORWARD).is_none(), "{t}");
+        }
+        // A new life forgets the last one's heights (a spawn lower than the death is no fall).
+        let mut stuck = Stuck::default();
+        stuck.track_fall(10_000, Vec3::new(0.0, 9.5, 0.0), true);
+        stuck.forget_heights();
+        stuck.track_fall(11_000, Vec3::new(0.0, 3.0, 0.0), true);
+        assert_eq!(stuck.fall_lock_until, 0);
     }
 
     /// (iii): the landing of a jump the motor gave up is shut to the body's
