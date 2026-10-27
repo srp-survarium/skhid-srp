@@ -45,6 +45,35 @@ pub(crate) const REACH_M: f32 = 1.30;
 
 pub(crate) const SPRINTLESS_M: f32 = 1.00;
 
+/// The flag of a press for a link of `rise` m by what the press could make (`jumps.md` 9.2): TOO_LOW if the link is over
+/// the sprint jump's reach, or over the plain jump's with a battery carried (which cannot sprint); NO_SPRINT if it is over
+/// the plain jump's and the press was made with no sprint held. A press with the sprint held (not carrying) for a link
+/// within the sprint jump's reach is no flag.
+pub(crate) fn form_flag(rise: f32, sprint: bool, carrying: bool) -> Option<&'static str> {
+    if rise > REACH_M || (rise > SPRINTLESS_M && carrying) {
+        Some("TOO_LOW")
+    } else if rise > SPRINTLESS_M && !sprint {
+        Some("NO_SPRINT")
+    } else {
+        None
+    }
+}
+
+#[test]
+fn the_form_flag_asks_for_the_sprint_only_over_the_plain_jump() {
+    // Within the plain jump: no flag. Over it, within the sprint jump's: NO_SPRINT with no sprint held, none with it.
+    assert_eq!(form_flag(0.9, false, false), None);
+    assert_eq!(form_flag(1.2, false, false), Some("NO_SPRINT"));
+    assert_eq!(form_flag(1.2, true, false), None);
+    // A carried battery cannot sprint: TOO_LOW over the plain jump, held or not.
+    assert_eq!(form_flag(1.2, true, true), Some("TOO_LOW"));
+    assert_eq!(form_flag(1.2, false, true), Some("TOO_LOW"));
+    assert_eq!(form_flag(0.9, false, true), None);
+    // Over the sprint jump's reach: TOO_LOW whatever the keys.
+    assert_eq!(form_flag(1.4, true, false), Some("TOO_LOW"));
+    assert_eq!(form_flag(1.4, false, false), Some("TOO_LOW"));
+}
+
 /// Pressed this far under the take-off, m.
 pub(crate) const PRESSED_LOW_M: f32 = 0.30;
 
@@ -234,10 +263,8 @@ impl Run {
         // Form.
         if let Some((from, to)) = p.route {
             let rise = to.y - from.y;
-            if rise > REACH_M || (rise > SPRINTLESS_M && (sprint || p.carrying)) {
-                flags.push("TOO_LOW");
-            } else if rise > SPRINTLESS_M {
-                flags.push("NO_SPRINT");
+            if let Some(flag) = form_flag(rise, sprint, p.carrying) {
+                flags.push(flag);
             }
             if from.y - p.feet.y > PRESSED_LOW_M {
                 flags.push("PRESSED_LOW");
