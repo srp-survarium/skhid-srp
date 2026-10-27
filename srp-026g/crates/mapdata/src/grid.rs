@@ -886,7 +886,9 @@ impl WalkGrid {
     }
 
     /// Takes away the Drop links of a body that walks off ([`Body::drop_flight_mps`]) whose real fall is deeper than
-    /// [`Body::max_drop`], the chain of harmless drops included (the cell model sees each step of it as one).
+    /// [`Body::max_drop`], the chain of harmless drops included (the cell model sees each step of it as one), and
+    /// those it is no fall at all: the flight comes down on a floor within a step of the take-off's (the floor
+    /// goes on past a slot or a hole one cell wide, with the lower floor stacked under it: Vector Laboratory, B8).
     fn drop_deep_flights(&self, wide: &mut Wide) {
         if self.body.drop_flight_mps <= 0.0 {
             return;
@@ -895,7 +897,9 @@ impl WalkGrid {
             for d in 0..8 {
                 if wide.links[a][d] != NONE
                     && wide.kinds[a][d] == LinkKind::Drop
-                    && self.flight_fall(a, d, self.body.drop_flight_mps).is_none_or(|fall| fall > self.body.max_drop)
+                    && self
+                        .flight_fall(a, d, self.body.drop_flight_mps)
+                        .is_none_or(|fall| fall > self.body.max_drop || fall <= self.body.step)
                 {
                     wide.links[a][d] = NONE;
                 }
@@ -4146,6 +4150,28 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert!(drops_east(&ledge, 3.0, flying) > 0, "a 3 m ledge is a harmless fall");
+    }
+
+    /// A deck with a slot one cell wide, the deck going on beyond it and the lower floor under it (Vector Laboratory,
+    /// the lip of the battery mezzanine): the cell model has a 3.5 m Drop into the slot; a body that walks off at
+    /// 3.5 m/s crosses the slot and lands on the deck again, so with `drop_flight_mps` there is none. A real ledge
+    /// keeps its Drop.
+    #[test]
+    fn a_drop_into_a_slot_the_deck_goes_on_past_is_no_drop_to_a_body_that_walks_off() {
+        let drops_east = |tris: &[Triangle], edge_y: f32, body: Body| {
+            let grid = WalkGrid::build(tris, [0.0, 0.0, 24.0, 10.0], 0.25, body);
+            let edge = grid.locate(Vec3::new(9.9, edge_y, 5.0), 0.3).expect("a floor on the deck's edge");
+            grid.links(edge).filter(|&(_, kind)| kind == LinkKind::Drop).count()
+        };
+        let flying = Body { drop_flight_mps: 3.5, ..Body::default() };
+        let mut slot = floor(0.0, 0.0, 24.0, 10.0, 0.0).to_vec();
+        slot.extend(floor(0.0, 0.0, 10.0, 10.0, 3.5));
+        slot.extend(floor(10.3, 0.0, 24.0, 10.0, 3.55));
+        assert!(drops_east(&slot, 3.5, Body::default()) > 0, "the cell model sees a drop into the slot");
+        assert_eq!(drops_east(&slot, 3.5, flying), 0, "the body crosses the slot");
+        let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.5).to_vec();
+        ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
+        assert!(drops_east(&ledge, 3.5, flying) > 0, "a real ledge keeps its drop");
     }
 
     #[test]
