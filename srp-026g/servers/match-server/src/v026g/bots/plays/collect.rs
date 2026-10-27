@@ -3123,7 +3123,7 @@ mod tests {
     #[ignore = "needs the private map files"]
     fn dry_way_spawners_on_the_real_maps() {
         let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
-        let (mut shut, mut routed, mut borne) = (0, 0, 0);
+        let (mut shut, mut routed, mut borne, mut cheap_found, mut cheap_borne) = (0, 0, 0, 0, 0);
         for level in 1..=8u8 {
             for mode in [2u8, 3] {
                 let path =
@@ -3147,6 +3147,7 @@ mod tests {
                     let Some(from) = world.grid.locate(spawn.position, 3.0) else {
                         continue;
                     };
+                    let mut cheapest = None;
                     for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
                         let cx = s.cx(0);
                         let at = spawner.item;
@@ -3177,6 +3178,15 @@ mod tests {
                         let hurt = route
                             .as_ref()
                             .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length()));
+                        let cheapest = cheapest.get_or_insert_with(|| {
+                            crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, from, Some(i32::from(team)), None)
+                        });
+                        let dear = world.grid.locate(stand, 3.0).and_then(|to| cheapest.path_to(to)).map(|p| {
+                            crate::v026g::bots::zone_search::walk_cost(&s.tactics, &p, None)
+                        });
+                        cheap_found += usize::from(dear.is_some());
+                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| bears(c.body, 1.0)));
+                        eprintln!("    cheapest: {:?}", dear.map(|(c, m)| (c.body, m)));
                         routed += usize::from(route.is_some());
                         borne += usize::from(hurt.is_some_and(|h| bears(h, 1.0)));
                         eprintln!(
@@ -3188,7 +3198,7 @@ mod tests {
                 }
             }
         }
-        eprintln!("no straight crossing (per team) {shut}, a route over the zones {routed}, borne at full health {borne}");
+        eprintln!("no straight crossing (per team) {shut}, a route over the zones {routed}, borne at full health {borne}; the cheapest way found {cheap_found}, borne {cheap_borne}");
     }
 
     #[test]
