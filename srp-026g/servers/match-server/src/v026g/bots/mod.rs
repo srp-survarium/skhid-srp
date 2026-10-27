@@ -80,6 +80,8 @@ mod commander;
 mod drive;
 mod facts;
 mod features;
+#[cfg(test)]
+pub mod hold_trace;
 mod layers;
 mod search;
 mod think;
@@ -589,6 +591,14 @@ impl Bot {
 
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
+        #[cfg(test)]
+        if let Some(a) = self.assignment.as_ref() {
+            let dist = match self.intent.go {
+                Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
+                _ => None,
+            };
+            hold_trace::ended(a.kind, a.target, now.saturating_sub(a.since), why, dist);
+        }
         if let Some(running) = self.running.take() {
             let kind = running.kind();
             self.last_ran.retain(|(k, _)| *k != kind);
@@ -902,6 +912,8 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.layers.routes = table.for_map(self.level, self.mode);
+        self.layers.perches = table.perches_for(self.level);
+        self.layers.perch_share = table.perch_share(self.level, self.mode);
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].

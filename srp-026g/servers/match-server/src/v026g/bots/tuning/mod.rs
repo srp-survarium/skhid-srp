@@ -48,6 +48,7 @@ pub struct Tuning {
     pub commit: CommitTuning,
     /// Stepping out of live grenades (`grenade_threat.rs`).
     pub avoid: AvoidTuning,
+    pub perch: PerchTuning,
     pub grid: GridTuning,
     pub hazard: HazardTuning,
     pub personalities: Personalities,
@@ -91,6 +92,7 @@ pub use sense::ShotRanges;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::ModTuning;
+pub use team::PerchTuning;
 pub use team::Personalities;
 pub use team::Personality;
 pub use team::SEARCH_FLOORS_PER_POLL;

@@ -222,6 +222,53 @@ pub(crate) fn status_of(play: &str, step: &str, goal_m: Option<f32>) -> (bool, b
     (hold, travel)
 }
 
+/// A perch visit (V-S2b): each second of a run within this of its first, m.
+const PERCH_RADIUS_M: f32 = 1.5;
+/// A run of this many seconds or more is a perch visit.
+const PERCH_MIN_S: u32 = 3;
+
+/// The seconds of `samples` (one a second: alive, feet) spent on perch visits:
+/// runs of seconds above `p75`, each within [`PERCH_RADIUS_M`] of the run's
+/// first, lasting [`PERCH_MIN_S`] or more; a death or a second below `p75` ends
+/// a run.
+pub(crate) fn perch_visit_seconds(samples: impl Iterator<Item = (bool, Vec3)>, p75: f32) -> u64 {
+    let count = |run: Option<(Vec3, u32)>| run.map_or(0, |(_, n)| if n >= PERCH_MIN_S { u64::from(n) } else { 0 });
+    let mut total = 0u64;
+    let mut run: Option<(Vec3, u32)> = None;
+    for (alive, feet) in samples {
+        run = match (alive && feet.y >= p75, run) {
+            (true, Some((first, n))) if first.distance_xz(feet) <= PERCH_RADIUS_M => Some((first, n + 1)),
+            (true, ended) => {
+                total += count(ended);
+                Some((feet, 1))
+            }
+            (false, ended) => {
+                total += count(ended);
+                None
+            }
+        };
+    }
+    total + count(run)
+}
+
+#[test]
+pub(crate) fn a_perch_visit_is_three_seconds_or_more_high_on_one_spot() {
+    let at = |x: f32, y: f32| (true, Vec3::new(x, y, 0.0));
+    // 4 s high on one spot (counts), 2 s high (not), 1 s low, then 3 s high but
+    // walking 2 m a second (a run of 1, 1, 1: not), and a death in a visit.
+    let samples = [
+        at(0.0, 30.0), at(0.5, 30.0), at(1.0, 30.0), at(1.0, 30.0),
+        at(1.0, 5.0),
+        at(10.0, 30.0), at(10.0, 30.0),
+        at(1.0, 5.0),
+        at(20.0, 30.0), at(22.0, 30.0), at(24.0, 30.0),
+        at(30.0, 30.0), at(30.0, 30.0), (false, Vec3::new(30.0, 30.0, 0.0)), at(30.0, 30.0),
+    ];
+    assert_eq!(perch_visit_seconds(samples.into_iter(), 22.0), 4);
+    assert_eq!(perch_visit_seconds([at(0.0, 30.0), at(0.0, 30.0), at(0.0, 30.0)].into_iter(), 22.0), 3);
+    assert_eq!(perch_visit_seconds(std::iter::empty(), 22.0), 0);
+}
+
 impl Topic for MoveCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -525,11 +572,18 @@ impl MoveCounts {
             .find(|(name, ..)| game.world.map.project.starts_with(name));
         let (mut drops, mut climbs, mut km) = (0u32, 0u32, 0f64);
         let (mut high, mut alive) = (0u64, 0u64);
+        // Seconds on perches (V-S2b, the humans' definition in `v2_perches.py`):
+        // a run of seconds of one life above the map's p75 height, each within
+        // `PERCH_RADIUS_M` of the run's first, lasting `PERCH_MIN_S` or more.
+        let mut perch_s = 0u64;
         let budget = VERT_WALK_MPS * VERT_SAMPLE_TICKS as f32 * TICK_S + VERT_WALK_SLACK_M;
         for recs in run.recs.iter().enumerate().filter(|&(p, _)| run.is_bot[p]).map(|(_, r)| r) {
             for r in recs.iter().filter(|r| r.alive) {
                 alive += 1;
                 high += u64::from(level.is_some_and(|&(_, p75, _)| r.feet.y >= p75));
+            }
+            if let Some(&(_, p75, _)) = level {
+                perch_s += perch_visit_seconds(recs.iter().step_by(TPS).map(|r| (r.alive, r.feet)), p75);
             }
             let mut s = 0;
             while s + VERT_SAMPLE_TICKS < recs.len() {
@@ -552,6 +606,7 @@ impl MoveCounts {
         }
         let per_km = |n: u32| if km > 0.0 { (100.0 * f64::from(n) / km).round() / 100.0 } else { 0.0 };
         let high_pct = Scale::pct(high as f64, alive as f64);
+        let perch_pct = Scale::pct((perch_s * TPS as u64) as f64, alive as f64);
         let json = serde_json::json!({
             "drops_certain": drops,
             "climbs_1_5m": climbs,
@@ -559,6 +614,7 @@ impl MoveCounts {
             "drops_per_km": per_km(drops),
             "climbs_per_km": per_km(climbs),
             "high_time_pct": high_pct,
+            "perch_time_pct": perch_pct,
         });
         let players = level
             .map(|&(name, p75, rates)| match rates {
@@ -567,7 +623,7 @@ impl MoveCounts {
             })
             .unwrap_or_else(|| "no players' values for this map".to_owned());
         let text = format!(
-            "owner-test vertical: certain drops {drops} ({:.2} a km), climbs of 1.5 m+ {climbs} ({:.2} a km) over {km:.1} km walked; {high_pct:.1} % of the time above the players' p75 height ({players}; players 25 %)",
+            "owner-test vertical: certain drops {drops} ({:.2} a km), climbs of 1.5 m+ {climbs} ({:.2} a km) over {km:.1} km walked; {high_pct:.1} % of the time above the players' p75 height ({players}; players 25 %), {perch_pct:.1} % on perches (3 s or more high on one spot; players 4-8 %)",
             per_km(drops),
             per_km(climbs),
         );
