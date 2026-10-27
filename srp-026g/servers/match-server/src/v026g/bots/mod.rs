@@ -589,15 +589,31 @@ impl Bot {
     /// The kind of its weapon 1: the one the match gave its place
     /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
     /// personality's name as a role (the tests' bots, whose place has none).
+    /// With `weapon_class_by_data` on, the kind of the weapon it holds, by
+    /// the game data's class (it follows a change of kit).
     fn weapon(
         &self,
         weapons: &[Option<reflex::WeaponKind>],
         tuning: &Tuning,
     ) -> Option<reflex::WeaponKind> {
-        weapons
-            .get(self.place)
-            .copied()
-            .flatten()
+        self.weapon_by(weapons, tuning, tuning.aim.combat.fire.weapon_class_by_data)
+    }
+
+    /// [`Self::weapon`] with the choice made: `by_data` or not.
+    fn weapon_by(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+        by_data: bool,
+    ) -> Option<reflex::WeaponKind> {
+        let held = if by_data {
+            self.reflex
+                .arms()
+                .map(|_| reflex::WeaponKind::of_class(self.reflex.held_gun().class))
+        } else {
+            None
+        };
+        held.or_else(|| weapons.get(self.place).copied().flatten())
             .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
     }
 
@@ -1527,6 +1543,21 @@ impl Bots {
             sum.add(&bot.features.traps.react.counts());
         }
         sum
+    }
+
+    /// What the game data's weapon class changes for the bots now holding a
+    /// weapon ([`ClassCounts`]): the same count with the switch off or on.
+    pub fn class_counts(&self) -> guns::ClassCounts {
+        let mut counts = guns::ClassCounts::default();
+        for bot in self.bots.iter().flatten() {
+            let Some(arms) = bot.reflex.arms() else {
+                continue;
+            };
+            let weapons = &self.features.weapons;
+            let kind = |by_data| bot.weapon_by(weapons, &self.tuning, by_data);
+            counts.add(arms.primary.0, kind(false) != kind(true));
+        }
+        counts
     }
 
     /// What the weapon mods did to the bots' reloads, over all the bots and

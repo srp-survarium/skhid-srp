@@ -147,7 +147,12 @@ impl Walkers {
                 }))
                 .collect::<Vec<_>>()
         );
-        let weapons = formed.profiles.iter().map(weapon_of).collect();
+        let by_data = tuning.aim.combat.fire.weapon_class_by_data;
+        let weapons = formed
+            .profiles
+            .iter()
+            .map(|profile| weapon_of(profile, by_data))
+            .collect();
         let pockets = formed.profiles.iter().map(pockets_of).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
         let armours: Vec<_> = formed.profiles.iter().map(zone_armour_of).collect();
@@ -310,25 +315,37 @@ impl Walkers {
 /// A place's weapon 1 kind from its profile: a bot's by its role, but the
 /// rusher's, whose weapon is whatever kit it wears
 /// (`loadouts::RusherKit`: an SMG or the SPAS-12), and a player's, by the
-/// item in slot 7 (its dictionary category and kind).
+/// item in slot 7 (its dictionary category and kind). With `by_data`
+/// (`FireTuning::weapon_class_by_data`) every place's is the kind of the item
+/// in slot 7 of its first kit by the game data's class, a bot's too: it is
+/// the kind the other bots take it for (its own follows the weapon it holds).
 fn weapon_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    by_data: bool,
 ) -> Option<WeaponKind> {
     use survarium::v026g::loadouts::BotRole;
     let role = survarium::v026g::loadouts::bot_role_of(profile);
-    if let Some(role) = role.filter(|role| *role != BotRole::Rusher) {
+    if let Some(role) = role.filter(|role| *role != BotRole::Rusher && !by_data) {
         return WeaponKind::of_role(role.name());
     }
-    weapon_in_slot_7(profile).or_else(|| role.and_then(|role| WeaponKind::of_role(role.name())))
+    weapon_in_slot_7(profile, by_data)
+        .or_else(|| role.and_then(|role| WeaponKind::of_role(role.name())))
 }
 
 /// The kind of the item in slot 7 of the profile's first kit.
 fn weapon_in_slot_7(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    by_data: bool,
 ) -> Option<WeaponKind> {
     let kit = profile.kits.first()?;
     let (index, _) = kit.slots[7]?;
     let item = profile.items.get(usize::from(index))?;
+    if by_data {
+        let weapon = survarium::v026g::weapons::weapon(item.dict_id)?;
+        return Some(WeaponKind::of_class(
+            crate::v026g::bots::guns::WeaponClass::of(weapon),
+        ));
+    }
     let kind = survarium::v026g::item_params::item_params(item.dict_id)?.kind;
     let category = survarium::v026g::dictionary::Dictionary::shared()
         .item(item.dict_id)?
@@ -906,7 +923,7 @@ mod tests {
     #[test]
     fn the_rushers_weapon_kind_follows_its_kit() {
         let kind =
-            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher }));
+            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher }), false);
         for kit in RusherKit::ALL {
             let shotgun = !matches!(kit.worn_in(BotTier::Mid), RusherKit::Smg | RusherKit::Alt);
             let wanted = if shotgun {
@@ -953,7 +970,7 @@ mod tests {
                 let profile =
                     bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
                 assert_eq!(
-                    weapon_in_slot_7(&profile),
+                    weapon_in_slot_7(&profile, false),
                     Some(WeaponKind::Smg),
                     "{tier} {}",
                     kit.name()
@@ -963,7 +980,7 @@ mod tests {
                 let profile =
                     bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
                 assert_eq!(
-                    weapon_in_slot_7(&profile),
+                    weapon_in_slot_7(&profile, false),
                     Some(WeaponKind::Shotgun),
                     "{tier} {}",
                     kit.name()

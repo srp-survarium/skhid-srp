@@ -96,6 +96,7 @@ mod trap_react;
 mod traps;
 mod unclear_aim;
 mod walkway;
+mod weapon_class;
 mod weapon_data;
 mod world_facts;
 mod zone_runs;
