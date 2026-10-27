@@ -197,13 +197,13 @@ pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
                 let (from, len) = SLICES[k];
                 format!("{:.1}/{:.1}", quantile(&d[from..from + len], width, 0.5), quantile(&d[from..from + len], width, 0.9))
             };
-            let e = d.len() - 6;
+            let e = d.len() - 2;
             line.ends.push(format!(
-                "drop_walk_ticks unsafe/unknown/spliced/stand/jump/walk {}/{}/{}/{}/{}/{} drop_walk_safe_ticks {} drop_sprinted_hard_falls {} \
-                 drop_walk_episodes {}/{}/{}/{}/{}/{} no_edge {} unresolved {} \
+                "drop_walk_ticks released_unsafe/released_unknown {}/{} skipped_descent_by_walk {} drop_walk_safe_ticks {} drop_sprinted_hard_falls {} \
+                 drop_walk_episodes unsafe/unknown {}/{} no_edge {} unresolved {} \
                  release_to_edge_s_p50/p90 {} release_to_edge_m_p50/p90 {} edge_to_sprint_s_p50/p90 {} landing_to_sprint_s_p50/p90 {}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7],
-                d[e], d[e + 1], d[e + 2], d[e + 3], d[e + 4], d[e + 5], d[14], d[15],
+                d[0], d[1], d[5], d[6], d[7],
+                d[e], d[e + 1], d[14], d[15],
                 q(0, 0.1), q(1, 0.25), q(2, 0.1), q(3, 0.1)
             ));
         },
