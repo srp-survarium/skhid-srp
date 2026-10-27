@@ -3115,6 +3115,82 @@ mod tests {
         eprintln!("zoned (per team) {zoned}, a crossing {found}, within budget {fit}");
     }
 
+    /// The spawners whose stand needs a crossing and has no straight one (`Ctx::crossing` is none): the route
+    /// over the zones' floors from the team's spawn that the motor's crossing search finds
+    /// (`crossing::start` with `crossable`), its length, its damage (`crossing::hurt`, raw, body pool) and
+    /// whether a bot of full health bears it. Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn dry_way_spawners_on_the_real_maps() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let (mut shut, mut routed, mut borne) = (0, 0, 0);
+        for level in 1..=8u8 {
+            for mode in [2u8, 3] {
+                let path =
+                    std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let Ok(map) = mapdata::MapData::read(&path) else {
+                    continue;
+                };
+                let world = std::sync::Arc::new(mapdata::World::build(
+                    map,
+                    mapdata::CELL,
+                    mapdata::Body::default(),
+                ));
+                let mut s = Scenario::field(Mode::Batteries);
+                s.tactics = Tactics::new(world.clone(), 1.0);
+                for team in [0u8, 1] {
+                    let Some(spawn) = world.map.spawns.iter().find(|p| p.team == i32::from(team))
+                    else {
+                        continue;
+                    };
+                    s.bot(0, team, spawn.position);
+                    let Some(from) = world.grid.locate(spawn.position, 3.0) else {
+                        continue;
+                    };
+                    for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
+                        let cx = s.cx(0);
+                        let at = spawner.item;
+                        let Some(stand) = s.tactics.stand_to_take(at) else {
+                            continue;
+                        };
+                        if !cx.needs_crossing(stand) || cx.crossing(at).is_some() {
+                            continue;
+                        }
+                        shut += 1;
+                        let Some(to) = world.grid.locate(stand, 3.0) else {
+                            continue;
+                        };
+                        let mut floors = usize::MAX;
+                        let route = crate::v026g::bots::crossing::start(
+                            &s.tactics,
+                            from,
+                            to,
+                            0,
+                            Some(i32::from(team)),
+                            false,
+                            1.0,
+                            &crate::v026g::bots::route_filter::RouteFilter::open(),
+                            &mut floors,
+                        )
+                        .ok()
+                        .flatten();
+                        let hurt = route
+                            .as_ref()
+                            .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length()));
+                        routed += usize::from(route.is_some());
+                        borne += usize::from(hurt.is_some_and(|h| bears(h, 1.0)));
+                        eprintln!(
+                            "level {level} mode {mode} team {team} spawner {i}: route {:?} m, hurt {hurt:?}, borne at full health {}",
+                            route.as_ref().map(|r| r.length()),
+                            hurt.is_some_and(|h| bears(h, 1.0)),
+                        );
+                    }
+                }
+            }
+        }
+        eprintln!("no straight crossing (per team) {shut}, a route over the zones {routed}, borne at full health {borne}");
+    }
+
     #[test]
     #[ignore = "needs the private map files"]
     fn pocket_stands_on_the_real_maps() {
