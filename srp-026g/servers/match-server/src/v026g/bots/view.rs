@@ -78,6 +78,20 @@ const EYE_GUESSED_CROUCHED_M: f32 = 0.95;
 
 thread_local! {
     static LIVE_EYE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    static USE_RAY: std::cell::Cell<f32> = const { std::cell::Cell::new(mapdata::stands::USE_RAY_M) };
+}
+
+/// The length of the client's use ray the bots count with
+/// (`SenseTuning::use_ray_m`: the stands, a take's reach, the belief about a use's
+/// ray). `Bots` sets it for its thread at each call; 2.0 by default, the client runs
+/// with 1.80.
+pub fn use_ray_m() -> f32 {
+    USE_RAY.with(|m| m.get())
+}
+
+/// Sets [`use_ray_m`] for this thread.
+pub fn set_use_ray_m(m: f32) {
+    USE_RAY.with(|cell| cell.set(m));
 }
 
 /// Whether the eye is the game's ([`eye_height`], the stand ranges, the
@@ -402,9 +416,6 @@ const CARRIER_USE_M: f32 = 4.0;
 const CARRIER_USE_MS: u32 = 6_000;
 /// The uses kept of each place.
 const USES_KEPT: usize = 4;
-/// The client's use: a ray from the eye this long
-/// (`base_player::detect_usable_object`, PROVEN).
-const USE_RAY_M: f32 = 2.0;
 /// A lying battery's middle over its place (its box is about a quarter of
 /// a metre high), and a container's use box's over its place
 /// (`plays::Look::use_box`), metres.
@@ -459,7 +470,7 @@ struct UsePress {
 impl UsePress {
     /// How far the use's ray passes `point`, metres.
     fn miss(&self, point: Vec3) -> f32 {
-        let along = (point - self.eye).dot(self.dir).clamp(0.0, USE_RAY_M);
+        let along = (point - self.eye).dot(self.dir).clamp(0.0, use_ray_m());
         (self.eye + self.dir * along - point).length()
     }
 }
