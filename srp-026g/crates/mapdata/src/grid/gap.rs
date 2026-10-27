@@ -330,6 +330,8 @@ pub struct GapStats {
     pub made: usize,
     /// … of the made, sprint jumps …
     pub sprint: usize,
+    /// … dropped: no way back from the landing to the take-off …
+    pub one_way: usize,
     pub sampled: usize,
     /// … and of those, kept for the walk round they save.
     pub kept: usize,
@@ -1240,8 +1242,93 @@ impl WalkGrid {
             }
         }
         out.sort_by_key(|l| (l.from, l.to));
+        // Only those with a way back: a link whose landing leads back to its
+        // take-off over the grid's links and the links kept (each dropped one
+        // can cut another's way back, so until none is). A one-way drop into
+        // a pocket would keep the pocket's floors as reached
+        // (`keep_reached` follows links both ways) with no planned way out:
+        // on Cologne a deck's drops kept 14,684 floors of a yard.
+        let before = out.len();
+        loop {
+            let links: Vec<(OffLink, usize)> = out.iter().map(|&l| (l, 0)).collect();
+            let part = self.parts(wide, &links);
+            let len = out.len();
+            out.retain(|l| part[l.from as usize] == part[l.to as usize]);
+            if out.len() == len {
+                break;
+            }
+        }
+        stats.one_way = before - out.len();
         stats.kept = out.len();
         out
+    }
+
+    /// Each floor's strongly connected part over the grid's links and the
+    /// `found` gap links: two floors share one when each leads to the other
+    /// (Tarjan's algorithm, without recursion).
+    fn parts(&self, wide: &Wide, found: &[(OffLink, usize)]) -> Vec<u32> {
+        let n = self.len();
+        let mut off: Vec<(u32, u32)> = found.iter().map(|&(l, _)| (l.from, l.to)).collect();
+        off.sort_unstable();
+        let mut first = Vec::with_capacity(n + 1);
+        let mut to: Vec<u32> = Vec::new();
+        let mut o = 0;
+        for a in 0..n {
+            first.push(to.len() as u32);
+            to.extend(wide.links[a].iter().copied().filter(|&b| b != NONE));
+            while o < off.len() && off[o].0 as usize == a {
+                to.push(off[o].1);
+                o += 1;
+            }
+        }
+        first.push(to.len() as u32);
+        const UNSEEN: u32 = u32::MAX;
+        let mut index = vec![UNSEEN; n];
+        let mut low = vec![0u32; n];
+        let mut part = vec![UNSEEN; n];
+        let mut stack: Vec<u32> = Vec::new();
+        let mut calls: Vec<(u32, u32)> = Vec::new();
+        let (mut next, mut parts) = (0u32, 0u32);
+        for root in 0..n as u32 {
+            if index[root as usize] != UNSEEN {
+                continue;
+            }
+            calls.push((root, first[root as usize]));
+            index[root as usize] = next;
+            low[root as usize] = next;
+            next += 1;
+            stack.push(root);
+            while let Some(&mut (v, ref mut e)) = calls.last_mut() {
+                if *e < first[v as usize + 1] {
+                    let w = to[*e as usize];
+                    *e += 1;
+                    if index[w as usize] == UNSEEN {
+                        index[w as usize] = next;
+                        low[w as usize] = next;
+                        next += 1;
+                        stack.push(w);
+                        calls.push((w, first[w as usize]));
+                    } else if part[w as usize] == UNSEEN {
+                        low[v as usize] = low[v as usize].min(index[w as usize]);
+                    }
+                    continue;
+                }
+                calls.pop();
+                if let Some(&(u, _)) = calls.last() {
+                    low[u as usize] = low[u as usize].min(low[v as usize]);
+                }
+                if low[v as usize] == index[v as usize] {
+                    while let Some(w) = stack.pop() {
+                        part[w as usize] = parts;
+                        if w == v {
+                            break;
+                        }
+                    }
+                    parts += 1;
+                }
+            }
+        }
+        part
     }
 
     /// An off-mesh link's cost while the grid is built (no lip or edge
@@ -1355,6 +1442,44 @@ mod tests {
         WalkGrid::build_with_links(&t, AREA, 0.25, Body::default(), OffMeshLinks::Gaps)
     }
 
+    /// A way back up from the far block (top `b`) to the near one's (top
+    /// `a`) north of the blocks: a ramp of about 30 degrees from z 10 on
+    /// the far side, a walk across at `a`, and back onto the near top
+    /// between x `near` and `near + 2`. The area it needs.
+    fn way_back(a: f32, b: f32, near: f32) -> (Vec<Triangle>, [f32; 4]) {
+        let l = 1.8 * (a - b).max(0.5);
+        let walker = WalkerBehaviour::BySlope;
+        let (p, q, r, t) = (
+            Vec3::new(10.0, b, 10.0),
+            Vec3::new(12.0, b, 10.0),
+            Vec3::new(12.0, a, 10.0 + l),
+            Vec3::new(10.0, a, 10.0 + l),
+        );
+        let mut tris = vec![Triangle { v: [p, q, r], walker }, Triangle { v: [p, r, t], walker }];
+        tris.extend(quad(near, 10.0 + l, 12.0, 12.0 + l, a));
+        tris.extend(quad(near, 10.0, near + 2.0, 12.0 + l, a));
+        (tris, [0.0, 0.0, 14.0, 12.5 + l])
+    }
+
+    /// [`world`] with [`way_back`] (no off link is kept without one).
+    fn world_back(a: f32, b: f32, gap: f32, ground: f32) -> WalkGrid {
+        let mut t = world_triangles(a, b, gap, ground);
+        let (back, area) = way_back(a, b, 1.0);
+        t.extend(back);
+        WalkGrid::build_with_links(&t, area, 0.25, Body::default(), OffMeshLinks::Gaps)
+    }
+
+    /// A drop into a yard with no way back up: no link (it would keep the
+    /// yard's floors as reached with no planned way out); with a ramp back,
+    /// one.
+    #[test]
+    fn a_drop_with_no_way_back_is_no_link() {
+        let grid = world(2.0, 0.5, 1.5, -3.0, &[]);
+        assert!(grid.off_links().iter().all(|l| grid.position(l.to).x < 7.5), "{:?}", grid.off_links());
+        let grid = world_back(2.0, 0.5, 1.5, -3.0);
+        assert!(grid.off_links().iter().any(|l| l.kind == LinkKind::GapDrop && grid.position(l.to).x > 7.5));
+    }
+
     fn world_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<Triangle> {
         let mut t = quad(0.0, 0.0, 14.0, 10.0, ground).to_vec();
         t.extend(block(0.0, 6.0, a, ground));
@@ -1454,10 +1579,10 @@ mod tests {
     /// enough to come down past the gap. Across 2.5 m: none.
     #[test]
     fn a_lower_block_across_a_gap_is_dropped_to() {
-        let grid = world(2.0, 0.5, 1.5, -3.0, &[]);
+        let grid = world_back(2.0, 0.5, 1.5, -3.0);
         let kinds = way_across(&grid, 2.0, 0.5).expect("a way across");
         assert!(kinds.contains(&LinkKind::GapDrop), "{kinds:?}");
-        let grid = world(2.0, 0.5, 2.5, -3.0, &[]);
+        let grid = world_back(2.0, 0.5, 2.5, -3.0);
         assert!(!walked_past(&grid, 8.5));
     }
 
@@ -1466,7 +1591,7 @@ mod tests {
     /// alike: a gap drop walked off, made before any pressed one.
     #[test]
     fn a_lower_block_close_across_a_gap_is_walked_off_to() {
-        let grid = world(2.0, 0.8, 1.0, -3.0, &[]);
+        let grid = world_back(2.0, 0.8, 1.0, -3.0);
         let off = grid
             .off_links()
             .iter()
@@ -1496,7 +1621,7 @@ mod tests {
     /// in and walks on).
     #[test]
     fn a_wide_gap_down_is_sprint_jumped() {
-        let grid = world(2.0, 0.3, 3.0, -7.0, &[]);
+        let grid = world_back(2.0, 0.3, 3.0, -7.0);
         assert!(!walked_past(&grid, 9.0), "no walking way: {:?}", grid.off_links());
         assert!(sprints_across(&grid, 3.0, 2.0, 0.3), "{:?}", grid.off_links());
         // Too wide even so.
@@ -1515,7 +1640,9 @@ mod tests {
         let mut t = quad(0.0, 0.0, 14.0, 10.0, -7.0).to_vec();
         t.extend(block(5.0, 6.0, 2.0, -7.0));
         t.extend(block(9.0, 14.0, 0.3, -7.0));
-        let grid = WalkGrid::build_with_links(&t, AREA, 0.25, Body::default(), OffMeshLinks::Gaps);
+        let (back, area) = way_back(2.0, 0.3, 4.0);
+        t.extend(back);
+        let grid = WalkGrid::build_with_links(&t, area, 0.25, Body::default(), OffMeshLinks::Gaps);
         assert!(sprints_across(&grid, 5.5, 2.0, 0.3), "{:?}", grid.off_links());
         // A ledge 1 m long beside the way as well: no run-up.
         let mut t = quad(0.0, 0.0, 14.0, 10.0, -7.0).to_vec();
