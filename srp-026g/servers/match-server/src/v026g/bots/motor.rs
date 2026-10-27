@@ -319,6 +319,27 @@ pub const SPRINT_RUN_UP_M: f32 = 2.0;
 pub const DROP_WALK_AHEAD_M: f32 = 3.0;
 /// A drop crossed at a sprint is watched this long for a hard fall (`stuck::HARD_FALL_M`), seconds.
 const DROP_SPRINTED_WATCH_S: f32 = 4.0;
+/// A release of the sprint before a planned drop is followed this long, seconds, for the sprint to come back.
+const DROP_RELEASE_WATCH_S: f32 = 10.0;
+
+/// A release of the sprint before a planned drop, from its first tick till the sprint is back (the trace of #671).
+#[derive(Clone, Copy, Debug)]
+struct Release {
+    start: u32,
+    /// How far along the route the drop's edge was at the start, metres.
+    dist: f32,
+    edge: Option<Edge>,
+}
+
+/// The edge of a release's drop, once crossed: the tick, the height there and at the tick before, and the tick the
+/// body landed (the height steady again, 0.5 m or more down).
+#[derive(Clone, Copy, Debug)]
+struct Edge {
+    at: u32,
+    y: f32,
+    last_y: f32,
+    landed: Option<u32>,
+}
 /// A sprint gap link is lined up (the view turned onto the jump's way) over the last this much of the route to its
 /// take-off, metres: a 90 degree turn at the view's top turn speed (5 rad/s) takes 0.31 s, 1.6 m of a sprint, and the
 /// grid guarantees 1.5 m of run.
@@ -457,6 +478,8 @@ pub struct Motor {
     /// motor's clock and the feet's height there, till a fall of [`DROP_SPRINTED_WATCH_S`] has shown whether it was a
     /// hard one.
     sprinted_drop: Option<(u32, f32)>,
+    /// A release of the sprint before a planned drop that is on (the trace of #671).
+    release: Option<Release>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -596,6 +619,7 @@ impl Motor {
             last_press: None,
             last_s: None,
             sprinted_drop: None,
+            release: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -853,6 +877,18 @@ impl Motor {
             if self.feel.drop_walk && self.sprinting {
                 self.sprinted_drop = Some((self.clock, pose.feet.y));
             }
+            if let Some(release) = self.release.as_mut()
+                && release.edge.is_none()
+            {
+                release.edge = Some(Edge { at: self.clock, y: pose.feet.y, last_y: pose.feet.y, landed: None });
+                drop_walks::edge_after(self.clock.wrapping_sub(release.start) as f32 * TICK_S, release.dist);
+            }
+        }
+        if let Some(edge) = self.release.as_mut().and_then(|release| release.edge.as_mut()) {
+            if edge.landed.is_none() && edge.y - pose.feet.y >= 0.5 && (edge.last_y - pose.feet.y).abs() < 0.03 {
+                edge.landed = Some(self.clock);
+            }
+            edge.last_y = pose.feet.y;
         }
         if let Some((at, y)) = self.sprinted_drop {
             if y - pose.feet.y >= super::stuck::HARD_FALL_M {
@@ -942,11 +978,35 @@ impl Motor {
         // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
         // within the harmless fall as well.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
-            if route.sprint_unsafe_drop(s, DROP_WALK_AHEAD_M) {
+            let record = route.drop_record(s, DROP_WALK_AHEAD_M);
+            if record != path::DropRecord::Safe {
                 self.sprinting = false;
-                drop_walks::released();
+                drop_walks::released(record, route.lost());
+                if self.release.is_none() {
+                    let dist = route.next_drop_edge_along(s, DROP_WALK_AHEAD_M).map_or(0.0, |edge| (edge - s).max(0.0));
+                    self.release = Some(Release { start: self.clock, dist, edge: None });
+                    drop_walks::episode(record, route.lost());
+                }
             } else {
                 drop_walks::skipped_as_safe();
+            }
+        }
+        if let Some(release) = self.release {
+            match release.edge {
+                None if self.sprinting => {
+                    drop_walks::unresolved(false);
+                    self.release = None;
+                }
+                Some(edge) if self.sprinting => {
+                    let from = |at: u32| self.clock.wrapping_sub(at) as f32 * TICK_S;
+                    drop_walks::resumed(from(edge.at), edge.landed.map(from));
+                    self.release = None;
+                }
+                _ if self.since(release.start) > DROP_RELEASE_WATCH_S => {
+                    drop_walks::unresolved(release.edge.is_some());
+                    self.release = None;
+                }
+                _ => {}
             }
         }
         // A sprint jump is walked into at a sprint, on its line and facing its way.
@@ -1743,31 +1803,114 @@ pub mod landings {
     }
 }
 
-/// The sprint at planned drops (`Feel::drop_walk`): the ticks it was let go of before one unsafe at a sprint (the
-/// activity, and the time the walk costs), the ticks the release was skipped as the drop is safe at a sprint, and the
-/// hard falls (`stuck::HARD_FALL_M` or more) within [`DROP_SPRINTED_WATCH_S`] of a drop's edge crossed at a sprint (the
-/// harm).
+/// The sprint at planned drops (`Feel::drop_walk`): the ticks it was let go of before one (by what the planner knows of
+/// it: unsafe at a sprint, no record by the way the route was made, a descent by walk links only), the ticks the
+/// release was skipped as the drop is safe at a sprint, the hard falls (`stuck::HARD_FALL_M` or more) within
+/// [`DROP_SPRINTED_WATCH_S`] of a drop's edge crossed at a sprint (the harm); and the releases as episodes (the trace of
+/// #671): the seconds and metres from the first tick to the edge, and the seconds from the edge, and from the landing,
+/// to the sprint back, in bins.
 pub mod drop_walks {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    use super::path::{DropRecord, Lost};
 
-    pub fn released() {
-        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+    /// Released ticks by kind (unsafe, unknown, unknown spliced/stand/jump, walk) 0-5, skipped as safe 6, hard falls 7,
+    /// episodes by kind (the same six) 8-13 less one slot, no edge 14 and unresolved 15.
+    const HEAD: usize = 16;
+    /// The bins: start to edge 0.1 s x 60, start to edge 0.25 m x 24, edge to sprint 0.1 s x 100, landing to sprint 0.1 s x 100.
+    const T_EDGE: usize = 60;
+    const D_EDGE: usize = 24;
+    const T_SPRINT: usize = 100;
+    const LEN: usize = HEAD + T_EDGE + D_EDGE + 2 * T_SPRINT;
+    static COUNTS: [AtomicU64; LEN] = [const { AtomicU64::new(0) }; LEN];
+
+    fn add(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn kind(record: DropRecord, lost: Lost) -> usize {
+        match (record, lost) {
+            (DropRecord::Unsafe, _) => 0,
+            (DropRecord::Walk, _) => 5,
+            (_, Lost::No) => 1,
+            (_, Lost::Spliced) => 2,
+            (_, Lost::Stand) => 3,
+            (_, Lost::Jump) => 4,
+        }
+    }
+
+    /// A tick the sprint was let go of.
+    pub fn released(record: DropRecord, lost: Lost) {
+        add(kind(record, lost));
     }
 
     pub fn skipped_as_safe() {
-        COUNTS[1].fetch_add(1, Ordering::Relaxed);
+        add(6);
     }
 
     pub fn hard_fall_sprinted() {
-        COUNTS[2].fetch_add(1, Ordering::Relaxed);
+        add(7);
     }
 
-    /// Released, skipped as safe, hard falls after a sprinted drop.
-    pub fn counts() -> [u64; 3] {
-        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    /// A release begins.
+    pub fn episode(record: DropRecord, lost: Lost) {
+        EPISODES[kind(record, lost)].fetch_add(1, Ordering::Relaxed);
     }
+
+    static EPISODES: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    /// The edge crossed `seconds` after the release began, the drop's edge `metres` along then.
+    pub fn edge_after(seconds: f32, metres: f32) {
+        add(HEAD + ((seconds / 0.1) as usize).min(T_EDGE - 1));
+        add(HEAD + T_EDGE + ((metres / 0.25) as usize).min(D_EDGE - 1));
+    }
+
+    /// The sprint is back `from_edge` seconds after the edge, and `from_landing` after the landing.
+    pub fn resumed(from_edge: f32, from_landing: Option<f32>) {
+        add(HEAD + T_EDGE + D_EDGE + ((from_edge / 0.1) as usize).min(T_SPRINT - 1));
+        if let Some(seconds) = from_landing {
+            add(HEAD + T_EDGE + D_EDGE + T_SPRINT + ((seconds / 0.1) as usize).min(T_SPRINT - 1));
+        }
+    }
+
+    /// A release ended without the sprint back: before the edge (the route changed) or after it (10 s).
+    pub fn unresolved(after_edge: bool) {
+        add(if after_edge { 15 } else { 14 });
+    }
+
+    /// The counts: the head, then the four histograms.
+    pub fn counts() -> Vec<u64> {
+        COUNTS.iter().map(|c| c.load(Ordering::Relaxed)).collect()
+    }
+
+    /// The episodes by kind (unsafe, unknown, unknown spliced/stand/jump, walk).
+    pub fn episodes() -> Vec<u64> {
+        EPISODES.iter().map(|c| c.load(Ordering::Relaxed)).collect()
+    }
+
+    /// The `q` quantile of the bins `d` (each `width` wide, the last open), in the bins' unit.
+    pub fn quantile(d: &[u64], width: f32, q: f32) -> f32 {
+        let total: u64 = d.iter().sum();
+        if total == 0 {
+            return 0.0;
+        }
+        let mut seen = 0;
+        for (k, &n) in d.iter().enumerate() {
+            seen += n;
+            if seen as f32 >= q * total as f32 {
+                return (k as f32 + 0.5) * width;
+            }
+        }
+        d.len() as f32 * width
+    }
+
+    /// The layout for the tally: the four histograms' slices of [`counts`].
+    pub const SLICES: [(usize, usize); 4] = [
+        (HEAD, T_EDGE),
+        (HEAD + T_EDGE, D_EDGE),
+        (HEAD + T_EDGE + D_EDGE, T_SPRINT),
+        (HEAD + T_EDGE + D_EDGE + T_SPRINT, T_SPRINT),
+    ];
 }
 
 /// The sprint gap links of routes ([`Leap::SprintGap`], `Feel::sprint_gaps`): presses by the speed at the press (under
