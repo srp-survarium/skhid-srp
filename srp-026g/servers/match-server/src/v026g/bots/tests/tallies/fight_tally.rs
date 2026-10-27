@@ -36,6 +36,18 @@ pub(crate) struct ShotFact {
     /// Where the shot line passed that target, for the owner counts' `shot_offsets` (counts only: the stand-in
     /// resolved the shot before it was worked out).
     pub offset: Option<super::shot_offset::ShotOffset>,
+    /// What the shot's bullets or pellets did ([`Landed`]; counts only).
+    pub landed: Landed,
+}
+
+/// The bullets or pellets of one shot: how many were fired, how many landed on an enemy, and on which part by the
+/// hit shape (torso, head, arm, leg: `Part::index`; all zero with the old disc, whose parts are drawn). With the
+/// old disc a shotgun's shot counts the pellets the stand-in then let land (`pellets_hitting`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Landed {
+    pub fired: u8,
+    pub on_enemy: u8,
+    pub parts: [u8; 4],
 }
 
 /// Distance bands of the shot counts, metres (upper bounds).
