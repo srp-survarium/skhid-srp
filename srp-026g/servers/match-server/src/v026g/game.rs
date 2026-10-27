@@ -3426,7 +3426,7 @@ impl Game {
             }
         }
         peer.placed.push_back((time, relayed_time));
-        self.observe_input(index, relayed_time, &relayed);
+        self.observe_input(index, relayed_time, clock.saturating_sub(time), &relayed);
         let what = Relayed::Input(relayed);
         self.relay_to_others(index, &what, relayed_time, now);
         self.inputs.push((relayed_time, index, what));
@@ -4851,6 +4851,13 @@ impl Game {
                 .map(|player| player.score)
                 .collect::<Vec<_>>()
         );
+        if let Some(walkers) = &self.walkers {
+            log::info!(
+                "Match {:#x}: the bots' polls: {}",
+                self.id,
+                walkers.bots.poll_report()
+            );
+        }
         self.result = Some(result);
         self.result_made = true;
         for (index, peer) in self.peers.iter_mut().enumerate() {

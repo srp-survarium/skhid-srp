@@ -207,18 +207,30 @@ pub fn shows(
 
 /// The first part of `body` in [`Part::AIM_ORDER`] that shows from `eye`.
 pub fn aim_part(eye: Vec3, body: &PlaceView, sight: &RayTree) -> Option<Part> {
-    aim_part_moving(eye, body, body.feet, sight)
+    aim_part_moving(eye, body, body.feet, sight).0
 }
 
 /// [`aim_part`] for a body that may be at `then` by the shot: the part
-/// must show both where he is and there.
-fn aim_part_moving(eye: Vec3, body: &PlaceView, then: Vec3, sight: &RayTree) -> Option<Part> {
+/// must show both where he is and there. Also whether some part shows
+/// where he is, which the rays already cast say: the sight's answer
+/// ([`TargetLook::shown`]) at no ray more. The pelvis, which the sight's
+/// order ([`Part::SIGHT_ORDER`]) leaves out, shows him only when a part
+/// is found: it cannot show alone.
+fn aim_part_moving(
+    eye: Vec3,
+    body: &PlaceView,
+    then: Vec3,
+    sight: &RayTree,
+) -> (Option<Part>, bool) {
     let moves = then.distance_xz(body.feet) > 0.05;
     let crouched = body.crouched();
-    Part::AIM_ORDER.into_iter().find(|part| {
-        visible(sight, eye, part.point(body, eye))
-            && (!moves || visible(sight, eye, part.point_of(then, crouched, eye)))
-    })
+    let mut shown = false;
+    let part = Part::AIM_ORDER.into_iter().find(|part| {
+        let now = visible(sight, eye, part.point(body, eye));
+        shown |= now && *part != Part::Pelvis;
+        now && (!moves || visible(sight, eye, part.point_of(then, crouched, eye)))
+    });
+    (part, shown || part.is_some())
 }
 
 /// What the parts looked like at the last look.
@@ -230,6 +242,19 @@ struct Looked {
     eye: Vec3,
     crouched: bool,
     part: Option<Part>,
+    /// Some part showed where he was.
+    shown: bool,
+}
+
+/// What the target's parts looked like at a tick, for the sight (the
+/// tick's look, `reflex`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TargetLook {
+    /// Some part of him shows from the eyes.
+    pub shown: bool,
+    /// Looked at again at this tick (every [`LOOK_AGAIN_MS`]), not the last
+    /// look's answer kept.
+    pub fresh: bool,
 }
 
 /// [measure] What kept a shot from going clear ([`Sight::blocked`]): no
@@ -279,6 +304,7 @@ impl std::fmt::Debug for Sight {
 impl Sight {
     /// Before a tick: the parts of `target` (the reflex's) that show from
     /// `me`'s eyes on `world`'s bullet mesh, looked at again when due.
+    /// What the look found, if there is a target alive.
     pub fn update(
         &mut self,
         me: &PlaceView,
@@ -286,7 +312,7 @@ impl Sight {
         view: &MatchView,
         world: &Arc<World>,
         now: u32,
-    ) {
+    ) -> Option<TargetLook> {
         if !self.world.as_ref().is_some_and(|w| Arc::ptr_eq(w, world)) {
             self.world = Some(world.clone());
         }
@@ -302,7 +328,7 @@ impl Sight {
             target.and_then(|t| view.place(t).filter(|p| p.alive).map(|p| (t, p)))
         else {
             self.looked = None;
-            return;
+            return None;
         };
         // Where his speed takes him by the shot and the next look.
         let ahead_s =
@@ -315,16 +341,19 @@ impl Sight {
                 || (live_eye() && (l.eye - eye).length() > LOOK_EYE_MOVED_M)
         });
         if due {
+            let (part, shown) = aim_part_moving(eye, body, then, sight);
             self.looked = Some(Looked {
                 who,
                 at: now,
                 eye,
                 crouched: body.crouched(),
-                part: aim_part_moving(eye, body, then, sight),
+                part,
+                shown,
             });
         }
+        let shown = self.looked.is_some_and(|l| l.shown);
         let Some(part) = self.looked.and_then(|l| l.part) else {
-            return;
+            return Some(TargetLook { shown, fresh: due });
         };
         let point = part.point(body, eye);
         self.last_seen = Some((who, point, now));
@@ -332,6 +361,7 @@ impl Sight {
             .length()
             .min((part.point_of(then, body.crouched(), eye) - eye).length())
             - SHORT_M;
+        Some(TargetLook { shown, fresh: due })
     }
 
     /// The map's bullet mesh from the first look: what a thrown grenade
@@ -423,7 +453,7 @@ mod tests {
     use crate::v026g::bots::know::{Memory, Percept, Source};
     use crate::v026g::bots::reflex::{CombatTuning, Reflex};
     use crate::v026g::bots::rng::Rng;
-    use crate::v026g::bots::tuning::AimTuning;
+    use crate::v026g::bots::tuning::{AimTuning, SenseTuning};
     use crate::v026g::bots::view::Mode;
     use crate::v026g::drive::key;
 
@@ -446,6 +476,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }
@@ -505,7 +536,7 @@ mod tests {
     /// reflex aims. Returns the reflex's aim points and whether it fired.
     fn duel(world: &Arc<World>, enemy: PlaceView) -> (Vec<Vec3>, bool) {
         let mut me = body(0, 0, Vec3::ZERO, false);
-        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let aim = AimTuning::default();
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
@@ -526,7 +557,8 @@ mod tests {
         for k in 0..20 {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
-            reflex.look(&me, &view, world, now);
+            view.clock = now;
+            reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             let point = o.look_at.unwrap();
             facing(&mut me, point);
@@ -607,7 +639,7 @@ mod tests {
     /// pull. Returns the longest run of ticks it fired.
     fn kicked_burst(world: &Arc<World>, enemy: PlaceView, aim: &AimTuning) -> u32 {
         let mut me = body(0, 0, Vec3::ZERO, false);
-        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
         assert!(reflex.hands().held().gun.auto);
@@ -628,9 +660,10 @@ mod tests {
         for k in 0..80 {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
+            view.clock = now;
             let kick = reflex.weapon_tick(&me, now);
             me.pitch = base + kick;
-            reflex.look(&me, &view, world, now);
+            reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, aim, 1.0, &mut rng);
             let before = me.pitch;
             facing(&mut me, o.look_at.unwrap());
@@ -892,5 +925,404 @@ mod tests {
                 aim_took * 1e6 / pairs.len() as f64,
             );
         }
+    }
+
+    /// Where the enemy of a [`fight`] is at a poll.
+    #[derive(Clone, Copy)]
+    struct Enemy {
+        feet: Vec3,
+        alive: bool,
+        spawned: u32,
+    }
+
+    fn at(feet: Vec3) -> Enemy {
+        Enemy {
+            feet,
+            alive: true,
+            spawned: 0,
+        }
+    }
+
+    /// What a [`fight`] came to, by tick.
+    struct Fought {
+        /// (tick time, the clock it was read on, the reflex's target, the
+        /// target seen).
+        ticks: Vec<(u32, u32, Option<Place>, bool)>,
+        /// The ticks a target's sight ended on (not his death).
+        lapses: Vec<u32>,
+    }
+
+    impl Fought {
+        /// The first tick, from `from` on, with no target.
+        fn lost_at(&self, from: u32) -> Option<(u32, u32)> {
+            self.ticks
+                .iter()
+                .find(|(now, _, target, _)| *now >= from && target.is_none())
+                .map(|(now, clock, _, _)| (*now, *clock))
+        }
+    }
+
+    /// A bot at the origin (turned to `yaw_at`) against one enemy (`enemy_at`,
+    /// by the information clock) over `world`, polled every 50 ms from 1 s
+    /// to `until`: a think every `gap` ms senses him, the ticks run `lead`
+    /// ms ahead of the clock as the encoder's do, each with its look.
+    /// `stall` = (clock, ms): the poll after `clock` comes `ms` later and
+    /// its ticks all at once, on one view.
+    fn fight(
+        world: &Arc<World>,
+        gap: u32,
+        lead: u32,
+        until: u32,
+        stall: Option<(u32, u32)>,
+        enemy_at: &dyn Fn(u32) -> Enemy,
+        yaw_at: &dyn Fn(u32) -> f32,
+    ) -> Fought {
+        use crate::v026g::bots::sense::{RayBudget, sense};
+        use crate::v026g::bots::tuning::CheatTuning;
+        let aim = AimTuning::default();
+        // The sight refresh on: these are its tests.
+        let senses = SenseTuning {
+            sight_refresh: true,
+            ..SenseTuning::default()
+        };
+        let mut memory = Memory::default();
+        memory.set_sight_window(crate::v026g::bots::know::SightWindow::refreshed());
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(5);
+        let mut fought = Fought {
+            ticks: Vec::new(),
+            lapses: Vec::new(),
+        };
+        let (mut clock, mut next_think, mut last_tick) = (1_000, 1_000, 1_000 + lead - 50);
+        while clock < until {
+            let e = enemy_at(clock);
+            let mut me = body(0, 0, Vec3::ZERO, false);
+            me.yaw = yaw_at(clock);
+                let mut foe = body(1, 1, e.feet, false);
+            (foe.alive, foe.spawned) = (e.alive, e.spawned);
+            let mut view = view_of(vec![me.clone(), foe]);
+            view.clock = clock;
+            if clock >= next_think {
+                next_think = clock + gap;
+                let percepts = sense(
+                    &me,
+                    &view,
+                    &world.sight,
+                    &senses,
+                    &CheatTuning::default(),
+                    clock,
+                    &[1],
+                    &mut RayBudget::new(400),
+                    &mut rng,
+                );
+                memory.update(&percepts, clock, |_| 300, 3_000, 20_000);
+                reflex.think(&me, &memory, clock, &aim, 1.0, &mut rng);
+            }
+            while last_tick < clock + lead {
+                last_tick += 50;
+                let now = last_tick;
+                reflex.look(&me, &view, world, &mut memory, &senses, now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                if reflex.take_lapse().is_some() {
+                    fought.lapses.push(now);
+                }
+                let target = reflex.target();
+                let seen = target.is_some_and(|t| memory.seen(t, now, clock).is_some());
+                fought.ticks.push((now, clock, target, seen));
+            }
+            clock += match stall {
+                Some((at, ms)) if clock == at => ms,
+                _ => 50,
+            };
+        }
+        fought
+    }
+
+    /// 8.13: a target in plain view is never lost to the think cadence,
+    /// whatever the think gap (200-400 ms) and the input's lead (50-100 ms):
+    /// before, 19 times a bot-minute.
+    #[test]
+    fn a_target_in_the_open_is_never_lost_between_thinks() {
+        let world = world_of(&[]);
+        for lead in [50, 100] {
+            for gap in [200, 250, 300, 350, 400] {
+                let f = fight(
+                    &world,
+                    gap,
+                    lead,
+                    8_000,
+                    None,
+                    &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+                    &|_| 0.0,
+                );
+                let taken = f.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+                // First sight is as before: sensed at the first think (1 s),
+                // taken at the first tick after his noticing delay (300 ms)
+                // on the tick clock, whatever the lead.
+                assert_eq!(f.ticks[taken].0, 1_300, "gap {gap}, lead {lead}");
+                assert!(
+                    f.ticks[taken..].iter().all(|t| t.2 == Some(1) && t.3),
+                    "gap {gap}, lead {lead}: lost {:?}",
+                    f.lost_at(f.ticks[taken].0)
+                );
+                assert!(f.lapses.is_empty());
+            }
+        }
+    }
+
+    /// A target that steps behind a wall is lost [`SIGHT_GRACE_MS`] after the
+    /// look that failed, on the information clock: not before, and not later
+    /// than the next tick.
+    #[test]
+    fn a_target_behind_a_wall_is_lost_after_the_grace() {
+        use crate::v026g::bots::know::SIGHT_GRACE_MS;
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let hide = 3_000;
+        let f = fight(
+            &world,
+            300,
+            100,
+            6_000,
+            None,
+            &|clock| {
+                at(Vec3::new(if clock < hide { 0.0 } else { 4.0 }, 0.0, 20.0))
+            },
+            &|_| 0.0,
+        );
+        let (now, clock) = f.lost_at(hide).expect("lost");
+        // The failed look is the first one after he hid, a look every 100 ms
+        // (every other tick): the clock it was read on is within 100 ms.
+        assert!(clock > hide + SIGHT_GRACE_MS, "lost at {clock}");
+        assert!(clock <= hide + 100 + SIGHT_GRACE_MS + 50, "lost at {clock} (tick {now})");
+        assert_eq!(f.lapses, vec![now]);
+        // Until then he was seen at every tick.
+        assert!(f.ticks.iter().take_while(|t| t.0 < now).skip(30).all(|t| t.3));
+    }
+
+    /// A target reckoned behind a wall for a moment (a late input, then the
+    /// snap back) stays seen while the moment is inside the grace, and is
+    /// lost when it is longer: the numbers behind the ping bands.
+    #[test]
+    fn a_snap_inside_the_grace_keeps_the_target_and_a_longer_one_loses_it() {
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let overshoot = |ms: u32| {
+            fight(
+                &world,
+                300,
+                100,
+                6_000,
+                None,
+                &|clock| {
+                    let behind = (3_000..3_000 + ms).contains(&clock);
+                    at(Vec3::new(if behind { 4.0 } else { 0.0 }, 0.0, 20.0))
+                },
+                &|_| 0.0,
+            )
+        };
+        // An overshoot of up to 200 ms: a look finds him back in the grace.
+        for ms in [50, 100, 150, 200] {
+            let f = overshoot(ms);
+            assert_eq!(f.lost_at(3_000), None, "{ms} ms");
+        }
+        // 300 ms of false-blocked picture: lost. Here the picture is moved by
+        // hand; what a late input does to it, and the discard of one past the
+        // relay's reach, is `a_players_late_stop_input_...` (a lateness of 300
+        // ms is a ping of about 670: the live server shows no such snap).
+        let f = overshoot(300);
+        assert!(f.lost_at(3_000).is_some());
+        assert_eq!(f.lapses.len(), 1);
+    }
+
+    /// A bot that turns its back on its target loses him after the grace,
+    /// not at once; a glance away shorter than that does not.
+    #[test]
+    fn a_target_out_of_the_view_is_lost_after_the_grace() {
+        let world = world_of(&[]);
+        let turned = |ms: u32| {
+            fight(
+                &world,
+                300,
+                100,
+                6_000,
+                None,
+                &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+                &|clock| {
+                    if (3_000..3_000 + ms).contains(&clock) {
+                        std::f32::consts::PI
+                    } else {
+                        0.0
+                    }
+                },
+            )
+        };
+        assert_eq!(turned(100).lost_at(3_000), None);
+        let f = turned(1_000);
+        let (_, clock) = f.lost_at(3_000).expect("lost");
+        let grace = crate::v026g::bots::know::SIGHT_GRACE_MS;
+        assert!(clock > 3_000 + grace && clock <= 3_000 + grace + 50, "{clock}");
+    }
+
+    /// A dead target is lost at once, no grace; after he spawns again he
+    /// is a new sight, noticed anew, not the old one carried over.
+    #[test]
+    fn a_dead_target_ends_the_sight_and_a_respawn_does_not_carry_it_over() {
+        let world = world_of(&[]);
+        let f = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            None,
+            &|clock| Enemy {
+                feet: Vec3::new(0.0, 0.0, 20.0),
+                alive: !(3_000..3_100).contains(&clock),
+                // Back at 3.1 s, a new life.
+                spawned: if clock >= 3_100 { 3_100 } else { 0 },
+            },
+            &|_| 0.0,
+        );
+        let (now, clock) = f.lost_at(3_000).expect("lost");
+        assert!(clock <= 3_000 + 50, "at once, not after the grace: {clock}");
+        assert_eq!(now, clock + 100);
+        // The new life is taken again only after the next think senses
+        // him and his noticing delay is out: a few hundred ms.
+        let back = f.ticks.iter().find(|t| t.0 > now && t.2.is_some()).expect("taken again");
+        assert!(back.0 >= 3_100 + 300, "noticed anew: {}", back.0);
+    }
+
+    /// A rare stall of the server (1 s between polls): a clear target is
+    /// not dropped by it, and one that hid during it is not kept past the
+    /// bound for untested time.
+    #[test]
+    fn a_second_long_stall_neither_drops_a_clear_target_nor_keeps_a_hidden_one() {
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let clear = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            Some((3_000, 1_000)),
+            &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+            &|_| 0.0,
+        );
+        let taken = clear.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+        assert!(clear.ticks[taken..].iter().all(|t| t.2 == Some(1) && t.3));
+        assert!(clear.lapses.is_empty());
+        // He steps behind the wall in the stall: the first look after it
+        // finds him gone, and the sight (450 ms untested at the most) is over
+        // with that tick.
+        let hidden = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            Some((3_000, 1_000)),
+            &|clock| at(Vec3::new(if clock > 3_000 { 4.0 } else { 0.0 }, 0.0, 20.0)),
+            &|_| 0.0,
+        );
+        let (_, clock) = hidden.lost_at(3_000).expect("lost");
+        assert_eq!(clock, 4_000, "at the first tick after the stall");
+    }
+
+    /// A player walking at +z along x = 4 from `z = 6` at 1.05 s, who lets go
+    /// of the key at the tick `stop`: the real [`Tracker`] is given his
+    /// inputs `late` ms after their ticks and reckons him on as the bots'
+    /// view does. Returns his place at the information clock, and the
+    /// tracker's place count's feet where the stop puts him at rest.
+    fn walker_through_the_tracker(
+        world: &Arc<World>,
+        stop: u32,
+        late: u32,
+    ) -> impl Fn(u32) -> Enemy {
+        use crate::v026g::bots::body::Fix;
+        use crate::v026g::bots::kin::Kinematics;
+        use crate::v026g::bots::view::{Clock, Tracker};
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        let start = Fix {
+            time: 1_000,
+            alive: true,
+            inserted: 10,
+            feet: Some(Vec3::new(4.0, 0.0, 6.0)),
+            yaw: 0.0,
+            pitch: 0.0,
+            keys: 0,
+            speed: Some(0.0),
+        };
+        tracker.fixed(1, start, None, &kin, Some(world));
+        // (arrival, tick, keys): a client sends an input at every tick; he
+        // walks from 1.05 s and lets go of the key at `stop`.
+        let mut sent: Vec<(u32, u32, u32)> = (1_050..stop)
+            .step_by(50)
+            .map(|tick| (tick + late, tick, key::FORWARD))
+            .collect();
+        sent.push((stop + late, stop, 0));
+        let inputs = std::cell::RefCell::new(sent);
+        let tracker = std::cell::RefCell::new(tracker);
+        let world = world.clone();
+        move |clock| {
+            let mut tracker = tracker.borrow_mut();
+            let mut inputs = inputs.borrow_mut();
+            while let Some(&(arrival, tick, keys)) = inputs.first() {
+                if arrival > clock {
+                    break;
+                }
+                inputs.remove(0);
+                tracker.input(1, tick, keys, (0.0, 0.0), 0.0, &kin, Some(&world));
+            }
+            let clock = Clock {
+                clock,
+                time_left_s: 600.0,
+                total_s: 900.0,
+                playing: true,
+            };
+            let view = tracker.view(&clock, &kin, Some(&world));
+            let body = view.place(1).unwrap();
+            Enemy {
+                feet: body.feet,
+                alive: body.alive,
+                spawned: body.spawned,
+            }
+        }
+    }
+
+    /// Where a walker who stops at the tick 4 s rests, with his input on
+    /// time.
+    fn rest_z(stop: u32) -> f32 {
+        let world = world_of(&[]);
+        let at = walker_through_the_tracker(&world, stop, 0);
+        at(8_000).feet.z
+    }
+
+    /// A player stops at the edge of cover, his stop input `late` ms late
+    /// (the real [`Tracker`] reckons him on past the edge until it comes),
+    /// at two phases of the 100 ms looks: the target stays seen through
+    /// 300 ms (the false-blocked run is `late` less 100 ms, and three failed
+    /// looks are needed to lose a sight past the 250 ms grace), is lost at
+    /// 400 by phase, and at 1000 always. The relay discards an input later
+    /// than its reach, 425 ms less the largest round trip of the other
+    /// players: the longer rows are what the live server never shows
+    /// (`tests/sight.rs` takes the intake).
+    #[test]
+    fn a_players_late_stop_input_keeps_the_target_to_300_ms_and_loses_him_by_400() {
+        let lost = |stop: u32, late: u32| {
+            let rest = rest_z(stop);
+            // The wall's face is where he rests: any run-on is behind it.
+            let world = world_of(&[wall(rest + 0.001, 3.0, 8.0, 0.0, 3.0)]);
+            let enemy = walker_through_the_tracker(&world, stop, late);
+            let f = fight(&world, 300, 100, 9_000, None, &enemy, &|_| 0.0);
+            // He was taken long before the stop, and at rest is seen.
+            let taken = f.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+            assert!(f.ticks[taken].0 < stop, "taken at {}", f.ticks[taken].0);
+            f.lost_at(stop - 100)
+        };
+        for late in [0, 50, 100, 150, 200, 250, 300] {
+            for stop in [4_000, 4_050] {
+                assert_eq!(lost(stop, late), None, "late {late}, stop {stop}");
+            }
+        }
+        assert!(lost(4_000, 400).is_some() || lost(4_050, 400).is_some());
+        assert!(lost(4_000, 1_000).is_some() && lost(4_050, 1_000).is_some());
     }
 }

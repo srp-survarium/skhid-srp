@@ -810,6 +810,32 @@ pub(super) mod tests {
         assert!(track.last_meant().unwrap() < 1e-3, "it stood");
     }
 
+    /// A world whose tick is not one the bot decided (it came newer than
+    /// the last tick, or between two) has no reckoning to compare: the way
+    /// the keys meant is unknown even for a body that stood (A87: four bots
+    /// at rest were flagged stuck by a burst of such worlds; the stuck watch
+    /// reads an unknown way by the keys, `unknown_meant_needs_keys`).
+    #[test]
+    fn a_world_off_the_decided_ticks_has_no_way_even_for_a_body_at_rest() {
+        let kin = Kinematics {
+            blend_ticks: 1,
+            ..Kinematics::default()
+        };
+        let mut track = BodyTrack::default();
+        let at = Vec3::new(5.0, 0.0, 5.0);
+        track.fixed(fix(1_000, at, 0.0), &kin, None);
+        for time in (1_050..=3_000).step_by(50) {
+            track.decided(time, 0, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(fix(2_000, at, 0.0), &kin, None);
+        assert!(track.last_meant().unwrap() < 1e-3, "on a tick: it stood");
+        // Between two ticks, and past the last one.
+        track.fixed(fix(2_525, at, 0.0), &kin, None);
+        assert_eq!(track.last_meant(), None);
+        track.fixed(fix(3_400, at, 0.0), &kin, None);
+        assert_eq!(track.last_meant(), None);
+    }
+
     /// The time since the world before is kept for the world that came, of the same life only, and an older world
     /// than the last has none.
     #[test]

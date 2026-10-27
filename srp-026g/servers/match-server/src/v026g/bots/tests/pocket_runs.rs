@@ -367,7 +367,7 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
         }
         if clock >= next_think {
             next_think += 100;
-            let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
+            let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
             bots.think(0, &view, &mut rays, &mut notes);
             // The test's goal stands in for the plays': think's own intent is put back.
             if let Some(bot) = bots.bots[0].as_mut() {

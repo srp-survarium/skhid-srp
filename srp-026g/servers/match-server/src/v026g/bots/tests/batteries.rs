@@ -339,7 +339,7 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
                     rotation: [0; 4],
                     actions: if reload { key::RELOAD } else { 0 },
                 };
-                bots.input(1, game.tick, &input);
+                bots.input(1, game.tick, 0, &input);
             }
         }
         if clock >= next_world {
@@ -518,9 +518,11 @@ pub(crate) struct LostBattery {
 /// "nook": no ray of the battery sight sees it (`battery_sight_m` 0), only
 /// a bot within `battery_near_m`. The thief cheat is off, so the team knows
 /// where he was only by its own senses. Runs to `limit` ms.
-pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
+///
+/// `refresh`: the sight refresh on (off: the tip's bots and the tip's timing of the thief's steps).
+pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bool) -> LostBattery {
     let world = soak_world();
-    let mut tuning = Tuning::default();
+    let mut tuning = if refresh { super::sight::refreshed_tuning() } else { Tuning::default() };
     tuning.cheats.batteries = false;
     tuning.cheats.thief_every_ms = 0;
     tuning.sense.battery_sight_m = 0.0;
@@ -561,6 +563,11 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
     // The scenario's timing (the thief takes the battery at 3 s and is
     // killed after, by the tuning above) was found with the flat fifth of
     // the health a hit took: the weapon's own damage kills him at 2.6 s.
+    // With the sight refresh (the bot sees him all the while, no think-gap
+    // drops) it kills him by the container at 3.5 s if he takes it at 3 s,
+    // and not in 60 s if he takes it at 1 s; at 2 s, and the nook at 3 s, it
+    // kills him in the nook at 15.8 s, which is the case the test is for.
+    let (take_ms, nook_ms) = if refresh { (2_000, 3_000) } else { (3_000, 5_000) };
     game.damage.flat = true;
     // Battery 0 is in team 0's container (id 0, at (12, 0, 30)); the
     // thief stands by it.
@@ -583,13 +590,13 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
         while game.tick + TICK_MS <= clock {
             game.step();
         }
-        // At 3 s he takes it out; at 5 s he crouches in the nook 6 m off.
-        if clock == 3_000 {
+        // At 3 s he takes it out; at 5 s he crouches in the nook 6 m off (with the refresh 2 s and 3 s).
+        if clock == take_ms {
             game.batteries[0] = Lying::Carried(1);
             game.bodies[1].carrying = Some(0);
             game.points[0] = 0;
         }
-        if clock == 5_000 {
+        if clock == nook_ms {
             let nook = Vec3::new(17.0, 0.0, 34.0);
             game.bodies[1].node = world.grid.locate(nook, 1.0);
             game.bodies[1].feet = nook;
@@ -658,7 +665,17 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
 /// in the same time (126 s in the owner's match).
 #[test]
 pub(crate) fn a_battery_a_killed_thief_dropped_in_a_nook_is_looked_for_and_taken() {
-    let run = lost_battery_run(None, 60_000);
+    a_killed_thief_case(false);
+}
+
+/// The same with the sight refresh on (its own timing of the thief's steps, see `lost_battery_run`).
+#[test]
+pub(crate) fn with_the_sight_refresh_a_battery_a_killed_thief_dropped_in_a_nook_is_looked_for_and_taken() {
+    a_killed_thief_case(true);
+}
+
+fn a_killed_thief_case(refresh: bool) {
+    let run = lost_battery_run(None, 60_000, refresh);
     let died = run
         .died
         .unwrap_or_else(|| panic!("the thief lives: {run:?}"));
@@ -669,7 +686,7 @@ pub(crate) fn a_battery_a_killed_thief_dropped_in_a_nook_is_looked_for_and_taken
     assert!(sent <= look + 5_000, "{run:?}");
     let took = run.took.unwrap_or_else(|| panic!("not taken: {run:?}"));
     assert!(took <= died + 30_000, "{run:?}");
-    let without = lost_battery_run(Some(0.0), took + 10_000);
+    let without = lost_battery_run(Some(0.0), took + 10_000, refresh);
     eprintln!("with the look {run:?}; without {without:?}");
     assert_eq!(without.died, run.died, "the same fight");
     assert!(without.took.is_none(), "{without:?}");

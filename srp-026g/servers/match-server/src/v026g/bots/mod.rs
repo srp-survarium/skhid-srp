@@ -65,6 +65,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod stamina;
 pub mod stock;
 pub mod stuck;
 pub mod tactics;
@@ -88,6 +89,7 @@ pub mod hold_trace;
 mod layers;
 #[cfg(test)]
 pub mod pair_counts;
+mod polls;
 mod search;
 mod think;
 
@@ -196,7 +198,16 @@ pub struct Bot {
     motor: Motor,
     reflex: Reflex,
     memory: Memory,
+    /// Its target sights that ended, for the match-end log line.
+    sight_counts: polls::SightCounts,
+    /// By place, when a ray test of that enemy last came to an answer
+    /// (seen or no part showing; one the rays ran out on did not): the
+    /// longest unchecked is looked at first (`sense::look_order`).
+    tested: Vec<u32>,
     stuck: Stuck,
+    /// Its stamina bar as the bot reckons it from the keys it sent ([`stamina`]), and those keys.
+    stamina: stamina::Reckoning,
+    sent_keys: u32,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
     /// Whether it presses against something as it walks ([`contact`]), counted only.
@@ -378,7 +389,11 @@ impl Bot {
             motor,
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
+            sight_counts: Default::default(),
+            tested: Vec::new(),
             stuck: Stuck::default(),
+            stamina: stamina::Reckoning::default(),
+            sent_keys: 0,
             rest: rest::RestWatch::default(),
             contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
@@ -698,6 +713,7 @@ pub struct Bots {
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
@@ -753,6 +769,7 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            polls: Default::default(),
             tactics: None,
             memo: Default::default(),
             teams: [team_state(&tuning), team_state(&tuning)],
@@ -1010,13 +1027,15 @@ impl Bots {
         })
     }
 
-    /// A human's input as relayed.
-    pub fn input(&mut self, place: Place, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick.
+    pub fn input(&mut self, place: Place, time: u32, late_ms: u32, input: &PlayerInput) {
         if self.is_bot(place) {
             return;
         }
         view::set_live_eye(self.tuning.aim.combat.live_eye);
         view::set_use_ray_m(self.tuning.sense.use_ray_m);
+        self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -1119,6 +1138,8 @@ impl Bots {
         }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
+            bot.stamina.spawn(time);
+            bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
@@ -1161,7 +1182,7 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tuning.unstick) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1532,7 +1553,8 @@ impl Bots {
                 }
             }
         }
-        let mut rays = RayBudget(self.tuning.think.rays_per_poll);
+        let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
+        rays.thinks_left = self.thinks_due(&view);
         self.features.searching.left = SEARCHES_PER_POLL;
         self.features.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();
@@ -1571,7 +1593,24 @@ impl Bots {
                 self.features.kit_choices.push((bot.place, kit as u8));
             }
         }
+        self.polls.record(now, &rays);
         (made, notes)
+    }
+
+    /// The thinks that run in a poll at `view`: the bots that have entered,
+    /// are alive and whose next think has come, counted before any ray is
+    /// cast (`sense::fair_share`). None before play begins or the map is
+    /// ready.
+    pub(super) fn thinks_due(&self, view: &MatchView) -> u32 {
+        if self.tactics.is_none() {
+            return 0;
+        }
+        let due = self.bots.iter().flatten().filter(|bot| {
+            bot.entered.is_some()
+                && view.clock >= bot.next_think
+                && view.place(bot.place).is_some_and(|p| p.alive)
+        });
+        due.count() as u32
     }
 
     /// The tuning team `team` plays by: the match's (the bench's one-sided

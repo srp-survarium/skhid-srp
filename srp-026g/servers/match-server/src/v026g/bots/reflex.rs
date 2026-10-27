@@ -80,9 +80,12 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::arc;
-use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd, ModCounts};
+use super::guns::{
+    Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
+    RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY,
+};
 use super::kin::{forward, wrap, yaw_of};
-use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
+use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
 use super::recoil::{Cadence, Recoil, kick_of};
 use super::rng::Rng;
@@ -90,7 +93,7 @@ use super::signals::mix;
 use super::hazards::ARRIVE_MPS;
 use super::route_filter::RouteFilter;
 use super::tactics::{SpotQuery, Tactics};
-use super::tuning::AimTuning;
+use super::tuning::{AimTuning, SenseTuning};
 use super::view::{CHEST, MatchView, Place, PlaceView, SoundKind, still_eye};
 use crate::v026g::drive::key;
 
@@ -121,16 +124,47 @@ impl WeaponKind {
     /// `item_params` kind (`wpn_*`): category 13 is the sniper category
     /// and 14 the shotguns' (`loadouts.rs` tests); else by the kind (an
     /// SVD is `wpn_aslt` in the sniper category, so the category goes
-    /// first).
+    /// first). A kind this code does not know (a patch's new `wpn_*`
+    /// type) takes its category's: [`Self::of_category`], so a new weapon
+    /// has a band and is not one without a kind.
     pub fn of_item(kind: &str, category: u8) -> Option<Self> {
+        Self::by_type(kind, category).or_else(|| Self::of_category(category))
+    }
+
+    /// The kind by the category and the `wpn_*` types this code knows; none
+    /// for a type it does not.
+    fn by_type(kind: &str, category: u8) -> Option<Self> {
         Some(match (category, kind) {
-            (13, _) => Self::Sniper,
-            (14, _) => Self::Shotgun,
+            (SNIPER_CATEGORY, _) => Self::Sniper,
+            (SHOTGUN_CATEGORY, _) => Self::Shotgun,
             (_, "wpn_dbrl" | "wpn_stgn" | "wpn_asgn") => Self::Shotgun,
             (_, "wpn_bolt") => Self::Sniper,
             (_, "wpn_smg") => Self::Smg,
             (_, "wpn_pstl" | "wpn_rvlr" | "wpn_apst") => Self::Pistol,
             (_, "wpn_aslt") => Self::Rifle,
+            _ => return None,
+        })
+    }
+
+    /// The kind of this weapon came from its category, because its type is
+    /// none this code knows ([`Self::of_item`]'s fallback): 0 of the 83 weapons
+    /// of the live data. The count of these is the fallback's activity.
+    pub fn by_fallback(kind: &str, category: u8) -> bool {
+        Self::by_type(kind, category).is_none() && Self::of_category(category).is_some()
+    }
+
+    /// The kind a weapon of the dictionary category `category` has when
+    /// its `wpn_*` type is none this code knows: the kind most of the
+    /// category's weapons have (the 83 weapons of the live data: 8 rifles,
+    /// 13 snipers, 14 shotguns, 15 SMGs, 16 machine guns taking a rifle's
+    /// band, 17 pistols). `None` for a category that holds no weapons.
+    pub fn of_category(category: u8) -> Option<Self> {
+        Some(match category {
+            RIFLE_CATEGORY | MG_CATEGORY => Self::Rifle,
+            SNIPER_CATEGORY => Self::Sniper,
+            SHOTGUN_CATEGORY => Self::Shotgun,
+            SMG_CATEGORY => Self::Smg,
+            PISTOL_CATEGORY => Self::Pistol,
             _ => return None,
         })
     }
@@ -890,9 +924,6 @@ impl Default for FireTuning {
     }
 }
 
-/// The machine guns' category (`categories_dict`).
-const MACHINE_GUN_CATEGORY: u8 = 16;
-
 /// A marksman rifle: one round a press, of the rifles' or the sniper
 /// rifles' category (the SVD, the SKS, the VSK-94's one-round copies).
 fn marksman(gun: &Gun) -> bool {
@@ -949,7 +980,7 @@ impl FireTuning {
     pub fn crouch_chance(&self, gun: &Gun, sniper: f32) -> f32 {
         match gun.handling {
             Handling::Bolt => sniper,
-            Handling::Burst(_) if gun.category == MACHINE_GUN_CATEGORY => self.crouch_machine_gun,
+            Handling::Burst(_) if gun.category == MG_CATEGORY => self.crouch_machine_gun,
             Handling::Burst(_) => self.crouch_auto,
             _ if marksman(gun) => self.crouch_marksman,
             _ => self.crouch_other,
@@ -2275,6 +2306,15 @@ pub const GATE_NOTE_MS: u32 = 1000;
 pub const GATE_NOTE_AFTER_MS: u32 = 300;
 pub const GATE_NOTE_SLACK_DEG: f32 = 2.0;
 
+/// A target lost to its sight ending (not to his death): in which ping
+/// band of the target ([`super::polls::ping_band`]), and whether a burst
+/// was cut by it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Lapse {
+    pub band: usize,
+    pub cut: bool,
+}
+
 /// A heal cover walk counts as on for this long after it begins, ms (the
 /// bench's situation bit).
 const HEAL_WALKING_MS: u32 = 1_600;
@@ -2462,6 +2502,9 @@ pub struct Reflex {
     /// [aimpoint] The target's parts that show, the view's line
     /// ([`Self::look`]).
     sight: super::aimpoint::Sight,
+    /// The last tick's lapse of the target's sight, if it was one
+    /// ([`Self::take_lapse`]).
+    lapse: Option<Lapse>,
     /// [recoil] The kick of the weapon in hand, when its trigger fires,
     /// and how much the kick moved the view at this tick's weapon update.
     recoil: Recoil,
@@ -2743,10 +2786,18 @@ impl Reflex {
     /// The target as seen: noticed ([`Memory::seen`]); taken back before
     /// he is noticed again ([`Self::retake`]), in sight
     /// ([`Memory::in_sight`]).
-    fn seen_target(&self, memory: &Memory, target: Place, now: u32) -> Option<SeenTrack> {
-        memory
-            .seen(target, now)
-            .or_else(|| self.retaken.then(|| memory.in_sight(target, now)).flatten())
+    fn seen_target(
+        &self,
+        memory: &Memory,
+        target: Place,
+        now: u32,
+        sight_now: u32,
+    ) -> Option<SeenTrack> {
+        memory.seen(target, now, sight_now).or_else(|| {
+            self.retaken
+                .then(|| memory.in_sight(target, now, sight_now))
+                .flatten()
+        })
     }
 
     /// The target is no more (none seen): [measure] noted as lost at `now`.
@@ -2920,7 +2971,7 @@ impl Reflex {
         if !self.dry() {
             self.punish(me, sit.view, memory, now, c, rng);
         }
-        if !memory.all_seen(now).is_empty() {
+        if !memory.all_seen(now, sit.view.clock).is_empty() {
             self.last_seen = now;
         }
         if hit {
@@ -2963,18 +3014,70 @@ impl Reflex {
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
-    /// show from the bot's eyes on `world`'s bullet mesh. A reflex never
-    /// told this (no map) aims at the chest and holds no shot for the
-    /// world.
+    /// show from the bot's eyes on `world`'s bullet mesh, and his sight told
+    /// to `memory` ([`Self::sight_tick`]). A reflex never told this (no
+    /// map) aims at the chest and holds no shot for the world.
     pub fn look(
         &mut self,
         me: &PlaceView,
         view: &MatchView,
         world: &std::sync::Arc<mapdata::World>,
+        memory: &mut Memory,
+        sense: &SenseTuning,
         now: u32,
     ) {
         self.new_life(me);
-        self.sight.update(me, self.target, view, world, now);
+        memory.set_sight_target(self.target);
+        let looked = self.sight.update(me, self.target, view, world, now);
+        if sense.sight_refresh {
+            self.sight_tick(me, view, memory, sense, looked);
+        }
+    }
+
+    /// The target's sight at this tick, told to the memory
+    /// ([`Memory::looked`]). Range, view (at the yaw `me` has now) and life
+    /// are checked at every tick; whether some part shows is the aim's
+    /// look, every `LOOK_AGAIN_MS`, whose rays are cast anyway: so a
+    /// visible target costs no ray more, and a look not due is untested,
+    /// the sight keeping its state. No random draw, no team call-out
+    /// (that is a think's).
+    fn sight_tick(
+        &self,
+        me: &PlaceView,
+        view: &MatchView,
+        memory: &mut Memory,
+        sense: &SenseTuning,
+        looked: Option<super::aimpoint::TargetLook>,
+    ) {
+        let Some(target) = self.target else {
+            return;
+        };
+        let Some(since) = memory
+            .tracks()
+            .iter()
+            .find(|t| t.who == target)
+            .and_then(|t| t.sight_since)
+        else {
+            return;
+        };
+        let outcome = match view.place(target) {
+            None => LookOutcome::Failed(Miss::Dead),
+            Some(enemy) => match super::sense::gate(me, enemy, since, sense) {
+                Err(miss) => LookOutcome::Failed(miss),
+                Ok(()) => match looked {
+                    Some(look) if look.fresh && look.shown => LookOutcome::Seen,
+                    Some(look) if look.fresh => LookOutcome::Failed(Miss::Blocked),
+                    _ => LookOutcome::Untested,
+                },
+            },
+        };
+        let at = view.place(target).map_or(Vec3::ZERO, |p| p.feet);
+        memory.looked(target, at, outcome, view.clock);
+    }
+
+    /// [measure] The lapse of the last tick, if its target's sight ended.
+    pub fn take_lapse(&mut self) -> Option<Lapse> {
+        self.lapse.take()
     }
 
     /// [recoil] At each tick, before [`Self::tick`]: the weapon's update to
@@ -3049,11 +3152,12 @@ impl Reflex {
         rng: &mut Rng,
     ) {
         let c = &aim.combat;
-        let mut seen = memory.all_seen(now);
+        let sight_now = view.map_or(now, |v| v.clock);
+        let mut seen = memory.all_seen(now, sight_now);
         // A target taken back before he is noticed again stays one.
         if let Some(track) = self
             .target
-            .and_then(|target| self.seen_target(memory, target, now))
+            .and_then(|target| self.seen_target(memory, target, now, sight_now))
             .filter(|t| !seen.iter().any(|s| s.who() == t.who()))
         {
             seen.push(track);
@@ -3218,7 +3322,7 @@ impl Reflex {
             {
                 continue;
             }
-            let known = match memory.seen(sound.from, now) {
+            let known = match memory.seen(sound.from, now, view.clock) {
                 Some(seen) => Some((seen.at(), 0.0, true)),
                 None => memory
                     .tracks()
@@ -3237,7 +3341,7 @@ impl Reflex {
         let d = |at: Vec3| at.distance_xz(me.feet);
         let target_at = self
             .target
-            .and_then(|target| memory.seen(target, now))
+            .and_then(|target| memory.seen(target, now, view.clock))
             .map(|t| t.at());
         let pick = if hit {
             shooters
@@ -3393,7 +3497,7 @@ impl Reflex {
     /// What the senses showed of the enemies' habits: who holds an angle
     /// (seen crouched, aiming, still) and who stays at one place.
     fn watch_enemies(&mut self, view: &MatchView, memory: &Memory, now: u32, c: &CombatTuning) {
-        for track in memory.all_seen(now) {
+        for track in memory.all_seen(now, view.clock) {
             let Some(body) = view.place(track.who()) else {
                 continue;
             };
@@ -3461,7 +3565,7 @@ impl Reflex {
                 continue;
             };
             let d = sound.at.distance_xz(me.feet);
-            let seen = memory.seen(sound.from, now).is_some() && d <= c.punish_m;
+            let seen = memory.seen(sound.from, now, view.clock).is_some() && d <= c.punish_m;
             let heard = track.time + 300 >= sound.time && d <= c.punish_heard_m;
             if (seen || heard) && rng.unit() < c.punish_chance {
                 self.push = Some(Push {
@@ -3559,7 +3663,7 @@ impl Reflex {
         let enemy = threat
             .or_else(|| {
                 self.target
-                    .and_then(|target| memory.seen(target, now))
+                    .and_then(|target| memory.seen(target, now, sit.view.clock))
                     .map(|t| t.at())
             })
             .or_else(|| {
@@ -3679,7 +3783,10 @@ impl Reflex {
         self.band = None;
         self.range_step = None;
         self.outranged = false;
-        let Some(track) = self.target.and_then(|target| memory.seen(target, now)) else {
+        let Some(track) = self
+            .target
+            .and_then(|target| memory.seen(target, now, sit.view.clock))
+        else {
             return;
         };
         let enemy = sit.weapons.get(track.who()).copied().flatten();
@@ -4623,26 +4730,28 @@ impl Reflex {
             && self.target.is_none()
             && let Some((who, _)) = self.lost.filter(|(_, at)| now <= at + c.aim_carry_ms)
             && memory
-                .in_sight(who, now)
+                .in_sight(who, now, view.clock)
                 .is_some_and(|t| t.at().distance_xz(me.feet) <= aim.range_m)
         {
             self.retake(who);
         }
         if self.target.is_none()
             && memory
-                .all_seen(now)
+                .all_seen(now, view.clock)
                 .iter()
                 .any(|t| t.at().distance_xz(me.feet) <= aim.range_m)
         {
             self.choose(me, Some(view), memory, now, aim, skill, rng);
         } else if c.switch_between_thinks
-            && let Some(kept) = self.target.and_then(|target| memory.seen(target, now))
+            && let Some(kept) = self
+                .target
+                .and_then(|target| memory.seen(target, now, view.clock))
         {
             // Likewise an enemy noticed since the last think who presses
             // more than the target (a man stepping out beside it): him at
             // once, not a think later.
             let held_ms = now.saturating_sub(self.since);
-            let seen = memory.all_seen(now);
+            let seen = memory.all_seen(now, view.clock);
             if seen.iter().any(|t| {
                 t.who() != kept.who()
                     && t.at().distance_xz(me.feet) <= aim.range_m
@@ -4651,7 +4760,9 @@ impl Reflex {
                 self.choose(me, Some(view), memory, now, aim, skill, rng);
             }
         }
-        let seen = self.target.and_then(|target| self.seen_target(memory, target, now));
+        let seen = self
+            .target
+            .and_then(|target| self.seen_target(memory, target, now, view.clock));
         if seen.is_some() {
             self.last_seen = now;
         }
@@ -4684,6 +4795,14 @@ impl Reflex {
             };
         }
         let Some(track) = seen else {
+            self.lapse = self
+                .target
+                .and_then(|target| view.place(target))
+                .filter(|enemy| enemy.alive && enemy.present)
+                .map(|enemy| Lapse {
+                    band: super::polls::ping_band(enemy),
+                    cut: self.held_ms > 0,
+                });
             self.lose_target(now);
             match self.lost.filter(|(_, at)| now <= at + LOST_MS) {
                 Some((who, _)) => {
@@ -5220,6 +5339,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }
@@ -5733,7 +5853,7 @@ mod tests {
         let me = body(0, 0, Vec3::ZERO, 0.0);
         let first = Vec3::new(0.0, 0.0, 30.0);
         let other = Vec3::new(5.0, 0.0, 25.0);
-        let view = view_of(vec![me.clone(), body(1, 1, first, 0.0), body(2, 1, other, 0.0)]);
+        let mut view = view_of(vec![me.clone(), body(1, 1, first, 0.0), body(2, 1, other, 0.0)]);
         let aim = AimTuning {
             combat: CombatTuning {
                 reacquire_keep: true,
@@ -5750,14 +5870,16 @@ mod tests {
             if now % 250 == 0 {
                 reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
             }
+            view.clock = now;
             reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             now += 50;
         }
         assert_eq!(reflex.target(), Some(1));
         // He goes out of sight; a moment later the other comes into it.
         let lost_at = now;
-        while now < lost_at + 450 {
+        while now < lost_at + 500 {
             sense(&mut memory, &[], now);
+            view.clock = now;
             reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             now += 50;
         }
@@ -5765,15 +5887,17 @@ mod tests {
         let came = now;
         sense(&mut memory, &[percept(2, other, now, Source::Seen)], now);
         reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
+        view.clock = now;
         reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
         assert_eq!(reflex.target(), None, "not before his noticing");
-        assert!(memory.seen(2, now).is_none());
+        assert!(memory.seen(2, now, now).is_none());
         // Once noticed, he is taken.
-        while memory.seen(2, now).is_none() {
+        while memory.seen(2, now, now).is_none() {
             now += 50;
             sense(&mut memory, &[percept(2, other, now, Source::Seen)], now);
             assert!(now < came + 2_000);
         }
+        view.clock = now;
         reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
         assert_eq!(reflex.target(), Some(2));
     }
@@ -7731,7 +7855,7 @@ mod tests {
                 reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
             }
             if let Some(world) = world {
-                reflex.look(&me, &view, world, now);
+                reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             }
             let before = reflex.grenades_thrown();
             let o = reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng);
@@ -10090,7 +10214,7 @@ mod tests {
             assert_eq!(reflex.target(), Some(want), "facing the bot: {switches}");
             // The hold: just short of it, the facing one does not press.
             if switches {
-                let (kept, by) = (memory.seen(1, 2_200), memory.seen(2, 2_200));
+                let (kept, by) = (memory.seen(1, 2_200, 2_200), memory.seen(2, 2_200, 2_200));
                 let (kept, by) = (kept.unwrap(), by.unwrap());
                 let c = &aim.combat;
                 assert!(presses_more(&me, Some(&view), &kept, &by, c.switch_hold_ms, c));

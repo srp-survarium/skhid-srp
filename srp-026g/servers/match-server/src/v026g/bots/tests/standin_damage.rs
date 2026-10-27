@@ -145,9 +145,16 @@ pub(crate) fn part_for(class: Class, mut r: f32) -> Part {
     Part::Leg
 }
 
-/// The share of a shotgun's pellets that land at `distance` metres: all up to
-/// 10 m, 0.6 at 25 m, 0.3 at 50 m, in a line between and beyond. GUESS: the
-/// cone of `buck_dispersion` is not worked out (`DAMAGE-FORMULA.md` §3).
+/// The pellets of a shotgun's shot that land at `distance` metres, of the
+/// ammo's `buck_shot`. **The count is the data's** (`buck_shot` of the ammo,
+/// read live: a patch that changes the pellets changes it here). **The share
+/// that lands is a GUESS**, the stand-in's own: all up to 10 m, 0.6 at 25 m,
+/// 0.3 from 50 m, in a line between. The game's rule is the cone of the
+/// ammo's `buck_dispersion`, which no key of the data gives as a share of
+/// hits and which is not worked out (`DAMAGE-FORMULA.md` §3, audit W10), so
+/// the curve cannot be derived from the pellet count; it stays until a
+/// measure of human shotgun hits by distance, or the cone, replaces it. The
+/// stand-in only: a bot's own decisions never read it.
 pub(crate) fn pellets_hitting(buck_shot: u32, distance: f32) -> u32 {
     if buck_shot <= 1 {
         return 1;

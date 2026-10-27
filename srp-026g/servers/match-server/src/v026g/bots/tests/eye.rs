@@ -43,6 +43,7 @@ fn place(feet: Vec3, keys: u32, velocity: [f32; 2], pitch: f32) -> PlaceView {
         streak: 0,
         carrying: None,
         seen_at: 0,
+        late_ms: 0,
         known_at: 0,
     }
 }
