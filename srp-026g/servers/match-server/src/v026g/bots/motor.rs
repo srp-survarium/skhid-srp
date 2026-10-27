@@ -176,8 +176,10 @@ pub struct Feel {
     /// at [`SPRINT_PRESS_SPEED_MS`] or more, at the take-off as before it (the client makes the sprint jump only at
     /// the walk cap, 3.5 m/s, with sprint and forward held; a walk jump tops at about 1.09 m); a body that arrives
     /// slower backs off for another run-up, each a try, and a link with no clear run of the grid's
-    /// `mapdata::grid::SPRINT_RUN_UP_M` is given up at once so the route is planned again. Off (the default): the
-    /// speed is asked only short of the take-off, and a run-up as short as half of [`SPRINT_RUN_UP_M`] is taken.
+    /// `mapdata::grid::SPRINT_RUN_UP_M` is given up at once so the route is planned again. The lining up of a sprint
+    /// ledge or a sprint gap link ([`Feel::sprint_gaps`]) keeps the sprint, which the driver let go of for every
+    /// jump's lining up. Off (the default): the speed is asked only short of the take-off, a run-up as short as half
+    /// of [`SPRINT_RUN_UP_M`] is taken, and the sprint is let go of.
     pub band_jump_gate: bool,
     /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
     /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
@@ -1280,6 +1282,16 @@ impl Motor {
                 t.sprint_counted = true;
                 sprint_jumps::up(landing.y - take_off.y);
             }
+            if sprint_gap
+                && let Some(t) = self.jump_try.as_mut()
+                && t.tries > 0
+                && !t.sprint_counted
+                && (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+            {
+                t.sprint_counted = true;
+                sprint_gaps::across();
+            }
             #[cfg(test)]
             if let Some(t) = self.jump_try.as_mut()
                 && t.tries > 0
@@ -1316,7 +1328,7 @@ impl Motor {
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
-        self.keeps_sprint = self.feel.band_jump_gate && sprint_ledge;
+        self.keeps_sprint = self.feel.band_jump_gate && (sprint_ledge || sprint_gap);
         if band && jump.tries == 0 && jump.refused == 0
             && let Some((at, when)) = self.band_gave_up
             && (at - take_off).length() < 0.3
@@ -1518,6 +1530,7 @@ impl Motor {
         }
         if ahead.run_through {
             sprint_gaps::pressed(speed);
+            sprint_gaps::sprint_held(self.sprinting);
         }
         key::JUMP
     }
@@ -1867,7 +1880,17 @@ pub mod drop_walks {
 pub mod sprint_gaps {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
+
+    /// A press with the sprint key held (4) or not (5): the lining up lets go of it with `band_jump_gate` off.
+    pub fn sprint_held(held: bool) {
+        COUNTS[if held { 4 } else { 5 }].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// A gap got across: the body is at the landing after a press.
+    pub fn across() {
+        COUNTS[6].fetch_add(1, Ordering::Relaxed);
+    }
 
     pub fn pressed(speed: f32) {
         let band = if speed < 3.5 { 0 } else if speed < 4.5 { 1 } else { 2 };
@@ -1878,8 +1901,8 @@ pub mod sprint_gaps {
         COUNTS[3].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, and given up.
-    pub fn counts() -> [u64; 4] {
+    /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, given up, pressed with the sprint key held and not, got across.
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2957,6 +2980,30 @@ mod tests {
         let (_, _, keeps) = run(true, None);
         assert!(keeps, "the sprint is kept for the lining up");
         assert!(!run(false, None).2, "off: as before");
+    }
+
+    /// A sprint gap link's lining up keeps the sprint under `band_jump_gate` (and only then).
+    #[test]
+    fn a_sprint_gap_keeps_the_sprint_through_the_lining_up_only_with_the_gate() {
+        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
+            low: false,
+        };
+        let keeps = |gate: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sprint_gaps: true, band_jump_gate: gate, sway: 0.0, ..Feel::default() }, &mut rng);
+            let mut route =
+                Route::new(vec![p(0.0, 0.0, 20.0, false), p(0.0, 0.0, 0.0, false), p(3.0, -1.7, 0.0, true), p(6.0, -1.7, 0.0, false)]);
+            motor.walking = true;
+            motor.sprinting = true;
+            let pose = Pose { feet: Vec3::new(0.0, 0.0, 2.0), yaw: yaw_of([0.0, -1.0]), speed: 5.0, ..Default::default() };
+            motor.walk(&mut route, &pose, 5.0, |_| true);
+            (motor.lining_up(), motor.keeps_sprint())
+        };
+        assert_eq!(keeps(true), (true, true));
+        assert_eq!(keeps(false), (true, false));
     }
 
     /// With the reckoned bar the sprint is let go of at the empty bar and kept let go of until the bar is over 20,

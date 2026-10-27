@@ -191,12 +191,15 @@ pub(super) fn drop_walks() -> Box<dyn RouteTopic> {
 }
 
 /// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
-/// and over m/s) and given up.
+/// and over m/s), given up, pressed with the sprint key held / not, and got across.
 pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::motor::sprint_gaps::counts().to_vec(),
         |d, line| {
-            line.ends.push(format!("sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {}", d[0], d[1], d[2], d[3]));
+            line.ends.push(format!(
+                "sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {} sprint_gaps_press_sprint_held/not {}/{} sprint_gaps_across {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6]
+            ));
         },
     )
 }
