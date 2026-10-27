@@ -98,6 +98,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_BATTERY_SIGHT_M", "the tuning's", "SenseTuning::battery_sight_m"),
     s("SRP_BENCH_FRIEND_NEAR_M", "the tuning's", "FriendlyFireTuning::near_m"),
     s("SRP_BENCH_LANDING_CANCEL_DEG", "the feel's (0: off)", "Feel::landing_cancel_deg: a route jump's landing run more than this many degrees from both the route's next leg and the goal, or into a wall within its coast, is braked (60 is a guess); the landings are counted either way"),
+    s("SRP_BENCH_LANDING_CANCEL_DROPS", "off", "`on` (or `1`) lets the landing cancel (`SRP_BENCH_LANDING_CANCEL_DEG`) brake the landing run of a planned drop too, watched from the take-off (`Feel::landing_cancel_drops`); the drop landings are counted either way; off by default"),
     s("SRP_BENCH_FF_LEAD", "the tuning's", "FriendlyFireTuning::lead: `0` off, else on"),
     s("SRP_BENCH_FLOOR_PATHS", "off", "Tuning::grid.floor_paths (off by default): any value but `0` (e.g. `1`) makes every play's path distance the regions' walk between floors a storey apart; off, the straight ground distance (Collect's batteries a storey off keep the walk)"),
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
