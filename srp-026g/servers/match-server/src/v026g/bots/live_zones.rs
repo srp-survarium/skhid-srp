@@ -281,26 +281,6 @@ fn same_place(old: &WorldField, new: &WorldField) -> bool {
     old.kind == new.kind && old.shape == new.shape
 }
 
-/// The bench's count of what a changed board cost to make (`field_board_build_ms`).
-#[cfg(test)]
-pub mod timing {
-    use std::cell::RefCell;
-    use std::time::Duration;
-
-    thread_local! {
-        static BUILDS: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
-    }
-
-    pub fn record(took: Duration) {
-        BUILDS.with(|b| b.borrow_mut().push(took.as_micros() as u32));
-    }
-
-    /// The builds so far, µs (and forgets them).
-    pub fn take() -> Vec<u32> {
-        BUILDS.with(|b| std::mem::take(&mut *b.borrow_mut()))
-    }
-}
-
 /// The set of zones marking a floor, baked and live: what the bots compare to tell "the same zone as before" (`0` none).
 /// The low 16 bits are the baked set (`HazardMarks`), the high 16 the live set ([`FieldBoard`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -323,5 +303,25 @@ impl ZoneSet {
     /// No zone, baked or live.
     pub fn is_none(self) -> bool {
         self.0 == 0
+    }
+}
+
+/// The bench's count of what a changed board cost to make (`field_board_build_ms`).
+#[cfg(test)]
+pub mod timing {
+    use std::cell::RefCell;
+    use std::time::Duration;
+
+    thread_local! {
+        static BUILDS: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub fn record(took: Duration) {
+        BUILDS.with(|b| b.borrow_mut().push(took.as_micros() as u32));
+    }
+
+    /// The builds so far, µs (and forgets them).
+    pub fn take() -> Vec<u32> {
+        BUILDS.with(|b| std::mem::take(&mut *b.borrow_mut()))
     }
 }
