@@ -416,11 +416,18 @@ pub struct BotState {
     /// A goal a crossing's search for a long plain route kept the plain one to, and until when such a search is
     /// not made again to a goal near it (`LONG_RETRY_MS`).
     pub long_kept: Option<(Vec3, u32)>,
+    /// The armour it wears against a zone's hits (`zone_cost.rs`), set at the match's start from its kit; it
+    /// outlasts a life.
+    pub armour: std::sync::Arc<super::zone_cost::ZoneArmour>,
 }
 
 impl Feature for BotState {
     fn new_life(&mut self, _life: &Life) {
-        *self = Self::default();
+        let armour = std::mem::take(&mut self.armour);
+        *self = Self {
+            armour,
+            ..Self::default()
+        };
     }
 }
 

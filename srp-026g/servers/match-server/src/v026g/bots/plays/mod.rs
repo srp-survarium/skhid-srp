@@ -456,6 +456,8 @@ pub struct BotFacts<'a> {
     /// Its health pools as the last world showed them (`pools.rs`); none
     /// before the first.
     pub pools: Option<Pools>,
+    /// What it wears against a zone's hits (F2, `zone_cost.rs`).
+    pub zone_armour: &'a std::sync::Arc<super::zone_cost::ZoneArmour>,
     /// Goals its searches proved no way to lately, and until when.
     pub no_way_to: &'a [(Vec3, u32)],
     /// Plays that failed at once at a target, and until when they are
@@ -572,6 +574,24 @@ impl Ctx<'_> {
     /// A play's number (its tuning's, else its default).
     pub fn num(&self, kind: PlayKind, name: &str) -> f32 {
         self.tuning.number(kind, name)
+    }
+
+    /// What a decision weighs a zone's cost against (F2): the body pool and the raw hit as they always
+    /// were, or, with `HazardTuning::zone_pools` routed, the pools the bot has and the armour it wears.
+    pub fn budget(&self) -> super::zone_cost::Budget {
+        use super::tuning::ZonePools;
+        use super::zone_cost::Budget;
+        match self.tuning.hazard.zone_pools {
+            ZonePools::Raw => Budget::raw(self.me.health),
+            ZonePools::Routed => {
+                // The body pool is the world's latest (enemy fire counts); the others the pools' last.
+                let pools = Pools {
+                    body: self.me.health,
+                    ..self.bot.pools.unwrap_or(Pools::of_body(self.me.health))
+                };
+                Budget::routed(&pools, self.bot.zone_armour.clone())
+            }
+        }
     }
 
     /// The point a target stands for, if it has one.
@@ -887,6 +907,38 @@ impl Ctx<'_> {
 
     /// A candidate of `kind` at `target`, scored by its tuning's
     /// considerations; `None` at 0.
+    /// Why `kind` on `target` is not offered by [`Ctx::candidate`] now (the
+    /// bench's trace of holds that stop being candidates).
+    #[cfg(test)]
+    pub fn drop_reason(&self, kind: PlayKind, target: TargetRef) -> String {
+        if self
+            .bot
+            .set_aside
+            .iter()
+            .any(|&(k, t, until)| k == kind && t == target && self.now < until)
+        {
+            return "set aside".to_string();
+        }
+        if self.bot.dry && kind.seeks_fight() {
+            return "dry".to_string();
+        }
+        let play = self.play(kind);
+        let (score, why) = curve::score(&play.considerations, |input| self.input(input, kind, target));
+        if score.is_zero() {
+            let zero = why.parts.iter().find(|(_, _, s)| *s <= 0.0);
+            return zero.map_or("zero score".to_string(), |(i, v, _)| format!("zero {i:?} ({v:.2})"));
+        }
+        if kind == PlayKind::Crossfire {
+            if self.point_of(target).is_none() {
+                return "crossfire: the choke has no point (track forgotten)".to_string();
+            }
+            if self.view.team(self.me.team).all(|p| p.place == self.me.place) {
+                return "crossfire: no teammate alive".to_string();
+            }
+        }
+        "its candidates() left it out".to_string()
+    }
+
     pub fn candidate(
         &self,
         kind: PlayKind,

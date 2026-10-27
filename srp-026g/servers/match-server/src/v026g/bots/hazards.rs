@@ -34,6 +34,7 @@ use mapdata::{Damage, NodeId, Shape, Vec3, WalkGrid, World, ZoneKind};
 use super::anomalies::{Anomalies, Control, Schedule, SyncReport};
 pub use super::live_zones::ZoneSet;
 use super::live_zones::{FieldBoard, WorldField};
+use super::zone_cost::{Cost, ZoneArmour};
 
 /// A switching zone counts as on this long before it switches on and
 /// after it switches off, ms: the client's off-grid ticks (≤ 50 ms) and a
@@ -406,6 +407,18 @@ impl Hazards {
     /// ([`Hazard::hit_per_s`]); 0 on a floor no zone marks.
     pub fn hit_per_s(&self, node: NodeId) -> f32 {
         self.zones_at(node).map(Hazard::hit_per_s).sum::<f32>() + self.live.hit_per_s(node)
+    }
+
+    /// [`Self::hit_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body
+    /// pool, the number it always was). The live fields count by their raw hit in the body pool.
+    pub fn cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {
+        match armour {
+            None => Cost::body(self.hit_per_s(node)),
+            Some(armour) => {
+                self.zones_at(node).map(|zone| zone.cost_per_s(armour)).sum::<Cost>()
+                    + Cost::body(self.live.hit_per_s(node))
+            }
+        }
     }
 
     /// The set of zones marking `node`, baked and live (none: no zone);

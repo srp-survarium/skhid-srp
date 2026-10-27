@@ -715,10 +715,36 @@ pub(crate) fn gap_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<mapdat
 pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
     use mapdata::grid::gap::GAP_PRESS_SPREAD_M;
     for (a, b, gap, ground) in [(2.0, 2.0, 1.0, 0.0), (2.0, 2.6, 0.75, 0.0), (2.0, 0.5, 1.5, -3.0)] {
-        let triangles = gap_triangles(a, b, gap, ground);
+        let mut triangles = gap_triangles(a, b, gap, ground);
+        let mut area = [0.0, 0.0, 14.0, 10.0];
+        if b < a - 0.5 {
+            // A drop is a link only with a way back up (a one-way drop would keep the yard as reached), and a long
+            // one, or the links save no walk round: out of the near top north, 20 m on, east, and down a 45 degree
+            // ramp onto the far block's north edge.
+            let walker = mapdata::WalkerBehaviour::BySlope;
+            let plate = |p: [Vec3; 4]| {
+                [
+                    mapdata::Triangle { v: [p[0], p[1], p[2]], walker },
+                    mapdata::Triangle { v: [p[0], p[2], p[3]], walker },
+                ]
+            };
+            let flat = |x0: f32, z0: f32, x1: f32, z1: f32| {
+                plate([Vec3::new(x0, a, z0), Vec3::new(x1, a, z0), Vec3::new(x1, a, z1), Vec3::new(x0, a, z1)])
+            };
+            triangles.extend(flat(1.0, 10.0, 3.0, 30.0));
+            triangles.extend(flat(1.0, 28.0, 13.0, 30.0));
+            triangles.extend(flat(11.0, 11.5, 13.0, 30.0));
+            triangles.extend(plate([
+                Vec3::new(11.0, b, 10.0),
+                Vec3::new(13.0, b, 10.0),
+                Vec3::new(13.0, a, 11.5),
+                Vec3::new(11.0, a, 11.5),
+            ]));
+            area = [0.0, 0.0, 14.0, 32.0];
+        }
         let grid = mapdata::WalkGrid::build_with_links(
             &triangles,
-            [0.0, 0.0, 14.0, 10.0],
+            area,
             0.25,
             mapdata::Body::default(),
             mapdata::OffMeshLinks::Gaps,

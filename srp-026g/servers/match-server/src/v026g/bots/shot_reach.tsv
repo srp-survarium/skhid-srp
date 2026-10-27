@@ -1,0 +1,88 @@
+# How far a shot is heard by weapon, metres: `srp-shot-reach --dir <game folder>` (survarium::v026g::shot_reach)
+# over the live archives (resources.db and patches 12-34). Columns: name, the reach without a map's environment
+# layer (information), and where it differs the reach with Rudnya's environment layer, which the bots use (the
+# owner's decision, see shot_reach.rs). Regenerate, or check
+# a release's archives with `srp-shot-reach --dir <game folder> --check shot_reach.tsv`; sorted by name, tabs.
+wpn_a545	150
+wpn_a9_91	55
+wpn_aek_919k	100
+wpn_ak_12	150
+wpn_ak_12_premium	150
+wpn_ak_74m	150
+wpn_ak_74n	150
+wpn_ak_74n_premium	150
+wpn_ak_74u	150
+wpn_ak_74u_premium	150
+wpn_akmn	150
+wpn_akmn_premium	150
+wpn_akmn_premium_2	150
+wpn_aps	100
+wpn_ash_12	150
+wpn_benelli_m4	100
+wpn_fn_fnc	150
+wpn_fn_p90	19.293
+wpn_fort_17	100
+wpn_hk416	150
+wpn_izh_27_lancaster	100
+wpn_izh_27_lancaster_premium	100
+wpn_izh_27_lancaster_premium_2	100
+wpn_kedr	150
+wpn_kiparis	150
+wpn_kiparis_premium	150
+wpn_kriss_vector	55
+wpn_m4a1	150
+wpn_magnum	100
+wpn_mosin_nagant	200
+wpn_mp7	19.293
+wpn_mp7_silencer	55
+wpn_mp7_silencer_special	55
+wpn_mp_153	100
+wpn_msbs_carbine	150
+wpn_neostead	21	240
+wpn_neostead_2	21	240
+wpn_pkp_pecheneg	55
+wpn_pm	100
+wpn_pp2000	150
+wpn_ppsh	150
+wpn_rem_700	200
+wpn_rem_700_premium	200
+wpn_rem_870	100
+wpn_rpd	150
+wpn_rpk	150
+wpn_saiga_12	19.293	240
+wpn_saiga_12_premium	150
+wpn_sks	150
+wpn_sks_premium	150
+wpn_sks_premium_2	150
+wpn_soc_vepr	150
+wpn_socom16	150
+wpn_spas_12	100
+wpn_sr2m	150
+wpn_sr3m	150
+wpn_sr3m_premium	150
+wpn_sv_98	200
+wpn_svd	150
+wpn_toz_122	150
+wpn_toz_34	100
+wpn_toz_66	100
+wpn_tt_33	100
+wpn_ump45	150
+wpn_uzi	100
+wpn_uzi_premium	100
+wpn_uzi_premium_2	100
+wpn_val	55
+wpn_valmet	150
+wpn_vepr	150
+wpn_vepr_12	19.293	240
+wpn_vepr_12_premium	19.293	240
+wpn_vepr_premium	150
+wpn_vityaz	150
+wpn_vityaz_premium	150
+wpn_vsk_94	55
+wpn_vsk_94_premium	55
+wpn_vss	55
+wpn_vss_premium	55
+wpn_vssk	55
+wpn_vssk_camo	55
+wpn_vz58	150
+wpn_winchester_1894	100

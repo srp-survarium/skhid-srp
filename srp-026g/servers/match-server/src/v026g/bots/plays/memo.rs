@@ -15,13 +15,14 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use mapdata::stands::{GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
+use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
 use super::collect::{Crossing, crossing_to};
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
+use crate::v026g::bots::zone_cost::ZoneArmour;
 
 /// Answers one question keeps at most; past them it starts afresh (a
 /// match asks a few dozen: the stands of batteries in zones on all match,
@@ -99,8 +100,8 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
 }
 
 /// A crossing's question: the stand's x, y, z bits, the side, the stop's
-/// bits.
-type CrossingKey = (u32, u32, u32, Option<i32>, u32);
+/// bits, and the armour it is worked out with (`ZoneArmour::key`; 0: none).
+type CrossingKey = (u32, u32, u32, Option<i32>, u32, u64);
 
 /// The plays' kept answers for one match on one map (`Bots` makes it anew
 /// with the tactics).
@@ -121,16 +122,19 @@ impl Memo {
         to: Vec3,
         side: Option<i32>,
         stop_m: f32,
+        armour: Option<&ZoneArmour>,
     ) -> Option<Crossing> {
+        // The armour is part of the question: crossings are worked out once a match for each kit's.
         let key = (
             to.x.to_bits(),
             to.y.to_bits(),
             to.z.to_bits(),
             side,
             stop_m.to_bits(),
+            armour.map_or(0, ZoneArmour::key),
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            crossing_to(tactics, to, side, stop_m)
+            crossing_to(tactics, to, side, stop_m, armour)
         })
     }
 
@@ -139,10 +143,11 @@ impl Memo {
     /// map).
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
         self.stands.get_or_init(|| {
+            let ray_m = crate::v026g::bots::view::use_ray_m();
             if crate::v026g::bots::view::live_eye() {
-                UseStands::build(&tactics.world)
+                UseStands::build_ray(&tactics.world, EYE_STANDING, EYE_CROUCHED, ray_m)
             } else {
-                UseStands::build_with(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED)
+                UseStands::build_ray(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED, ray_m)
             }
         })
     }
@@ -207,10 +212,10 @@ impl Ctx<'_> {
     }
 
     fn press_on(&self, eye: Vec3, shape: &mapdata::Shape) -> Option<Vec3> {
-        if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
+        if (shape.center - eye).length() > shape.half.length() + crate::v026g::bots::view::use_ray_m() {
             return None;
         }
-        mapdata::stands::press(&self.tactics.world.sight, eye, shape).map(|(aim, _)| aim)
+        mapdata::stands::press(&self.tactics.world.sight, eye, shape, crate::v026g::bots::view::use_ray_m()).map(|(aim, _)| aim)
     }
 
     /// The stands of the resupply zone at `zone`: floors from which the
@@ -401,12 +406,12 @@ mod tests {
             // Dry floor far from the zone: still a question with an answer.
             (Vec3::new(10.0, 0.0, 10.0), Some(0), 0.0),
         ];
-        assert!(crossing_to(&tactics, IN_ZONE, Some(0), 1.0).is_some());
+        assert!(crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None).is_some());
         for round in 0..2 {
             for &(to, side, stop) in &asks {
                 assert_eq!(
-                    memo.crossing(&tactics, to, side, stop),
-                    crossing_to(&tactics, to, side, stop),
+                    memo.crossing(&tactics, to, side, stop, None),
+                    crossing_to(&tactics, to, side, stop, None),
                     "round {round}: {to:?} {side:?} {stop}"
                 );
             }
@@ -421,7 +426,7 @@ mod tests {
         let mut tactics = hurting(0.01);
         let memo = Memo::default();
         let mild = memo
-            .crossing(&tactics, IN_ZONE, Some(0), 1.0)
+            .crossing(&tactics, IN_ZONE, Some(0), 1.0, None)
             .expect("a crossing");
         // Harsher.
         tactics.hazards.zones[0].damage = Some(mapdata::Damage {
@@ -430,10 +435,10 @@ mod tests {
             parts: 2,
             ..mapdata::Damage::default()
         });
-        let harsh = memo.crossing(&tactics, IN_ZONE, Some(0), 1.0);
-        assert_eq!(harsh, crossing_to(&tactics, IN_ZONE, Some(0), 1.0));
+        let harsh = memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None);
+        assert_eq!(harsh, crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None));
         assert!(
-            harsh.is_some_and(|h| h.leg > mild.leg),
+            harsh.is_some_and(|h| h.leg.body > mild.leg.body),
             "{harsh:?} {mild:?}"
         );
         assert_eq!(memo.crossings_kept(), 1);
@@ -441,8 +446,8 @@ mod tests {
         // past the zones on all match now, and so a crossing's edge may be.
         tactics.hazards.zones[0].control = Control::Timer;
         assert_eq!(
-            memo.crossing(&tactics, IN_ZONE, Some(0), 1.0),
-            crossing_to(&tactics, IN_ZONE, Some(0), 1.0)
+            memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None),
+            crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None)
         );
         assert_eq!(memo.crossings_kept(), 1);
     }

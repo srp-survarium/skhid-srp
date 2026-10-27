@@ -15,8 +15,10 @@
 //! - the kit worn: the armour of the tier's kit that has the target's held
 //!   gun (a weapon is in one kit of a tier), the largest `ranged` armour of
 //!   its items on the box hit (LIKELY, `damage` module doc);
-//! - the part hit, drawn by [`HIT_SHARES`] of the shooter's weapon class and
-//!   then a box of the part by chance;
+//! - the part hit: with the boxes volume ([`super::standin_hitbox`],
+//!   `SRP_BENCH_HIT_MODEL=on`) the shape the shot ray met says the hit box
+//!   ([`hit_boxes`]); with the old disc, drawn by [`HIT_SHARES`] of the
+//!   shooter's weapon class and then a box of the part by chance ([`hit`]);
 //! - the pools: the box's `bdb_coeff` of the damage after armour taken from
 //!   `body` (the body's `health`), `head` and `pain` ([`Pools`]); a pool at 0
 //!   kills. The leg and hand pools do not kill and the stand-in's own leg
@@ -34,6 +36,7 @@ use survarium::v026g::weapons::{self, WeaponParams};
 use crate::v026g::bots::guns::Gun;
 use crate::v026g::bots::rng::Rng;
 
+use super::standin_hitbox::HitParam;
 use super::{Body, bench_rusher_kits, bench_settings, bench_tier};
 
 /// The parts a hit lands on, as the live matches show it.
@@ -46,6 +49,16 @@ pub(crate) enum Part {
 }
 
 impl Part {
+    /// The part's place in [`HIT_SHARES`]' columns: torso, head, arm, leg.
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Part::Torso => 0,
+            Part::Head => 1,
+            Part::Arm => 2,
+            Part::Leg => 3,
+        }
+    }
+
     /// The hit boxes of the part (`human_hit_params`), each as likely as
     /// another (GUESS: the recordings do not say which box).
     pub(crate) fn boxes(self) -> &'static [&'static str] {
@@ -309,6 +322,18 @@ fn kit_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> Option<&'static Rol
     })
 }
 
+/// What the kit of `tier` and `rusher` that has `weapon` wears against a zone's hits (the largest of its
+/// items on each part and type, `zone_cost::ZoneArmour`); nothing if no kit has the weapon.
+pub(crate) fn zone_armour_of(tier: BotTier, rusher: RusherKit, weapon: &str) -> crate::v026g::bots::zone_cost::ZoneArmour {
+    crate::v026g::bots::zone_cost::ZoneArmour::of_items(
+        kit_of(tier, rusher, weapon)
+            .map_or(&[][..], |kit| kit.armour)
+            .iter()
+            .filter_map(|(_, name)| damage::armour_named(name))
+            .map(|item| item.dict_id),
+    )
+}
+
 /// The largest `ranged` armour on `hit_box` among `kit`'s items.
 pub(crate) fn armour_on(kit: Option<&RoleGear>, hit_box: &str) -> f32 {
     kit.map_or(0.0, |kit| {
@@ -393,6 +418,56 @@ pub(crate) fn hit(
     weapon.stamina_damage * pellets as f32
 }
 
+/// The ammunition the bench's kits give `gun` (the tier's kit that has it, else any tier's), or a plain bullet.
+pub(crate) fn ammo_of(model: &Model, gun: &Gun) -> &'static AmmoParams {
+    kit_of(model.tier, model.rusher, gun.item)
+        .and_then(|kit| damage::ammo_named(kit.ammo))
+        .unwrap_or(&PLAIN_AMMO)
+}
+
+/// The bullets or pellets of one shot of `shooter_gun` that landed on `target`, each with the hit box the shot
+/// ray met and its distance, metres (the shapes of [`super::standin_hitbox`] say the box; nothing is drawn).
+/// The pools and the death rule are [`hit`]'s.
+pub(crate) fn hit_boxes(
+    model: &Model,
+    target: &mut Body,
+    shooter_gun: &Gun,
+    landed: &[(HitParam, f32)],
+    now: u32,
+) {
+    if model.flat {
+        target.health -= FLAT_HIT;
+        return;
+    }
+    let Some(weapon) = weapons::weapon_named(shooter_gun.item) else {
+        target.health -= FLAT_HIT;
+        return;
+    };
+    let ammo = ammo_of(model, shooter_gun);
+    let worn = kit_of(model.tier, model.rusher, target.gun.item);
+    let body = damage::human();
+    for &(param, distance) in landed {
+        let bullet = damage::bullet_at(weapon, ammo, distance);
+        let hit_box = param.name();
+        let [on_body, on_head, on_pain] = pools_taken(
+            body,
+            hit_box,
+            bullet.damage,
+            bullet.arp,
+            armour_on(worn, hit_box),
+        );
+        target.health -= on_body;
+        for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
+            if taken > 0.0 {
+                target.pools.hurt(pool, taken, now);
+            }
+        }
+    }
+    if target.pools.dead() {
+        target.health = target.health.min(0.0);
+    }
+}
+
 /// An ammunition that is not in the data: no multiplier, one bullet.
 const PLAIN_AMMO: AmmoParams = AmmoParams {
     dict_id: 0,
@@ -406,6 +481,7 @@ const PLAIN_AMMO: AmmoParams = AmmoParams {
     air_resistance: 1.0,
     distance: 1000.0,
     buck_shot: 1,
+    buck_dispersion: 0.0,
 };
 
 #[cfg(test)]
@@ -701,5 +777,61 @@ mod tests {
             assert_eq!(found.ammo, ammo);
             assert!(weapons::weapon_named(weapon).is_some(), "{weapon}");
         }
+    }
+
+    /// F2: an acid cloud on the face takes the infection pool, which does not mend, and kills when it runs
+    /// out; the body pool is never touched. Raw, the same cloud takes the body pool.
+    #[test]
+    fn a_routed_acid_zone_takes_the_infection_pool_and_kills_by_it() {
+        use crate::v026g::bots::hazards::Hazards;
+        use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let at = mapdata::Vec3::new(30.0, 0.0, 20.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "acid".into(),
+                team: -1,
+                position: at,
+                damage_type: "toxic".into(),
+                damage: Some(Damage {
+                    max_hit: 0.25,
+                    interval_ms: 1000,
+                    continuous: true,
+                    parts: 1,
+                    part_names: vec!["face".into()],
+                    ..Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: at + mapdata::Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: mapdata::Vec3::new(5.0, 2.0, 5.0),
+                }],
+            });
+        });
+        let inside = Hazards::build(&world, 0.0);
+        let run = |routed: bool| {
+            let mut game = super::super::Game::new(world.clone(), &[0, 1], 1, None, None);
+            game.zone_routed = routed;
+            game.bodies[0].feet = at;
+            for _ in 0..(60.0 / super::super::TICK_S) as usize {
+                game.tick += super::super::TICK_MS;
+                game.zone_tick(&inside, &inside, true);
+                if !game.bodies[0].alive {
+                    break;
+                }
+            }
+            game
+        };
+        let routed = run(true);
+        assert!(!routed.bodies[0].alive, "the infection ran out");
+        assert_eq!(routed.zone_pool_deaths, [0, 0, 1, 0], "{:?}", routed.zone_pool_lost);
+        assert!(routed.zone_pool_lost[2] > 0.5 && routed.zone_pool_lost[0] == 0.0, "{:?}", routed.zone_pool_lost);
+        assert!((routed.bodies[0].health - 1.0).abs() < 1e-6, "the body pool is not touched");
+        // Raw: the body pool pays.
+        let raw = run(false);
+        assert!(!raw.bodies[0].alive);
+        assert_eq!(raw.zone_pool_deaths, [0, 0, 0, 0]);
+        assert!(raw.bodies[0].health <= 1e-3);
     }
 }

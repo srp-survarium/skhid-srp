@@ -80,6 +80,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ResupplyCounts::new(n)),
         Box::new(HealCounts::new(n)),
         Box::new(ShotOffsets::default()),
+        Box::new(HitShapes::default()),
     ]
 }
 
@@ -95,6 +96,8 @@ pub(super) struct BotNow {
     pub(super) step: Option<String>,
     pub(super) goal_m: Option<f32>,
     pub(super) range_held: Option<u32>,
+    /// The goal it has no route to and why it stands short of it ([`StoodRead`]).
+    pub(super) stood: Option<StoodRead>,
     pub(super) grenades: GrenadeStats,
     /// Its view is held for a throw now, and how long ago, ms, it let go of its last grenade.
     pub(super) throw_held: bool,

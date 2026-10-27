@@ -25,6 +25,7 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::view;
+use crate::v026g::bots::zone_cost::{Budget, Cost, ZoneArmour};
 use mapdata::{UsePose, UseStand};
 use crate::v026g::drive::key;
 
@@ -153,8 +154,6 @@ const PUT_MISS_M: f32 = 1.0;
 const STAND_AT_M: f32 = 0.6;
 /// At a stand this long with no press possible, it tries the next stand.
 const STAND_STILL_MS: u32 = 3_000;
-/// The client's use ray, metres (`base_player::detect_usable_object`).
-const USE_RAY_M: f32 = 2.0;
 
 /// How far the bot's use ray, from its eye along its view, passes `point`.
 fn use_ray_miss(cx: &Ctx, point: Vec3) -> f32 {
@@ -162,7 +161,7 @@ fn use_ray_miss(cx: &Ctx, point: Vec3) -> f32 {
     let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
     let (sin, cos) = cx.me.pitch.sin_cos();
     let dir = Vec3::new(fx * cos, sin, fz * cos);
-    let along = (point - eye).dot(dir).clamp(0.0, USE_RAY_M);
+    let along = (point - eye).dot(dir).clamp(0.0, crate::v026g::bots::view::use_ray_m());
     (eye + dir * along - point).length()
 }
 
@@ -593,7 +592,7 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let dry = cx
         .battery_lying(battery)
         .and_then(|at| cx.crossing(at))
-        .map_or(1.0, |c| (1.0 - c.cost() / cx.me.health.max(1e-3)).max(0.0));
+        .map_or(1.0, |c| (1.0 - cx.budget().reserve.share(c.cost())).max(0.0));
     battery_candidate_given(cx, target, slot, on_it, near).map(|mut candidate| {
         if dry < 1.0 {
             candidate.score = Score::new(candidate.score.get() * dry);
@@ -672,22 +671,28 @@ pub const CROSS_ABORT_LEFT: f32 = 0.25;
 pub struct Crossing {
     /// The dry floor it starts from (or, out, ends at).
     pub edge: Vec3,
-    /// Health lost on the walk one way, at [`CROSS_MPS`].
-    pub leg: f32,
+    /// Health lost on the walk one way, at [`CROSS_MPS`], in the pools that kill ([`Cost`]).
+    pub leg: Cost,
     /// Health lost each second standing where the walk in stops (short of
     /// a battery, [`CROSS_STOP_M`]).
-    pub at_per_s: f32,
+    pub at_per_s: Cost,
 }
 
 impl Crossing {
     /// Health it costs in and out and a take.
-    pub fn cost(&self) -> f32 {
-        2.0 * self.leg + CROSS_TAKE_S * self.at_per_s
+    pub fn cost(&self) -> Cost {
+        self.leg * 2.0 + self.at_per_s * CROSS_TAKE_S
     }
 
-    /// Whether a bot of `health` makes it ([`bears`]).
-    pub fn fits(&self, health: f32) -> bool {
-        bears(self.cost(), health)
+    /// Whether a bot with `budget` makes it: at most [`CROSS_SHARE`] of each pool it takes from, leaving
+    /// [`CROSS_LEFT`] ([`bears`] for the body pool alone).
+    pub fn fits(&self, budget: &Budget) -> bool {
+        let borne = budget.reserve.bears(self.cost(), CROSS_SHARE, CROSS_LEFT);
+        #[cfg(test)]
+        if budget.armour.is_some() {
+            crate::v026g::bots::zone_cost::asks::count(borne);
+        }
+        borne
     }
 }
 
@@ -723,7 +728,7 @@ fn traps(tactics: &Tactics, from: mapdata::NodeId, node: mapdata::NodeId) -> boo
 }
 
 /// Health lost walking from `a` to `b` in a line, at [`CROSS_MPS`].
-fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
+fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>) -> Cost {
     let grid = &tactics.world.grid;
     let d = a.distance_xz(b);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
@@ -732,7 +737,7 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
         .map(|i| {
             let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
             grid.locate(p, 1.5)
-                .map_or(0.0, |node| tactics.hazards.hit_per_s(node))
+                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
                 * ds
                 / CROSS_MPS
         })
@@ -749,6 +754,7 @@ pub fn crossing_to(
     to: Vec3,
     side: Option<i32>,
     stop_m: f32,
+    armour: Option<&ZoneArmour>,
 ) -> Option<Crossing> {
     let grid = &tactics.world.grid;
     let mut best: Option<Crossing> = None;
@@ -782,12 +788,14 @@ pub fn crossing_to(
                 };
                 let crossing = Crossing {
                     edge,
-                    leg: line_hurt(tactics, edge, stop),
+                    leg: line_hurt(tactics, edge, stop, armour),
                     at_per_s: grid
                         .locate(stop, 1.5)
-                        .map_or(0.0, |node| tactics.hazards.hit_per_s(node)),
+                        .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour)),
                 };
-                if crossing.cost().is_finite() && best.is_none_or(|b| crossing.cost() < b.cost()) {
+                if crossing.cost().is_finite()
+                    && best.is_none_or(|b| crossing.cost().most() < b.cost().most())
+                {
                     best = Some(crossing);
                 }
             }
@@ -819,8 +827,13 @@ impl Ctx<'_> {
             return None;
         }
         // Kept for the match (`memo::Memo::crossing`): the same answer.
-        self.memo
-            .crossing(self.tactics, stand, self.bot.side, stop_short(stand, at))
+        self.memo.crossing(
+            self.tactics,
+            stand,
+            self.bot.side,
+            stop_short(stand, at),
+            self.zone_armour(),
+        )
     }
 
     /// The bot's way out of zones on all match when no way leads from where
@@ -830,7 +843,16 @@ impl Ctx<'_> {
         if !self.needs_crossing(me) {
             return None;
         }
-        crossing_to(self.tactics, me, self.bot.side, 0.0)
+        crossing_to(self.tactics, me, self.bot.side, 0.0, self.zone_armour())
+    }
+
+    /// The armour a crossing's cost is worked out with: the bot's, with `HazardTuning::zone_pools`
+    /// routed; none (the raw hit in the body pool) as it was.
+    pub fn zone_armour(&self) -> Option<&ZoneArmour> {
+        match self.tuning.hazard.zone_pools {
+            crate::v026g::bots::tuning::ZonePools::Raw => None,
+            crate::v026g::bots::tuning::ZonePools::Routed => Some(self.bot.zone_armour),
+        }
     }
 }
 
@@ -875,7 +897,7 @@ impl Ctx<'_> {
             let Some(crossing) = self.crossing(at) else {
                 return Some("no crossing to its zone");
             };
-            if !crossing.fits(self.me.health) {
+            if !crossing.fits(&self.budget()) {
                 return Some("its zone hurts too much");
             }
             crossing.edge
@@ -1314,7 +1336,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // (`Crossing`), while the bot's health bears it.
             let crossing = if cx.needs_crossing(stand) {
                 match cx.crossing(at) {
-                    Some(crossing) if crossing.fits(cx.me.health) => Some(crossing.edge),
+                    Some(crossing) if crossing.fits(&cx.budget()) => Some(crossing.edge),
                     _ => return Step::Failed("no way to it"),
                 }
             } else {
@@ -1715,10 +1737,11 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     // the line back to its edge. The motor walks it out of the zone once
     // the play ends (no `Intent::zone_ok`).
     if let Some(edge) = crossing
-        && cx.me.health
-            - crossing_to(cx.tactics, me, cx.bot.side, 0.0)
-                .map_or_else(|| line_hurt(cx.tactics, me, edge), |out| out.leg)
-            < CROSS_ABORT_LEFT
+        && !cx.budget().reserve.leaves(
+            crossing_to(cx.tactics, me, cx.bot.side, 0.0, cx.zone_armour())
+                .map_or_else(|| line_hurt(cx.tactics, me, edge, cx.zone_armour()), |out| out.leg),
+            CROSS_ABORT_LEFT,
+        )
     {
         return Step::Failed("its zone hurts too much");
     }
@@ -2104,7 +2127,10 @@ mod tests {
         let off = crossing.edge.distance_xz(at);
         // The zone's 4 m and the marks' margin of 1 m; the nearest such floor.
         assert!((5.0..7.0).contains(&off), "{crossing:?}");
-        assert!(crossing.fits(1.0) && !crossing.fits(0.3), "{crossing:?}");
+        assert!(
+            crossing.fits(&Budget::raw(1.0)) && !crossing.fits(&Budget::raw(0.3)),
+            "{crossing:?}"
+        );
         // To the edge first.
         s.current = Some((PlayKind::Collect, target, s.view.clock));
         let mut rng = Rng::new(1);
@@ -2860,6 +2886,78 @@ mod tests {
         std::sync::Arc::new(mapdata::World::assemble(map, grid.into(), sight.into()))
     }
 
+    /// A battery in an acid cloud (toxic, the face): with the pools routed (F2) the crossing is
+    /// weighed against the infection pool, which the acid takes and which does not mend, not the body
+    /// pool it never touches; a mask on the face lowers the cost; a file with no part names (written
+    /// before format 4) costs what the raw rule says.
+    #[test]
+    fn a_toxic_crossing_is_weighed_against_the_infection_pool_when_routed() {
+        use crate::v026g::bots::pools::Pools;
+        use crate::v026g::bots::tuning::ZonePools;
+        use crate::v026g::bots::zone_cost::ZoneArmour;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let acid = |names: &[&str]| {
+            with_zone(
+                4.0,
+                Some(mapdata::Damage {
+                    max_hit: 0.01,
+                    interval_ms: 1000,
+                    parts: 1,
+                    part_names: names.iter().map(|n| (*n).to_owned()).collect(),
+                    ..mapdata::Damage::default()
+                }),
+            )
+        };
+        let routed = |mut s: Scenario| {
+            s.tuning.hazard.zone_pools = ZonePools::Routed;
+            s.battery(BatteryState::Free(Vec3::new(25.0, 0.0, 32.0)));
+            s
+        };
+        // Raw: the body pool, full: borne, and the infection pool is not looked at.
+        let mut raw = acid(&["face"]);
+        raw.battery(BatteryState::Free(at));
+        raw.pools = Some(Pools {
+            infection: 0.1,
+            ..Pools::FULL
+        });
+        let raw_crossing = raw.cx(0).crossing(at).expect("a crossing");
+        assert!(raw_crossing.fits(&raw.cx(0).budget()));
+        assert!(raw_crossing.cost().body > 0.0 && raw_crossing.cost().infection == 0.0);
+        // Routed, a sick bot (infection 0.1 of 1.0): the cost is in the infection pool and it does not bear it.
+        let mut sick = routed(acid(&["face"]));
+        sick.pools = Some(Pools {
+            infection: 0.1,
+            ..Pools::FULL
+        });
+        let crossing = sick.cx(0).crossing(at).expect("a crossing");
+        assert!(crossing.cost().infection > 0.0 && crossing.cost().body == 0.0, "{:?}", crossing.cost());
+        // The same walk, in numbers: what the raw rule counted in the body pool.
+        assert!((crossing.cost().infection - raw_crossing.cost().body).abs() < 1e-5);
+        assert!(!crossing.fits(&sick.cx(0).budget()), "{crossing:?}");
+        assert_eq!(sick.cx(0).take_block(at), Some("its zone hurts too much"));
+        // A healthy bot bears the same walk.
+        let mut well = routed(acid(&["face"]));
+        well.pools = Some(Pools::FULL);
+        assert!(crossing.fits(&well.cx(0).budget()));
+        assert_eq!(well.cx(0).take_block(at), None);
+        // A mask: the cost falls by the armour on the face.
+        if let Some((mask, armour)) = survarium::v026g::damage::armour().iter().find_map(|a| {
+            let v = a.of_type("face", "toxic");
+            (v > 0.0).then_some((a, v))
+        }) {
+            let mut masked = routed(acid(&["face"]));
+            masked.pools = Some(Pools::FULL);
+            masked.zone_armour = std::sync::Arc::new(ZoneArmour::of_items([mask.dict_id]));
+            let worn = masked.cx(0).crossing(at).expect("a crossing");
+            let expected = crossing.cost().infection * (1.0 - armour.clamp(0.0, 1.0));
+            assert!((worn.cost().infection - expected).abs() < 1e-5, "{worn:?}");
+        }
+        // No part names (format 3): the raw hit in the body pool, routed or not.
+        let old = routed(acid(&[]));
+        let old_crossing = old.cx(0).crossing(at).expect("a crossing");
+        assert_eq!(old_crossing.cost(), raw_crossing.cost());
+    }
+
     /// Cologne CG-11: a battery in a pit no carrier gets out of is no
     /// Collect candidate, and says why; one in a pit with a standing jump
     /// out (pit A's 0.9 m rim) still is.
@@ -3003,7 +3101,7 @@ mod tests {
                         zoned += 1;
                         let crossing = cx.crossing(at);
                         found += usize::from(crossing.is_some());
-                        fit += usize::from(crossing.is_some_and(|c| c.fits(1.0)));
+                        fit += usize::from(crossing.is_some_and(|c| c.fits(&Budget::raw(1.0))));
                         eprintln!(
                             "level {level} mode {mode} team {team} spawner {i}: {:?} cost {:?} block {:?}",
                             crossing.map(|c| (c.edge.distance_xz(stand), c.leg, c.at_per_s)),

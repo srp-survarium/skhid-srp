@@ -591,6 +591,7 @@ pub(super) fn decide(
             medkits_used: bot.features.stock.medkits_used,
             pantry: &bot.features.stock.pantry,
             pools: bot.features.stock.pools,
+            zone_armour: &bot.features.crossing.armour,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.features.memory.set_aside,
             failed_stands: &bot.features.memory.failed_stands,
@@ -608,6 +609,8 @@ pub(super) fn decide(
         memo,
     };
     let mut rng = bot.rng.clone();
+    #[cfg(test)]
+    super::hold_trace::at(me.feet);
     let step = plays::step(&mut running, target, &cx, &mut rng);
     // A hold on a spot a teammate of a lower place has claimed gives way
     // (S1); the point it means to be at is its claim.

@@ -114,7 +114,16 @@ Why these:
   boots (-6 %); support and camper: carry on the legs (+2 kg at 9-10, +3 kg at 13-15) and gear weight
   on the torso (-8 % at 4-5, -10 % above). The clients apply them (the profile's item carries the
   ids); the match server's speed prior reads the speed, the carry and the weight
-  (`bot_skills::profile_movement_level`). Reload upgrades wait until `Gun` takes the factor.
+  (`bot_skills::profile_movement_level`). **Weapon and gloves upgrades**
+  (`loadouts::BOT_WEAPON_UPGRADES`, the owner's of 2026-10-27, the same switch): none at 4-5; at 9-10 the
+  rusher and flanker reload 10 % faster (type 5, `2042`) and the support and camper carry a weapon 8 % lighter
+  (type 7, `2061`); at 13-15 reload 12 % faster (`2043`) plus gloves with +10 % reload speed (type 26, `1142`),
+  and 10 % lighter (`2062`). `Gun` follows them (`guns::gun_with`, `Gun::of_kit`): the weapon's mods by the
+  client's rule (`modifications::apply`: the values of a key add, then one multiplication, floor 0; PROVEN),
+  the reload speed of the skills and worn gear as `reload_time / (1 + sum)` (LIKELY), and the aim time of the
+  bots' skill 101 (-10 %, PROVEN) so the sights come up when the client's do. Off, every `Gun` is the table's.
+  Worn gear that carries reload speed of its own counts too: `edge_gloves_2` (the 9-10 rusher and flanker) has
+  +8 % by default. The weapon's own `movement_speed_modifier` (+0.05 / -0.05) is in the speed prior.
 - **Weapons.** What the top players used in matches of 6 players or more (the live server's match
   logs, 2026-10), where it is a stock item that fits the tier; else the strongest common pick of the
   kind. 4-5: the Vityaz (SMG, 4), the MP-153 (semi-automatic shotgun, 4), the Remington 700 (bolt

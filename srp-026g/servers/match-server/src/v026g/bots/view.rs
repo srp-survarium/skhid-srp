@@ -39,8 +39,20 @@ use super::live_grenades::{
 };
 use crate::v026g::drive::key;
 
+/// A body this far over or under another is not beside it, metres.
+const NEAR_FLOOR_M: f32 = 1.5;
+
 /// A roster place.
 pub type Place = usize;
+
+/// The body nearest to another ([`Tracker::neighbour_of`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Beside {
+    pub place: Place,
+    pub distance_m: f32,
+    /// An enemy of the other body (else a friend).
+    pub enemy: bool,
+}
 
 /// Where the game's bullet starts, over the feet, metres: the player's head
 /// matrix (`player+0x44C`, the Head locator of its animation), which
@@ -78,6 +90,20 @@ const EYE_GUESSED_CROUCHED_M: f32 = 0.95;
 
 thread_local! {
     static LIVE_EYE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    static USE_RAY: std::cell::Cell<f32> = const { std::cell::Cell::new(mapdata::stands::USE_RAY_M) };
+}
+
+/// The length of the client's use ray the bots count with
+/// (`SenseTuning::use_ray_m`: the stands, a take's reach, the belief about a use's
+/// ray). `Bots` sets it for its thread at each call; 2.0 by default, the client runs
+/// with 1.80.
+pub fn use_ray_m() -> f32 {
+    USE_RAY.with(|m| m.get())
+}
+
+/// Sets [`use_ray_m`] for this thread.
+pub fn set_use_ray_m(m: f32) {
+    USE_RAY.with(|cell| cell.set(m));
 }
 
 /// Whether the eye is the game's ([`eye_height`], the stand ranges, the
@@ -402,9 +428,6 @@ const CARRIER_USE_M: f32 = 4.0;
 const CARRIER_USE_MS: u32 = 6_000;
 /// The uses kept of each place.
 const USES_KEPT: usize = 4;
-/// The client's use: a ray from the eye this long
-/// (`base_player::detect_usable_object`, PROVEN).
-const USE_RAY_M: f32 = 2.0;
 /// A lying battery's middle over its place (its box is about a quarter of
 /// a metre high), and a container's use box's over its place
 /// (`plays::Look::use_box`), metres.
@@ -459,7 +482,7 @@ struct UsePress {
 impl UsePress {
     /// How far the use's ray passes `point`, metres.
     fn miss(&self, point: Vec3) -> f32 {
-        let along = (point - self.eye).dot(self.dir).clamp(0.0, USE_RAY_M);
+        let along = (point - self.eye).dot(self.dir).clamp(0.0, use_ray_m());
         (self.eye + self.dir * along - point).length()
     }
 }
@@ -609,6 +632,26 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// The other place whose last world shows it alive nearest to `feet` on the same floor (within a storey's
+    /// step): how far in the plane, metres, and whether it is a friend of `place` or an enemy. Enemies block a
+    /// body in the game, friends pass through it (the J0 bodies files).
+    pub fn neighbour_of(&self, place: Place, feet: Vec3) -> Option<Beside> {
+        let mine = self.places.get(place)?.team;
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|&(other, _)| other != place)
+            .filter_map(|(other, state)| {
+                let at = state.body.fix().filter(|fix| fix.alive).and_then(|fix| fix.feet)?;
+                ((at.y - feet.y).abs() < NEAR_FLOOR_M).then(|| Beside {
+                    place: other,
+                    distance_m: at.distance_xz(feet),
+                    enemy: state.team != mine,
+                })
+            })
+            .min_by(|a, b| a.distance_m.total_cmp(&b.distance_m))
     }
 
     /// Every place's shot reach, metres ([`super::shot_reach`]), by place.

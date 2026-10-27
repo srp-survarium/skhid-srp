@@ -1,82 +1,68 @@
 //! How far a shot is heard by the weapon that fired it (H1c).
 //!
-//! The game's own number, per weapon (PROVEN data; `weapon_hearing2.py`
-//! of the batteries record): the weapon config's `states/fire/sounds/
-//! third_view` names a composite sound whose layers carry a `min_distance`
-//! and `max_distance`; each layer's sound collection names a `spl_preset`
-//! whose `.spl` volume curve reaches 0 at its cull. A layer is heard out to
-//! min(its `max_distance`, its preset's cull) and the shot reaches the
-//! largest over the weapon's enabled layers: 55 m (the suppressed: VSS, VAL,
-//! A9-91, VSK-94), 100 m (pistols, shotguns, UZI), 150 m (the AK family,
-//! SKS, SVD, SMGs) and 200 m (the bolt rifles). A few layers had no preset
-//! found (the record's last column), so a value is a lower bound there.
+//! The game's own number, per weapon (PROVEN data): the weapon config's `states/fire/sounds/
+//! third_view` names a composite sound whose layers carry a `max_distance`; each layer's sound
+//! (a collection, or a single sound) names a `spl_preset` whose `.spl` volume curve reaches 0 at
+//! its cull. A layer is heard out to min(its `max_distance`, its preset's cull) and the shot
+//! reaches the largest over the weapon's enabled layers: 55 m (the suppressed: VSS, VAL, A9-91,
+//! VSK-94), 100 m (pistols, most shotguns, UZI), 150 m (the AK family, SKS, SVD, SMGs) and 200 m
+//! (the bolt rifles); and 19.3 m (FN P90 and MP7: every layer of their composites is on the
+//! `main_3rd_view` curve, which reaches 0 at 19.293 m, and none is on an echo or distant curve as
+//! the other SMGs' are; PROVEN data, the intent is a GUESS). All 83 weapons of the live archives
+//! have a chain that resolves to the end (`srp-shot-reach --check` says `partial` otherwise).
 //!
-//! The table is keyed by the weapon's config stem (`wpn_ak_74u` of
-//! `gameplay/items/weapons/wpn_ak_74u.options`, the dictionary item's
-//! `cfg_name`).
+//! **Rudnya's environment layer.** The 0.29a3 weapons' composites (FN P90, HK416, M4A1, MP7, Neostead,
+//! PKP, Saiga-12, Vepr-12) carry a layer `weapons/environments/level_01/...` (no other level has
+//! one). For the Neostead, Saiga-12 and Vepr-12 it is a `core_distant_one_shot` echo that reaches
+//! 240 m; without it they reach 21 m (Neostead) or 19.3 m. Nothing in the executable (no string for
+//! `environments`) or the data picks an environment layer by level, so the client plays it on every
+//! map (LIKELY-strong, not proven: the composite loader has no level field and the layer is one
+//! more layer of the composite). The table keeps the reach without it in the second column, as
+//! information, and the reach with it in a third where it differs (240). **The owner took the
+//! LIKELY reading (2026-10-27: "are there any other weapon with 200 m+ sound range? if yes I am ok
+//! with 240"; the four guns at exactly 200 m are the bolt rifles Mosin, Rem 700 (and its premium)
+//! and SV-98, nothing is above 200 but these five): the bots hear these five guns to 240 m on
+//! every map.**
+//!
+//! The table is `shot_reach.tsv`, made by `srp-shot-reach` from the game's archives
+//! (`survarium::v026g::shot_reach` is the derivation, read from the files), keyed by the weapon's
+//! config stem (`wpn_ak_74u` of `gameplay/items/weapons/wpn_ak_74u.options`, the dictionary
+//! item's `cfg_name`). The server's game data carries no sound files, so a new or patched weapon
+//! gets its row when the tool is run on the release's archives (`srp-shot-reach <archives>
+//! --check shot_reach.tsv` says what is missing or differs).
+
+/// The table's text: `name TAB metres` a line, sorted by name.
+const TABLE: &str = include_str!("shot_reach.tsv");
 
 /// The shot's reach in metres by weapon config stem, sorted by name.
-pub const SHOT_REACH_M: &[(&str, f32)] = &[
-    ("wpn_a545", 150.0),
-    ("wpn_a9_91", 55.0),
-    ("wpn_ak_12", 150.0),
-    ("wpn_ak_74m", 150.0),
-    ("wpn_ak_74n", 150.0),
-    ("wpn_ak_74n_premium", 150.0),
-    ("wpn_ak_74u", 150.0),
-    ("wpn_akmn", 150.0),
-    ("wpn_aps", 100.0),
-    ("wpn_ash_12", 150.0),
-    ("wpn_benelli_m4", 100.0),
-    ("wpn_fort_17", 100.0),
-    ("wpn_izh_27_lancaster", 100.0),
-    ("wpn_izh_27_lancaster_premium", 100.0),
-    ("wpn_kiparis", 150.0),
-    ("wpn_kiparis_premium", 150.0),
-    ("wpn_mosin_nagant", 200.0),
-    ("wpn_mp_153", 100.0),
-    ("wpn_pm", 100.0),
-    ("wpn_pp2000", 150.0),
-    ("wpn_ppsh", 150.0),
-    ("wpn_rem_700", 200.0),
-    ("wpn_rem_870", 100.0),
-    ("wpn_rpd", 150.0),
-    ("wpn_rpk", 150.0),
-    ("wpn_sks", 150.0),
-    ("wpn_socom16", 150.0),
-    ("wpn_spas_12", 100.0),
-    ("wpn_sr2m", 150.0),
-    ("wpn_sr3m", 150.0),
-    ("wpn_sr3m_premium", 150.0),
-    ("wpn_sv_98", 200.0),
-    ("wpn_svd", 150.0),
-    ("wpn_toz_122", 150.0),
-    ("wpn_toz_34", 100.0),
-    ("wpn_toz_66", 100.0),
-    ("wpn_tt_33", 100.0),
-    ("wpn_ump45", 150.0),
-    ("wpn_uzi", 100.0),
-    ("wpn_uzi_premium", 100.0),
-    ("wpn_val", 55.0),
-    ("wpn_vepr", 150.0),
-    ("wpn_vityaz", 150.0),
-    ("wpn_vityaz_premium", 150.0),
-    ("wpn_vsk_94", 55.0),
-    ("wpn_vss", 55.0),
-    ("wpn_vss_premium", 55.0),
-    ("wpn_vssk", 55.0),
-    ("wpn_winchester_1894", 100.0),
-];
+pub fn table() -> &'static [(&'static str, f32)] {
+    static ROWS: std::sync::OnceLock<Vec<(&'static str, f32)>> = std::sync::OnceLock::new();
+    ROWS.get_or_init(|| {
+        TABLE
+            .lines()
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(|line| {
+                // name, the general metres, and the with-environment metres where they differ: the
+                // bots hear a shot as far as the last of them (the owner, 2026-10-27).
+                let mut fields = line.split('\t');
+                let name = fields.next().expect("a row of shot_reach.tsv");
+                let general = fields.next().expect("metres in shot_reach.tsv");
+                let metres = fields.next().unwrap_or(general);
+                (name, metres.parse().expect("metres in shot_reach.tsv"))
+            })
+            .collect()
+    })
+}
 
 /// The reach of the weapon whose config is `cfg_name` (a path or a stem), if
 /// the table has it.
 pub fn reach_of(cfg_name: &str) -> Option<f32> {
     let stem = cfg_name.rsplit('/').next().unwrap_or(cfg_name);
     let stem = stem.strip_suffix(".options").unwrap_or(stem);
-    SHOT_REACH_M
-        .binary_search_by(|(name, _)| name.cmp(&stem))
+    let rows = table();
+    rows.binary_search_by(|(name, _)| name.cmp(&stem))
         .ok()
-        .map(|i| SHOT_REACH_M[i].1)
+        .map(|i| rows[i].1)
 }
 
 #[cfg(test)]
@@ -85,30 +71,68 @@ mod tests {
 
     #[test]
     fn the_table_is_sorted_and_finds_a_weapon_by_path_or_stem() {
-        assert!(SHOT_REACH_M.windows(2).all(|w| w[0].0 < w[1].0));
-        assert_eq!(SHOT_REACH_M.len(), 49);
+        assert!(table().windows(2).all(|w| w[0].0 < w[1].0));
         assert_eq!(reach_of("gameplay/items/weapons/wpn_ak_74u.options"), Some(150.0));
         assert_eq!(reach_of("wpn_vss"), Some(55.0));
         assert_eq!(reach_of("wpn_spas_12"), Some(100.0));
         assert_eq!(reach_of("wpn_nothing"), None);
     }
 
+    /// The five guns with Rudnya's environment layer are heard as far as it carries (240 m, the third
+    /// column); the general reach stays in the file as information; no other weapon is above 200 m.
+    #[test]
+    fn the_guns_with_the_environment_layer_are_heard_to_240_m_and_no_other_is_above_200() {
+        for stem in ["wpn_neostead", "wpn_neostead_2", "wpn_saiga_12", "wpn_vepr_12", "wpn_vepr_12_premium"] {
+            assert_eq!(reach_of(stem), Some(240.0), "{stem}");
+            let row = super::TABLE.lines().find(|l| l.starts_with(&format!("{stem}\t"))).unwrap();
+            let fields: Vec<&str> = row.split('\t').collect();
+            assert_eq!(fields.len(), 3, "{row}");
+            assert!(fields[1].parse::<f32>().unwrap() < 30.0, "the general reach is kept: {row}");
+        }
+        let above: Vec<_> = table().iter().filter(|(_, m)| *m > 200.0).map(|(n, _)| *n).collect();
+        assert_eq!(above.len(), 5, "{above:?}");
+        let at_200: Vec<_> = table().iter().filter(|(_, m)| *m == 200.0).map(|(n, _)| *n).collect();
+        assert_eq!(at_200, ["wpn_mosin_nagant", "wpn_rem_700", "wpn_rem_700_premium", "wpn_sv_98"]);
+    }
+
+    /// Every weapon any kit of any tier and role can carry has a row: a weapon added to a kit
+    /// without one fails here, named (run `srp-shot-reach` on the archives for its row).
     #[test]
     fn every_weapon_of_the_bots_kits_has_a_reach() {
         use crate::v026g::bots::guns::Arms;
-        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
+        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, RusherKits};
+        let mut missing = std::collections::BTreeSet::new();
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                for arms in Arms::kits_of(BotEquipment::of(tier, RusherKits::default()), role) {
-                    let item = arms.primary.0.item;
-                    assert!(reach_of(&format!("wpn_{item}")).is_some(), "{item}");
+            for kits in RusherKit::ALL.map(RusherKits::both).into_iter().chain([RusherKits::default()]) {
+                for role in BotRole::ALL {
+                    for arms in Arms::kits_of(BotEquipment::of(tier, kits), role) {
+                        let item = arms.primary.0.item;
+                        if reach_of(&format!("wpn_{item}")).is_none() {
+                            missing.insert(item);
+                        }
+                    }
                 }
             }
         }
+        assert!(missing.is_empty(), "no row in shot_reach.tsv for {missing:?}");
+    }
+
+    /// With the live game data (`SRP_GAME_DATA`, the server's file) every weapon of the
+    /// dictionary has a row, named when it has none.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn every_weapon_of_the_live_game_data_has_a_reach() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA");
+        let silent: Vec<String> = survarium::v026g::weapons::all()
+            .iter()
+            .filter(|w| reach_of(w.name).is_none())
+            .map(|w| w.name.to_owned())
+            .collect();
+        assert!(silent.is_empty(), "no row in shot_reach.tsv for {silent:?}");
     }
 
     #[test]
-    fn the_reaches_are_the_games_four() {
-        assert!(SHOT_REACH_M.iter().all(|&(_, m)| [55.0, 100.0, 150.0, 200.0].contains(&m)));
+    fn the_reaches_are_a_few_hundred_metres_at_most() {
+        assert!(table().iter().all(|&(_, m)| m > 0.0 && m <= 300.0), "{:?}", table());
     }
 }

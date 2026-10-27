@@ -172,7 +172,11 @@ va	name	source	ret_cleanup	result
 0x0006f109		auto	0	
 0x0006f181		auto	0	
 0x0006f561		auto	0	
+0x00070c00	vostok::physics::bt_animated_rigid_body::get_triangle_material	manual	8	AX the body's single material id ([this+38h], 10 for hit models)
+0x00070f40	vostok::physics::new_bt_element_joint	manual		
+0x00071080	vostok::physics::new_compound_shape_from_hit_targets_config	manual		EAX the compound
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
+0x0007a1f0	vostok::physics::create_bt_primitive	manual	0	EAX the new Bullet shape, 0 when the type is above 3 or the allocation fails
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
@@ -1469,6 +1473,7 @@ va	name	source	ret_cleanup	result
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	manual	8	
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	manual	12	EAX: the ghost
 0x00357aa0	vostok::physics::create_ghost_object	manual		EAX: the bt_ghost_object (kept at collision_geometry+18h)
+0x00357f10	vostok::configs::apply_set_modifiers	manual	0	[ESI] = the last of the modifiers' values (type 0)
 0x00357f80	vostok::configs::apply_add_modifiers	manual	0	[ESI] = value + sum of the modifiers (type 1)
 0x00358010	vostok::configs::apply_multiply_modifiers	manual	0	[ESI] = value x max(0, 1 + sum of the modifiers) (type 2)
 0x00376280	vostok::network::login_client::create_client	manual	0	
