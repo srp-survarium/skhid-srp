@@ -1,6 +1,7 @@
 # How far a shot is heard by weapon, metres: `srp-shot-reach --dir <game folder>` (survarium::v026g::shot_reach)
-# over the live archives (resources.db and patches 12-34). Columns: name, the reach on any map (what the bots
-# use), and where it differs the reach with Rudnya's environment layer (see shot_reach.rs). Regenerate, or check
+# over the live archives (resources.db and patches 12-34). Columns: name, the reach without a map's environment
+# layer (information), and where it differs the reach with Rudnya's environment layer, which the bots use (the
+# owner's decision, see shot_reach.rs). Regenerate, or check
 # a release's archives with `srp-shot-reach --dir <game folder> --check shot_reach.tsv`; sorted by name, tabs.
 wpn_a545	150
 wpn_a9_91	55

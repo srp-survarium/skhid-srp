@@ -194,6 +194,9 @@ pub struct ArmourParams {
     pub dict_id: u16,
     pub name: &'static str,
     pub boxes: Vec<(String, f32)>,
+    /// Every `hit_types/<type>/armor` of every box: `(box, type, armour)`, the `ranged` ones
+    /// among them (what a zone's hit meets is its own type's: `toxic`, `fire`, ...).
+    pub typed: Vec<(String, String, f32)>,
 }
 
 impl ArmourParams {
@@ -207,7 +210,13 @@ impl ArmourParams {
             return Ok(None);
         };
         let mut boxes = Vec::new();
+        let mut typed = Vec::new();
         for (hit_box, value) in hit_params.entries() {
+            for (hit_type, each) in value.get("hit_types").map_or(&[][..], ConfigValue::entries) {
+                if let Some(armor) = each.get("armor").and_then(ConfigValue::as_f32) {
+                    typed.push((hit_box.clone(), hit_type.clone(), armor));
+                }
+            }
             let Some(armor) = value
                 .get("hit_types")
                 .and_then(|types| types.get("ranged"))
@@ -224,7 +233,16 @@ impl ArmourParams {
             dict_id,
             name,
             boxes,
+            typed,
         }))
+    }
+
+    /// The armour of `hit_box` against hits of `hit_type` (0: the item has none there).
+    pub fn of_type(&self, hit_box: &str, hit_type: &str) -> f32 {
+        self.typed
+            .iter()
+            .find(|(b, t, _)| b == hit_box && t == hit_type)
+            .map_or(0.0, |&(_, _, armor)| armor)
     }
 
     /// The armour of `hit_box` (0: the item does not cover it).
@@ -248,6 +266,8 @@ pub struct BodyPart {
     pub hit_box: bool,
     /// The pools its `ranged` hits take `coefficient × amount` from.
     pub feeds: Vec<(String, f32)>,
+    /// The same for every hit type: `(type, [(pool, coefficient)])` (`hit_types/<type>/bdb_coeff`).
+    pub routes: Vec<(String, Vec<(String, f32)>)>,
     /// Its own `ranged` armour (0 on every part of 0.26g's body).
     pub armor: f32,
     /// Its regeneration (`body_part::regenerate` 0x32A4B0): `timeout_s`
@@ -286,6 +306,23 @@ impl BodyParams {
                         .collect()
                 })
                 .unwrap_or_default();
+            let routes = part
+                .get("hit_types")
+                .map_or(&[][..], ConfigValue::entries)
+                .iter()
+                .map(|(hit_type, each)| {
+                    let pools = each
+                        .get("bdb_coeff")
+                        .map(|c| {
+                            c.entries()
+                                .iter()
+                                .filter_map(|(pool, k)| Some((pool.clone(), k.as_f32()?)))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    (hit_type.clone(), pools)
+                })
+                .collect();
             let lethal = part
                 .get("thresholds")
                 .map(|thresholds| {
@@ -306,6 +343,7 @@ impl BodyParams {
                     .and_then(ConfigValue::as_bool)
                     .unwrap_or(false),
                 feeds,
+                routes,
                 armor: ranged
                     .and_then(|ranged| ranged.get("armor"))
                     .and_then(ConfigValue::as_f32)
@@ -321,6 +359,51 @@ impl BodyParams {
     /// The part named `name`.
     pub fn part(&self, name: &str) -> Option<&BodyPart> {
         self.parts.iter().find(|part| part.name == name)
+    }
+
+    /// What a zone's hit of `damage` (before armour) of `hit_type`, piercing `piercing`, takes from
+    /// the pools when it goes once to each of `parts` (`hit_parts_filter`), the part's armour
+    /// being `armour(part, hit_type)`: `(pool, amount)` summed over the parts, by the body table's
+    /// routing (0x319AF0 -> `base_player::hit` -> `body_part_parameters::hit_by_type` 0x329FF0:
+    /// the damage times `1 - clamp(armour - piercing, 0, 1)`, then the part's `bdb_coeff`). A part
+    /// the table does not have takes `damage` from the body pool, whole: the safe side.
+    pub fn zone_hit(
+        &self,
+        parts: &[String],
+        hit_type: &str,
+        damage: f32,
+        piercing: f32,
+        armour: impl Fn(&str, &str) -> f32,
+    ) -> Vec<(String, f32)> {
+        let mut out: Vec<(String, f32)> = Vec::new();
+        let mut add = |pool: &str, amount: f32| {
+            match out.iter_mut().find(|(name, _)| name == pool) {
+                Some((_, sum)) => *sum += amount,
+                None => out.push((pool.to_owned(), amount)),
+            }
+        };
+        for part in parts {
+            let Some(body) = self.part(part) else {
+                add("body", damage);
+                continue;
+            };
+            let after = after_armour(damage, piercing, armour(part, hit_type));
+            let routed = body
+                .routes
+                .iter()
+                .find(|(t, _)| t == hit_type)
+                .map(|(_, pools)| &pools[..])
+                .filter(|pools| !pools.is_empty());
+            match routed {
+                Some(pools) => {
+                    for (pool, k) in pools {
+                        add(pool, after * k);
+                    }
+                }
+                None => add("body", after),
+            }
+        }
+        out
     }
 }
 
@@ -770,5 +853,54 @@ mod tests {
         assert!(near(after_armour(0.4, 0.3, 0.6), 0.4 * 0.7));
         assert!(near(after_armour(0.4, 0.0, 0.9), 0.04));
         assert!(near(after_armour(0.4, 0.3, 0.3), 0.4));
+    }
+
+    /// A zone's hit goes through the armour of the part it names and into the pool the body
+    /// table routes its type to: toxic and radiation into `infection` (no regeneration, death at
+    /// 0), fire and shock into `pain` and the part's own pool; a part the table lacks takes the body
+    /// pool whole.
+    #[test]
+    fn a_zones_hit_goes_to_the_pool_its_type_routes_to_after_the_armour_of_its_parts() {
+        let body = human();
+        let none = |_: &str, _: &str| 0.0;
+        let face = ["face".to_owned()];
+        let of = |hit: &[(String, f32)], pool: &str| hit.iter().find(|(p, _)| p == pool).map(|&(_, d)| d);
+        // Acid on the face: all of it to infection.
+        let toxic = body.zone_hit(&face, "toxic", 0.25, 0.0, none);
+        assert_eq!(toxic.len(), 1, "{toxic:?}");
+        assert!(near(of(&toxic, "infection").unwrap(), 0.25), "{toxic:?}");
+        // A mask of 0.6 against toxic: 0.4 of it; the same mask against fire does nothing for toxic.
+        let masked = body.zone_hit(&face, "toxic", 0.25, 0.0, |part, ty| {
+            if part == "face" && ty == "toxic" { 0.6 } else { 0.0 }
+        });
+        assert!(near(of(&masked, "infection").unwrap(), 0.1), "{masked:?}");
+        // Piercing at or over the armour: the whole hit.
+        let pierced = body.zone_hit(&face, "toxic", 0.25, 0.6, |_, _| 0.6);
+        assert!(near(of(&pierced, "infection").unwrap(), 0.25));
+        // Fire on the feet: pain 0.8 and the leg of that foot.
+        let feet = ["left_foot".to_owned(), "right_foot".to_owned()];
+        let fire = body.zone_hit(&feet, "fire", 0.1, 0.0, none);
+        assert!(near(of(&fire, "pain").unwrap(), 0.16), "{fire:?}");
+        assert!(near(of(&fire, "left_leg").unwrap(), 0.1) && near(of(&fire, "right_leg").unwrap(), 0.1));
+        assert_eq!(of(&fire, "infection"), None);
+        // Several parts add up in a pool: radiation on the front, face and hips.
+        let radiation = ["front".to_owned(), "face".to_owned(), "left_hip".to_owned()];
+        let rad = body.zone_hit(&radiation, "radiation", 0.05, 0.0, none);
+        assert!(near(of(&rad, "infection").unwrap(), 0.15), "{rad:?}");
+        // A part the table does not have: the body pool, whole.
+        let unknown = body.zone_hit(&["tail".to_owned()], "toxic", 0.2, 0.0, |_, _| 0.9);
+        assert!(near(of(&unknown, "body").unwrap(), 0.2), "{unknown:?}");
+    }
+
+    /// An armour item's armour against each hit type is read, not only the `ranged` one.
+    #[test]
+    fn an_armour_item_has_its_armour_against_every_hit_type() {
+        let any = armour().iter().find(|a| a.typed.iter().any(|(_, ty, v)| ty == "toxic" && *v > 0.0));
+        let Some(mask) = any else {
+            return;
+        };
+        let (hit_box, _, armor) = mask.typed.iter().find(|(_, ty, v)| ty == "toxic" && *v > 0.0).unwrap();
+        assert_eq!(mask.of_type(hit_box, "toxic"), *armor);
+        assert_eq!(mask.of_type(hit_box, "no_such_type"), 0.0);
     }
 }

@@ -206,6 +206,9 @@ pub struct BodyTrack {
     /// before to the last one (by the bot's own keys, on the walk grid):
     /// how far it meant to go while the worlds show how far it went.
     last_meant: Option<f32>,
+    /// The last accepted world's tick and the time since the world before it
+    /// of the same life ([`Self::gap_of`]).
+    last_gap: Option<(u32, u32)>,
     /// This life's speeds over the nominal ones (`Kinematics::level_of`).
     level: Option<f32>,
     /// The level its profile gives (`bot_skills::profile_movement_level`:
@@ -276,6 +279,13 @@ impl BodyTrack {
     /// when the world's tick has no reckoning.
     pub fn last_meant(&self) -> Option<f32> {
         self.last_meant
+    }
+
+    /// The time, ms, between the world of tick `time` and the one before it
+    /// of the same life, when that is the last world this track took (an
+    /// older world than the last is not used, and has none).
+    pub fn gap_of(&self, time: u32) -> Option<u32> {
+        self.last_gap.filter(|&(at, _)| at == time).map(|(_, gap)| gap)
     }
 
     /// The body reckoned on to `time` with the keys it holds (a human's,
@@ -387,6 +397,9 @@ impl BodyTrack {
                 return false;
             }
         };
+        self.last_gap = (fix.alive && !new_life)
+            .then(|| self.fix.as_ref().filter(|last| last.alive).map(|last| (fix.time, fix.time - last.time)))
+            .flatten();
         if new_life {
             self.level = None;
             self.lives += 1;
@@ -821,6 +834,26 @@ pub(super) mod tests {
         assert_eq!(track.last_meant(), None);
         track.fixed(fix(3_400, at, 0.0), &kin, None);
         assert_eq!(track.last_meant(), None);
+    }
+
+    /// The time since the world before is kept for the world that came, of the same life only, and an older world
+    /// than the last has none.
+    #[test]
+    fn the_time_since_the_world_before_is_kept_for_the_world_that_came() {
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        let at = Vec3::new(5.0, 0.0, 5.0);
+        track.fixed(fix(1_000, at, 0.0), &kin, None);
+        assert_eq!(track.gap_of(1_000), None, "a life's first world");
+        track.fixed(fix(1_150, at, 0.0), &kin, None);
+        assert_eq!(track.gap_of(1_150), Some(150));
+        assert_eq!(track.gap_of(1_000), None, "only the last world's");
+        track.fixed(fix(9_150, at, 0.0), &kin, None);
+        assert_eq!(track.gap_of(9_150), Some(8_000));
+        // An older world is not used.
+        assert!(!track.fixed(fix(9_000, at, 0.0), &kin, None));
+        assert_eq!(track.gap_of(9_000), None);
+        assert_eq!(track.gap_of(9_150), Some(8_000));
     }
 
     #[test]
