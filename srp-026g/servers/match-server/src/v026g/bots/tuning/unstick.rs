@@ -39,6 +39,10 @@ pub struct UnstickTuning {
     /// that "did not move" is not known to have been stuck. None: the check goes on (the default: 32 of the 35
     /// stuck notes after a 3 s gap in the J0 matches were bodies really pinned).
     pub fix_gap_ms: Option<u32>,
+    /// A bot whose last world is this old, ms, stands still (no walk key, no sprint) until another world comes: its
+    /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
+    /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on (the default).
+    pub blind_stop_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
@@ -54,6 +58,7 @@ impl Default for UnstickTuning {
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
             fix_gap_ms: None,
+            blind_stop_ms: None,
         }
     }
 }
