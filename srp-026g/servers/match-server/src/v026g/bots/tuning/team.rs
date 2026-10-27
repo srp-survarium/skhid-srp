@@ -225,6 +225,11 @@ pub struct ThinkTuning {
     /// the first leg of its route is the drop off the edge. Off (the default until a train turns it on): it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
+    /// The bot's reckoned stamina bar (`stamina::Reckoning`) steers its legs: it lets go of the sprint at an empty bar
+    /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
+    /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off (the
+    /// default until the phase-end smoke turns it on): the sprint and the jumps as before; the reckoning is counted.
+    pub stamina: bool,
     /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
     /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off (the default until a train turns
     /// it on): the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
@@ -242,6 +247,7 @@ impl Default for ThinkTuning {
             shut_in_gate: false,
             rest_off_lip: false,
             stranded_start: false,
+            stamina: false,
             fall_lock: false,
         }
     }

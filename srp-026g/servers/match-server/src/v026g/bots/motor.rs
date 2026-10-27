@@ -308,6 +308,10 @@ pub const DROP_WALK_AHEAD_M: f32 = 3.0;
 pub const SPRINT_GAP_TURN_M: f32 = 2.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
 const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
+/// A jump of the route this far on or nearer is priced by the bar ([`Motor::sprint_by_the_bar`]), metres.
+const STAMINA_LOOKAHEAD_M: f32 = 40.0;
+/// A bar at this or under is empty for the sprint: let go before the lockout, units.
+const STAMINA_TIRED_AT: f32 = 3.0;
 /// The landing window after a route jump's press, seconds: from the first ground the jump can land on (a
 /// 1 m jump is in the air about 0.6 s) to the end of the coast (the J0 rows: a sprint coasts 1.3 m, a walk 0.45 m).
 const LANDING_FROM_S: f32 = 0.6;
@@ -451,6 +455,14 @@ pub struct Motor {
     /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
     /// lip's floors, where a line to a point further on cuts a corner over the rim).
     pub ahead_cap: Option<f32>,
+    /// The bar as the bot reckons it ([`stamina`]), when `think.stamina` is on: the sprint is let go of at an empty
+    /// bar and for a jump the bar could not pay.
+    pub gauge: Option<super::stamina::Gauge>,
+    /// Tired: the sprint was let go of at the empty bar and is not taken up again before the bar is back over
+    /// [`stamina::CLEAR_ABOVE`](super::stamina::CLEAR_ABOVE).
+    tired: bool,
+    /// The take-off of the sprint segment that was short of the bar when first seen ([`stamina::counts`]).
+    short_for: Option<Vec3>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -561,6 +573,9 @@ impl Motor {
             track: None,
             exact_end: None,
             ahead_cap: None,
+            gauge: None,
+            tired: false,
+            short_for: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -823,6 +838,8 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
+        self.sprint_by_the_bar(route, s);
         // A planned drop just ahead is walked off, not sprinted into the air.
         if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M).is_empty() {
             self.sprinting = false;
@@ -869,6 +886,51 @@ impl Motor {
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
+    }
+
+    /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (a lockout lasts as long as the
+    /// sprint keys are held) and not taken up again before the bar is back over [`stamina::CLEAR_ABOVE`]; and let go of
+    /// when a jump of the route within [`STAMINA_LOOKAHEAD_M`] would find the bar short of what the sprint there, its
+    /// run-up and the jump cost ([`stamina::Reckoning::covers`]): walking, the bar comes back.
+    fn sprint_by_the_bar(&mut self, route: &Route, s: f32) {
+        let Some(gauge) = self.gauge else {
+            self.tired = false;
+            self.short_for = None;
+            return;
+        };
+        if gauge.low || gauge.value <= STAMINA_TIRED_AT {
+            self.tired = true;
+        } else if gauge.value >= super::stamina::CLEAR_ABOVE {
+            self.tired = false;
+        }
+        if !self.sprinting {
+            return;
+        }
+        if self.tired {
+            self.sprinting = false;
+            super::stamina::counts::released_low();
+            return;
+        }
+        let Some((k, before)) = route.next_jump(s) else {
+            self.short_for = None;
+            return;
+        };
+        if before > STAMINA_LOOKAHEAD_M {
+            return;
+        }
+        let points = route.points();
+        let (take_off, landing) = (points[k - 1].at, points[k].at);
+        let sprint_jump = matches!(points[k].jump, Some(Leap::Ledge)) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        let run_up = if sprint_jump { SPRINT_RUN_UP_M } else { 0.0 };
+        let reckoning = super::stamina::Reckoning::of(gauge);
+        if !reckoning.covers(before.max(0.0), run_up) {
+            self.sprinting = false;
+            super::stamina::counts::saved((TICK_S * 1000.0) as u32);
+            if self.short_for.is_none_or(|at| at.distance_xz(take_off) > 0.3) {
+                self.short_for = Some(take_off);
+                super::stamina::counts::short_segment();
+            }
+        }
     }
 
     /// The keys against a landing run ([`Feel::landing_cancel_deg`]): in the window after a route jump's press
@@ -2423,6 +2485,45 @@ mod tests {
         assert!(sprinting > 0, "sprint held on the run-up");
         let after = sprint_jumps::counts();
         assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
+    /// With the reckoned bar the sprint is let go of at the empty bar and kept let go of until the bar is over 20,
+    /// and for a sprint jump ahead that the bar could not pay (the sprint to it, its run-up, the jump, a margin);
+    /// without the gauge, or with the bar full, it goes on.
+    #[test]
+    fn the_sprint_is_let_go_of_by_the_reckoned_bar() {
+        use crate::v026g::bots::stamina::Gauge;
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let route = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 1.2, true), p(40.0, 1.2, false)]);
+        let sprinting_after = |gauge: Option<Gauge>, tired: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.sprinting = true;
+            motor.tired = tired;
+            motor.gauge = gauge;
+            motor.sprint_by_the_bar(&route, 0.0);
+            motor.sprinting
+        };
+        let bar = |value: f32, low: bool| Some(Gauge { value, low });
+        assert!(sprinting_after(None, false), "no gauge: as before");
+        assert!(sprinting_after(bar(100.0, false), false), "a full bar pays the 20 m, the run-up and the jump");
+        assert!(!sprinting_after(bar(30.0, false), false), "30 - 22 is under the jump and the margin");
+        assert!(!sprinting_after(bar(2.0, false), false), "empty for the sprint");
+        assert!(!sprinting_after(bar(0.0, true), false), "locked out");
+        assert!(!sprinting_after(bar(10.0, false), true), "tired until the bar is over 20");
+        // The jump 20 m on is a sprint jump (1.2 m): with a walk jump (0.5 m) it wants no run-up.
+        let walk = Route::new(vec![p(0.0, 0.0, false), p(20.0, 0.0, false), p(20.4, 0.5, true), p(40.0, 0.5, false)]);
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.sprinting = true;
+        motor.gauge = bar(40.0, false);
+        motor.sprint_by_the_bar(&walk, 0.0);
+        assert!(motor.sprinting, "40 - 20 pays a walk jump and the margin");
     }
 
     /// With `drop_walk` the sprint is let go of 3 m before the edge of a planned drop, so the body is walked off it;
