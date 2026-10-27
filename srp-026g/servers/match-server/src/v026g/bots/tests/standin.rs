@@ -24,12 +24,10 @@
 //! | `SRP_BENCH_TRAPS_MODEL` ([`standin_traps`](super::standin_traps)) | on: the bear traps; `off`: none |
 //!
 //! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`, `DRAW_MS`,
-//! `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
+//! `PUT_MS`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
 
 use super::*;
 
-/// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
-pub(crate) const USE_REACH_M: f32 = 2.0;
 /// The patched client's take of a battery under the feet: its ray and the
 /// distance across (patch 11, `client_patch.md`).
 const PATCHED_REACH_M: f32 = 4.0;
@@ -145,6 +143,8 @@ pub(crate) struct Body {
     pub(crate) pools: standin_damage::Pools,
     /// Its weapon's rounds and ammo ([`standin_weapon`]).
     pub(crate) stock: standin_weapon::Stock,
+    /// Its stamina bar ([`standin_stamina`]).
+    pub(crate) stamina: standin_stamina::Stamina,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -480,6 +480,7 @@ impl Game {
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(bench_tier(), gun),
+            stamina: standin_stamina::Stamina::new(0, bench_tier(), gun.item),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -636,6 +637,7 @@ impl Game {
         body.cadence = Cadence::default();
         body.spread.reset();
         body.stock.spawn(tier, body.gun);
+        body.stamina.spawn(tick, tier, body.gun.item);
     }
 
     /// Where the game's bullet starts, from the bots' own function
@@ -686,7 +688,9 @@ impl Game {
                 let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
-                    if body.legs.iter().all(|&pool| pool > 0.0) {
+                    // A broken leg refuses it, and so does a bar under its cost or
+                    // the low flag (nothing is spent then).
+                    if body.legs.iter().all(|&pool| pool > 0.0) && body.stamina.jump() {
                         if self.honest {
                             jump = true;
                         } else {
@@ -711,6 +715,7 @@ impl Game {
                     body.cadence = Cadence::default();
                     body.spread.reset();
                     body.stock.switch(tier, gun);
+                    body.stamina.switch(tier, gun.item);
                 } else if pressed[place] & key::RELOAD != 0 {
                     body.recoil.reset();
                     body.stock.reload_key(tick);
@@ -807,7 +812,10 @@ impl Game {
             // A carrier cannot sprint: the sprint check asks the item in
             // hand, and the battery's answer is no (0x397C20), PROVEN; seen
             // in 0x60aeff4f, the owner held sprint carrying at 3.35 m/s.
-            let keys = if body.carrying.is_some() || caught {
+            // A body with the low flag set, or over its capacity, walks at
+            // its walk speed with the sprint keys held; the bar is spent on
+            // the keys all the same.
+            let keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
                 body.keys & !key::SPRINT
             } else {
                 body.keys
@@ -856,6 +864,9 @@ impl Game {
                     self.carry_ticks += 1;
                 }
             }
+            let sprint_keys = Kinematics::sprints(body.keys);
+            body.stamina
+                .tick(tick, sprint_keys && body.carrying.is_none(), sprint_keys);
         }
         if !super::view::live_eye() {
             self.shoot(tick);
@@ -1081,7 +1092,8 @@ impl Game {
         }
         let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
-        standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        other.stamina.hit(stamina);
         other.last_hit = tick;
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
@@ -1244,7 +1256,7 @@ impl Game {
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
     /// within `radius` of `point` no farther than the use's 2 m.
     pub(crate) fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
-        Self::uses_reach(body, point, radius, USE_REACH_M)
+        Self::uses_reach(body, point, radius, super::view::use_ray_m())
     }
 
     /// [`Self::uses`] with a ray of `reach` m.
@@ -1269,14 +1281,14 @@ impl Game {
         (point - eye).dot(Vec3::new(fx * c, s, fz * c))
     }
 
-    /// How far `body`'s use ray (from the eye, [`USE_REACH_M`] long)
+    /// How far `body`'s use ray (from the eye, [`super::view::use_ray_m`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
-        let along = (point - eye).dot(dir).clamp(0.0, USE_REACH_M);
+        let along = (point - eye).dot(dir).clamp(0.0, super::view::use_ray_m());
         (eye + dir * along - point).length()
     }
 
@@ -1321,7 +1333,7 @@ impl Game {
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
-        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape)
+        mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape, super::view::use_ray_m())
     }
 
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up

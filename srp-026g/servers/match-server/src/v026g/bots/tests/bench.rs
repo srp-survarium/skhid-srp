@@ -172,6 +172,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_REST_OFF_LIP").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/think/rest_off_lip", true.into());
     }
+    // The stuck watch keeps quiet while a body that landed from 6 m or more cannot move (`ThinkTuning::fall_lock`; off by default).
+    if settings.var("SRP_BENCH_FALL_LOCK").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/think/fall_lock", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
@@ -181,6 +185,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     }
     if let Some(m) = settings.number::<f32>("SRP_BENCH_FRIEND_NEAR_M") {
         set(&mut tuning, "/aim/friends/near_m", m.into());
+    }
+    // A landing run against the way and the path, or into a wall, is braked (`Feel::landing_cancel_deg`; 0 off).
+    if let Some(d) = settings.number::<f32>("SRP_BENCH_LANDING_CANCEL_DEG") {
+        set(&mut tuning, "/feel/landing_cancel_deg", d.into());
     }
     // The teammates led to the tick decided (`FriendlyFireTuning::lead`): 0 off, 1 on; and the lead's extra, ms.
     if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
@@ -266,6 +274,13 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // A way out of a zone stays under its start's strength (`HazardTuning::escape`; the flag reads as the old key did): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
         set(&mut tuning, "/hazard/escape", (v != "0").into());
+    }
+    // The humans' perches in the hold plays (V-S2b): `0` off, else on; the share's multiplier.
+    if let Ok(v) = settings.var("SRP_BENCH_PERCH") {
+        set(&mut tuning, "/perch/on", (v != "0").into());
+    }
+    if let Some(x) = settings.number::<f32>("SRP_BENCH_PERCH_P") {
+        set(&mut tuning, "/perch/p_scale", x.into());
     }
     // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
@@ -729,6 +744,7 @@ pub(crate) fn real_bot_cost() {
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
             let mut push = PushTally::start(&world, game.bodies.len());
+            let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
@@ -916,6 +932,15 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    for bot in bots.bots.iter().flatten() {
+                        let body = &game.bodies[bot.place];
+                        super::plays::goals::perch_watch(
+                            bot.place,
+                            body.feet,
+                            body.alive,
+                            bot.assignment.as_ref().map(|a| a.kind),
+                        );
+                    }
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
                     }
@@ -1281,6 +1306,11 @@ pub(crate) fn real_bot_cost() {
                 100.0 * stood_routing.iter().sum::<u64>() as f64
                     / goal_ticks.iter().sum::<u64>().max(1) as f64,
             );
+            let up = upgrades_summary(&roster.upgrades);
+            eprintln!(
+                "  upgrades: {} items on {} of {} bots, mean movement level of their first kits {}",
+                up["items"], up["bots"], up["of"], up["level_mean"]
+            );
             eprintln!(
                 "  takes: {} taken, {take_ends} could-not-take ends, {stands_given_up} stands given up ({stands_stale} at a belief the battery had left)",
                 game.taken
@@ -1394,7 +1424,9 @@ pub(crate) fn real_bot_cost() {
                 game.jumps_refused,
                 if game.honest { "honest" } else { "old" }
             );
-            let (owner_line, owner_sums) = owner.finish(&game);
+            let (owner_line, mut owner_sums) = owner.finish(&game);
+            // What the bots' profiles carry of upgrades (the roster's, not the tally's: it reads no profile).
+            owner_sums["upgrades"] = upgrades_summary(&roster.upgrades);
             eprintln!("  {owner_line}");
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
@@ -1418,6 +1450,23 @@ pub(crate) fn real_bot_cost() {
                 threat::searches()[2] - threat_searches_before[2],
                 threat::searches()[3] - threat_searches_before[3]
             );
+            let perched = super::plays::goals::perch_counts();
+            eprintln!(
+                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {} spawn {} no_floor {} fall {} lip {} arrived {} on_perch_ticks {} repicked {} died_20s {} ticks_to_arrive {} died_late {} timed_out {} lost_2m {} lost_6m {} lost_15m {} lost_far {} left_play {} left_ticks {} ring_picks {} ring_arrived {} ring_ticks_to_arrive {} ring_left {} ring_left_ticks {} ring_died {}",
+                perched[0] - perch_before[0], perched[1] - perch_before[1], perched[2] - perch_before[2],
+                perched[3] - perch_before[3], perched[4] - perch_before[4], perched[5] - perch_before[5],
+                perched[6] - perch_before[6], perched[7] - perch_before[7], perched[8] - perch_before[8],
+                perched[9] - perch_before[9], perched[10] - perch_before[10], perched[11] - perch_before[11],
+                perched[12] - perch_before[12], perched[13] - perch_before[13],
+                perched[14] - perch_before[14], perched[15] - perch_before[15],
+                perched[16] - perch_before[16], perched[17] - perch_before[17], perched[18] - perch_before[18],
+                perched[19] - perch_before[19], perched[20] - perch_before[20],
+                perched[21] - perch_before[21], perched[22] - perch_before[22], perched[23] - perch_before[23], perched[24] - perch_before[24], perched[25] - perch_before[25], perched[26] - perch_before[26],
+                perched[27] - perch_before[27], perched[28] - perch_before[28], perched[29] - perch_before[29],
+                perched[30] - perch_before[30], perched[31] - perch_before[31], perched[32] - perch_before[32]
+            );
+            eprintln!("  perch_left: {}", super::plays::goals::perch_left());
+            eprintln!("  hold_switch: {}", super::hold_trace::line());
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }
@@ -1675,6 +1724,45 @@ pub(crate) fn bench_equipment() -> survarium::v026g::loadouts::BotEquipment {
 pub(crate) struct BenchRoster {
     pub(crate) roles: Vec<Option<&'static str>>,
     pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
+    /// What each bot's profile carries of upgrades ([`Upgrades`]).
+    pub(crate) upgrades: Vec<Upgrades>,
+}
+
+/// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
+/// that wear a modification, and the speed level its first kit gives (`bot_skills::profile_movement_level`, the level the
+/// match server hands its bots' tracker in `game/driven.rs`). This is what the profiles hold: the bench's stand-in does not
+/// use it (it never calls `Bots::set_speed_levels`, and its bodies move at the nominal speed), so a bot's moves do not
+/// change with it here. It says that an arm which turns the upgrades on has them on, and how fast the profiles say they run.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Upgrades {
+    pub(crate) items: u32,
+    pub(crate) level: Option<f32>,
+}
+
+impl Upgrades {
+    pub(crate) fn of(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Self {
+        Self {
+            items: profile
+                .items
+                .iter()
+                .filter(|item| item.modifications.iter().any(|&(_, defect)| !defect))
+                .count() as u32,
+            level: survarium::v026g::bot_skills::profile_movement_level(profile, 0),
+        }
+    }
+}
+
+/// The bots' upgrades of a match, for its `upgrades:` line and the `upgrades` key of its sums: the items that wear
+/// upgrades, the bots that have one, and the mean speed level of the bots' first kits.
+pub(crate) fn upgrades_summary(upgrades: &[Upgrades]) -> serde_json::Value {
+    let levels: Vec<f32> = upgrades.iter().filter_map(|u| u.level).collect();
+    let mean = if levels.is_empty() { 0.0 } else { levels.iter().sum::<f32>() / levels.len() as f32 };
+    serde_json::json!({
+        "items": upgrades.iter().map(|u| u.items).sum::<u32>(),
+        "bots": upgrades.iter().filter(|u| u.items > 0).count(),
+        "of": upgrades.len(),
+        "level_mean": (f64::from(mean) * 1000.0).round() / 1000.0,
+    })
 }
 
 pub(crate) fn bench_roster(
@@ -1682,13 +1770,15 @@ pub(crate) fn bench_roster(
     equipment: survarium::v026g::loadouts::BotEquipment,
 ) -> BenchRoster {
     use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
-    let bots: Vec<_> = teams
+    let profiles: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_equipment_of(&bot_profile(n + 1, team, role, equipment)))
+        .map(|(n, (&team, role))| bot_profile(n + 1, team, role, equipment))
         .collect();
+    let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
+        upgrades: profiles.iter().map(Upgrades::of).collect(),
         roles: bots
             .iter()
             .map(|bot| bot.map(|(_, role)| role.name()))
@@ -2022,4 +2112,36 @@ mod tuning_tests {
             assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
         }
     }
+}
+
+/// A profile with the bots' upgrades on has items that wear modifications and a higher speed level than the plain
+/// one; a plain profile has no item that does.
+#[test]
+fn a_profile_with_upgrades_counts_its_modified_items_and_its_speed_level() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_kits_in};
+    use survarium::v026g::match_msgs::static_info::MatchProfile;
+    let equipment = BotEquipment::of(BotTier::High, RusherKits::default());
+    let profile = |upgrades: bool| {
+        let kits = bot_kits_in(equipment, BotRole::Flanker, false, upgrades);
+        let kits: Vec<&_> = kits.iter().collect();
+        MatchProfile::from_loadouts(
+            "BOT",
+            0,
+            &kits,
+            survarium::v026g::bot_skills::bot_modifiers(&kits),
+            Dictionary::shared(),
+            1,
+        )
+    };
+    let (plain, worn) = (Upgrades::of(&profile(false)), Upgrades::of(&profile(true)));
+    assert_eq!(plain.items, 0);
+    assert!(worn.items >= 1, "{worn:?}");
+    assert!(worn.level > plain.level, "{worn:?} against {plain:?}");
+    let summary = upgrades_summary(&[plain, worn, Upgrades { items: 0, level: None }]);
+    assert_eq!(summary["items"], worn.items);
+    assert_eq!((summary["bots"].as_u64(), summary["of"].as_u64()), (Some(1), Some(3)));
+    let mean = (plain.level.unwrap() + worn.level.unwrap()) / 2.0;
+    assert!((summary["level_mean"].as_f64().unwrap() - f64::from(mean)).abs() < 0.001, "{summary}");
+    assert_eq!(upgrades_summary(&[])["level_mean"], 0.0);
 }

@@ -56,6 +56,7 @@ pub mod plays;
 pub mod pools;
 pub mod recoil;
 pub mod reflex;
+pub mod rest;
 pub mod rng;
 pub mod route_end;
 pub mod route_filter;
@@ -79,6 +80,8 @@ mod commander;
 mod drive;
 mod facts;
 mod features;
+#[cfg(test)]
+pub mod hold_trace;
 mod layers;
 mod search;
 mod think;
@@ -189,6 +192,8 @@ pub struct Bot {
     reflex: Reflex,
     memory: Memory,
     stuck: Stuck,
+    /// Its rest, kept off a lip ([`rest`]).
+    rest: rest::RestWatch,
     /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
     /// when it last used it (any life).
     self_kill: stuck::SelfKill,
@@ -367,6 +372,7 @@ impl Bot {
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
             stuck: Stuck::default(),
+            rest: rest::RestWatch::default(),
             self_kill: stuck::SelfKill::default(),
             self_killed_at: None,
             threat: Arc::default(),
@@ -466,6 +472,7 @@ impl Bot {
         self.kit_chosen = 0;
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -587,6 +594,14 @@ impl Bot {
 
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
+        #[cfg(test)]
+        if let Some(a) = self.assignment.as_ref() {
+            let dist = match self.intent.go {
+                Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
+                _ => None,
+            };
+            hold_trace::ended(a.kind, a.target, now.saturating_sub(a.since), why, dist);
+        }
         if let Some(running) = self.running.take() {
             let kind = running.kind();
             self.last_ran.retain(|(k, _)| *k != kind);
@@ -622,6 +637,7 @@ impl Bot {
             kit.1 = left;
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
+        self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -846,6 +862,7 @@ impl Bots {
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
         tactics.escape = self.tuning.hazard.escape;
+        tactics.clear_step_sees_lip = self.tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
@@ -898,6 +915,8 @@ impl Bots {
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
         self.layers.routes = table.for_map(self.level, self.mode);
+        self.layers.perches = table.perches_for(self.level);
+        self.layers.perch_share = table.perch_share(self.level, self.mode);
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
@@ -981,6 +1000,7 @@ impl Bots {
             return;
         }
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),
@@ -1055,6 +1075,7 @@ impl Bots {
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1067,6 +1088,7 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
         }
         // A world ends a blind stop (`UnstickTuning::blind_stop_ms`); its reckoning is put right by the world itself.
         if bot.blind_since.is_some() && self.tracker.body(place).and_then(|body| body.fix()).is_some_and(|last| last.time == time) {
@@ -1391,9 +1413,26 @@ impl Bots {
         sum
     }
 
+    /// What the weapon mods did to the bots' reloads, over all the bots and
+    /// lives (`guns.rs`), and which bots now hold a modded weapon, by what is
+    /// modded and whether past what a player can have.
+    pub fn mod_counts(&self) -> (guns::ModCounts, guns::HeldMods) {
+        let mut sum = guns::ModCounts::default();
+        let mut held = guns::HeldMods::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.weapon_mods.0);
+            sum.add(&bot.reflex.mod_counts());
+            if let Some(arms) = bot.reflex.arms() {
+                held.add(arms.primary.0);
+            }
+        }
+        (sum, held)
+    }
+
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         view::set_live_eye(self.tuning.aim.combat.live_eye);
+        view::set_use_ray_m(self.tuning.sense.use_ray_m);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

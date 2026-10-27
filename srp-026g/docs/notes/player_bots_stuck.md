@@ -1150,7 +1150,12 @@ spawns, and `pocket_exits` lists the ledges a jump could leave it by
   hit's stagger) the clocks of its try and of its giving up stand still, and
   the stuck recovery's back-off and side step press no jump.
 - **Side steps.** The fight's side step does not step into a pocket the bot
-  is not in that has no Standing exit (`Tactics::clear_step_for`).
+  is not in that has no Standing exit (`Tactics::clear_step_for`), nor onto
+  the band of a fall or a lip: with `Tuning::aim.combat.clear_step_sees_lip`
+  (off by default; the bench's `SRP_BENCH_TUNING` turns it on) the step's end is never in a
+  lip's band and its line crosses none unless the body starts in it, and the
+  move tested is the one the keys make (`drive::side_step`: a weave is a
+  diagonal). No step cleared: no weave, the body stands or walks straight.
 - **For the plays.** `Ctx::trapped`, `teammate_trapped`, `in_pocket` and
   `escape_known(at, carrying)` (a way out the team knows, or a Standing
   exit; a carrier counts Standing exits only).

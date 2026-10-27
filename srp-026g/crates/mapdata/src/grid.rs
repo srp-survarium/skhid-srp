@@ -2330,7 +2330,8 @@ impl WalkGrid {
         };
         let (p, q) = (self.position(from), self.position(to));
         if kind.is_off_mesh() {
-            return gap_cost(kind, (q - p).length(), p.distance_xz(q), p.y - q.y) + lip + marginal + fall;
+            let takeoff = self.off_link(from, to).map_or(0.0, |l| l.press.penalty());
+            return gap_cost(kind, (q - p).length(), p.distance_xz(q), p.y - q.y) + takeoff + lip + marginal + fall;
         }
         let descent = if kind == LinkKind::Drop {
             DROP_DESCENT_PENALTY * (self.height[from as usize] - self.height[to as usize]).max(0.0)
