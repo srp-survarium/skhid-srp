@@ -164,6 +164,18 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/grid/client_numbers", true.into());
     }
+    // The floors nearer a wall than the body's radius are taken exactly after the cell rounds (`GridTuning::exact_erosion`; off by default).
+    if settings.var("SRP_BENCH_EXACT_EROSION").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/exact_erosion", true.into());
+    }
+    // A Drop link is kept only where the body that walks off comes down within the harmless fall (`GridTuning::honest_drops`; off by default).
+    if settings.var("SRP_BENCH_HONEST_DROPS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/honest_drops", true.into());
+    }
+    // A planned drop is walked off at a walk, no sprint into the air (`Feel::drop_walk`; off by default).
+    if settings.var("SRP_BENCH_DROP_WALK").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/drop_walk", true.into());
+    }
     // The sprint gap links are run up to at a sprint and pressed at speed (`Feel::sprint_gaps`; off by default).
     if settings.var("SRP_BENCH_SPRINT_GAPS").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/sprint_gaps", true.into());
@@ -193,6 +205,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // A landing run against the way and the path, or into a wall, is braked (`Feel::landing_cancel_deg`; 0 off).
     if let Some(d) = settings.number::<f32>("SRP_BENCH_LANDING_CANCEL_DEG") {
         set(&mut tuning, "/feel/landing_cancel_deg", d.into());
+    }
+    // The landing cancel covers a planned drop too (`Feel::landing_cancel_drops`; off by default).
+    if settings.var("SRP_BENCH_LANDING_CANCEL_DROPS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/landing_cancel_drops", true.into());
     }
     // The teammates led to the tick decided (`FriendlyFireTuning::lead`): 0 off, 1 on; and the lead's extra, ms.
     if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
