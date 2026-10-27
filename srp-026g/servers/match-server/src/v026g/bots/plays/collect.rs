@@ -2883,6 +2883,78 @@ mod tests {
         std::sync::Arc::new(mapdata::World::assemble(map, grid.into(), sight.into()))
     }
 
+    /// A battery in an acid cloud (toxic, the face): with the pools routed (F2) the crossing is
+    /// weighed against the infection pool, which the acid takes and which does not mend, not the body
+    /// pool it never touches; a mask on the face lowers the cost; a file with no part names (written
+    /// before format 4) costs what the raw rule says.
+    #[test]
+    fn a_toxic_crossing_is_weighed_against_the_infection_pool_when_routed() {
+        use crate::v026g::bots::pools::Pools;
+        use crate::v026g::bots::tuning::ZonePools;
+        use crate::v026g::bots::zone_cost::ZoneArmour;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let acid = |names: &[&str]| {
+            with_zone(
+                4.0,
+                Some(mapdata::Damage {
+                    max_hit: 0.01,
+                    interval_ms: 1000,
+                    parts: 1,
+                    part_names: names.iter().map(|n| (*n).to_owned()).collect(),
+                    ..mapdata::Damage::default()
+                }),
+            )
+        };
+        let routed = |mut s: Scenario| {
+            s.tuning.hazard.zone_pools = ZonePools::Routed;
+            s.battery(BatteryState::Free(Vec3::new(25.0, 0.0, 32.0)));
+            s
+        };
+        // Raw: the body pool, full: borne, and the infection pool is not looked at.
+        let mut raw = acid(&["face"]);
+        raw.battery(BatteryState::Free(at));
+        raw.pools = Some(Pools {
+            infection: 0.1,
+            ..Pools::FULL
+        });
+        let raw_crossing = raw.cx(0).crossing(at).expect("a crossing");
+        assert!(raw_crossing.fits(&raw.cx(0).budget()));
+        assert!(raw_crossing.cost().body > 0.0 && raw_crossing.cost().infection == 0.0);
+        // Routed, a sick bot (infection 0.1 of 1.0): the cost is in the infection pool and it does not bear it.
+        let mut sick = routed(acid(&["face"]));
+        sick.pools = Some(Pools {
+            infection: 0.1,
+            ..Pools::FULL
+        });
+        let crossing = sick.cx(0).crossing(at).expect("a crossing");
+        assert!(crossing.cost().infection > 0.0 && crossing.cost().body == 0.0, "{:?}", crossing.cost());
+        // The same walk, in numbers: what the raw rule counted in the body pool.
+        assert!((crossing.cost().infection - raw_crossing.cost().body).abs() < 1e-5);
+        assert!(!crossing.fits(&sick.cx(0).budget()), "{crossing:?}");
+        assert_eq!(sick.cx(0).take_block(at), Some("its zone hurts too much"));
+        // A healthy bot bears the same walk.
+        let mut well = routed(acid(&["face"]));
+        well.pools = Some(Pools::FULL);
+        assert!(crossing.fits(&well.cx(0).budget()));
+        assert_eq!(well.cx(0).take_block(at), None);
+        // A mask: the cost falls by the armour on the face.
+        if let Some((mask, armour)) = survarium::v026g::damage::armour().iter().find_map(|a| {
+            let v = a.of_type("face", "toxic");
+            (v > 0.0).then_some((a, v))
+        }) {
+            let mut masked = routed(acid(&["face"]));
+            masked.pools = Some(Pools::FULL);
+            masked.zone_armour = std::sync::Arc::new(ZoneArmour::of_items([mask.dict_id]));
+            let worn = masked.cx(0).crossing(at).expect("a crossing");
+            let expected = crossing.cost().infection * (1.0 - armour.clamp(0.0, 1.0));
+            assert!((worn.cost().infection - expected).abs() < 1e-5, "{worn:?}");
+        }
+        // No part names (format 3): the raw hit in the body pool, routed or not.
+        let old = routed(acid(&[]));
+        let old_crossing = old.cx(0).crossing(at).expect("a crossing");
+        assert_eq!(old_crossing.cost(), raw_crossing.cost());
+    }
+
     /// Cologne CG-11: a battery in a pit no carrier gets out of is no
     /// Collect candidate, and says why; one in a pit with a standing jump
     /// out (pit A's 0.9 m rim) still is.
