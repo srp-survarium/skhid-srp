@@ -2338,8 +2338,12 @@ pub(super) mod tests {
                     assert_eq!(&again, base.progress());
                 }
                 each.sort();
+                let known = (0..base.regions.len() as u32)
+                    .filter(|&r| base.progress().of_region(r, 0) != progress::UNKNOWN)
+                    .count();
+                let teams: std::collections::BTreeSet<i32> = world.map.spawns.iter().map(|s| s.team).collect();
                 eprintln!(
-                    "progress level {level} day {mode}: floors {} regions {} progress median {:?} min {:?} max {:?}, whole base {:?}",
+                    "progress level {level} day {mode}: teams {teams:?} known regions {known} floors {} regions {} progress median {:?} min {:?} max {:?}, whole base {:?}",
                     world.grid.len(),
                     base.regions.len(),
                     each[2],
