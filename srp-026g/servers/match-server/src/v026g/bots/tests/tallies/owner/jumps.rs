@@ -678,6 +678,70 @@ impl JumpCounts {
                 }
             }
         }
+        // The route jumps up a plain ledge (a rise the walk jump makes), to the log: where the press was, how the body
+        // faced and moved, the ground under it, the floor ahead, and where the stand-in's body came down (the trace of
+        // the ledge press, test only).
+        for p in presses {
+            let Some((from, to)) = p.route else { continue };
+            let rise = to.y - from.y;
+            if !(0.5..=crate::v026g::bots::motor::WALK_JUMP_TOP_M).contains(&rise) {
+                continue;
+            }
+            static SEEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            if SEEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 2000 {
+                continue;
+            }
+            let rec = &run.recs[run.index(p.t).min(run.recs.len() - 1)];
+            let (dx, dz) = (to.x - from.x, to.z - from.z);
+            let len = dx.hypot(dz).max(1e-3);
+            let (ux, uz) = (dx / len, dz / len);
+            let (px, pz) = (p.feet.x - from.x, p.feet.z - from.z);
+            let (hx, hz) = (-rec.yaw.sin(), rec.yaw.cos());
+            let off = (hx * uz - hz * ux).atan2(hx * ux + hz * uz).to_degrees();
+            // The floors within 0.15 m of the feet: the lowest and highest ground, and the nearest higher floor ahead
+            // along the link's way (a ledge's top, its cell centre).
+            let grid = &game.world.grid;
+            let r = 0.15;
+            let near: Vec<f32> = grid
+                .floors_in([p.feet.x - r, p.feet.z - r, p.feet.x + r, p.feet.z + r])
+                .map(|n| grid.position(n).y)
+                .filter(|y| (y - p.feet.y).abs() < 0.5)
+                .collect();
+            let low = near.iter().copied().fold(f32::INFINITY, f32::min);
+            let high = near.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            let face = grid
+                .floors_in([p.feet.x - 1.2, p.feet.z - 1.2, p.feet.x + 1.2, p.feet.z + 1.2])
+                .filter_map(|n| {
+                    let q = grid.position(n);
+                    let (ex, ez) = (q.x - p.feet.x, q.z - p.feet.z);
+                    let (along, across) = (ex * ux + ez * uz, (ex * uz - ez * ux).abs());
+                    (q.y - p.feet.y >= 0.5 && q.y - p.feet.y <= 1.3 && across <= 0.15 && along > 0.0).then_some(along)
+                })
+                .fold(f32::INFINITY, f32::min);
+            let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
+            eprintln!(
+                "ledge-landing by {} take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2}) rise {:.2} link {:.0} deg; pressed {:.2} m along, {:.2} m across, feet {:.3} over the take-off, need {:.3}, ground {:.3}..{:.3}, higher floor {:.2} m ahead; faced {:+.0} deg off the link at {:.2} m/s keys {:#x}; came down {}",
+                p.by,
+                from.x, from.y, from.z, to.x, to.y, to.z, rise,
+                uz.atan2(ux).to_degrees(),
+                px * ux + pz * uz,
+                px * uz - pz * ux,
+                p.feet.y - from.y,
+                to.y - p.feet.y,
+                low - from.y,
+                high - from.y,
+                face,
+                off,
+                rec.speed,
+                rec.keys,
+                landing.map_or("nowhere".to_string(), |l| format!(
+                    "{} at ({:.2}, {:.2}, {:.2}) {}",
+                    if l.to.y < to.y - UP_SLACK_M { "DOWN" } else { "UP" },
+                    l.to.x, l.to.y, l.to.z,
+                    if l.sprint { "sprint clip" } else { "short clip" }
+                ))
+            );
+        }
         let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
         let gaps = self.gap_counts(run, &game.world.grid, presses);
         let mut stalls = [0u32; 3];
