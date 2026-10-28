@@ -230,7 +230,7 @@ impl BlockTally {
             let distance = target.feet.distance_xz(me.feet);
             if let Some(held) = bot.reflex.held_for() {
                 e.held += 1;
-                let t = bots.tuning.aim.friends;
+                let t = bots.tunings.of(bot.team).aim.friends;
                 let base = super::friends::FriendlyFireTuning {
                     touch_m: 0.0,
                     past_target_m: 2.0,

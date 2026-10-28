@@ -36,7 +36,7 @@ impl Bots {
             total_s: 0.0,
             playing: true,
         };
-        let before = self.tracker.view(&at(time), &self.tuning.kin, None);
+        let before = self.tracker.view(&at(time), &self.tunings.match_wide().kin, None);
         let new_deaths = self.tracker.facts(facts);
         // Who the view believes carries the batteries, and why (`view`).
         for text in self.tracker.take_notes() {
@@ -46,7 +46,7 @@ impl Bots {
                 text,
             });
         }
-        let after = self.tracker.view(&at(time), &self.tuning.kin, None);
+        let after = self.tracker.view(&at(time), &self.tunings.match_wide().kin, None);
         let kills_by = |bot: bool| {
             after
                 .places
@@ -91,8 +91,12 @@ impl Bots {
             // Threat spots (K1): the killer the team sensed lately, if the
             // kill feed gave one (one enemy's kills rose), is where this
             // death adds to a spot; a dead shooter's spots keep half.
-            if self.tuning.threat.spots {
+            // A team's spots are kept by its own tuning: the dead's enemies drop the dead shooter's, the dead's team
+            // adds where its killer was.
+            if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
+            }
+            if self.tunings.of(team as u8).threat.spots {
                 let killers: Vec<Place> = after
                     .places
                     .iter()
@@ -111,7 +115,7 @@ impl Bots {
             // An enemy known to carry a battery died: his team's HUD shows
             // where it fell, ours does not. The team looks where it last
             // sensed him itself (never the thief cheat's place).
-            if !self.tuning.cheats.batteries {
+            if !self.tunings.of(1 - team as u8).cheats.batteries {
                 self.lost_carrier(a.place, 1 - team, (&before, &after), time, &mut notes);
             }
             // Self-balancing counts duels between bots and humans.
@@ -139,19 +143,20 @@ impl Bots {
         }
         // With the battery cheat off, what each team's HUD shows of the
         // batteries.
-        if !self.tuning.cheats.batteries {
-            for team in 0..2u8 {
-                let knowledge = &mut self.teams[usize::from(team)].knowledge;
-                knowledge.hud_update(team, &before, &after, time);
-                knowledge.settle_looks(team, &after);
-                for text in knowledge.battery_notes.drain(..) {
-                    let text = format!("team {team}: {text}");
-                    notes.push(Note {
-                        place: usize::MAX,
-                        time,
-                        text,
-                    });
-                }
+        for team in 0..2u8 {
+            if self.tunings.of(team).cheats.batteries {
+                continue;
+            }
+            let knowledge = &mut self.teams[usize::from(team)].knowledge;
+            knowledge.hud_update(team, &before, &after, time);
+            knowledge.settle_looks(team, &after);
+            for text in knowledge.battery_notes.drain(..) {
+                let text = format!("team {team}: {text}");
+                notes.push(Note {
+                    place: usize::MAX,
+                    time,
+                    text,
+                });
             }
         }
         // A battery of ours taken from home.
@@ -176,50 +181,48 @@ impl Bots {
         }
         // A battery of ours stolen and dropped by its thief alive, or (in
         // one world) taken from home and dropped: the team looks for it.
-        if !self.tuning.cheats.batteries {
-            for (battery, (now, then)) in after.batteries.iter().zip(&before.batteries).enumerate()
-            {
-                if !matches!(now, BatteryState::Free(_)) {
-                    continue;
+        for (battery, (now, then)) in after.batteries.iter().zip(&before.batteries).enumerate()
+        {
+            if !matches!(now, BatteryState::Free(_)) {
+                continue;
+            }
+            match *then {
+                BatteryState::Carried(Some(thief))
+                    if after.place(thief).is_some_and(|p| p.alive) =>
+                {
+                    let Some(thief_team) = after.place(thief).map(|p| usize::from(p.team & 1))
+                    else {
+                        continue;
+                    };
+                    let team = 1 - thief_team;
+                    let Some(theft) = self.teams[team]
+                        .knowledge
+                        .thefts
+                        .iter()
+                        .rev()
+                        .find(|t| t.battery == battery && t.thief.is_none_or(|p| p == thief))
+                        .copied()
+                    else {
+                        continue;
+                    };
+                    self.theft_drop(
+                        team,
+                        battery,
+                        theft.at,
+                        theft.time,
+                        Some(thief),
+                        time,
+                        &mut notes,
+                    );
                 }
-                match *then {
-                    BatteryState::Carried(Some(thief))
-                        if after.place(thief).is_some_and(|p| p.alive) =>
-                    {
-                        let Some(thief_team) = after.place(thief).map(|p| usize::from(p.team & 1))
-                        else {
-                            continue;
-                        };
-                        let team = 1 - thief_team;
-                        let Some(theft) = self.teams[team]
-                            .knowledge
-                            .thefts
-                            .iter()
-                            .rev()
-                            .find(|t| t.battery == battery && t.thief.is_none_or(|p| p == thief))
-                            .copied()
-                        else {
-                            continue;
-                        };
-                        self.theft_drop(
-                            team,
-                            battery,
-                            theft.at,
-                            theft.time,
-                            Some(thief),
-                            time,
-                            &mut notes,
-                        );
-                    }
-                    BatteryState::Home(id) => {
-                        let Some(container) = after.containers.iter().find(|c| c.id == id) else {
-                            continue;
-                        };
-                        let team = usize::from(container.team & 1);
-                        self.theft_drop(team, battery, container.at, time, None, time, &mut notes);
-                    }
-                    _ => {}
+                BatteryState::Home(id) => {
+                    let Some(container) = after.containers.iter().find(|c| c.id == id) else {
+                        continue;
+                    };
+                    let team = usize::from(container.team & 1);
+                    self.theft_drop(team, battery, container.at, time, None, time, &mut notes);
                 }
+                _ => {}
             }
         }
         notes
@@ -346,7 +349,7 @@ impl Bots {
         time: u32,
         notes: &mut Vec<Note>,
     ) {
-        if self.teams[team].knowledge.battery(battery).is_some() {
+        if self.tunings.of(team as u8).cheats.batteries || self.teams[team].knowledge.battery(battery).is_some() {
             return;
         }
         let mut spots = Vec::new();
@@ -361,7 +364,7 @@ impl Bots {
             .and_then(|who| self.last_sensed(who, team, &[]))
             .filter(|&(_, sensed, _)| sensed + LOOK_SENSED_MS >= time)
             .map(|(_, sensed, at)| (sensed, at));
-        let far = THEFT_RING_M + self.tuning.sense.battery_near_m;
+        let far = THEFT_RING_M + self.tunings.of(team as u8).sense.battery_near_m;
         if let Some((_, at)) = sensed
             && (!ring || at.distance_xz(container) > far)
         {
