@@ -922,7 +922,12 @@ pub fn routed_crossing_to(
         &mut floors,
     )
     .ok()
-    .flatten()?;
+    .flatten();
+    #[cfg(test)]
+    if route.is_none() {
+        crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedNoRoute);
+    }
+    let route = route?;
     let length = route.length();
     let end = (length - stop_m).max(0.0);
     let zoned = |s: f32| {
@@ -943,6 +948,8 @@ pub fn routed_crossing_to(
     };
     let (edge, leg, walk_m) = match first_zone(end) {
         Some(s) => {
+            #[cfg(test)]
+            crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedStrict);
             let n = ((end - s) / CROSS_STEP_M).ceil().max(1.0) as usize;
             let ds = (end - s).max(0.0) / n as f32;
             let leg = (0..n)
@@ -960,6 +967,8 @@ pub fn routed_crossing_to(
         None if rule == RouteCrossing::Strict => return None,
         // Its zone floors, if any, lie in the stop's last metre, which the take's own walk covers.
         None => {
+            #[cfg(test)]
+            crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::RoutedTotalOnly);
             let edge = match first_zone(length) {
                 Some(s) => route.floor_point((s - CROSS_STEP_M).max(0.0)),
                 None => route.floor_point(end),
@@ -3583,6 +3592,63 @@ mod tests {
             }
         }
         eprintln!("zone_survey total: needs a crossing {needs}, takeable {open}");
+    }
+
+    /// Vector Laboratory's spawner 26 (the owner's marked battery): the walk in from its crossing's edge, and from the
+    /// floor under it, by the motor's crossing search at full health. Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn spawner_26_walk_in_on_the_real_map() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
+        let world = std::sync::Arc::new(mapdata::World::build_with_links(
+            map,
+            mapdata::CELL,
+            defaults.grid_body(),
+            defaults.off_mesh_links(),
+        ));
+        let at = world.map.battery_spawners[26].item;
+        for team in [0u8, 1] {
+            let spawn = world.map.spawns.iter().find(|p| p.team == i32::from(team)).unwrap().position;
+            let mut s = Scenario::field(Mode::Batteries);
+            s.tuning = defaults.clone();
+            s.tactics = Tactics::new(world.clone(), 1.0);
+            s.tactics.hazards.attach(crate::v026g::bots::anomalies::Anomalies::new(&world.map, 0));
+            s.side = Some(i32::from(team));
+            s.bot(0, team, spawn);
+            let cx = s.cx(0);
+            let stand = s.tactics.stand_to_take(at).unwrap();
+            let crossing = cx.crossing(at).expect("a crossing");
+            eprintln!("walk_in team {team}: stand {stand:?} edge {:?} routed {} walk_m {}", crossing.edge, crossing.routed, crossing.walk_m);
+            let grid = &world.grid;
+            let to = grid.locate(stand, 3.0).unwrap();
+            let under = Vec3::new(crossing.edge.x, crossing.edge.y - 6.0, crossing.edge.z);
+            for (name, p) in [("edge", crossing.edge), ("under the edge", under)] {
+                let Some(from) = grid.locate(p, 4.0) else {
+                    eprintln!("walk_in   {name}: no floor");
+                    continue;
+                };
+                let mut floors = usize::MAX;
+                let route = crate::v026g::bots::crossing::start(
+                    &s.tactics,
+                    from,
+                    to,
+                    0,
+                    Some(i32::from(team)),
+                    false,
+                    1.0,
+                    &crate::v026g::bots::route_filter::RouteFilter::open(),
+                    &mut floors,
+                );
+                let plain = s.tactics.route(grid.position(from), stand, 0, Some(i32::from(team))).map(|r| r.length());
+                eprintln!(
+                    "walk_in   {name} at {:?}: crossing search {:?}, plain {plain:?}",
+                    grid.position(from),
+                    route.map(|r| r.map(|r| r.length())).map_err(|_| "error"),
+                );
+            }
+        }
     }
 
     #[test]

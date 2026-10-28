@@ -137,6 +137,22 @@ pub(super) fn route_crossings() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The zone fixes (`hazards::zone_fixes`): crossings asked, found (free: the hurt test priced them at nothing) and none;
+/// the motor's route searches (none, meeting a zone before the stop, offered only by `total_crossing`); escort posts
+/// (on the line, pulled to a dry floor, none); plays set aside for the team and offers withheld by it.
+pub(super) fn zone_fixes() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::hazards::zone_fixes::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "zf_cross_asked {} zf_cross_found {} zf_cross_free {} zf_cross_none {} zf_routed_noroute {} zf_routed_strict {} zf_routed_total_only {} \
+                 zf_post_line {} zf_post_pulled {} zf_post_none {} zf_team_aside {} zf_team_aside_withheld {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11]
+            ));
+        },
+    )
+}
+
 /// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
 pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     Delta::of(

@@ -975,9 +975,15 @@ impl Ctx<'_> {
             .set_aside
             .iter()
             .any(|&(k, t, until)| k == kind && t == target && self.now < until)
-            || self.team.is_aside(kind, target, self.now)
-            || (self.bot.dry && kind.seeks_fight())
         {
+            return None;
+        }
+        if self.team.is_aside(kind, target, self.now) {
+            #[cfg(test)]
+            crate::v026g::bots::hazards::zone_fixes::count(crate::v026g::bots::hazards::zone_fixes::Ev::TeamAsideWithheld);
+            return None;
+        }
+        if self.bot.dry && kind.seeks_fight() {
             return None;
         }
         let play = self.play(kind);

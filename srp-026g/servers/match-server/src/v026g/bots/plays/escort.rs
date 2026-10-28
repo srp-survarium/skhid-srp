@@ -182,6 +182,8 @@ pub enum State {
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let num = |name| cx.num(PlayKind::Escort, name);
+    #[cfg(test)]
+    count_post(cx, target);
     let until = cx.now + (rng.range(num("give_up_min_s"), num("give_up_max_s")) * 1000.0) as u32;
     match target {
         TargetRef::Battery(_) => State::Behind {
@@ -192,6 +194,29 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             m: rng.range(num("ahead_min_m"), num("ahead_max_m")),
             until,
         },
+    }
+}
+
+/// The post a play begun gets, for the bench's tally (`hazards::zone_fixes`): on the line to the post, pulled to a dry
+/// floor that sees the carrier, or none.
+#[cfg(test)]
+fn count_post(cx: &Ctx, target: TargetRef) {
+    use crate::v026g::bots::hazards::zone_fixes::{Ev, count};
+    let (Some(carrier), Some(home)) = (cx.escort_carrier(target), cx.view.container_of(cx.me.team).map(|c| c.at)) else {
+        return;
+    };
+    let him = carrier.feet;
+    let left = him.distance_xz(home).max(1.0);
+    let (dx, dz) = ((home.x - him.x) / left, (home.z - him.z) / left);
+    let dir = if matches!(target, TargetRef::Battery(_)) { (-dx, -dz) } else { (dx, dz) };
+    let m = cx.num(PlayKind::Escort, if matches!(target, TargetRef::Battery(_)) { "behind_min_m" } else { "ahead_min_m" });
+    match cx.escort_post(him, dir, m) {
+        None => count(Ev::PostNone),
+        Some(post) if cx.tactics.fine_goal(post, cx.now, cx.bot.side) && cx.tactics.fine_goal(him, cx.now, cx.bot.side) => {
+            count(Ev::PostLine)
+        }
+        Some(post) if post.distance_xz(him) > 0.01 => count(Ev::PostPulled),
+        Some(_) => count(Ev::PostLine),
     }
 }
 

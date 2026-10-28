@@ -742,6 +742,25 @@ pub(super) fn decide(
                 // A goal on a floor of a zone is the zone's no way, the same for every bot of the team.
                 if tuning.hazard.team_zone_aside && goal_in_zone(&intent, tactics) {
                     state.knowledge.set_aside(a.kind, a.target, now + NO_WAY_KEEP_MS);
+                    #[cfg(test)]
+                    hazards::zone_fixes::count(hazards::zone_fixes::Ev::TeamAside);
+                    if let Go::To { at, .. } = intent.go {
+                        bot.note(
+                            notes,
+                            now,
+                            format!(
+                                "team {}: {:?} {:?} set aside for the team for {} s: its goal at ({:.1}, {:.1}, {:.1}) is on a zone's floor and bot {} found no way",
+                                bot.team,
+                                a.kind,
+                                a.target,
+                                NO_WAY_KEEP_MS / 1000,
+                                at.x,
+                                at.y,
+                                at.z,
+                                bot.place
+                            ),
+                        );
+                    }
                 }
             }
             bot.end_play(now, "no way to its goal", notes);

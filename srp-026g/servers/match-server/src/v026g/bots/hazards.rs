@@ -664,6 +664,45 @@ impl Hazards {
     }
 }
 
+/// What the zone fixes of the crossings, the escort posts and the team's set-aside did (the bench's tally,
+/// `tests/tallies/route/counters.rs` `zone_fixes`): each event once, where it is decided.
+#[cfg(test)]
+pub mod zone_fixes {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Clone, Copy)]
+    pub enum Ev {
+        /// A battery's crossing asked (a memo miss), found, found at no cost (the fix of the hurt test), none.
+        CrossingAsked,
+        CrossingFound,
+        CrossingFree,
+        CrossingNone,
+        /// The motor's route searched for a crossing: no route, a route meeting a zone floor before the stop, a route
+        /// only `RouteCrossing::Total` offers (the fix).
+        RoutedNoRoute,
+        RoutedStrict,
+        RoutedTotalOnly,
+        /// An escort play begun: its post on the line, pulled to a dry floor that sees him, none (a failed start).
+        PostLine,
+        PostPulled,
+        PostNone,
+        /// A play set aside for the whole team; an offer withheld because of it (once per bot's commander tick).
+        TeamAside,
+        TeamAsideWithheld,
+    }
+
+    const N: usize = 12;
+    static COUNTS: [AtomicU64; N] = [const { AtomicU64::new(0) }; N];
+
+    pub fn count(ev: Ev) {
+        COUNTS[ev as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; N] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// The soonest match time a body `d_m` metres off gets there from `time`
 /// ([`ARRIVE_MPS`]).
 pub fn arrival(time: u32, d_m: f32) -> u32 {

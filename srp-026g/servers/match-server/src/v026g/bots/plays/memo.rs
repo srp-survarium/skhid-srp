@@ -138,8 +138,23 @@ impl Memo {
             routed,
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            crossing_to(tactics, to, side, stop_m, armour)
-                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed))
+            let found = crossing_to(tactics, to, side, stop_m, armour)
+                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed));
+            #[cfg(test)]
+            {
+                use crate::v026g::bots::hazards::zone_fixes::{Ev, count};
+                count(Ev::CrossingAsked);
+                match found {
+                    None => count(Ev::CrossingNone),
+                    Some(c) => {
+                        count(Ev::CrossingFound);
+                        if c.cost().most() == 0.0 {
+                            count(Ev::CrossingFree);
+                        }
+                    }
+                }
+            }
+            found
         })
     }
 
