@@ -694,3 +694,13 @@ update changes what a match computes.
 - TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
 - TODO: #686 Fix Research markers and countdown layout using Rust
 - TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending
+
+## 28 Oct, 18:37 — TODO: the owner's words (update required)
+
+<!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #692 Show enemy capture warnings in Research mode
+- TODO: #463 Patch 58: kit keys pick nothing if pressed before the kits came or in their first 300 ms
+- TODO: #694 Create public rooms on demand and fix queue transitions
+- TODO: #695 Remove editor vegetation data from the four supported ported maps
+- TODO: #696 Avoid downloading every patch again during releases
