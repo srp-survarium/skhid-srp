@@ -1,0 +1,2089 @@
+# Czech game text. Keys omit st_; @ denotes a full key.
+# Explicit translations; see czech_keep.txt for unchanged identifiers.
+@bm_back_1_desc	Popis zatím není k dispozici.
+@bm_back_1_name	Kontejner „Marodeur“
+@mouse_wheel_down	Kolečko dolů
+@mouse_wheel_up	Kolečko nahoru
+a545_description	Popis zatím není k dispozici.
+a545_name	A-545
+a9_91_description	Popis zatím není k dispozici.
+a9_91_name	9A-91
+abilities	Dovednosti
+accept	Přijmout
+accept_changes	Použít
+account	účet
+account_trading_claim	Obchodování s účty
+achieved	dosaženo!
+achievements_label	Úspěchy hráče
+action_premium_activated	Premium aktivováno! Tvoje odměna:
+activate_premium	Aktivovat prémiový účet
+add	Přidat
+add_profile_button_blocked_hint_text	Dosažen maximální počet profilů!
+add_profile_button_hint_text	Přidat nový profil postavy
+add_to_clan_request	tě zve do klanu 
+add_to_clan_team_request	tě zve do klanového týmu
+add_to_friends	Přidat do přátel
+add_to_friends_request	Žádost o přátelství
+add_to_ignore	Přidat mezi ignorované
+add_to_squad_request	Připojit se k četě
+additional_max_weight_name	Nosnost
+additive_quick_slot_size_modifier	Kapacita kapes
+aek919k_description	Ruský kompaktní samopal na náboje 9x18 PM. Vyvinutý v Kovrovu v 90. letech pro ministerstvo vnitra a další bezpečnostní složky. Zásobník na 20 nábojů. Střílí jednotlivě i automaticky.
+aim_time_description	Rychlost míření:
+aim_time_name	Rychlá reakce
+aim_toggle_action	Mířit 
+aiming_booster_description	Prošlé léky na předpis. Za ta léta ztratily část účinku, ale pořád uklidňují.
+aiming_booster_name	Výtažek ze srdečníku
+aiming_speed_correction_perc_name	Rychlost míření
+ak12_description	Popis zatím není k dispozici.
+ak12_premium_description	Ruská útočná puška nové generace Kalašnikov. Ižmaš ji vyvinul začátkem 10. let 21. století. Má lišty pro mířidla a příslušenství, přepracovanou pažbu i ovládání. Zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba. Prémiová verze se zvláštní kamufláží.
+ak74m_description	Moderní verze Kalašnikovu na náboje 5,45x39. V armádě si získala dobrou pověst. Střílí jednotlivě i dávkami.
+ak74n_bundle_descr	<white>Obsahuje:\n- Vylepšený AK-74N.\n- 2000 nábojů 5.45x39 7N6M.</white>\n
+ak74n_bundle_name	Balíček AK-74N
+ak74n_description	Popis zatím není k dispozici.
+ak74n_name	AK-74N
+ak74u_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům ji používala námořní pěchota, ministerstvo vnitra a bezpečnostní složky. Střílí jednotlivě i dávkami. 
+ak74u_premium_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům ji používala námořní pěchota, ministerstvo vnitra a bezpečnostní složky. Střílí jednotlivě i dávkami. Prémiová verze se zvláštní kamufláží.
+akmn_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky.
+akmn_premium_2_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
+akmn_premium_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
+all_factions	Všichni obchodníci
+all_quests	Zobrazit všechny úkoly
+already_as_reserve_in_team	Hráč už je v záloze
+already_as_soldier_in_team	Hráč už je v týmu.
+already_exist_clan_string	Toto jméno je už zabrané.
+already_has_status_clan_team	Hráč už dostal pozvánku nebo je členem klanového týmu.
+already_in_clan_team	Hráč už je v týmu.
+already_in_inventory	Tento předmět už vlastníš. Chceš ho přesto koupit?
+ambient_occlusion_options	Kvalita okolního stínování
+ammo	Munice
+ammo_127x54_pt_description	Popis zatím není k dispozici.
+ammo_127x54_pt_name	12.7x54 PT
+ammo_127x54_vps_description	Popis zatím není k dispozici.
+ammo_127x55_description	Popis zatím není k dispozici.
+ammo_12mm_buck2_desc	Zesílený lovecký náboj ráže 12. Větší broky zvyšují průbojnost i účinný dostřel. 
+ammo_12mm_buck2_name	12x70, broky
+ammo_12mm_buck_desc	Běžný lovecký náboj s broky. Způsobuje vysoké poškození neobrněným cílům. 
+ammo_12mm_buck_name	12x70, broky
+ammo_12mm_slug_desc	Celoplášťová jednotná střela pro loveckou brokovnici ráže 12. Má vysoký zastavovací účinek a průbojnost. 
+ammo_12mm_slug_name	12x70, jednotná střela
+ammo_30_description	Americký puškový náboj účinný do 150 metrů. První civilní náboj s bezdýmným prachem. 
+ammo_357m_description	Výkonný americký revolverový náboj. Zaveden za prohibice jako silnější náhrada běžného policejního střeliva. 
+ammo_45acp_description	Popis zatím není k dispozici.
+ammo_46x30_description	Náboj vyvinutý firmou Heckler & Koch pro MP7. Malá, tvrdá střela je určená k průniku neprůstřelnými vestami na krátkou a střední vzdálenost.
+ammo_545x39_7n10_description	Popis zatím není k dispozici.
+ammo_545x39_7n22_description	Popis zatím není k dispozici.
+ammo_545x39_7n6m_description	Sovětský náboj středního výkonu s ocelovým jádrem a nízkým zpětným rázem. Lehká střela má vysokou počáteční rychlost a plochou dráhu letu. 
+ammo_556x45_description	Náboj NATO středního výkonu, vyvinutý z amerického .223 Remington a standardizovaný v roce 1980. Lehká, rychlá střela s plochou dráhou letu a nízkým zpětným rázem.
+ammo_57x28_description	Náboj vyvinutý FN Herstal kolem roku 1990 pro P90 a později pistoli Five-seveN. Lehká a rychlá střela určená k průniku neprůstřelnými vestami.
+ammo_65x39_description	Popis zatím není k dispozici.
+ammo_762x25_description	První sovětský jednotný pistolový náboj. Určený pro pistole i samopaly. 
+ammo_762x39_7n23_description	Popis zatím není k dispozici.
+ammo_762x39_description	Náboj 7.62x39 vyvinutý v roce 1943, považovaný za jednu ze tří nejvýkonnějších puškových ráží na světě.
+ammo_762x39_m_description	Popis zatím není k dispozici.
+ammo_762x39_m_name	7.62x39 RPD
+ammo_762x51_M59_description	Průbojná varianta vojenského puškového náboje 7.62x51 M61. Střela má ocelové jádro s pláštěm.
+ammo_762x51_description	Rozšířený vojenský náboj s celoplášťovou střelou. Určený pro odstřelovačské i civilní zbraně. 
+ammo_762x54R_old_description	Náboj nalezený ve skladech patří k nejstarším dosud používaným puškovým nábojům. Stáří a skladování snížily jeho účinnost.
+ammo_9x18_description	Sovětský jednotný náboj nahrazující zastaralý 7.62mm náboj. Běžné střelivo za dobrou cenu, se slušnou průbojností proti nekovovým překážkám.
+ammo_9x18_pbm_description	Průbojný náboj 9x18 mm PBM 7N25. Oproti 9x18 PM má výrazně vyšší úsťovou rychlost a zastavovací účinek.
+ammo_9x19p_7n21_description	Vysokotlaký náboj +P+ s ocelovým průbojným jádrem. Má větší zastavovací účinek než komerční 9x19 Parabellum. 
+ammo_9x19p_7n31_description	Popis zatím není k dispozici.
+ammo_9x19p_para_description	Jednotný pistolový náboj 9x19 Parabellum s celoplášťovou střelou. Po druhé světové válce přijat jako standard NATO.
+ammo_9x21_description	Popis zatím není k dispozici.
+ammo_ammo_762x54_7n13_description	Ruský puškový náboj 7.62x54R s kaleným ocelovým jádrem pro lepší průbojnost. Používá se v kulometech i odstřelovačských puškách, dodává se v pásech.
+ammo_ammo_762x54_7n1_description	Popis zatím není k dispozici.
+ammo_ammo_762x54_7n1_name	7.62x54 7N1
+ammo_bags_description	Získáš další sumku na munici.
+ammo_bags_name	Munice
+ammo_equipped_label	Batoh
+ammo_label	Munice
+ammo_pab9_description	Popis zatím není k dispozici.
+ammo_sp5_description	Popis zatím není k dispozici.
+ammo_sp6_description	Popis zatím není k dispozici.
+ammo_storage_label	Sklad
+aniso_filtering_option	Anizotropní filtrování
+anomaly_damage_corr_perc_name	Poškození anomálií
+anomaly_skills_label	Znalost Lesa.
+antialiasing_option	Vyhlazování hran
+antitoxin_description	Kombinovaný lék k neutralizaci jedů a toxinů v těle. Pro nejlepší účinek ho užij před vystavením škodlivinám. 
+antitoxin_name	Antitoxin
+apply_changes_msg	Použít nastavení?
+aps_description	Popis zatím není k dispozici.
+army_026_mask_desc	Kukla s jedním širokým otvorem na oči ze zrušeného S.T.A.L.K.E.R. 2.
+army_026_mask_name	Vojenská kukla
+artcontainer_time_corr_perc_name	Čas sběru
+artefact_activated_message	Artefakt aktivován
+artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.
+artefact_booster_name	Mistr artefaktů
+artefact_no_free_slots	Na artefakt není volný slot!
+artefact_search_failed	Artefakt nenalezen
+artefact_search_success	Získal jsi artefakt! 
+ash12_description	Popis zatím není k dispozici.
+attention	Při spouštění launcheru Survarium došlo k chybě. Zkus to později.
+auto	Automaticky
+auto_button_hint	Automaticky doplňovat munici
+auto_repair_button_label	Automatická oprava
+auto_repair_hint	Automaticky opravovat drobná poškození vybavení
+autobuy_button_label	Automatický nákup
+autobuy_money	Doplnit munici
+autobuy_money_ammo	Munice
+autobuy_money_consulabels	Speciální vybavení
+autorepair_money	Cena opravy
+back_use_action	Kyslíková láhev
+backpack	Batoh
+ban_reason_account_trading	Prodej účtu nebo pokus o něj.
+ban_reason_administrator	Rozhodnutí administrátorů.
+ban_reason_advertising	Šíření reklamy.
+ban_reason_bad_language	Vulgarity
+ban_reason_cheating	Šíření, propagace nebo probírání softwaru třetích stran.
+ban_reason_discuss_admins	Probírání zásahů administrátorů.
+ban_reason_faschism	Projevy rasismu, nacismu nebo nacionalismu.
+ban_reason_flood	Spam, zahlcování chatu, bezobsažné zprávy.
+ban_reason_incorrect_info	Šíření nepravdivých informací.
+ban_reason_insult	Urážky, provokace.
+ban_reason_nickname	Nevhodné jméno postavy.
+ban_reason_politics	Politické diskuse.
+ban_reason_reallife_treating	Výhrůžky v reálném životě.
+ban_reason_teamkilling	Zabíjení spoluhráčů.
+bandit_026_mask_desc	Banditská kukla ze zrušeného S.T.A.L.K.E.R. 2.
+bandit_026_mask_name	Banditská kukla
+base_bandages_description	Zcela vyléčí ruce a nohy. Obnoví 35% zdraví trupu a hlavy a zmírní bolest o 35%.
+base_bandages_name	Balíček obvazů
+base_medkit_description	Základní lékárnička. Ošetří vážná zranění a zlepší celkový stav zraněného.
+base_medkit_name	Lékárnička
+base_painkiller_description	Silné anestetikum dočasně zvyšující práh bolesti. Při nesmrtelných zraněních brání ztrátě vědomí z bolestivého šoku. 
+base_painkiller_name	Anestetikum
+base_trap_description	Běžná lovecká past se silnou pružinou. Při sklapnutí dokáže zlomit nohu velkému zvířeti i člověku. 
+base_trap_name	Past
+benelli_description	Italská samonabíjecí brokovnice ráže 12. Benelli ji vyvinulo koncem 90. let s plynovým mechanismem. Americká námořní pěchota ji přijala jako M1014. Trubicový zásobník pod hlavní. Pouze jednotlivé rány.
+best	Nejlepší
+best_explorer	PRŮZKUMNÍK
+best_explorer_artefacts	Artefakty:
+best_explorer_items	Předměty:
+best_player	HRÁČ
+best_player_score	Body:
+best_sniper	STŘELEC
+best_sniper_accuracy	Přesnost:
+best_sniper_shots	Výstřely:
+best_support	PODPORA
+best_support_healed	Vyléčeno:
+best_support_saved	Zachráněno:
+bind_text	Stiskni tlačítko
+black_market_faction	Černý trh
+blackmarket_bring_x_items_descr	Bouře nešetří nás ani nepřátele. Abychom přežili, musíme k ochrannému zařízení donést co nejvíc baterií. Jsou roztroušené po okolí. Můžeme je taky ukrást přímo z nepřátelské základny.
+blackmarket_bring_x_items_name	Společný cíl
+blackmarket_bring_x_items_obj	Najdi a dones baterie:
+blackmarket_entrap_enemies_descr	Co jsi dělal před epidemií? Třeba jsi v lese líčil pasti na zvěř? Je čas si to připomenout. Jen tentokrát lovíš lidi!
+blackmarket_entrap_enemies_name	Pytlák
+blackmarket_entrap_enemies_obj	Chyť nepřátele do pasti:
+blackmarket_grenade_enemies_descr	Věř mi, není lepší dárek než pořádný granát. Zvlášť bez pojistky! A když se zadaří, obdaruješ hned několik nepřátel. Jen takhle neobdarovávej vlastní tým.
+blackmarket_grenade_enemies_name	Malý dárek!
+blackmarket_grenade_enemies_obj	Zabij v jednom zápase nepřátele granátem:
+blackmarket_headshots_descr	Neprůstřelná vesta může zachránit život, ale před ranou do hlavy nepomůže. Ani přilba nezaručí úplnou ochranu. Zásah do hlavy šetří čas, munici i nervy.
+blackmarket_headshots_name	Zásahy do hlavy
+blackmarket_headshots_obj	Zabij nepřátele zásahem do hlavy:
+blackmarket_kd_ratio_descr	Ať se nás bojí! Jsme Černý trh, smrti se nebojíme a rádi s sebou vezmeme dva nebo tři nepřátele!
+blackmarket_kd_ratio_name	Zastrašuj a vládni!
+blackmarket_kd_ratio_obj	Vyhraj zápas s poměrem zabití a úmrtí alespoň
+blackmarket_kill_enemies_descr	Když boj skončí, nepřátelé utečou a kořist se rozdělí, je fajn zavzpomínat s přáteli na ty slavné chvíle. Postarej se, ať máš co vyprávět.
+blackmarket_kill_enemies_name	Osobní záležitost
+blackmarket_kill_enemies_obj	Zabij v jednom zápase protivníky:
+blackmarket_kill_enemy_x_descr	Mrchožrouti nejsou naši nejhorší nepřátelé. Ale občas jim musíme ukázat, kde je jejich místo. Nejlépe na názorném příkladu.
+blackmarket_kill_enemy_x_name	Lov hlav
+blackmarket_kill_enemy_x_obj	Zabij v jednom zápase členy Mrchožroutů:
+blackmarket_killstreak_descr	Někdy je nepřátel víc. Někdo v tom vidí problém. My víme, že čím víc jich padne, tím větší bude naše sláva. 
+blackmarket_killstreak_name	Stroj na zabíjení
+blackmarket_killstreak_obj	Dosáhni série zabití:
+blackmarket_level_0	Neznámý
+blackmarket_level_1	Rekrut
+blackmarket_level_2	Bojovník
+blackmarket_level_3	Předák
+blackmarket_level_4	Setník
+blackmarket_level_5	Elita
+blackmarket_level_unlock_0	Gratulujeme! Odemkl jsi úkoly Černého trhu!
+blackmarket_level_unlock_1	Gratulujeme! Teď jsi rekrut Černého trhu!
+blackmarket_level_unlock_2	Gratulujeme! Teď jsi bojovník Černého trhu!
+blackmarket_level_unlock_3	Gratulujeme! Teď jsi předák Černého trhu!
+blackmarket_level_unlock_4	Gratulujeme! Byl jsi povýšen na setníka Černého trhu!
+blackmarket_level_unlock_5	Gratulujeme! Teď patříš k elitě Černého trhu!
+blackmarket_meele_kill_descr	Když to nejde čistě, připrav se ušpinit si ruce. Tím se lišíme od ostatních. Dokaž, že k nám patříš. Pusť se do toho vlastníma rukama.
+blackmarket_meele_kill_name	Špinavá práce
+blackmarket_meele_kill_obj	Zabij nepřátele zblízka:
+blackmarket_represent	Musíš mít oblečení Černého trhu, abys ho mohl zastupovat.
+blackmarket_starter_bundle_descr	<white>Obsahuje:\nBanditskou bundu.\nBanditské kalhoty.\n- Vylepšené UZI.\n- 2000 nábojů 9x19 Parabellum.</white>
+blackmarket_starter_bundle_name	Balíček Bandita
+blackmarket_steal_box_descr	Dvě mouchy jednou ranou! Pamatuj si to. Když ukradneš baterii z nepřátelské základny, připravíš soupeře o ochranu a zároveň pomůžeš vlastnímu týmu!
+blackmarket_steal_box_name	Loupež
+blackmarket_steal_box_obj	Ukradni baterii z nepřátelské základny a dones ji na svou.
+blackmarket_win_score_descr	Co je lepší než vítězství? Drtivé vítězství! Když nepřátelé nemají šanci, jsou zahnaní do kouta a prosí, ať už tahle noční můra skončí.
+blackmarket_win_score_name	Nadvláda
+blackmarket_win_score_obj	Vyhraj zápas s donesenými bateriemi:
+blackmarket_win_x_games_descr	Nic nechutná tak sladce jako vítězství! Kořist, sláva, respekt — vítěz bere všechno. A k tomu ještě pověst mezi bratry Černého trhu!
+blackmarket_win_x_games_name	Sláva Černému trhu!
+blackmarket_win_x_games_obj	Vyhraj zápasy:
+bm_boots_1_desc	Stylové kovbojské boty. Před katastrofou je musel mít každý rocker a motorkář.
+bm_boots_1_name	Kovbojky
+bm_boots_2_desc	Nízké kožené boty dobře chrání nohy. Na základně Černého trhu je vyrábí mistr Pavouk a každý pár opatřuje svou značkou. Díky pohodlí šetří výdrž při sprintu.
+bm_boots_2_name	Nízké kovbojky
+bm_boots_3_desc	Mohutné kovbojské boty s kovovými výztuhami a přezkami. Symbol postavení mezi gangy Černého trhu.
+bm_boots_3_name	Choppery
+bm_gloves_1_desc	Kožené rukavice bez prstů. Hodí se do rvačky, při střelbě i k nacpání dýmky před dlouhou cestou. Zrychlují přebíjení o 2%.
+bm_gloves_1_name	Motorkářské rukavice
+bm_gloves_2_desc	Těžké rukavice vyztužené kovovými hroty. Přijdou vhod, když dojdou náboje a o výsledku rozhodnou pěsti.
+bm_gloves_2_name	Rukavice s hroty
+bm_helmet_1_desc	Kožená motorkářská přilba. Chrání hlavu před údery těžkými předměty. Při potyčkách bojovníků Černého trhu je nepostradatelná.
+bm_helmet_1_name	Motorkářská přilba
+bm_helmet_5_desc	Popis zatím není k dispozici.
+bm_helmet_5_name	Přilba Marodeur
+bm_legs_1_desc	Klasické odolné džíny chránící před chladem. Získané tvrdou prací rabovače ve vypleněném obchodě. Do kapes se vejde pár pastí nebo granátů.
+bm_legs_1_name	Džíny
+bm_legs_2_desc	Upravené odolné džíny s chrániči kolen. Chrání nohy před chladem a zraněním.
+bm_legs_2_name	Zesílené džíny
+bm_legs_4_desc	Popis zatím není k dispozici.
+bm_legs_4_name	Banditské kalhoty
+bm_legs_5_desc	Popis zatím není k dispozici.
+bm_legs_5_name	Kalhoty Marodeur
+bm_mask_1_desc	Popis zatím není k dispozici.
+bm_mask_1_name	Maska Korzár
+bm_rep_modifier	Pověst u Černého trhu
+bm_torso_1_desc	Motorkářská bunda bez rukávů, typický oděv bojovníků Černého trhu. Chrání před chladem a nepohodou. Má zvláštní kapsy na munici, pasti a granáty.
+bm_torso_1_name	Kožená vesta
+bm_torso_2_desc	Těžká nýtovaná bunda ze silné kůže s ochrannými pláty. Jméno získala po obzvlášť mohutných bojovnících Černého trhu, kteří ji nosili jako první. Lebka na rukávu ukazuje, že se její majitel nebojí smrti.
+bm_torso_2_name	Bunda Ranař
+bm_torso_3_desc	Těžká kožená bunda útočníka Černého trhu, vyztužená kovovými pláty. Pohled na bojovníka v Korzárovi vyděsí i zkušeného přeživšího. Má zvláštní kapsy na munici, pasti a granáty.
+bm_torso_3_name	Bunda Korzár
+bm_torso_4_desc	Popis zatím není k dispozici.
+bm_torso_4_name	Banditská bunda
+bm_torso_5_desc	Popis zatím není k dispozici.
+bm_torso_5_name	Bunda Marodeur
+bonus_day	Den
+bonus_victory	Bonus za vítězství
+border_faction	Osadníci okraje
+born_leader_compliment	Rozený velitel
+bot_or_cheater_claim	Bot nebo podvodník
+breath_holding_time_description	Doba zadržení dechu:
+breath_holding_time_name	Železné plíce
+bring_item_to_base	Dones baterii na svou základnu!
+btn_add_premium_label	Získat zlato
+btn_add_premium_message	Získat zlato
+btn_add_rank_label	Přidat hodnost
+btn_become_commander	Stát se velitelem
+btn_cancel_decal	Zrušit
+btn_change_name_label	Změnit přezdívku
+btn_chat	Chat
+btn_clan_team_invite_memeber	Pozvat
+btn_close_upgrades_label	Dokončit změnu vzhledu předmětu
+btn_craft_accept	Připraven
+btn_craft_label	Vylepšit
+btn_create_clan_team	Vytvořit tým
+btn_disband_clan_label	Rozpustit
+btn_disband_clan_team	Rozpustit tým
+btn_end_tutorial_label	Dokončit
+btn_equipment	Vybavení
+btn_exchange_premium_money	Směnit zlato za rubly
+btn_exit_label	Odejít
+btn_find_player	Najít hráče
+btn_friends	Přátelé
+btn_friends_online_filter	Přátelé online
+btn_go_to_online_store	Pokračovat
+btn_invite_clan_memeber_label	Pozvat
+btn_item_craft	Vylepšit
+btn_join_team	Připojit se
+btn_kick_clan_memeber_label	Vyhodit
+btn_knowledge_base	Znalostní báze
+btn_leave_clan_label	Odejít
+btn_leave_clan_team	Opustit tým
+btn_no	Ne
+btn_not_ready	Nepřipraven
+btn_paperdoll	Vybavení
+btn_premium_hint	Aktivovat prémiový účet
+btn_rank_down_clan_memeber_label	Snížit hodnost
+btn_rank_up_clan_memeber_label	Zvýšit hodnost
+btn_ready	Připraven
+btn_remove_rank_label	Odebrat hodnost
+btn_reroll_change_label	Změnit
+btn_reroll_choose_label	Vybrat
+btn_reroll_label	Úprava
+btn_settings_label	Nastavení
+btn_show_log_list	Historie
+btn_show_log_list_hint	Zobrazit události této relace
+btn_upgrade_hint	Upravit předmět
+btn_upgrade_label	Vzhled
+btn_use_item	Použít předmět
+btn_yes	Ano
+bundle_clik_hint	Klikni na balíček pro více informací
+button_buy_profile_text	Koupit profil postavy
+button_exit	Zavřít
+button_skip_tutorial_label	Přeskočit výcvik
+buy	Koupit
+buy_post_premium	Získat bonusy
+buy_premium_with_discount	Kup teď se slevou!
+buy_profile_confirmation_text	Vytvořit novou postavu? 
+buy_profile_price_text	Profil je dostupný za: 
+buy_treasure_maps	Koupit mapu
+camo_black_leather_01_name	Havran
+camo_black_leather_name	Černá smrt
+camo_blue_leather_name	Vánek
+camo_brown_leather_01_name	Kůže 2
+camo_brown_leather_02_name	Kůže 3
+camo_brown_leather_03_name	Kůže 4
+camo_brown_leather_04_name	Kůže 5
+camo_brown_leather_05_name	Ifrít
+camo_brown_leather_name	Kůže
+camo_camouflage_green_01_name	Lovec
+camo_camouflage_green_name	Oakley
+camo_chemical_fabric_01_name	Zelený protichemický oblek
+camo_chemical_fabric_02_name	Zelené listí
+camo_chemical_fabric_03_name	Modrá obloha
+camo_city_camo_name	Panter
+camo_cyfra_01_camo_name	Digitální N
+camo_cyfra_02_camo_name	Digitální
+camo_cyfra_03_camo_name	Válečník
+camo_denim_01_name	Tmavý denim
+camo_denim_name	Denim
+camo_desert_camo_name	Poušť
+camo_fabric_brown_01_name	Suchá půda
+camo_fabric_brown_02_name	Pouštní bouře
+camo_fabric_brown_03_name	Škorpion
+camo_fabric_brown_name	Hnědá látka
+camo_fabric_camouflage_name	Přeživší
+camo_fabric_green_01_name	Zelená látka
+camo_fabric_green_name	Bílá látka
+camo_fabric_grey_name	Duch
+camo_flecktarn_01_camo_name	Flecktarn
+camo_flecktarn_02_camo_name	Les
+camo_generic_desc	Vzhled vest a kalhot změníš pomocí kamufláže v jejich okně.
+camo_green_leather_name	Zelená kůže
+camo_izlom_name	Zlom
+camo_khaki_fabric_01_name	Horký písek
+camo_khaki_fabric_02_name	Žhavé slunce
+camo_khaki_fabric_03_name	Prach
+camo_multicam_name	Přelud
+camo_new_year	Nový rok 2015
+camo_quilted_fabric_name	Prošívaná látka
+camo_red_leather_name	Legionář
+camo_rubber_green_01_name	Hledač
+camo_rubber_green_02_name	Žlutá guma
+camo_rubber_green_name	Zelená guma
+camo_slot	Kamufláž
+camo_spekrt_01_name	Spektr-Podzim
+camo_spekrt_02_name	Spektr-Jaro
+camo_spekrt_03_name	Spektr-Léto
+camo_steam	Kamufláž Steam
+camo_suede_leather_name	Semiš
+camo_yellow_leather_name	Žlutá kůže
+can_be_installed_on	Lze nasadit na
+can_sprint_description	Můžeš sprintovat i při přetížení.
+can_sprint_name	Sprint
+cancel	Zrušit
+cannot_buy_item	Předmět nelze koupit
+cannot_craft_item	Tento předmět nelze vylepšit.
+cannot_pickup_item	Už neseš kontejner!
+cannot_pickup_item_broken_hand	Máš zraněné ruce! Kontejner nemůžeš zvednout.
+cannot_relocate_item	Předmět nelze přesunout
+cannot_repair_item	Předmět nelze opravit
+cannot_reroll_skills	Chyba při resetování dovedností
+cannot_select_rerolled_modification	Chyba při změně úpravy
+cannot_upgrade_item	Při úpravě předmětu došlo k chybě. Zkus to znovu.
+cannot_use_drop_card	Mapu skrýše nelze použít.
+cant_add_clan_member	Chyba při přidávání hráče do klanu
+cant_add_clan_team_member	Chyba při přidávání hráče do týmu.
+cant_buy_clan_registration	Chyba při platbě za registraci klanu.
+cant_buy_premium_message	Na nákup nemáš dost zlatých rublů.
+cant_cancel_clan_registration	Chyba při rušení registrace klanu.
+cant_change_clan_team_battle_status	Chyba při změně pozice v týmu.
+cant_change_commander_team_role	Roli velitele nelze změnit.
+cant_change_permission	Chyba při změně oprávnění.
+cant_change_rank_clan_member	Chyba při změně hodnosti hráče.
+cant_change_ready_state	Chyba při změně připravenosti.
+cant_change_role_himself	Vlastní hodnost nemůžeš změnit
+cant_change_status_clan_team_member	Chyba při změně stavu hráče.
+cant_clan_match_closed	Chyba při opouštění klanového týmu.
+cant_create_clan	Chyba při vytváření klanu.
+cant_create_clan_rank	Chyba při vytváření klanové hodnosti.
+cant_create_clan_team	Chyba při vytváření týmu
+cant_delete_default_rank	Základní hodnost nelze smazat
+cant_disband_clan_team	Chyba při rozpouštění týmu
+cant_find_player	Hráč s tímto jménem nebyl nalezen.
+cant_invite_player_to_clan	Chyba při zvaní hráče do klanu
+cant_invite_player_to_clan_team	Chyba při zvaní hráče do týmu.
+cant_kick_himself	Nemůžeš se vyhodit z klanu.
+cant_kick_member	Chyba při vyhazování hráče z klanu.
+cant_leave_clan_team	Chyba při opouštění týmu
+cant_oust_commander	Chyba při změně velitele
+cant_oust_yourself	Nemůžeš se vyhodit z týmu.
+cant_rank_up_clan_member	Chyba při povyšování hráče.
+cant_remove_clan_rank	Chyba při odebírání klanové hodnosti.
+cant_remove_clan_team_member	Chyba při vyhazování hráče z týmu
+cant_remove_yourself	Nemůžeš se vyloučit z týmu.
+cant_request_to_join_clan_team	Chyba při žádosti o vstup do klanového týmu.
+cant_reserve_clan	Chyba při rezervaci jména.
+cant_set_clan_team_commander	Chyba při jmenování velitele klanového týmu.
+cant_set_daily_message	Chyba při nastavení zprávy dne.
+cant_set_yourself	Nemůžeš se jmenovat velitelem týmu.
+cant_upgrade_while_repair_hint	Během opravy nemůžeš předmět vylepšovat.
+capture_info	Zabírání zařízení…
+chamber_a_round_description	Rychlost natažení závěru:
+chamber_a_round_name	Práce se spouští
+change	Přejmenovat
+change_name_error	Chyba při přejmenování postavy.
+change_name_label	Změnit přezdívku
+change_order	Změnit pořadí
+change_profile	Změnit profil
+change_quest	Změnit úkol
+change_quest_label	Změnit úkol
+change_weapon_speed_description	Rychlost výměny zbraně:
+change_weapon_speed_name	Šikovné ruce
+character	Postava
+character_decals_1_12_name	Jarilo
+character_decals_1_1_name	Literát
+character_decals_1_2_name	Četa Alfa
+character_decals_1_3_name	Přeživší
+character_decals_1_4_name	Průzkumník
+character_decals_1_5_name	Veterán
+character_decals_1_6_name	Mistr
+character_decals_1_7_name	Legenda
+character_decals_1_8_name	Okřídlení husaři
+character_decals_2_1_name	Nováček Mrchožroutů
+character_decals_2_2_name	Veterán Mrchožroutů
+character_decals_2_3_name	Rekrut Černého trhu
+character_decals_2_4_name	Elita Černého trhu
+character_decals_2_5_name	Vojín Armády znovuzrození
+character_decals_2_6_name	Plukovník Armády znovuzrození
+character_decals_2_7_name	Lovec Osadníků okraje
+character_decals_2_8_name	Magistr Osadníků okraje
+character_decals_3_10_name	Smrtící
+character_decals_3_11_name	Zvířecí lebka
+character_decals_3_12_name	Střela
+character_decals_3_13_name	Granát
+character_decals_3_14_name	První pomoc
+character_decals_3_15_name	Zaměřovač
+character_decals_3_16_name	Specnaz
+character_decals_3_17_name	VDV
+character_decals_3_18_name	Stovka
+character_decals_3_19_name	Dýka
+character_decals_3_1_name	Biologické nebezpečí
+character_decals_3_20_name	Znak atomu
+character_decals_3_21_name	Šroubovice DNA
+character_decals_3_2_name	Zákaz zbraní
+character_decals_3_3_name	Anarchie
+character_decals_3_4_name	Pirát
+character_decals_3_5_name	Radioaktivita
+character_decals_3_6_name	Výbušné
+character_decals_3_7_name	Zákaz vstupu do lesa
+character_decals_3_8_name	Strom života
+character_decals_3_9_name	Přesýpací hodiny
+character_decals_4_10_name	Vlajka Gruzie
+character_decals_4_11_name	Vlajka Uzbekistánu
+character_decals_4_12_name	Vlajka Tádžikistánu
+character_decals_4_13_name	Vlajka Kyrgyzstánu
+character_decals_4_14_name	Vlajka Turkmenistánu
+character_decals_4_15_name	Vlajka Ázerbájdžánu
+character_decals_4_16_name	Vlajka Arménie
+character_decals_4_17_name	Vlajka Německa
+character_decals_4_18_name	Vlajka Velké Británie
+character_decals_4_19_name	Vlajka Francie
+character_decals_4_1_name	Vlajka SSSR
+character_decals_4_20_name	Vlajka Itálie
+character_decals_4_21_name	Vlajka Španělska
+character_decals_4_22_name	Vlajka Polska
+character_decals_4_23_name	Vlajka Rumunska
+character_decals_4_24_name	Vlajka Nizozemska
+character_decals_4_25_name	Vlajka Řecka
+character_decals_4_26_name	Vlajka Portugalska
+character_decals_4_27_name	Vlajka České republiky
+character_decals_4_28_name	Vlajka Belgie
+character_decals_4_29_name	Vlajka Maďarska
+character_decals_4_2_name	Vlajka Ruska
+character_decals_4_30_name	Vlajka Švédska
+character_decals_4_31_name	Vlajka Rakouska
+character_decals_4_32_name	Vlajka Švýcarska
+character_decals_4_33_name	Vlajka Bulharska
+character_decals_4_34_name	Vlajka Srbska
+character_decals_4_35_name	Vlajka Dánska
+character_decals_4_36_name	Vlajka Slovenska
+character_decals_4_37_name	Vlajka Norska
+character_decals_4_38_name	Vlajka Irska
+character_decals_4_39_name	Vlajka Chorvatska
+character_decals_4_3_name	Vlajka Ukrajiny
+character_decals_4_40_name	Vlajka Bosny a Hercegoviny
+character_decals_4_41_name	Vlajka Turecka
+character_decals_4_42_name	Vlajka USA
+character_decals_4_43_name	Vlajka Kanady
+character_decals_4_44_name	Vlajka Brazílie
+character_decals_4_45_name	Vlajka Argentiny
+character_decals_4_46_name	Vlajka Austrálie
+character_decals_4_47_name	Vlajka Finska
+character_decals_4_48_name	Vlajka Nového Zélandu
+character_decals_4_49_name	Vlajka Irska
+character_decals_4_4_name	Vlajka Běloruska
+character_decals_4_50_name	Vlajka Skotska
+character_decals_4_51_name	Vlajka Anglie
+character_decals_4_52_name	Vlajka Jižní Koreje
+character_decals_4_53_name	Vlajka Japonska
+character_decals_4_54_name	Vlajka Číny
+character_decals_4_55_name	Vlajka Indie
+character_decals_4_56_name	Vlajka Indonésie
+character_decals_4_57_name	Vlajka Malajsie
+character_decals_4_58_name	Vlajka Filipín
+character_decals_4_59_name	Vlajka Thajska
+character_decals_4_5_name	Vlajka Kazachstánu
+character_decals_4_60_name	Vlajka Vietnamu
+character_decals_4_61_name	Vlajka Bolívie
+character_decals_4_62_name	Vlajka Chile
+character_decals_4_63_name	Vlajka Kolumbie
+character_decals_4_64_name	Vlajka Ekvádoru
+character_decals_4_65_name	Vlajka Paraguaye
+character_decals_4_66_name	Vlajka Peru
+character_decals_4_67_name	Vlajka Uruguaye
+character_decals_4_68_name	Vlajka Venezuely
+character_decals_4_69_name	Vlajka Albánie
+character_decals_4_6_name	Vlajka Lotyšska
+character_decals_4_70_name	Vlajka Kuby
+character_decals_4_71_name	Vlajka Slovinska
+character_decals_4_72_name	Vlajka Angoly
+character_decals_4_73_name	Vlajka Nigérie
+character_decals_4_74_name	Vlajka Jihoafrické republiky
+character_decals_4_75_name	Vlajka Walesu
+character_decals_4_7_name	Vlajka Litvy
+character_decals_4_8_name	Vlajka Estonska
+character_decals_4_9_name	Vlajka Moldavska
+character_decals_5_10_name	Znak Gruzie
+character_decals_5_11_name	Znak Uzbekistánu
+character_decals_5_12_name	Znak Tádžikistánu
+character_decals_5_13_name	Znak Kyrgyzstánu
+character_decals_5_14_name	Znak Turkmenistánu
+character_decals_5_15_name	Znak Ázerbájdžánu
+character_decals_5_16_name	Znak Arménie
+character_decals_5_17_name	Znak NATO
+character_decals_5_18_name	Znak OSN
+character_decals_5_19_name	Znak Německa
+character_decals_5_1_name	Rudá hvězda
+character_decals_5_20_name	Znak Velké Británie
+character_decals_5_21_name	Znak Francie
+character_decals_5_22_name	Znak Itálie
+character_decals_5_23_name	Znak Španělska
+character_decals_5_24_name	Znak Polska
+character_decals_5_25_name	Znak Rumunska
+character_decals_5_26_name	Znak Nizozemska
+character_decals_5_27_name	Znak Řecka
+character_decals_5_28_name	Znak Portugalska
+character_decals_5_29_name	Znak České republiky
+character_decals_5_2_name	Znak Ruska
+character_decals_5_30_name	Znak Belgie
+character_decals_5_31_name	Znak Maďarska
+character_decals_5_32_name	Znak Švédska
+character_decals_5_33_name	Znak Rakouska
+character_decals_5_34_name	Znak Švýcarska
+character_decals_5_35_name	Znak Bulharska
+character_decals_5_36_name	Znak Srbska
+character_decals_5_37_name	Znak Dánska
+character_decals_5_38_name	Znak Slovenska
+character_decals_5_39_name	Znak Norska
+character_decals_5_3_name	Znak Ukrajiny
+character_decals_5_40_name	Znak Irska
+character_decals_5_41_name	Znak Chorvatska
+character_decals_5_42_name	Znak Bosny a Hercegoviny
+character_decals_5_4_name	Znak Běloruska
+character_decals_5_5_name	Znak Kazachstánu
+character_decals_5_6_name	Znak Litvy
+character_decals_5_7_name	Znak Litvy
+character_decals_5_8_name	Znak Estonska
+character_decals_5_9_name	Znak Moldavska
+character_decals_7_27_name	Jetelový ornament
+character_decals_7_28_name	Podkova
+character_decals_7_9_name	Byliny
+character_decals_generic_desc	Vzhled vest a kalhot změníš pomocí nášivek v jejich okně.
+characteristics_label	Statistiky hráče
+chat_channel_clan	Klanový chat
+chat_channel_clan_team	Klanový tým
+chat_channel_general	Obecný chat
+chat_channel_match	Všechny
+chat_channel_private	Soukromý
+chat_channel_squad	Četa
+chat_channel_system	Systém
+chat_channel_team	Tým
+checkbox_battle_commander_permission	Polní velitel
+checkbox_clan_change_rank_permission	Měnit hodnosti hráčů
+checkbox_clan_daily_message_permission	Měnit zprávu dne
+checkbox_clan_invite_permission	Pozvánka
+checkbox_clan_member_kick_permission	Vyhodit
+checkbox_compare_items	Porovnávání předmětů
+checkbox_compare_items_hint	Zobrazit popis nasazeného předmětu
+checkbox_players_live_search	Průběžné hledání hráčů
+checkbox_show_locked_items	Nedostupné
+checkbox_show_locked_items_hint	Zobrazit nedostupné předměty
+checkbox_show_offline_players	Zobrazit odpojené hráče
+checkbox_show_player_groups	Zobrazit skupiny hráčů
+checkbox_show_shop_items	Obchod
+checkbox_show_shop_items_hint	Zobrazit předměty z obchodu
+choose	Vybrat
+choose_faction_button_hint	Vybrat frakci
+choose_faction_description	Frakce dodávají vybavení, zbraně a munici. Plněním jejich úkolů si zlepšuješ pověst a získáváš přístup k lepšímu zboží. Spolupracovat můžeš vždy jen s jednou frakcí.
+choose_faction_label	Vyber frakci
+choose_modifier	Změnit bonus:
+choose_premium_subscription	Vyber prémiové předplatné:
+claim_player	Podat stížnost
+claims_count_per_day_owerflow	Dosáhl jsi denního limitu stížností.
+claims_count_per_user_owerflow	Na stejného hráče nemůžeš podat stížnost dvakrát za den!
+clan	Klan
+clan_abbr_is_not_valid	Tato zkratka je už zabraná
+clan_abbreviation	Zkratka klanu
+clan_abbreviation_default_text	Vybrat zkratku
+clan_abbreviation_info	(3 až 6 znaků)
+clan_accept_button_label	Zaregistrovat
+clan_buy_registration_button_label	Zaplatíš
+clan_cancel_button_label	Zrušit registraci
+clan_control_tab	Správa klanu
+clan_creation_info_description	K registraci klanu potřebuješ podporu alespoň 5 hráčů. Po registraci se automaticky stanou jeho členy.
+clan_creation_info_label	Získat podporu hráčů
+clan_daily_message	Zpráva dne
+clan_invite_1	Hráč
+clan_invite_2	byl úspěšně pozván do klanu.
+clan_invite_accepted	Přijato
+clan_invite_pending	Čeká na přijetí pozvánky do klanu
+clan_invite_player_button_label	Pozvat
+clan_invite_rejected	Odmítnuto
+clan_kick_1	Opravdu chceš vyhodit hráče
+clan_kick_2	z klanu?
+clan_leave_button_label	Opustit klan
+clan_level_label	Úroveň klanu
+clan_level_up_1	Náš klan dosáhl
+clan_level_up_2	úrovně.
+clan_manage_window_label	Klan
+clan_max_members_count_error	Dosáhl jsi maximálního počtu členů klanu.
+clan_member_joined	vstoupil do klanu.
+clan_member_kicked	byl vyhozen z klanu
+clan_member_left	opustil klan.
+clan_name	Název klanu
+clan_name_and_abbr_are_not_valid	Tato přezdívka nebo zkratka je už zabraná
+clan_name_default_text	Zadej název klanu
+clan_name_is_not_valid	Tato přezdívka je už zabraná
+clan_options_tab	Nastavení
+clan_players_level_label	Úr.
+clan_players_list_availabe_postfix	možných
+clan_players_list_availabe_prefix	Seznam hráčů 
+clan_players_name_label	Název
+clan_players_rank_label	Hodnost
+clan_players_ready	Připraven
+clan_players_status_label	Stav
+clan_rank	Hodnocení klanu
+clan_rank_assistant	Zástupce velitele
+clan_rank_commander	Velitel
+clan_rank_soldier	Vojín
+clan_rank_warlord	Seržant
+clan_registration_cost	Cena\nregistrace
+clan_registration_paid	Zaplaceno
+clan_reserve_name_button_label	Založit účet
+clan_system_message_sender	Systémová zpráva klanu
+clan_team_commander	Polní velitel
+clan_team_invite_2	byl úspěšně pozván do klanového týmu.
+clan_team_invites	Žádosti
+clan_team_is_full	Dosáhl jsi maximálního počtu hráčů pro klanový zápas.
+clan_team_reserve	Záloha
+clan_team_soldier	Sestava týmu
+clan_team_window_label	Sestava týmu
+clan_was_disbanded	Velitel rozpustil tvůj klan.
+clan_window_close_message	Opravdu chceš opustit tým?
+clan_window_close_message_commander	Opravdu chceš opustit tým?
+clan_window_label	Registrace klanu
+clear	Vymazat
+close	Zavřít
+collect_statistics_option	Povolit sběr statistik
+compliment_count_per_day_owerflow	Dosáhl jsi denního limitu pochval.
+compliment_count_per_user_owerflow	Stejného hráče nemůžeš pochválit dvakrát za den!
+compliment_player	Pochválit
+confirm	Potvrdit
+conflict_message	Toto přiřazení změní následující:
+convert_weapon_slot_to_pocket_description	Získáš další slot na speciální vybavení, ale nemůžeš nosit druhou zbraň.
+convert_weapon_slot_to_pocket_name	Hluboké kapsy
+cost	Cena
+count	Počet
+craft	Vylepšit
+craft_message_broken_item	Poškozený předmět nelze vylepšit.
+craft_message_equipped_item	Při hledání zápasu nemůžeš vylepšovat nasazené předměty.
+craft_message_modifers_count	Další vylepšení není možné. Předmět už má maximální počet bonusů.
+craft_message_modifiers_difference	Předmět s více bonusy nelze použít jako zdroj. Chceš je prohodit?
+craft_result_fail_label	Bohužel se ti nešikovným zásahem podařilo předmět zhoršit.
+craft_result_neutral_label	Předmět se bohužel nepodařilo vylepšit.
+craft_result_success_label	Předmět úspěšně vylepšen!
+critical_damages	Kritická zranění
+crosshair_static_option	Pevný zaměřovač
+crosshair_type_option	Vybrat zaměřovač
+crouch_action	Přikrčení (držet)
+crouch_toggle_action	Přikrčit se
+ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už je plný.
+current_value	\nAktuální hodnota:
+daily_bonus_description	Hraj každý den a za <highlight>první tři</highlight> výhry získáš <highlight>x2</highlight> zkušenosti i pověst.
+daily_bonus_hint	Zobrazit uvítací obrazovku
+daily_bonus_label	Vítej zpátky
+daily_bonus_progress	Tvůj dnešní postup
+daily_bonus_reward_complete	<gold>Hotovo</gold>
+daily_bonus_reward_description	<gold>7. den</gold> získáš
+daily_bonus_victories	vítězství
+daily_message_label	Zpráva dne:
+day_short	d.
+dealy_breath_action	Zadržet dech
+decal_editor_description	Levé tlačítko myši — umístit nášivku\nALT — otočit nášivku\nCTRL — změnit velikost
+decal_editor_label	Režim úprav
+decal_slot	Nášivka
+decorations_options	Kvalita dekorací
+default_profile_name1	Profil 1
+default_profile_name2	Profil 2
+default_profile_name3	Profil 3
+default_scope_name	Základní optika
+defeat	Porážka
+defuse_trap	Vypnout ({USE})
+disband_clan_message	Opravdu chceš rozpustit klan?
+disband_clan_money_message	Opravdu chceš rozpustit klan? Stříbro vložené na registrační účet propadne.
+disband_squad	Rozpustit četu
+disconnected_from_lobby	Spojení se serverem lobby přerušeno!
+dispersion_correction_perc_name	Rozptyl při střelbě od boku
+dispersion_from_hip_description	Přesnost střelby od boku:
+dispersion_from_hip_name	Přesnost
+dispersion_movement_influence_description	Přesnost za pohybu:
+dispersion_movement_influence_name	Pevný úchop
+dont_have_permission	Na tuto akci nemáš oprávnění.
+drop	Sundat
+drop_action	Zahodit
+drop_card_descr	Po zápase použij mapu skrýše a najdi další předměty.
+drop_card_name	Mapa skrýše
+duty_026_boots_desc	Těžké obrněné boty, které bojovníci Povinnosti nosí ke své těžké zbroji.
+duty_026_boots_name	Boty Povinnosti
+duty_026_gloves_desc	Zesílené rukavice bez prstů, které bojovníci Povinnosti nosí ke své těžké zbroji.
+duty_026_gloves_name	Rukavice Povinnosti
+duty_026_head_desc	Utěsněná přilba experimentálního exoskeletu Povinnosti s vestavěným respirátorem. Kryje celou hlavu i obličej.
+duty_026_helmet_name	Přilba exoskeletu Povinnosti
+duty_026_suit_desc	Experimentální vojenský exoskelet. Kvůli vysoké ceně a konstrukčním nedostatkům se nikdy sériově nevyráběl. Malé série stále vznikají v podzemních dílnách mimo Ukrajinu. Má vestavěný kontejner na artefakty.
+duty_026_suit_name	Exoskelet Povinnosti
+edge_accuracy_descr	Jedna přesná rána je lepší než tucet do vzduchu. Zvlášť dnes, kdy je každý náboj vzácnost. Dokaž, že si zasloužíš jméno lovec.
+edge_accuracy_name	Ostrostřelec
+edge_accuracy_obj	Vyhraj zápas s přesností:
+edge_back_1_desc	Artefakty jsou specialitou Osadníků okraje. Pokud je umíš hledat a víš, co s nimi, tenhle velký kontejner na 2 artefakty je spolehlivá volba. 
+edge_back_1_name	Kontejner Dar 2M
+edge_back_2_desc	Popis zatím není k dispozici.
+edge_back_2_name	Stalkerův batoh
+edge_back_3_desc	Popis zatím není k dispozici.
+edge_back_3_name	Dýchací systém Vánek
+edge_back_5_desc	Popis zatím není k dispozici.
+edge_back_5_name	Kontejner Tulák
+edge_back_6_desc	Popis zatím není k dispozici.
+edge_back_6_name	Kontejner Poutník
+edge_boots_1_desc	Vysoké lehké boty s měkkou podrážkou. Ideální pro tiché stopování kořisti. Na dlouhých cestách méně unavují. 
+edge_boots_1_name	Lovecké boty
+edge_boots_2_desc	Popis zatím není k dispozici.
+edge_boots_2_name	Stalkerovy boty
+edge_boots_3_desc	Popis zatím není k dispozici.
+edge_boots_3_name	Průzkumníkovy boty
+edge_boots_4_desc	Popis zatím není k dispozici.
+edge_boots_4_name	Mistrovy boty
+edge_boots_5_desc	Popis zatím není k dispozici.
+edge_boots_5_name	Strážcovy boty
+edge_boots_6_desc	Popis zatím není k dispozici.
+edge_boots_6_name	Boty Poutník
+edge_bring_x_items_descr	Země nesnese násilí. Každá jiskra agrese vyvolá další odpověď přírody. Říkáme jí Bouře. Naučili jsme se před ní chránit, ale potřebujeme baterie pro ochranné zařízení.
+edge_bring_x_items_name	Hledač
+edge_bring_x_items_obj	Najdi a dones baterie:
+edge_defend_items_descr	Chránit své území je posvátnou povinností každého Osadníka okraje. Jestli neuhlídáš základnu před vypleněním, jak chceš zachránit lidstvo před vyhynutím? 
+edge_defend_items_name	Strážce
+edge_defend_items_obj	Vyhraj zápas bez ztráty baterie
+edge_find_artifacts_descr	Naše síla je v souladu s přírodou. Artefakty jsou dar od někoho mnohem moudřejšího, než jsme my. Pokud nám pomůžou přežít, bylo by hloupé je nevyužít.
+edge_find_artifacts_name	Dary přírody
+edge_find_artifacts_obj	Najdi v jednom zápase artefakty:
+edge_gloves_2_desc	Popis zatím není k dispozici.
+edge_gloves_2_name	Stalkerovy rukavice
+edge_gloves_3_desc	Popis zatím není k dispozici.
+edge_gloves_3_name	Průzkumníkovy rukavice
+edge_gloves_4_desc	Popis zatím není k dispozici.
+edge_gloves_4_name	Mistrovy rukavice
+edge_gloves_5_desc	Popis zatím není k dispozici.
+edge_gloves_5_name	Strážcovy rukavice
+edge_gloves_6_desc	Popis zatím není k dispozici.
+edge_gloves_6_name	Rukavice Poutník
+edge_grenade_enemies_descr	Když zbraně neprostřelí vestu, granát se vždycky hodí. Jeden přesný hod a ze soupeře je potrava pro červy.
+edge_grenade_enemies_name	Vrhač
+edge_grenade_enemies_obj	Zabij v jednom zápase nepřátele granátem:
+edge_headshots_descr	V reálném světě se násilí bohužel těžko vyhneme. Když už musíme nepřítele zabít, udělejme to rychle, ranou do hlavy.
+edge_headshots_name	Slitování
+edge_headshots_obj	Zabij nepřátele zásahem do hlavy:
+edge_helmet_1_desc	Kapuce z pevné kůže chrání před deštěm, drobnými úlomky i slabými střelami.
+edge_helmet_1_name	Lovecká kapuce
+edge_helmet_3_desc	Popis zatím není k dispozici.
+edge_helmet_3_name	Průzkumníkův klobouk
+edge_helmet_4_desc	Popis zatím není k dispozici.
+edge_helmet_4_name	Mistrova kapuce
+edge_helmet_5_desc	Popis zatím není k dispozici.
+edge_helmet_5_name	Přilba Strážce
+edge_helmet_6_desc	Popis zatím není k dispozici.
+edge_helmet_6_name	Přilba Poutník
+edge_kd_ratio_descr	Jsi oběť, nebo predátor? Lovec, nebo kořist? Ve světě po apokalypse je každý sám za sebe. Přežijí jen nejsilnější.
+edge_kd_ratio_name	Přirozený výběr
+edge_kd_ratio_obj	Vyhraj zápas s poměrem zabití a úmrtí alespoň
+edge_legs_1_desc	Kalhoty ze silné kůže mutantů dobře chrání před anomáliemi i střelami malé ráže. Rychlost pohybu vyšší o 3%.
+edge_legs_1_name	Lovecké kalhoty
+edge_legs_2_desc	Popis zatím není k dispozici.
+edge_legs_2_name	Stalkerovy kalhoty
+edge_legs_3_desc	Popis zatím není k dispozici.
+edge_legs_3_name	Průzkumníkovy kalhoty
+edge_legs_4_desc	Popis zatím není k dispozici.
+edge_legs_4_name	Kalhoty Lešij
+edge_legs_5_desc	Popis zatím není k dispozici.
+edge_legs_5_name	Kalhoty Strážce
+edge_legs_6_desc	Popis zatím není k dispozici.
+edge_legs_6_name	Kalhoty Poutník
+edge_level_0	Neznámý
+edge_level_1	Lovec
+edge_level_10	Magistr
+edge_level_2	Lovec
+edge_level_3	Tulák
+edge_level_4	Stopař
+edge_level_5	Zasvěcenec
+edge_level_6	Stařešina
+edge_level_7	Mistr
+edge_level_8	Věštec
+edge_level_9	Strážce
+edge_level_unlock_0	Gratulujeme! Teď máš přístup k úkolům Osadníků okraje!
+edge_level_unlock_1	Gratulujeme! Teď jsi lovec Osadníků okraje!
+edge_level_unlock_10	Gratulujeme! Teď jsi magistr Osadníků okraje!
+edge_level_unlock_2	Gratulujeme! Teď jsi lovec Osadníků okraje!
+edge_level_unlock_3	Gratulujeme! Teď jsi tulák Osadníků okraje!
+edge_level_unlock_4	Gratulujeme! Byl jsi povýšen na stopaře Osadníků okraje!
+edge_level_unlock_5	Gratulujeme! Teď jsi zasvěcenec Osadníků okraje!
+edge_level_unlock_6	Gratulujeme! Teď jsi stařešina Osadníků okraje!
+edge_level_unlock_7	Gratulujeme! Byl jsi povýšen na mistra Osadníků okraje!
+edge_level_unlock_8	Gratulujeme! Teď jsi věštec Osadníků okraje!
+edge_level_unlock_9	Gratulujeme! Teď jsi strážce Osadníků okraje!
+edge_mask_2_desc	Popis zatím není k dispozici.
+edge_mask_2_name	Noční vidění
+edge_mask_5_desc	Popis zatím není k dispozici.
+edge_mask_5_name	Maska Strážce
+edge_meele_kill_descr	Příroda stvořila člověka silného a odvážného. Zbraně z něj udělaly slabocha a zbabělce. Pamatuj na to a nestřílej, když nemusíš.
+edge_meele_kill_name	Zákony přírody
+edge_meele_kill_obj	Zabij nepřátele zblízka:
+edge_rep_modifier	Pověst u Osadníků okraje
+edge_represent	Musíš mít oblečení Osadníků okraje, abys je mohl zastupovat.
+edge_reps_3_desc	Popis zatím není k dispozici.
+edge_resp_1_desc	Popis zatím není k dispozici.
+edge_resp_1_name	Respirátor Malachit
+edge_resp_3_name	Plynová maska Smaragd
+edge_steal_box_descr	Nepřátele nemusíš ničit vlastníma rukama. Stačí oslabit jejich ochranu před Bouří a příroda se postará o zbytek.
+edge_steal_box_name	Tajný přepad
+edge_steal_box_obj	Ukradni baterii z nepřátelské základny a dones ji na svou.
+edge_torso_1_desc	Lovecká bunda z kůže s ochrannými amulety proti hněvu přírody. Vlčí kožešina odhání dravce a děsí nepřátele. Praktická brašna nabízí místo na předměty.
+edge_torso_1_name	Lovecká bunda  
+edge_torso_2_desc	Popis zatím není k dispozici.
+edge_torso_2_name	Stalkerova bunda
+edge_torso_3_desc	Popis zatím není k dispozici.
+edge_torso_3_name	Průzkumníkova bunda
+edge_torso_4_desc	Popis zatím není k dispozici.
+edge_torso_4_name	Vesta Lešij
+edge_torso_5_desc	Popis zatím není k dispozici.
+edge_torso_5_name	Neprůstřelná vesta Strážce
+edge_torso_6_desc	Popis zatím není k dispozici.
+edge_torso_6_name	Neprůstřelná vesta Poutník
+edge_win_score_descr	Čím lepší ochranu před Bouří máme, tím snáz porazíme nepřátele. Čím víc baterií najdeme, tím míň jim zůstane. Bouře dokončí, co jsme začali.
+edge_win_score_name	Umění války
+edge_win_score_obj	Vyhraj zápas s donesenými bateriemi:
+edge_win_x_games_descr	Musíme být připraveni bránit sebe i svou zemi. Jen porážkou nepřítele si vybojujeme právo žít. Jen vítězstvím ochráníme své území před vpádem.
+edge_win_x_games_name	Na stráži
+edge_win_x_games_obj	Vyhraj zápasy:
+elo_after	Aktuální hodnocení
+elo_before	Hodnocení před bitvou
+empty_ammo_message	Nedostatek munice!
+empty_clan_string	Zadej název klanu
+empty_name_string	Zadej jméno
+enable_seeding_in_lobby_option	Povolit sdílení
+eng_active_time_desc	Aktivovaná zařízení vydrží fungovat déle.
+eng_active_time_name	Doba trvání
+eng_electronic_desc	Naučí tě zacházet s nejnovější elektronikou a prototypy.
+eng_electronic_name	Elektrotechnik
+eng_encrypting_desc	Chrání tvoji elektroniku před hackováním nepřítelem.
+eng_encrypting_name	Šifrování
+eng_explosive_master_desc	Zvyšuje poškození granátů a dalších výbušnin.
+eng_explosive_master_name	Expert na výbušniny
+eng_fast_recoil_desc	Zkracuje dobu, než můžeš zařízení znovu použít.
+eng_fast_recoil_name	Rychlý restart
+eng_hacker_desc	Umožňuje přeprogramovat nepřátelskou elektroniku na svou stranu.
+eng_hacker_name	Hacker
+eng_sapper_desc	Umožňuje nenápadně zneškodnit nepřátelské pasti.
+eng_sapper_name	Ženista
+engineer_succ_chance_corr_perc_name	Šance na úspěch
+engineer_use_time_corr_perc_name	Rychlost použití
+engineering_skills_descr	Zlepšuje tvoje zacházení s přístroji a zařízeními.
+engineering_skills_label	Technické dovednosti
+engineering_skills_name	Technické dovednosti
+enter_char_name	Zadej jméno
+enter_chat_message	Napiš zprávu
+enter_name_warning	Zakázané znaky
+enter_profile_name	Zadej název profilu
+enter_rank_name	Zadej název hodnosti
+enter_search_player_name	Zadej hledané jméno
+eotech_552_collimator_desc	Americký holografický zaměřovač EOTech. Místo svítícího bodu zobrazuje holografický obrazec a používá běžné AA baterie. Rozšířený u armády a policie.
+eotech_552_collimator_name	Kolimátor EOTech 552
+equipment_cost	Celková cena:
+equipment_level	Úroveň vybavení
+equipment_weight	Hmotnost
+equipped	Nasazeno
+error_during_storing_user_comment	Chyba databáze. Zkus to znovu.
+error_while_using_premium_access_voucher	Chyba při aktivaci prémiového účtu. Zkus to znovu.
+event_capture_the_point_description	Zabrání zařízení
+event_kill_invader_description	Zabití útočníka
+exchange_button	Směnit
+exchange_window_label	Směnit zlato za rubly
+exit_from_login	Odejít
+exit_game_confirm_accept	Odejít
+exit_game_confirm_cancel	Zrušit
+exit_game_confirm_text	Opravdu chceš ukončit hru?
+exit_match_confirm_accept	Ukončit
+exit_match_confirm_cancel	Zrušit
+exit_match_confirm_text	Opravdu chceš opustit zápas?
+exp_reward_match	Získané zkušenosti
+exp_reward_premium	Prémiový bonus
+experience	Zkušenosti
+experience_modifier	Obdržené zkušenosti
+face_069d_balaclava_3_hole_desc	Pletená kukla s otvory pro oči a ústa. Hřeje a skrývá obličej.
+face_069d_balaclava_3_hole_name	Kukla se třemi otvory
+face_069d_balaclava_desc	Přiléhavá vojenská kukla s jedním otvorem pro oči, určená pod přilbu.
+face_069d_balaclava_name	Kukla
+face_069d_buff_desc	Nákrčník s potiskem lebky, přetažený přes ústa a nos. Skrývá obličej a chrání před prachem.
+face_069d_buff_name	Nákrčník
+face_069d_keffiyeh_desc	Bavlněný šátek omotaný kolem hlavy a obličeje. Chrání před prachem a větrem a trochu tlumí lehké údery.
+face_069d_keffiyeh_name	Kefíja
+face_069d_protective_mask_desc	Plátěná kapuce se svářečskými brýlemi a filtrem před ústy. Kryje celou hlavu a proti střepinám chrání lépe než proti výparům.
+face_069d_protective_mask_name	Ochranná maska
+faction_1_description	Vybavení Mrchožroutů je určené pro boj na střední a dlouhou vzdálenost i přežití v anomáliích. Veteráni mají přístup k odstřelovačským puškám.
+faction_2_description	Kožené vybavení Černého trhu se do anomálií moc nehodí, ale jinak chrání dobře. Zbraně jsou určené pro boj zblízka, elitní bojovníci používají AK74u.
+faction_3_description	Vojáci Armády znovuzrození mají nejširší výběr vybavení a zbraní. Bojují na jakoukoli vzdálenost i v zamořených oblastech. Ti nejlepší získají přístup k supertěžkým vestám a kulometům.
+faction_4_description	Vybavení Osadníků okraje nejlépe chrání před anomáliemi a skvěle se hodí k hledání a používání artefaktů. Jejich zbraně jsou lepší pro přepady než pro otevřený boj.
+faction_blackmarket_blocked_text	Černý trh ti odmítá zadat úkoly
+faction_edge_blocked_text	Vyžaduje nejvyšší pověst u Mrchožroutů nebo Černého trhu
+faction_info	Informace
+faction_join	Připojit se
+faction_mercenaries_blocked_text	Omega ti odmítá zadat úkoly
+faction_renaissance_blocked_text	Vyžaduje nejvyšší pověst u Mrchožroutů nebo Černého trhu
+faction_reputation_label	Pověst u frakce
+faction_scavengers_blocked_text	Mrchožrouti ti odmítají zadat úkoly
+faction_scientists_blocked_text	Vědci ti odmítají zadat úkoly
+fall_damage_description	Poškození pádem:
+fall_damage_name	Výsadkář
+few_alpha_clan_string	Neplatné jméno
+filter_all	Zobrazit vše
+filter_ammo	Munice
+filter_ammo_assault_rifle	Útočné pušky
+filter_ammo_machine_gun	Kulomety
+filter_ammo_pistol	Pistole
+filter_ammo_shotgun	Brokovnice
+filter_ammo_sniper_rifle	Odstřelovačské pušky
+filter_ammo_submachine_gun	Samopaly
+filter_assault_rifle	Útočné pušky
+filter_body_armor	Neprůstřelné vesty
+filter_boots	Boty
+filter_camo	Kamufláž
+filter_decal	Nášivky
+filter_device	Zařízení
+filter_equipment	Vybavení
+filter_gloves	Rukavice
+filter_grenade	Granáty
+filter_helmet	Přilba
+filter_inventory	Inventář
+filter_items	Předměty
+filter_machine_gun	Kulomety
+filter_mask	Maska
+filter_medkit	Léky
+filter_mine	Miny
+filter_pants	Kalhoty
+filter_pistol	Pistole
+filter_rig	Vybavení
+filter_scaner	Skenery
+filter_shop	Obchod
+filter_shop_and_inventory	Inventář a obchod
+filter_shotgun	Brokovnice
+filter_sniper_rifle	Odstřelovačské pušky
+filter_stimulator	Stimulanty
+filter_submachine_gun	Samopaly
+filter_upgrades	Vylepšení
+filter_vouchers	Spotřební předměty
+filter_weapons	Zbraně
+final_countdown	Čekání na začátek zápasu:
+find_player	Najít hráče
+finish_match_mode_02_loser_message	Porážka. Nepřátelský tým sebral všechny baterie.
+finish_match_mode_02_winner_message	Vítězství! Tvůj tým sebral všechny baterie.
+finish_match_mode_03_loser_message	Porážka. Nepřátelský tým sebral všechny baterie.
+finish_match_mode_03_winner_message	Vítězství! Tvůj tým sebral všechny baterie.
+finish_match_mode_04_loser_message	Porážka. Tvůj tým byl zničen.
+finish_match_mode_04_winner_message	Vítězství! Všichni nepřátelé byli poraženi.
+finish_match_mode_05_draw_message	Remíza. Oba týmy provedly stejně výzkumu
+finish_match_mode_05_loser_message	Porážka. Nepřítel dokončil výzkum anomální aktivity
+finish_match_mode_05_winner_message	Vítězství! Tvůj tým dokončil výzkum anomální aktivity
+first_weapon_action	Zbraň 1
+fix	Opravit
+fn_fnc_description	Belgická útočná puška na náboje 5.56x45. Vyvinutá FN Herstal v 70. letech, zavedená v belgické armádě. Licenční verze slouží ve Švédsku a Indonésii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
+fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Herstal ji kolem roku 1990 vyvinulo společně s vlastním nábojem. Bullpup se zásobníkem na 50 nábojů podél horní části. Používá ji policie a speciální síly mnoha zemí. Střílí jednotlivě i automaticky.
+fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
+fov_option	FOV
+freedom_026_boots_desc	Těžké obrněné boty v barvách Svobody, nošené k těžké zbroji.
+freedom_026_boots_name	Boty Svobody
+freedom_026_gloves_desc	Zesílené rukavice bez prstů v barvách Svobody, nošené k těžké zbroji.
+freedom_026_gloves_name	Rukavice Svobody
+freedom_026_head_desc	Utěsněná přilba exoskeletu Svobody s vestavěným respirátorem. Kryje celou hlavu i obličej.
+freedom_026_helmet_name	Přilba exoskeletu Svobody
+freedom_026_suit_desc	Experimentální vojenský exoskelet přebarvený do barev Svobody. Cena a konstrukční vady zabránily sériové výrobě. Malé série stále vznikají v podzemních dílnách. Má vestavěný kontejner na artefakty.
+freedom_026_suit_name	Exoskelet Svobody
+friend_options_label	Možnosti přítele
+friend_search_hint	Hledej stisknutím Enter
+friend_state_away	Pryč
+friend_state_game	Online
+friend_state_lobby	Lobby
+friend_state_offline	Offline
+friendly_user_compliment	Přátelský
+friends_online	Přátelé online
+friends_signin_notification_option	Upozornit na připojení přátel
+fullscreen_option	Celá obrazovka
+general_volume_option	Mistr
+generic_money_name	Rubly
+geometry_quality_option	Kvalita geometrie
+go_to_knowledge_base_message	Znalostní báze se otevře v novém okně prohlížeče.
+go_to_online_store_message	Online obchod se otevře v prohlížeči. Pokračovat?
+go_to_video_tutorial_message	Videonávod se otevře v prohlížeči. Pokračovat?
+gold_2	X zlata
+good_player_compliment	Skvělý hráč
+goto_shop	Do obchodu
+graphics_quality_option	Kvalita grafiky
+grenade_throw_power_description	Délka hodu:
+grenade_throw_power_name	Granátník
+health_regen_correction_perc_name	Regenerace
+hide_ammo	Skrýt munici
+hide_interface_action	Skrýt rozhraní
+hide_quest_list	Skrýt okno úkolů
+hide_spam_option	Skrýt spam
+hide_squad_list	Skrýt okno čety
+hk416_description	Německá útočná puška na náboje 5.56x45. Úprava AR-15 od Heckler & Koch s pístem s krátkým zdvihem, zavedená v polovině 00. let. Slouží u speciálních sil a několika armád NATO. Tato má holografický zaměřovač EOTech 552. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+hk_mp7_description	Německá zbraň osobní obrany na náboje 4.6x30. Heckler & Koch ji vyvinul spolu s vlastním průbojným nábojem. Zavedena v roce 2001, slouží u Bundeswehru a policejních speciálních jednotek. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+hk_mp7_silencer_description	Německá zbraň osobní obrany na náboje 4.6x30, verze MP7A1 s tlumičem. Heckler & Koch ji vyvinul s vlastním průbojným nábojem. Slouží u Bundeswehru a policejních speciálních jednotek. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+hk_mp7_silencer_special_description	Německá zbraň osobní obrany na náboje 4.6x30, verze MP7A1 s tlumičem. Heckler & Koch ji vyvinul s vlastním průbojným nábojem. Slouží u Bundeswehru a policejních speciálních jednotek. Zásobník na 20 nábojů. Jednotlivá i automatická střelba. Prémiová verze se zvláštní kamufláží.
+hour_short	h.
+hud_tutorial_frame_0_text_1	Ovládání kamery
+hud_tutorial_frame_0_text_2	Rozhlížej se myší
+hud_tutorial_frame_1_text_1	Pohyb
+hud_tutorial_frame_1_text_2	Pohybuj se klávesami W, A, S, D
+hud_tutorial_frame_2_text_1	Režim míření
+hud_tutorial_frame_2_text_2	Miř podržením pravého\ntlačítka myši nebo stisknutím\nprostředního tlačítka
+hud_tutorial_frame_3_text_1	Sprint
+hud_tutorial_frame_3_text_2	Sprintuj podržením SHIFT\nnebo stisknutím X
+hud_tutorial_frame_4_text_1	Skok
+hud_tutorial_frame_4_text_2	Skoč stisknutím mezerníku
+hud_tutorial_frame_5_text_1	Přikrčit se
+hud_tutorial_frame_5_text_2	Přikrč se podržením CTRL\nnebo stisknutím C
+hud_tutorial_frame_6_text_1	Do boje!
+hud_tutorial_frame_6_text_2	Dokončil jsi základní bojový výcvik.\nHodně štěstí!
+hud_tutorial_frame_6_text_3	Tvoje odměna:
+ignored	Seznam blokovaných
+in_develepoment_hint	Ve vývoji
+ingame_volume_option	Hra
+injury_penalty_description	Postih k rozptylu při zranění rukou:
+injury_penalty_name	Vyrovnanost
+inv_activation_time_sec	Aktivace
+inv_activity_time_sec	Doba trvání
+inv_additional_ammo_bags	Sumky na munici
+inv_ano_armor	Izolace
+inv_armor	Ochrana
+inv_arp	Průbojnost
+inv_artefact_slots	Kontejner na artefakty
+inv_buckshot	Broky
+inv_clip_size	Nábojů v balení
+inv_clip_weight	Hmotnost balení 
+inv_damage	Poškození
+inv_damage_protection_infection	Ochrana před nákazou
+inv_damage_protection_pain	Práh bolesti
+inv_device_slots	Sloty na předměty
+inv_dispersion	Rozptyl
+inv_heal_amount	Léčení
+inv_heal_amount_infection	Dezinfekce 
+inv_heal_amount_pain	Znecitlivění
+inv_heal_broken_parts	Léčí těžká zranění
+inv_healing_body_head	Léčení: trup / hlava
+inv_healing_limbs	Léčení: ruce / nohy
+inv_item_weight	Hmotnost
+inv_magazine	Záložní munice
+inv_magazine_size	Zásobník
+inv_max_damage_distance	Vzdálenost  
+inv_move_speed_modifier	Rychlost pohybu
+inv_oxygen_amount	Zásoba kyslíku
+inv_pain_relief	Úleva od bolesti
+inv_reload	Rychlost přebíjení
+inv_rpm	Kadence
+inv_splash_radius	Poloměr výbuchu
+inv_stamina_regen	Obnova výdrže
+inv_stopingpower	Zastavovací účinek
+inventory_label	Inventář
+inventrory	Vybavení
+invite_from_friends_option	Pozvánky jen od přátel
+invite_to_clan	Pozvat do klanu
+invite_to_squad	Pozvat do čety
+item_bought	Nákup dokončen
+item_craft_description	Příprava je hotová, můžeš začít vylepšovat.
+item_craft_description_choose_donor	Vybrat zdrojový předmět
+item_craft_description_choose_item	Vyber předmět k vylepšení.
+item_craft_description_no_items	Vyber předmět k vylepšení.
+item_craft_donor_slot	Zdrojový předmět
+item_craft_fail_label	Šance na zhoršení (−1 bonus)
+item_craft_label	Vylepšit
+item_craft_main_slot	Vylepšovaný předmět
+item_craft_success_label	Šance na úspěch (+1 bonus)
+item_damage_state	Stav
+item_drop_chance_base	Základní šance na získání předmětu:
+item_drop_chance_by_premium	Prémiový účet
+item_drop_chance_label	Šance na získání předmětu
+item_drop_chance_match_result	Převaha v boji:
+item_drop_chance_penalty	Postih za nečinnost:
+item_drop_chance_team_premium	Prémioví hráči v zápase:
+item_hint_label	Inventář
+item_hint_label_shop	Obchod
+item_level	Úroveň předmětu
+item_modification	Změna bonusů
+item_piece_postfix	jednotek
+item_sell_precondition_faction_1	Vyžaduje pověst u Mrchožroutů
+item_sell_precondition_faction_2	Vyžaduje pověst u Černého trhu
+item_sell_precondition_faction_3	Vyžaduje pověst u Armády znovuzrození
+item_sell_precondition_faction_4	Vyžaduje pověst u Osadníků okraje
+item_sold	Předmět prodán
+items_notes	Zásoby
+items_notes_frame_1_text_1	Šanci na přežití zvýšíš,\nkdyž si do boje vezmeš zásoby
+items_notes_frame_1_text_2	Zásoby jsou granáty, lékárničky,\npasti, miny a podobně
+items_notes_frame_2_text_1	Zásoby se ukládají do kapes
+items_notes_frame_3_text_1	Počet kapes zvýšíš vybavením\ns odpovídající vlastností
+items_notes_frame_4_text_1	Do jednoho slotu se vejde omezený počet\npředmětů stejného typu 
+items_notes_frame_5_text_1	Kapacitu kapes zvýšíš vybavením\ns odpovídající vlastností
+izh27_bundle_descr	<white>Obsahuje:\n- Vylepšenou MP-27M Lancaster.\n- 1000 brokových nábojů 12x70.</white>
+izh27_bundle_name	Balíček MP-27M Lancaster
+izh27_description	Popis zatím není k dispozici.
+izh27_premium_2_description	Ruská kozlice ráže 12, vyráběná Iževským mechanickým závodem pod značkou Baikal. Jedna z nejrozšířenějších loveckých a sportovních dvojek. Dvě hlavně, každá na jednu ránu. Lze střílet zvlášť nebo oběma naráz. Prémiová verze se zvláštní kamufláží.
+jump_action	Skok
+kedr_description	Sovětský samopal na náboje 9x18 PM. Navržený Jevgenijem Dragunovem začátkem 70. let. Sériová výroba začala až v 90. letech pro ruské ministerstvo vnitra a policii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
+kick_clan_message	Opravdu chceš hráče vyhodit z klanu?
+kiparis_description	Samopal na náboje 9x18 PM navržený už v 70. letech, ale tehdy se sériově nevyráběl. Vrátil se do hry v 90. letech, kdy ruské ministerstvo vnitra potřebovalo samopaly. Zásobník na 30 nábojů.
+knowledge_skills_descr	Průzkum nového světa tě naučí lépe zacházet s artefakty a anomáliemi.
+knowledge_skills_name	Znalost světa
+knw_advanced_art_desc	Aktivované artefakty působí déle.
+knw_advanced_art_name	Znalec artefaktů
+knw_artefact_hunter_desc	Umožňuje používat nejnovější detektory artefaktů a zařízení na jejich bázi.
+knw_artefact_hunter_name	Lovec artefaktů
+knw_artefacts_desc	Umožňuje uvolnit vnitřní energii artefaktu a aktivovat ho.
+knw_artefacts_name	Aktivace artefaktu
+knw_covering_desc	V anomálii jsi lépe chráněn před odhalením.
+knw_covering_name	Pod krytím
+knw_empathy_desc	Zázračně vycítíš, když poblíž vznikne nový artefakt.
+knw_empathy_name	Cit pro přírodu
+knw_protecting_desc	V anomálii získáš lepší ochranu před střelbou a výbuchy.
+knw_protecting_name	Anomální štít
+knw_synergy_desc	Síla artefaktů roste s jejich počtem.
+knw_synergy_name	Synergie
+kriss_vector_description	Americký samopal na náboje .45 ACP. KRISS ho uvedl v 00. letech. Systém zpětného rázu vede závěr dolů a omezuje zdvih ústí. Tato verze má kolimátor Walther Competition II. Zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
+label_invites	Pozvánky
+label_leave_queue_btn	Opustit frontu
+label_quenue	Čekání na hráče:
+label_reports	Hlášení
+label_status	Stav
+label_support	Systémové zprávy
+label_teamA	Spojenci
+label_teamB	Protivníci
+label_time_average	Doba čekání:
+leave_button	Odejít
+leave_clan_message	Opravdu chceš opustit klan?
+leave_clan_money_message	Opravdu chceš opustit klan? Stříbro vložené na registrační účet propadne.
+leave_squad	Opustit četu
+left_strafe_action	Úkrok vlevo
+less_then_hour	méně než hodinu
+level_01_name	Rudňa
+level_02_name	Škola
+level_03_name	Radarová stanice Vostok
+level_04_name	Chemička
+level_05_name	Tarakanovská pevnost
+level_06_name	Mamajova mohyla
+level_07_name	Laboratoř Vektor
+level_08_name	Kolín nad Rýnem
+level_09_name	Londýn
+level_10_name	Radarová stanice Vostok (v0.21)
+level_11_name	Mamajova mohyla (v0.21)
+level_12_name	Chemička (v0.11)
+level_13_name	Radarová stanice Vostok (v0.11)
+lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
+lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
+lightning_quality_option	Kvalita osvětlení
+login_button_label	Vstoupit
+login_default_text	E-mail
+login_eula_label	Licenční smlouva
+login_menu_accept	Přijmout
+login_menu_cancel	Zrušit
+login_menu_status_access_level_restriction	Nemáš dostatečné oprávnění ke vstupu.
+login_menu_status_connecting	Přihlašování…
+login_menu_status_error_connection	Server Skhid není dostupný. Povol hru ve firewallu (Skhid-network-setup.cmd). V Rusku použij VPN a přidej do ní soubory .exe hry (VPN.txt).
+login_menu_status_invalid_user_or_password	Nesprávný e-mail nebo heslo
+login_menu_status_invalid_version	Používáš zastaralou verzi hry.
+login_menu_status_sign_in_already_online	 Uživatel už je ve hře
+login_menu_status_sign_in_attempt_interval_violated	Příliš mnoho pokusů o přihlášení. Zkus to za 10 sekund.
+login_menu_status_user_banned	Máš zákaz přístupu. 
+login_menu_status_user_not_confirmed	Účet není ověřený. Ověř ho pomocí odkazu zaslaného na tvůj e-mail.
+login_str	E-mail
+lost_modifier	Ztracený bonus
+loyalty_bonus_rep	Věrnostní bonus
+m4a1_description	Americká karabina na náboje 5.56x45. Kratší a lehčí vývoj M16, zavedený v americké armádě v 90. letech. Verze M4A1 střílí automaticky a používají ji speciální síly. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+magnum_description	Šestiranný revolver ráže .357 Magnum, uvedený v roce 1955. Podle některých patří k nejlepším ve své třídě. Vyniká hladkým chodem spouště a vysokou přesností.
+maintenance	Probíhá údržba serverů. Aplikace se zavře.
+map	Mapa
+match_items_found	Nalezeno
+match_making_level	Úroveň zápasu
+match_rewards	Odměna za úkol
+match_settings_checkbox_PVE	Volná hra
+match_settings_checkbox_PVE_hint	Režim přežití mezi ostatními hráči v drsných podmínkách nelítostného Lesa
+match_settings_checkbox_PVP	PvP
+match_settings_checkbox_PVP_hint	Bojový režim vybírá úroveň zápasu podle vybavení a rozděluje hráče do týmů podle osobního hodnocení
+match_settings_checkbox_battery_charge	Ochranné zařízení
+match_settings_checkbox_battery_charge_hint	Režim, ve kterém týmy sbírají baterie pro ochranná zařízení
+match_settings_checkbox_capture_points	Výzkum
+match_settings_checkbox_capture_points_hint	Bojový režim se zabíráním klíčových bodů
+match_settings_checkbox_clan_match_hint	Bojové režimy klanových týmů
+match_settings_checkbox_rank_match	Hodnocený zápas
+match_settings_checkbox_rank_match_hint	Souboj náhodně vybraných klanových týmů z klanového žebříčku
+match_settings_checkbox_team_match	Týmový deathmatch
+match_settings_checkbox_team_match_hint	Bojový režim, ve kterém musíš zcela vyřadit nepřátele
+match_settings_checkbox_tournament_match	Turnajový zápas
+match_settings_checkbox_tournament_match_hint	Souboj klanových týmů v probíhajícím turnaji
+match_settings_checkbox_training_match	Tréninkový zápas
+match_settings_checkbox_training_match_hint	Režim tréninkové místnosti
+match_settings_clan_match	Klanový zápas
+match_time_is_up	Čas zápasu vypršel!
+max_carried_weight_description	Nosnost:
+max_carried_weight_name	Atlet
+max_carried_weight_ultimate_description	Nesená hmotnost už nesnižuje rychlost pohybu, ale nemůžeš sprintovat.
+max_carried_weight_ultimate_name	Těžká váha
+med_combat_shock_desc	Následky těžkého zranění končetin se projeví až o několik sekund později.
+med_combat_shock_name	V zápalu boje
+med_farmacial_desc	Prodlužuje účinek léků.
+med_farmacial_name	Farmacie
+med_fast_use_desc	Výrazně zkracuje přípravu léků k použití.
+med_fast_use_name	Rychlé použití
+med_medical_desc	Umožňuje používat nejnovější léky a zdravotnické přístroje.
+med_medical_name	Zdravotník
+med_reanimation_desc	Výrazně zlepšuje stav oživených spojenců.
+med_reanimation_name	Oživování
+med_refining_desc	Zvyšuje účinnost léků.
+med_refining_name	Čištění léků
+med_revive_desc	Umožňuje oživit sám sebe, pokud máš potřebné zařízení.
+med_revive_name	Poslední vzepětí
+medicial_skills_descr	Zvyšuje šanci na přežití a učí používat léky a zdravotnické přístroje.
+medicial_skills_name	Přežití a první pomoc
+meele_hit_range_description	Dostupné v příští aktualizaci.
+meele_hit_range_name	Skok s nožem
+meele_hit_ultimate_description	Dostupné v příští aktualizaci.
+meele_hit_ultimate_name	Palice
+melee_action	Boj zblízka
+member_dont_have_battle_permission	Hráč nemá oprávnění stát se polním velitelem.
+mercenaries_faction	Žoldnéři
+message_reroll_text	Vrátit změny dovedností?
+messages_censor_option	Zapnout filtr vulgarit
+messages_only_from_friends_option	Soukromé zprávy jen od přátel
+microphone_sensitivity_option	Citlivost mikrofonu
+minimap	Minimapa
+minimap_bottom	Levý dolní roh
+minimap_off	Minimapa vypnutá
+minimap_position	Umístění minimapy
+minimap_rotable_option	Zafixovat minimapu
+minimap_top	Levý horní roh
+missile_weapon_action	Granát
+missions	Úkoly
+mm_button_back	Zpět
+mm_button_exit_to_os	Ukončit do Windows
+mm_button_leave_match	Opustit zápas
+mm_button_settings	Nastavení
+mm_match_found	Hledání zápasu dokončeno!\nČekání na server.
+mode_02_description	Blíží se Bouře. Jedinou šancí na přežití je najít na mapě baterie a obnovit ochranné stanice, které ji dokážou zneškodnit. Čím víc baterií najdeš, tím spolehlivější ochranu získáš. Vyhrává tým s nejvíce bateriemi.
+mode_02_name	Ochranné zařízení
+mode_03_description	Blíží se Bouře. Jedinou šancí na přežití je najít na mapě baterie a obnovit ochranné stanice, které ji dokážou zneškodnit. Čím víc baterií najdeš, tím spolehlivější ochranu získáš. Vyhrává tým s nejvíce bateriemi.
+mode_03_name	Ochranné zařízení
+mode_04_description	Upevni pozici svého týmu vyřazením co nejvíce nepřátel. Každé úmrtí ubere týmu jeden bod posil. Vyhrává tým, kterému na konci zápasu zbude nejvíc bodů.
+mode_04_name	Týmový deathmatch
+mode_05_description	Tvým úkolem je ovládnout mobilní výzkumné jednotky. Každá zabraná jednotka přináší týmu body výzkumu anomální aktivity. Vyhrává tým s nejvíce body na konci zápasu.
+mode_05_name	Výzkum
+modification_screen_edit_decal_hint	Velikost a umístění nášivky změníš kliknutím na její slot
+modification_screen_hint	Přetáhni kamufláž nebo nášivku z inventáře do slotu úprav předmětu
+modified	Upraveno
+modifier_reroll_description	Na předmětu můžeš měnit jen jeden bonus, ale kolikrát chceš. Při změně si vybereš jeden ze tří náhodných bonusů.
+modifier_reroll_timer_description	Za stříbro lze zkusit změnu jen jednou za 6 hodin.
+module_is_installed_on	Modul je nasazen na
+money	Peníze
+money_modifier	Získané stříbro
+money_reward_match	Odměna za zápas
+money_reward_premium	Prémiový bonus
+money_reward_quest	Odměna za úkol
+monitor_ajust	Nastavení monitoru
+monitor_count_option	Aktivní monitor
+mosin_description	Opakovací puška na náboje 7.62x54 mm. Zavedena v ruské carské armádě, osvědčila se v obou světových válkách. Pevný zásobník na 5 nábojů. 
+mosin_name	Karabina Mosin
+motion_blur_amount_options	Rozmazání pohybu
+mouse_invertion_option	Obrátit osu myši
+mouse_sensitivity_option	Citlivost myši
+move_backward_action	Dozadu
+move_forward_action	Dopředu
+move_speed_weapon_penalty_description	Velké zbraně už nesnižují rychlost pohybu.
+move_speed_weapon_penalty_name	Medvědí síla
+move_to_reserve	Do zálohy
+move_to_team	Přesunout do týmu
+movement_speed_correction_perc_name	Rychlost pohybu
+movement_speed_description	Rychlost pohybu:
+movement_speed_name	Rychlík
+movement_speed_when_aiming_description	Rychlost pohybu při míření:
+movement_speed_when_aiming_name	Bojový postoj
+mp153_description	Ruská samonabíjecí brokovnice na náboje 12x70. Nízká cena a spolehlivost jí zajistily oblibu mezi lovci a sportovními střelci. Trubicový zásobník pod hlavní na 4 náboje.
+msbs_carbine_description	Polská modulární karabina na náboje 5.56x45. Vyvinutá v 10. letech varšavskou vojenskou technickou univerzitou a zbrojovkou v Radomi. Polská armáda ji přijala jako Grot. Zaměřovač EOTech 552, zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
+multiplicative_breath_vibration_modifier	Chvění mířidel
+multiplicative_chamber_a_round_time_modifier	Doba nabití do komory
+multiplicative_device_damage_modifier	Poškození zařízením
+multiplicative_recoil_modifier	Zpětný ráz
+multiplicative_reliability_modifier	Spolehlivost
+multiplicative_reload_time_modifier	Rychlost přebíjení
+multiplicative_respawn_time_modifier	Čas oživení
+multiplicative_splash_radius_modifier	Poloměr výbuchu
+multiplicative_stamina_spending_modifier	Spotřeba energie
+munition	Výstroj
+music_volume_option	Hudba
+must_be_in_clan_team	Musíš být v klanovém týmu.
+my_place	Moje hodnost
+neostead_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány.
+neostead_premium_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány. Prémiová verze se zvláštní kamufláží.
+new_items_unlocked	Nové předměty v obchodě: X
+new_level_reached	Dosáhl jsi nové úrovně!
+new_modifier	Nový bonus
+next_ammo_action	Změnit typ munice
+next_fire_queue_action	Změnit režim střelby
+next_weapon	Další zbraň
+nickname	Název
+no_available_resolution	Nepodporováno
+no_faction_button_label	Výběr
+no_faction_message_label	Spolupráce s frakcemi
+no_faction_message_text	Frakce dodávají vybavení, zbraně a munici. Plněním jejich úkolů si zlepšuješ pověst a získáváš přístup k lepšímu zboží. Spolupracovat můžeš vždy jen s jednou frakcí.
+non_faction_items	Nezávislí obchodníci
+non_sport_behavior_claim	Zabití spoluhráče
+not_all_team_members_ready	Ne všichni hráči potvrdili připravenost.
+not_enough_money	Na transakci nemáš dost peněz.
+not_enought_money_for_repair	Nedostatek peněz na opravu
+not_enougth_money	Nedostatek prostředků
+not_enougth_money_for_reroll	Nedostatek peněz na reset dovedností 
+not_logged_id	Chyba identifikace. Restartuj hru.
+not_ready	Nepřipraven
+notes_if_you_read	Po přečtení
+notes_reward	získáš:
+novice_026_helmet_desc	Pletená čepice začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+novice_026_helmet_name	Nováčkova čepice
+of	z
+ok	OK
+on_enemy_theft_item	Nepřítel ukradl baterii z vaší základny. Zastav ho!
+on_spawn_victory_item	Baterie je nabitá! Dones ji na svou základnu.
+one_handed	Vedlejší
+online_store	Koupit zlato
+onyx_activation_hint	Onyx aktivován! Na %s s snižuje poškození a průbojnost příchozích střel o 75%.
+onyx_pickup_hint	Artefakt Onyx. Snižuje poškození a průbojnost střel zasahujících hráče o 5%.
+open	Otevřít
+options_adjust_gamma	Gama:
+options_apply	Použít
+options_cancel	Zrušit
+options_chat	Chat:
+options_chat_keys	Chat:
+options_controller	Ovládání
+options_cross_type	Zaměřovač:
+options_custom	Vlastní
+options_default_controls	Výchozí nastavení
+options_default_video	Výchozí nastavení
+options_friends	Přátelé:
+options_game	Hra:
+options_gameplay	Hra
+options_high	Vysoká
+options_lobby	Lobby:
+options_low	Nízká
+options_medium	Střední
+options_minimum	Minimální
+options_off	Vypnuto
+options_ok	OK
+options_on	Zapnuto
+options_optimal_video	Optimální nastavení
+options_sound	Zvuk
+options_ultra	Ultra
+options_video	Grafika
+options_voice	Hlas:
+options_volume	Hlasitost:
+other	Ostatní
+oust_commander	Změnit velitele
+overweight_penalty_description	Vliv hmotnosti na rychlost pohybu:
+overweight_penalty_name	Sběrač
+oxygen_tank_description	Kyslíková láhev vyrobená řemeslníky v táboře Mrchožroutů. Dýchací plyn se uchovává stlačený, ne zkapalněný.
+oxygen_tank_name	Kyslíková láhev
+pain_healt_correction_perc_name	Práh bolesti
+paperdoll_btn_ammo	Munice
+paperdoll_btn_fix	Opravit
+paperdoll_btn_weight	Hmotnost
+paperdoll_label	Postava
+particles_quality_options	Kvalita částic
+password_default_text	Heslo
+password_str	Heslo
+pause_game_action	Pauza
+pd_artefact	Artefakt
+pd_back	batoh
+pd_foot	boty
+pd_hands	rukavice
+pd_head	přilba
+pd_legs	kalhoty
+pd_mask	maska
+pd_torso	bunda
+pd_weapon	Zbraň
+personal_statistics	Osobní úspěchy
+phy_adrenalin_desc	Každý zásah mírně zvýší rychlost pohybu a obnoví část výdrže.
+phy_adrenalin_name	Příval adrenalinu
+phy_athlet_desc	Snižuje vliv nesené hmotnosti na rychlost pohybu.
+phy_athlet_name	Atlet
+phy_ignor_pain_desc	Při sprintu jsi mnohem méně citlivý na bolest.
+phy_ignor_pain_name	Potlačení bolesti
+phy_melee_rush_desc	Zvyšuje vzdálenost, na kterou můžeš zabít nepřítele zblízka.
+phy_melee_rush_name	Skok se zbraní
+phy_second_breath_desc	Při nízké výdrži ji můžeš plně obnovit. Lze použít jednou za minutu.
+phy_second_breath_name	Druhý dech
+phy_sprinter_desc	Zvyšuje rychlost sprintu.
+phy_sprinter_name	Sprinter
+phy_war_rage_desc	Zabití nepřítele zblízka plně obnoví výdrž a potlačí bolest ze zranění.
+phy_war_rage_name	Bojové šílenství
+physical_skills_descr	Zvyšuje rychlost pohybu, nosnost a obnovu výdrže.
+physical_skills_label	Fyzický výcvik
+physical_skills_name	Fyzický výcvik
+picatinny_scope_medium_name	Optiky / kolimátory
+pickup_item	Zvednout ({USE})
+pkp_pecheneg_description	Ruský univerzální kulomet na náboje 7.62x54R. Vyvinutý v CNIITOČMAŠ na základě PKM, zavedený v roce 2001. Těžká hlaveň s nuceným vzduchovým chlazením dovoluje dlouhé dávky bez výměny hlavně. Pás na 100 nábojů. Jednotlivá i automatická střelba.
+place	Místo
+play_button	Hrát
+player_equipment_level	Úroveň vybavení
+player_info_label	Informace o hráči:
+player_is_already_in_clan	Hráč už je v klanu.
+player_level	ÚROVEŇ
+player_not_found	Hráč nenalezen.
+player_skills_check_failed	Chyba při potvrzení vylepšení dovedností.
+players_list_filter_text	Filtrovat podle jména
+pm_description	Pistole Makarov na náboje 9x18 PM. Navržená v roce 1948 jako náhrada Tokarevu. Zavedena jako osobní zbraň armády a bezpečnostních složek. Zásobník na 8 nábojů.
+pockets	Kapsy
+point	bod
+points_aviable	Dostupné body
+points_earned	Tvoje úroveň
+post_process_options	Kvalita následných efektů
+pp2000_description	Popis zatím není k dispozici.
+ppsh_description	Špaginův samopal, legendární zbraň vítězství. V některých zemích sloužil až do konce 80. let. Schránkový zásobník na 35 nábojů.
+premium	Premium
+premium_3_day	3 dny
+premium_3_day_descr	(72 hodin)
+premium_3_month	3 měsíce
+premium_3_month_descr	(90 dní)
+premium_6_month	6 měsíců
+premium_6_month_descr	(180 dní)
+premium_access_1d_voucher_descr	Tento poukaz aktivuje prémiový účet na jeden den.
+premium_access_1d_voucher_name	Prémiový účet
+premium_action	Akce!
+premium_advert	Aktivuj Premium teď\na získej všechny bonusy za tento zápas
+premium_ally_members	Díky prémiovým hráčům
+premium_bonus	Zkušenosti\nPříjem\nPověst
+premium_bonus_experience	VÍCE ZKUŠENOSTÍ!
+premium_bonus_item_search	BONUS K HLEDÁNÍ PŘEDMĚTŮ!
+premium_bonus_money	ODMĚNA ZA BOJ!
+premium_bonus_profile	Profil vybavení
+premium_bonus_reputation	BONUS K POVĚSTI U FRAKCE!
+premium_button_advert	Koupit PREMIUM
+premium_day	24 hodin
+premium_day_descr	(24 hodin)
+premium_discount	Sleva
+premium_left	Zbývá:
+premium_money	Zlato
+premium_money_name	Zlato
+premium_month	Měsíc
+premium_month_descr	(30 dní)
+premium_post_reward_descr	Aktivuj prémiový účet teď\na získej jako odměnu všechny bonusy\nza minulý týden!
+premium_post_reward_label	S prémiovým účtem získáš víc!
+premium_profile_hint	Dostupné s prémiovým účtem
+premium_profile_unlock_description	Třetí profil vybavení je dostupný jen s prémiovým účtem
+premium_reward_part_1	Po boji najdeš 
+premium_reward_part_2	více předmětů
+premium_week	Týden
+premium_week_descr	(7 dní)
+premium_year	Rok
+premium_year_descr	(365 dní)
+prepare_to_battle_notes	Příprava na boj
+prepare_to_battle_notes_frame_1_text_1	V zápase jsou dva týmy
+prepare_to_battle_notes_frame_2_text_1	Spojence poznáš podle symbolů\nnad jejich hlavami
+prepare_to_battle_notes_frame_2_text_2	zobrazit jména spoluhráčů
+prepare_to_battle_notes_frame_3_text_1	Buď opatrný, nepřítel\nmůže být ukrytý
+prepare_to_battle_notes_frame_3_text_2	Pohybuj se opatrně
+prepare_to_battle_notes_frame_4_text_1	Ukazatel zranění zobrazuje\naktuální stav těla
+prepare_to_battle_notes_frame_4_text_2	Použij lékárničku. Zmírní bolest\na ošetří zranění
+prepare_to_battle_notes_frame_5_text_1	Ruka nebo noha může\nutrpět těžké zranění
+prepare_to_battle_notes_frame_5_text_2	To zhoršuje přesnost střelby\na rychlost pohybu
+prepare_to_battle_notes_frame_6_text_1	Se zlomenýma oběma rukama\nnemůžeš používat\nobouruční zbraně
+prepare_to_battle_notes_frame_7_text_1	Se zlomenýma oběma nohama\nse nemůžeš pohybovat
+prev_weapon	Předchozí zbraň
+private_messages_in_game_option	Skrýt chat v zápase
+profile	Profil
+profile_check_failed	Bez zbraně nemůžeš do boje!
+profile_check_failed_weapon	Bez zbraně nemůžeš do boje!
+profile_check_failed_weapon_ammo	Nemůžeš do boje, v batohu nemáš dost munice!
+profile_check_failed_weapon_ammo_in_inv	Nemůžeš do boje, v inventáři nemáš dost munice!
+profile_play_time	Herní doba
+profile_rename	Přejmenovat profil
+profile_rename_label	Přejmenovat profil
+profile_selection_warning	Při změně profilu trvá oživení 20 sekund
+profile_warning_weapon	Bez zbraně nemůžeš do boje!
+profile_warning_weapon_ammo	Nemůžeš do boje, v batohu nemáš dost munice!
+profile_warning_weapon_ammo_in_inv	Nemůžeš do boje, v inventáři nemáš dost munice!
+ptt_action	PTT
+ptt_button_option	PTT
+put_item	Položit ({USE})
+quest_change_warning	Pozor! Změna úkolů sníží loajalitu k frakci!
+quest_completed	Úkol splněn!
+quest_failed	Úkol nesplněn!
+quest_progress	Postup úkolu
+quest_reward_info	Konečná odměna závisí na úrovni zápasu
+quests	Úkoly
+quests_label	Úkoly
+quests_progress_text_alpha_option	Průhlednost
+quick_fix	Rychlá oprava
+quick_use_action_1	Předmět 1
+quick_use_action_2	Předmět 2
+quick_use_action_3	Předmět 3
+quick_use_action_4	Předmět 4
+quick_use_action_5	Předmět 5
+quick_use_action_6	Předmět 6
+rank_up_to_commander_message	Opravdu chceš předat tomuto hráči velení klanu?
+ranking	Žebříček
+ranking_diff	Rozdíl
+rattle_activation_hint	Chřestítko aktivováno! Nepřátelé neslyší tvoje kroky.
+rattle_pickup_hint	Artefakt Chřestítko. Ztišuje kroky o 50%.
+rdgm_descr	Popis zatím není k dispozici.
+rdgm_name	Kouřový granát RDG-M
+reach_level	dosáhl <green>úrovně</green>
+ready	Připraven
+refill_ammo_btn	Použít
+refill_ammo_label	Munice
+regen_booster_description	Staré vojenské příděly. Před krizí je úspěšně používaly armády zemí SNS. Zrychlují metabolismus a pořád chutnají docela dobře.
+regen_booster_name	Vojenský příděl
+registration_str	Vytvořit účet
+regular_fix	Opravit
+regular_money	Stříbro
+reload_speed_description	Rychlost přebíjení
+reload_speed_name	Přebít
+relocate	Přesunout
+rem700_description	Americká puška na náboje 7.62x51. Osvědčila se ve sportu, lovu i jako odstřelovačská zbraň. Zásobník na 5 nábojů.
+rem700_premium_description	Americká puška na náboje 7.62x51. Osvědčila se ve sportu, lovu i jako odstřelovačská zbraň. Zásobník na 5 nábojů. Prémiová verze se zvláštní kamufláží.
+rem870_description	Americká opakovací brokovnice na náboje 12x70. Rozšířená u policie i lovců. Lovecká verze má pod hlavní trubicový zásobník na 4 náboje. 
+remove	Odebrat
+remove_from_friends	Odebrat z přátel
+remove_from_ignore	Odebrat z ignorovaných
+remove_from_squad	Odebrat z čety
+remove_from_team	Vyhodit z týmu
+ren_back_1_desc	Popis zatím není k dispozici.
+ren_back_1_name	Útočný batoh
+ren_back_3_desc	Popis zatím není k dispozici.
+ren_back_3_name	Láhev Zarja 4N
+ren_back_5_desc	Popis zatím není k dispozici.
+ren_back_5_name	Láhev UKV-1
+ren_boots_1_desc	Spolehlivé vojenské boty chrání nohy před mechanickým poškozením a menšími pastmi. 
+ren_boots_1_name	Vojenské boty
+ren_boots_3_desc	Popis zatím není k dispozici.
+ren_boots_3_name	Průzkumnické boty
+ren_boots_4_desc	Popis zatím není k dispozici.
+ren_boots_4_name	Zesílené boty
+ren_boots_5_desc	Popis zatím není k dispozici.
+ren_boots_5_name	Boty OZK-18KB
+ren_boots_6_desc	Popis zatím není k dispozici.
+ren_boots_6_name	Boty Zubr UM-4
+ren_gloves_1_desc	Popis zatím není k dispozici.
+ren_gloves_1_name	Útočné rukavice
+ren_gloves_4_desc	Popis zatím není k dispozici.
+ren_gloves_4_name	Zesílené rukavice
+ren_gloves_5_desc	Popis zatím není k dispozici.
+ren_gloves_5_name	Rukavice OZK-18KB
+ren_gloves_6_desc	Popis zatím není k dispozici.
+ren_gloves_6_name	Rukavice Zubr UM-4 
+ren_helmet_1_desc	Sovětská výsadkářská přilba. Pro Armádu znovuzrození má velký symbolický význam. Dobře chrání hlavu před nárazy a všité ocelové pláty zastaví střely malé ráže.
+ren_helmet_1_name	Výsadkářská přilba
+ren_helmet_2_desc	Popis zatím není k dispozici.
+ren_helmet_2_name	Přilba Viťaz-S
+ren_helmet_3_desc	Popis zatím není k dispozici.
+ren_helmet_3_name	Průzkumnická přilba
+ren_helmet_4_desc	Popis zatím není k dispozici.
+ren_helmet_4_name	Přilba Molot UM-2
+ren_helmet_5_desc	Popis zatím není k dispozici.
+ren_helmet_5_name	Přilba OZK-18KB
+ren_helmet_6_desc	Popis zatím není k dispozici.
+ren_helmet_6_name	Přilba Zubr UM-4
+ren_legs_1_desc	Maskovací kalhoty s podomácku zesílenými chrániči kolen. Kvalitní výroba a pohodlný střih umožňují volný pohyb a zrychlují i plně vybaveného vojáka. Mají kapsu navíc. 
+ren_legs_1_name	Vojenské kalhoty
+ren_legs_2_desc	Popis zatím není k dispozici.
+ren_legs_2_name	Kalhoty Šturm
+ren_legs_3_desc	Popis zatím není k dispozici.
+ren_legs_3_name	Průzkumnické kalhoty
+ren_legs_4_desc	Popis zatím není k dispozici.
+ren_legs_4_name	Kalhoty Molot UM-2
+ren_legs_5_desc	Popis zatím není k dispozici.
+ren_legs_5_name	Kalhoty OZK-18KB
+ren_legs_6_desc	Popis zatím není k dispozici.
+ren_legs_6_name	Kalhoty Zubr UM-4
+ren_mask_2_desc	Popis zatím není k dispozici.
+ren_mask_2_name	Útočná maska
+ren_mask_3_desc	Popis zatím není k dispozici.
+ren_mask_3_name	Respirátor Zanaves
+ren_mask_5_desc	Popis zatím není k dispozici.
+ren_mask_5_name	Plynová maska PMK-7S
+ren_rep_modifier	Pověst u Armády znovuzrození
+ren_torso_1_desc	Běžná vojenská vesta třídy II, upravená pro svět po apokalypse. Velké množství sumek nabízí maximum místa na munici a vybavení.
+ren_torso_1_name	Vojenská neprůstřelná vesta
+ren_torso_2_desc	Popis zatím není k dispozici.
+ren_torso_2_name	Neprůstřelná vesta Šturm
+ren_torso_3_desc	Popis zatím není k dispozici.
+ren_torso_3_name	Neprůstřelná vesta Sokol
+ren_torso_4_desc	Popis zatím není k dispozici.
+ren_torso_4_name	Vesta Molot UM-2
+ren_torso_5_desc	Popis zatím není k dispozici.
+ren_torso_5_name	Vesta OZK-18KB
+ren_torso_6_desc	Popis zatím není k dispozici.
+ren_torso_6_name	Neprůstřelná vesta Zubr UM-4
+renaissance_bring_x_items_descr	Nový svět nás staví před nové výzvy. K přežití nestačí porazit nepřítele. Musíme aktivovat zvláštní zařízení, které nás ochrání před Bouří.
+renaissance_bring_x_items_name	Ochrana před Bouří
+renaissance_bring_x_items_obj	Najdi a dones baterie:
+renaissance_defend_items_descr	Ve válce není nic nepodstatné. Dobrá obrana je stejně důležitá jako útok. Braň základnu před nepřáteli a nenech přijít nazmar krev svých spolubojovníků.
+renaissance_defend_items_name	Spolehlivá obrana
+renaissance_defend_items_obj	Vyhraj zápas bez ztráty baterie
+renaissance_faction	Armáda znovuzrození
+renaissance_grenade_enemies_descr	Granáty se osvědčily v útoku i obraně. Rozhodně bys s nimi měl umět zacházet.
+renaissance_grenade_enemies_name	Granátník
+renaissance_grenade_enemies_obj	Zabij v jednom zápase nepřátele granátem:
+renaissance_headshots_descr	Dokaž, že se zbraněmi umíš. Je jedno, jestli držíš samopal nebo odstřelovačskou pušku. Dobrý voják vždycky míří přesně. 
+renaissance_headshots_name	Ostrostřelec
+renaissance_headshots_obj	Zabij nepřátele zásahem do hlavy:
+renaissance_kd_ratio_descr	Dobrý voják není fanatický hrdlořez. Sebeovládání a disciplína nás odlišují od davu a dělají silnějšími. Dokaž to v praxi! 
+renaissance_kd_ratio_name	Převaha!
+renaissance_kd_ratio_obj	Vyhraj zápas s poměrem zabití a úmrtí alespoň
+renaissance_kill_enemies_descr	Ve válce jako ve válce. Nejde vždy vyhrát s minimálními ztrátami, tak se s nepřítelem vypořádej rychle. Každý zabitý protivník nás přibližuje k vítězství!
+renaissance_kill_enemies_name	Palba na cíl
+renaissance_kill_enemies_obj	Zabij v jednom zápase protivníky:
+renaissance_killstreak_descr	Na bojišti tě čeká vojenská sláva. Zaslouží si ji ale jen opravdový hrdina. Dokaž, že jsi hoden titulu Hrdina Armády znovuzrození!
+renaissance_killstreak_name	Hrdina!
+renaissance_killstreak_obj	Dosáhni série zabití:
+renaissance_level_0	Neznámý
+renaissance_level_1	Vojín
+renaissance_level_10	Plukovník
+renaissance_level_2	Svobodník
+renaissance_level_3	Seržant
+renaissance_level_4	Rotmistr
+renaissance_level_5	Praporčík
+renaissance_level_6	Poručík
+renaissance_level_7	Kapitán
+renaissance_level_8	Major
+renaissance_level_9	Podplukovník
+renaissance_level_unlock_0	Gratulujeme! Odemkl jsi úkoly Armády znovuzrození!
+renaissance_level_unlock_1	Gratulujeme! Teď jsi vojín Armády znovuzrození!
+renaissance_level_unlock_10	Gratulujeme! Byl jsi povýšen na plukovníka Armády znovuzrození!
+renaissance_level_unlock_2	Gratulujeme! Teď jsi svobodník Armády znovuzrození!
+renaissance_level_unlock_3	Gratulujeme k hodnosti seržanta Armády znovuzrození!
+renaissance_level_unlock_4	Gratulujeme! Teď jsi rotmistr Armády znovuzrození!
+renaissance_level_unlock_5	Gratulujeme! Teď jsi praporčík Armády znovuzrození!
+renaissance_level_unlock_6	Gratulujeme! Teď jsi poručík Armády znovuzrození!
+renaissance_level_unlock_7	Gratulujeme! Byl jsi povýšen na kapitána Armády znovuzrození!
+renaissance_level_unlock_8	Gratulujeme! Teď jsi major Armády znovuzrození!
+renaissance_level_unlock_9	Gratulujeme! Teď jsi podplukovník Armády znovuzrození!
+renaissance_meele_kill_descr	Vojáci Armády znovuzrození jsou silní tělem i duchem. Výdrž a odvaha nás vedou k vítězství. Nauč se bránit v boji zblízka.
+renaissance_meele_kill_name	Rychlá reakce
+renaissance_meele_kill_obj	Zabij nepřátele zblízka:
+renaissance_represent	Musíš mít oblečení Armády znovuzrození, abys ji mohl zastupovat.
+renaissance_steal_box_descr	Bojovat tváří v tvář je čestné, ale ne vždy účinné. Dobrá sabotáž za nepřátelskou linií může zvrátit bitvu a přinést vítězství!
+renaissance_steal_box_name	Sabotér
+renaissance_steal_box_obj	Ukradni baterii z nepřátelské základny a dones ji na svou.
+renaissance_win_score_descr	Nikdy neusnout na vavřínech — to je heslo Armády znovuzrození. Čím víc baterií zapojíme, tím méně nás Bouře zasáhne.
+renaissance_win_score_name	Slavné vítězství!
+renaissance_win_score_obj	Vyhraj zápas s donesenými bateriemi:
+renaissance_win_x_games_descr	Krok za krokem, bitvu za bitvou, vítězství za vítězstvím — tak znovu povstane naše armáda! Nemáme kam ustoupit. Vítězství za každou cenu!
+renaissance_win_x_games_name	Za vlast!
+renaissance_win_x_games_obj	Vyhraj zápasy:
+rename_account_voucher_descr	Tento poukaz umožňuje zdarma změnit přezdívku.
+rename_account_voucher_name	Poukaz na přejmenování postavy
+rep_reward_match	Získaná pověst
+rep_reward_premium	Prémiový bonus
+rep_reward_quest	Odměna za úkol
+repair_time	Oprava
+repair_time_label	čas
+repair_voucher_descr	Sada na opravy odstraní jakoukoli závažnou poruchu vybavení.
+repair_voucher_name	Sada na opravy
+repair_window_label	Opravit
+reputation	Pověst
+reroll	Vymazat
+reroll_message_broken_item	Poškozený předmět nemůžeš upravovat.
+reroll_modifier_lock_hint	Měnit můžeš jen tento bonus.
+reroll_timer_hint	Dostupné za
+research_unit_a_captured	Jednotka A zabrána
+research_unit_a_lost	Jednotka A ztracena
+research_unit_b_captured	Jednotka B zabrána
+research_unit_b_lost	Jednotka B ztracena
+research_unit_c_captured	Jednotka C zabrána
+research_unit_c_lost	Jednotka C ztracena
+resolution_option	Rozlišení
+respawn_booster_description	Civilní vysílačka FD3. V boji velmi užitečná pro organizaci a spolupráci čety.
+respawn_booster_name	Vysílačka
+respawn_time_pref	Oživení za
+resupply_check_empty_inventory	Ve skladu není dost munice
+resupply_check_full_ammo	Munice je doplněná
+resupply_finished	Munice a zásoby doplněny!
+revenue	Příjem
+reward	Odměna
+rgd5_descr	Útočný protipěchotní ruční granát. Při výbuchu rozmetá úlomky roztrženého pláště.
+rgd5_name	Granát RGD-5
+rgo_descr	Popis zatím není k dispozici.
+right_strafe_action	Úkrok vpravo
+rpd_description	Popis zatím není k dispozici.
+rpk_description	Popis zatím není k dispozici.
+saiga_12_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze K má krátkou hlaveň a sklopnou pažbu. Schránkový zásobník na 5 nábojů. Jen jednotlivé rány.
+saiga_12_premium_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze S má sklopnou pažbu. Schránkový zásobník na 5 nábojů. Jen jednotlivé rány.
+save_password_str	Uložit heslo
+scav_back_1_desc	Podomácku vyrobený kontejner na artefakty v podobě batohu. Užitečný při výpravách za artefakty.
+scav_back_1_name	Batoh s kontejnerem
+scav_boots_1_desc	Hrubé boty ze skládky nebo z mrtvoly. Chrání nohy před zraněním a na náročných cestách často zachrání situaci.
+scav_boots_1_name	Kožené boty
+scav_boots_2_desc	Utěsněná ochrana nohou pro pohyb po toxickém povrchu. Umožní dostat se do míst, kam většina přeživších nemůže.
+scav_boots_2_name	Protichemické boty
+scav_boots_3_desc	Pevné nepromokavé boty s ocelovou špičkou a izolací. Pro mrchožrouta jsou k nezaplacení. V drsném počasí zvyšují šanci na přežití. Rychlost pohybu vyšší o 2%.
+scav_boots_3_name	Vojenské boty
+scav_gloves_1_desc	Jednoduché rukavice bez prstů. Na výpravách hřejí a chrání ruce. Při práci je nemusíš sundávat. Zrychlují míření o 2%.
+scav_gloves_1_name	Rukavice bez prstů
+scav_gloves_2_desc	Pogumované izolační rukavice pro práci se zamořenými a anomálními materiály. Nezbytné pro každého lovce artefaktů.
+scav_gloves_2_name	Protichemické rukavice
+scav_gloves_4_desc	Popis zatím není k dispozici.
+scav_gloves_4_name	Hrubé rukavice
+scav_helmet_1_desc	Popis zatím není k dispozici.
+scav_helmet_1_name	Montérská přilba
+scav_legs_1_desc	Hrubé kalhoty. Hřejí nohy a vydrží putování mezi ruinami.
+scav_legs_1_name	Plátěné kalhoty
+scav_legs_2_desc	Izolační kalhoty vyrobené Mrchožrouty. Chrání nohy před toxickými látkami. Do praktické kapsy se vejde pár lékárniček nebo granátů.
+scav_legs_2_name	Protichemické kalhoty
+scav_legs_3_desc	Pečlivě ušité odolné kalhoty s chrániči kolen a úchyty na vybavení. Dobře chrání v náročných podmínkách. Do praktické kapsy se vejde pár lékárniček nebo granátů.
+scav_legs_3_name	Polní kalhoty
+scav_legs_4_desc	Popis zatím není k dispozici.
+scav_legs_4_name	Kalhoty Přeživší
+scav_legs_5_desc	Popis zatím není k dispozici.
+scav_legs_5_name	Zesílené kalhoty
+scav_rep_modifier	Pověst u Mrchožroutů
+scav_resp_1_desc	Respirátor upravený Mrchožrouty. Chrání dýchací cesty před jedovatými výpary a radioaktivním prachem.
+scav_resp_1_name	Respirátor Jantar
+scav_torso_1_desc	Lehká prošívaná bunda, snadná na výrobu. První oděv každého mrchožrouta. Pomáhá přežít špatné počasí. Prostorné kapsy pojmou pár lékárniček, granátů i balení munice navíc. 
+scav_torso_1_name	Prošívaná bunda
+scav_torso_2_desc	Nepostradatelná při průzkumu zamořených území. Chrání trup a ruce před kontaktem s toxickými látkami. Obsahuje vestavěný kontejner na artefakty.
+scav_torso_2_name	Protichemická bunda
+scav_torso_3_desc	Vojenská vesta upravená Mrchožrouty. Pochází z mrtvého vojáka nebo vypleněného armádního skladu. Sumky pojmou několik lékárniček, granátů i munici navíc.
+scav_torso_3_name	Lehká neprůstřelná vesta
+scav_torso_4_desc	Popis zatím není k dispozici.
+scav_torso_4_name	Bunda Přeživší
+scav_torso_5_desc	Prošívaná bavlněná bunda. Uvnitř vyztužená tvarovanými kovovými pláty, zvenčí koženými záplatami. Dobrá volba pro zkušeného mrchožrouta.
+scav_torso_5_name	Zesílená vatovaná bunda
+scavenger_starter_bundle_descr	<white>Obsahuje:\nBundu Přeživší.\nKalhoty Přeživší.\n- Vylepšený OTs-02 Kiparis.\n- 1000 nábojů 9x18 PM.</white>
+scavenger_starter_bundle_name	Balíček Přeživší
+scavengers_accuracy_descr	K čemu je střílet na všechny strany? Jediná střela stačí vzít život. Nauč se šetřit munici.
+scavengers_accuracy_name	Střelecké dovednosti
+scavengers_accuracy_obj	Vyhraj zápas s přesností vyšší než
+scavengers_bring_x_items_descr	Bitvu nevyhrávají vždy jen zbraně. Pamatuj na hlavní cíl: sesbírat co nejvíc baterií pro ochranné zařízení.
+scavengers_bring_x_items_name	Přínos k vítězství
+scavengers_bring_x_items_obj	Najdi a dones baterie:
+scavengers_defend_items_descr	Nepřítel nehraje vždy podle pravidel. Braň svou základnu a zmař všechny pokusy ukrást z ní baterie.
+scavengers_defend_items_name	Obrana majetku
+scavengers_defend_items_obj	Vyhraj zápas bez ztráty baterie
+scavengers_faction	Mrchožrouti
+scavengers_find_artifacts_descr	Hledej artefakty v anomáliích. V tuhém boji ti pomůže artefakt na opasku. Dobrá ochrana před anomáliemi hledání značně usnadní.
+scavengers_find_artifacts_name	Najdi artefakty
+scavengers_find_artifacts_obj	Najdi v jednom zápase artefakty:
+scavengers_grenade_enemies_descr	Dobře házet granáty je stejně důležité jako přesně střílet. Někdy se k nepříteli jinak než granátem nedostaneš.
+scavengers_grenade_enemies_name	Přesný hod
+scavengers_grenade_enemies_obj	Zabij v jednom zápase nepřátele granátem:
+scavengers_kd_ratio_descr	Být hrdinou není těžké. Zůstat naživu ano. Čím déle žiješ, tím víc pomůžeš týmu. Nebuď zbabělec, který se pořád schovává. Nauč se přežít!
+scavengers_kd_ratio_name	Přežití
+scavengers_kd_ratio_obj	Vyhraj zápas s poměrem zabití a úmrtí alespoň
+scavengers_kill_enemies_descr	Tváří v tvář nepříteli není čas na city. Souboj má jen jednoho vítěze. A měl bys to být ty!
+scavengers_kill_enemies_name	Sebeobrana
+scavengers_kill_enemies_obj	Zabij v jednom zápase protivníky:
+scavengers_level_0	Neznámý
+scavengers_level_1	Nováček
+scavengers_level_2	Odhodlaný
+scavengers_level_3	Zkušený
+scavengers_level_4	Ostřílený
+scavengers_level_5	Veterán
+scavengers_level_unlock_0	Gratulujeme! Teď máš přístup k úkolům Mrchožroutů!
+scavengers_level_unlock_1	Gratulujeme! Teď jsi nováček Mrchožroutů!
+scavengers_level_unlock_2	Gratulujeme! Teď jsi osvědčený Mrchožrout!
+scavengers_level_unlock_3	Gratulujeme! Teď jsi zkušený Mrchožrout!
+scavengers_level_unlock_4	Gratulujeme! Teď jsi ostřílený Mrchožrout!
+scavengers_level_unlock_5	Gratulujeme! Byl jsi povýšen na veterána Mrchožroutů!
+scavengers_meele_kill_descr	Pokud se střetu nevyhneš, vyřeš ho rychle a tiše. Připlížit se a bodnout nepřítele přitáhne mnohem méně pozornosti.
+scavengers_meele_kill_name	Bez rozruchu
+scavengers_meele_kill_obj	Zabij nepřátele zblízka:
+scavengers_represent	Musíš mít vybavení Mrchožroutů.
+scavengers_steal_box_descr	Vzít nepříteli baterii je dvojí radost. Někdo tomu říká krádež, ale když si svůj majetek nehlídají, asi ho nepotřebují.
+scavengers_steal_box_name	Drobná krádež
+scavengers_steal_box_obj	Ukradni baterii z nepřátelské základny a dones ji na svou.
+scavengers_win_score_descr	Čím víc baterií zapojíš do zařízení, tím větší odměnu dostaneš za výhru.
+scavengers_win_score_name	Dokonalé vítězství
+scavengers_win_score_obj	Vyhraj zápas s donesenými bateriemi:
+scavengers_win_x_games_descr	Žijeme v krutém světě. Vítěz bere všechno, poraženému zbývají drobky. Pamatuj, vítězný tým získá větší odměnu.
+scavengers_win_x_games_name	Chuť vítězství
+scavengers_win_x_games_obj	Vyhraj zápasy:
+scientists_faction	Institut
+search_label	Hledat
+search_range	Úroveň zápasu
+second_weapon_action	Zbraň 2
+seconds_short	s.
+seed_settings	Sdílení v lobby
+seeding_max_upload_in_kb_option	Omezit rychlost odesílání:
+select_send_to_action	Vybrat příjemce
+sell	Prodat
+send	Odeslat  
+send_message	Poslat zprávu
+send_message_action	Poslat zprávu
+server_maintenance	Čas do začátku pravidelné údržby serverů
+settings	Nastavení
+settings_label	Nastavení
+shading_quality_option	Kvalita shaderů
+shadow_quality_option	Kvalita stínů
+shooting_skills_label	Střelecký výcvik
+shop	Obchod
+shop_label	Obchod
+shop_scope_1p69_hyperon_description	Optika se 4x zvětšením
+shop_scope_1p69_hyperon_name	Optika Zenit Hyperion, 4x
+shop_scope_acog_ta31_description	Optika se 4x zvětšením
+shop_scope_acog_ta31_name	Optika TA31, 4x
+shop_scope_aimpoint_compm4_description	Švédský kolimátor s bodem 2 MOA a baterií až na osm let nepřetržitého provozu. Americká armáda ho přijala jako M68 CCO. Montuje se na lištu Picatinny.
+shop_scope_aimpoint_compm4_name	Kolimátor CompM4
+shop_scope_cobra_ekp_8_description	Ruský kolimátor se čtyřmi volitelnými červenými obrazci. Umožňuje rychlé míření s oběma očima otevřenýma. Montuje se na boční lištu zbraní typu Kalašnikov.
+shop_scope_cobra_ekp_8_name	Kolimátor Kobra EKP-8
+shop_scope_docter_description	Kompaktní německý otevřený kolimátor s červeným bodem. Lehký a rychlý pro míření, určený pro brokovnice, pistole a krátké zbraně.
+shop_scope_docter_name	Kolimátor Docter
+shop_scope_elcan_specterdr_description	Optika se 4x zvětšením
+shop_scope_elcan_specterdr_name	Optika SpecterDR, 4x
+shop_scope_eotech_552_description	Americký holografický zaměřovač: kruh 65 MOA s bodem 1 MOA uprostřed, napájený AA bateriemi. Rychlý na krátkou a střední vzdálenost. Montáž na lištu Picatinny.
+shop_scope_eotech_552_name	Kolimátor EOTech 552
+shop_scope_leupold_deltapoint_description	Kompaktní americký kolimátor s červeným trojúhelníkem. Určený pro pistole a lehké zbraně. Malé rozměry nepřekážejí.
+shop_scope_leupold_deltapoint_name	Kolimátor Leupold DeltaPoint
+shop_scope_leupold_mk4_description	Optika se 4x zvětšením
+shop_scope_leupold_mk4_name	Optika Leupold MK4, 4x
+shop_scope_pso_1_description	Optika se 4x zvětšením
+shop_scope_pso_1_name	Optika PSO-1, 4x
+shop_scope_pso_1_old_description	Optika se 4x zvětšením
+shop_scope_pso_1_old_name	Optika PSO-1 O, 4x
+shop_scope_pu_3_5x_description	Optika se 3,5x zvětšením
+shop_scope_pu_3_5x_name	Optika PU, 3,5x
+shop_showcase	Hlavní
+short_clan_string	Jméno je příliš krátké
+show_ammo	Zobrazit munici 
+show_character_action	Okno postavy
+show_enemy_killed_marker	Zobrazit ukazatel zabití
+show_friends_action	Přátelé
+show_inventory_action	Inventář
+show_options_action	Nastavení
+show_player_info_button_hint	Zobrazit informace o hráči
+show_player_info_hint	Informace zobrazíš dvojklikem
+show_quest_list	Zobrazit okno úkolů
+show_quests_progress_option	Zobrazit postup úkolu v zápase
+show_shop_action	Obchod
+show_squad_list	Zobrazit okno čety
+skills_already_rerolled	Dovednosti už byly resetovány
+sks_description	Samonabíjecí Simonovova karabina na náboje 7.62x39. Sovětská armáda ji přijala v roce 1949, později ji nahradily automatické pušky. Pevný zásobník na 10 nábojů.
+sks_premium_2_description	Samonabíjecí Simonovova karabina na náboje 7.62x39. Sovětská armáda ji přijala v roce 1949, později ji nahradily automatické pušky. Pevný zásobník na 10 nábojů. Prémiová verze se zvláštní kamufláží.
+sks_premium_description	Samonabíjecí Simonovova karabina na náboje 7.62x39. Sovětská armáda ji přijala v roce 1949, později ji nahradily automatické pušky. Pevný zásobník na 10 nábojů. Prémiová verze se zvláštní kamufláží.
+slide1_button_accept_label	Další
+slide1_text	Vítej, přeživší. Měl jsi štěstí, že jsi přežil konec světa. Po týdnech putování ses konečně dostal do míst, která Les ještě nepohltil.
+slide1_text_enter_name	Jaké jméno si vybereš v novém světě?
+slide1_tutorial_reward	Za dokončení výcviku získáš odměnu:
+slot_control_label	Vybrat množství
+slots	Sloty
+sniper_skills_descr	Zlepšuje zacházení se zbraněmi. Zvyšuje přesnost střelby a rychlost míření.
+sniper_skills_name	Střelecký výcvik
+snp_fast_draw_desc	Díky svým dovednostem měníš zbraně rychleji.
+snp_fast_draw_name	Rychlá výměna zbraně
+snp_fast_reload_desc	Naučil ses přebíjet zbraně rychleji.
+snp_fast_reload_name	Rychlé přebíjení
+snp_fast_shot_desc	Zrychluje mačkání spouště u samonabíjecích zbraní.
+snp_fast_shot_name	Práce se spouští
+snp_iron_breath_desc	Umožňuje déle zadržet dech při míření.
+snp_iron_breath_name	Železné plíce
+snp_sniper_desc	Výrazně zvyšuje přesnost s odstřelovačskými, taktickými a kolimátorovými mířidly.
+snp_sniper_name	Odstřelovač
+snp_steady_breath_desc	Po zadržení dechu se rychleji zotavíš.
+snp_steady_breath_name	Klidný výdech
+snp_steady_grip_desc	Zvyšuje přesnost střelby za pohybu.
+snp_steady_grip_name	Pevný úchop
+soc_vepr_description	Ruská samonabíjecí karabina řady Vepr na náboje 7.62x39. Závod Molot ve Vjatských Poljanách ji vyrábí pro lov a sport na zesíleném pouzdře závěru kulometu RPK. Zásobník na 10 nábojů. Jen jednotlivé rány.
+socom16_description	Popis zatím není k dispozici.
+sort	Řadit
+sort_cost	Podle ceny
+sort_label	Filtr
+sort_level	Podle úrovně
+sort_reset	Resetovat
+space_symbol_clan_string	Neplatné oddělovače
+spam_filter_block_notification	Spamový filtr zablokoval tvoji zprávu. Počkej
+spam_filter_block_notification_fin	s.
+spas12_description	Popis zatím není k dispozici.
+special_offer	Speciální nabídka
+speed_booster_description	Energetický nápoj s kofeinem a taurinem. Povzbuzuje a stimuluje centrální nervový systém.
+speed_booster_name	Energetický nápoj Tornado
+spot_action	Nepřítel spatřen
+spring_activation_hint	Pružina aktivována! Rychlost pohybu a míření +10%. Rychlejší obnova energie! Střely tě nezpomalí!
+spring_pickup_hint	Artefakt Pružina. Zvyšuje rychlost pohybu a míření o 5%.
+sprint_action	Sprint (držet)
+sprint_toggle_action	Sprint 
+squad	Četa
+squad_list_locked_hint	V klanovém týmu nemůžeš vytvořit četu
+squad_not_ready	Četa není připravená
+sr2m_description	Popis zatím není k dispozici.
+sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený CF-3M Vichr.\n- 2000 nábojů 9x39 SP-6.</white>\n
+sr3m_bundle_name	Balíček SR-3M Vichr
+sr3m_description	Popis zatím není k dispozici.
+srp_attachments	Příslušenství
+srp_optics	Optiky
+srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+stamina_boost_name	Druhý dech
+stamina_boost_time_description	Energie obnovená zabitím nepřítele:
+stamina_loss_on_hit_description	Postih k výdrži při zranění.
+stamina_loss_on_hit_name	Nezastavitelný
+stamina_regen_correction_perc_name	Obnova výdrže
+stamina_regeneration_speed_description	Rychlost obnovy energie:
+stamina_regeneration_speed_name	Dech
+stamina_spending_speed_description	Spotřeba energie:
+stamina_spending_speed_name	Výdrž
+start_chat_action	Chat
+start_match_welcome_message	Najdi baterie a dones je na svou základnu!
+start_match_welcome_message_2	Najdi a chraň nabíjecí stanice baterií!
+start_match_welcome_message_3	Vyřaď co nejvíce nepřátel!
+start_match_welcome_message_5	Najdi a zaber výzkumné jednotky!
+statistic_sync_text	Načítání statistik zápasu
+statistics_daily_bonus	Denní bonus
+statistics_equipment_bonus	Bonus za vybavení
+statistics_exp	Získané zkušenosti:
+statistics_money	Získané peníze:
+statistics_rating_delta	Změna hodnocení
+statistics_score	Získané body:
+statistics_score_game_events	Odměny za aktivitu v zápase
+statistics_score_help	Pomoc spojenci
+statistics_score_kills	Zabití nepřátelé
+statistics_score_match	Za výsledek zápasu
+statistics_score_premium	Prémiový účet
+statistics_score_quests	Za splněné úkoly
+stats_accuracy	Přesnost:
+stats_artefacts_gathered	Sesbírané artefakty:
+stats_assists	Asistence:
+stats_deaths	Úmrtí:
+stats_headshots	Zásahy do hlavy:
+stats_healed	Vyléčeno:
+stats_items_defended	Ubráněné baterie:
+stats_items_gathered	Nalezené baterie:
+stats_kills	Zabití:
+stats_max_killstreak	Série zabití:
+stats_melee_kills	Zabití zblízka:
+stats_saved	Zachráněno:
+stats_silent_kills	Tichá zabití:
+stats_stolen_victory_items	Ukradené baterie:
+status_str	Stav:
+storage	Sklad
+string_pattern_error	Jméno obsahuje neplatné znaky nebo je příliš dlouhé či krátké
+support	Podpora
+survival_notes	Zápisky přeživšího
+survival_notes_complete	Dokončil jsi
+survival_skills_label	Dovednosti přežití
+sv_98_description	Popis zatím není k dispozici.
+svd_description	Samonabíjecí odstřelovačská puška Dragunov na náboje 7.62x54. Po léta hlavní odstřelovačská puška sovětské armády. Zásobník na 5 nábojů. 
+swear_clan_string	Text obsahuje vulgarity
+swearing_claim	Vulgární jazyk
+team_already_has_commander	Klanový tým už má vedoucího.
+team_member_is_not_commander	Člen týmu není velitel.
+texture_quality_option	Kvalita textur
+there_is_no_item_in_inventory	Předmět nebyl v inventáři nalezen
+thief_item	Uchopit kontejner
+throw_grenade_action	Použít granát
+time_current	Hledání hráčů:
+time_was_resynchronized	Obnovování spojení…
+to_all	Všem
+top100	Top 100
+total	Celkem
+tournaments	Turnaje
+toz122_description	Opakovací kulovnice na náboje 7.62x51. Navržená pro amatérský i profesionální lov. Schránkový zásobník na 5 nábojů.
+toz34_description	Lovecká kozlice na náboje 12x70. Jedna z prvních sériově vyráběných loveckých brokovnic. Vyznačuje se nízkou hmotností a dobrým soustřelem. 
+toz66_description	Lovecká dvojka na náboje 12x70. Dvě téměř okamžité rány z ní dělají velmi účinnou zbraň na krátkou vzdálenost. 
+trap_damage	Poškození pastí
+treasure_map_advert	Použij mapu skrýše a najdi další předměty.
+tt_description	Tulský Tokarev, zavedený v roce 1933, používá náboje 7.62x25 mm. Navržený ve 30. letech jako první sovětská samonabíjecí vojenská pistole. Zásobník na 8 nábojů.
+tutorial_apply_ammo_message_1	Potvrď akci tlačítkem <tutorial_highlight>Použít</tutorial_highlight> nebo <tutorial_highlight>Skrýt munici</tutorial_highlight>.
+tutorial_choose_ammo_message_1	Počet nábojů je uvedený na krabičkách. Různé typy munice mohou mít v balení různý počet nábojů.
+tutorial_choose_ammo_message_2	Vezmi si maximum munice.
+tutorial_choose_faction_message_1	Spolupracovat můžeš vždy jen s jednou frakcí. Pověst u ní získáváš úspěšnými akcemi v boji a plněním jejích úkolů.
+tutorial_choose_faction_message_2	Přidej se k jedné z frakcí.
+tutorial_choose_wpn_message_1	Do boje si můžeš vzít jen dvě zbraně. Dobře si rozmysli, s čím chceš bojovat.
+tutorial_choose_wpn_message_2	Přetáhni karabinu Mosin nebo\nPPŠ-41 do prázdného slotu pro zbraň.
+tutorial_click_ammo_message_1	Pamatuj, že uneseš jen omezené množství munice. <tutorial_highlight>Klikni na Zobrazit munici</tutorial_highlight> a ručně vyber počet nábojů do boje.
+tutorial_click_inventory_message_1	Les bohužel není jediným nebezpečím nového světa. Stát padl a každý je sám za sebe. Musíš bojovat o všechno: o jídlo, léky i právo přežít. Zbraně ze starých skrýší možná nejsou nejlepší, ale pořád lepší než nic.
+tutorial_click_inventory_message_2	Otevři záložku Vybavení a vyzbroj svou postavu.
+tutorial_complete_label	Gratulujeme!\nDokončil jsi výcvik.
+tutorial_complete_reward_label	Odměna za tuto akci:
+tutorial_equip_drop_message_1	Nové zbraně a vybavení můžeš získat několika způsoby. Po každém boji máš šanci najít předmět na bojišti. Zlepšováním vztahů s frakcemi získáš přístup k jejich jedinečnému zboží.
+tutorial_equip_drop_message_2	Otevři okno výběru frakce.
+tutorial_exit_warning	Když výcvik opustíš, nebudeš se k němu moct vrátit ani získat odměnu. Opravdu odejít?
+tutorial_press_play_message_1	První boj spustíš tlačítkem <tutorial_highlight>Hrát</tutorial_highlight>. Více informací najdeš v <tutorial_highlight>Zápiscích přeživšího</tutorial_highlight>, které si můžeš přečíst po boji.
+two_handed	Hlavní
+ump45_description	Popis zatím není k dispozici.
+unknown_faction	Neutrální
+unlimited_upload	bez omezení
+use_action	Použít
+use_artefact_container	Získat artefakt ({USE})
+use_fix_voucher	Sada na opravy
+use_item_message	Opravdu chceš použít tento předmět?
+use_ladder	Žebřík
+use_microphone_option	Použít mikrofon
+use_resupply_zone	Doplnit munici ({USE})
+use_two_double_handed_weapons_description	Do zápasu si můžeš vzít dvě obouruční zbraně.
+use_two_double_handed_weapons_name	Terminátor
+using_progress_message	Postup:
+uzi_description	Samopal na náboje 9x19. Navržený v roce 1954 pro izraelskou armádu. Stal se jednou z nejpopulárnějších zbraní světa. Střílí jednotlivě i dávkami.
+uzi_premium_2_description	Samopal na náboje 9x19. Navržený v roce 1954 pro izraelskou armádu. Stal se jednou z nejpopulárnějších zbraní světa. Střílí jednotlivě i dávkami. Prémiová verze se zvláštní kamufláží.
+val_description	Popis zatím není k dispozici.
+valmet_description	Finská útočná puška na náboje 7.62x39. Valmet a Sako ji vyvinuly z Kalašnikovu. Finská armáda ji přijala v roce 1962, podle kterého dostala jméno. Známá přesností a spolehlivostí v arktických podmínkách. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+vepr_12_description	Ruská samonabíjecí brokovnice ráže 12. Závod Molot ve Vjatských Poljanách ji vyrábí na zesíleném pouzdře kulometu RPK. Uvedená v 00. letech pro sport, lov a bezpečnostní služby. Schránkový zásobník na 8 nábojů. Jen jednotlivé rány.
+vepr_12_premium_description	Ruská samonabíjecí brokovnice ráže 12. Závod Molot ve Vjatských Poljanách ji vyrábí na zesíleném pouzdře kulometu RPK. Uvedená v 00. letech pro sport, lov a bezpečnostní služby. Zásobník na 8 nábojů, jen jednotlivé rány. Prémiová verze se zvláštní kamufláží.
+vepr_description	Popis zatím není k dispozici.
+vepr_premium_description	Ruská karabina řady Vepr na náboje 5.45x39. Molot ve Vjatských Poljanách ji vyrábí na zesíleném pouzdře kulometu RPK-74. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
+victory	Vítězství
+victory_screen_no_dropped_item	Na bojišti jsi nic nenašel.
+vityaz_bundle_descr	<white>Obsahuje:\n- Vylepšený PP-19-01 Viťaz.\n- 2000 nábojů 9x19 Parabellum.</white>
+vityaz_bundle_name	Balíček PP-19-01 Viťaz
+vityaz_description	Samopal na náboje 9x19. Navržený v roce 2004 pro ruské speciální síly. Střílí jednotlivě i dávkami.
+voice_chat_volume_option	Hlasový chat
+vsk94_description	Popis zatím není k dispozici.
+vsk94_premium_description	Ruská odstřelovačská puška na náboje 9x39. KBP v Tule ji v 90. letech vyvinulo z 9A-91 s tlumičem a odstřelovačskou pažbou pro tichou střelbu na krátkou a střední vzdálenost. Zásobník na 20 nábojů. Jednotlivá i automatická střelba. Prémiová verze se zvláštní kamufláží.
+vss_bundle_descr	<white>Obsahuje:\n- Vylepšený VSS Vintorez.\n- 1000 nábojů 9x39 SP-5.</white>\n
+vss_bundle_name	Balíček VSS Vintorez
+vss_description	Popis zatím není k dispozici.
+vssk_camo_description	Ruská opakovací odstřelovačská puška na náboje 12.7x55. Vyvinutá v CKIB SOO v Tule v 00. letech s velkým tlumičem. Pro speciální jednotky a tichou střelbu na cíle za krytem nebo ve vestách. Zásobník na 5 nábojů. Jen jednotlivé rány. Verze se zvláštní kamufláží.
+vssk_description	Popis zatím není k dispozici.
+vsync_option	Vertikální synchronizace
+vz58_description	Československá útočná puška na náboje 7.62x39. Navrhl ji Jiří Čermák, zavedena roku 1958. Podobá se Kalašnikovu, ale používá vlastní píst s krátkým zdvihem a uzamykání závěru. Verze P má pevnou dřevěnou pažbu. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+waiting_for_players	Čekání na ostatní hráče:
+walther_competition2_collimator_desc	Německý kolimátor Walther s červeným bodem, původně pro sportovní střelbu. Tubusové tělo obsahuje osvětlený záměrný bod.
+walther_competition2_collimator_name	Kolimátor Competition II
+wasted	Spotřeba
+weapon_aim_action	Míření (držet)
+weapon_could_not_be_used	Ruce zraněny! Nelze používat zbraně
+weapon_fire_action	Střílet
+weapon_reload_action	Přebít
+wear	Použít
+weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.
+weight_booster_name	Protein Anomální síla
+winchester1894_description	Puška navržená americkým inženýrem roku 1894 se vyráběla až do roku 2006. Patří k nejznámějším a nejoblíbenějším loveckým puškám. Pákové přebíjení, trubicový zásobník na 6 nábojů.
+wrong_skill_points_count	Nesprávný počet bodů dovedností
+wrong_symbol_clan_string	Text obsahuje netisknutelný znak
+you_have_no_voucher_for_premium	Nemáš poukaz na aktivaci Premium
+you_have_no_voucher_for_rename	Nemáš poukaz na přejmenování postavy
+you_have_no_voucher_for_repair	Nemáš sadu na opravy.
+youtube_video_tutorial_button	Podívej se na videonávod!

@@ -1,16 +1,27 @@
 # Game localization (0.26g)
 
-Serbian uses Latin script (`sr-Latn`) and the resource directory `serbian`.
-Start the game with `-localization=serbian`, or set `LANGUAGE=serbian` in
-`play_skhid.bat` / `localization=serbian` in `play_skhid.sh`.
-The overlay builder accepts `--localization=serbian`. The original Windows
-launcher's language dropdown still has its five original choices; use the game
-script for Serbian. The website and launcher UI are separate translations.
+The added game dictionaries are:
+
+| Language | Resource / command-line name | Flash column |
+| --- | --- | --- |
+| Serbian Latin (`sr-Latn`) | `serbian` | `Language.SR` = 5 |
+| Czech (`cs`) | `czech` | `Language.CS` = 6 |
+| Hungarian (`hu`) | `hungarian` | `Language.HU` = 7 |
+| Finnish (`fi`) | `finnish` | `Language.FI` = 8 |
+
+Start the game with, for example, `-localization=czech`, or set
+`LANGUAGE=czech` in `play_skhid.bat` / `localization=czech` in `play_skhid.sh`.
+The overlay builder accepts `--localization=czech` (and the other names above).
+The original Windows launcher's language dropdown still has its five original
+choices; use the game script for the added languages. The website and launcher
+UI are separate translations.
 
 The native dictionary loader accepts a language directory without a new executable
 patch. The harder parts are translating all current content and updating custom
 Flash text tables. Their column order is English, Ukrainian, Russian, German,
-Polish, Serbian; `Language.SR` is 5. Some detect the language from the localized
+Polish, Serbian, Czech, Hungarian, Finnish. `LANGUAGES` in `localization_026g.py`
+registers the resource names and expected Flash constants; the overlay builder
+and Flash checker use it. Some menus detect the language from the localized
 Friends or Cancel label, and the login hint uses the registration label.
 
 ## Checking coverage
@@ -19,7 +30,7 @@ From the repository root, with Python 3 and no third-party packages:
 
 ```sh
 python3 -m unittest discover -s srp-026g/client-patches -p test_localization.py
-python3 srp-026g/client-patches/check_localization_026g.py /path/to/extracted-resources --require serbian
+python3 srp-026g/client-patches/check_localization_026g.py /path/to/extracted-resources --require serbian --require czech --require hungarian --require finnish
 python3 srp-026g/client-patches/check_localization_026g.py /path/to/extracted-resources --json > report.json
 ```
 
@@ -45,14 +56,16 @@ The stock/current dictionaries have pre-existing defects: Polish lacks
 in `st_reach_level`; English has a non-UTF-8 byte in
 `st_renaissance_kill_enemies_descr`. Nine UI keys are absent from English itself.
 The full audit deliberately fails on these rather than hiding them in an
-allowlist. Serbian supplies those UI keys and has no dictionary coverage errors.
+allowlist. All four added dictionaries supply those UI keys: each has 2,313
+entries (2,304 English keys plus nine UI keys).
 The source also contains 111 unfinished item descriptions (`ОПИСАНИЕ НЕ ГОТОВО!!!`).
-Serbian preserves their meaning as `Opis još nije dostupan.`; key coverage does
-not mean those descriptions have been authored. No existing description was
-replaced with a placeholder.
+The added languages preserve their meaning as an unavailable-description notice;
+key coverage does not mean those descriptions have been authored. No existing
+description was replaced with a placeholder.
 
 For the rebuilt lobby movie, the runtime check exercises language detection,
-Serbian room/map/mode labels and the embedded Calibri glyphs:
+all four added languages’ room/map/mode labels, room-chat tab widths and the
+embedded Calibri glyphs:
 
 ```sh
 srp-026g/scripts/localization-check/check.sh /path/to/lobby_menu.swf
@@ -63,12 +76,12 @@ virtual display. It does not start the game or connect to a game server.
 
 ## Editing or adding a language
 
-`serbian.tsv` contains translations. Keys omit `st_`; `@full_key` denotes a
+Each `<language>.tsv` contains translations. Keys omit `st_`; `@full_key` denotes a
 key without that prefix. A literal `\n` means a line break. Preserve substitutions
-and markup. `serbian_keep.txt` explicitly names unchanged model identifiers,
+and markup. Each `<language>_keep.txt` explicitly names unchanged model identifiers,
 keycaps, units and empty controls. There is no implicit English fallback.
 
-`scripts/content-edit/serbian-1.json` copies the English support resources and
+Each `scripts/content-edit/<language>-1.json` copies the English support resources and
 compiles the dictionary through `build_localization_026g.py`. The compiler
 rejects missing or unknown keys, duplicate definitions, broken substitutions,
 mixed Cyrillic text, and strings exceeding the native 511-byte text limit. It
@@ -79,12 +92,13 @@ add English keys. A newly added key stops the content build until it has a
 translation or an explicit keep entry. Changes to the meaning of an existing
 English string still need translator review; key/format checks cannot detect
 a stale translation. For another language, add its table, keep list and content
-edit, register it in `make_client_026g.py`, extend all custom Flash language
+edit, register it in `localization_026g.py`, extend all custom Flash language
 tables/detectors and update their checks. Build with `release/build-content`
 as usual; never assemble a resource patch manually.
 
-The main Calibri fonts include Serbian Latin accents. Some legacy font subsets
-do not; the runtime check covers the rooms' Calibri font, not every game screen.
+The runtime check verifies Serbian, Czech, Hungarian and Finnish accented letters
+in the rooms’ Calibri font. Some legacy font subsets have fewer glyphs; this does
+not verify every game screen.
 Native-speaker review and an in-game layout pass remain necessary. The English
 EULA and profanity data are copied as support resources, not translated.
 Legacy nickname/clan character restrictions and numeric chat/tutorial language

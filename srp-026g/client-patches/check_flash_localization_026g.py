@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import re
 
+from localization_026g import LANGUAGES
+
 STR = r'"(?:[^"\\]|\\.)*"'
 ROWS = re.compile(r'\[\s*' + STR + r'(?:\s*,\s*' + STR + r'){4,}\s*\]')
 TOKENS = re.compile(r'\{[^{}]+\}|%[A-Z]')
@@ -20,24 +22,39 @@ def audit_flash(root):
         raise ValueError(f'{root}: missing Flash sources')
     issues, checked = [], 0
 
+    constants = (root / 'lobby_menu/src/survarium/constants/Language.as').read_text(encoding='utf-8')
+    actual = {name: int(index) for name, index in re.findall(
+        r'public static const ([A-Z]+):int\s*=\s*(\d+);', constants)}
+    expected = {code: index for index, (_, code) in enumerate(LANGUAGES)}
+    if actual != expected:
+        issues.append(f'Language.as: expected language indices {expected}, got {actual}')
+
     def check(row, location):
         nonlocal checked
         checked += 1
-        if len(row) != 6:
-            issues.append(f'{location}: expected six language columns, got {len(row)}')
+        if len(row) != len(LANGUAGES):
+            issues.append(f'{location}: expected {len(LANGUAGES)} language columns, got {len(row)}')
             return
-        en, sr = row[0], row[5]
-        if isinstance(en, list):
-            if not isinstance(sr, list) or len(en) != len(sr):
-                issues.append(f'{location}: replay substitution pieces differ')
-                return
-            en, sr = ''.join(en), ''.join(sr)
-        if en.strip() and not sr.strip():
-            issues.append(f'{location}: empty Serbian translation')
-        if re.search('[\u0400-\u04ff]', sr):
-            issues.append(f'{location}: Cyrillic in Serbian Latin text')
-        if sorted(TOKENS.findall(en)) != sorted(TOKENS.findall(sr)):
-            issues.append(f'{location}: changed substitutions')
+        # The shipped legacy translations have their own pre-existing defects.
+        # Require every added language, including Serbian, to match English.
+        for index in range(5, len(LANGUAGES)):
+            language = LANGUAGES[index][0]
+            en, translated = row[0], row[index]
+            where = f'{location} ({language})'
+            if isinstance(en, list):
+                if not isinstance(translated, list) or len(en) != len(translated):
+                    issues.append(f'{where}: replay substitution pieces differ')
+                    continue
+                en, translated = ''.join(en), ''.join(translated)
+            if not isinstance(translated, str):
+                issues.append(f'{where}: expected translated text')
+                continue
+            if en.strip() and not translated.strip():
+                issues.append(f'{where}: empty translation')
+            if re.search('[\u0400-\u04ff]', translated):
+                issues.append(f'{where}: Cyrillic in Latin text')
+            if sorted(TOKENS.findall(en)) != sorted(TOKENS.findall(translated)):
+                issues.append(f'{where}: changed substitutions')
 
     for path in sorted(root.rglob('*.as')):
         source = path.read_text(encoding='utf-8')

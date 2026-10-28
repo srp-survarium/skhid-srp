@@ -48,19 +48,19 @@ package survarium.messages
       private static const FALLBACK_RATE:int = 100;
 
       private static const TEXT:Object = {
-         "title":["Exchange","Обмін","Обмен","Tausch","Wymiana", "Razmeni"],
-         "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz", "Plati"],
-         "receive":["Receive","Отримуєте","Получаете","Sie erhalten","Otrzymujesz", "Primi"],
-         "silver":["Silver","Срібло","Серебро","Silber","Srebro", "Srebro"],
-         "gold":["Gold","Золото","Золото","Gold","Złoto", "Zlato"],
-         "balance":["Balance","Баланс","Баланс","Guthaben","Saldo", "Stanje"],
-         "short_silver":["Not enough silver","Недостатньо срібла","Недостаточно серебра","Nicht genug Silber","Za mało srebra", "Nema dovoljno srebra"],
-         "short_gold":["Not enough gold","Недостатньо золота","Недостаточно золота","Nicht genug Gold","Za mało złota", "Nema dovoljno zlata"],
-         "button":["Exchange","Обміняти","Обменять","Tauschen","Wymień", "Razmeni"]
+         "title":["Exchange","Обмін","Обмен","Tausch","Wymiana", "Razmeni", "Směnit", "Átváltás", "Vaihda"],
+         "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz", "Plati", "Zaplatíš", "Fizetsz", "Maksat"],
+         "receive":["Receive","Отримуєте","Получаете","Sie erhalten","Otrzymujesz", "Primi", "Dostaneš", "Kapsz", "Saat"],
+         "silver":["Silver","Срібло","Серебро","Silber","Srebro", "Srebro", "Stříbro", "Ezüst", "Hopea"],
+         "gold":["Gold","Золото","Золото","Gold","Złoto", "Zlato", "Zlato", "Arany", "Kulta"],
+         "balance":["Balance","Баланс","Баланс","Guthaben","Saldo", "Stanje", "Zůstatek", "Egyenleg", "Saldo"],
+         "short_silver":["Not enough silver","Недостатньо срібла","Недостаточно серебра","Nicht genug Silber","Za mało srebra", "Nema dovoljno srebra", "Nedostatek stříbra", "Nincs elég ezüst", "Ei tarpeeksi hopeaa"],
+         "short_gold":["Not enough gold","Недостатньо золота","Недостаточно золота","Nicht genug Gold","Za mało złota", "Nema dovoljno zlata", "Nedostatek zlata", "Nincs elég arany", "Ei tarpeeksi kultaa"],
+         "button":["Exchange","Обміняти","Обменять","Tauschen","Wymień", "Razmeni", "Směnit", "Átváltás", "Vaihda"]
       };
 
       // The client's own "cancel" names its language.
-      private static const CANCEL:Array = ["Cancel","Скасувати","Отмена","Abrechnen","Anuluj", "Otkaži"];
+      private static const CANCEL:Array = ["Cancel","Скасувати","Отмена","Abrechnen","Anuluj", "Otkaži", "Zrušit", "Mégse", "Peruuta"];
 
       public var textFieldLabel:TextField;
 

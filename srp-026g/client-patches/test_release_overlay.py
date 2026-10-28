@@ -106,13 +106,15 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
         return patcher.call_args, messages.getvalue()
 
-    def test_serbian_latin_option_reaches_windows_and_linux_game_scripts(self):
-        output = self.root / 'serbian'
-        self.build(output, '--localization=serbian')
-        windows = (output / 'game/binaries/x86/play_skhid.bat').read_bytes()
-        linux = (output / overlay.LINUX_LAUNCHER).read_bytes()
-        self.assertIn(b'set LANGUAGE=serbian\r\n', windows)
-        self.assertIn(b'localization=serbian\n', linux)
+    def test_added_languages_reach_windows_and_linux_game_scripts(self):
+        for language in ('serbian', 'czech', 'hungarian', 'finnish'):
+            with self.subTest(language=language):
+                output = self.root / language
+                self.build(output, '--localization=' + language)
+                windows = (output / 'game/binaries/x86/play_skhid.bat').read_bytes()
+                linux = (output / overlay.LINUX_LAUNCHER).read_bytes()
+                self.assertIn(f'set LANGUAGE={language}\r\n'.encode(), windows)
+                self.assertIn(f'localization={language}\n'.encode(), linux)
 
     def test_folder_and_zip_ship_identical_player_files(self):
         folder, archive = self.root / 'overlay', self.root / 'release.zip'

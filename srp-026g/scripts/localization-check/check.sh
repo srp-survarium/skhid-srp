@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh <rebuilt lobby_menu.swf> [work dir]: Serbian detection, menu text and
+# check.sh <rebuilt lobby_menu.swf> [work dir]: Language detection, menu text and
 # embedded Latin glyphs in Ruffle, on a private CPU-only virtual display.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")

@@ -92,3 +92,6 @@ edit	kill-feed-weapons-1.json	-	the kill feed shows the ported weapons' own icon
 edit	london-1.json	-	London without anomalies: all seven anomalies and their artefacts, damage zones and collision removed from day_2 to day_5; battery modes lose the old spawn-protection zones. The owner's map-editor placement supplies ten points per team in every mode: team1 on building_06_1's first floor and team2 on building_10's first floor, preserving point order and non-placement properties.
 edit	medical-cards-1.json	-	bandages and medkit: explicit healing and pain relief percentages, weight retained, lower activation time better; presentation only (after bandages-1 and weapon-balance-1)
 edit	serbian-1.json	-	Serbian Latin localization, with complete key and placeholder checks
+edit	czech-1.json	-	Czech localization, with complete key and placeholder checks
+edit	hungarian-1.json	-	Hungarian localization, with complete key and placeholder checks
+edit	finnish-1.json	-	Finnish localization, with complete key and placeholder checks

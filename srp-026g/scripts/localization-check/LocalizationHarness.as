@@ -8,6 +8,8 @@ package
     import flash.system.ApplicationDomain;
     import flash.system.LoaderContext;
     import flash.text.Font;
+    import flash.text.TextField;
+    import flash.text.TextFormat;
 
     // Uses the rebuilt movie's own classes and embedded font; no game or server.
     public class LocalizationHarness extends Sprite
@@ -38,23 +40,40 @@ package
                 var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                 var data:* = domain.getDefinition("survarium.data.LocalizationData");
                 var words:* = domain.getDefinition("survarium.rooms.RoomsText");
-                var friends:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi", "Prijatelji"];
+                var friends:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi", "Prijatelji", "Přátelé", "Barátok", "Kaverit"];
                 for (var i:int = 0; i < friends.length; ++i)
                 {
                     data.setData({btn_friends: friends[i]});
                     require(words.language() == i, "language detection " + i);
                     require(words.sayFirst("startMatch") != "undefined", "start label " + i);
                 }
-                require(words.sayFirst("servers") == "Sobe", "Serbian room title");
-                require(words.sayFirst("startMatch") == "Pokreni", "Serbian start button");
-                require(words.levelName(2, 5) == "Škola", "Serbian map name");
-                require(words.weatherName(4, 5) == "noć", "Serbian weather");
-                require(words.modeName(5, 5) == "Istraživanje", "Serbian research mode");
-                require(words.notice("Đorđe joined the room") == "Đorđe se pridružio sobi", "Serbian chat notice");
+                var roomTitles:Array = ["Sobe", "Místnosti", "Szobák", "Huoneet"];
+                var starts:Array = ["Pokreni", "Spustit", "Indítás", "Aloita"];
+                var schools:Array = ["Škola", "Škola", "Iskola", "Koulu"];
+                var nights:Array = ["noć", "noc", "éjszaka", "yö"];
+                var research:Array = ["Istraživanje", "Výzkum", "Kutatás", "Tutkimus"];
+                var joined:Array = ["se pridružio sobi", "se připojuje do místnosti", "belépett a szobába", "liittyi huoneeseen"];
+                var letters:Array = ["ČĆŠŽĐčćšžđ", "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž", "ÁÉÍÓÖŐÚÜŰáéíóöőúüű", "ÅÄÖåäö"];
                 var fontClass:Class = domain.getDefinition("Fonts_CB_Bold") as Class;
                 var font:Font = new fontClass() as Font;
-                require(font.hasGlyphs("ČĆŠŽĐčćšžđ"), "Calibri lacks Serbian Latin glyphs");
-                trace("LOCALIZATION Serbian detection, room texts and Calibri Latin glyphs pass");
+                var label:TextField = new TextField();
+                label.embedFonts = true;
+                label.defaultTextFormat = new TextFormat(font.fontName, 15, 0xffffff, true);
+                for (i = 5; i < friends.length; ++i)
+                {
+                    data.setData({btn_friends: friends[i]});
+                    var added:int = i - 5;
+                    require(words.sayFirst("servers") == roomTitles[added], "room title " + i);
+                    require(words.sayFirst("startMatch") == starts[added], "start button " + i);
+                    require(words.levelName(2, i) == schools[added], "map name " + i);
+                    require(words.weatherName(4, i) == nights[added], "weather " + i);
+                    require(words.modeName(5, i) == research[added], "research mode " + i);
+                    require(words.notice("Ada joined the room") == "Ada " + joined[added], "chat notice " + i);
+                    require(font.hasGlyphs(letters[added]), "Calibri lacks glyphs for language " + i);
+                    label.text = words.sayFirst("roomChat");
+                    require(label.textWidth <= 104, "room chat tab exceeds 108 px including padding: " + i);
+                }
+                trace("LOCALIZATION nine-language detection, added menu texts, tab widths and Calibri glyphs pass");
                 trace("LOCALIZATION RESULT pass");
             }
             catch (error:Error)

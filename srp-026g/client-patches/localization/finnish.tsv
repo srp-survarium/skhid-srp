@@ -1,0 +1,2089 @@
+# Finnish game text. Keys omit st_; @ denotes a full key.
+# Explicit translations; see finnish_keep.txt for unchanged identifiers.
+@bm_back_1_desc	Kuvausta ei vielä ole.
+@bm_back_1_name	Marodeur-säiliö
+@mouse_wheel_down	Rulla alas
+@mouse_wheel_up	Rulla ylös
+a545_description	Kuvausta ei vielä ole.
+a545_name	A-545
+a9_91_description	Kuvausta ei vielä ole.
+a9_91_name	9A-91
+abilities	Taidot
+accept	Hyväksy
+accept_changes	Käytä
+account	tili
+account_trading_claim	Tilikauppa
+achieved	saavutettu!
+achievements_label	Pelaajan saavutukset
+action_premium_activated	Premium aktivoitu! Palkintosi:
+activate_premium	Aktivoi premium-tili
+add	Lisää
+add_profile_button_blocked_hint_text	Profiilien enimmäismäärä saavutettu!
+add_profile_button_hint_text	Lisää uusi hahmoprofiili
+add_to_clan_request	kutsuu sinut klaaniin 
+add_to_clan_team_request	kutsuu sinut klaanijoukkueeseen
+add_to_friends	Lisää kaveriksi
+add_to_friends_request	Kaveripyyntö
+add_to_ignore	Lisää estolistalle
+add_to_squad_request	Liity ryhmään
+additional_max_weight_name	Painoraja
+additive_quick_slot_size_modifier	Taskujen tilavuus
+aek919k_description	Venäläinen kompakti konepistooli, kaliiperi 9x18 PM. Kehitetty Kovrovissa 1990-luvulla sisäministeriölle ja muille viranomaisille. 20 patruunan lipas. Kerta- ja sarjatuli.
+aim_time_description	Tähtäysnopeus:
+aim_time_name	Nopea reaktio
+aim_toggle_action	Tähtää 
+aiming_booster_description	Vanhentuneita reseptilääkkeitä. Teho on vuosien myötä heikentynyt, mutta rauhoittava vaikutus toimii yhä.
+aiming_booster_name	Rohtonukulauute
+aiming_speed_correction_perc_name	Tähtäysnopeus
+ak12_description	Kuvausta ei vielä ole.
+ak12_premium_description	Uuden sukupolven venäläinen Kalašnikov-rynnäkkökivääri. Ižmašin kehittämä 2010-luvun alussa. Varustekiskot sekä uusittu tukki ja hallintalaitteet. 30 patruunan lipas. Kerta-, purske- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+ak74m_description	Kalašnikovin uudistettu versio, kaliiperi 5,45x39. Käytössä asevoimissa, joissa se on saanut hyvän maineen. Kerta- ja sarjatuli.
+ak74n_bundle_descr	<white>Sisältö:\n- Parannettu AK-74N.\n- 2000 patruunaa 5.45x39 7N6M.</white>\n
+ak74n_bundle_name	AK-74N-paketti
+ak74n_description	Kuvausta ei vielä ole.
+ak74n_name	AK-74N
+ak74u_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vuoksi merijalkaväen, sisäministeriön ja turvallisuusviranomaisten käytössä. Kerta- ja sarjatuli. 
+ak74u_premium_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vuoksi merijalkaväen, sisäministeriön ja turvallisuusviranomaisten käytössä. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+akmn_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli.
+akmn_premium_2_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+akmn_premium_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+all_factions	Kaikki kauppiaat
+all_quests	Näytä kaikki tehtävät
+already_as_reserve_in_team	Pelaaja on jo varalla
+already_as_soldier_in_team	Pelaaja on jo joukkueessa.
+already_exist_clan_string	Nimi on jo varattu.
+already_has_status_clan_team	Pelaaja on jo kutsuttu tai kuuluu klaanijoukkueeseen.
+already_in_clan_team	Pelaaja on jo joukkueessa.
+already_in_inventory	Omistat jo tämän esineen. Ostetaanko silti?
+ambient_occlusion_options	Ympäristövarjostuksen laatu
+ammo	Ammukset
+ammo_127x54_pt_description	Kuvausta ei vielä ole.
+ammo_127x54_pt_name	12.7x54 PT
+ammo_127x54_vps_description	Kuvausta ei vielä ole.
+ammo_127x55_description	Kuvausta ei vielä ole.
+ammo_12mm_buck2_desc	Tehostettu 12 kaliiperin metsästyspatruuna. Suuret haulit parantavat läpäisyä ja tehokasta kantamaa. 
+ammo_12mm_buck2_name	12x70, haulit
+ammo_12mm_buck_desc	Tavallinen metsästyshaulipatruuna. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin. 
+ammo_12mm_buck_name	12x70, haulit
+ammo_12mm_slug_desc	Täysvaippainen 12 kaliiperin metsästysluoti. Suuri pysäytys- ja läpäisyteho. 
+ammo_12mm_slug_name	12x70, täyteinen
+ammo_30_description	Amerikkalainen kiväärinpatruuna, tehokas 150 metriin asti. Ensimmäinen savuttomalla ruudilla ladattu siviilipatruuna. 
+ammo_357m_description	Tehokas amerikkalainen revolverinpatruuna. Otettiin käyttöön kieltolain aikaan korvaamaan tavallinen poliisipatruuna. 
+ammo_45acp_description	Kuvausta ei vielä ole.
+ammo_46x30_description	Heckler & Kochin MP7:lle kehittämä patruuna. Pieni, kova luoti on suunniteltu läpäisemään suojaliivejä lyhyillä ja keskipitkillä etäisyyksillä.
+ammo_545x39_7n10_description	Kuvausta ei vielä ole.
+ammo_545x39_7n22_description	Kuvausta ei vielä ole.
+ammo_545x39_7n6m_description	Neuvostoliittolainen välikaliiperin patruuna, jossa on teräsydin ja pieni rekyyli. Kevyen luodin suuri lähtönopeus tuottaa laakean lentoradan. 
+ammo_556x45_description	NATOn välikaliiperin patruuna, kehitetty amerikkalaisesta .223 Remingtonista ja standardoitu vuonna 1980. Kevyt ja nopea luoti, laakea lentorata ja pieni rekyyli.
+ammo_57x28_description	FN Herstalin noin vuonna 1990 P90:lle ja myöhemmin Five-seveN-pistoolille kehittämä patruuna. Kevyt, nopea luoti suojaliivien läpäisyyn.
+ammo_65x39_description	Kuvausta ei vielä ole.
+ammo_762x25_description	Ensimmäinen neuvostoliittolainen yhtenäispatruuna pistoolille. Sopii sekä pistooleihin että konepistooleihin. 
+ammo_762x39_7n23_description	Kuvausta ei vielä ole.
+ammo_762x39_description	Vuonna 1943 suunniteltu 7.62x39-patruuna, jota pidetään yhtenä maailman kolmesta tehokkaimmasta kiväärikaliiperista.
+ammo_762x39_m_description	Kuvausta ei vielä ole.
+ammo_762x39_m_name	7.62x39 RPD
+ammo_762x51_M59_description	Sotilaskäyttöön tarkoitetun 7.62x51 M61 -patruunan panssarinläpäisevä versio. Luodissa on vaipallinen teräsydin.
+ammo_762x51_description	Yleinen sotilaspatruuna täysvaippaluodilla. Tarkoitettu tarkkuus- ja siviiliaseisiin. 
+ammo_762x54R_old_description	Varastoista löytynyt patruuna on yksi aikamme vanhimmista kiväärinpatruunoista. Ikä ja varastointi ovat heikentäneet sen tehoa.
+ammo_9x18_description	Neuvostoliittolainen yhtenäispatruuna vanhentuneen 7.62 mm:n tilalle. Edullinen peruspatruuna, joka läpäisee hyvin muita kuin metallipintoja.
+ammo_9x18_pbm_description	Panssarinläpäisevä 9x18 mm PBM 7N25 -patruuna. Tavalliseen 9x18 PM:ään verrattuna huomattavasti suurempi lähtönopeus ja pysäytysvoima.
+ammo_9x19p_7n21_description	Korkeapaineinen +P+-patruuna teräksisellä läpäisyytimellä. Pysäytysvoima ylittää kaupallisen 9x19 Parabellumin. 
+ammo_9x19p_7n31_description	Kuvausta ei vielä ole.
+ammo_9x19p_para_description	Täysvaippainen 9x19 Parabellum -pistoolinpatruuna. Hyväksyttiin NATOn vakiopatruunaksi toisen maailmansodan jälkeen.
+ammo_9x21_description	Kuvausta ei vielä ole.
+ammo_ammo_762x54_7n13_description	Venäläinen 7.62x54R-kiväärinpatruuna. Karkaistu teräsydin parantaa läpäisyä. Käytetään konekivääreissä ja tarkkuuskivääreissä, toimitetaan vöissä.
+ammo_ammo_762x54_7n1_description	Kuvausta ei vielä ole.
+ammo_ammo_762x54_7n1_name	7.62x54 7N1
+ammo_bags_description	Saat ylimääräisen ammustaskun.
+ammo_bags_name	Ammukset
+ammo_equipped_label	Reppu
+ammo_label	Ammukset
+ammo_pab9_description	Kuvausta ei vielä ole.
+ammo_sp5_description	Kuvausta ei vielä ole.
+ammo_sp6_description	Kuvausta ei vielä ole.
+ammo_storage_label	Varasto
+aniso_filtering_option	Anisotrooppinen suodatus
+anomaly_damage_corr_perc_name	Anomaliavahinko
+anomaly_skills_label	Metsän tuntemus.
+antialiasing_option	Reunanpehmennys
+antitoxin_description	Yhdistelmälääke kehon myrkkyjen neutralointiin. Parhaan tehon saat ottamalla sen ennen altistumista. 
+antitoxin_name	Vastamyrkky
+apply_changes_msg	Otetaanko asetukset käyttöön?
+aps_description	Kuvausta ei vielä ole.
+army_026_mask_desc	Kypärähuppu yhdellä leveällä silmäaukolla perutusta S.T.A.L.K.E.R. 2:sta.
+army_026_mask_name	Armeijan kypärähuppu
+artcontainer_time_corr_perc_name	Keräysaika
+artefact_activated_message	Artefakti aktivoitu
+artefact_booster_description	Artefaktien keräämiseen nikkaroidun laitteen toinen versio. Sisäinen vaimennin hillitsee artefaktin anomaliaa ja nopeuttaa keräystä.
+artefact_booster_name	Artefaktimestari
+artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
+artefact_search_failed	Artefaktia ei löytynyt
+artefact_search_success	Sait artefaktin! 
+ash12_description	Kuvausta ei vielä ole.
+attention	Survariumin käynnistimen avaaminen epäonnistui. Yritä myöhemmin uudelleen.
+auto	Automaattinen
+auto_button_hint	Automaattinen ammustäydennys
+auto_repair_button_label	Automaattinen korjaus
+auto_repair_hint	Korjaa varusteiden pienet vauriot automaattisesti
+autobuy_button_label	Automaattinen osto
+autobuy_money	Lisää ammuksia
+autobuy_money_ammo	Ammukset
+autobuy_money_consulabels	Erikoisvarusteet
+autorepair_money	Korjaushinta
+back_use_action	Happipullo
+backpack	Reppu
+ban_reason_account_trading	Tilin myynti tai myyntiyritys.
+ban_reason_administrator	Ylläpidon päätös.
+ban_reason_advertising	Mainosten levittäminen.
+ban_reason_bad_language	Kiroilu
+ban_reason_cheating	Kolmannen osapuolen ohjelmien levittäminen, mainostaminen tai niistä keskustelu.
+ban_reason_discuss_admins	Ylläpidon toimista keskustelu.
+ban_reason_faschism	Rasismi, natsismi tai nationalismi.
+ban_reason_flood	Roskaposti, viestitulva ja sisällöttömät viestit.
+ban_reason_incorrect_info	Väärän tiedon levittäminen.
+ban_reason_insult	Loukkaukset ja provosointi.
+ban_reason_nickname	Virheellinen hahmonimi.
+ban_reason_politics	Politiikasta keskustelu.
+ban_reason_reallife_treating	Tosielämän uhkaukset.
+ban_reason_teamkilling	Liittolaisten tappaminen.
+bandit_026_mask_desc	Rosvon kypärähuppu perutusta S.T.A.L.K.E.R. 2:sta.
+bandit_026_mask_name	Rosvon kypärähuppu
+base_bandages_description	Parantaa kädet ja jalat täysin. Parantaa 35% vartalon ja pään vammoista sekä kivusta.
+base_bandages_name	Sidepakkaus
+base_medkit_description	Perusensiapupakkaus. Hoitaa vakavat haavat ja kohentaa loukkaantuneen vointia.
+base_medkit_name	Ensiapupakkaus
+base_painkiller_description	Voimakas kipulääke, joka nostaa kipukynnystä tilapäisesti. Estää tajunnan menetyksen kipusokista, kun vamma ei ole kuolettava. 
+base_painkiller_name	Kipulääke
+base_trap_description	Tavallinen metsästysrauta vahvalla jousella. Lauetessaan se voi murtaa suuren eläimen tai ihmisen jalan. 
+base_trap_name	Ansa
+benelli_description	Italialainen itselataava 12 kaliiperin haulikko. Benellin kaasutoiminen malli 1990-luvun lopulta, Yhdysvaltain merijalkaväen käytössä nimellä M1014. Putkilipas piipun alla. Vain kertatuli.
+best	Paras
+best_explorer	TUTKIJA
+best_explorer_artefacts	Artefaktit:
+best_explorer_items	Esineet:
+best_player	PELAAJA
+best_player_score	Pisteet:
+best_sniper	AMPUJA
+best_sniper_accuracy	Tarkkuus:
+best_sniper_shots	Laukaukset:
+best_support	TUKI
+best_support_healed	Parannettu:
+best_support_saved	Pelastettu:
+bind_text	Paina painiketta
+black_market_faction	Musta pörssi
+blackmarket_bring_x_items_descr	Myrsky ei säästä meitä eikä vihollista. Selviytyäksemme tarvitsemme suojalaitteeseen mahdollisimman monta akkua. Niitä löytyy eri puolilta aluetta. Niitä voi myös varastaa suoraan vihollisen tukikohdasta.
+blackmarket_bring_x_items_name	Yhteinen asia
+blackmarket_bring_x_items_obj	Etsi ja tuo akkuja:
+blackmarket_entrap_enemies_descr	Mitä teit ennen epidemiaa? Pyydystitkö eläimiä metsässä? On aika kaivaa vanhat taidot esiin. Tällä kertaa saaliina vain on ihminen!
+blackmarket_entrap_enemies_name	Salametsästäjä
+blackmarket_entrap_enemies_obj	Pyydystä vihollisia ansaan:
+blackmarket_grenade_enemies_descr	Usko pois, kunnon kranaattia parempaa lahjaa ei ole. Varsinkaan ilman sokkaa! Taitava kaveri lahjoo samalla useamman vihollisen. Kunhan et anna näitä lahjoja omalle joukkueelle.
+blackmarket_grenade_enemies_name	Pieni lahja!
+blackmarket_grenade_enemies_obj	Tapa vihollisia kranaatilla yhdessä ottelussa:
+blackmarket_headshots_descr	Suojaliivi voi pelastaa hengen, muttei päähän osuvaa luotia vastaan. Kypäräkään ei takaa täyttä suojaa. Pääosuma säästää aikaa, ammuksia ja hermoja.
+blackmarket_headshots_name	Pääosumat
+blackmarket_headshots_obj	Tapa vihollisia pääosumalla:
+blackmarket_kd_ratio_descr	Pelätkööt meitä! Me olemme Musta pörssi. Emme pelkää kuolemaa, ja viemme mielellämme pari vihollista mukanamme!
+blackmarket_kd_ratio_name	Pelottele ja hallitse!
+blackmarket_kd_ratio_obj	Voita ottelu, jossa tappojen ja kuolemien suhde on vähintään
+blackmarket_kill_enemies_descr	Kun taistelu on ohi, vihollinen pakenee ja saalis on jaettu, on mukava muistella voiton hetkiä kavereiden kanssa. Pidä huoli, että sinulla on kerrottavaa.
+blackmarket_kill_enemies_name	Henkilökohtainen asia
+blackmarket_kill_enemies_obj	Tapa vastustajia yhdessä ottelussa:
+blackmarket_kill_enemy_x_descr	Haaskaajat eivät ole pahimpia vihollisiamme. Mutta välillä heille on näytettävä paikkansa. Selkeä esimerkki toimii parhaiten.
+blackmarket_kill_enemy_x_name	Päänmetsästys
+blackmarket_kill_enemy_x_obj	Tapa Haaskaajien jäseniä yhdessä ottelussa:
+blackmarket_killstreak_descr	Joskus vihollinen on ylivoimainen. Joillekin se on ongelma. Meistä taas mitä enemmän vihollisia kaatuu, sitä suurempi on kunnia. 
+blackmarket_killstreak_name	Tappokone
+blackmarket_killstreak_obj	Saavuta tappoputki:
+blackmarket_level_0	Tuntematon
+blackmarket_level_1	Alokas
+blackmarket_level_2	Taistelija
+blackmarket_level_3	Työnjohtaja
+blackmarket_level_4	Sadanpäämies
+blackmarket_level_5	Eliitti
+blackmarket_level_unlock_0	Onneksi olkoon! Mustan pörssin tehtävät ovat nyt avoinna!
+blackmarket_level_unlock_1	Onneksi olkoon! Olet nyt Mustan pörssin alokas!
+blackmarket_level_unlock_2	Onneksi olkoon! Olet nyt Mustan pörssin taistelija!
+blackmarket_level_unlock_3	Onneksi olkoon! Olet nyt Mustan pörssin työnjohtaja!
+blackmarket_level_unlock_4	Onneksi olkoon! Sinut ylennettiin Mustan pörssin sadanpäämieheksi!
+blackmarket_level_unlock_5	Onneksi olkoon! Kuulut nyt Mustan pörssin eliittiin!
+blackmarket_meele_kill_descr	Jos homma ei hoidu siististi, on liattava kädet. Se erottaa meidät muista. Näytä, että kuulut joukkoon: hoida homma omin käsin.
+blackmarket_meele_kill_name	Likainen työ
+blackmarket_meele_kill_obj	Tapa vihollisia lähitaistelussa:
+blackmarket_represent	Sinun on pukeuduttava Mustan pörssin varusteisiin edustaaksesi sitä.
+blackmarket_starter_bundle_descr	<white>Sisältö:\nRosvon takki.\nRosvon housut.\n- Parannettu UZI.\n- 2000 patruunaa 9x19 Parabellum.</white>
+blackmarket_starter_bundle_name	Rosvo-paketti
+blackmarket_steal_box_descr	Kaksi kärpästä yhdellä iskulla! Muista se. Varastamalla akun vihollisen tukikohdasta viet heiltä suojan ja autat samalla omaa joukkuettasi!
+blackmarket_steal_box_name	Ryöstö
+blackmarket_steal_box_obj	Varasta akku vihollisen tukikohdasta ja tuo se omaan tukikohtaasi.
+blackmarket_win_score_descr	Mikä on voittoa parempaa? Murskavoitto! Kun vihollisella ei ole mitään mahdollisuutta ja se nurkkaan ajettuna rukoilee painajaisen loppuvan.
+blackmarket_win_score_name	Ylivoima
+blackmarket_win_score_obj	Voita ottelu ja tuo akkuja:
+blackmarket_win_x_games_descr	Mikään ei maistu niin makealta kuin voitto! Saalis, kunnia ja arvostus kuuluvat voittajalle. Puhumattakaan maineesta Mustan pörssin veljeskunnassa!
+blackmarket_win_x_games_name	Eläköön Musta pörssi!
+blackmarket_win_x_games_obj	Voita otteluita:
+bm_boots_1_desc	Tyylikkäät cowboysaappaat. Ennen katastrofia rokkareiden ja motoristien vakiovaruste.
+bm_boots_1_name	Cowboysaappaat
+bm_boots_2_desc	Matalat nahkasaappaat suojaavat jalkoja hyvin. Mustan pörssin tukikohdassa niitä valmistaa Hämähäkki, joka merkitsee jokaisen saappaan omalla merkillään. Mukavuus säästää kestävyyttä juostessa.
+bm_boots_2_name	Matalat cowboysaappaat
+bm_boots_3_desc	Järeät cowboysaappaat rautavahvikkeilla ja remmeillä. Aseman merkki Mustan pörssin jengeissä.
+bm_boots_3_name	Chopper-saappaat
+bm_gloves_1_desc	Sormettomat nahkakäsineet. Kätevät tappelussa, ampuessa tai piippua täyttäessä ennen pitkää matkaa. Nopeuttavat latausta 2%.
+bm_gloves_1_name	Motoristin käsineet
+bm_gloves_2_desc	Raskaat metallipiikein vahvistetut käsineet. Kätevät, kun ammukset loppuvat ja nyrkit ratkaisevat taistelun.
+bm_gloves_2_name	Piikkikäsineet
+bm_helmet_1_desc	Nahkainen motoristin kypärä. Suojaa päätä raskaiden esineiden iskuilta. Mustan pörssin välienselvittelyissä välttämätön.
+bm_helmet_1_name	Motoristin kypärä
+bm_helmet_5_desc	Kuvausta ei vielä ole.
+bm_helmet_5_name	Marodeur-kypärä
+bm_legs_1_desc	Kestävät perusfarkut suojaavat kylmältä. Ryöstelijän vaivalla hankkimat tyhjennetystä kaupasta. Taskuihin mahtuu pari ansaa tai kranaattia.
+bm_legs_1_name	Farkut
+bm_legs_2_desc	Vahvistetut farkut polvisuojilla. Suojaavat jalkoja kylmältä ja vammoilta.
+bm_legs_2_name	Vahvistetut farkut
+bm_legs_4_desc	Kuvausta ei vielä ole.
+bm_legs_4_name	Rosvon housut
+bm_legs_5_desc	Kuvausta ei vielä ole.
+bm_legs_5_name	Marodeur-housut
+bm_mask_1_desc	Kuvausta ei vielä ole.
+bm_mask_1_name	Korsaari-naamari
+bm_rep_modifier	Maine Mustassa pörssissä
+bm_torso_1_desc	Hihaton motoristin takki, Mustan pörssin taistelijoiden tunnusasu. Suojaa kylmältä ja huonolta säältä. Erikoistaskut ammuksille, ansoille ja kranaateille.
+bm_torso_1_name	Nahkaliivi
+bm_torso_2_desc	Raskas niitattu takki paksusta nahasta suojalevyillä. Nimetty Mustan pörssin erityisen kookkaiden taistelijoiden mukaan, jotka käyttivät sitä ensin. Hihan pääkallo kertoo kantajan pelottomuudesta kuoleman edessä.
+bm_torso_2_name	Kovanaaman takki
+bm_torso_3_desc	Mustan pörssin rynnäkkötaistelijan raskas nahkatakki metallilevyillä. Korsaari-takkia käyttävä hyökkääjä pelottaa kokenuttakin selviytyjää. Erikoistaskut ammuksille, ansoille ja kranaateille.
+bm_torso_3_name	Korsaari-takki
+bm_torso_4_desc	Kuvausta ei vielä ole.
+bm_torso_4_name	Rosvon takki
+bm_torso_5_desc	Kuvausta ei vielä ole.
+bm_torso_5_name	Marodeur-takki
+bonus_day	Päivä
+bonus_victory	Voittobonus
+border_faction	Raja-asukkaat
+born_leader_compliment	Synnynnäinen johtaja
+bot_or_cheater_claim	Botti vai huijari
+breath_holding_time_description	Hengityksen pidätysaika:
+breath_holding_time_name	Rautakeuhkot
+bring_item_to_base	Vie akku tukikohtaasi!
+btn_add_premium_label	Hanki kultaa
+btn_add_premium_message	Hanki kultaa
+btn_add_rank_label	Lisää arvo
+btn_become_commander	Ryhdy komentajaksi
+btn_cancel_decal	Peruuta
+btn_change_name_label	Vaihda nimimerkki
+btn_chat	Chat
+btn_clan_team_invite_memeber	Kutsu
+btn_close_upgrades_label	Viimeistele esineen ulkoasu
+btn_craft_accept	Valmis
+btn_craft_label	Paranna
+btn_create_clan_team	Luo joukkue
+btn_disband_clan_label	Hajota
+btn_disband_clan_team	Hajota joukkue
+btn_end_tutorial_label	Valmis
+btn_equipment	Varusteet
+btn_exchange_premium_money	Vaihda kultaa rupliksi
+btn_exit_label	Poistu
+btn_find_player	Etsi pelaaja
+btn_friends	Kaverit
+btn_friends_online_filter	Paikalla olevat kaverit
+btn_go_to_online_store	Jatka
+btn_invite_clan_memeber_label	Kutsu
+btn_item_craft	Paranna
+btn_join_team	Liity
+btn_kick_clan_memeber_label	Poista
+btn_knowledge_base	Tietopankki
+btn_leave_clan_label	Poistu
+btn_leave_clan_team	Poistu joukkueesta
+btn_no	Ei
+btn_not_ready	Ei valmis
+btn_paperdoll	Varusteet
+btn_premium_hint	Aktivoi premium-tili
+btn_rank_down_clan_memeber_label	Alenna
+btn_rank_up_clan_memeber_label	Ylennä
+btn_ready	Valmis
+btn_remove_rank_label	Poista arvo
+btn_reroll_change_label	Muuta
+btn_reroll_choose_label	Valitse
+btn_reroll_label	Muokkaus
+btn_settings_label	Asetukset
+btn_show_log_list	Historia
+btn_show_log_list_hint	Näytä tämän istunnon tapahtumat
+btn_upgrade_hint	Muokkaa esinettä
+btn_upgrade_label	Ulkoasu
+btn_use_item	Käytä esinettä
+btn_yes	Kyllä
+bundle_clik_hint	Klikkaa pakettia saadaksesi lisätietoja
+button_buy_profile_text	Osta hahmoprofiili
+button_exit	Sulje
+button_skip_tutorial_label	Ohita opastus
+buy	Osta
+buy_post_premium	Lunasta bonukset
+buy_premium_with_discount	Osta nyt alennuksella!
+buy_profile_confirmation_text	Luodaanko uusi hahmo? 
+buy_profile_price_text	Profiilin hinta: 
+buy_treasure_maps	Osta kartta
+camo_black_leather_01_name	Korppi
+camo_black_leather_name	Musta surma
+camo_blue_leather_name	Tuulahdus
+camo_brown_leather_01_name	Nahka 2
+camo_brown_leather_02_name	Nahka 3
+camo_brown_leather_03_name	Nahka 4
+camo_brown_leather_04_name	Nahka 5
+camo_brown_leather_05_name	Ifrit
+camo_brown_leather_name	Nahka
+camo_camouflage_green_01_name	Metsästäjä
+camo_camouflage_green_name	Oakley
+camo_chemical_fabric_01_name	Vihreä suojapuku
+camo_chemical_fabric_02_name	Vihreä lehdistö
+camo_chemical_fabric_03_name	Sinitaivas
+camo_city_camo_name	Pantteri
+camo_cyfra_01_camo_name	Digitaalinen N
+camo_cyfra_02_camo_name	Digitaalinen
+camo_cyfra_03_camo_name	Soturi
+camo_denim_01_name	Tumma denim
+camo_denim_name	Denim
+camo_desert_camo_name	Aavikko
+camo_fabric_brown_01_name	Kuiva maa
+camo_fabric_brown_02_name	Aavikkomyrsky
+camo_fabric_brown_03_name	Skorpioni
+camo_fabric_brown_name	Ruskea kangas
+camo_fabric_camouflage_name	Selviytyjä
+camo_fabric_green_01_name	Vihreä kangas
+camo_fabric_green_name	Valkoinen kangas
+camo_fabric_grey_name	Aave
+camo_flecktarn_01_camo_name	Flecktarn
+camo_flecktarn_02_camo_name	Metsä
+camo_generic_desc	Vaihda liivien ja housujen ulkoasua niiden ikkunan maastokuvioinnilla.
+camo_green_leather_name	Vihreä nahka
+camo_izlom_name	Murros
+camo_khaki_fabric_01_name	Kuuma hiekka
+camo_khaki_fabric_02_name	Polttava aurinko
+camo_khaki_fabric_03_name	Pöly
+camo_multicam_name	Kangastus
+camo_new_year	Uusivuosi 2015
+camo_quilted_fabric_name	Tikattu kangas
+camo_red_leather_name	Legioonalainen
+camo_rubber_green_01_name	Etsijä
+camo_rubber_green_02_name	Keltainen kumi
+camo_rubber_green_name	Vihreä kumi
+camo_slot	Maastokuviointi
+camo_spekrt_01_name	Spektr-Syksy
+camo_spekrt_02_name	Spektr-Kevät
+camo_spekrt_03_name	Spektr-Kesä
+camo_steam	Steam-maastokuviointi
+camo_suede_leather_name	Mokka
+camo_yellow_leather_name	Keltainen nahka
+can_be_installed_on	Sopii varusteisiin
+can_sprint_description	Voit sprintata ylikuormitettunakin.
+can_sprint_name	Sprintti
+cancel	Peruuta
+cannot_buy_item	Esinettä ei voi ostaa
+cannot_craft_item	Esinettä ei voi parantaa.
+cannot_pickup_item	Kannat jo säiliötä!
+cannot_pickup_item_broken_hand	Kätesi ovat haavoittuneet! Et voi nostaa säiliötä.
+cannot_relocate_item	Esinettä ei voi siirtää
+cannot_repair_item	Esinettä ei voi korjata
+cannot_reroll_skills	Taitojen nollaus epäonnistui
+cannot_select_rerolled_modification	Muokkauksen vaihto epäonnistui
+cannot_upgrade_item	Esineen muokkaus epäonnistui. Yritä uudelleen.
+cannot_use_drop_card	Kätkökarttaa ei voi käyttää.
+cant_add_clan_member	Pelaajan lisääminen klaaniin epäonnistui
+cant_add_clan_team_member	Pelaajan lisääminen joukkueeseen epäonnistui.
+cant_buy_clan_registration	Klaanirekisteröinnin maksu epäonnistui.
+cant_buy_premium_message	Kultaruplasi eivät riitä ostoon.
+cant_cancel_clan_registration	Klaanirekisteröinnin peruminen epäonnistui.
+cant_change_clan_team_battle_status	Joukkueaseman muuttaminen epäonnistui.
+cant_change_commander_team_role	Komentajan roolia ei voi muuttaa.
+cant_change_permission	Käyttöoikeuksien muuttaminen epäonnistui.
+cant_change_rank_clan_member	Pelaajan arvon muuttaminen epäonnistui.
+cant_change_ready_state	Valmiustilan muuttaminen epäonnistui.
+cant_change_role_himself	Et voi muuttaa omaa arvoasi
+cant_change_status_clan_team_member	Pelaajan tilan muuttaminen epäonnistui.
+cant_clan_match_closed	Klaanijoukkueesta poistuminen epäonnistui.
+cant_create_clan	Klaanin luominen epäonnistui.
+cant_create_clan_rank	Klaaniarvon luominen epäonnistui.
+cant_create_clan_team	Joukkueen luominen epäonnistui
+cant_delete_default_rank	Oletusarvoa ei voi poistaa
+cant_disband_clan_team	Joukkueen hajottaminen epäonnistui
+cant_find_player	Tämännimistä pelaajaa ei löytynyt.
+cant_invite_player_to_clan	Pelaajan kutsuminen klaaniin epäonnistui
+cant_invite_player_to_clan_team	Pelaajan kutsuminen joukkueeseen epäonnistui.
+cant_kick_himself	Et voi erottaa itseäsi klaanista.
+cant_kick_member	Pelaajan erottaminen klaanista epäonnistui.
+cant_leave_clan_team	Joukkueesta poistuminen epäonnistui
+cant_oust_commander	Komentajan vaihto epäonnistui
+cant_oust_yourself	Et voi erottaa itseäsi joukkueesta.
+cant_rank_up_clan_member	Pelaajan ylennys epäonnistui.
+cant_remove_clan_rank	Klaaniarvon poistaminen epäonnistui.
+cant_remove_clan_team_member	Pelaajan erottaminen joukkueesta epäonnistui
+cant_remove_yourself	Et voi poistaa itseäsi joukkueesta.
+cant_request_to_join_clan_team	Klaanijoukkueeseen hakeminen epäonnistui.
+cant_reserve_clan	Nimen varaaminen epäonnistui.
+cant_set_clan_team_commander	Klaanijoukkueen komentajan nimitys epäonnistui.
+cant_set_daily_message	Päivän viestin asetus epäonnistui.
+cant_set_yourself	Et voi nimittää itseäsi joukkueen komentajaksi.
+cant_upgrade_while_repair_hint	Esinettä ei voi parantaa korjauksen aikana.
+capture_info	Vallataan laitetta…
+chamber_a_round_description	Lukon viritysnopeus:
+chamber_a_round_name	Liipaisinkuri
+change	Nimeä uudelleen
+change_name_error	Hahmon nimeäminen epäonnistui.
+change_name_label	Vaihda nimimerkki
+change_order	Muuta järjestystä
+change_profile	Vaihda profiilia
+change_quest	Vaihda tehtävä
+change_quest_label	Vaihda tehtävä
+change_weapon_speed_description	Aseenvaihdon nopeus:
+change_weapon_speed_name	Näppärät kädet
+character	Hahmo
+character_decals_1_12_name	Jarilo
+character_decals_1_1_name	Kirjailija
+character_decals_1_2_name	Alfa-ryhmä
+character_decals_1_3_name	Selviytyjä
+character_decals_1_4_name	Tutkimusmatkailija
+character_decals_1_5_name	Veteraani
+character_decals_1_6_name	Mestari
+character_decals_1_7_name	Legenda
+character_decals_1_8_name	Siivekkäät husaarit
+character_decals_2_1_name	Haaskaajien tulokas
+character_decals_2_2_name	Haaskaajien veteraani
+character_decals_2_3_name	Mustan pörssin alokas
+character_decals_2_4_name	Mustan pörssin eliitti
+character_decals_2_5_name	Uudestisyntymän armeijan sotilas
+character_decals_2_6_name	Uudestisyntymän armeijan eversti
+character_decals_2_7_name	Raja-asukkaiden metsästäjä
+character_decals_2_8_name	Raja-asukkaiden maisteri
+character_decals_3_10_name	Tappava
+character_decals_3_11_name	Eläimen kallo
+character_decals_3_12_name	Luoti
+character_decals_3_13_name	Kranaatti
+character_decals_3_14_name	Ensiapu
+character_decals_3_15_name	Tähtäin
+character_decals_3_16_name	Spetsnaz
+character_decals_3_17_name	VDV
+character_decals_3_18_name	Sata
+character_decals_3_19_name	Tikari
+character_decals_3_1_name	Biovaara
+character_decals_3_20_name	Atomimerkki
+character_decals_3_21_name	DNA-kierre
+character_decals_3_2_name	Asekielto
+character_decals_3_3_name	Anarkia
+character_decals_3_4_name	Merirosvo
+character_decals_3_5_name	Radioaktiivisuus
+character_decals_3_6_name	Räjähdysvaara
+character_decals_3_7_name	Metsäkielto
+character_decals_3_8_name	Elämänpuu
+character_decals_3_9_name	Tiimalasi
+character_decals_4_10_name	Georgian lippu
+character_decals_4_11_name	Uzbekistanin lippu
+character_decals_4_12_name	Tadžikistanin lippu
+character_decals_4_13_name	Kirgisian lippu
+character_decals_4_14_name	Turkmenistanin lippu
+character_decals_4_15_name	Azerbaidžanin lippu
+character_decals_4_16_name	Armenian lippu
+character_decals_4_17_name	Saksan lippu
+character_decals_4_18_name	Ison-Britannian lippu
+character_decals_4_19_name	Ranskan lippu
+character_decals_4_1_name	Neuvostoliiton lippu
+character_decals_4_20_name	Italian lippu
+character_decals_4_21_name	Espanjan lippu
+character_decals_4_22_name	Puolan lippu
+character_decals_4_23_name	Romanian lippu
+character_decals_4_24_name	Alankomaiden lippu
+character_decals_4_25_name	Kreikan lippu
+character_decals_4_26_name	Portugalin lippu
+character_decals_4_27_name	Tšekin lippu
+character_decals_4_28_name	Belgian lippu
+character_decals_4_29_name	Unkarin lippu
+character_decals_4_2_name	Venäjän lippu
+character_decals_4_30_name	Ruotsin lippu
+character_decals_4_31_name	Itävallan lippu
+character_decals_4_32_name	Sveitsin lippu
+character_decals_4_33_name	Bulgarian lippu
+character_decals_4_34_name	Serbian lippu
+character_decals_4_35_name	Tanskan lippu
+character_decals_4_36_name	Slovakian lippu
+character_decals_4_37_name	Norjan lippu
+character_decals_4_38_name	Irlannin lippu
+character_decals_4_39_name	Kroatian lippu
+character_decals_4_3_name	Ukrainan lippu
+character_decals_4_40_name	Bosnia ja Hertsegovinan lippu
+character_decals_4_41_name	Turkin lippu
+character_decals_4_42_name	Yhdysvaltain lippu
+character_decals_4_43_name	Kanadan lippu
+character_decals_4_44_name	Brasilian lippu
+character_decals_4_45_name	Argentiinan lippu
+character_decals_4_46_name	Australian lippu
+character_decals_4_47_name	Suomen lippu
+character_decals_4_48_name	Uuden-Seelannin lippu
+character_decals_4_49_name	Irlannin lippu
+character_decals_4_4_name	Valko-Venäjän lippu
+character_decals_4_50_name	Skotlannin lippu
+character_decals_4_51_name	Englannin lippu
+character_decals_4_52_name	Etelä-Korean lippu
+character_decals_4_53_name	Japanin lippu
+character_decals_4_54_name	Kiinan lippu
+character_decals_4_55_name	Intian lippu
+character_decals_4_56_name	Indonesian lippu
+character_decals_4_57_name	Malesian lippu
+character_decals_4_58_name	Filippiinien lippu
+character_decals_4_59_name	Thaimaan lippu
+character_decals_4_5_name	Kazakstanin lippu
+character_decals_4_60_name	Vietnamin lippu
+character_decals_4_61_name	Bolivian lippu
+character_decals_4_62_name	Chilen lippu
+character_decals_4_63_name	Kolumbian lippu
+character_decals_4_64_name	Ecuadorin lippu
+character_decals_4_65_name	Paraguayn lippu
+character_decals_4_66_name	Perun lippu
+character_decals_4_67_name	Uruguayn lippu
+character_decals_4_68_name	Venezuelan lippu
+character_decals_4_69_name	Albanian lippu
+character_decals_4_6_name	Latvian lippu
+character_decals_4_70_name	Kuuban lippu
+character_decals_4_71_name	Slovenian lippu
+character_decals_4_72_name	Angolan lippu
+character_decals_4_73_name	Nigerian lippu
+character_decals_4_74_name	Etelä-Afrikan lippu
+character_decals_4_75_name	Walesin lippu
+character_decals_4_7_name	Liettuan lippu
+character_decals_4_8_name	Viron lippu
+character_decals_4_9_name	Moldovan lippu
+character_decals_5_10_name	Georgian vaakuna
+character_decals_5_11_name	Uzbekistanin vaakuna
+character_decals_5_12_name	Tadžikistanin vaakuna
+character_decals_5_13_name	Kirgisian vaakuna
+character_decals_5_14_name	Turkmenistanin vaakuna
+character_decals_5_15_name	Azerbaidžanin vaakuna
+character_decals_5_16_name	Armenian vaakuna
+character_decals_5_17_name	NATOn tunnus
+character_decals_5_18_name	YKn tunnus
+character_decals_5_19_name	Saksan vaakuna
+character_decals_5_1_name	Punatähti
+character_decals_5_20_name	Ison-Britannian vaakuna
+character_decals_5_21_name	Ranskan vaakuna
+character_decals_5_22_name	Italian vaakuna
+character_decals_5_23_name	Espanjan vaakuna
+character_decals_5_24_name	Puolan vaakuna
+character_decals_5_25_name	Romanian vaakuna
+character_decals_5_26_name	Alankomaiden vaakuna
+character_decals_5_27_name	Kreikan vaakuna
+character_decals_5_28_name	Portugalin vaakuna
+character_decals_5_29_name	Tšekin vaakuna
+character_decals_5_2_name	Venäjän vaakuna
+character_decals_5_30_name	Belgian vaakuna
+character_decals_5_31_name	Unkarin vaakuna
+character_decals_5_32_name	Ruotsin vaakuna
+character_decals_5_33_name	Itävallan vaakuna
+character_decals_5_34_name	Sveitsin vaakuna
+character_decals_5_35_name	Bulgarian vaakuna
+character_decals_5_36_name	Serbian vaakuna
+character_decals_5_37_name	Tanskan vaakuna
+character_decals_5_38_name	Slovakian vaakuna
+character_decals_5_39_name	Norjan vaakuna
+character_decals_5_3_name	Ukrainan vaakuna
+character_decals_5_40_name	Irlannin vaakuna
+character_decals_5_41_name	Kroatian vaakuna
+character_decals_5_42_name	Bosnia ja Hertsegovinan vaakuna
+character_decals_5_4_name	Valko-Venäjän vaakuna
+character_decals_5_5_name	Kazakstanin vaakuna
+character_decals_5_6_name	Liettuan vaakuna
+character_decals_5_7_name	Liettuan vaakuna
+character_decals_5_8_name	Viron vaakuna
+character_decals_5_9_name	Moldovan vaakuna
+character_decals_7_27_name	Apilakoriste
+character_decals_7_28_name	Hevosenkenkä
+character_decals_7_9_name	Yrtit
+character_decals_generic_desc	Vaihda liivien ja housujen ulkoasua niiden ikkunan merkeillä.
+characteristics_label	Pelaajatilastot
+chat_channel_clan	Klaanichat
+chat_channel_clan_team	Klaanijoukkue
+chat_channel_general	Yleinen chat
+chat_channel_match	Kaikki
+chat_channel_private	Yksityinen
+chat_channel_squad	Ryhmä
+chat_channel_system	Järjestelmä
+chat_channel_team	Joukkue
+checkbox_battle_commander_permission	Kenttäkomentaja
+checkbox_clan_change_rank_permission	Muuta pelaajien arvoja
+checkbox_clan_daily_message_permission	Muuta päivän viestiä
+checkbox_clan_invite_permission	Kutsu
+checkbox_clan_member_kick_permission	Poista
+checkbox_compare_items	Esineiden vertailu
+checkbox_compare_items_hint	Näytä käytössä olevan esineen kuvaus
+checkbox_players_live_search	Reaaliaikainen pelaajahaku
+checkbox_show_locked_items	Ei saatavilla
+checkbox_show_locked_items_hint	Näytä esineet, joita ei ole saatavilla
+checkbox_show_offline_players	Näytä poissa olevat pelaajat
+checkbox_show_player_groups	Näytä pelaajaryhmät
+checkbox_show_shop_items	Kauppa
+checkbox_show_shop_items_hint	Näytä kaupan esineet
+choose	Valitse
+choose_faction_button_hint	Valitse ryhmittymä
+choose_faction_description	Ryhmittymät toimittavat varusteita, aseita ja ammuksia. Tehtävien suorittaminen parantaa mainettasi ja avaa pääsyn niiden parhaisiin tuotteisiin. Voit tehdä yhteistyötä vain yhden ryhmittymän kanssa kerrallaan.
+choose_faction_label	Valitse ryhmittymä
+choose_modifier	Vaihda lisäominaisuus:
+choose_premium_subscription	Valitse premium-tilaus:
+claim_player	Tee ilmoitus
+claims_count_per_day_owerflow	Päivittäinen ilmoitusrajasi on täynnä.
+claims_count_per_user_owerflow	Et voi ilmoittaa samasta pelaajasta kahdesti päivässä!
+clan	Klaani
+clan_abbr_is_not_valid	Lyhenne on jo varattu
+clan_abbreviation	Klaanin lyhenne
+clan_abbreviation_default_text	Valitse lyhenne
+clan_abbreviation_info	(3–6 merkkiä)
+clan_accept_button_label	Rekisteröi
+clan_buy_registration_button_label	Maksat
+clan_cancel_button_label	Peru rekisteröinti
+clan_control_tab	Klaanin hallinta
+clan_creation_info_description	Klaanin rekisteröintiin tarvitaan vähintään 5 pelaajan tuki. Rekisteröinnin jälkeen he liittyvät siihen automaattisesti.
+clan_creation_info_label	Hanki pelaajien tuki
+clan_daily_message	Päivän viesti
+clan_invite_1	Pelaaja
+clan_invite_2	kutsuttiin klaaniin.
+clan_invite_accepted	Hyväksytty
+clan_invite_pending	Klaanikutsu odottaa
+clan_invite_player_button_label	Kutsu
+clan_invite_rejected	Hylätty
+clan_kick_1	Haluatko varmasti erottaa pelaajan
+clan_kick_2	klaanista?
+clan_leave_button_label	Poistu klaanista
+clan_level_label	Klaanin taso
+clan_level_up_1	Klaanimme saavutti tason
+clan_level_up_2	taso.
+clan_manage_window_label	Klaani
+clan_max_members_count_error	Klaanin jäsenmäärä on täynnä.
+clan_member_joined	liittyi klaaniin.
+clan_member_kicked	erotettiin klaanista
+clan_member_left	poistui klaanista.
+clan_name	Klaanin nimi
+clan_name_and_abbr_are_not_valid	Nimimerkki tai lyhenne on jo varattu
+clan_name_default_text	Anna klaanin nimi
+clan_name_is_not_valid	Nimimerkki on jo varattu
+clan_options_tab	Asetukset
+clan_players_level_label	Taso
+clan_players_list_availabe_postfix	mahdollista
+clan_players_list_availabe_prefix	Pelaajalista 
+clan_players_name_label	Nimi
+clan_players_rank_label	Arvo
+clan_players_ready	Valmis
+clan_players_status_label	Tila
+clan_rank	Klaanisijoitus
+clan_rank_assistant	Varakomentaja
+clan_rank_commander	Komentaja
+clan_rank_soldier	Sotilas
+clan_rank_warlord	Kersantti
+clan_registration_cost	Rekisteröinnin\nhinta
+clan_registration_paid	Maksettu
+clan_reserve_name_button_label	Avaa tili
+clan_system_message_sender	Klaanin järjestelmäviesti
+clan_team_commander	Kenttäkomentaja
+clan_team_invite_2	kutsuttiin klaanijoukkueeseen.
+clan_team_invites	Hakemukset
+clan_team_is_full	Klaaniottelun pelaajamäärä on täynnä.
+clan_team_reserve	Varapelaajat
+clan_team_soldier	Joukkueen kokoonpano
+clan_team_window_label	Joukkueen kokoonpano
+clan_was_disbanded	Komentaja hajotti klaanisi.
+clan_window_close_message	Haluatko varmasti poistua joukkueesta?
+clan_window_close_message_commander	Haluatko varmasti poistua joukkueesta?
+clan_window_label	Klaanin rekisteröinti
+clear	Tyhjennä
+close	Sulje
+collect_statistics_option	Salli tilastojen kerääminen
+compliment_count_per_day_owerflow	Päivittäinen kehujen raja on täynnä.
+compliment_count_per_user_owerflow	Et voi kehua samaa pelaajaa kahdesti päivässä!
+compliment_player	Kehu
+confirm	Vahvista
+conflict_message	Tämä näppäinmääritys muuttaa seuraavia:
+convert_weapon_slot_to_pocket_description	Saat lisäpaikan erikoisvarusteille, mutta et voi kantaa toista asetta.
+convert_weapon_slot_to_pocket_name	Syvät taskut
+cost	Hinta
+count	Määrä
+craft	Paranna
+craft_message_broken_item	Vaurioitunutta esinettä ei voi parantaa.
+craft_message_equipped_item	Et voi parantaa käytössä olevaa esinettä otteluhaun aikana.
+craft_message_modifers_count	Esinettä ei voi enää parantaa. Lisäominaisuuksia on enimmäismäärä.
+craft_message_modifiers_difference	Et voi käyttää useamman lisäominaisuuden esinettä luovuttajana. Vaihdetaanko ne keskenään?
+craft_result_fail_label	Valitettavasti kömpelö käsittely heikensi esinettä.
+craft_result_neutral_label	Esineen parantaminen ei valitettavasti onnistunut.
+craft_result_success_label	Esineen parantaminen onnistui!
+critical_damages	Vakavat vammat
+crosshair_static_option	Kiinteä tähtäin
+crosshair_type_option	Valitse tähtäin
+crouch_action	Kyykisty (pidä)
+crouch_toggle_action	Kyykisty
+ct_max_members_count_error	Pelaajien lisääminen epäonnistui. Klaanijoukkue on jo täynnä.
+current_value	\nNykyinen arvo:
+daily_bonus_description	Pelaa päivittäin ja saat <highlight>kolmesta ensimmäisestä</highlight> voitosta <highlight>x2</highlight> kokemusta ja mainetta.
+daily_bonus_hint	Näytä tervetuloruutu
+daily_bonus_label	Tervetuloa takaisin
+daily_bonus_progress	Tämän päivän edistymisesi
+daily_bonus_reward_complete	<gold>Valmis</gold>
+daily_bonus_reward_description	<gold>7. päivänä</gold> saat
+daily_bonus_victories	voittoa
+daily_message_label	Päivän viesti:
+day_short	pv
+dealy_breath_action	Pidätä hengitystä
+decal_editor_description	Hiiren vasen painike – aseta merkki\nALT – kierrä merkkiä\nCTRL – muuta kokoa
+decal_editor_label	Muokkaustila
+decal_slot	Merkki
+decorations_options	Koristeiden laatu
+default_profile_name1	Profiili 1
+default_profile_name2	Profiili 2
+default_profile_name3	Profiili 3
+default_scope_name	Vakiotähtäin
+defeat	Tappio
+defuse_trap	Poista käytöstä ({USE})
+disband_clan_message	Haluatko varmasti hajottaa klaanin?
+disband_clan_money_message	Haluatko varmasti hajottaa klaanin? Rekisteröintitilille talletettu hopea menetetään.
+disband_squad	Hajota ryhmä
+disconnected_from_lobby	Yhteys aulapalvelimeen katkesi!
+dispersion_correction_perc_name	Lonkkatulen hajonta
+dispersion_from_hip_description	Lonkkatulen tarkkuus:
+dispersion_from_hip_name	Tarkkuus
+dispersion_movement_influence_description	Tarkkuus liikkeessä:
+dispersion_movement_influence_name	Vakaa ote
+dont_have_permission	Oikeutesi eivät riitä tähän toimintoon.
+drop	Riisu
+drop_action	Pudota
+drop_card_descr	Käytä kätkökarttaa ottelun jälkeen löytääksesi lisää esineitä.
+drop_card_name	Kätkökartta
+duty_026_boots_desc	Raskaat panssaroidut saappaat, joita Velvollisuuden taistelijat käyttävät raskaan panssarinsa kanssa.
+duty_026_boots_name	Velvollisuuden saappaat
+duty_026_gloves_desc	Vahvistetut sormettomat käsineet, joita Velvollisuuden taistelijat käyttävät raskaan panssarinsa kanssa.
+duty_026_gloves_name	Velvollisuuden käsineet
+duty_026_head_desc	Velvollisuuden kokeellisen ulkoisen tukirangan tiivis kypärä sisäisellä hengityssuojaimella. Peittää koko pään ja kasvot.
+duty_026_helmet_name	Velvollisuuden tukirankakypärä
+duty_026_suit_desc	Kokeellinen sotilastukiranka. Korkea hinta ja suunnitteluvirheet estivät sarjatuotannon. Pieniä eriä valmistetaan yhä maanalaisissa tehtaissa Ukrainan ulkopuolella. Sisäinen artefaktisäiliö.
+duty_026_suit_name	Velvollisuuden tukiranka
+edge_accuracy_descr	Yksi tarkka laukaus on parempi kuin tusina ilmaan. Varsinkin nykyään, kun jokainen patruuna on harvinainen löytö. Näytä, että ansaitset metsästäjän nimen.
+edge_accuracy_name	Tarkka-ampuja
+edge_accuracy_obj	Voita ottelu tarkkuudella:
+edge_back_1_desc	Artefaktit ovat Raja-asukkaiden erikoisalaa. Jos osaat etsiä ja käyttää niitä, tämä suuri kahden artefaktin säiliö on varma valinta. 
+edge_back_1_name	Dar 2M -säiliö
+edge_back_2_desc	Kuvausta ei vielä ole.
+edge_back_2_name	Stalkerin reppu
+edge_back_3_desc	Kuvausta ei vielä ole.
+edge_back_3_name	Tuulahdus-hengitysjärjestelmä
+edge_back_5_desc	Kuvausta ei vielä ole.
+edge_back_5_name	Vaeltaja-säiliö
+edge_back_6_desc	Kuvausta ei vielä ole.
+edge_back_6_name	Pyhiinvaeltaja-säiliö
+edge_boots_1_desc	Korkeat, kevyet saappaat pehmeillä pohjilla. Sopivat saaliin hiipivään seuraamiseen. Rasittavat vähemmän pitkillä matkoilla. 
+edge_boots_1_name	Metsästäjän saappaat
+edge_boots_2_desc	Kuvausta ei vielä ole.
+edge_boots_2_name	Stalkerin saappaat
+edge_boots_3_desc	Kuvausta ei vielä ole.
+edge_boots_3_name	Tutkijan saappaat
+edge_boots_4_desc	Kuvausta ei vielä ole.
+edge_boots_4_name	Mestarin saappaat
+edge_boots_5_desc	Kuvausta ei vielä ole.
+edge_boots_5_name	Vartijan saappaat
+edge_boots_6_desc	Kuvausta ei vielä ole.
+edge_boots_6_name	Pyhiinvaeltajan saappaat
+edge_bring_x_items_descr	Maa ei siedä väkivaltaa. Jokainen vihan kipinä herättää luonnon vastaiskun. Kutsumme sitä Myrskyksi. Olemme oppineet suojautumaan siltä, mutta suojalaite tarvitsee akkuja.
+edge_bring_x_items_name	Etsijä
+edge_bring_x_items_obj	Etsi ja tuo akkuja:
+edge_defend_items_descr	Oman alueen suojelu on jokaisen Raja-asukkaan pyhä velvollisuus. Jos et pysty suojaamaan tukikohtaasi ryöstöltä, miten pelastaisit ihmiskunnan tuholta? 
+edge_defend_items_name	Vartija
+edge_defend_items_obj	Voita ottelu menettämättä akkuja
+edge_find_artifacts_descr	Voimamme on sopusoinnussa luonnon kanssa. Artefaktit ovat lahja meitä viisaammalta voimalta. Jos ne auttavat selviytymään, olisi typerää olla käyttämättä niitä.
+edge_find_artifacts_name	Luonnon lahjat
+edge_find_artifacts_obj	Löydä artefakteja yhdessä ottelussa:
+edge_gloves_2_desc	Kuvausta ei vielä ole.
+edge_gloves_2_name	Stalkerin käsineet
+edge_gloves_3_desc	Kuvausta ei vielä ole.
+edge_gloves_3_name	Tutkijan käsineet
+edge_gloves_4_desc	Kuvausta ei vielä ole.
+edge_gloves_4_name	Mestarin käsineet
+edge_gloves_5_desc	Kuvausta ei vielä ole.
+edge_gloves_5_name	Vartijan käsineet
+edge_gloves_6_desc	Kuvausta ei vielä ole.
+edge_gloves_6_name	Pyhiinvaeltajan käsineet
+edge_grenade_enemies_descr	Kun ase ei läpäise panssaria, kranaatti auttaa. Yksi tarkka heitto, ja vastustajasi on matojen ruokaa.
+edge_grenade_enemies_name	Heittäjä
+edge_grenade_enemies_obj	Tapa vihollisia kranaatilla yhdessä ottelussa:
+edge_headshots_descr	Todellisuudessa väkivaltaa on vaikea välttää. Jos vihollinen on tapettava, tehkäämme se nopeasti pääosumalla.
+edge_headshots_name	Armo
+edge_headshots_obj	Tapa vihollisia pääosumalla:
+edge_helmet_1_desc	Vahva nahkahuppu suojaa sateelta, pieniltä sirpaleilta ja heikoilta luodeilta.
+edge_helmet_1_name	Metsästäjän huppu
+edge_helmet_3_desc	Kuvausta ei vielä ole.
+edge_helmet_3_name	Tutkijan hattu
+edge_helmet_4_desc	Kuvausta ei vielä ole.
+edge_helmet_4_name	Mestarin huppu
+edge_helmet_5_desc	Kuvausta ei vielä ole.
+edge_helmet_5_name	Vartijan kypärä
+edge_helmet_6_desc	Kuvausta ei vielä ole.
+edge_helmet_6_name	Pyhiinvaeltajan kypärä
+edge_kd_ratio_descr	Oletko uhri vai saalistaja? Metsästäjä vai saalis? Maailmanlopun jälkeen jokainen on omillaan. Vain vahvimmat selviävät.
+edge_kd_ratio_name	Luonnonvalinta
+edge_kd_ratio_obj	Voita ottelu, jossa tappojen ja kuolemien suhde on vähintään
+edge_legs_1_desc	Paksusta mutantinnahasta tehdyt housut suojaavat anomaliolta ja pienikaliiperisilta luodeilta. Liikenopeus kasvaa 3%.
+edge_legs_1_name	Metsästäjän housut
+edge_legs_2_desc	Kuvausta ei vielä ole.
+edge_legs_2_name	Stalkerin housut
+edge_legs_3_desc	Kuvausta ei vielä ole.
+edge_legs_3_name	Tutkijan housut
+edge_legs_4_desc	Kuvausta ei vielä ole.
+edge_legs_4_name	Leši-housut
+edge_legs_5_desc	Kuvausta ei vielä ole.
+edge_legs_5_name	Vartijan housut
+edge_legs_6_desc	Kuvausta ei vielä ole.
+edge_legs_6_name	Pyhiinvaeltajan housut
+edge_level_0	Tuntematon
+edge_level_1	Metsästäjä
+edge_level_10	Maisteri
+edge_level_2	Metsästäjä
+edge_level_3	Vaeltaja
+edge_level_4	Jäljittäjä
+edge_level_5	Vihkiytynyt
+edge_level_6	Vanhin
+edge_level_7	Mestari
+edge_level_8	Tietäjä
+edge_level_9	Vartija
+edge_level_unlock_0	Onneksi olkoon! Raja-asukkaiden tehtävät ovat nyt avoinna!
+edge_level_unlock_1	Onneksi olkoon! Olet nyt Raja-asukkaiden metsästäjä!
+edge_level_unlock_10	Onneksi olkoon! Olet nyt Raja-asukkaiden maisteri!
+edge_level_unlock_2	Onneksi olkoon! Olet nyt Raja-asukkaiden metsästäjä!
+edge_level_unlock_3	Onneksi olkoon! Olet nyt Raja-asukkaiden vaeltaja!
+edge_level_unlock_4	Onneksi olkoon! Sinut ylennettiin Raja-asukkaiden jäljittäjäksi!
+edge_level_unlock_5	Onneksi olkoon! Olet nyt Raja-asukkaiden vihkiytynyt!
+edge_level_unlock_6	Onneksi olkoon! Olet nyt Raja-asukkaiden vanhin!
+edge_level_unlock_7	Onneksi olkoon! Sinut ylennettiin Raja-asukkaiden mestariksi!
+edge_level_unlock_8	Onneksi olkoon! Olet nyt Raja-asukkaiden tietäjä!
+edge_level_unlock_9	Onneksi olkoon! Olet nyt Raja-asukkaiden vartija!
+edge_mask_2_desc	Kuvausta ei vielä ole.
+edge_mask_2_name	Pimeänäkölaite
+edge_mask_5_desc	Kuvausta ei vielä ole.
+edge_mask_5_name	Vartijan naamari
+edge_meele_kill_descr	Luonto loi ihmisestä vahvan ja rohkean. Aseet tekivät hänestä heikon ja pelokkaan. Muista se ja vältä ampumista, kun se ei ole välttämätöntä.
+edge_meele_kill_name	Luonnon lait
+edge_meele_kill_obj	Tapa vihollisia lähitaistelussa:
+edge_rep_modifier	Maine Raja-asukkaiden keskuudessa
+edge_represent	Sinun on pukeuduttava Raja-asukkaiden varusteisiin edustaaksesi heitä.
+edge_reps_3_desc	Kuvausta ei vielä ole.
+edge_resp_1_desc	Kuvausta ei vielä ole.
+edge_resp_1_name	Malakiitti-hengityssuojain
+edge_resp_3_name	Smaragdi-kaasunaamari
+edge_steal_box_descr	Vihollisia ei tarvitse tuhota omin käsin. Heikennä vain heidän suojaansa Myrskyltä, niin luonto hoitaa loput.
+edge_steal_box_name	Salainen isku
+edge_steal_box_obj	Varasta akku vihollisen tukikohdasta ja tuo se omaan tukikohtaasi.
+edge_torso_1_desc	Nahkainen metsästäjän takki, jossa on amuletteja luonnon vihaa vastaan. Sudennahka karkottaa petoja ja pelottaa vihollisia. Kätevä laukku antaa tilaa esineille.
+edge_torso_1_name	Metsästäjän takki  
+edge_torso_2_desc	Kuvausta ei vielä ole.
+edge_torso_2_name	Stalkerin takki
+edge_torso_3_desc	Kuvausta ei vielä ole.
+edge_torso_3_name	Tutkijan takki
+edge_torso_4_desc	Kuvausta ei vielä ole.
+edge_torso_4_name	Leši-liivi
+edge_torso_5_desc	Kuvausta ei vielä ole.
+edge_torso_5_name	Vartijan suojaliivi
+edge_torso_6_desc	Kuvausta ei vielä ole.
+edge_torso_6_name	Pyhiinvaeltajan suojaliivi
+edge_win_score_descr	Mitä parempi suojamme Myrskyltä on, sitä helpompi on voittaa vihollinen. Mitä enemmän akkuja löydämme, sitä vähemmän heille jää. Myrsky viimeistelee aloittamamme työn.
+edge_win_score_name	Sodankäynnin taito
+edge_win_score_obj	Voita ottelu ja tuo akkuja:
+edge_win_x_games_descr	Meidän on oltava valmiita puolustamaan itseämme ja maatamme. Vain voittamalla vihollisen ansaitsemme oikeuden elää. Vain voitto suojaa aluettamme hyökkäykseltä.
+edge_win_x_games_name	Vartiossa
+edge_win_x_games_obj	Voita otteluita:
+elo_after	Nykyinen luokitus
+elo_before	Luokitus ennen taistelua
+empty_ammo_message	Liian vähän ammuksia!
+empty_clan_string	Anna klaanin nimi
+empty_name_string	Anna nimi
+enable_seeding_in_lobby_option	Salli jakaminen
+eng_active_time_desc	Aktivoidut laitteet toimivat pidempään.
+eng_active_time_name	Kesto
+eng_electronic_desc	Opettaa käyttämään uusimpia elektronisia laitteita ja prototyyppejä.
+eng_electronic_name	Elektroniikkainsinööri
+eng_encrypting_desc	Suojaa elektroniset laitteesi vihollisen hakkeroinnilta.
+eng_encrypting_name	Salaus
+eng_explosive_master_desc	Lisää kranaattien ja muiden räjähteiden vahinkoa.
+eng_explosive_master_name	Räjähdeasiantuntija
+eng_fast_recoil_desc	Lyhentää laitteiden uudelleenkäytön odotusaikaa.
+eng_fast_recoil_name	Nopea uudelleenkäynnistys
+eng_hacker_desc	Voit ohjelmoida vihollisen elektroniset laitteet toimimaan puolellasi.
+eng_hacker_name	Hakkeri
+eng_sapper_desc	Voit poistaa vihollisen ansat käytöstä huomaamatta.
+eng_sapper_name	Pioneeri
+engineer_succ_chance_corr_perc_name	Onnistumistodennäköisyys
+engineer_use_time_corr_perc_name	Käyttönopeus
+engineering_skills_descr	Parantaa taitojasi laitteiden ja kojeiden käsittelyssä.
+engineering_skills_label	Tekniset taidot
+engineering_skills_name	Tekniset taidot
+enter_char_name	Anna nimi
+enter_chat_message	Kirjoita viesti
+enter_name_warning	Kielletyt merkit
+enter_profile_name	Anna profiilin nimi
+enter_rank_name	Anna arvon nimi
+enter_search_player_name	Anna etsittävä nimi
+eotech_552_collimator_desc	Amerikkalainen EOTech-hologrammitähtäin. Näyttää valopisteen sijaan holografisen tähtäinkuvion ja toimii tavallisilla AA-paristoilla. Laajasti armeijan ja poliisin käytössä.
+eotech_552_collimator_name	EOTech 552 -tähtäin
+equipment_cost	Kokonaishinta:
+equipment_level	Varusteiden taso
+equipment_weight	Paino
+equipped	Käytössä
+error_during_storing_user_comment	Tietokantavirhe. Yritä uudelleen.
+error_while_using_premium_access_voucher	Premium-tilin aktivointi epäonnistui. Yritä uudelleen.
+event_capture_the_point_description	Laitteen valtaus
+event_kill_invader_description	Hyökkääjän tappo
+exchange_button	Vaihda
+exchange_window_label	Vaihda kultaa rupliksi
+exit_from_login	Poistu
+exit_game_confirm_accept	Poistu
+exit_game_confirm_cancel	Peruuta
+exit_game_confirm_text	Haluatko varmasti lopettaa pelin?
+exit_match_confirm_accept	Lopeta
+exit_match_confirm_cancel	Peruuta
+exit_match_confirm_text	Haluatko varmasti poistua ottelusta?
+exp_reward_match	Ansaittu kokemus
+exp_reward_premium	Premium-bonus
+experience	Kokemus
+experience_modifier	Saatu kokemus
+face_069d_balaclava_3_hole_desc	Neulottu kypärähuppu silmä- ja suuaukoilla. Lämmittää ja peittää kasvot.
+face_069d_balaclava_3_hole_name	Kolmiaukkoinen kypärähuppu
+face_069d_balaclava_desc	Tiukka armeijan kypärähuppu yhdellä silmäaukolla. Tarkoitettu kypärän alle.
+face_069d_balaclava_name	Kypärähuppu
+face_069d_buff_desc	Pääkallokuvioinen putkihuivi suun ja nenän päällä. Peittää kasvot ja pitää pölyn loitolla.
+face_069d_buff_name	Putkihuivi
+face_069d_keffiyeh_desc	Pään ja kasvojen ympärille kiedottu puuvillahuivi. Suojaa pölyltä ja tuulelta sekä pehmentää hieman hipaisevia iskuja.
+face_069d_keffiyeh_name	Keffiyeh
+face_069d_protective_mask_desc	Kangashuppu hitsauslaseilla ja suodatinsuukappaleella. Peittää koko pään ja suojaa paremmin sirpaleilta kuin höyryiltä.
+face_069d_protective_mask_name	Suojanaamari
+faction_1_description	Haaskaajien varusteet sopivat keskipitkille ja pitkille taisteluetäisyyksille sekä anomaliassa selviytymiseen. Veteraanit saavat käyttöönsä tarkkuuskiväärejä.
+faction_2_description	Mustan pörssin nahkavarusteet suojaavat huonosti anomaliolta mutta muuten hyvin. Aseet sopivat lähietäisyydelle, ja eliittisotilaat käyttävät AK74u:ta.
+faction_3_description	Uudestisyntymän armeijalla on laajin ase- ja varustevalikoima. Sotilaat taistelevat kaikilla etäisyyksillä, myös saastuneilla alueilla. Parhaat saavat käyttöönsä superraskaat suojaliivit ja konekiväärit.
+faction_4_description	Raja-asukkaiden varusteet suojaavat parhaiten anomaliolta ja sopivat artefaktien etsintään ja käyttöön. Aseet soveltuvat paremmin väijytyksiin kuin avoimeen taisteluun.
+faction_blackmarket_blocked_text	Musta pörssi ei anna sinulle tehtäviä
+faction_edge_blocked_text	Vaatii parhaan maineen Haaskaajilla tai Mustassa pörssissä
+faction_info	Tiedot
+faction_join	Liity
+faction_mercenaries_blocked_text	Omega ei anna sinulle tehtäviä
+faction_renaissance_blocked_text	Vaatii parhaan maineen Haaskaajilla tai Mustassa pörssissä
+faction_reputation_label	Ryhmittymämaine
+faction_scavengers_blocked_text	Haaskaajat eivät anna sinulle tehtäviä
+faction_scientists_blocked_text	Tutkijat eivät anna sinulle tehtäviä
+fall_damage_description	Putoamisvahinko:
+fall_damage_name	Laskuvarjojääkäri
+few_alpha_clan_string	Virheellinen nimi
+filter_all	Näytä kaikki
+filter_ammo	Ammukset
+filter_ammo_assault_rifle	Rynnäkkökiväärit
+filter_ammo_machine_gun	Konekiväärit
+filter_ammo_pistol	Pistoolit
+filter_ammo_shotgun	Haulikot
+filter_ammo_sniper_rifle	Tarkkuuskiväärit
+filter_ammo_submachine_gun	Konepistoolit
+filter_assault_rifle	Rynnäkkökiväärit
+filter_body_armor	Suojaliivit
+filter_boots	Saappaat
+filter_camo	Maastokuviointi
+filter_decal	Merkit
+filter_device	Laitteet
+filter_equipment	Varusteet
+filter_gloves	Käsineet
+filter_grenade	Kranaatit
+filter_helmet	Kypärä
+filter_inventory	Tavaraluettelo
+filter_items	Esineet
+filter_machine_gun	Konekiväärit
+filter_mask	Naamari
+filter_medkit	Lääkkeet
+filter_mine	Miinat
+filter_pants	Housut
+filter_pistol	Pistoolit
+filter_rig	Varusteet
+filter_scaner	Skannerit
+filter_shop	Kauppa
+filter_shop_and_inventory	Tavarat ja kauppa
+filter_shotgun	Haulikot
+filter_sniper_rifle	Tarkkuuskiväärit
+filter_stimulator	Piristeet
+filter_submachine_gun	Konepistoolit
+filter_upgrades	Parannukset
+filter_vouchers	Kulutustavarat
+filter_weapons	Aseet
+final_countdown	Odotetaan ottelun alkua:
+find_player	Etsi pelaaja
+finish_match_mode_02_loser_message	Tappio. Vihollisjoukkue keräsi kaikki akut.
+finish_match_mode_02_winner_message	Voitto! Joukkueesi keräsi kaikki akut.
+finish_match_mode_03_loser_message	Tappio. Vihollisjoukkue keräsi kaikki akut.
+finish_match_mode_03_winner_message	Voitto! Joukkueesi keräsi kaikki akut.
+finish_match_mode_04_loser_message	Tappio. Joukkueesi tuhottiin.
+finish_match_mode_04_winner_message	Voitto! Kaikki viholliset kukistettiin.
+finish_match_mode_05_draw_message	Tasapeli. Joukkueet tutkivat yhtä paljon
+finish_match_mode_05_loser_message	Tappio. Vihollisjoukkue sai anomaliatutkimuksen valmiiksi
+finish_match_mode_05_winner_message	Voitto! Joukkueesi sai anomaliatutkimuksen valmiiksi
+first_weapon_action	Ase 1
+fix	Korjaa
+fn_fnc_description	Belgialainen rynnäkkökivääri, kaliiperi 5.56x45. FN Herstalin 1970-luvun kehitystyö, Belgian armeijan käytössä. Lisenssiversioita Ruotsissa ja Indonesiassa. 30 patruunan lipas. Kerta- ja sarjatuli.
+fn_p90_description	Belgialainen lähisuojeluase, kaliiperi 5.7x28. FN Herstalin noin vuonna 1990 oman patruunansa kanssa kehittämä bullpup-ase. Päällä pitkittäin sijaitseva 50 patruunan lipas. Monien maiden erikoisjoukkojen ja poliisin käytössä. Kerta- ja sarjatuli.
+fort_17_description	Ukrainalainen itselataava pistooli, kaliiperi 9x18. Tuotanto alkoi vuonna 2004. Sisäisten joukkojen ja eräiden erikoisyksiköiden käytössä. 12 patruunan lipas. 
+fov_option	FOV
+freedom_026_boots_desc	Raskaat panssaroidut saappaat Vapauden väreissä, raskaan panssarin kanssa käytettäväksi.
+freedom_026_boots_name	Vapauden saappaat
+freedom_026_gloves_desc	Vahvistetut sormettomat käsineet Vapauden väreissä, raskaan panssarin kanssa käytettäväksi.
+freedom_026_gloves_name	Vapauden käsineet
+freedom_026_head_desc	Vapauden tukirangan tiivis kypärä sisäisellä hengityssuojaimella. Peittää koko pään ja kasvot.
+freedom_026_helmet_name	Vapauden tukirankakypärä
+freedom_026_suit_desc	Kokeellinen sotilastukiranka Vapauden väreissä. Hinta ja suunnitteluvirheet estivät sarjatuotannon, mutta maanalaiset työpajat valmistavat yhä pieniä eriä. Sisäinen artefaktisäiliö.
+freedom_026_suit_name	Vapauden tukiranka
+friend_options_label	Kaveriasetukset
+friend_search_hint	Hae painamalla Enter
+friend_state_away	Poissa
+friend_state_game	Paikalla
+friend_state_lobby	Aula
+friend_state_offline	Ei paikalla
+friendly_user_compliment	Ystävällinen
+friends_online	Paikalla olevat kaverit
+friends_signin_notification_option	Ilmoita kavereiden saapumisesta
+fullscreen_option	Koko näyttö
+general_volume_option	Mestari
+generic_money_name	Ruplat
+geometry_quality_option	Geometrian laatu
+go_to_knowledge_base_message	Tietopankki avautuu uuteen selainikkunaan.
+go_to_online_store_message	Verkkokauppa avautuu selaimeen. Jatketaanko?
+go_to_video_tutorial_message	Video-opas avautuu selaimeen. Jatketaanko?
+gold_2	X kultaa
+good_player_compliment	Loistava pelaaja
+goto_shop	Kauppaan
+graphics_quality_option	Grafiikan laatu
+grenade_throw_power_description	Heittoetäisyys:
+grenade_throw_power_name	Krenatööri
+health_regen_correction_perc_name	Palautuminen
+hide_ammo	Piilota ammukset
+hide_interface_action	Piilota käyttöliittymä
+hide_quest_list	Piilota tehtäväikkuna
+hide_spam_option	Piilota roskaposti
+hide_squad_list	Piilota ryhmäikkuna
+hk416_description	Saksalainen rynnäkkökivääri, kaliiperi 5.56x45. Heckler & Kochin AR-15-muunnelma lyhytiskuisella kaasumännällä 2000-luvun puolivälistä. Erikoisjoukkojen ja useiden NATO-maiden armeijoiden käytössä. EOTech 552 -tähtäin, 30 patruunan lipas. Kerta- ja sarjatuli.
+hk_mp7_description	Saksalainen lähisuojeluase, kaliiperi 4.6x30. Heckler & Koch kehitti sen oman panssarinläpäisevän patruunansa kanssa. Käyttöönotto 2001, Bundeswehrin ja poliisin erikoisyksiköiden käytössä. 20 patruunan lipas. Kerta- ja sarjatuli.
+hk_mp7_silencer_description	Saksalainen lähisuojeluase, kaliiperi 4.6x30. MP7A1-versio äänenvaimentimella. Heckler & Kochin oman panssarinläpäisevän patruunansa kanssa kehittämä. Bundeswehrin ja poliisin erikoisyksiköiden käytössä. 20 patruunan lipas. Kerta- ja sarjatuli.
+hk_mp7_silencer_special_description	Saksalainen lähisuojeluase, kaliiperi 4.6x30. MP7A1 äänenvaimentimella. Heckler & Kochin oman panssarinläpäisevän patruunansa kanssa kehittämä. Bundeswehrin ja poliisin erikoisyksiköiden käytössä. 20 patruunan lipas, kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+hour_short	t
+hud_tutorial_frame_0_text_1	Kameran hallinta
+hud_tutorial_frame_0_text_2	Katsele ympärillesi hiirellä
+hud_tutorial_frame_1_text_1	Liikkuminen
+hud_tutorial_frame_1_text_2	Liiku näppäimillä W, A, S, D
+hud_tutorial_frame_2_text_1	Tähtäystila
+hud_tutorial_frame_2_text_2	Tähtää pitämällä hiiren oikeaa\npainiketta pohjassa tai painamalla\nkeskipainiketta
+hud_tutorial_frame_3_text_1	Sprintti
+hud_tutorial_frame_3_text_2	Sprinttaa pitämällä SHIFT pohjassa\ntai painamalla X
+hud_tutorial_frame_4_text_1	Hyppy
+hud_tutorial_frame_4_text_2	Hyppää painamalla välilyöntiä
+hud_tutorial_frame_5_text_1	Kyykisty
+hud_tutorial_frame_5_text_2	Kyykisty pitämällä CTRL pohjassa\ntai painamalla C
+hud_tutorial_frame_6_text_1	Taisteluun!
+hud_tutorial_frame_6_text_2	Taistelun peruskoulutus suoritettu.\nOnnea matkaan!
+hud_tutorial_frame_6_text_3	Palkintosi:
+ignored	Estolista
+in_develepoment_hint	Kehitteillä
+ingame_volume_option	Peli
+injury_penalty_description	Hajontahaitta käsien haavoittuessa:
+injury_penalty_name	Tyyneys
+inv_activation_time_sec	Aktivointi
+inv_activity_time_sec	Kesto
+inv_additional_ammo_bags	Ammustaskut
+inv_ano_armor	Eristys
+inv_armor	Panssari
+inv_arp	Panssarinläpäisy
+inv_artefact_slots	Artefaktisäiliö
+inv_buckshot	Haulit
+inv_clip_size	Patruunoita pakkauksessa
+inv_clip_weight	Pakkauksen paino 
+inv_damage	Vahinko
+inv_damage_protection_infection	Suoja tartunnalta
+inv_damage_protection_pain	Kipukynnys
+inv_device_slots	Esinepaikat
+inv_dispersion	Hajonta
+inv_heal_amount	Parannus
+inv_heal_amount_infection	Desinfiointi 
+inv_heal_amount_pain	Kivunlievitys
+inv_heal_broken_parts	Parantaa vakavat vammat
+inv_healing_body_head	Parannus: vartalo / pää
+inv_healing_limbs	Parannus: kädet / jalat
+inv_item_weight	Paino
+inv_magazine	Vara-ammukset
+inv_magazine_size	Lipas
+inv_max_damage_distance	Etäisyys  
+inv_move_speed_modifier	Liikenopeus
+inv_oxygen_amount	Happikapasiteetti
+inv_pain_relief	Kivunlievitys
+inv_reload	Latausnopeus
+inv_rpm	Tulinopeus
+inv_splash_radius	Räjähdyssäde
+inv_stamina_regen	Kestävyyden palautuminen
+inv_stopingpower	Pysäytysvoima
+inventory_label	Tavaraluettelo
+inventrory	Varusteet
+invite_from_friends_option	Kutsut vain kavereilta
+invite_to_clan	Kutsu klaaniin
+invite_to_squad	Kutsu ryhmään
+item_bought	Osto valmis
+item_craft_description	Valmistelu on valmis. Voit aloittaa parannuksen.
+item_craft_description_choose_donor	Valitse luovuttajaesine
+item_craft_description_choose_item	Valitse parannettava esine.
+item_craft_description_no_items	Valitse parannettava esine.
+item_craft_donor_slot	Luovuttajaesine
+item_craft_fail_label	Heikentymisen mahdollisuus (−1 ominaisuus)
+item_craft_label	Paranna
+item_craft_main_slot	Parannettava esine
+item_craft_success_label	Onnistumisen mahdollisuus (+1 ominaisuus)
+item_damage_state	Tila
+item_drop_chance_base	Esinelöydön oletustodennäköisyys:
+item_drop_chance_by_premium	Premium-tili
+item_drop_chance_label	Esinelöydön todennäköisyys
+item_drop_chance_match_result	Taisteluetu:
+item_drop_chance_penalty	Toimettomuusrangaistus:
+item_drop_chance_team_premium	Premium-pelaajat ottelussa:
+item_hint_label	Tavaraluettelo
+item_hint_label_shop	Kauppa
+item_level	Esineen taso
+item_modification	Lisäominaisuuksien vaihtaminen
+item_piece_postfix	yksikköä
+item_sell_precondition_faction_1	Vaatii mainetta Haaskaajilla
+item_sell_precondition_faction_2	Vaatii mainetta Mustassa pörssissä
+item_sell_precondition_faction_3	Vaatii mainetta Uudestisyntymän armeijassa
+item_sell_precondition_faction_4	Vaatii mainetta Raja-asukkailla
+item_sold	Esine myyty
+items_notes	Tarvikkeet
+items_notes_frame_1_text_1	Paranna selviytymismahdollisuuksiasi\nottamalla tarvikkeita taisteluun
+items_notes_frame_1_text_2	Tarvikkeita ovat kranaatit, ensiapupakkaukset,\nansat, miinat ja muut vastaavat
+items_notes_frame_2_text_1	Tarvikkeet sijoitetaan taskuihin
+items_notes_frame_3_text_1	Lisää taskuja saat varusteilla,\njoissa on vastaava ominaisuus
+items_notes_frame_4_text_1	Yhteen paikkaan mahtuu rajattu määrä\nsamantyyppisiä esineitä 
+items_notes_frame_5_text_1	Taskujen tilavuutta voit kasvattaa varusteilla,\njoissa on vastaava ominaisuus
+izh27_bundle_descr	<white>Sisältö:\n- Parannettu MP-27M Lancaster.\n- 1000 haulipatruunaa 12x70.</white>
+izh27_bundle_name	MP-27M Lancaster -paketti
+izh27_description	Kuvausta ei vielä ole.
+izh27_premium_2_description	Venäläinen päällekkäispiippuinen 12 kaliiperin haulikko. Iževskin tehtaan Baikal-malli, yksi yleisimmistä metsästys- ja urheilukaksipiippuisista. Kaksi piippua, yksi laukaus kummassakin. Piiput voi laukaista erikseen tai yhdessä. Premium-versio erikoismaastokuvioinnilla.
+jump_action	Hyppy
+kedr_description	Neuvostoliittolainen konepistooli, kaliiperi 9x18 PM. Jevgeni Dragunovin suunnittelema 1970-luvun alussa. Sarjatuotanto alkoi vasta 1990-luvulla Venäjän sisäministeriölle ja poliisille. 30 patruunan lipas. Kerta- ja sarjatuli.
+kick_clan_message	Haluatko varmasti erottaa pelaajan klaanista?
+kiparis_description	9x18 PM -konepistooli suunniteltiin jo 1970-luvulla, mutta massatuotanto ei alkanut. Se otettiin esiin uudelleen 1990-luvulla Venäjän sisäministeriön tarvitessa konepistooleja. 30 patruunan lipas.
+knowledge_skills_descr	Uutta maailmaa tutkimalla opit käsittelemään artefakteja ja anomalioita paremmin.
+knowledge_skills_name	Maailmantuntemus
+knw_advanced_art_desc	Aktivoidut artefaktit vaikuttavat pidempään.
+knw_advanced_art_name	Artefaktiasiantuntija
+knw_artefact_hunter_desc	Voit käyttää uusimpia artefakti-ilmaisimia ja artefakteihin perustuvia laitteita.
+knw_artefact_hunter_name	Artefaktimetsästäjä
+knw_artefacts_desc	Voit vapauttaa artefaktin sisäisen energian ja aktivoida sen.
+knw_artefacts_name	Artefaktin aktivointi
+knw_covering_desc	Anomaliassa olet paremmin suojassa paljastumiselta.
+knw_covering_name	Suojassa
+knw_empathy_desc	Aistit ihmeellisesti, kun lähelle syntyy uusi artefakti.
+knw_empathy_name	Luonnon aisti
+knw_protecting_desc	Anomaliassa saat lisäsuojaa luodeilta ja räjähdyksiltä.
+knw_protecting_name	Anomaliakilpi
+knw_synergy_desc	Artefaktien voima kasvaa niiden määrän mukana.
+knw_synergy_name	Synergia
+kriss_vector_description	Amerikkalainen konepistooli, kaliiperi .45 ACP. KRISSin 2000-luvun malli. Rekyylijärjestelmä siirtää lukkoa alaspäin ja hillitsee piipun nousua. Walther Competition II -tähtäin, 30 patruunan lipas. Kerta-, purske- ja sarjatuli.
+label_invites	Kutsut
+label_leave_queue_btn	Poistu jonosta
+label_quenue	Odotetaan pelaajia:
+label_reports	Ilmoitukset
+label_status	Tila
+label_support	Järjestelmäviestit
+label_teamA	Liittolaiset
+label_teamB	Vastustajat
+label_time_average	Odotusaika:
+leave_button	Poistu
+leave_clan_message	Haluatko varmasti poistua klaanista?
+leave_clan_money_message	Haluatko varmasti poistua klaanista? Rekisteröintitilille talletettu hopea menetetään.
+leave_squad	Poistu ryhmästä
+left_strafe_action	Liiku vasemmalle
+less_then_hour	alle tunti
+level_01_name	Rudnja
+level_02_name	Koulu
+level_03_name	Vostokin tutka-asema
+level_04_name	Kemiantehdas
+level_05_name	Tarakanovin linnoitus
+level_06_name	Mamajevin kurgaani
+level_07_name	Vektor-laboratorio
+level_08_name	Köln
+level_09_name	Lontoo
+level_10_name	Vostokin tutka-asema (v0.21)
+level_11_name	Mamajevin kurgaani (v0.21)
+level_12_name	Kemiantehdas (v0.11)
+level_13_name	Vostokin tutka-asema (v0.11)
+lifebone_activation_hint	Ritarinkannus aktivoitu! Kaikki vakavat vammat parannettu! Terveys palautettu!
+lifebone_pickup_hint	Ritarinkannus-artefakti. Nopeuttaa terveyden palautumista. 
+lightning_quality_option	Valaistuksen laatu
+login_button_label	Kirjaudu
+login_default_text	Sähköposti
+login_eula_label	Lisenssisopimus
+login_menu_accept	Hyväksy
+login_menu_cancel	Peruuta
+login_menu_status_access_level_restriction	Käyttöoikeutesi eivät riitä kirjautumiseen.
+login_menu_status_connecting	Kirjaudutaan…
+login_menu_status_error_connection	Skhid-palvelimeen ei saada yhteyttä. Salli peli palomuurissa (Skhid-network-setup.cmd). Venäjällä käytä VPN:ää ja lisää pelin .exe-tiedostot siihen (VPN.txt).
+login_menu_status_invalid_user_or_password	Virheellinen sähköposti tai salasana
+login_menu_status_invalid_version	Käytät vanhentunutta peliversiota.
+login_menu_status_sign_in_already_online	 Käyttäjä on jo pelissä
+login_menu_status_sign_in_attempt_interval_violated	Liian monta kirjautumisyritystä. Yritä uudelleen 10 sekunnin kuluttua.
+login_menu_status_user_banned	Sinulla on porttikielto. 
+login_menu_status_user_not_confirmed	Tiliäsi ei ole vahvistettu. Vahvista se sähköpostiisi lähetetystä linkistä.
+login_str	Sähköposti
+lost_modifier	Menetetty lisäominaisuus
+loyalty_bonus_rep	Uskollisuusbonus
+m4a1_description	Amerikkalainen karbiini, kaliiperi 5.56x45. M16:n lyhyempi ja kevyempi kehitysversio, Yhdysvaltain asevoimien käytössä 1990-luvulta. M4A1 ampuu sarjatulta ja on erikoisjoukkojen käytössä. 30 patruunan lipas. Kerta- ja sarjatuli.
+magnum_description	Kuusilaukauksinen .357 Magnum -revolveri vuodelta 1955. Joidenkin mielestä luokkansa parhaimmistoa. Erottuu pehmeällä laukaisulla ja tarkkuudella.
+maintenance	Palvelimia huolletaan. Sovellus sulkeutuu.
+map	Kartta
+match_items_found	Löytynyt
+match_making_level	Ottelun taso
+match_rewards	Tehtäväpalkinto
+match_settings_checkbox_PVE	Vapaa peli
+match_settings_checkbox_PVE_hint	Selviydy muiden pelaajien joukossa armottoman Metsän ankarissa oloissa
+match_settings_checkbox_PVP	PvP
+match_settings_checkbox_PVP_hint	Taistelutila, jossa ottelun taso määräytyy varusteiden ja joukkuejako henkilökohtaisen luokituksen perusteella
+match_settings_checkbox_battery_charge	Suojalaite
+match_settings_checkbox_battery_charge_hint	Joukkueet keräävät akkuja suojalaitteisiin
+match_settings_checkbox_capture_points	Tutkimus
+match_settings_checkbox_capture_points_hint	Taistelutila, jossa vallataan avainpisteitä
+match_settings_checkbox_clan_match_hint	Klaanijoukkueiden taistelutilat
+match_settings_checkbox_rank_match	Luokiteltu ottelu
+match_settings_checkbox_rank_match_hint	Satunnaisesti valittujen klaanijoukkueiden kamppailu klaaniluokituksessa
+match_settings_checkbox_team_match	Joukkuekuolonottelu
+match_settings_checkbox_team_match_hint	Taistelutila, jossa vihollinen on tuhottava kokonaan
+match_settings_checkbox_tournament_match	Turnausottelu
+match_settings_checkbox_tournament_match_hint	Klaanijoukkueiden kamppailu käynnissä olevassa turnauksessa
+match_settings_checkbox_training_match	Harjoitusottelu
+match_settings_checkbox_training_match_hint	Harjoitushuone
+match_settings_clan_match	Klaaniottelu
+match_time_is_up	Otteluaika päättyi!
+max_carried_weight_description	Kantokyky:
+max_carried_weight_name	Urheilija
+max_carried_weight_ultimate_description	Kannettu paino ei enää hidasta liikkumista, mutta et voi sprintata.
+max_carried_weight_ultimate_name	Raskassarjalainen
+med_combat_shock_desc	Vakavien raajavammojen haitat alkavat vasta muutaman sekunnin viiveellä.
+med_combat_shock_name	Taistelun tuoksinassa
+med_farmacial_desc	Pidentää lääkkeiden vaikutusta.
+med_farmacial_name	Farmasia
+med_fast_use_desc	Lyhentää huomattavasti lääkkeiden valmisteluaikaa.
+med_fast_use_name	Nopea käyttö
+med_medical_desc	Voit käyttää uusimpia lääkkeitä ja lääkintälaitteita.
+med_medical_name	Lääkintämies
+med_reanimation_desc	Parantaa merkittävästi elvytettyjen liittolaisten vointia.
+med_reanimation_name	Elvytys
+med_refining_desc	Tehostaa lääkkeiden vaikutusta.
+med_refining_name	Lääkkeiden puhdistus
+med_revive_desc	Voit elvyttää itsesi, jos sinulla on tarvittava laite.
+med_revive_name	Viimeinen ponnistus
+medicial_skills_descr	Parantaa selviytymismahdollisuuksiasi ja opettaa käyttämään lääkkeitä ja lääkintälaitteita.
+medicial_skills_name	Selviytyminen ja ensiapu
+meele_hit_range_description	Saatavilla seuraavassa päivityksessä.
+meele_hit_range_name	Hyppy veitsen kanssa
+meele_hit_ultimate_description	Saatavilla seuraavassa päivityksessä.
+meele_hit_ultimate_name	Moukari
+melee_action	Lähitaistelu
+member_dont_have_battle_permission	Pelaajalla ei ole oikeuksia kenttäkomentajan asemaan.
+mercenaries_faction	Palkkasoturit
+message_reroll_text	Kumotaanko taitomuutokset?
+messages_censor_option	Ota viestisuodatus käyttöön
+messages_only_from_friends_option	Yksityisviestit vain kavereilta
+microphone_sensitivity_option	Mikrofonin herkkyys
+minimap	Pienoiskartta
+minimap_bottom	Vasen alakulma
+minimap_off	Pienoiskartta pois
+minimap_position	Pienoiskartan sijainti
+minimap_rotable_option	Lukitse pienoiskartta
+minimap_top	Vasen yläkulma
+missile_weapon_action	Kranaatti
+missions	Tehtävät
+mm_button_back	Takaisin
+mm_button_exit_to_os	Poistu Windowsiin
+mm_button_leave_match	Poistu ottelusta
+mm_button_settings	Asetukset
+mm_match_found	Otteluhaku valmis!\nOdotetaan palvelinta.
+mode_02_description	Myrsky lähestyy. Ainoa tapa selviytyä on löytää kartalta akkuja ja palauttaa suojalaitteet, jotka torjuvat Myrskyn. Mitä enemmän akkuja löydät, sitä varmempi suoja. Eniten akkuja kerännyt joukkue voittaa.
+mode_02_name	Suojalaite
+mode_03_description	Myrsky lähestyy. Ainoa tapa selviytyä on löytää kartalta akkuja ja palauttaa suojalaitteet, jotka torjuvat Myrskyn. Mitä enemmän akkuja löydät, sitä varmempi suoja. Eniten akkuja kerännyt joukkue voittaa.
+mode_03_name	Suojalaite
+mode_04_description	Vahvista joukkueesi asemaa alueella eliminoimalla mahdollisimman monta vihollista. Jokainen kuolema vie joukkueelta yhden vahvistuspisteen. Eniten pisteitä ottelun lopussa säilyttänyt joukkue voittaa.
+mode_04_name	Joukkuekuolonottelu
+mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokainen vallattu yksikkö tuottaa joukkueellesi anomaliatutkimuspisteitä. Eniten pisteitä ottelun lopussa kerännyt joukkue voittaa.
+mode_05_name	Tutkimus
+modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
+modification_screen_hint	Vedä maastokuvio tai merkki tavaraluettelosta esineen muokkauspaikkaan
+modified	Muokattu
+modifier_reroll_description	Voit vaihtaa esineestä vain yhtä lisäominaisuutta, mutta rajattomasti. Vaihtaessasi valitset yhden kolmesta satunnaisesta lisäominaisuudesta.
+modifier_reroll_timer_description	Hopealla voi yrittää vain kerran 6 tunnissa.
+module_is_installed_on	Moduuli on asennettu kohteeseen
+money	Raha
+money_modifier	Saatu hopea
+money_reward_match	Ottelupalkinto
+money_reward_premium	Premium-bonus
+money_reward_quest	Tehtäväpalkinto
+monitor_ajust	Näytön säätö
+monitor_count_option	Aktiivinen näyttö
+mosin_description	Pulttilukkokivääri, kaliiperi 7.62x54 mm. Venäjän keisarillisen armeijan käyttöön ottama, osoitti toimivuutensa molemmissa maailmansodissa. Kiinteä 5 patruunan lipas. 
+mosin_name	Mosin-karbiini
+motion_blur_amount_options	Liike-epäterävyys
+mouse_invertion_option	Käänteinen hiiri
+mouse_sensitivity_option	Hiiren herkkyys
+move_backward_action	Taaksepäin
+move_forward_action	Eteenpäin
+move_speed_weapon_penalty_description	Suuret aseet eivät enää hidasta liikkumista.
+move_speed_weapon_penalty_name	Karhunvoimat
+move_to_reserve	Varalle
+move_to_team	Siirrä joukkueeseen
+movement_speed_correction_perc_name	Liikenopeus
+movement_speed_description	Liikenopeus:
+movement_speed_name	Vikkelä
+movement_speed_when_aiming_description	Liikenopeus tähdätessä:
+movement_speed_when_aiming_name	Taisteluasento
+mp153_description	Venäläinen itselataava sileäpiippuinen haulikko, kaliiperi 12x70. Edullisuus ja luotettavuus tekivät siitä suositun metsästys- ja urheiluaseen. Piipun alla 4 patruunan putkilipas.
+msbs_carbine_description	Puolalainen modulaarinen karbiini, kaliiperi 5.56x45. Varsovan sotilasteknisen yliopiston ja Radomin asetehtaan 2010-luvun kehitystyö. Puolan armeijan käytössä nimellä Grot. EOTech 552 -tähtäin ja 30 patruunan lipas. Kerta-, purske- ja sarjatuli.
+multiplicative_breath_vibration_modifier	Tähtäimen heilunta
+multiplicative_chamber_a_round_time_modifier	Patruunan pesitysaika
+multiplicative_device_damage_modifier	Laitevahinko
+multiplicative_recoil_modifier	Rekyyli
+multiplicative_reliability_modifier	Luotettavuus
+multiplicative_reload_time_modifier	Latausnopeus
+multiplicative_respawn_time_modifier	Uudelleensyntymisaika
+multiplicative_splash_radius_modifier	Räjähdyssäde
+multiplicative_stamina_spending_modifier	Energiankulutus
+munition	Varustus
+music_volume_option	Musiikki
+must_be_in_clan_team	Sinun on kuuluttava klaanijoukkueeseen.
+my_place	Oma arvo
+neostead_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli.
+neostead_premium_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli. Premium-versio erikoismaastokuvioinnilla.
+new_items_unlocked	X uutta esinettä kaupassa:
+new_level_reached	Saavutit uuden tason!
+new_modifier	Uusi lisäominaisuus
+next_ammo_action	Vaihda ammustyyppiä
+next_fire_queue_action	Vaihda tulimuotoa
+next_weapon	Seuraava ase
+nickname	Nimi
+no_available_resolution	Ei tuettu
+no_faction_button_label	Valinta
+no_faction_message_label	Yhteistyö ryhmittymien kanssa
+no_faction_message_text	Ryhmittymät toimittavat varusteita, aseita ja ammuksia. Tehtävien suorittaminen parantaa mainettasi ja avaa pääsyn niiden parhaisiin tuotteisiin. Voit tehdä yhteistyötä vain yhden ryhmittymän kanssa kerrallaan.
+non_faction_items	Itsenäiset kauppiaat
+non_sport_behavior_claim	Oman tappo
+not_all_team_members_ready	Kaikki pelaajat eivät ole vahvistaneet valmiuttaan.
+not_enough_money	Rahat eivät riitä tapahtumaan.
+not_enought_money_for_repair	Rahat eivät riitä korjaukseen
+not_enougth_money	Varat eivät riitä
+not_enougth_money_for_reroll	Rahat eivät riitä taitojen nollaukseen 
+not_logged_id	Tunnistusvirhe. Käynnistä peli uudelleen.
+not_ready	Ei valmis
+notes_if_you_read	Luettuasi
+notes_reward	saat:
+novice_026_helmet_desc	Aloittelevan stalkerin pipo perutusta S.T.A.L.K.E.R. 2:sta.
+novice_026_helmet_name	Tulokkaan pipo
+of	/
+ok	OK
+on_enemy_theft_item	Vihollinen varasti akun tukikohdastanne. Pysäytä hänet!
+on_spawn_victory_item	Akku on ladattu! Vie se tukikohtaasi.
+one_handed	Toissijainen
+online_store	Osta kultaa
+onyx_activation_hint	Onyksi aktivoitu! Vähentää osuvien luotien vahinkoa ja panssarinläpäisyä 75% ajaksi %s s.
+onyx_pickup_hint	Onyksi-artefakti. Vähentää pelaajaan osuvien luotien vahinkoa ja panssarinläpäisyä 5%.
+open	Avaa
+options_adjust_gamma	Gamma:
+options_apply	Käytä
+options_cancel	Peruuta
+options_chat	Chat:
+options_chat_keys	Chat:
+options_controller	Ohjaimet
+options_cross_type	Tähtäin:
+options_custom	Mukautettu
+options_default_controls	Oletusasetukset
+options_default_video	Oletusasetukset
+options_friends	Kaverit:
+options_game	Peli:
+options_gameplay	Peli
+options_high	Korkea
+options_lobby	Aula:
+options_low	Matala
+options_medium	Keskitaso
+options_minimum	Pienin
+options_off	Pois
+options_ok	OK
+options_on	Päällä
+options_optimal_video	Optimaaliset asetukset
+options_sound	Ääni
+options_ultra	Ultra
+options_video	Grafiikka
+options_voice	Puhe:
+options_volume	Äänenvoimakkuus:
+other	Muut
+oust_commander	Vaihda komentaja
+overweight_penalty_description	Painon vaikutus liikenopeuteen:
+overweight_penalty_name	Hamstraaja
+oxygen_tank_description	Haaskaajien leirissä käsityönä tehty happipullo. Hengityskaasu säilytetään paineistettuna, ei nesteytettynä.
+oxygen_tank_name	Happipullo
+pain_healt_correction_perc_name	Kipukynnys
+paperdoll_btn_ammo	Ammukset
+paperdoll_btn_fix	Korjaa
+paperdoll_btn_weight	Paino
+paperdoll_label	Hahmo
+particles_quality_options	Hiukkasten laatu
+password_default_text	Salasana
+password_str	Salasana
+pause_game_action	Tauko
+pd_artefact	Artefakti
+pd_back	reppu
+pd_foot	saappaat
+pd_hands	käsineet
+pd_head	kypärä
+pd_legs	housut
+pd_mask	naamari
+pd_torso	takki
+pd_weapon	Ase
+personal_statistics	Omat saavutukset
+phy_adrenalin_desc	Jokainen saamasi osuma nopeuttaa liikkumista hieman ja palauttaa osan kestävyydestä.
+phy_adrenalin_name	Adrenaliiniryöppy
+phy_athlet_desc	Vähentää kannetun painon vaikutusta liikenopeuteen.
+phy_athlet_name	Urheilija
+phy_ignor_pain_desc	Sprintatessasi tunnet huomattavasti vähemmän kipua.
+phy_ignor_pain_name	Kivun sivuuttaminen
+phy_melee_rush_desc	Kasvattaa etäisyyttä, jolta voit tappaa vihollisen lähitaistelussa.
+phy_melee_rush_name	Hyppy aseen kanssa
+phy_second_breath_desc	Voit palauttaa vähäisen kestävyytesi kokonaan. Käytettävissä kerran minuutissa.
+phy_second_breath_name	Uusi puhti
+phy_sprinter_desc	Lisää sprinttinopeutta.
+phy_sprinter_name	Pikajuoksija
+phy_war_rage_desc	Lähitaistelutappo palauttaa kestävyytesi täysin ja poistaa vammojen kivun.
+phy_war_rage_name	Taisteluraivo
+physical_skills_descr	Lisää liikenopeutta, kantokykyä ja kestävyyden palautumista.
+physical_skills_label	Fyysinen harjoittelu
+physical_skills_name	Fyysinen harjoittelu
+picatinny_scope_medium_name	Kiikarit / punapistetähtäimet
+pickup_item	Poimi ({USE})
+pkp_pecheneg_description	Venäläinen yleiskonekivääri, kaliiperi 7.62x54R. TsNIITochMashin PKM-pohjainen kehitys, käyttöön 2001. Raskas piippu pakotetulla ilmajäähdytyksellä sallii pitkät sarjat ilman piipunvaihtoa. 100 patruunan vyö. Kerta- ja sarjatuli.
+place	Sijoitus
+play_button	Pelaa
+player_equipment_level	Varusteiden taso
+player_info_label	Pelaajan tiedot:
+player_is_already_in_clan	Pelaaja kuuluu jo klaaniin.
+player_level	TASO
+player_not_found	Pelaajaa ei löytynyt.
+player_skills_check_failed	Taitoparannuksen vahvistaminen epäonnistui.
+players_list_filter_text	Suodata nimellä
+pm_description	Makarov-pistooli, kaliiperi 9x18 PM. Suunniteltu vuonna 1948 Tokarevin korvaajaksi. Armeijan ja viranomaisten palvelusase. 8 patruunan lipas.
+pockets	Taskut
+point	piste
+points_aviable	Käytettävissä olevat pisteet
+points_earned	Tasosi
+post_process_options	Jälkikäsittelyn laatu
+pp2000_description	Kuvausta ei vielä ole.
+ppsh_description	Špaginin konepistooli, legendaarinen voiton ase. Joissain maissa käytössä 1980-luvun lopulle asti. 35 patruunan laatikkolipas.
+premium	Premium
+premium_3_day	3 päivää
+premium_3_day_descr	(72 tuntia)
+premium_3_month	3 kuukautta
+premium_3_month_descr	(90 päivää)
+premium_6_month	6 kuukautta
+premium_6_month_descr	(180 päivää)
+premium_access_1d_voucher_descr	Tämä kuponki aktivoi premium-tilin yhdeksi päiväksi.
+premium_access_1d_voucher_name	Premium-tili
+premium_action	Tarjous!
+premium_advert	Aktivoi premium nyt,\nniin saat tämän ottelun kaikki bonukset
+premium_ally_members	Premium-pelaajien ansiosta
+premium_bonus	Kokemus\nTulot\nMaine
+premium_bonus_experience	LISÄÄ KOKEMUSTA!
+premium_bonus_item_search	ESINE-ETSINTÄBONUS!
+premium_bonus_money	TAISTELUPALKINTO!
+premium_bonus_profile	Varusteprofiili
+premium_bonus_reputation	RYHMITTYMÄMAINEBONUS!
+premium_button_advert	Osta PREMIUM
+premium_day	24 tuntia
+premium_day_descr	(24 tuntia)
+premium_discount	Alennus
+premium_left	Jäljellä:
+premium_money	Kulta
+premium_money_name	Kulta
+premium_month	Kuukausi
+premium_month_descr	(30 päivää)
+premium_post_reward_descr	Aktivoi premium-tili nyt\nja saat palkinnoksi kaikki\nviime viikon bonukset!
+premium_post_reward_label	Saat enemmän premium-tilillä!
+premium_profile_hint	Saatavilla premium-tilillä
+premium_profile_unlock_description	Kolmas varusteprofiili on saatavilla vain premium-tilillä
+premium_reward_part_1	Taistelun jälkeen löydät 
+premium_reward_part_2	enemmän esineitä
+premium_week	Viikko
+premium_week_descr	(7 päivää)
+premium_year	Vuosi
+premium_year_descr	(365 päivää)
+prepare_to_battle_notes	Valmistautuminen taisteluun
+prepare_to_battle_notes_frame_1_text_1	Ottelussa on kaksi joukkuetta
+prepare_to_battle_notes_frame_2_text_1	Liittolaiset on merkitty\npään yläpuolella olevilla symboleilla
+prepare_to_battle_notes_frame_2_text_2	näytä joukkuetovereiden nimet
+prepare_to_battle_notes_frame_3_text_1	Ole varovainen, vihollinen\nvoi olla piilossa
+prepare_to_battle_notes_frame_3_text_2	Liiku varoen
+prepare_to_battle_notes_frame_4_text_1	Vammamittari näyttää\nkehosi nykyisen tilan
+prepare_to_battle_notes_frame_4_text_2	Käytä ensiapupakkausta. Se lievittää\nkipua ja parantaa haavoja
+prepare_to_battle_notes_frame_5_text_1	Kätesi tai jalkasi\nvoi vammautua vakavasti
+prepare_to_battle_notes_frame_5_text_2	Se heikentää ampumatarkkuutta\nja liikenopeutta
+prepare_to_battle_notes_frame_6_text_1	Jos molemmat kätesi murtuvat,\net voi käyttää\nkahden käden aseita
+prepare_to_battle_notes_frame_7_text_1	Jos molemmat jalkasi murtuvat,\net voi liikkua
+prev_weapon	Edellinen ase
+private_messages_in_game_option	Piilota chat ottelussa
+profile	Profiili
+profile_check_failed	Et voi mennä taisteluun ilman asetta!
+profile_check_failed_weapon	Et voi mennä taisteluun ilman asetta!
+profile_check_failed_weapon_ammo	Et voi mennä taisteluun, repussa on liian vähän ammuksia!
+profile_check_failed_weapon_ammo_in_inv	Et voi mennä taisteluun, tavaroissasi on liian vähän ammuksia!
+profile_play_time	Peliaika
+profile_rename	Nimeä profiili uudelleen
+profile_rename_label	Nimeä profiili uudelleen
+profile_selection_warning	Profiilin vaihto asettaa 20 sekunnin uudelleensyntymisajan
+profile_warning_weapon	Et voi mennä taisteluun ilman asetta!
+profile_warning_weapon_ammo	Et voi mennä taisteluun, repussa on liian vähän ammuksia!
+profile_warning_weapon_ammo_in_inv	Et voi mennä taisteluun, tavaroissasi on liian vähän ammuksia!
+ptt_action	PTT
+ptt_button_option	PTT
+put_item	Aseta ({USE})
+quest_change_warning	Varoitus! Tehtävien vaihtaminen vähentää ryhmittymäuskollisuuttasi!
+quest_completed	Tehtävä suoritettu!
+quest_failed	Tehtävä epäonnistui!
+quest_progress	Tehtävän edistyminen
+quest_reward_info	Lopullinen palkinto riippuu ottelun tasosta
+quests	Tehtävät
+quests_label	Tehtävät
+quests_progress_text_alpha_option	Läpinäkyvyys
+quick_fix	Pikakorjaus
+quick_use_action_1	Esine 1
+quick_use_action_2	Esine 2
+quick_use_action_3	Esine 3
+quick_use_action_4	Esine 4
+quick_use_action_5	Esine 5
+quick_use_action_6	Esine 6
+rank_up_to_commander_message	Haluatko varmasti siirtää klaanin komennon tälle pelaajalle?
+ranking	Sijoitus
+ranking_diff	Ero
+rattle_activation_hint	Helistin aktivoitu! Viholliset eivät kuule askeleitasi.
+rattle_pickup_hint	Helistin-artefakti. Vaimentaa askeleiden ääntä 50%.
+rdgm_descr	Kuvausta ei vielä ole.
+rdgm_name	RDG-M-savukranaatti
+reach_level	saavutti <green>tason</green>
+ready	Valmis
+refill_ammo_btn	Käytä
+refill_ammo_label	Ammukset
+regen_booster_description	Vanhoja armeijan muona-annoksia. IVY-maiden armeijoiden käytössä ennen kriisiä. Kiihdyttävät aineenvaihduntaa ja maistuvat yhä melko hyviltä.
+regen_booster_name	Muona-annos
+registration_str	Luo tili
+regular_fix	Korjaa
+regular_money	Hopea
+reload_speed_description	Latausnopeus
+reload_speed_name	Lataa
+relocate	Siirrä
+rem700_description	Amerikkalainen kivääri, kaliiperi 7.62x51. Arvostettu urheilu-, metsästys- ja tarkkuuskiväärinä. 5 patruunan lipas.
+rem700_premium_description	Amerikkalainen kivääri, kaliiperi 7.62x51. Arvostettu urheilu-, metsästys- ja tarkkuuskiväärinä. 5 patruunan lipas. Premium-versio erikoismaastokuvioinnilla.
+rem870_description	Amerikkalainen pumppuhaulikko, kaliiperi 12x70. Laajasti poliisin ja metsästäjien käytössä. Metsästysmallissa piipun alla 4 patruunan putkilipas. 
+remove	Poista
+remove_from_friends	Poista kavereista
+remove_from_ignore	Poista estolistalta
+remove_from_squad	Poista ryhmästä
+remove_from_team	Erota joukkueesta
+ren_back_1_desc	Kuvausta ei vielä ole.
+ren_back_1_name	Rynnäkköreppu
+ren_back_3_desc	Kuvausta ei vielä ole.
+ren_back_3_name	Zarja 4N -pullo
+ren_back_5_desc	Kuvausta ei vielä ole.
+ren_back_5_name	UKV-1-pullo
+ren_boots_1_desc	Luotettavat armeijan saappaat suojaavat jalkoja mekaanisilta vaurioilta ja pieniltä ansoilta. 
+ren_boots_1_name	Armeijan saappaat
+ren_boots_3_desc	Kuvausta ei vielä ole.
+ren_boots_3_name	Tiedustelijan saappaat
+ren_boots_4_desc	Kuvausta ei vielä ole.
+ren_boots_4_name	Vahvistetut saappaat
+ren_boots_5_desc	Kuvausta ei vielä ole.
+ren_boots_5_name	OZK-18KB-saappaat
+ren_boots_6_desc	Kuvausta ei vielä ole.
+ren_boots_6_name	Zubr UM-4 -saappaat
+ren_gloves_1_desc	Kuvausta ei vielä ole.
+ren_gloves_1_name	Rynnäkkökäsineet
+ren_gloves_4_desc	Kuvausta ei vielä ole.
+ren_gloves_4_name	Vahvistetut käsineet
+ren_gloves_5_desc	Kuvausta ei vielä ole.
+ren_gloves_5_name	OZK-18KB-käsineet
+ren_gloves_6_desc	Kuvausta ei vielä ole.
+ren_gloves_6_name	Zubr UM-4 -käsineet 
+ren_helmet_1_desc	Neuvostoliittolainen laskuvarjojääkärin kypärä. Tärkeä symboli Uudestisyntymän armeijalle. Suojaa iskuilta, ja sisään ommellut teräslevyt pysäyttävät pienikaliiperisia luoteja.
+ren_helmet_1_name	Laskuvarjojääkärin kypärä
+ren_helmet_2_desc	Kuvausta ei vielä ole.
+ren_helmet_2_name	Vitjaz-S-kypärä
+ren_helmet_3_desc	Kuvausta ei vielä ole.
+ren_helmet_3_name	Tiedustelijan kypärä
+ren_helmet_4_desc	Kuvausta ei vielä ole.
+ren_helmet_4_name	Molot UM-2 -kypärä
+ren_helmet_5_desc	Kuvausta ei vielä ole.
+ren_helmet_5_name	OZK-18KB-kypärä
+ren_helmet_6_desc	Kuvausta ei vielä ole.
+ren_helmet_6_name	Zubr UM-4 -kypärä
+ren_legs_1_desc	Maastohousut kotitekoisilla vahvistetuilla polvisuojilla. Hyvä laatu ja mukava leikkaus sallivat vapaan liikkumisen ja nopeuttavat täydessä varustuksessa olevaa sotilasta. Ylimääräinen esinetasku. 
+ren_legs_1_name	Armeijan housut
+ren_legs_2_desc	Kuvausta ei vielä ole.
+ren_legs_2_name	Šturm-housut
+ren_legs_3_desc	Kuvausta ei vielä ole.
+ren_legs_3_name	Tiedustelijan housut
+ren_legs_4_desc	Kuvausta ei vielä ole.
+ren_legs_4_name	Molot UM-2 -housut
+ren_legs_5_desc	Kuvausta ei vielä ole.
+ren_legs_5_name	OZK-18KB-housut
+ren_legs_6_desc	Kuvausta ei vielä ole.
+ren_legs_6_name	Zubr UM-4 -housut
+ren_mask_2_desc	Kuvausta ei vielä ole.
+ren_mask_2_name	Rynnäkkönaamari
+ren_mask_3_desc	Kuvausta ei vielä ole.
+ren_mask_3_name	Zanaves-hengityssuojain
+ren_mask_5_desc	Kuvausta ei vielä ole.
+ren_mask_5_name	PMK-7S-kaasunaamari
+ren_rep_modifier	Maine Uudestisyntymän armeijassa
+ren_torso_1_desc	Tavallinen luokan II armeijan suojaliivi, muokattu maailmanlopun jälkeisiin oloihin. Runsaat taskut antavat paljon tilaa ammuksille ja varusteille.
+ren_torso_1_name	Armeijan suojaliivi
+ren_torso_2_desc	Kuvausta ei vielä ole.
+ren_torso_2_name	Šturm-suojaliivi
+ren_torso_3_desc	Kuvausta ei vielä ole.
+ren_torso_3_name	Sokol-suojaliivi
+ren_torso_4_desc	Kuvausta ei vielä ole.
+ren_torso_4_name	Molot UM-2 -liivi
+ren_torso_5_desc	Kuvausta ei vielä ole.
+ren_torso_5_name	OZK-18KB-liivi
+ren_torso_6_desc	Kuvausta ei vielä ole.
+ren_torso_6_name	Zubr UM-4 -suojaliivi
+renaissance_bring_x_items_descr	Uusi maailma asettaa uusia haasteita. Selviytymiseen ei riitä vihollisen tuhoaminen. Meidän on aktivoitava erikoislaite, joka suojaa Myrskyltä.
+renaissance_bring_x_items_name	Suoja Myrskyltä
+renaissance_bring_x_items_obj	Etsi ja tuo akkuja:
+renaissance_defend_items_descr	Sodassa ei ole pikkuasioita. Hyvä puolustus on yhtä tärkeää kuin hyökkäys. Puolusta tukikohtaa ja varmista, ettei tovereidesi verta vuodatettu turhaan.
+renaissance_defend_items_name	Luotettava puolustus
+renaissance_defend_items_obj	Voita ottelu menettämättä akkuja
+renaissance_faction	Uudestisyntymän armeija
+renaissance_grenade_enemies_descr	Kranaatit ovat osoittaneet tehonsa hyökkäyksessä ja puolustuksessa. Sinun on osattava käyttää niitä.
+renaissance_grenade_enemies_name	Krenatööri
+renaissance_grenade_enemies_obj	Tapa vihollisia kranaatilla yhdessä ottelussa:
+renaissance_headshots_descr	Näytä, että hallitset aseesi. Ei väliä, onko käsissäsi konepistooli vai tarkkuuskivääri. Hyvä sotilas tähtää aina tarkasti. 
+renaissance_headshots_name	Tarkka-ampuja
+renaissance_headshots_obj	Tapa vihollisia pääosumalla:
+renaissance_kd_ratio_descr	Hyvä sotilas ei ole fanaattinen kurkunleikkaaja. Itsehillintä ja kuri erottavat meidät joukosta ja tekevät meistä vahvempia. Näytä se käytännössä! 
+renaissance_kd_ratio_name	Ylivoima!
+renaissance_kd_ratio_obj	Voita ottelu, jossa tappojen ja kuolemien suhde on vähintään
+renaissance_kill_enemies_descr	Sota on sotaa. Aina ei voi voittaa vähällä verenvuodatuksella, joten hoida vihollinen nopeasti. Jokainen kaatunut vastustaja vie meitä lähemmäs voittoa!
+renaissance_kill_enemies_name	Tulta kohteeseen
+renaissance_kill_enemies_obj	Tapa vastustajia yhdessä ottelussa:
+renaissance_killstreak_descr	Sotilaskunnia odottaa taistelukentällä, mutta vain todellinen sankari ansaitsee sen. Näytä, että olet Uudestisyntymän armeijan sankarin arvonimen arvoinen!
+renaissance_killstreak_name	Sankari!
+renaissance_killstreak_obj	Saavuta tappoputki:
+renaissance_level_0	Tuntematon
+renaissance_level_1	Sotilas
+renaissance_level_10	Eversti
+renaissance_level_2	Korpraali
+renaissance_level_3	Kersantti
+renaissance_level_4	Ylivääpeli
+renaissance_level_5	Vääpeli
+renaissance_level_6	Luutnantti
+renaissance_level_7	Kapteeni
+renaissance_level_8	Majuri
+renaissance_level_9	Everstiluutnantti
+renaissance_level_unlock_0	Onneksi olkoon! Uudestisyntymän armeijan tehtävät ovat nyt avoinna!
+renaissance_level_unlock_1	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan sotilas!
+renaissance_level_unlock_10	Onneksi olkoon! Sinut ylennettiin Uudestisyntymän armeijan everstiksi!
+renaissance_level_unlock_2	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan korpraali!
+renaissance_level_unlock_3	Onneksi olkoon Uudestisyntymän armeijan kersantin arvosta!
+renaissance_level_unlock_4	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan ylivääpeli!
+renaissance_level_unlock_5	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan vääpeli!
+renaissance_level_unlock_6	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan luutnantti!
+renaissance_level_unlock_7	Onneksi olkoon! Sinut ylennettiin Uudestisyntymän armeijan kapteeniksi!
+renaissance_level_unlock_8	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan majuri!
+renaissance_level_unlock_9	Onneksi olkoon! Olet nyt Uudestisyntymän armeijan everstiluutnantti!
+renaissance_meele_kill_descr	Uudestisyntymän armeijan sotilaat ovat vahvoja niin ruumiiltaan kuin hengeltään. Kestävyys ja rohkeus vievät voittoon. Opettele puolustautumaan lähitaistelussa.
+renaissance_meele_kill_name	Nopea reaktio
+renaissance_meele_kill_obj	Tapa vihollisia lähitaistelussa:
+renaissance_represent	Sinun on pukeuduttava Uudestisyntymän armeijan varusteisiin edustaaksesi sitä.
+renaissance_steal_box_descr	Kasvokkain taisteleminen on kunnioitettavaa, mutta ei aina tehokasta. Onnistunut sabotaasi vihollisen selustassa voi kääntää taistelun ja tuoda voiton!
+renaissance_steal_box_name	Sabotoija
+renaissance_steal_box_obj	Varasta akku vihollisen tukikohdasta ja tuo se omaan tukikohtaasi.
+renaissance_win_score_descr	Älä lepää laakereillasi, kuuluu Uudestisyntymän armeijan tunnuslause. Mitä enemmän akkuja kytkemme, sitä vähemmän Myrsky vahingoittaa meitä.
+renaissance_win_score_name	Loistava voitto!
+renaissance_win_score_obj	Voita ottelu ja tuo akkuja:
+renaissance_win_x_games_descr	Askel askeleelta, taistelu taistelulta, voitto voitolta armeijamme syntyy uudelleen! Meillä ei ole perääntymistietä. Voitto hinnalla millä hyvänsä!
+renaissance_win_x_games_name	Isänmaan puolesta!
+renaissance_win_x_games_obj	Voita otteluita:
+rename_account_voucher_descr	Tällä kupongilla voit vaihtaa nimimerkkisi ilmaiseksi.
+rename_account_voucher_name	Hahmon nimenvaihtokuponki
+rep_reward_match	Maineen lisäys
+rep_reward_premium	Premium-bonus
+rep_reward_quest	Tehtäväpalkinto
+repair_time	Korjataan
+repair_time_label	aika
+repair_voucher_descr	Korjaussarjalla voit korjata varusteiden kaikki vakavat viat.
+repair_voucher_name	Korjaussarja
+repair_window_label	Korjaa
+reputation	Maine
+reroll	Tyhjennä
+reroll_message_broken_item	Vaurioitunutta esinettä ei voi muokata.
+reroll_modifier_lock_hint	Voit vaihtaa vain tätä lisäominaisuutta.
+reroll_timer_hint	Saatavilla
+research_unit_a_captured	Yksikkö A vallattu
+research_unit_a_lost	Yksikkö A menetetty
+research_unit_b_captured	Yksikkö B vallattu
+research_unit_b_lost	Yksikkö B menetetty
+research_unit_c_captured	Yksikkö C vallattu
+research_unit_c_lost	Yksikkö C menetetty
+resolution_option	Tarkkuus
+respawn_booster_description	Siviiliradio FD3. Erittäin hyödyllinen ryhmän järjestämiseen ja yhteistyöhön taistelussa.
+respawn_booster_name	Radio
+respawn_time_pref	Uudelleensyntyminen
+resupply_check_empty_inventory	Varastossa ei ole tarpeeksi ammuksia
+resupply_check_full_ammo	Ammukset täynnä
+resupply_finished	Ammukset ja tarvikkeet täydennetty!
+revenue	Tulot
+reward	Palkinto
+rgd5_descr	Hyökkäyskäsikranaatti jalkaväkeä vastaan. Räjähdys levittää repeävän kuoren sirpaleita.
+rgd5_name	RGD-5-kranaatti
+rgo_descr	Kuvausta ei vielä ole.
+right_strafe_action	Liiku oikealle
+rpd_description	Kuvausta ei vielä ole.
+rpk_description	Kuvausta ei vielä ole.
+saiga_12_description	Venäläinen itselataava 12 kaliiperin haulikko. Ižmašin 1990-luvun Kalašnikov-pohjainen malli metsästykseen ja turvallisuuspalveluille. K-versiossa lyhyt piippu ja taittoperä. 5 patruunan laatikkolipas. Vain kertatuli.
+saiga_12_premium_description	Venäläinen itselataava 12 kaliiperin haulikko. Ižmašin 1990-luvun Kalašnikov-pohjainen malli metsästykseen ja turvallisuuspalveluille. S-versiossa taittoperä. 5 patruunan laatikkolipas. Vain kertatuli.
+save_password_str	Tallenna salasana
+scav_back_1_desc	Repun muotoinen kotitekoinen artefaktisäiliö. Hyödyllinen artefaktimetsällä.
+scav_back_1_name	Reppu säiliöllä
+scav_boots_1_desc	Karkeat saappaat kaatopaikalta tai ruumiilta. Suojaavat jalkoja vammoilta ja pelastavat usein päivän vaikeilla retkillä.
+scav_boots_1_name	Nahkasaappaat
+scav_boots_2_desc	Tiivis jalkasuoja myrkyllisillä pinnoilla liikkumiseen. Pääset alueille, joille useimmat selviytyjät eivät voi mennä.
+scav_boots_2_name	Kemikaalisuojasaappaat
+scav_boots_3_desc	Vahvat vedenpitävät saappaat teräskärjellä ja eristyksellä. Haaskaajalle korvaamaton löytö. Parantavat selviytymismahdollisuuksia ankarassa säässä. Lisäävät liikenopeutta 2%.
+scav_boots_3_name	Sotilassaappaat
+scav_gloves_1_desc	Yksinkertaiset sormettomat käsineet. Lämmittävät ja suojaavat käsiä tehtävillä. Niitä ei tarvitse riisua työskennellessä. Nopeuttavat tähtäystä 2%.
+scav_gloves_1_name	Sormettomat käsineet
+scav_gloves_2_desc	Kumitetut eristyskäsineet saastuneiden ja anomaalisten aineiden käsittelyyn. Välttämättömät artefaktimetsästäjälle.
+scav_gloves_2_name	Kemikaalisuojakäsineet
+scav_gloves_4_desc	Kuvausta ei vielä ole.
+scav_gloves_4_name	Karkeat käsineet
+scav_helmet_1_desc	Kuvausta ei vielä ole.
+scav_helmet_1_name	Asentajan kypärä
+scav_legs_1_desc	Karkeat housut. Pitävät jalat lämpiminä ja kestävät raunioissa kulkemista.
+scav_legs_1_name	Pellavahousut
+scav_legs_2_desc	Haaskaajien tekemät eristyshousut. Suojaavat jalkoja myrkyiltä. Kätevään taskuun mahtuu pari ensiapupakkausta tai kranaattia.
+scav_legs_2_name	Kemikaalisuojahousut
+scav_legs_3_desc	Huolellisesti ommellut kestävät housut polvisuojilla ja lisävarustekiinnikkeillä. Suojaavat jalkoja kovissa oloissa. Kätevään taskuun mahtuu pari ensiapupakkausta tai kranaattia.
+scav_legs_3_name	Kenttähousut
+scav_legs_4_desc	Kuvausta ei vielä ole.
+scav_legs_4_name	Selviytyjän housut
+scav_legs_5_desc	Kuvausta ei vielä ole.
+scav_legs_5_name	Vahvistetut housut
+scav_rep_modifier	Maine Haaskaajilla
+scav_resp_1_desc	Haaskaajien muokkaama hengityssuojain. Suojaa myrkyllisiltä höyryiltä ja radioaktiiviselta pölyltä.
+scav_resp_1_name	Meripihka-hengityssuojain
+scav_torso_1_desc	Kevyt ja helppotekoinen tikattu takki. Haaskaajan ensimmäinen asu. Auttaa selviytymään huonossa säässä. Tilaviin taskuihin mahtuu ensiapupakkauksia, kranaatteja ja lisäammuksia. 
+scav_torso_1_name	Tikattu takki
+scav_torso_2_desc	Välttämätön saastuneilla alueilla. Suojaa vartaloa ja käsiä kosketukselta myrkyllisiin aineisiin. Sisäinen artefaktisäiliö.
+scav_torso_2_name	Kemikaalisuojatakki
+scav_torso_3_desc	Haaskaajien muokkaama armeijan liivi, otettu kaatuneelta sotilaalta tai ryöstetystä varastosta. Taskuihin mahtuu ensiapupakkauksia, kranaatteja ja lisäammuksia.
+scav_torso_3_name	Kevyt suojaliivi
+scav_torso_4_desc	Kuvausta ei vielä ole.
+scav_torso_4_name	Selviytyjän takki
+scav_torso_5_desc	Tikattu puuvillatakki. Sisällä kaarevat metallilevyt, ulkona nahkavahvikkeet. Hyvä valinta kokeneelle haaskaajalle.
+scav_torso_5_name	Vahvistettu toppatakki
+scavenger_starter_bundle_descr	<white>Sisältö:\nSelviytyjän takki.\nSelviytyjän housut.\n- Parannettu OTs-02 Kiparis.\n- 1000 patruunaa 9x18 PM.</white>
+scavenger_starter_bundle_name	Selviytyjä-paketti
+scavengers_accuracy_descr	Mitä hyötyä on ampua joka suuntaan? Yksi luoti riittää viemään hengen. Opettele säästämään ammuksia.
+scavengers_accuracy_name	Ampumataidot
+scavengers_accuracy_obj	Voita ottelu tarkkuudella, joka ylittää
+scavengers_bring_x_items_descr	Taistelua ei aina voiteta aseilla. Muista päätavoite: kerää mahdollisimman monta akkua suojalaitteeseen.
+scavengers_bring_x_items_name	Osuus voitosta
+scavengers_bring_x_items_obj	Etsi ja tuo akkuja:
+scavengers_defend_items_descr	Vihollinen ei aina pelaa sääntöjen mukaan. Puolusta tukikohtaasi ja estä kaikki akkujen varastamisyritykset.
+scavengers_defend_items_name	Omaisuuden puolustus
+scavengers_defend_items_obj	Voita ottelu menettämättä akkuja
+scavengers_faction	Haaskaajat
+scavengers_find_artifacts_descr	Etsi artefakteja anomalioista. Tiukassa taistelussa vyölle asetettu artefakti vahvistaa sinua. Hyvä anomaliasuoja helpottaa etsintää huomattavasti.
+scavengers_find_artifacts_name	Etsi artefakteja
+scavengers_find_artifacts_obj	Löydä artefakteja yhdessä ottelussa:
+scavengers_grenade_enemies_descr	Tarkka kranaatinheitto on yhtä tärkeää kuin tarkka ammunta. Joskus viholliseen ei pääse käsiksi muuten kuin kranaatilla.
+scavengers_grenade_enemies_name	Tarkka heitto
+scavengers_grenade_enemies_obj	Tapa vihollisia kranaatilla yhdessä ottelussa:
+scavengers_kd_ratio_descr	Sankariksi pääsee helposti. Hengissä pysyminen on vaikeampaa. Mitä pidempään elät, sitä enemmän autat joukkuetta. Älä silti piileskele pelkurina. Opettele selviytymään!
+scavengers_kd_ratio_name	Selviytyminen
+scavengers_kd_ratio_obj	Voita ottelu, jossa tappojen ja kuolemien suhde on vähintään
+scavengers_kill_enemies_descr	Kasvokkain vihollisen kanssa ei ole aikaa tunteiluun. Kaksintaistelulla on vain yksi voittaja. Parasta, että se olet sinä!
+scavengers_kill_enemies_name	Itsepuolustus
+scavengers_kill_enemies_obj	Tapa vastustajia yhdessä ottelussa:
+scavengers_level_0	Tuntematon
+scavengers_level_1	Tulokas
+scavengers_level_2	Päättäväinen
+scavengers_level_3	Kokenut
+scavengers_level_4	Sitkeä
+scavengers_level_5	Veteraani
+scavengers_level_unlock_0	Onneksi olkoon! Haaskaajien tehtävät ovat nyt avoinna!
+scavengers_level_unlock_1	Onneksi olkoon! Olet nyt Haaskaajien tulokas!
+scavengers_level_unlock_2	Onneksi olkoon! Olet nyt luotettu haaskaaja!
+scavengers_level_unlock_3	Onneksi olkoon! Olet nyt kokenut haaskaaja!
+scavengers_level_unlock_4	Onneksi olkoon! Olet nyt karaistunut haaskaaja!
+scavengers_level_unlock_5	Onneksi olkoon! Sinut ylennettiin Haaskaajien veteraaniksi!
+scavengers_meele_kill_descr	Jos yhteenottoa ei voi välttää, hoida se nopeasti ja hiljaa. Hiipiminen vihollisen luo ja puukotus herättävät vähemmän huomiota.
+scavengers_meele_kill_name	Ilman meteliä
+scavengers_meele_kill_obj	Tapa vihollisia lähitaistelussa:
+scavengers_represent	Sinun on käytettävä Haaskaajien varusteita.
+scavengers_steal_box_descr	Akun vieminen viholliselta tuottaa kaksinkertaisen ilon. Joku sanoo sitä varkaudeksi, mutta jos he eivät suojaa omaisuuttaan, eivät he sitä tarvitse.
+scavengers_steal_box_name	Pikkuvarkaus
+scavengers_steal_box_obj	Varasta akku vihollisen tukikohdasta ja tuo se omaan tukikohtaasi.
+scavengers_win_score_descr	Mitä enemmän akkuja laitteessa on, sitä suurempi palkinto voitosta.
+scavengers_win_score_name	Täydellinen voitto
+scavengers_win_score_obj	Voita ottelu ja tuo akkuja:
+scavengers_win_x_games_descr	Elämme julmassa maailmassa. Voittaja saa kaiken, häviäjä tyytyy tähteisiin. Muista, että voittajajoukkue saa suuremman palkinnon.
+scavengers_win_x_games_name	Voiton maku
+scavengers_win_x_games_obj	Voita otteluita:
+scientists_faction	Instituutti
+search_label	Hae
+search_range	Ottelun taso
+second_weapon_action	Ase 2
+seconds_short	s
+seed_settings	Jakaminen aulassa
+seeding_max_upload_in_kb_option	Lähetysnopeuden raja:
+select_send_to_action	Valitse vastaanottaja
+sell	Myy
+send	Lähetä  
+send_message	Lähetä viesti
+send_message_action	Lähetä viesti
+server_maintenance	Aikaa säännöllisen palvelinhuollon alkuun
+settings	Asetukset
+settings_label	Asetukset
+shading_quality_option	Varjostimien laatu
+shadow_quality_option	Varjojen laatu
+shooting_skills_label	Ampumakoulutus
+shop	Kauppa
+shop_label	Kauppa
+shop_scope_1p69_hyperon_description	4x kiikaritähtäin
+shop_scope_1p69_hyperon_name	Zenit Hyperion -kiikaritähtäin, 4x
+shop_scope_acog_ta31_description	4x kiikaritähtäin
+shop_scope_acog_ta31_name	TA31-kiikaritähtäin, 4x
+shop_scope_aimpoint_compm4_description	Ruotsalainen punapistetähtäin 2 MOA:n pisteellä. Paristo kestää jopa kahdeksan vuotta jatkuvaa käyttöä. Yhdysvaltain armeijan käytössä nimellä M68 CCO. Picatinny-kiinnitys.
+shop_scope_aimpoint_compm4_name	CompM4-punapistetähtäin
+shop_scope_cobra_ekp_8_description	Venäläinen heijastintähtäin neljällä punaisella tähtäinkuviolla. Nopea tähdätä molemmat silmät auki. Kiinnittyy Kalašnikov-tyyppisten aseiden sivukiskoon.
+shop_scope_cobra_ekp_8_name	Kobra EKP-8 -tähtäin
+shop_scope_docter_description	Kompakti saksalainen avoin punapistetähtäin. Kevyt ja nopea tähdätä. Tehty haulikoille, pistooleille ja lyhyille aseille.
+shop_scope_docter_name	Docter-punapistetähtäin
+shop_scope_elcan_specterdr_description	4x kiikaritähtäin
+shop_scope_elcan_specterdr_name	SpecterDR-kiikaritähtäin, 4x
+shop_scope_eotech_552_description	Amerikkalainen hologrammitähtäin: 65 MOA:n rengas ja keskellä 1 MOA:n piste, AA-paristot. Nopea lähi- ja keskipitkillä etäisyyksillä. Picatinny-kiinnitys.
+shop_scope_eotech_552_name	EOTech 552 -tähtäin
+shop_scope_leupold_deltapoint_description	Kompakti amerikkalainen heijastintähtäin punaisella kolmiolla. Tehty pistooleille ja kevyille aseille. Pieni koko ei ole tiellä.
+shop_scope_leupold_deltapoint_name	Leupold DeltaPoint -tähtäin
+shop_scope_leupold_mk4_description	4x kiikaritähtäin
+shop_scope_leupold_mk4_name	Leupold MK4 -kiikaritähtäin, 4x
+shop_scope_pso_1_description	4x kiikaritähtäin
+shop_scope_pso_1_name	PSO-1-kiikaritähtäin, 4x
+shop_scope_pso_1_old_description	4x kiikaritähtäin
+shop_scope_pso_1_old_name	PSO-1 O -kiikaritähtäin, 4x
+shop_scope_pu_3_5x_description	3,5x kiikaritähtäin
+shop_scope_pu_3_5x_name	PU-kiikaritähtäin, 3,5x
+shop_showcase	Ensisijainen
+short_clan_string	Nimi on liian lyhyt
+show_ammo	Näytä ammukset 
+show_character_action	Hahmoikkuna
+show_enemy_killed_marker	Näytä tappoilmaisin
+show_friends_action	Kaverit
+show_inventory_action	Tavaraluettelo
+show_options_action	Asetukset
+show_player_info_button_hint	Näytä pelaajan tiedot
+show_player_info_hint	Näytä tiedot kaksoisklikkaamalla
+show_quest_list	Näytä tehtäväikkuna
+show_quests_progress_option	Näytä tehtävän edistyminen ottelussa
+show_shop_action	Kauppa
+show_squad_list	Näytä ryhmäikkuna
+skills_already_rerolled	Taidot on jo nollattu
+sks_description	Itselataava Simonov-karbiini, kaliiperi 7.62x39. Neuvostoarmeijan käyttöön vuonna 1949, myöhemmin automaattikiväärien korvaama. Kiinteä 10 patruunan lipas.
+sks_premium_2_description	Itselataava Simonov-karbiini, kaliiperi 7.62x39. Neuvostoarmeijan käyttöön vuonna 1949, myöhemmin automaattikiväärien korvaama. Kiinteä 10 patruunan lipas. Premium-versio erikoismaastokuvioinnilla.
+sks_premium_description	Itselataava Simonov-karbiini, kaliiperi 7.62x39. Neuvostoarmeijan käyttöön vuonna 1949, myöhemmin automaattikiväärien korvaama. Kiinteä 10 patruunan lipas. Premium-versio erikoismaastokuvioinnilla.
+slide1_button_accept_label	Seuraava
+slide1_text	Terve, selviytyjä. Sinulla oli onnea, kun selvisit maailmanlopusta. Viikkojen vaelluksen jälkeen pääsit viimein alueelle, jota Metsä ei ole vielä nielaissut.
+slide1_text_enter_name	Minkä nimen valitset uudessa maailmassa?
+slide1_tutorial_reward	Opastuksen suorittamisesta saat palkinnon:
+slot_control_label	Valitse määrä
+slots	Paikat
+sniper_skills_descr	Parantaa aseenkäsittelyä. Lisää ampumatarkkuutta ja tähtäysnopeutta.
+sniper_skills_name	Ampumakoulutus
+snp_fast_draw_desc	Taitosi nopeuttavat aseen vaihtamista.
+snp_fast_draw_name	Nopea aseenvaihto
+snp_fast_reload_desc	Olet oppinut lataamaan aseesi nopeammin.
+snp_fast_reload_name	Nopea lataus
+snp_fast_shot_desc	Nopeuttaa liipaisimen painamista itselataavilla aseilla.
+snp_fast_shot_name	Liipaisinkuri
+snp_iron_breath_desc	Voit pidättää hengitystäsi pidempään tähdätessä.
+snp_iron_breath_name	Rautakeuhkot
+snp_sniper_desc	Parantaa huomattavasti tarkkuutta kiikari-, taktisilla ja punapistetähtäimillä.
+snp_sniper_name	Tarkka-ampuja
+snp_steady_breath_desc	Palaudut nopeammin hengityksen pidättämisestä.
+snp_steady_breath_name	Tasainen uloshengitys
+snp_steady_grip_desc	Parantaa ampumatarkkuutta liikkeessä.
+snp_steady_grip_name	Vakaa ote
+soc_vepr_description	Venäläinen itselataava Vepr-karbiini, kaliiperi 7.62x39. Molotin tehdas Vjatskije Poljanyssa valmistaa sitä RPK:n vahvistetulle rungolle metsästys- ja urheiluaseeksi. 10 patruunan lipas. Vain kertatuli.
+socom16_description	Kuvausta ei vielä ole.
+sort	Järjestä
+sort_cost	Hinnan mukaan
+sort_label	Suodatin
+sort_level	Tason mukaan
+sort_reset	Nollaa
+space_symbol_clan_string	Virheelliset erottimet
+spam_filter_block_notification	Roskapostisuodatin esti viestisi. Odota
+spam_filter_block_notification_fin	s
+spas12_description	Kuvausta ei vielä ole.
+special_offer	Erikoistarjous
+speed_booster_description	Energiajuoma, jossa on kofeiinia ja tauriinia. Virkistää ja stimuloi keskushermostoa.
+speed_booster_name	Tornado-energiajuoma
+spot_action	Vihollinen havaittu
+spring_activation_hint	Jousi aktivoitu! Liike- ja tähtäysnopeus +10%. Energia palautuu nopeammin! Luodit eivät hidasta sinua!
+spring_pickup_hint	Jousi-artefakti. Lisää liike- ja tähtäysnopeutta 5%.
+sprint_action	Sprinttaa (pidä)
+sprint_toggle_action	Sprintti 
+squad	Ryhmä
+squad_list_locked_hint	Et voi luoda ryhmää klaanijoukkueessa
+squad_not_ready	Ryhmä ei ole valmis
+sr2m_description	Kuvausta ei vielä ole.
+sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruunaa 9x39 SP-6.</white>\n
+sr3m_bundle_name	SR-3M Vihr -paketti
+sr3m_description	Kuvausta ei vielä ole.
+srp_attachments	Lisävarusteet
+srp_optics	Optiikka
+srp_scope_screen_hint	Vedä tähtäin tavaraluettelosta aseen muokkauspaikkaan
+stamina_boost_name	Uusi puhti
+stamina_boost_time_description	Vihollisen taposta palautuva energia:
+stamina_loss_on_hit_description	Kestävyyshaitta haavoittuessa.
+stamina_loss_on_hit_name	Pysäyttämätön
+stamina_regen_correction_perc_name	Kestävyyden palautuminen
+stamina_regeneration_speed_description	Energian palautumisnopeus:
+stamina_regeneration_speed_name	Hengitys
+stamina_spending_speed_description	Energiankulutus:
+stamina_spending_speed_name	Kestävyys
+start_chat_action	Chat
+start_match_welcome_message	Etsi akkuja ja vie ne tukikohtaasi!
+start_match_welcome_message_2	Etsi ja suojaa akkujen latausasemat!
+start_match_welcome_message_3	Eliminoi mahdollisimman monta vihollista!
+start_match_welcome_message_5	Etsi ja valtaa tutkimusyksiköt!
+statistic_sync_text	Vastaanotetaan ottelutilastoja
+statistics_daily_bonus	Päiväbonus
+statistics_equipment_bonus	Varustebonus
+statistics_exp	Ansaittu kokemus:
+statistics_money	Ansaittu raha:
+statistics_rating_delta	Luokituksen muutos
+statistics_score	Ansaitut pisteet:
+statistics_score_game_events	Palkinnot otteluaktiivisuudesta
+statistics_score_help	Liittolaisen auttaminen
+statistics_score_kills	Tapetut viholliset
+statistics_score_match	Ottelun tulosten perusteella
+statistics_score_premium	Premium-tili
+statistics_score_quests	Suoritetuista tehtävistä
+stats_accuracy	Tarkkuus:
+stats_artefacts_gathered	Kerätyt artefaktit:
+stats_assists	Avustukset:
+stats_deaths	Kuolemat:
+stats_headshots	Pääosumat:
+stats_healed	Parannettu:
+stats_items_defended	Puolustetut akut:
+stats_items_gathered	Löydetyt akut:
+stats_kills	Tapot:
+stats_max_killstreak	Tappoputki:
+stats_melee_kills	Lähitaistelutapot:
+stats_saved	Pelastettu:
+stats_silent_kills	Hiljaiset tapot:
+stats_stolen_victory_items	Varastetut akut:
+status_str	Tila:
+storage	Varasto
+string_pattern_error	Nimessä on virheellisiä merkkejä tai se on liian pitkä tai lyhyt
+support	Tuki
+survival_notes	Selviytyjän muistiinpanot
+survival_notes_complete	Olet suorittanut
+survival_skills_label	Selviytymistaidot
+sv_98_description	Kuvausta ei vielä ole.
+svd_description	Itselataava Dragunov-tarkkuuskivääri, kaliiperi 7.62x54. Neuvostoarmeijan päätarkkuuskivääri vuosien ajan. 5 patruunan lipas. 
+swear_clan_string	Tekstissä on kirosanoja
+swearing_claim	Kiroilu
+team_already_has_commander	Klaanijoukkueella on jo johtaja.
+team_member_is_not_commander	Joukkueen jäsen ei ole komentaja.
+texture_quality_option	Tekstuurien laatu
+there_is_no_item_in_inventory	Esinettä ei löytynyt tavaroistasi
+thief_item	Tartu säiliöön
+throw_grenade_action	Käytä kranaattia
+time_current	Etsitään pelaajia:
+time_was_resynchronized	Palautetaan yhteyttä…
+to_all	Kaikille
+top100	Top 100
+total	Yhteensä
+tournaments	Turnaukset
+toz122_description	Monilaukauksinen rihlattu karbiini, kaliiperi 7.62x51. Suunniteltu harrastus- ja ammattimetsästykseen. 5 patruunan laatikkolipas.
+toz34_description	Päällekkäispiippuinen metsästyshaulikko, kaliiperi 12x70. Yksi ensimmäisistä sarjatuotetuista metsästysaseista. Kevyt ja tiukka osumakuvio. 
+toz66_description	Kaksipiippuinen metsästyshaulikko, kaliiperi 12x70. Kaksi lähes välitöntä laukausta tekevät siitä tehokkaan lähietäisyydellä. 
+trap_damage	Ansavahinko
+treasure_map_advert	Käytä kätkökarttaa löytääksesi lisää esineitä.
+tt_description	Tulan Tokarev otettiin käyttöön vuonna 1933, kaliiperi 7.62x25 mm. Suunniteltu 1930-luvulla Neuvostoliiton ensimmäiseksi itselataavaksi sotilaspistooliksi. 8 patruunan lipas.
+tutorial_apply_ammo_message_1	Vahvista painamalla <tutorial_highlight>Käytä</tutorial_highlight> tai <tutorial_highlight>Piilota ammukset</tutorial_highlight>.
+tutorial_choose_ammo_message_1	Patruunamäärä näkyy laatikoissa. Eri ammustyypeillä voi olla eri määrä patruunoita laatikossa.
+tutorial_choose_ammo_message_2	Ota enimmäismäärä ammuksia.
+tutorial_choose_faction_message_1	Voit tehdä yhteistyötä vain yhden ryhmittymän kanssa kerrallaan. Mainetta saat onnistuneista taistelutoimista ja ryhmittymän tehtävien suorittamisesta.
+tutorial_choose_faction_message_2	Liity yhteen ryhmittymistä.
+tutorial_choose_wpn_message_1	Voit ottaa taisteluun vain kaksi asetta. Valitse huolella, millä haluat taistella.
+tutorial_choose_wpn_message_2	Vedä Mosin-karbiini tai\nPPŠ-41 tyhjään asepaikkaan.
+tutorial_click_ammo_message_1	Voit kantaa vain rajatun määrän ammuksia. <tutorial_highlight>Klikkaa Näytä ammukset</tutorial_highlight> ja valitse itse, paljonko otat taisteluun.
+tutorial_click_inventory_message_1	Metsä ei valitettavasti ole uuden maailman ainoa vaara. Valtio romahti, ja jokainen on omillaan. Kaikesta on taisteltava: ruoasta, lääkkeistä ja oikeudesta selvitä. Vanhojen kätköjen aseet eivät ehkä ole parhaita, mutta parempia kuin ei mitään.
+tutorial_click_inventory_message_2	Avaa Varusteet-välilehti ja anna hahmollesi aseet ja panssari.
+tutorial_complete_label	Onneksi olkoon!\nSuoritit opastuksen.
+tutorial_complete_reward_label	Palkinto tästä toiminnosta:
+tutorial_equip_drop_message_1	Uusia aseita ja varusteita voi saada monin tavoin. Jokaisen taistelun jälkeen voit löytää esineen taistelukentältä. Parantamalla suhteita ryhmittymiin saat niiden ainutlaatuisia tuotteita.
+tutorial_equip_drop_message_2	Avaa ryhmittymän valintaikkuna.
+tutorial_exit_warning	Jos poistut opastuksesta, et voi palata siihen tai saada palkintoa myöhemmin. Haluatko varmasti poistua?
+tutorial_press_play_message_1	Aloita ensimmäinen taistelusi painamalla <tutorial_highlight>Pelaa</tutorial_highlight>. Lisätietoja saat osiosta <tutorial_highlight>Selviytyjän muistiinpanot</tutorial_highlight>, jonka voit lukea taistelun jälkeen.
+two_handed	Ensisijainen
+ump45_description	Kuvausta ei vielä ole.
+unknown_faction	Neutraali
+unlimited_upload	rajaton
+use_action	Käytä
+use_artefact_container	Kerää artefakti ({USE})
+use_fix_voucher	Korjaussarja
+use_item_message	Haluatko varmasti käyttää tämän esineen?
+use_ladder	Tikapuut
+use_microphone_option	Käytä mikrofonia
+use_resupply_zone	Täydennä ammukset ({USE})
+use_two_double_handed_weapons_description	Voit ottaa otteluun kaksi kahden käden asetta.
+use_two_double_handed_weapons_name	Terminaattori
+using_progress_message	Edistyminen:
+uzi_description	Konepistooli, kaliiperi 9x19. Suunniteltu vuonna 1954 Israelin armeijalle. Yksi maailman suosituimmista aseista. Kerta- ja sarjatuli.
+uzi_premium_2_description	Konepistooli, kaliiperi 9x19. Suunniteltu vuonna 1954 Israelin armeijalle. Yksi maailman suosituimmista aseista. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+val_description	Kuvausta ei vielä ole.
+valmet_description	Suomalainen rynnäkkökivääri, kaliiperi 7.62x39. Valmetin ja Sakon Kalašnikov-pohjainen malli. Puolustusvoimien käyttöön vuonna 1962, josta se sai nimensä. Tunnettu tarkkuudesta ja luotettavuudesta arktisissa oloissa. 30 patruunan lipas. Kerta- ja sarjatuli.
+vepr_12_description	Venäläinen itselataava 12 kaliiperin haulikko. Molotin tehdas Vjatskije Poljanyssa valmistaa sitä RPK:n vahvistetulle rungolle. Esitelty 2000-luvulla urheiluun, metsästykseen ja turvallisuuspalveluille. 8 patruunan laatikkolipas. Vain kertatuli.
+vepr_12_premium_description	Venäläinen itselataava 12 kaliiperin haulikko. Molotin tehdas Vjatskije Poljanyssa valmistaa sitä RPK:n vahvistetulle rungolle. Esitelty 2000-luvulla urheiluun, metsästykseen ja turvallisuuspalveluille. 8 patruunan lipas, vain kertatuli. Premium-versio erikoismaastokuvioinnilla.
+vepr_description	Kuvausta ei vielä ole.
+vepr_premium_description	Venäläinen Vepr-karbiini, kaliiperi 5.45x39. Molotin tehdas Vjatskije Poljanyssa valmistaa sitä RPK-74:n vahvistetulle rungolle. 30 patruunan lipas. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+victory	Voitto
+victory_screen_no_dropped_item	Et löytänyt mitään taistelukentältä.
+vityaz_bundle_descr	<white>Sisältö:\n- Parannettu PP-19-01 Vitjaz.\n- 2000 patruunaa 9x19 Parabellum.</white>
+vityaz_bundle_name	PP-19-01 Vitjaz -paketti
+vityaz_description	Konepistooli, kaliiperi 9x19. Suunniteltu vuonna 2004 Venäjän erikoisjoukkojen tarpeisiin. Kerta- ja sarjatuli.
+voice_chat_volume_option	Puhechat
+vsk94_description	Kuvausta ei vielä ole.
+vsk94_premium_description	Venäläinen tarkkuuskivääri, kaliiperi 9x39. Tulan KBP kehitti sen 1990-luvulla 9A-91:stä, vaimentimella ja tarkkuustukilla hiljaiseen ammuntaan lähi- ja keskipitkille etäisyyksille. 20 patruunan lipas. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
+vss_bundle_descr	<white>Sisältö:\n- Parannettu VSS Vintorez.\n- 1000 patruunaa 9x39 SP-5.</white>\n
+vss_bundle_name	VSS Vintorez -paketti
+vss_description	Kuvausta ei vielä ole.
+vssk_camo_description	Venäläinen pulttilukkoinen tarkkuuskivääri, kaliiperi 12.7x55. Tulan TsKIB SOO:n 2000-luvun malli suurella vaimentimella. Erikoisyksiköille hiljaisiin laukauksiin suojaan tai suojaliiviin. 5 patruunan lipas. Vain kertatuli. Erikoismaastokuvioitu versio.
+vssk_description	Kuvausta ei vielä ole.
+vsync_option	Pystytahdistus
+vz58_description	Tšekkoslovakialainen rynnäkkökivääri, kaliiperi 7.62x39. Jiří Čermákin suunnittelema, käyttöön 1958. Muistuttaa Kalašnikovia, mutta käyttää omaa lyhytiskuista mäntää ja lukitusta. P-versiossa kiinteä puutukki. 30 patruunan lipas. Kerta- ja sarjatuli.
+waiting_for_players	Odotetaan muita pelaajia:
+walther_competition2_collimator_desc	Saksalainen Walther-punapistetähtäin, alun perin urheiluammuntaan. Putkimaisessa rungossa on valaistu tähtäyspiste.
+walther_competition2_collimator_name	Competition II -punapistetähtäin
+wasted	Kulutus
+weapon_aim_action	Tähtää (pidä)
+weapon_could_not_be_used	Kädet haavoittuneet! Aseita ei voi käyttää
+weapon_fire_action	Ammu
+weapon_reload_action	Lataa
+wear	Käytä
+weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.
+weight_booster_name	Anomaalinen voima -proteiini
+winchester1894_description	Amerikkalaisen insinöörin vuonna 1894 suunnittelemaa kivääriä valmistettiin vuoteen 2006 asti. Yksi tunnetuimmista ja suosituimmista metsästyskivääreistä. Vipulukko ja 6 patruunan putkilipas.
+wrong_skill_points_count	Virheellinen taitopistemäärä
+wrong_symbol_clan_string	Tekstissä on tulostumaton merkki
+you_have_no_voucher_for_premium	Sinulla ei ole premium-aktivointikuponkia
+you_have_no_voucher_for_rename	Sinulla ei ole hahmon nimenvaihtokuponkia
+you_have_no_voucher_for_repair	Sinulla ei ole korjaussarjaa.
+youtube_video_tutorial_button	Katso video-opas!

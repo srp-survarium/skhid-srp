@@ -22,7 +22,8 @@ game and the launcher, not to their .exe files.
 Select an English keyboard layout before launching. In our Wine tests, starting
 with Russian selected could leave text input broken after switching to English.
 The game language is a separate setting: edit localization near the top of the
-script to choose english, russian, ukrainian, german, polish or serbian (Latin).
+script to choose english, russian, ukrainian, german, polish, serbian (Latin), czech, hungarian
+or finnish.
 
 Full builds use the login address embedded in the executable. To override it,
 set server=host:port near the top of play_skhid.sh. Certificate-only builds have

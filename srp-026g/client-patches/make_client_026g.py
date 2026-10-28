@@ -6,7 +6,7 @@ USAGE
 
     cd srp-026g/client-patches
     python make_client_026g.py <game folder> <output> --server=<host>:<port>
-        [--localization=ukrainian]   english, russian, ukrainian, german, polish, serbian
+        [--localization=ukrainian]   english, russian, ukrainian, german, polish, serbian, czech, hungarian, finnish
         [--cert-only | --cave=hash-mismatch]   another build of the exe (see patch_026g.py)
         [--no-late-join]             the exe without the late join: patch revision 4,
                                      for a server that asks for no later one
@@ -131,6 +131,7 @@ from pathlib import Path
 import sys
 import zipfile
 
+from localization_026g import LANGUAGES
 import patch_026g as P
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -169,9 +170,9 @@ VPN_HELP = "VPN.txt"
 NETWORK_SETUP = "Skhid-network-setup.cmd"
 # What a Linux unpacker makes executable.
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
-# Resource directory names accepted by the client. Serbian is supplied by
-# release/content.tsv; its legacy chat-language byte uses the default mapping.
-LOCALIZATIONS = ("english", "russian", "ukrainian", "german", "polish", "serbian")
+# Resource directory names accepted by the client. Additional dictionaries ship
+# through release/content.tsv; legacy chat-language bytes use the default mapping.
+LOCALIZATIONS = tuple(name for name, _ in LANGUAGES)
 
 
 def sha256(data):
@@ -268,7 +269,7 @@ def bat(server, localization, embedded=False):
         lines += ["rem Put the server address (host:1234) here, as given on the server page.",
                   f"set SERVER={server}"]
     lines += [
-        "rem Game language: english, russian, ukrainian, german, polish or serbian.",
+        "rem Game language: english, russian, ukrainian, german, polish, serbian, czech, hungarian or finnish.",
         f"set LANGUAGE={localization}",
         "rem It must run from this folder (game\\binaries\\x86): the game finds",
         "rem ..\\..\\resources\\ssl\\survarium_login_server.crt from where it is started.",
@@ -462,7 +463,7 @@ def readme(server, localization, description, files, embedded=False, site=None):
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -localization=   language: english, russian, ukrainian, german, polish or serbian",
+        "  -localization=   language: english, russian, ukrainian, german, polish, serbian, czech, hungarian or finnish",
         "  -mt_allocator=768, -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",

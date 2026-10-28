@@ -2,6 +2,7 @@
 import contextlib
 import io
 import json
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -10,7 +11,7 @@ import tempfile
 import unittest
 
 import check_localization_026g as checker
-from localization_026g import discover, encode_strings, read_strings, read_translations
+from localization_026g import LANGUAGES, TRANSLATED_LANGUAGES, discover, encode_strings, read_strings, read_translations
 from build_localization_026g import translate
 from check_flash_localization_026g import audit_flash
 
@@ -125,27 +126,78 @@ class LocalizationTests(unittest.TestCase):
             self.assertEqual(checker.main([str(self.root), '--require', 'german']), 1)
             self.assertEqual(checker.main([str(self.root / 'absent')]), 2)
 
-    def test_checked_in_flash_tables_include_serbian(self):
+    def test_checked_in_flash_tables_include_every_registered_language(self):
         result = audit_flash(Path(__file__).resolve().parents[1] / 'flash')
         self.assertGreater(result['checked'], 200)
         self.assertEqual(result['issues'], [])
 
-    def test_flash_check_catches_omitted_sixth_column(self):
+    def flash_fixture(self, row):
         folder = self.root / 'lobby_menu/src/survarium/constants'
-        folder.mkdir(parents=True)
-        (folder / 'Language.as').write_text('')
-        (self.root / 'Words.as').write_text(
-            'var words:Array = ["Play", "Грати", "Играть", "Spielen", "Graj"];', encoding='utf-8')
-        result = audit_flash(self.root)
-        self.assertEqual(result['checked'], 1)
-        self.assertIn('expected six language columns', result['issues'][0])
+        folder.mkdir(parents=True, exist_ok=True)
+        actual = Path(__file__).resolve().parents[1] / 'flash/lobby_menu/src/survarium/constants/Language.as'
+        (folder / 'Language.as').write_text(actual.read_text(encoding='utf-8'), encoding='utf-8')
+        (self.root / 'Words.as').write_text('var words:Array = ' + json.dumps(row) + ';', encoding='utf-8')
 
-    def test_serbian_labels_match_flash_language_detection(self):
+    def test_flash_check_catches_omitted_columns_and_bad_text_in_each_added_language(self):
+        row = ['Play {n}', 'Грати {n}', 'Играть {n}', 'Spielen {n}', 'Graj {n}',
+               'Igraj {n}', 'Hrát {n}', 'Játék {n}', 'Pelaa {n}']
+        self.flash_fixture(row[:-1])
+        self.assertTrue(any('expected 9 language columns' in issue
+                            for issue in audit_flash(self.root)['issues']))
+        for index in range(5, len(LANGUAGES)):
+            for replacement, error in [('', 'empty'), ('Play', 'substitutions'),
+                                        ('Играть {n}', 'Cyrillic')]:
+                with self.subTest(language=LANGUAGES[index][0], error=error):
+                    changed = row.copy()
+                    changed[index] = replacement
+                    self.flash_fixture(changed)
+                    issues = audit_flash(self.root)['issues']
+                    self.assertTrue(any(error in issue and LANGUAGES[index][0] in issue for issue in issues))
+
+    def test_flash_constant_indices_cannot_drift_from_registry(self):
+        self.flash_fixture(['Same'] * len(LANGUAGES))
+        path = self.root / 'lobby_menu/src/survarium/constants/Language.as'
+        path.write_text(path.read_text().replace('FI:int = 8', 'FI:int = 9'))
+        self.assertTrue(any('expected language indices' in issue for issue in audit_flash(self.root)['issues']))
+
+    def test_added_dictionary_labels_match_flash_detectors(self):
         here = Path(__file__).resolve().parent
-        translated = read_translations(here / 'localization/serbian.tsv')
-        self.assertEqual(translated['st_btn_friends'], 'Prijatelji')
-        self.assertEqual(translated['st_cancel'], 'Otkaži')
-        self.assertEqual(translated['st_registration_str'], 'Napravi nalog')
+        flash = here.parent / 'flash'
+        def table(path, name):
+            text = (flash / path).read_text(encoding='utf-8')
+            return json.loads(re.search(name + r':Array\s*=\s*(\[.*?\]);', text)[1])
+        friends = table('lobby_menu/src/survarium/rooms/RoomsText.as', 'FRIENDS')
+        cancel = table('lobby_menu/src/survarium/messages/MessageMoneyExchange.as', 'CANCEL')
+        login = (flash / 'login_menu/src/SrpLoginHint.as').read_text(encoding='utf-8')
+        for index, (language, code) in enumerate(LANGUAGES[5:], 5):
+            with self.subTest(language=language):
+                translated = read_translations(here / f'localization/{language}.tsv')
+                self.assertEqual(translated['st_btn_friends'], friends[index])
+                self.assertEqual(translated['st_cancel'], cancel[index])
+                self.assertIn(json.dumps(translated['st_registration_str'], ensure_ascii=False) + ':', login)
+                for path in ('gsearch/MatchMakingSettings.as', 'controls/NotificationListScrollContent.as'):
+                    source = (flash / 'lobby_menu/src/survarium' / path).read_text(encoding='utf-8')
+                    self.assertRegex(source, r'if\(word == "' + re.escape(friends[index]) +
+                                     r'"\)\s*\{\s*return Language\.' + code + r';')
+
+    def test_all_added_dictionaries_cover_the_same_keys_and_formats(self):
+        here = Path(__file__).resolve().parent / 'localization'
+        baseline = read_translations(here / 'serbian.tsv')
+        for language in TRANSLATED_LANGUAGES:
+            with self.subTest(language=language):
+                translated = read_translations(here / f'{language}.tsv')
+                report = checker.compare(baseline, translated)
+                for field in ('missing', 'extra', 'empty', 'placeholders', 'markup'):
+                    self.assertEqual(report[field], [], field)
+                keep = (here / f'{language}_keep.txt').read_text(encoding='utf-8').splitlines()
+                self.assertFalse(set(keep) & translated.keys())
+                self.assertEqual(keep, (here / 'serbian_keep.txt').read_text(encoding='utf-8').splitlines())
+                encoded = encode_strings(translated)
+                self.assertEqual(read_strings(encoded), (translated, []))
+
+    def test_new_language_alphabets_survive_native_roundtrip(self):
+        text = 'ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ áčďéěíňóřšťúůýž ÁÉÍÓÖŐÚÜŰ áéíóöőúüű ÅÄÖ åäö'
+        self.assertEqual(read_strings(encode_strings({'st_letters': text})), ({'st_letters': text}, []))
 
     def test_content_edit_compiles_dictionary_and_copies_support_files_exactly(self):
         source = self.dictionary('english', {'st_test': 'Hello %d'})

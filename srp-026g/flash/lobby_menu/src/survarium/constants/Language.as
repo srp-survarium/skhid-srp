@@ -15,6 +15,12 @@ package survarium.constants
       public static const PL:int = 4;
 
       public static const SR:int = 5;
+
+      public static const CS:int = 6;
+
+      public static const HU:int = 7;
+
+      public static const FI:int = 8;
       
       public function Language()
       {

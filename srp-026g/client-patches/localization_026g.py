@@ -10,6 +10,16 @@ import struct
 import zlib
 
 
+# Resource directory and Flash constant, in the movie tables' column order.
+# Keep the existing column numbers stable when adding languages.
+LANGUAGES = (
+    ('english', 'EN'), ('ukrainian', 'UK'), ('russian', 'RU'),
+    ('german', 'DE'), ('polish', 'PL'), ('serbian', 'SR'),
+    ('czech', 'CS'), ('hungarian', 'HU'), ('finnish', 'FI'),
+)
+TRANSLATED_LANGUAGES = tuple(name for name, _ in LANGUAGES[5:])
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
