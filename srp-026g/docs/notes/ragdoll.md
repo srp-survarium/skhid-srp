@@ -972,8 +972,12 @@ retain their existing bindings.
 `headwear-1.json`, listed in `release/content.tsv`, changes source assets
 through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
 bind index 69, an exact copy of Head (44), to the combined character's bind
-and the nine standalone headwear binds. The nine surfaces bind rigidly to
-69. Positions, normals, UVs, material references and indices stay exact.
+and the nine standalone headwear binds. The combined bind is selected by
+`gameplay/bodyparts/default` → `body_parts/bind_pose`: it is
+`scavengers_01_torso_s1.skinned_model/render/bind_pose`. The build checks
+that this exact referenced asset is extended; extending only
+`base_character_full` leaves the assembled model at 69 bones and makes
+the rebound helmets invisible. The nine surfaces bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
 The Biker's three vertices with neck influence deliberately become rigid.
 The animation skeleton, animation clips and hit model are unchanged.
 

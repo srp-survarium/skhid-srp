@@ -26,7 +26,10 @@ only `gameplay/` (the server game data holds only the files srp reads).
 
 `headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
 (`file`, expected `vertices`). `headwear.py` checks the native bind order,
-skin layout, weights and index bounds. It appends a Head-equivalent render
+skin layout, weights and index bounds. `require_headwear_bind` checks the
+actual `body_parts/bind_pose` reference in `gameplay/bodyparts/default`
+against the binds being extended, so the assembled character gets the
+extra bone. It appends a Head-equivalent render
 bone and rebinds only the approved helmet surfaces; all geometric and
 texture data stays exact. The Biker's three blended neck vertices become
 rigid. The seven helmets without inner faces and the level-2 ported beanie also

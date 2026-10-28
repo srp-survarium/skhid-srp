@@ -1,4 +1,7 @@
 """The render edit preserves geometry and refuses a body/hood or stale rig."""
+import json
+from pathlib import Path
+import content_edit as ce
 import struct
 import unittest
 
@@ -35,3 +38,24 @@ class HeadwearEdits(unittest.TestCase):
                 bad[24] = 19  # Chest: a hood or torso cannot silently become a hat.
                 with self.assertRaises(ValueError):
                     rigid_headwear(bad, 1)
+
+
+class CharacterBindReference(unittest.TestCase):
+    def test_manifest_extends_the_bind_used_by_the_character_cook(self):
+        # The mounted bodyparts/default, read by profile_skin_visual_cook.
+        native = 'models/character/human/scavengers/scavengers_01_torso_s1.skinned_model/render/bind_pose'
+        config = bytearray(24)
+        config[:24] = ce.value_record(config, 0, '', {'body_parts': {'bind_pose': 'resources/' + native}})
+        original = bytes(config)
+        edits = json.loads(Path(__file__).with_name('headwear-1.json').read_text())
+        self.assertEqual(edits['require_headwear_bind'], [{'file': 'gameplay/bodyparts/default'}])
+        ce.require_headwear_bind(config, {e['file'] for e in edits['append_headwear_bind']})
+        self.assertEqual(bytes(config), original)
+        with self.assertRaises(ValueError):
+            ce.require_headwear_bind(config, {'models/character/human/base/base_character_full.skinned_model/render/bind_pose'})
+
+    def test_non_string_bind_reference_is_rejected(self):
+        config = bytearray(24)
+        config[:24] = ce.value_record(config, 0, '', {'body_parts': {'bind_pose': 69}})
+        with self.assertRaises(TypeError):
+            ce.require_headwear_bind(config, set())

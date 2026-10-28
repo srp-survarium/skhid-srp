@@ -81,6 +81,8 @@ Edits (edits.json):
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
+  "require_headwear_bind": [{"file"}]                 verify the character config’s body_parts/bind_pose
+                                                       names one of this list’s append_headwear_bind files
   "append_headwear_bind": [{"file"}]                   append the render-only Head copy to a native bind
   "rigid_headwear": [{"file", "vertices"}]             bind a checked Head/Neck surface to that render bone;
                                                        geometry, UVs and indices stay byte for byte
@@ -742,6 +744,17 @@ def runtime_vegetation(data):
     return result
 
 
+def require_headwear_bind(config, paths):
+    """The character cook must use one of the render binds this edit extends."""
+    data, _, _, kind, count = rec(config, find(config, 'body_parts/bind_pose'))
+    if kind != T_STR:
+        raise TypeError('body_parts/bind_pose must be a resource path string')
+    reference = bytes(config[data:data + count - 1]).decode('utf-8')
+    prefix = 'resources/'
+    if not reference.startswith(prefix) or reference[len(prefix):] not in paths:
+        raise ValueError('character bind is not extended by append_headwear_bind: ' + reference)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
@@ -921,6 +934,11 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+
+    for e in edits.get('require_headwear_bind', []):
+        source = open(files[e['file']], 'rb').read()
+        require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
+        print('character bind reference verified: ' + e['file'])
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
