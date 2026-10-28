@@ -44,8 +44,12 @@
   },
   "hazard": {
     "artefact_know": false,
+    "escort_dry_post": false,
+    "hurt_by_shape": false,
     "live_zones": false,
     "route_crossing": false,
+    "team_zone_aside": false,
+    "total_crossing": false,
     "zone_pools": "raw"
   },
   "heal": {

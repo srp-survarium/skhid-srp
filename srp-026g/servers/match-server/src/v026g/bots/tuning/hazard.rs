@@ -29,6 +29,26 @@ pub struct HazardTuning {
     /// (`collect::routed_crossing_to`), and the motor walks it; off: only the straight
     /// crossings, as it was. The bench's switch, `SRP_BENCH_ROUTE_CROSSING=1`.
     pub route_crossing: bool,
+    /// Where a body is hurt is where its capsule overlaps the zone's shape (the grid body's radius and height;
+    /// GUESS for the client's test, the owner's calibration 1 settles it), not the floors `margin_m` keeps routes off:
+    /// a battery on a floor 0.27 m over a cylinder's top was priced as a floor in the zone, and a crossing to it as
+    /// one that hurts (`Hazards::hurt_per_s`, A129). Routes keep their margin. Off: the margin's marks price a
+    /// crossing, as they did.
+    pub hurt_by_shape: bool,
+    /// A crossing by the motor's route is offered whatever floors of the zones the route meets before the stop
+    /// (`collect::routed_crossing_to`): one whose only zone floors lie in the stop's last metre, or none, was
+    /// thrown away as "a plain route, not a crossing" and its battery dropped for "no crossing to its zone".
+    /// Off: as it was.
+    pub total_crossing: bool,
+    /// An escort's post is the nearest dry floor that sees the carrier when none lies on its line
+    /// (`escort::post`), and no escort is offered to a carrier no dry floor sees, instead of a post on the
+    /// carrier's own feet in a zone ("no way to its goal" 18 and 54 times in a match). Off: the line, then the
+    /// carrier's feet.
+    pub escort_dry_post: bool,
+    /// A play whose goal lies on a floor of a zone and was proved no way to is set aside for the whole team
+    /// (`TeamKnowledge::aside`, `NO_WAY_KEEP_MS`), not for the bot that found out alone: the next bot asked the
+    /// commander for the same play and found out again. Off: per bot.
+    pub team_zone_aside: bool,
 }
 
 /// What a crossing of a damage zone is weighed against (`HazardTuning::zone_pools`).
@@ -53,6 +73,10 @@ impl Default for HazardTuning {
             live_zones: true,
             zone_pools: ZonePools::Routed,
             route_crossing: true,
+            hurt_by_shape: true,
+            total_crossing: true,
+            escort_dry_post: true,
+            team_zone_aside: true,
         }
     }
 }

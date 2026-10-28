@@ -85,7 +85,7 @@ pub fn crossable(tactics: &Tactics, node: NodeId, health: f32) -> bool {
     let hazards = &tactics.hazards;
     hazards.only_fixed_at(node) && {
         let thinnest = 2.0 * hazards.margin.max(CROSS_STEP_M);
-        health - hazards.hit_per_s(node) * thinnest / CROSS_MPS >= CROSS_ABORT_LEFT
+        health - hazards.hurt_per_s(node) * thinnest / CROSS_MPS >= CROSS_ABORT_LEFT
     }
 }
 
@@ -153,7 +153,7 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32) -> f32 {
             let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
             grid.locate(point, 0.6)
                 .filter(|&node| tactics.hazards.only_fixed_at(node))
-                .map_or(0.0, |node| tactics.hazards.hit_per_s(node))
+                .map_or(0.0, |node| tactics.hazards.hurt_per_s(node))
                 * ds
                 / CROSS_MPS
         })

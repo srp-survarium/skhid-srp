@@ -739,6 +739,10 @@ pub(super) fn decide(
             if let Some(a) = bot.assignment.as_ref() {
                 bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
                 bot.features.memory.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                // A goal on a floor of a zone is the zone's no way, the same for every bot of the team.
+                if tuning.hazard.team_zone_aside && goal_in_zone(&intent, tactics) {
+                    state.knowledge.set_aside(a.kind, a.target, now + NO_WAY_KEEP_MS);
+                }
             }
             bot.end_play(now, "no way to its goal", notes);
             state.next_commander = now;
@@ -780,6 +784,19 @@ pub(super) fn decide(
         }
     }
     Some(step_name)
+}
+
+/// Whether the intent's goal lies on a floor a damage zone marks (baked or live): where routes keep off, so no bot's
+/// search finds a way.
+fn goal_in_zone(intent: &Intent, tactics: &Tactics) -> bool {
+    let Go::To { at, .. } = intent.go else {
+        return false;
+    };
+    tactics
+        .world
+        .grid
+        .locate(at, 1.5)
+        .is_some_and(|node| tactics.hazards.marked_at(node))
 }
 
 #[cfg(test)]

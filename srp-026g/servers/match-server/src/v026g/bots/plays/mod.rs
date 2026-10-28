@@ -975,6 +975,7 @@ impl Ctx<'_> {
             .set_aside
             .iter()
             .any(|&(k, t, until)| k == kind && t == target && self.now < until)
+            || self.team.is_aside(kind, target, self.now)
             || (self.bot.dry && kind.seeks_fight())
         {
             return None;

@@ -19,7 +19,7 @@ use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
-use super::collect::{Crossing, crossing_to, routed_crossing_to};
+use super::collect::{Crossing, RouteCrossing, crossing_to, routed_crossing_to};
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::zone_cost::ZoneArmour;
@@ -31,13 +31,14 @@ const MEMO_MOST: usize = 4096;
 
 /// What each zone is, as the answers depend on it: whether it switches
 /// (its control, `Hazard::switches`) and its hit a second
-/// (`Hazard::hit_per_s`). It changes only at `Hazards::attach` (and in
+/// (`Hazard::hit_per_s`), and the floors that hurt (`Hazards::hurt`). It changes only at `Hazards::attach` (and in
 /// tests that set a zone's control).
 fn zones_stamp(hazards: &Hazards) -> impl Iterator<Item = u64> + Clone + '_ {
     hazards
         .zones
         .iter()
         .map(|zone| u64::from(zone.switches()) << 32 | u64::from(zone.hit_per_s().to_bits()))
+        .chain(std::iter::once(hazards.hurt as u64))
 }
 
 /// One question's answers by key, and the stamp ([`zones_stamp`]) they
@@ -101,8 +102,8 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
 
 /// A crossing's question: the stand's x, y, z bits, the side, the stop's
 /// bits, the armour it is worked out with (`ZoneArmour::key`; 0: none), and whether a route over
-/// the zones' floors answers where no straight walk does (`HazardTuning::route_crossing`).
-type CrossingKey = (u32, u32, u32, Option<i32>, u32, u64, bool);
+/// the zones' floors answers where no straight walk does (`HazardTuning::route_crossing`, `total_crossing`).
+type CrossingKey = (u32, u32, u32, Option<i32>, u32, u64, RouteCrossing);
 
 /// The plays' kept answers for one match on one map (`Bots` makes it anew
 /// with the tactics).
@@ -124,7 +125,7 @@ impl Memo {
         side: Option<i32>,
         stop_m: f32,
         armour: Option<&ZoneArmour>,
-        routed: bool,
+        routed: RouteCrossing,
     ) -> Option<Crossing> {
         // The armour is part of the question: crossings are worked out once a match for each kit's.
         let key = (
@@ -137,11 +138,8 @@ impl Memo {
             routed,
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
-            crossing_to(tactics, to, side, stop_m, armour).or_else(|| {
-                routed
-                    .then(|| routed_crossing_to(tactics, to, side, stop_m, armour))
-                    .flatten()
-            })
+            crossing_to(tactics, to, side, stop_m, armour)
+                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed))
         })
     }
 
@@ -417,7 +415,7 @@ mod tests {
         for round in 0..2 {
             for &(to, side, stop) in &asks {
                 assert_eq!(
-                    memo.crossing(&tactics, to, side, stop, None, false),
+                    memo.crossing(&tactics, to, side, stop, None, RouteCrossing::Off),
                     crossing_to(&tactics, to, side, stop, None),
                     "round {round}: {to:?} {side:?} {stop}"
                 );
@@ -433,7 +431,7 @@ mod tests {
         let mut tactics = hurting(0.01);
         let memo = Memo::default();
         let mild = memo
-            .crossing(&tactics, IN_ZONE, Some(0), 1.0, None, false)
+            .crossing(&tactics, IN_ZONE, Some(0), 1.0, None, RouteCrossing::Off)
             .expect("a crossing");
         // Harsher.
         tactics.hazards.zones[0].damage = Some(mapdata::Damage {
@@ -442,7 +440,7 @@ mod tests {
             parts: 2,
             ..mapdata::Damage::default()
         });
-        let harsh = memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, false);
+        let harsh = memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, RouteCrossing::Off);
         assert_eq!(harsh, crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None));
         assert!(
             harsh.is_some_and(|h| h.leg.body > mild.leg.body),
@@ -453,7 +451,7 @@ mod tests {
         // past the zones on all match now, and so a crossing's edge may be.
         tactics.hazards.zones[0].control = Control::Timer;
         assert_eq!(
-            memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, false),
+            memo.crossing(&tactics, IN_ZONE, Some(0), 1.0, None, RouteCrossing::Off),
             crossing_to(&tactics, IN_ZONE, Some(0), 1.0, None)
         );
         assert_eq!(memo.crossings_kept(), 1);
