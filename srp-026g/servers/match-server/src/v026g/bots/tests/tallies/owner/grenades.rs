@@ -101,6 +101,16 @@ pub(super) struct GrenadeCounts {
     /// players' worlds, an enemy any alive player of the other team).
     pub(super) alive_by_enemy_ms: [u64; 4],
     pub(super) thrown_by_enemy: [u32; 4],
+    /// What each bot's kits carry of grenades, by place and kit (`loadouts::grenades_in`), when the run knows its roster. The
+    /// stand-in explodes only a throw the thrower carried: a life's grenades are those of the kit it spawned with.
+    pub(super) carried: Option<Vec<[u32; 3]>>,
+    /// By place: the kit in hand at the last reading.
+    pub(super) kit_now: Vec<usize>,
+    /// By bot: the life (its deaths so far) and the throws it has made in it.
+    pub(super) life_throws: BTreeMap<Place, (u32, u32)>,
+    /// Throws with a grenade in the kit, and throws with none (phantom: the reflex's own count of two a life, no pockets).
+    pub(super) carried_throws: u32,
+    pub(super) phantom_throws: u32,
 }
 
 /// The bin of the nearest alive enemy of `place`: 0 under 8 m, 1 from 8 to 30 m, 2 farther, 3 none alive.
@@ -258,6 +268,36 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
     assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 1]), "{json}");
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]), "{json}");
     assert!(run(false).get("grenade_live").is_none());
+}
+
+/// The stand-in explodes only the throws a thrower's kit still had a grenade for in that life: two grenades in the kit make
+/// the first two throws of a life carried, the third phantom; a new life (one more death) has them again; a kit of none
+/// throws only phantoms; with no roster every throw is carried.
+#[test]
+pub(crate) fn only_a_throw_the_kit_had_a_grenade_for_goes_off() {
+    let at = Vec3::new(10.0, 0.0, 10.0);
+    let mut counts = GrenadeCounts { carried: Some(vec![[2, 0, 0], [0, 0, 0]]), kit_now: vec![0, 0], ..Default::default() };
+    for _ in 0..3 {
+        counts.grenade_thrown(0, 0, at, 5_000, 0);
+    }
+    assert_eq!((counts.carried_throws, counts.phantom_throws, counts.throws.len()), (2, 1, 2));
+    // The next life: the kit is full again.
+    counts.grenade_thrown(0, 0, at, 9_000, 1);
+    assert_eq!((counts.carried_throws, counts.phantom_throws), (3, 1));
+    // A bot whose kit holds none.
+    counts.grenade_thrown(1, 1, at, 5_000, 0);
+    assert_eq!((counts.carried_throws, counts.phantom_throws, counts.grenades), (3, 2, 5));
+    // The kit in hand decides: kit 1 of bot 0 holds none.
+    counts.kit_now[0] = 1;
+    counts.grenade_thrown(0, 0, at, 12_000, 2);
+    assert_eq!(counts.phantom_throws, 3);
+    // No roster: every throw is carried.
+    let mut free = GrenadeCounts::default();
+    free.grenade_thrown(0, 0, at, 5_000, 0);
+    free.grenade_thrown(0, 0, at, 5_100, 0);
+    free.grenade_thrown(0, 0, at, 5_200, 0);
+    assert_eq!((free.carried_throws, free.phantom_throws), (0, 0), "unchecked throws are not split");
+    assert_eq!(free.throws.len(), 3);
 }
 
 /// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
@@ -528,6 +568,12 @@ impl Topic for GrenadeCounts {
     }
 
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(bot) = bot {
+            if self.kit_now.len() <= place {
+                self.kit_now.resize(place + 1, 0);
+            }
+            self.kit_now[place] = bot.kit;
+        }
         self.read_stats(place, bot.map(|bot| bot.reflex.grenade_stats()));
         if let Some(bot) = bot {
             self.avoid.insert(place, bot.features.avoid.stats);
@@ -547,7 +593,8 @@ impl Topic for GrenadeCounts {
         match *kind {
             NoteKind::Thrown { aim, blast } => {
                 let team = game.bodies.get(note.place).map_or(0, |b| b.team);
-                self.grenade_thrown(note.place, team, aim, blast);
+                let life = game.stats.get(note.place).map_or(0, |s| s.1);
+                self.grenade_thrown(note.place, team, aim, blast, life);
                 if note.place < game.bodies.len() {
                     self.thrown_by_enemy[enemy_bin(game, note.place)] += 1;
                 }
@@ -585,7 +632,7 @@ impl Topic for GrenadeCounts {
 impl GrenadeCounts {
     /// A throw noted at its let-go: the blast is the fuse after the press; where it lands is worked out at
     /// the launch ([`Self::grenade_launches`]).
-    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32) {
+    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32, life: u32) {
         let press = blast.saturating_sub(fuse_ms());
         // Teammates' throws at one spot, a throw counted once for each radius it lands within of an
         // earlier throw of another bot of its team in the last SAME_SPOT_MS (the bot's own volley is not).
@@ -605,11 +652,33 @@ impl GrenadeCounts {
         }
         self.same_spot_log.push((thrower, team, aim, press));
         self.grenades += 1;
+        if !self.carries(thrower, life) {
+            // The thrower's pockets were empty: the client throws nothing, so nothing goes off.
+            self.phantom_throws += 1;
+            return;
+        }
+        self.carried_throws += u32::from(self.carried.is_some());
         self.throws.push(Throw {
             thrower,
             aim,
             press: blast.saturating_sub(fuse_ms()),
         });
+    }
+
+    /// Whether `thrower`'s kit of this life still has a grenade for this throw, and the throw is counted against it. With no
+    /// roster ([`Self::carried`] unset: the made-up matches) every throw is carried.
+    fn carries(&mut self, thrower: Place, life: u32) -> bool {
+        let Some(table) = self.carried.as_ref() else {
+            return true;
+        };
+        let kit = self.kit_now.get(thrower).copied().unwrap_or(0);
+        let have = table.get(thrower).and_then(|kits| kits.get(kit)).copied().unwrap_or(0);
+        let slot = self.life_throws.entry(thrower).or_insert((life, 0));
+        if slot.0 != life {
+            *slot = (life, 0);
+        }
+        slot.1 += 1;
+        slot.1 <= have
     }
 
     /// A throw the bot weighed and did not make, by the reason it noted (`reflex.rs`, `Refuse::why`).
@@ -885,6 +954,15 @@ impl GrenadeCounts {
                 "react_ms": avoid.react,
             });
         }
+        if self.carried.is_some() {
+            // The throws the stand-in blasts: only a grenade the thrower's kit had this life (an-gear-moves 3.1: the reflex
+            // throws twice a life whatever the pockets hold, and ~80 % of the logged throws had none).
+            json["grenade_carry"] = serde_json::json!({
+                "carried_throws": self.carried_throws,
+                "phantom_throws": self.phantom_throws,
+                "phantom_share": Scale::rate(self.phantom_throws, self.carried_throws + self.phantom_throws),
+            });
+        }
         let mut text = format!(
             "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
             self.grenades,
@@ -904,6 +982,12 @@ impl GrenadeCounts {
             game.team_kills,
             game.team_hits,
         );
+        if self.carried.is_some() {
+            text.push_str(&format!(
+                "; carried: throws with a grenade in the kit {}, phantom throws with none {} (not blasted)",
+                self.carried_throws, self.phantom_throws
+            ));
+        }
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(

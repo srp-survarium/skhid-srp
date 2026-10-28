@@ -76,7 +76,7 @@ impl Bots {
             return;
         }
         #[cfg(test)]
-        if bench_camper(&due, bot, &mut self.bench_camper) {
+        if tests::drive_camper(&due, bot, &mut self.bench_camper, &mut self.bench_camper_motion) {
             return;
         }
         let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
@@ -552,41 +552,6 @@ pub(super) fn react(
             time: now + tuning.sense.callout_ms,
         });
     }
-}
-
-/// The bench's stand-in camper: to its spot and held there, standing, whatever its play; the reflex fires on sight.
-/// True when the bot is the camper and found its spot (its intent is set).
-#[cfg(test)]
-pub(super) fn bench_camper(
-    due: &Due,
-    bot: &mut Bot,
-    slot: &mut Option<(Place, Option<tests::CamperSpot>)>,
-) -> bool {
-    let Due { tactics, me, .. } = *due;
-    if let Some((camper, spot)) = slot.as_mut()
-        && *camper == bot.place
-    {
-        let side = bot.side;
-        let options = tests::CamperOptions::from_env();
-        let found = *spot.get_or_insert_with(|| {
-            side.and_then(|side| tests::camper_spot_by(tactics, side, options.rule, options.crouch))
-        });
-        if let Some((at, _)) = found {
-            bot.bench_camper = true;
-            bot.intent = Intent {
-                go: Go::To {
-                    at,
-                    within_m: tests::CAMPER_WITHIN_M,
-                },
-                pace: Pace::Run,
-                // Crouched once there, if it is to be.
-                crouch: options.crouch && me.feet.distance_xz(at) <= tests::CAMPER_WITHIN_M,
-                ..Intent::stay()
-            };
-            return true;
-        }
-    }
-    false
 }
 
 /// The last resort ([`stuck::SelfKill`]): a bot with nothing left to try, 60 s on, in no fight and carrying nothing, kills itself

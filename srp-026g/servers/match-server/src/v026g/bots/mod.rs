@@ -754,7 +754,7 @@ pub struct Bots {
     /// The real-map bench's model of Player vs Bots for the team's lanes of enemy humans (`SRP_BENCH_ENEMY_HUMAN_LANES`,
     /// **model**): every body of the other team counts as a human in [`know::HumanLanes`]; nothing else reads it.
     #[cfg(test)]
-    pub bench_enemy_lanes: bool,
+    pub(crate) bench_enemy_lanes: tests::EnemyLanes,
     /// Teams whose opening commander pass of the start countdown was made (`roam.fresh_claims`).
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
@@ -764,6 +764,9 @@ pub struct Bots {
     /// spot once found (with how many route points it sees), or none.
     #[cfg(test)]
     pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
+    /// The moving stand-in camper's state (`SRP_BENCH_CAMPER_MOVE`, `tests/camper_move.rs`).
+    #[cfg(test)]
+    pub(crate) bench_camper_motion: Option<tests::CamperMotion>,
     tracker: Tracker,
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
@@ -843,11 +846,13 @@ impl Bots {
             #[cfg(test)]
             bench_human: None,
             #[cfg(test)]
-            bench_enemy_lanes: false,
+            bench_enemy_lanes: tests::EnemyLanes::Off,
             opened: [false; 2],
             opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
+            #[cfg(test)]
+            bench_camper_motion: None,
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             _search_memory: SearchMemory::hold(),
@@ -1580,14 +1585,15 @@ impl Bots {
         self.features.own_traps
     }
 
-    /// Whether the other team's bodies all count as humans for the lanes (the bench's model; never in the game).
-    pub(crate) fn bench_enemy_human_lanes(&self) -> bool {
+    /// Whether the other team's bodies all count as humans for `team`'s lanes (the bench's model; never in the game).
+    pub(crate) fn bench_enemy_human_lanes(&self, team: u8) -> bool {
         #[cfg(test)]
         {
-            self.bench_enemy_lanes
+            self.bench_enemy_lanes.applies_to(team)
         }
         #[cfg(not(test))]
         {
+            let _ = team;
             false
         }
     }

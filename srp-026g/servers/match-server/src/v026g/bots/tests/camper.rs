@@ -27,7 +27,7 @@ pub(crate) const HIDDEN_RATIO: f32 = 0.5;
 
 /// The stand-in camper's fidelity options, each off when unset: a spot rule,
 /// the stance at the spot and the weapon (`settings.rs`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CamperOptions {
     pub(crate) rule: SpotRule,
     /// Crouched once at the spot (the owner's holds: crouched behind cover,
@@ -35,6 +35,10 @@ pub(crate) struct CamperOptions {
     pub(crate) crouch: bool,
     /// The tier's long gun (bolt or marksman rifle) when its kits have one.
     pub(crate) long_gun: bool,
+    /// Works an area, peeks, relocates and leaves, as a human camper does ([`MoveOptions`]); off: stands on its spot all match.
+    pub(crate) moving: Option<MoveOptions>,
+    /// Where the spot is chosen ([`CamperAt`]).
+    pub(crate) at: CamperAt,
 }
 
 impl CamperOptions {
@@ -42,6 +46,8 @@ impl CamperOptions {
         rule: SpotRule::Most,
         crouch: false,
         long_gun: false,
+        moving: None,
+        at: CamperAt::Free,
     };
 
     /// The environment's ([`bench_settings`]).
@@ -56,6 +62,8 @@ impl CamperOptions {
             },
             crouch: is("SRP_BENCH_CAMPER_CROUCH", "1"),
             long_gun: is("SRP_BENCH_CAMPER_GUN", "long"),
+            moving: MoveOptions::from_env(),
+            at: CamperAt::from_env(),
         }
     }
 }
@@ -138,6 +146,16 @@ pub(crate) fn camper_spot_by(
     rule: SpotRule,
     crouched: bool,
 ) -> CamperSpot {
+    pick_spot(rule, &camper_candidates(tactics, side, rule, crouched))
+}
+
+/// Every route point of `side` with what it sees and, for the hidden rule, what sees it ([`camper_spot_by`] picks one).
+pub(crate) fn camper_candidates(
+    tactics: &super::tactics::Tactics,
+    side: i32,
+    rule: SpotRule,
+    crouched: bool,
+) -> Vec<Candidate> {
     let points = |side: i32| {
         let mut kept: Vec<Vec3> = Vec::new();
         for p in tactics.routes_of(side).flat_map(|r| r.points.iter().copied()) {
@@ -151,8 +169,7 @@ pub(crate) fn camper_spot_by(
     let sight = &tactics.world.sight;
     // The eye of the stance is the game's (`view::eye_height`).
     let eye_up = super::view::still_eye(Vec3::ZERO, crouched);
-    let candidates: Vec<Candidate> = mine
-        .iter()
+    mine.iter()
         .map(|&p| {
             let eye = p + eye_up;
             let near = |q: &&Vec3| q.distance_xz(p) <= CAMPER_SEES_M;
@@ -174,8 +191,7 @@ pub(crate) fn camper_spot_by(
             };
             Candidate { at: p, sees, seen }
         })
-        .collect();
-    pick_spot(rule, &candidates)
+        .collect()
 }
 
 /// Human routes on the soak field: side 0's north lane past the wall's
@@ -239,7 +255,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);

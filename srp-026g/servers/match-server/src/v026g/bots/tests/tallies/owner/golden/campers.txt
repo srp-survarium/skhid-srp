@@ -12,6 +12,7 @@ owner-test counter runs split: {"flat 20-40m reached 0 holder-died 0": 1, "flat 
   "deaths_in_row_longest": 2,
   "reentries": 27,
   "reentries_fatal": 0,
+  "reentries_fatal_share": 0.0,
   "reentries_lane": 12,
   "reentries_lane_fatal": 0,
   "stand_in_camper": {
