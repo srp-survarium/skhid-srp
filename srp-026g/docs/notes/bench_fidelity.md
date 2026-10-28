@@ -56,4 +56,96 @@ RESULTS_PLACEHOLDER
 
 ## 4. Changes the private bench scripts need (for the coordinator; not applied)
 
-BENCH_SCRIPTS_PLACEHOLDER
+Everything here is `private/pvb-343-check/bench/...`; this PR touches none of it.
+
+### 4.1 A138: the OFF arm on `all_off.json`, the ON arm the defaults (`phase-end-smoke/run-smoke.sh`)
+
+After #701 `Tuning::default()` is the owner's ON set. The A128 session's note (`a128-bench-arms.md`) has the mechanics; the
+edits, in `run_one` and `run`:
+
+1. **OFF arm.** In the `[ "$arm" = off ]` case, set
+   `SRP_BENCH_TUNING="$(python3 -c 'import json,sys;print(json.dumps(json.load(open(sys.argv[1])),separators=(",",":")))' "$SRC/servers/match-server/src/v026g/bots/tuning/all_off.json")"`
+   and nothing else. Read the file from `$SRC`, the tree of the sha the binary was built from, never from a copy: the file
+   changes with each PR that adds a switch (the unit test in `tuning/` keeps it complete). `null` in it means "none" for the `Option`
+   fields: **never pass it through `merge_json.py`** (RFC 7386 deletes the key, which is the default, which is ON).
+2. **ON arm.** `SRP_BENCH_TUNING` unset (or `{}`); `ALLON_EXTRA` stays a patch over the defaults. Drop `on_tuning()` and
+   `ledger-work/allon*.json` from the run (they are no-ops over the defaults; keep the files as the record). Keep the ON env
+   (`SRP_BOT_KIT=1 SRP_BOT_UPGRADES=1 SRP_BENCH_RUSHER=... SRP_BENCH_MASKS=top`): those are not tuning.
+3. **Drop-one arms.** `python a128-convert-dropone.py drop-one a128-all_off.json <new dir>` writes the files that say
+   "X's OFF value"; a drop arm's `SRP_BENCH_TUNING` is that file alone, not merged into the ON patch.
+4. **`SRP_BENCH_*` aliases only turn things on** (`SRP_BENCH_SIGHT_REFRESH=1`, `_LIP_GUARD`, `_FLOOR_PATHS=1`, ...): over the defaults they
+   are no-ops and a `=0` turns nothing off. Do not build the OFF arm from them; the patch is applied after them and wins.
+5. **Check before a run:** `DRY=1 ... run` shows each arm's `SRP_BENCH_TUNING`: the OFF arm's is the `all_off.json` line, the ON arm's unset.
+   The log's switch report is against `Tuning::all_off()`: the OFF log must say `changed numbers: none` and the ON log the long list.
+6. **Lanes.** `SRP_BENCH_ENEMY_HUMAN_LANES=on` becomes `team1` in both arms (this PR): in Player vs Bots the human is on team 0, so
+   only team 1's bots take their enemies for humans; `on` counted both teams and placed traps twice a match (an-gear-moves 3.3).
+7. **View error.** Add `SRP_BENCH_VIEW_ERROR=1` to the common environment of both arms (it is a model of the game, like the heal
+   and stamina models, not a feature: both arms get it) once the owner agrees to the calibration of section 3. Until then leave
+   it out; the audit (4.5) lists it as a scenario setting.
+
+### 4.2 Vector Laboratory in the batteries stage (`presets/batt.env`)
+
+`SRP_BENCH_MAPS=6/2,1/2,3/3,2/2,4/2,5/2` runs levels 1-6 only. Add `,7/2` (Vector Laboratory batteries; the smoke and offered stages
+have it, the batteries stage, which is read for objectives, does not; its middle zone and spawner 26 are an-objective's case). Cologne
+(`8/2`) is also missing. `3/3` (timed batteries, Vostok) is not offered in Player vs Bots (`pvb.rs`), so its numbers never meet a player: say
+so in the sheet or replace it by `3/2`. Cost: one map more of seven in the stage (+17 % per seed).
+
+### 4.3 Camper stages
+
+A stage `camper` (preset `presets/camper.env`: source `batt.env`, then):
+```
+export SRP_BENCH_CAMPER=1 SRP_BENCH_CAMPER_SPOT=hidden SRP_BENCH_CAMPER_GUN=long SRP_BENCH_CAMPER_MOVE=1
+```
+and cells for the three scenarios, each a value of `SRP_BENCH_CAMPER_AT` (one cell per value, or arms of the stage):
+
+| scenario | `SRP_BENCH_CAMPER_AT` | maps | what is read |
+|---|---|---|---|
+| a camper by a lying battery | `battery` | `2/2,8/2,7/2,1/2` | the `camper:` line has a spot (none: no route point near a battery), the `stand_in_camper` object, Collects into his lane, deaths by the battery |
+| a camper by his container | `container` | the same | the same, the raiders' way to a container (an-anticamper RC3) |
+| a camper at a spawn exit that cannot be flanked | `exit` | the same | what the other team does when every sight on him comes from one way: `holders_flank_share`, `lane_entries_per_10s`, `hold_3rd_share`, the `threat` line and `Flank` / `Crossfire` takes on him |
+
+Arms: the stage's ON and OFF as in 4.1, plus (once) `still` / `still_crouch` against `move` to show that the old stand-in over-credits Flank
+(`counter_runs_flank` is high with `SRP_BENCH_CAMPER_CROUCH=1` and nothing moving; it must fall to the owner's level, about zero, with
+`SRP_BENCH_CAMPER_MOVE=1`). 10 a side, tier 13-15, seeds 1-4, 180 s. The camper tally already scores his holds within 10 m.
+
+### 4.4 The new counters in the reports
+
+`smoke-compare.py` `METRICS` (name: reader, worse direction; `+1` higher is worse, `-1` lower, `0` either; `_owner(key)` reads the `owner` object):
+
+| name | reader | worse |
+|---|---|---|
+| `hold 3rd-kill share` | `_owner("hold_3rd_share")` | +1 (live 25 %) |
+| `holders killed by a flank share` | `_owner("holders_flank_share")` | -1 (live 32 %) |
+| `quick second kill share` | `_owner("quick_second_share")` | +1 (live 3.5-3.9 %) |
+| `lane entries / 10 s` | `_owner("lane_entries_per_10s")` | +1 (live 0.24-0.60) |
+| `held-line entries fatal share` | `_owner("reentries_fatal_share")` | +1 (read this, not the count `reentries_fatal` alone) |
+| `carrier clear, not targeted s` | `_owner("carrier_clear_not_targeted_s")` | +1 |
+| `hurt alive 15 s share` | `_owner("hurt_alive_15s_share")` | +1 |
+| `battery retake ms (hurt near)` | `_owner("retake_ms_hurt_near.0")` | +1 |
+| `zone take deaths` | `_owner("zone_take_died_10s")` | +1 |
+| `escort no-way ends` | `_owner("escort_no_way_ends")` | +1 (A129: 18 and 54) |
+| `own trap catches, crouched placer` | `_owner("trap_caught_by_stance.1.2")` | +1 (an-gear-moves 3.2: 217 of 298) |
+| `missed sight share` | `_owner("view_flip.missed_sight_share")` | 0 (a model check: live 22 %) |
+| `fire into cover share` | `_owner("view_flip.fire_into_cover_share")` | 0 (live 20 %) |
+| `phantom throws` | `_owner("grenade_carry.phantom_throws")` | 0 (volume the bench no longer blasts) |
+
+`_owner` reads a list item by index (`retake_ms_hurt_near.0` is the mean ms, `.1` the number; `trap_caught_by_stance.1.2` the crouched row's own catches). Shares are per match, so the paired z of a share is the share's, not the counts'. Retire as "worse is lower" the lines of
+an-fights §5b that read "died unturned" and "turned on shooter" as failures (they are one event and higher is more human), and
+"drops >= 4 m" (planned drops): keep them as information.
+
+`features-report.py`: one block per fix, the activity counter first. The flag the owner asked for (2026-10-28) is that **every
+report flags a counter that reads 0 in the ON arm where its switch should fire** (`ZERO in ON`, which the report prints for the old
+blocks; each new block must name an activity counter or print `no dedicated counter`). For this PR's own options:
+`grenade_carry.carried_throws + phantom_throws` reads 0 when no bot threw (then `grenades` also reads 0: a finding), and
+`view_flip.samples` reads 0 only when no bot was in the match.
+
+### 4.5 `switch-audit.py` after #701
+
+Its premise (every boolean false by default must be in the ON set or `KEPT_OFF`) is now: **every boolean false in the new defaults
+must be in `KEPT_OFF`**. Change `on = {}` (drop the `allon` / `pending` reads), keep `KEPT_OFF` (it matches the 9 switches the defaults
+leave off; the golden of the switch report pins them), and for the "key the tip does not know" check read the keys of
+`all_off.json` against the defaults dump (`Tuning::default()` JSON at the tip). For the model audit: `MODEL_SCENARIO` gets
+`SRP_BENCH_CAMPER_MOVE`, `SRP_BENCH_CAMPER_AT` and `SRP_BENCH_CAMPER_DWELL_S` (scenarios). `SRP_BENCH_VIEW_ERROR` and `_SCALE` are
+**model** settings: export them from `run-smoke.sh` (4.1 item 7) or list them as `MODEL_SCENARIO: 'off until the owner agrees'`, or the
+audit fails on them. `SRP_BENCH_ENEMY_HUMAN_LANES=team1` is exported by the smoke as before (the audit's `n + '='` finds it).
+
