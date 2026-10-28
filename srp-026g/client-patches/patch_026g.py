@@ -485,7 +485,9 @@ Patches:
   arena's blocks match_keys.code and .state): the game world's
   on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
   movie's root.select_kit_key for a key 1 to 3 going down while the hud
-  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
+  shows the cursor and has shown it for 300 ms (its handler's slot +14h,
+  0x9FC59C, after each poll, GetTickCount: a key pressed before then, or in
+  the frame the kits came, picks nothing), and goes on as before; the hud's constructor call (0x1F6845)
   registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
@@ -2049,12 +2051,24 @@ ARTEFACTS_SIZES = (
 #   0x26B916: with the option on, in a match, a player's line on a channel
 #   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
 # No base relocation is under a site and no branch aims inside one.
+# And a slot (MATCH_KEYS_POLL_SLOT): the game world's input handler's +14h
+# (its vtable 0x9FC588; `ret 4` at 0x75AF0 in the original), which the input
+# world's tick (0x3B7BD0) calls for every handler after it polled the devices
+# and before they hand out the keys: match_keys_poll sets the kits' screen's
+# state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
+# first poll the kits are up at, with its time; OPEN from the first poll 300
+# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# that went down in the frame the kits came, in play, is handed out in their
+# first tick and picks nothing, nor does one pressed in their first 300 ms
+# (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
     (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
+MATCH_KEYS_POLL_SLOT = (0x9FC59C, struct.pack("<I", 0x75AF0), "match_keys_poll")   # the handler's slot +14h
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
@@ -2328,6 +2342,8 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    MATCH_KEYS_POLL_SLOT[0]: (SLOT, "the game world's input handler's slot +14h (vtable 0x9FC588; thiscall, the "
+                                    "input world; the input world's tick calls it after the poll): poll", None, None),
     # the key that hides the interface, patch 62 (in `.srpx`)
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
@@ -3616,6 +3632,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                slot, old, symbol = MATCH_KEYS_POLL_SLOT
+                patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -3678,7 +3696,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
-                     "the keys 1, 2 and 3 pick a kit while the kits are shown, "
+                     "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
+                     "they came or in their first 300 ms), "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "

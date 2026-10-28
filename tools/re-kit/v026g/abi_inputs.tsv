@@ -4523,7 +4523,7 @@ va	name	location	role	basis
 0x0025cd00	survarium::game_world::on_keyboard_action	ECX	the game world's input handler (game_world+1F8h; the hud at +4, the hud's cursor flag at +2E0h)	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+4	the input world	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+8	the key (DirectInput code: 2..4 the keys 1..3, 1Ch Enter, 1 Esc)	observed
-0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+12	the kind (1 down, 2 held, 3 up)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+12	the kind (1 down, 2 up, 3 held: the keyboard's process 0x3B9AF0, 1 and 2 an event polled, 3 every key down every tick)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+4	the chat handler (+0Dh in a match: set_mode's flag; +14h its movie)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+8	the channel (0 server, 1 general, 2 system, 3 clan, 4 private, 5 match, 6 and 7 the teams, 8 squad, 9)	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
@@ -4610,6 +4610,13 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x003b7bd0	vostok::input::input_world::tick	ECX	the input world (0xAA5430, [game+5358h]; +0Ch, +10h the handlers' begin and end; +24h the keyboard, +28h the mouse, +20h the other device; +34h active, the tick does nothing without it): polls each device (vtable +18h, +20h, +1Ch), calls each handler's slot +14h with the world, has each device hand out what it polled (+1Ch, +24h, +20h, with the handlers), then each handler's slot +18h	observed
+0x003b7bd0	vostok::input::input_world::tick	entry ESP+4	the game's time (game+584Ch; game::tick's call at 0x1ECB67, before the game world's update at 0x1ECBE1)	observed
+0x003b8d20	vostok::input::platform::keyboard::execute	ECX	the keyboard (+914h the DirectInput device): GetDeviceData into +408h (14h a DIDEVICEOBJECTDATA, at most 40h), the count at +404h, each event's state (80h down) into +4 + 4 x its DIK; lost or not acquired: Acquire, the states cleared, read again	observed
+0x003b9af0	vostok::input::platform::keyboard::process	ECX	the keyboard (+4 the keys' states, 4 bytes a DIK, 80h down; +404h the events polled, +408h the events; +918h the input world it hands the handlers)	observed
+0x003b9af0	vostok::input::platform::keyboard::process	entry ESP+4	the handlers (begin, end: the input world's +0Ch): each event in order to each handler's slot 0 (the input world, the DIK, kind 1 for 80h down, 2 for up) until one answers 1, then kind 3 for each key down; the count cleared	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX	the keyboard (vtable 0xA25478 slot 0; the input world's vtable +24h gives it, as on_keyboard_action asks it for Tab, 0Fh)	observed
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	entry ESP+4	the DIK	observed
 0x00306d50		ECX	the game material manager (the bullet manager's +94h)	observed
 0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h)	observed
 0x00306d50		EDI	the second material id (u16 in DI; the hit object's material)	observed
