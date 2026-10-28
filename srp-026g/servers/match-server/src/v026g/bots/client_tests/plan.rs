@@ -1,8 +1,9 @@
 //! The plan: which registered steps run (`SRP_CLIENT_TEST`), in what order, and what a match of a given group still has to do.
 
+use super::check::message_check;
 use super::report::Output;
 use super::run::Todo;
-use super::step::{Group, Step};
+use super::step::{Group, Size, Step};
 
 /// The steps of a plan, grouped.
 #[derive(Clone, Debug)]
@@ -42,8 +43,14 @@ impl Plan {
         if steps.is_empty() {
             return Err("SRP_CLIENT_TEST: the plan has no step".to_string());
         }
+        if let Some(bad) = steps.iter().find_map(|s| s.check().err()) {
+            return Err(format!("SRP_CLIENT_TEST: {bad}"));
+        }
         // A stable sort: the registration order stays within a group.
         steps.sort_by_key(|s| s.group);
+        // The first thing the owner is asked: can he read what the server says (`check.rs`).
+        let first = steps[0].group;
+        steps.insert(0, message_check(first));
         Ok(Self {
             name: if everything { "all".to_string() } else { spec.trim_start_matches('@').rsplit(['/', '\\']).next().unwrap_or(spec).to_string() },
             steps,
@@ -78,14 +85,26 @@ impl Plan {
             .map(|s| s.group)
     }
 
-    /// Distinct groups in the order they run, for the log and the card.
-    pub fn groups(&self) -> Vec<Group> {
-        let mut groups: Vec<Group> = Vec::new();
+    /// The matches the plan needs, in the order they run, each with the steps it runs. A step of any size runs in the first match of
+    /// its map and mode, so it joins that one.
+    pub fn matches(&self) -> Vec<(Group, Vec<&Step>)> {
+        let mut out: Vec<(Group, Vec<&Step>)> = Vec::new();
         for step in &self.steps {
-            if groups.last() != Some(&step.group) {
-                groups.push(step.group);
+            let same_map = |g: &Group| g.level == step.group.level && g.mode == step.group.mode;
+            match out.last_mut() {
+                Some((g, list)) if *g == step.group => list.push(step),
+                Some((g, list)) if g.size == Size::Any && same_map(g) => {
+                    *g = step.group;
+                    list.push(step);
+                }
+                _ => out.push((step.group, vec![step])),
             }
         }
-        groups
+        out
+    }
+
+    /// The groups of [`Self::matches`].
+    pub fn groups(&self) -> Vec<Group> {
+        self.matches().into_iter().map(|(group, _)| group).collect()
     }
 }

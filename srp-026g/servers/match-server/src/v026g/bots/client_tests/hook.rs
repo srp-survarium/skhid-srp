@@ -1,19 +1,82 @@
 //! The runner's reach into the bots: the poll hands it the frame, a think asks it what a scripted bot does.
 
-use super::run::Drive;
-use super::step::Gait;
-use super::{Frame, Link};
+use super::frame::{Body, BotView, Frame, Heard, Mind, Owner};
+use super::run::Act;
+use super::step::{Fight, Gait};
+use super::time::At;
+use super::Link;
+use crate::v026g::bots::control::Control;
 use crate::v026g::bots::plays::{Go, Intent, Look, Pace};
 use crate::v026g::bots::view::{Clock, MatchView, PlaceView};
 use crate::v026g::bots::{Bot, Bots, Note};
 use crate::v026g::drive::key;
 
+fn body_of(p: &PlaceView) -> Body {
+    Body {
+        place: p.place,
+        team: p.team,
+        alive: p.alive,
+        feet: p.feet,
+        health: p.health,
+        kills: p.kills,
+        deaths: p.deaths,
+        crouched: p.crouched(),
+    }
+}
+
 impl Bots {
-    /// The end of a poll: the runner sees the match as it stands and what the bots said in it.
-    pub(in crate::v026g::bots) fn client_tests_tick(&mut self, clock: &Clock, view: &MatchView, notes: &[Note]) {
-        if let Some(link) = self.client_tests.as_mut() {
-            link.tick(&Frame::of_view(view, clock.playing, notes));
+    /// The match as the runner sees it: the bodies of the view, each bot's reflex, the batteries, what was said.
+    fn client_test_frame(&self, clock: &Clock, view: &MatchView, notes: &[Note], pools: Option<crate::v026g::bots::pools::Pools>) -> Frame {
+        let owner = view.places.iter().find(|p| p.present && !p.bot).map(|p| Owner { body: body_of(p), pools });
+        let bots = view
+            .places
+            .iter()
+            .filter(|p| p.present && p.bot)
+            .filter_map(|p| {
+                let bot = self.bots.get(p.place)?.as_ref()?;
+                Some(BotView {
+                    body: body_of(p),
+                    mind: Mind {
+                        target: bot.reflex.target(),
+                        gates: bot.reflex.gates(),
+                        legs: bot.bench_legs_why,
+                    },
+                })
+            })
+            .collect();
+        Frame {
+            clock: At(view.clock),
+            playing: clock.playing,
+            owner,
+            bots,
+            batteries: view.batteries.clone(),
+            heard: notes
+                .iter()
+                .map(|n| Heard {
+                    place: n.place,
+                    time: At(n.time),
+                    text: n.text.clone(),
+                })
+                .collect(),
         }
+    }
+
+    /// The end of a poll: the runner sees the match as it stands and what the bots said in it, and the bots it scripts are the
+    /// script's from the next tick on (never a think late: this is where [`Bot::control`] is set).
+    pub(in crate::v026g::bots) fn client_tests_tick(&mut self, clock: &Clock, view: &MatchView, notes: &[Note]) {
+        let Some(mut link) = self.client_tests.take() else {
+            return;
+        };
+        let frame = self.client_test_frame(clock, view, notes, link.owner_pools());
+        link.tick(&frame);
+        for bot in self.bots.iter_mut().flatten() {
+            bot.control = match (bot.control, link.drive(bot.place)) {
+                (Control::Own | Control::Scripted(_), Some(drive)) => Control::Scripted(drive.grip),
+                (Control::Scripted(_), None) => Control::Own,
+                (other, _) => other,
+            };
+        }
+        self.client_tests = Some(link);
     }
 
     /// The lines the runner has for the owner since the last call.
@@ -25,21 +88,17 @@ impl Bots {
 /// A think of `bot`: when the runner scripts it, its intent is the script's and its play is skipped (true). Otherwise it
 /// plays as ever.
 pub fn script_bot(link: Option<&Link>, bot: &mut Bot, me: &PlaceView) -> bool {
-    let drive = link.and_then(|link| link.drive(bot.place));
-    bot.scripted = drive.is_some();
-    let Some(drive) = drive else {
+    let Some(drive) = link.and_then(|link| link.drive(bot.place)) else {
         return false;
     };
-    bot.intent = match drive {
-        Drive::Idle => Intent {
-            fire: false,
-            ..Intent::stay()
-        },
-        Drive::Stand { crouch } => Intent {
+    let fire = drive.grip.fight == Fight::Free;
+    bot.intent = match drive.act {
+        Act::Stand { crouch } => Intent {
             crouch,
+            fire,
             ..Intent::stay()
         },
-        Drive::Go { at, within_m, gait, crouch } => Intent {
+        Act::Go { at, within_m, gait, crouch } => Intent {
             go: Go::To { at, within_m },
             pace: match gait {
                 Gait::Walk => Pace::Walk,
@@ -47,11 +106,13 @@ pub fn script_bot(link: Option<&Link>, bot: &mut Bot, me: &PlaceView) -> bool {
             },
             // Crouched once there, if it is to be.
             crouch: crouch && me.feet.distance_xz(at) <= within_m,
+            fire,
             ..Intent::stay()
         },
-        Drive::Throw { look, held } => Intent {
+        Act::Throw { look, held } => Intent {
             look: Look::At(look),
             hold: if held { key::GRENADE } else { 0 },
+            fire,
             ..Intent::stay()
         },
     };

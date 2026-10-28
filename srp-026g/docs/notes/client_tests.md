@@ -18,18 +18,24 @@ SRP_CLIENT_TEST=all SRP_PVB=on <the usual local settings> cargo run -p srp --fea
 ```
 
 - `SRP_CLIENT_TEST`: `all`, a list of step ids and package names (`a,b`), or `@file` (one per line).
-- `SRP_CLIENT_TEST_DIR` (default `logs/client-test`): `client-test-results-<plan>-<time>.tsv` (one row per try) and
-  `client-test-card-<plan>-<time>.md` (the printed card: the matches in order and every step's instruction).
+- `SRP_BUILD_SHA`: the commit the server was built from (whoever builds it sets it). Every row and the card say it with the
+  hash of the bots' tuning, so a result is tied to a build; without it the rows say `-` and the log warns.
+- `SRP_CLIENT_TEST_DIR` (default `logs/client-test`): `client-test-results-<plan>-<time>.tsv` (one row per try: `match sha tuning
+  step package try tries result ended_by start_ms end_ms values`) and `client-test-card-<plan>-<time>.md` (the printed card: the
+  matches in order and every step's instruction).
 - The log has `CLIENT_TEST plan ...`, `CLIENT_TEST match ...`, `CLIENT_TEST step <id> ARMED|START|END <result>` and
   `CLIENT_TEST tell: ...` for every line said to the owner.
 
 ## What the owner does
 
 1. Starts Player vs Bots on the first match of the card (map, mode, size).
-2. Reads each instruction in the game's chat (or the card) and does it. The runner arms the next step 4 s after the last
+2. Answers the first step of every plan, `check-message`: if the line `CHECK: ... crouch twice` shows in the game chat, crouches
+   twice (C, C) within 20 s. It passes on two crouches the server sees; a FAIL says the lines do not show, and the owner reads the
+   printed card for the rest.
+3. Reads each instruction in the game's chat (or the card) and does it. The runner arms the next step 4 s after the last
    ended, tells the instruction again every 6 s until the step starts, and starts it when its condition holds. Nothing is
    clicked between steps of one match.
-3. When the match has no step left, the runner says which match is next. The owner leaves from the in-game menu and starts
+4. When the match has no step left, the runner says which match is next. The owner leaves from the in-game menu and starts
    Player vs Bots with that map, mode and size.
 
 ## Answers the runner is built on
@@ -47,6 +53,9 @@ SRP_CLIENT_TEST=all SRP_PVB=on <the usual local settings> cargo run -p srp --fea
 
 The one live check before the first plan: start the server with a plan, enter a match, and look for the first line in the
 chat log of the game.
+
+A step that starts only with the owner alive: a step that ends with his death waits for his respawn before the next is armed.
+A try the match or the owner cut short (match over, owner gone) is not used up and runs again in the next match of its group.
 
 ## What the runner can measure
 

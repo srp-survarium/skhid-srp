@@ -349,6 +349,8 @@ fn drive_tick_inner(
         bot.skill,
         &mut bot.rng,
     );
+    // Who has the body: a script's keeps the reflex's legs (and, if told, its aim and trigger) from it (`control.rs`).
+    let over = bot.control.filter(over);
     if let Some(lapse) = bot.reflex.take_lapse() {
         bot.sight_counts.add(lapse);
     }
@@ -396,7 +398,8 @@ fn drive_tick_inner(
         && over.legs.is_none()
         && !using
         && bot.reflex.target().is_none();
-    let trap = traps::drive(bot, me, time, calm, &tuning.traps);
+    let reacts = bot.control.reacts();
+    let trap = if reacts { traps::drive(bot, me, time, calm, &tuning.traps) } else { None };
     let aim = match trap.and_then(|trap| trap.look) {
         Some(point) => Some(aim_at(point)),
         None => aim,
@@ -406,7 +409,7 @@ fn drive_tick_inner(
     }
     // [trap_react] A noticed trap, shot: the view at its centre, the aim
     // held and the fire key pressed a tick per shot, the legs still.
-    let react = trap_react::drive(bot, me, view, time, calm, &tuning.traps.react);
+    let react = if reacts { trap_react::drive(bot, me, view, time, calm, &tuning.traps.react) } else { None };
     let aim = match react.and_then(|react| react.look) {
         Some(point) => Some(aim_at(point)),
         None => aim,
@@ -432,13 +435,13 @@ fn drive_tick_inner(
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;
+    }
+    #[cfg(any(test, feature = "client-test"))]
+    {
         bot.bench_legs_why = over.legs.filter(|_| !using).map(|legs| legs.why);
     }
-    // The bench's stand-in camper keeps to its spot.
-    #[cfg(any(test, feature = "client-test"))]
-    let held = bot.holds_ground();
-    #[cfg(not(any(test, feature = "client-test")))]
-    let held = false;
+    // The bench's stand-in camper and a script keep to their spots.
+    let held = bot.control.holds_legs();
     if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {
             at: legs.at,
@@ -453,7 +456,8 @@ fn drive_tick_inner(
     // reach: out of the blast first, whatever the play wants (the reflex
     // still aims and fires); `grenade_threat.rs`. The state is read while a
     // grenade is listed or it is not unaware of the last one.
-    if tuning.avoid.grenade_avoid
+    if reacts
+        && tuning.avoid.grenade_avoid
         && (!view.grenades.is_empty()
             || !matches!(bot.features.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
     {
@@ -498,7 +502,9 @@ fn drive_tick_inner(
                 Go::Stay => true,
                 Go::To { at, within_m } => me.feet.distance_xz(at) <= within_m,
             };
-        if let Some(to) = bot.rest.tick(time, resting, me.speed(), me.feet, &tactics.world.grid, tuning.think.rest_off_lip) {
+        if let Some(to) = bot.rest.tick(time, resting, me.speed(), me.feet, &tactics.world.grid, tuning.think.rest_off_lip)
+            && reacts
+        {
             intent.go = Go::To { at: to, within_m: super::rest::STEP_ARRIVE_M };
             intent.straight = false;
         }

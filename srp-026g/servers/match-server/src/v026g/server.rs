@@ -110,8 +110,6 @@ pub fn run_on(
 pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
     // TEST ONLY: the client tests (`bots/client_tests`). A server that cannot run them, or that looks live, does not start with
     // `SRP_CLIENT_TEST` set.
-    #[cfg(feature = "client-test")]
-    super::bots::client_tests::init().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
     #[cfg(not(feature = "client-test"))]
     if std::env::var_os("SRP_CLIENT_TEST").is_some_and(|v| !v.is_empty()) {
         return Err(io::Error::new(
@@ -119,7 +117,10 @@ pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
             "SRP_CLIENT_TEST is set, but this build has no client tests (cargo feature `client-test`): it is for a local server only",
         ));
     }
-    LoadedTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))
+    let loaded = LoadedTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
+    #[cfg(feature = "client-test")]
+    super::bots::client_tests::init(loaded.tuning().hash()).map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
+    Ok(loaded)
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it

@@ -36,6 +36,7 @@ pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
 pub mod contact;
+pub mod control;
 pub mod crossing;
 pub mod curve;
 pub mod encode;
@@ -117,6 +118,7 @@ use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
 use commander::*;
+use control::Control;
 use drive::*;
 use encode::Decision;
 use encode::Encoder;
@@ -260,8 +262,8 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
-    /// Which reflex play had the legs at that tick (the falls probe).
-    #[cfg(test)]
+    /// Which reflex play had the legs at that tick (the falls probe; a client test's `Mind`).
+    #[cfg(any(test, feature = "client-test"))]
     pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
     /// The goal the last motor tick walked to, after every override of the play's (the reflex's legs, the grenade
     /// avoid, the rest point); `None` when the tick walked to none (the stood count reads this, not the play's goal).
@@ -292,13 +294,8 @@ pub struct Bot {
     pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
-    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
-    /// spot, and the reflex never takes its legs.
-    #[cfg(test)]
-    pub(crate) bench_camper: bool,
-    /// A client test's script plays this bot (`client_tests`): it keeps its ground, and the reflex never takes its legs.
-    #[cfg(any(test, feature = "client-test"))]
-    pub(crate) scripted: bool,
+    /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
+    pub(crate) control: Control,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -360,16 +357,6 @@ pub struct Bot {
 }
 
 impl Bot {
-    /// The bench's stand-in camper or a client test's script keeps this bot where it is: the reflex never takes its legs.
-    #[cfg(any(test, feature = "client-test"))]
-    pub(crate) fn holds_ground(&self) -> bool {
-        #[cfg(test)]
-        if self.bench_camper {
-            return true;
-        }
-        self.scripted
-    }
-
     fn new(match_id: u32, place: Place, team: u8, role: Option<&str>, tuning: &Tuning) -> Self {
         let mut rng = Rng::for_bot(match_id, place);
         let motor = Motor::new(tuning.feel.clone(), &mut rng);
@@ -440,7 +427,7 @@ impl Bot {
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "client-test"))]
             bench_legs_why: None,
             #[cfg(test)]
             bench_go: None,
@@ -462,10 +449,7 @@ impl Bot {
             bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
-            #[cfg(test)]
-            bench_camper: false,
-            #[cfg(any(test, feature = "client-test"))]
-            scripted: false,
+            control: Control::Own,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]
@@ -1149,6 +1133,13 @@ impl Bots {
     pub fn pools(&mut self, place: Place, pools: Pools) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.features.stock.pools = Some(pools);
+        }
+        // A client test reads the human's pools (the owner's): the bots have their own.
+        #[cfg(any(test, feature = "client-test"))]
+        if !self.is_bot(place)
+            && let Some(link) = self.client_tests.as_mut()
+        {
+            link.note_pools(pools);
         }
     }
 

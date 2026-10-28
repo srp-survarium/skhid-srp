@@ -1,10 +1,13 @@
-//! What the runner sees of the match at one poll: the server's own view, parsed once from the bots' [`MatchView`].
+//! What the runner sees of the match at one poll: the server's own view, parsed once from the bots' [`MatchView`] and the
+//! bots themselves ([`super::hook`]).
 
 use mapdata::Vec3;
 
 use super::step::{Group, Side, Size};
-use crate::v026g::bots::view::{MatchView, Place};
-use crate::v026g::bots::Note;
+use super::time::At;
+use crate::v026g::bots::pools::Pools;
+use crate::v026g::bots::reflex::{Gates, LegsWhy};
+use crate::v026g::bots::view::{BatteryState, Place};
 
 /// A body in the match, as the world last showed it.
 #[derive(Clone, Debug, PartialEq)]
@@ -13,75 +16,73 @@ pub struct Body {
     pub team: u8,
     pub alive: bool,
     pub feet: Vec3,
-    /// [0, 1].
+    /// The body pool, [0, 1].
     pub health: f32,
     pub kills: u32,
     pub deaths: u32,
     pub crouched: bool,
 }
 
-/// A line of the server's log about a bot (a [`Note`]).
+/// The human of the match.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Owner {
+    pub body: Body,
+    /// His health pools as the last world showed them (body, head, legs, hands, pain, infection); none until one has.
+    pub pools: Option<Pools>,
+}
+
+/// What a bot's reflex is doing: its target, the gates that held its fire at its last tick, and why it took its legs, if it did.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Mind {
+    pub target: Option<Place>,
+    pub gates: Gates,
+    pub legs: Option<LegsWhy>,
+}
+
+/// A server bot in the match.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BotView {
+    pub body: Body,
+    pub mind: Mind,
+}
+
+/// A line of the server's log about a bot (a [`crate::v026g::bots::Note`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Heard {
     pub place: Place,
-    pub time: u32,
+    pub time: At,
     pub text: String,
 }
 
 /// One poll.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Frame {
-    /// The match clock, ms.
-    pub clock: u32,
+    pub clock: At,
     /// Play has begun (not the start countdown).
     pub playing: bool,
     /// The human in the match; none until he has entered. The runner is for one human: the first.
-    pub owner: Option<Body>,
+    pub owner: Option<Owner>,
     /// The server's bots that are in the match, by place.
-    pub bots: Vec<Body>,
+    pub bots: Vec<BotView>,
+    /// Where each battery is.
+    pub batteries: Vec<BatteryState>,
     /// What the bots said in this poll.
     pub heard: Vec<Heard>,
 }
 
 impl Frame {
-    pub fn of_view(view: &MatchView, playing: bool, notes: &[Note]) -> Self {
-        let body = |p: &crate::v026g::bots::view::PlaceView| Body {
-            place: p.place,
-            team: p.team,
-            alive: p.alive,
-            feet: p.feet,
-            health: p.health,
-            kills: p.kills,
-            deaths: p.deaths,
-            crouched: p.crouched(),
-        };
-        let owner = view.places.iter().find(|p| p.present && !p.bot).map(body);
-        let bots = view.places.iter().filter(|p| p.present && p.bot).map(body).collect();
-        let heard = notes
-            .iter()
-            .map(|n| Heard {
-                place: n.place,
-                time: n.time,
-                text: n.text.clone(),
-            })
-            .collect();
-        Self {
-            clock: view.clock,
-            playing,
-            owner,
-            bots,
-            heard,
-        }
-    }
-
     /// The bots of `side`, by place.
-    pub fn side(&self, side: Side) -> impl Iterator<Item = &Body> {
-        let owner_team = self.owner.as_ref().map(|o| o.team);
+    pub fn side(&self, side: Side) -> impl Iterator<Item = &BotView> {
+        let owner_team = self.owner.as_ref().map(|o| o.body.team);
         self.bots.iter().filter(move |b| match (side, owner_team) {
             (_, None) => false,
-            (Side::Mates, Some(team)) => b.team == team,
-            (Side::Enemies, Some(team)) => b.team != team,
+            (Side::Mates, Some(team)) => b.body.team == team,
+            (Side::Enemies, Some(team)) => b.body.team != team,
         })
+    }
+
+    pub fn bot(&self, place: Place) -> Option<&BotView> {
+        self.bots.iter().find(|b| b.body.place == place)
     }
 }
 

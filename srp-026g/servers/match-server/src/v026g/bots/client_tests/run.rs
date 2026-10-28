@@ -3,25 +3,27 @@
 //! does no I/O, so it is tested with a made-up owner.
 //!
 //! ```text
-//! Waiting --(play on, owner in, a step left)--> Armed --(start conditions)--> Running --(end)--> Rest --> Waiting
-//!    |                                            |  \--(arm time out)--> row VOID never_started
-//!    \--(no step left)--> Finished                \--(no owner)--> back to the queue
+//! Waiting --(play on, owner in and alive, a step left)--> Armed --(start conditions, owner alive)--> Running --(end)--> Rest --> Waiting
+//!    |                                                       |  \--(arm time out)--> row VOID never_started
+//!    \--(no step left)--> Finished                           \--(no owner)--> back to the queue
 //! ```
 
 use std::collections::VecDeque;
 
 use mapdata::Vec3;
 
-use super::frame::{Body, Frame};
-use super::step::{Cond, End, Gait, Group, Measure, Scratch, Script, Step, Who};
+use super::frame::{Body, Frame, Owner};
+use super::step::{Cond, End, Gait, Grip, Group, Measure, Progress, Scratch, Script, Setup, Side, Span, Spot, Step, Who};
+use super::time::At;
 use crate::v026g::bots::view::Place;
 
-/// The owner reads the instruction this long before the start can happen, ms.
-const SETTLE_MS: u32 = 1_500;
-/// A chat line fades after about 7 s: the instruction is told again this often while the step waits for its start, ms.
-const RETELL_MS: u32 = 6_000;
-/// After a step ends the next one waits this long, ms (the owner reads the result).
-const REST_MS: u32 = 4_000;
+/// The owner reads the instruction this long before the start can happen.
+const SETTLE: Span = Span::ms(1_500);
+/// A chat line fades after about 7 s (GUESS: not timed on the client's screen): the instruction is told again this often while
+/// the step waits for its start.
+const RETELL: Span = Span::s(6);
+/// After a step ends the next one waits this long (the owner reads the result).
+const REST: Span = Span::s(4);
 /// A scripted bot within this of a lane point has reached it, m.
 const LEG_REACHED_M: f32 = 1.5;
 /// A step is not run again after this many tries in a row were voided by the owner leaving.
@@ -39,6 +41,20 @@ pub struct Todo {
 impl Todo {
     pub fn new(step: Step) -> Self {
         Self { step, next_try: 1 }
+    }
+}
+
+/// What a row and the card say about the build they were made on: the commit of the source (`SRP_BUILD_SHA`, set by whoever
+/// built the server; none if it was not) and the hash of the tuning the bots ran on (`Tuning::hash`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Provenance {
+    pub sha: Option<String>,
+    pub tuning: u32,
+}
+
+impl Provenance {
+    pub fn sha_text(&self) -> &str {
+        self.sha.as_deref().unwrap_or("-")
     }
 }
 
@@ -97,14 +113,15 @@ impl Outcome {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
     pub match_id: u32,
+    pub provenance: Provenance,
     pub step: &'static str,
     pub package: &'static str,
     pub try_no: u8,
     pub tries: u8,
     pub outcome: Outcome,
     pub ended_by: &'static str,
-    pub start_ms: u32,
-    pub end_ms: u32,
+    pub start: At,
+    pub end: At,
     pub values: Vec<(&'static str, Option<f64>)>,
 }
 
@@ -118,12 +135,10 @@ pub enum Action {
     Row(Row),
 }
 
-/// What a scripted bot does now: the body's wish, as the bots' intent is made from it.
+/// What a scripted bot's body does now.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Drive {
-    /// Stands, does not fire.
-    Idle,
-    /// Stands where it is; fires on sight.
+pub enum Act {
+    /// Stands where it is, crouched or not.
     Stand { crouch: bool },
     /// Goes to `at` and stays within `within_m`; crouches there if told.
     Go { at: Vec3, within_m: f32, gait: Gait, crouch: bool },
@@ -131,81 +146,126 @@ pub enum Drive {
     Throw { look: Vec3, held: bool },
 }
 
+/// What a scripted bot does now, and what of it the script leaves to the bot.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ScriptState {
-    Fixed,
-    Walk { leg: usize },
-    Throw { since: Option<u32>, thrown: bool },
+pub struct Drive {
+    pub act: Act,
+    pub grip: Grip,
+}
+
+/// Where a throw is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ThrowPhase {
+    /// The step has not started: the bot stands.
+    Waiting,
+    Winding { since: At },
+    Thrown,
+}
+
+/// A script with the state it carries: a variant for each, so a state is only where the script has it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Motion {
+    Stand { crouch: bool },
+    Hold { at: Vec3, within_m: f32, crouch: bool },
+    Walk { lane: &'static [Spot], gait: Gait, looped: bool, leg: usize },
+    Follow { within_m: f32, gait: Gait },
+    Throw { at: Vec3, wind: Span, phase: ThrowPhase },
+}
+
+impl Motion {
+    fn of(script: Script) -> Self {
+        match script {
+            Script::Idle => Motion::Stand { crouch: false },
+            Script::Stand { crouch } => Motion::Stand { crouch },
+            Script::Hold { at, within_m, crouch } => Motion::Hold { at: at.vec(), within_m, crouch },
+            Script::Walk { lane, gait, looped } => Motion::Walk { lane, gait, looped, leg: 0 },
+            Script::Follow { within_m, gait } => Motion::Follow { within_m, gait },
+            Script::Throw { at, wind } => Motion::Throw { at: at.vec(), wind, phase: ThrowPhase::Waiting },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 struct Member {
     place: Place,
-    script: Script,
-    state: ScriptState,
-    drive: Drive,
+    motion: Motion,
+    grip: Grip,
+    act: Act,
 }
 
 impl Member {
-    fn new(place: Place, script: Script) -> Self {
-        let state = match script {
-            Script::Walk { .. } => ScriptState::Walk { leg: 0 },
-            Script::Throw { .. } => ScriptState::Throw { since: None, thrown: false },
-            _ => ScriptState::Fixed,
-        };
+    fn new(place: Place, setup: &Setup) -> Self {
         Self {
             place,
-            script,
-            state,
-            drive: Drive::Stand { crouch: false },
+            motion: Motion::of(setup.script),
+            grip: setup.grip,
+            act: Act::Stand { crouch: false },
+        }
+    }
+
+    /// The step starts: a throw begins to wind.
+    fn begin(&mut self, clock: At) {
+        if let Motion::Throw { phase: phase @ ThrowPhase::Waiting, .. } = &mut self.motion {
+            *phase = ThrowPhase::Winding { since: clock };
         }
     }
 
     /// The next state and what the body does, from the bot's own body and the owner.
-    fn advance(&mut self, me: Option<&Body>, owner: &Body, clock: u32) {
+    fn advance(&mut self, me: Option<&Body>, owner: &Body, clock: At) {
         let feet = me.map(|b| b.feet);
-        self.drive = match (self.script, self.state) {
-            (Script::Idle, _) => Drive::Idle,
-            (Script::Stand { crouch }, _) => Drive::Stand { crouch },
-            (Script::Hold { at, within_m, crouch }, _) => Drive::Go { at: at.vec(), within_m, gait: Gait::Run, crouch },
-            (Script::Follow { within_m, gait }, _) => Drive::Go {
+        self.act = match &mut self.motion {
+            Motion::Stand { crouch } => Act::Stand { crouch: *crouch },
+            Motion::Hold { at, within_m, crouch } => Act::Go {
+                at: *at,
+                within_m: *within_m,
+                gait: Gait::Run,
+                crouch: *crouch,
+            },
+            Motion::Follow { within_m, gait } => Act::Go {
                 at: owner.feet,
-                within_m,
-                gait,
+                within_m: *within_m,
+                gait: *gait,
                 crouch: false,
             },
-            (Script::Walk { lane, gait, looped }, ScriptState::Walk { leg }) if !lane.is_empty() => {
-                let reached = feet.is_some_and(|f| f.distance_xz(lane[leg].vec()) <= LEG_REACHED_M);
-                let leg = match (reached, leg + 1 < lane.len(), looped) {
-                    (false, ..) => leg,
-                    (true, true, _) => leg + 1,
-                    (true, false, true) => 0,
-                    (true, false, false) => leg,
-                };
-                self.state = ScriptState::Walk { leg };
-                Drive::Go {
-                    at: lane[leg].vec(),
-                    within_m: LEG_REACHED_M,
-                    gait,
-                    crouch: false,
+            Motion::Walk { lane, gait, looped, leg } => {
+                if lane.is_empty() {
+                    Act::Stand { crouch: false }
+                } else {
+                    let reached = feet.is_some_and(|f| f.distance_xz(lane[*leg].vec()) <= LEG_REACHED_M);
+                    if reached {
+                        if *leg + 1 < lane.len() {
+                            *leg += 1;
+                        } else if *looped {
+                            *leg = 0;
+                        }
+                    }
+                    Act::Go {
+                        at: lane[*leg].vec(),
+                        within_m: LEG_REACHED_M,
+                        gait: *gait,
+                        crouch: false,
+                    }
                 }
             }
-            (Script::Walk { .. }, _) => Drive::Stand { crouch: false },
-            (Script::Throw { at, wind_ms }, ScriptState::Throw { since, thrown }) => {
+            Motion::Throw { at, wind, phase } => {
                 let from = feet.unwrap_or(owner.feet);
                 // A lob at about 45 degrees: the view rises with the distance.
-                let look = at.vec() + Vec3::new(0.0, from.distance_xz(at.vec()), 0.0);
-                let since = since.unwrap_or(clock);
-                let thrown = thrown || clock.saturating_sub(since) >= wind_ms;
-                self.state = ScriptState::Throw { since: Some(since), thrown };
-                if thrown {
-                    Drive::Throw { look, held: false }
-                } else {
-                    Drive::Throw { look, held: true }
+                let look = *at + Vec3::new(0.0, from.distance_xz(*at), 0.0);
+                match *phase {
+                    ThrowPhase::Waiting => Act::Stand { crouch: false },
+                    ThrowPhase::Winding { since } if clock - since >= *wind => {
+                        *phase = ThrowPhase::Thrown;
+                        Act::Throw { look, held: false }
+                    }
+                    ThrowPhase::Winding { .. } => Act::Throw { look, held: true },
+                    ThrowPhase::Thrown => Act::Throw { look, held: false },
                 }
             }
-            (Script::Throw { .. }, _) => Drive::Stand { crouch: false },
         };
+    }
+
+    fn drive(&self) -> Drive {
+        Drive { act: self.act, grip: self.grip }
     }
 }
 
@@ -222,19 +282,19 @@ impl Crew {
                 Who::Nth(side, n) => (side, Some(usize::from(n))),
                 Who::All(side) => (side, None),
             };
-            let mut places: Vec<Place> = frame.side(side).map(|b| b.place).collect();
+            let mut places: Vec<Place> = frame.side(side).map(|b| b.body.place).collect();
             places.sort_unstable();
             let chosen: Vec<Place> = match nth {
                 Some(n) => places.get(n).copied().into_iter().collect(),
                 None => places,
             };
-            if chosen.is_empty() || nth.is_some_and(|n| n >= frame.side(side).count()) {
+            if chosen.is_empty() {
                 return Err(format!("{} bot{}", side.name(), nth.map_or(String::new(), |n| format!(" {n}"))));
             }
             for place in chosen {
                 // A later setup for the same bot replaces the earlier.
                 members.retain(|m| m.place != place);
-                members.push(Member::new(place, setup.script));
+                members.push(Member::new(place, setup));
             }
         }
         Ok(Self(members))
@@ -242,152 +302,192 @@ impl Crew {
 
     fn advance(&mut self, frame: &Frame, owner: &Body) {
         for member in &mut self.0 {
-            let me = frame.bots.iter().find(|b| b.place == member.place);
+            let me = frame.bot(member.place).map(|b| &b.body);
             member.advance(me, owner, frame.clock);
         }
     }
 
+    fn begin(&mut self, clock: At) {
+        for member in &mut self.0 {
+            member.begin(clock);
+        }
+    }
+
     fn in_place(&self, frame: &Frame) -> bool {
-        self.0.iter().all(|member| match member.script {
-            Script::Hold { at, within_m, .. } => frame
-                .bots
-                .iter()
-                .find(|b| b.place == member.place)
-                .is_some_and(|b| b.alive && b.feet.distance_xz(at.vec()) <= within_m + 1.0),
+        self.0.iter().all(|member| match member.motion {
+            Motion::Hold { at, within_m, .. } => frame
+                .bot(member.place)
+                .is_some_and(|b| b.body.alive && b.body.feet.distance_xz(at) <= within_m + 1.0),
             _ => true,
         })
     }
 
     fn drive(&self, place: Place) -> Option<Drive> {
-        self.0.iter().find(|m| m.place == place).map(|m| m.drive)
+        self.0.iter().find(|m| m.place == place).map(Member::drive)
     }
 }
 
-/// What one measure keeps during a try.
+/// One measure under way: a variant for each, with the state it keeps.
 #[derive(Clone, Debug)]
-enum Acc {
-    /// Read from the last frame at the end.
-    Derived,
-    First(Option<u32>),
-    Low(Option<f64>),
+enum Meter {
+    Elapsed,
+    OwnerKills,
+    OwnerDeaths,
+    FirstKill(Option<Span>),
+    DiedAt(Option<Span>),
+    MinHealth(Option<f64>),
     Travel { total: f64, last: Option<Vec3> },
-    Kills { total: u32, seen: Vec<(Place, u32)> },
-    Count(u32),
-    Seconds { ms: u32, last: u32 },
-    Scratch(Scratch),
+    SideKills { side: Side, total: u32, seen: Vec<(Place, u32)> },
+    Nearest { side: Side, low: Option<f64> },
+    Notes { name: &'static str, contains: &'static str, count: u32 },
+    Seconds { name: &'static str, side: Side, at: Vec3, r_m: f32, total: Span, last: At },
+    Custom {
+        names: &'static [&'static str],
+        sample: fn(&Frame, &mut Scratch),
+        values: fn(&Scratch) -> Vec<Option<f64>>,
+        scratch: Scratch,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Base {
-    started: u32,
+    started: At,
     kills: u32,
     deaths: u32,
 }
 
-#[derive(Clone, Debug)]
-struct Meter {
-    measure: Measure,
-    acc: Acc,
-}
-
 impl Meter {
     fn new(measure: Measure, base: Base) -> Self {
-        let acc = match measure {
-            Measure::ElapsedMs | Measure::OwnerKills | Measure::OwnerDeaths => Acc::Derived,
-            Measure::FirstKillMs | Measure::DiedAtMs => Acc::First(None),
-            Measure::MinHealth | Measure::NearestBotM(_) => Acc::Low(None),
-            Measure::TravelM => Acc::Travel { total: 0.0, last: None },
-            Measure::SideKills(_) => Acc::Kills { total: 0, seen: Vec::new() },
-            Measure::Notes { .. } => Acc::Count(0),
-            Measure::SecondsInArea { .. } => Acc::Seconds { ms: 0, last: base.started },
-            Measure::Custom { .. } => Acc::Scratch(Scratch {
-                numbers: Vec::new(),
-                started: base.started,
-                base: (base.kills, base.deaths),
-            }),
-        };
-        Self { measure, acc }
+        match measure {
+            Measure::ElapsedMs => Meter::Elapsed,
+            Measure::OwnerKills => Meter::OwnerKills,
+            Measure::OwnerDeaths => Meter::OwnerDeaths,
+            Measure::FirstKillMs => Meter::FirstKill(None),
+            Measure::DiedAtMs => Meter::DiedAt(None),
+            Measure::MinHealth => Meter::MinHealth(None),
+            Measure::TravelM => Meter::Travel { total: 0.0, last: None },
+            Measure::SideKills(side) => Meter::SideKills { side, total: 0, seen: Vec::new() },
+            Measure::NearestBotM(side) => Meter::Nearest { side, low: None },
+            Measure::Notes { name, contains } => Meter::Notes { name, contains, count: 0 },
+            Measure::SecondsInArea { name, side, at, r_m } => Meter::Seconds {
+                name,
+                side,
+                at: at.vec(),
+                r_m,
+                total: Span(0),
+                last: base.started,
+            },
+            Measure::Custom { names, sample, values } => Meter::Custom {
+                names,
+                sample,
+                values,
+                scratch: Scratch {
+                    numbers: Vec::new(),
+                    started: base.started,
+                    base: (base.kills, base.deaths),
+                },
+            },
+        }
     }
 
-    fn sample(&mut self, frame: &Frame, owner: &Body, base: Base) {
-        let since = frame.clock.saturating_sub(base.started);
-        match (&self.measure, &mut self.acc) {
-            (Measure::FirstKillMs, Acc::First(first)) => {
-                if first.is_none() && owner.kills > base.kills {
+    fn sample(&mut self, frame: &Frame, owner: &Owner, base: Base) {
+        let body = &owner.body;
+        let since = frame.clock - base.started;
+        match self {
+            Meter::Elapsed | Meter::OwnerKills | Meter::OwnerDeaths => {}
+            Meter::FirstKill(first) => {
+                if first.is_none() && body.kills > base.kills {
                     *first = Some(since);
                 }
             }
-            (Measure::DiedAtMs, Acc::First(first)) => {
-                if first.is_none() && (owner.deaths > base.deaths || !owner.alive) {
+            Meter::DiedAt(first) => {
+                if first.is_none() && (body.deaths > base.deaths || !body.alive) {
                     *first = Some(since);
                 }
             }
-            (Measure::MinHealth, Acc::Low(low)) => {
-                if owner.alive {
-                    let h = f64::from(owner.health);
+            Meter::MinHealth(low) => {
+                if body.alive {
+                    let h = f64::from(body.health);
                     *low = Some(low.map_or(h, |l| l.min(h)));
                 }
             }
-            (Measure::NearestBotM(side), Acc::Low(low)) => {
-                if owner.alive {
-                    for bot in frame.side(*side).filter(|b| b.alive) {
-                        let d = f64::from(bot.feet.distance_xz(owner.feet));
+            Meter::Nearest { side, low } => {
+                if body.alive {
+                    for bot in frame.side(*side).filter(|b| b.body.alive) {
+                        let d = f64::from(bot.body.feet.distance_xz(body.feet));
                         *low = Some(low.map_or(d, |l| l.min(d)));
                     }
                 }
             }
-            (Measure::TravelM, Acc::Travel { total, last }) => {
-                if owner.alive {
+            Meter::Travel { total, last } => {
+                if body.alive {
                     if let Some(prev) = last {
-                        let d = prev.distance_xz(owner.feet);
+                        let d = prev.distance_xz(body.feet);
                         if d < RESPAWN_JUMP_M {
                             *total += f64::from(d);
                         }
                     }
-                    *last = Some(owner.feet);
+                    *last = Some(body.feet);
                 } else {
                     *last = None;
                 }
             }
-            (Measure::SideKills(side), Acc::Kills { total, seen }) => {
+            Meter::SideKills { side, total, seen } => {
                 for bot in frame.side(*side) {
-                    match seen.iter_mut().find(|(p, _)| *p == bot.place) {
+                    match seen.iter_mut().find(|(p, _)| *p == bot.body.place) {
                         Some((_, kills)) => {
-                            *total += bot.kills.saturating_sub(*kills);
-                            *kills = bot.kills;
+                            *total += bot.body.kills.saturating_sub(*kills);
+                            *kills = bot.body.kills;
                         }
-                        None => seen.push((bot.place, bot.kills)),
+                        None => seen.push((bot.body.place, bot.body.kills)),
                     }
                 }
             }
-            (Measure::Notes { contains, .. }, Acc::Count(count)) => {
-                *count += frame.heard.iter().filter(|h| h.text.contains(contains)).count() as u32;
+            Meter::Notes { contains, count, .. } => {
+                *count += frame.heard.iter().filter(|h| h.text.contains(*contains)).count() as u32;
             }
-            (Measure::SecondsInArea { side, at, r_m, .. }, Acc::Seconds { ms, last }) => {
-                let inside = frame.side(*side).any(|b| b.alive && b.feet.distance_xz(at.vec()) <= *r_m);
-                if inside {
-                    *ms += frame.clock.saturating_sub(*last);
+            Meter::Seconds { side, at, r_m, total, last, .. } => {
+                if frame.side(*side).any(|b| b.body.alive && b.body.feet.distance_xz(*at) <= *r_m) {
+                    *total = *total + (frame.clock - *last);
                 }
                 *last = frame.clock;
             }
-            (Measure::Custom { sample, .. }, Acc::Scratch(scratch)) => sample(frame, scratch),
-            _ => {}
+            Meter::Custom { sample, scratch, .. } => sample(frame, scratch),
         }
     }
 
-    fn value(&self, base: Base, end: &Frame, owner: &Body) -> Option<f64> {
-        match (&self.measure, &self.acc) {
-            (Measure::ElapsedMs, _) => Some(f64::from(end.clock.saturating_sub(base.started))),
-            (Measure::OwnerKills, _) => Some(f64::from(owner.kills.saturating_sub(base.kills))),
-            (Measure::OwnerDeaths, _) => Some(f64::from(owner.deaths.saturating_sub(base.deaths))),
-            (_, Acc::First(first)) => first.map(f64::from),
-            (_, Acc::Low(low)) => *low,
-            (_, Acc::Travel { total, .. }) => Some(*total),
-            (_, Acc::Kills { total, .. }) => Some(f64::from(*total)),
-            (_, Acc::Count(count)) => Some(f64::from(*count)),
-            (_, Acc::Seconds { ms, .. }) => Some(f64::from(*ms) / 1_000.0),
-            (Measure::Custom { value, .. }, Acc::Scratch(scratch)) => value(scratch),
-            _ => None,
+    /// The values at the end, one for each name.
+    fn values(&self, base: Base, end: &Frame, owner: &Owner) -> Vec<(&'static str, Option<f64>)> {
+        let body = &owner.body;
+        let ms = |span: Option<Span>| span.map(|s| f64::from(s.as_ms()));
+        match self {
+            Meter::Elapsed => vec![("elapsed_ms", Some(f64::from((end.clock - base.started).as_ms())))],
+            Meter::OwnerKills => vec![("owner_kills", Some(f64::from(body.kills.saturating_sub(base.kills))))],
+            Meter::OwnerDeaths => vec![("owner_deaths", Some(f64::from(body.deaths.saturating_sub(base.deaths))))],
+            Meter::FirstKill(first) => vec![("first_kill_ms", ms(*first))],
+            Meter::DiedAt(first) => vec![("died_at_ms", ms(*first))],
+            Meter::MinHealth(low) => vec![("min_health", *low)],
+            Meter::Travel { total, .. } => vec![("travel_m", Some(*total))],
+            Meter::SideKills { side, total, .. } => vec![(
+                match side {
+                    Side::Mates => "mate_kills",
+                    Side::Enemies => "enemy_kills",
+                },
+                Some(f64::from(*total)),
+            )],
+            Meter::Nearest { side, low } => vec![(
+                match side {
+                    Side::Mates => "nearest_mate_m",
+                    Side::Enemies => "nearest_enemy_m",
+                },
+                *low,
+            )],
+            Meter::Notes { name, count, .. } => vec![(name, Some(f64::from(*count)))],
+            Meter::Seconds { name, total, .. } => vec![(name, Some(total.as_s()))],
+            Meter::Custom { names, values, scratch, .. } => {
+                let got = values(scratch);
+                names.iter().copied().zip(got.into_iter().chain(std::iter::repeat(None))).collect()
+            }
         }
     }
 }
@@ -405,9 +505,9 @@ struct Running {
 struct Armed {
     todo: Todo,
     crew: Crew,
-    since: u32,
+    since: At,
     /// When the instruction was last told.
-    told: u32,
+    told: At,
 }
 
 #[derive(Debug, Default)]
@@ -418,7 +518,7 @@ enum Phase {
     Running(Running),
     /// The result is on the owner's screen; the next step waits.
     Rest {
-        until: u32,
+        until: At,
     },
     /// No step is left for this group.
     Finished,
@@ -428,23 +528,28 @@ enum Phase {
 #[derive(Debug)]
 pub struct Runner {
     match_id: u32,
+    provenance: Provenance,
     played: Group,
     queue: VecDeque<Todo>,
     /// The group after this one, to tell the owner (none: the plan ends here).
     next_group: Option<Group>,
     phase: Phase,
+    /// The last poll's clock, for a row written when the match ends.
+    last: At,
     /// Tries in a row voided by the owner leaving, per step id.
     gone: Vec<(&'static str, u8)>,
 }
 
 impl Runner {
-    pub fn new(match_id: u32, played: Group, todo: Vec<Todo>, next_group: Option<Group>) -> Self {
+    pub fn new(match_id: u32, provenance: Provenance, played: Group, todo: Vec<Todo>, next_group: Option<Group>) -> Self {
         Self {
             match_id,
+            provenance,
             played,
             queue: todo.into(),
             next_group,
             phase: Phase::Waiting,
+            last: At(0),
             gone: Vec::new(),
         }
     }
@@ -458,7 +563,7 @@ impl Runner {
         match &self.phase {
             Phase::Armed(armed) => armed.crew.drive(place),
             Phase::Running(running) => running.crew.drive(place),
-            _ => None,
+            Phase::Waiting | Phase::Rest { .. } | Phase::Finished => None,
         }
     }
 
@@ -466,7 +571,7 @@ impl Runner {
     pub fn finish(&mut self) -> Vec<Action> {
         let mut acts = Vec::new();
         if let Phase::Running(running) = std::mem::take(&mut self.phase) {
-            let row = self.row(&running, Outcome::Void(VoidWhy::MatchEnded), "match_end", running.base.started);
+            let row = self.row(&running, Outcome::Void(VoidWhy::MatchEnded), "match_end", self.last);
             acts.push(Action::Log(end_line(&row)));
             acts.push(Action::Row(row));
         }
@@ -476,6 +581,7 @@ impl Runner {
 
     pub fn tick(&mut self, frame: &Frame) -> Vec<Action> {
         let mut acts = Vec::new();
+        self.last = frame.clock;
         self.phase = match std::mem::take(&mut self.phase) {
             Phase::Waiting => self.waiting(frame, &mut acts),
             Phase::Rest { until } if frame.clock >= until => self.waiting(frame, &mut acts),
@@ -488,7 +594,8 @@ impl Runner {
     }
 
     fn waiting(&mut self, frame: &Frame, acts: &mut Vec<Action>) -> Phase {
-        let Some(owner) = frame.owner.as_ref().filter(|_| frame.playing) else {
+        // A step is armed with the owner in the match and on his feet: a dead owner is told nothing he cannot act on.
+        let Some(owner) = frame.owner.as_ref().filter(|o| frame.playing && o.body.alive) else {
             return Phase::Waiting;
         };
         let Some(todo) = self.queue.pop_front() else {
@@ -505,7 +612,7 @@ impl Runner {
         };
         match Crew::pick(&todo.step, frame) {
             Ok(mut crew) => {
-                crew.advance(frame, owner);
+                crew.advance(frame, &owner.body);
                 acts.push(Action::Tell(format!("[{}/{}] {}", todo.step.id, todo.next_try, todo.step.instruction)));
                 acts.push(Action::Log(format!(
                     "CLIENT_TEST step {} ARMED try {}/{}: {}",
@@ -521,14 +628,15 @@ impl Runner {
             Err(lacking) => {
                 let row = Row {
                     match_id: self.match_id,
+                    provenance: self.provenance.clone(),
                     step: todo.step.id,
                     package: todo.step.package,
                     try_no: todo.next_try,
                     tries: todo.step.tries,
                     outcome: Outcome::Void(VoidWhy::MissingBots(lacking.replace(' ', "_"))),
                     ended_by: "setup",
-                    start_ms: frame.clock,
-                    end_ms: frame.clock,
+                    start: frame.clock,
+                    end: frame.clock,
                     values: Vec::new(),
                 };
                 acts.push(Action::Log(end_line(&row)));
@@ -545,31 +653,33 @@ impl Runner {
             self.queue.push_front(armed.todo);
             return Phase::Waiting;
         };
-        armed.crew.advance(frame, owner);
-        let waited = frame.clock.saturating_sub(armed.since);
-        if waited >= armed.todo.step.arm_ms {
+        armed.crew.advance(frame, &owner.body);
+        let waited = frame.clock - armed.since;
+        if waited >= armed.todo.step.arm {
             let step = &armed.todo.step;
             let row = Row {
                 match_id: self.match_id,
+                provenance: self.provenance.clone(),
                 step: step.id,
                 package: step.package,
                 try_no: armed.todo.next_try,
                 tries: step.tries,
                 outcome: Outcome::Void(VoidWhy::NeverStarted),
                 ended_by: "arm_time",
-                start_ms: frame.clock,
-                end_ms: frame.clock,
+                start: frame.clock,
+                end: frame.clock,
                 values: Vec::new(),
             };
             acts.push(Action::Tell(format!("[{}] not started in time; on to the next.", step.id)));
             acts.push(Action::Log(end_line(&row)));
             acts.push(Action::Row(row));
             self.used_up(armed.todo);
-            return Phase::Rest { until: frame.clock + REST_MS };
+            return Phase::Rest { until: frame.clock + REST };
         }
-        let begins = waited >= SETTLE_MS && armed.todo.step.start.iter().all(|cond| holds(cond, &armed, frame, owner));
+        // A step starts with the owner on his feet and after he had time to read it.
+        let begins = owner.body.alive && waited >= SETTLE && armed.todo.step.start.iter().all(|cond| holds(cond, &armed, frame, owner));
         if !begins {
-            if frame.clock.saturating_sub(armed.told) >= RETELL_MS {
+            if frame.clock - armed.told >= RETELL {
                 armed.told = frame.clock;
                 acts.push(Action::Tell(format!("[{}] {}", armed.todo.step.id, armed.todo.step.instruction)));
             }
@@ -577,10 +687,11 @@ impl Runner {
         }
         let base = Base {
             started: frame.clock,
-            kills: owner.kills,
-            deaths: owner.deaths,
+            kills: owner.body.kills,
+            deaths: owner.body.deaths,
         };
         let meters = armed.todo.step.measures.iter().map(|m| Meter::new(*m, base)).collect();
+        armed.crew.begin(frame.clock);
         acts.push(Action::Log(format!(
             "CLIENT_TEST step {} START try {}/{}",
             armed.todo.step.id, armed.todo.next_try, armed.todo.step.tries
@@ -613,42 +724,48 @@ impl Runner {
             }
             return Phase::Waiting;
         };
-        run.crew.advance(frame, owner);
+        run.crew.advance(frame, &owner.body);
         for meter in &mut run.meters {
             meter.sample(frame, owner, run.base);
         }
         let step = &run.todo.step;
+        let body = &owner.body;
+        let progress = Progress {
+            since_start: frame.clock - run.base.started,
+            owner_kills: body.kills.saturating_sub(run.base.kills),
+            owner_deaths: body.deaths.saturating_sub(run.base.deaths),
+        };
         let scripted_died = |who: Who| match who {
-            Who::All(side) => frame.side(side).any(|b| !b.alive && run.crew.0.iter().any(|m| m.place == b.place)),
+            Who::All(side) => frame.side(side).any(|b| !b.body.alive && run.crew.0.iter().any(|m| m.place == b.body.place)),
             Who::Nth(side, n) => {
-                let mut places: Vec<Place> = frame.side(side).map(|b| b.place).collect();
+                let mut places: Vec<Place> = frame.side(side).map(|b| b.body.place).collect();
                 places.sort_unstable();
-                places
-                    .get(usize::from(n))
-                    .is_some_and(|p| frame.bots.iter().any(|b| b.place == *p && !b.alive))
+                places.get(usize::from(n)).is_some_and(|p| frame.bot(*p).is_some_and(|b| !b.body.alive))
             }
         };
-        let since = frame.clock.saturating_sub(run.base.started);
         let ended_by = step
             .end
             .iter()
             .find_map(|end| match *end {
-                End::OwnerDied => (owner.deaths > run.base.deaths || !owner.alive).then_some("owner_died"),
-                End::OwnerKills(n) => (owner.kills.saturating_sub(run.base.kills) >= n).then_some("owner_kills"),
-                End::OwnerLeft { at, r_m } => (owner.alive && owner.feet.distance_xz(at.vec()) > r_m).then_some("owner_left"),
+                End::OwnerDied => (progress.owner_deaths > 0 || !body.alive).then_some("owner_died"),
+                End::OwnerKills(n) => (progress.owner_kills >= n).then_some("owner_kills"),
+                End::OwnerLeft { at, r_m } => (body.alive && body.feet.distance_xz(at.vec()) > r_m).then_some("owner_left"),
                 End::ScriptedDied(who) => scripted_died(who).then_some("scripted_died"),
+                End::Custom(when) => (when.holds)(frame, &progress).then_some(when.reason),
             })
-            .or((since >= step.budget_ms).then_some("budget"));
+            .or((progress.since_start >= step.budget).then_some("budget"));
         let Some(ended_by) = ended_by else {
             return Phase::Running(run);
         };
-        let outcome = self.judge(&run, frame, owner);
-        let row = self.row_at(&run, frame, owner, outcome, ended_by);
+        let values: Vec<(&'static str, Option<f64>)> = run.meters.iter().flat_map(|m| m.values(run.base, frame, owner)).collect();
+        let outcome = judge(step, &values);
+        let mut row = self.row(&run, outcome, ended_by, frame.clock);
+        row.values = values;
         acts.push(Action::Tell(format!("[{}] done: {}", row.step, row.outcome.text())));
         acts.push(Action::Log(end_line(&row)));
         acts.push(Action::Row(row));
         self.used_up(run.todo);
-        Phase::Rest { until: frame.clock + REST_MS }
+        Phase::Rest { until: frame.clock + REST }
     }
 
     /// A try that counted: the next try of the step goes next, or the next step.
@@ -661,58 +778,48 @@ impl Runner {
         }
     }
 
-    fn judge(&self, run: &Running, frame: &Frame, owner: &Body) -> Outcome {
-        let step = &run.todo.step;
-        if step.bars.is_empty() {
-            return Outcome::Info;
-        }
-        let value_of = |name: &str| {
-            run.meters
-                .iter()
-                .find(|m| m.measure.name() == name)
-                .and_then(|m| m.value(run.base, frame, owner))
-        };
-        let missed: Vec<String> = step
-            .bars
-            .iter()
-            .filter_map(|bar| match value_of(bar.measure) {
-                Some(v) if bar.test.holds(v) => None,
-                Some(v) => Some(format!("{} {} got {}", bar.measure, bar.test.describe(), round(v))),
-                None => Some(format!("{} {} got none", bar.measure, bar.test.describe())),
-            })
-            .collect();
-        if missed.is_empty() {
-            Outcome::Pass
-        } else {
-            Outcome::Fail(missed.join("; "))
-        }
-    }
-
-    fn row_at(&self, run: &Running, frame: &Frame, owner: &Body, outcome: Outcome, ended_by: &'static str) -> Row {
-        let mut row = self.row(run, outcome, ended_by, frame.clock);
-        row.values = run.meters.iter().map(|m| (m.measure.name(), m.value(run.base, frame, owner))).collect();
-        row
-    }
-
-    fn row(&self, run: &Running, outcome: Outcome, ended_by: &'static str, end_ms: u32) -> Row {
+    fn row(&self, run: &Running, outcome: Outcome, ended_by: &'static str, end: At) -> Row {
         let step = &run.todo.step;
         Row {
             match_id: self.match_id,
+            provenance: self.provenance.clone(),
             step: step.id,
             package: step.package,
             try_no: run.todo.next_try,
             tries: step.tries,
             outcome,
             ended_by,
-            start_ms: run.base.started,
-            end_ms,
+            start: run.base.started,
+            end,
             values: Vec::new(),
         }
     }
 }
 
+/// The verdict of a try: its bars against its values.
+fn judge(step: &Step, values: &[(&'static str, Option<f64>)]) -> Outcome {
+    if step.bars.is_empty() {
+        return Outcome::Info;
+    }
+    let value_of = |name: &str| values.iter().find(|(n, _)| *n == name).and_then(|(_, v)| *v);
+    let missed: Vec<String> = step
+        .bars
+        .iter()
+        .filter_map(|bar| match value_of(bar.measure) {
+            Some(v) if bar.test.holds(v) => None,
+            Some(v) => Some(format!("{} {} got {}", bar.measure, bar.test.describe(), round(v))),
+            None => Some(format!("{} {} got none", bar.measure, bar.test.describe())),
+        })
+        .collect();
+    if missed.is_empty() {
+        Outcome::Pass
+    } else {
+        Outcome::Fail(missed.join("; "))
+    }
+}
+
 fn round(v: f64) -> String {
-    format!("{:.2}", v).trim_end_matches('0').trim_end_matches('.').to_string()
+    format!("{v:.2}").trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
 /// The log line of an ended try.
@@ -720,10 +827,11 @@ pub fn end_line(row: &Row) -> String {
     format!("CLIENT_TEST step {} END {} (try {}/{}, by {})", row.step, row.outcome.text(), row.try_no, row.tries, row.ended_by)
 }
 
-fn holds(cond: &Cond, armed: &Armed, frame: &Frame, owner: &Body) -> bool {
+fn holds(cond: &Cond, armed: &Armed, frame: &Frame, owner: &Owner) -> bool {
     match *cond {
-        Cond::OwnerNear { at, r_m } => owner.alive && owner.feet.distance_xz(at.vec()) <= r_m,
+        Cond::OwnerNear { at, r_m } => owner.body.alive && owner.body.feet.distance_xz(at.vec()) <= r_m,
         Cond::BotsInPlace => armed.crew.in_place(frame),
-        Cond::After { ms } => frame.clock.saturating_sub(armed.since) >= ms,
+        Cond::After(span) => frame.clock - armed.since >= span,
+        Cond::Custom(wait) => (wait.holds)(frame, frame.clock - armed.since),
     }
 }

@@ -1143,7 +1143,6 @@ va	status	ref_021d	name
 0x00208150	inferred-medium	0x00162fc4	survarium::chat_handler::`scalar deleting destructor'
 0x00208870	inferred-medium	0x001631f2	survarium::chat_handler::on_keyboard_action
 0x002089d0	inferred-medium	0x001632ff	survarium::chat_handler::on_message_typed
-0x00208ad0	inferred-medium		survarium::chat_handler::add_message
 0x00209230	inferred-medium	0x001636ee	survarium::chat_handler::filter_message
 0x00209330	inferred-medium	0x001637d0	survarium::chat_handler::add_to_recent_list
 0x0020a5f0	inferred-medium	0x0016410b	survarium::global_input_handler::`scalar deleting destructor'
@@ -3084,7 +3083,6 @@ va	status	ref_021d	name
 0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x0001ddb0	inferred-high		vostok::console_commands::cc_value<bool>::cc_value
-0x0026b6f0	inferred-medium	0x0019b858	survarium::messaging_client::process_incoming_text_message
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores

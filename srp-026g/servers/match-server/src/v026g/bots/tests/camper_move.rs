@@ -15,7 +15,7 @@
 //! - **Dwell.** He leaves 3-5 s after a stay's second kill with no new one, and after 20-25 s with fewer than two (live hold
 //!   median 25 s, 3.5 s after the last kill), to the next best spot at least [`LEAVE_MIN_M`] away.
 //!
-//! The reflex still aims and fires as ever, and keeps the legs off ([`Bot::holds_ground`]).
+//! The reflex still aims and fires as ever, and keeps the legs off ([`Control::BenchCamper`]).
 
 use super::*;
 use crate::v026g::bots::know::Track;
@@ -440,7 +440,7 @@ pub(crate) fn drive_camper(
     let Some((at, _)) = found else {
         return false;
     };
-    bot.bench_camper = true;
+    bot.control = Control::BenchCamper;
     match (options.moving, side) {
         (Some(moving), Some(side)) => {
             let camper_motion = motion.get_or_insert_with(|| {

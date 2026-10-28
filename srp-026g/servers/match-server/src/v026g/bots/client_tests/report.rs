@@ -5,11 +5,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use super::run::{Action, Row};
+use super::run::{Action, Provenance, Row};
 use super::step::{Cond, End, Group, Step};
 
-/// The results file's columns.
-pub const HEADER: &str = "match\tstep\tpackage\ttry\ttries\tresult\tended_by\tstart_ms\tend_ms\tvalues";
+/// The results file's columns: the match, the commit and the tuning the server ran on, the step and its try, the verdict, the times
+/// on the match clock and the measures.
+pub const HEADER: &str = "match\tsha\ttuning\tstep\tpackage\ttry\ttries\tresult\tended_by\tstart_ms\tend_ms\tvalues";
 
 /// Where the plan's files are written, and the progress of its steps across matches.
 #[derive(Debug)]
@@ -104,16 +105,18 @@ pub fn line_of(row: &Row) -> String {
         })
         .collect();
     format!(
-        "{:#x}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{:#x}\t{}\t{:08x}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
         row.match_id,
+        row.provenance.sha_text(),
+        row.provenance.tuning,
         row.step,
         row.package,
         row.try_no,
         row.tries,
         row.outcome.text(),
         row.ended_by,
-        row.start_ms,
-        row.end_ms,
+        row.start.0,
+        row.end.0,
         values.join(";")
     )
 }
@@ -124,20 +127,20 @@ fn trim(v: f64) -> String {
 }
 
 /// The printed card: the steps in the order they run, by match, with what the owner does.
-pub fn card(plan: &str, steps: &[Step]) -> String {
-    let mut text = format!("# Client test card: {plan}\n\nThe steps run by themselves, one after another, in the match for their group.\n");
-    let mut group: Option<Group> = None;
-    let mut matches = 0;
-    for step in steps {
-        if group != Some(step.group) {
-            group = Some(step.group);
-            matches += 1;
-            text.push_str(&format!("\n## Match {matches}: {}\n\nStart Player vs Bots on this map and mode.\n\n", step.group.describe()));
-        }
-        text.push_str(&format!("- **{}** ({}, {} s, {} {}): {}\n", step.id, step.package, step.budget_ms / 1_000, step.tries, if step.tries == 1 { "try" } else { "tries" }, step.instruction));
-        text.push_str(&format!("  - starts when: {}\n", describe_start(&step.start)));
-        if !step.end.is_empty() {
-            text.push_str(&format!("  - ends at: {} or after {} s\n", describe_end(&step.end), step.budget_ms / 1_000));
+pub fn card(plan: &str, provenance: &Provenance, matches: &[(Group, Vec<&Step>)]) -> String {
+    let mut text = format!(
+        "# Client test card: {plan}\n\nServer build {}, bots' tuning {:08x}. The steps run by themselves, one after another, in the match for their group.\n",
+        provenance.sha_text(),
+        provenance.tuning
+    );
+    for (n, (group, steps)) in matches.iter().enumerate() {
+        text.push_str(&format!("\n## Match {}: {}\n\nStart Player vs Bots on this map and mode.\n\n", n + 1, group.describe()));
+        for step in steps {
+            text.push_str(&format!("- **{}** ({}, {} s, {} {}): {}\n", step.id, step.package, step.budget.as_ms() / 1_000, step.tries, if step.tries == 1 { "try" } else { "tries" }, step.instruction));
+            text.push_str(&format!("  - starts when: {}\n", describe_start(&step.start)));
+            if !step.end.is_empty() {
+                text.push_str(&format!("  - ends at: {} or after {} s\n", describe_end(&step.end), step.budget.as_ms() / 1_000));
+            }
         }
     }
     text
@@ -149,8 +152,9 @@ fn describe_start(conds: &[Cond]) -> String {
         .map(|cond| match cond {
             Cond::OwnerNear { at, r_m } => format!("you are within {r_m} m of ({:.0}, {:.0}, {:.0})", at.0[0], at.0[1], at.0[2]),
             Cond::BotsInPlace => "the bots are in place".to_string(),
-            Cond::After { ms } if *ms == 0 => "at once".to_string(),
-            Cond::After { ms } => format!("{} s after the instruction", ms / 1_000),
+            Cond::After(span) if span.as_ms() == 0 => "at once".to_string(),
+            Cond::After(span) => format!("{} s after the instruction", span.as_ms() / 1_000),
+            Cond::Custom(wait) => wait.describe.to_string(),
         })
         .collect();
     parts.join(" and ")
@@ -164,6 +168,7 @@ fn describe_end(ends: &[End]) -> String {
             End::OwnerKills(n) => format!("you have {n} kills"),
             End::OwnerLeft { r_m, .. } => format!("you leave the spot by {r_m} m"),
             End::ScriptedDied(_) => "the scripted bot dies".to_string(),
+            End::Custom(when) => when.describe.to_string(),
         })
         .collect();
     parts.join(", ")
