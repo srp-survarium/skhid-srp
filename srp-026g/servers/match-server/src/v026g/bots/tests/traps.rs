@@ -170,6 +170,29 @@ pub(crate) fn with_the_defaults_a_bot_still_places_its_trap_and_it_lands_away_fr
     assert!(bots.place_counts().placed >= 1);
 }
 
+/// A one-sided run (`SRP_BENCH_ONE_SIDE`) plays team 1 by the side-1 tuning, so `press_landing_m` is read per team:
+/// the habit's think and its drive tick both take the tuning of the bot's own team (`Bots::tuning_of`, `think.rs`).
+#[test]
+pub(crate) fn the_landing_rule_is_read_from_the_bots_own_teams_tuning() {
+    let mut bots = Bots::new(
+        0x7A96,
+        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        0,
+        &[0u8, 1],
+        &[true, true],
+        &[None, None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    assert_eq!(bots.tuning_of(0).traps.press_landing_m, Some(1.0));
+    assert_eq!(bots.tuning_of(1).traps.press_landing_m, Some(1.0));
+    let mut off = Tuning::default();
+    off.traps.press_landing_m = None;
+    bots.side1_tuning = Some(Arc::new(off));
+    assert_eq!(bots.tuning_of(0).traps.press_landing_m, Some(1.0));
+    assert_eq!(bots.tuning_of(1).traps.press_landing_m, None);
+}
+
 /// A world's objects section with one placed trap in it (the record
 /// `survarium::v026g::match_msgs::traps` reads) among other bytes.
 pub(super) fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {

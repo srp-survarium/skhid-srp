@@ -116,9 +116,9 @@ impl Trap {
 /// What befell, for the bench's line and the tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Event {
-    Placed { tick: u32, place: Place },
+    Placed { tick: u32, place: Place, team: u8 },
     /// `victim` set `placer`'s trap off: whose body that is, as a kill's kinds say.
-    Caught { tick: u32, placer: Place, victim: Place, kind: Kill, placed: u32, placer_crouched: bool, press_m: f32, eye_m: f32, pitch_down: f32 },
+    Caught { tick: u32, placer: Place, victim: Place, kind: Kill, placed: u32, placer_crouched: bool, press_m: f32, eye_m: f32, pitch_down: f32, placer_team: u8, victim_team: u8 },
     ShotOff { tick: u32, shooter: Place, placer: Place },
     DefusedBy { tick: u32, by: Place, placer: Place },
 }
@@ -181,8 +181,8 @@ impl Traps {
         self.events
             .iter()
             .filter_map(|event| match event {
-                Event::Caught { tick, placer, victim, kind, placed, placer_crouched, press_m, eye_m, pitch_down } => Some(format!(
-                    "  trap catch: {} (placer {placer}, victim {victim}) placer {} {:.1} s after placing, {:.2} m from its feet at the press (eye {:.2} m, look {:.2} rad down)",
+                Event::Caught { tick, placer, victim, kind, placed, placer_crouched, press_m, eye_m, pitch_down, placer_team, .. } => Some(format!(
+                    "  trap catch: {} (placer {placer} of team {placer_team}, victim {victim}) placer {} {:.1} s after placing, {:.2} m from its feet at the press (eye {:.2} m, look {:.2} rad down)",
                     match kind {
                         Kill::Enemy => "enemy",
                         Kill::Mate => "mate",
@@ -202,6 +202,24 @@ impl Traps {
     /// The catches by kind and the placer's pose, and the nearest and median press distance of the placed: one
     /// line for the log (the players' catches are 85 % enemies, 11 % allies, 4 % the placer: WP-T).
     pub(crate) fn catch_summary(&self) -> String {
+        // By the placer's team: [team 0, team 1] for enemy, mate and own catches, and how many traps each team placed.
+        let mut by_team = [[0u32; 3]; 2];
+        let mut placed = [0u32; 2];
+        for trap in self.events.iter().filter_map(|event| match event {
+            Event::Caught { kind, placer_team, .. } => Some((*kind as usize, usize::from(*placer_team).min(1))),
+            _ => None,
+        }) {
+            by_team[trap.1][trap.0] += 1;
+        }
+        for event in &self.events {
+            if let Event::Placed { team, .. } = event {
+                placed[usize::from(*team).min(1)] += 1;
+            }
+        }
+        let by_team_text = format!(
+            "  trap catches by the placer's team [t0, t1]: placed {placed:?}, enemy [{}, {}] mate [{}, {}] own [{}, {}]",
+            by_team[0][0], by_team[1][0], by_team[0][1], by_team[1][1], by_team[0][2], by_team[1][2]
+        );
         let mut by = [[0u32; 2]; 3];
         for event in &self.events {
             if let Event::Caught { kind, placer_crouched, .. } = event {
@@ -220,7 +238,8 @@ impl Traps {
         press.sort_by(f32::total_cmp);
         let median = press.get(press.len() / 2).copied().unwrap_or(f32::NAN);
         format!(
-            "  trap catches [standing/crouched placer]: enemy {}/{} mate {}/{} own {}/{}; press distance of the caught: nearest {:.2} m, median {median:.2} m",
+            "{by_team_text}
+  trap catches [standing/crouched placer]: enemy {}/{} mate {}/{} own {}/{}; press distance of the caught: nearest {:.2} m, median {median:.2} m",
             by[0][0],
             by[0][1],
             by[1][0],
@@ -358,7 +377,7 @@ impl Game {
                 phase: Phase::Armed,
                 defusing: None,
             });
-            self.traps.events.push(Event::Placed { tick, place });
+            self.traps.events.push(Event::Placed { tick, place, team });
         }
     }
 
@@ -401,7 +420,7 @@ impl Game {
                 } else {
                     Kill::Enemy
                 };
-                self.traps.events.push(Event::Caught { tick, placer: trap.placer, victim, kind, placed: trap.placed, placer_crouched: trap.placer_crouched, press_m: trap.press_m, eye_m: trap.eye_m, pitch_down: trap.pitch_down });
+                self.traps.events.push(Event::Caught { tick, placer: trap.placer, victim, kind, placed: trap.placed, placer_crouched: trap.placer_crouched, press_m: trap.press_m, eye_m: trap.eye_m, pitch_down: trap.pitch_down, placer_team: trap.team, victim_team: self.bodies[victim].team });
                 let body = &mut self.bodies[victim];
                 body.legs = [0.0; 2];
                 body.leg_broken_until = body.leg_broken_until.max(tick + LEGS_MS);
@@ -658,7 +677,7 @@ mod tests {
             assert_eq!(lines.len(), 1, "{lines:?}");
             let word = if kind == Kill::Own { "own" } else { "mate" };
             assert!(
-                lines[0].contains(&format!("trap catch: {word} (placer 0, victim {stepper}) placer standing"))
+                lines[0].contains(&format!("trap catch: {word} (placer 0 of team 0, victim {stepper}) placer standing"))
                     && lines[0].contains("s after placing, ")
                     && lines[0].contains(" m from its feet at the press (eye "),
                 "{lines:?}"
