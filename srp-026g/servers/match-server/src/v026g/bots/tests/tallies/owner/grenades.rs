@@ -111,6 +111,8 @@ pub(super) struct GrenadeCounts {
     /// Throws with a grenade in the kit, and throws with none (phantom: the reflex's own count of two a life, no pockets).
     pub(super) carried_throws: u32,
     pub(super) phantom_throws: u32,
+    /// The same by the thrower's team: `[carried, phantom]` of team 0 and of team 1.
+    carry_by_team: [[u32; 2]; 2],
 }
 
 /// The bin of the nearest alive enemy of `place`: 0 under 8 m, 1 from 8 to 30 m, 2 farther, 3 none alive.
@@ -287,6 +289,8 @@ pub(crate) fn only_a_throw_the_kit_had_a_grenade_for_goes_off() {
     // A bot whose kit holds none.
     counts.grenade_thrown(1, 1, at, 5_000, 0);
     assert_eq!((counts.carried_throws, counts.phantom_throws, counts.grenades), (3, 2, 5));
+    // By the thrower's team: team 0 threw the carried ones and the kit-less one of bot 1 is team 1's.
+    assert_eq!(counts.carry_by_team[1], [0, 1]);
     // The kit in hand decides: kit 1 of bot 0 holds none.
     counts.kit_now[0] = 1;
     counts.grenade_thrown(0, 0, at, 12_000, 2);
@@ -655,9 +659,11 @@ impl GrenadeCounts {
         if !self.carries(thrower, life) {
             // The thrower's pockets were empty: the client throws nothing, so nothing goes off.
             self.phantom_throws += 1;
+            self.carry_by_team[usize::from(team.min(1))][1] += 1;
             return;
         }
         self.carried_throws += u32::from(self.carried.is_some());
+        self.carry_by_team[usize::from(team.min(1))][0] += u32::from(self.carried.is_some());
         self.throws.push(Throw {
             thrower,
             aim,
@@ -961,6 +967,10 @@ impl GrenadeCounts {
                 "carried_throws": self.carried_throws,
                 "phantom_throws": self.phantom_throws,
                 "phantom_share": Scale::rate(self.phantom_throws, self.carried_throws + self.phantom_throws),
+                "by_team": {
+                    "0": { "carried_throws": self.carry_by_team[0][0], "phantom_throws": self.carry_by_team[0][1] },
+                    "1": { "carried_throws": self.carry_by_team[1][0], "phantom_throws": self.carry_by_team[1][1] },
+                },
             });
         }
         let mut text = format!(

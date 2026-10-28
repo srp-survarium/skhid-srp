@@ -142,8 +142,8 @@ impl Topic for CamperCounts {
         self.kills_tick(run, game, sight, rays, tick);
     }
 
-    fn parts(&mut self, run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
-        vec![("campers", self.part(run))]
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("campers", self.part(run, game))]
     }
 
     /// The entries into held lines and the seconds held, for the outcomes' lane entries a 10 s.
@@ -446,7 +446,7 @@ impl CamperCounts {
     }
 
     /// The campers counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    fn part(&self, run: &Run) -> Part {
+    fn part(&self, run: &Run, game: &Game) -> Part {
         // Campers: runs of kills from one spot, a team's deaths in a row to
         // one shooter from one spot, entries into held lines.
         // `only`: the runs of that shooter alone are counted.
@@ -501,6 +501,16 @@ impl CamperCounts {
         let entries_fatal = self.entries.iter().filter(|e| fatal(e)).count() as u32;
         let entries_lane = self.entries.iter().filter(|e| e.lane).count() as u32;
         let entries_lane_fatal = self.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
+        // The same entries by the entering bot's team (the team that walks into the held line).
+        let entries_of = |team: u8| {
+            let mine: Vec<&Entry> = self.entries.iter().filter(|e| game.bodies.get(e.place).is_some_and(|b| b.team.min(1) == team)).collect();
+            let fatal_n = mine.iter().filter(|e| fatal(e)).count() as u32;
+            serde_json::json!({
+                "reentries": mine.len(),
+                "reentries_fatal": fatal_n,
+                "reentries_fatal_share": Scale::rate(fatal_n, mine.len() as u32),
+            })
+        };
         // Trades into the killer: of each Trade take, the partner's killer
         // (the last kill of a teammate from 4 s before to 0.5 s after);
         // the trader killed by him, or killing him, within 15 s.
@@ -569,6 +579,7 @@ impl CamperCounts {
             "camper_kills": held_all[0],
             "camper_kills_off_lane": held_all[1],
             "stand_in_camper": camper,
+            "by_team": { "0": entries_of(0), "1": entries_of(1) },
         });
         let counter_split = self.counter_split(run);
         let text = format!(

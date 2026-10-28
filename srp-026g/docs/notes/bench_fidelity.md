@@ -164,3 +164,45 @@ leave off; the golden of the switch report pins them), and for the "key the tip 
 **model** settings: export them from `run-smoke.sh` (4.1 item 7) or list them as `MODEL_SCENARIO: 'off until the owner agrees'`, or the
 audit fails on them. `SRP_BENCH_ENEMY_HUMAN_LANES=team1` is exported by the smoke as before (the audit's `n + '='` finds it).
 
+### 4.6 Head-to-head arms (owner rule 2026-10-29) and the by-team counters
+
+Every counter this PR adds is also in `owner.by_team.{"0","1"}` of a log's `sums:` line (`outcomes` part: all of its keys but
+`lane_entries_per_10s`, which is the camper topic's; `campers`: `by_team.{0,1}.reentries / reentries_fatal / reentries_fatal_share`,
+by the entering bot's team; `grenade_carry.by_team`). Shares are per team (`hold_3rd_share`, `holders_flank_share` of a team's
+shooters / holders), `retake_ms_*` by the team that dropped the battery, `carrier_clear_*` by the carrier's team, `view_flip` by the
+looking bot's team. The totals are unchanged. The stand-in and the tallies read **no** tuning: the camper, the view error and the
+lanes are `SRP_BENCH_*` model settings that are the same for both teams, so nothing here needs `tuning_of(team)`.
+
+`run-smoke.sh`: `ARMS=h2h` runs two runs of the same binary per cell, `SRP_BENCH_ONE_SIDE=1`:
+
+| run | team 0 | team 1 |
+|---|---|---|
+| A | ON (`SRP_BENCH_TUNING` unset) | OFF (`SRP_BENCH_SIDE1_TUNING` = the `all_off.json` line of 4.1 item 1) |
+| B | OFF (`SRP_BENCH_TUNING` = that line) | ON (`SRP_BENCH_SIDE1_TUNING` unset) |
+
+(A drop-one arm is the same with the drop file in place of `all_off.json`.) The by-side report sums ON and OFF over both runs, so
+a side advantage of the map cancels: in run A the ON numbers are `by_team["0"]`, in run B `by_team["1"]`:
+
+```python
+import json, re, sys, glob
+from collections import defaultdict
+# by-side.py DIR_A DIR_B KEY...   (KEY: an outcomes key, e.g. holders_flank_share is recomputed from its counts)
+def sums(path):
+    text = re.sub(r'test [^ ]+ has been running for over [0-9]+ seconds[^a-z]?', '', open(path, encoding='utf-8', errors='replace').read())
+    for m in re.finditer(r'sums: (\{.*\})', text):
+        yield json.loads(m.group(1)).get('owner', {})
+on, off = defaultdict(float), defaultdict(float)
+for run, (dirname, on_team) in enumerate(((sys.argv[1], '0'), (sys.argv[2], '1'))):
+    for path in glob.glob(dirname + '/**/*.log', recursive=True):
+        for owner in sums(path):
+            for key in sys.argv[3:]:
+                for team, acc in (('0', on if on_team == '0' else off), ('1', on if on_team == '1' else off)):
+                    value = owner.get('by_team', {}).get(team, {}).get(key)
+                    if isinstance(value, (int, float)):
+                        acc[key] += value
+for key in sys.argv[3:]:
+    print(f'{key:32} ON {on[key]:10.1f}  OFF {off[key]:10.1f}')
+```
+
+Counts (not shares) are summed; a share is recomputed from its counts (`holders_killed_flank / holders_killed_after_2`). A counter that
+reads 0 on both sides is flagged as in 4.4.
