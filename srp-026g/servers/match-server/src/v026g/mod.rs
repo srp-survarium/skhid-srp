@@ -141,7 +141,8 @@ pub use registry::{
     static_id,
 };
 pub use replay::{replays_from_env, replays_of};
-pub use server::{run, run_on, run_on_with_replays};
+pub use bots::tuning::LoadedTuning;
+pub use server::{bot_tuning_from_env, run, run_on, run_on_with_replays};
 pub use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 /// What becomes of an input that comes after its tick is final for the
@@ -260,6 +261,8 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
+    /// `SRP_BOT_TUNING`: what every match's bots run on, parsed once when the server starts.
+    pub bot_tuning: bots::tuning::LoadedTuning,
     pub timing: Timing,
 }
 
@@ -276,6 +279,7 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
+            bot_tuning: bots::tuning::LoadedTuning::default(),
             timing: Timing::default(),
         }
     }
@@ -286,7 +290,9 @@ impl Default for Settings {
 const SNAPSHOT_DIR: &str = "logs/snapshots";
 
 impl Settings {
-    pub fn from_env() -> Self {
+    /// The environment's settings, with the bots' tuning parsed by the caller at the start
+    /// ([`bots::tuning::LoadedTuning::from_env`]).
+    pub fn from_env(bot_tuning: bots::tuning::LoadedTuning) -> Self {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
@@ -343,6 +349,7 @@ impl Settings {
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
             ),
+            bot_tuning,
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
                     parse_number(

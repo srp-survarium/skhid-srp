@@ -724,7 +724,7 @@ mod tests {
             &teams,
             &[true, false],
             &[None, None],
-            Arc::new(Tuning::default()),
+            Arc::new(Tuning::all_off()),
             Trace::none(0),
         );
         bots.map_ready(world.clone());

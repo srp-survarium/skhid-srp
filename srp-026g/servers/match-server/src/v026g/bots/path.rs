@@ -150,10 +150,10 @@ pub enum DropTruth {
     /// A waypoint a lip's height ([`mapdata::grid::LIP_DROP_M`]) or more under the one before it, reached by no jump,
     /// whatever link leads to it: a stair or a ramp whose far corner is a metre lower counts, a Drop link of 0.8-1.0 m
     /// does not.
-    #[default]
     Height,
     /// A Drop link of the planner's path ([`Route::sprint_drops`] holds every one, from the client's step height on);
     /// a route made some other way has no links to read, and keeps the waypoints of the height.
+    #[default]
     Links,
 }
 

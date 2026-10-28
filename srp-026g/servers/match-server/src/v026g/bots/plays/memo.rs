@@ -541,7 +541,7 @@ mod tests {
         s.bot(0, 0, Vec3::new(45.0, 0.0, 30.0));
         s.tactics = Tactics::new(world, 1.0);
         // It ships off; this is the switch on.
-        assert!(!crate::v026g::bots::tuning::Tuning::default().grid.floor_paths);
+        assert!(!crate::v026g::bots::tuning::Tuning::all_off().grid.floor_paths);
         s.tuning.grid.floor_paths = true;
         let battery = Vec3::new(50.0, 3.4, 30.0);
         let cx = s.cx(0);

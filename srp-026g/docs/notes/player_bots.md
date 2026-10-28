@@ -346,8 +346,9 @@ the archive's index: a loader must follow them.
      push on a reload, breaking sight and re-peeking from another angle,
      the weapon's range, spotting, a grenade at a held angle, a partner's
      trade), `motor` (smooth turns, strafing while aiming), `encode`;
-     `tuning` (every number; `SRP_BOT_TUNING` JSON read when a match is
-     made, unknown fields refused, hashed) and `trace`
+     `tuning` (every number; `SRP_BOT_TUNING`, a JSON merge patch over the defaults
+     (every option that shipped is on in them), read once when the server starts and
+     the server refuses to start on a file it cannot use; unknown fields refused, hashed) and `trace`
      (`SRP_BOT_TRACE_DIR`: a JSON line per decision with every candidate's
      considerations, and one per jump and what followed it,
      `player_bots_stuck.md` §6).

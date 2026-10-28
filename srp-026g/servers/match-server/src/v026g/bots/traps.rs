@@ -965,7 +965,7 @@ mod tests {
     use crate::v026g::bots::view::Mode;
 
     fn t() -> TrapTuning {
-        TrapTuning::default()
+        crate::v026g::bots::tuning::Tuning::all_off().traps
     }
 
     fn facts() -> Facts {
@@ -1239,7 +1239,7 @@ mod tests {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         s.bot(0, 0, Vec3::new(15.0, 0.0, 10.0));
         let me = s.view.places[0].clone();
-        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
         let due = Due {
             now: 1_000,
             view: &s.view,
@@ -1284,10 +1284,10 @@ mod tests {
 
     #[test]
     fn the_defaults_are_valid_and_the_team_counts_what_stands() {
-        crate::v026g::bots::tuning::Tuning::default()
+        crate::v026g::bots::tuning::Tuning::all_off()
             .validate()
             .unwrap();
-        let mut bad = crate::v026g::bots::tuning::Tuning::default();
+        let mut bad = crate::v026g::bots::tuning::Tuning::all_off();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
     }

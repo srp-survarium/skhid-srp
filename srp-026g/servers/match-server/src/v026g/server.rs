@@ -16,6 +16,7 @@ use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
+use super::bots::tuning::LoadedTuning;
 use super::game::Game;
 use super::record::{Desk, Recorder};
 use super::registry::{MatchEnd, MatchRegistry, MatchResult, PlayerResult, ResultsSink};
@@ -67,7 +68,7 @@ pub fn run(
 ) -> io::Result<()> {
     let config = vostok::config::get();
     let socket = UdpSocket::bind(config.match_server.bind_addr())?;
-    let settings = Settings::from_env();
+    let settings = Settings::from_env(bot_tuning_from_env()?);
     let switch = |on: bool| if on { "on" } else { "off" };
     log::info!(
         "Match server (0.26g) on {}; late inputs: {:?}, clock correction: {}, initial world \
@@ -100,12 +101,21 @@ pub fn run_on(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    run_on_with_replays(socket, registry, store, results, stop, None)
+    run_on_with_replays(socket, registry, store, results, stop, None, bot_tuning_from_env()?)
+}
+
+/// `SRP_BOT_TUNING`, parsed: a file the server cannot use is an error that says why, never the defaults. A caller that
+/// starts the server in a thread of a supervisor parses it before that ([`run_on_with_replays`]), so that the error
+/// stops the program at its start.
+pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
+    LoadedTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share.
+/// for the process, which its lobby and web page share. `bot_tuning` is what every
+/// match's bots run on ([`bot_tuning_from_env`]): parsed once by the caller, so that
+/// a restart of this server does not read the file again.
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
@@ -113,8 +123,9 @@ pub fn run_on_with_replays(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
     replays: Option<Arc<Replays>>,
+    bot_tuning: LoadedTuning,
 ) -> io::Result<()> {
-    let mut settings = Settings::from_env();
+    let mut settings = Settings::from_env(bot_tuning);
     if let Some(record) = settings.record.as_mut() {
         record.replays = replays.map(Desk);
     }

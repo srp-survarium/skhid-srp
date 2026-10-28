@@ -119,7 +119,8 @@ impl Scenario {
             next_battery: None,
             grenades: Vec::new(),
         };
-        let mut tuning = Tuning::default();
+        // The bots as they were, an option on where a test says so (the owner's set is the defaults).
+        let mut tuning = Tuning::all_off();
         tuning.cheats.batteries = true;
         let mut s = Self {
             view,

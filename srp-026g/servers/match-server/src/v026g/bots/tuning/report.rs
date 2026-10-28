@@ -1,6 +1,10 @@
 //! What a tuning has switched on and off, for the logs of the server and of the bench.
 //!
-//! The report is built from the tuning serialised to JSON and the defaults serialised the same way, so a field added to
+//! The report is against [`Tuning::all_off`], the tuning before the owner's set of options went into the defaults,
+//! so the lines read as they did when that set was a file: a server on the defaults says the whole set is ON and
+//! lists the numbers it changes, a bench arm on the all-off patch says `none`.
+//!
+//! The report is built from the tuning serialised to JSON and the reference serialised the same way, so a field added to
 //! any section shows in the logs with no list to keep: every boolean is ON or OFF; every `Option` is off (none) or set
 //! (its value is shown); every enum written as text (or as an object where the default is text) shows its value (the
 //! plays' ranks and the modifiers' inputs, which are not switches, only when changed); every
@@ -33,10 +37,10 @@ pub struct SwitchReport {
 }
 
 impl Tuning {
-    /// The state of every switch of this tuning, against the defaults.
+    /// The state of every switch of this tuning, against the tuning with the owner's options off ([`Tuning::all_off`]).
     pub fn switch_report(&self) -> SwitchReport {
         let value = serde_json::to_value(self).expect("a tuning is JSON");
-        let default = serde_json::to_value(Tuning::default()).expect("a tuning is JSON");
+        let default = serde_json::to_value(Tuning::all_off()).expect("a tuning is JSON");
         let mut report = SwitchReport::default();
         walk(&mut Vec::new(), Some(&value), Some(&default), &mut report);
         report
@@ -167,8 +171,8 @@ fn walk(path: &mut Vec<String>, value: Option<&Value>, default: Option<&Value>, 
 mod tests {
     use super::*;
 
-    /// Every boolean of the default tuning (found in its JSON, so a field added later is covered) is in the report,
-    /// ON or OFF; an `Option` is OFF while none; nothing is ON that the defaults do not have on.
+    /// Every boolean of the reference tuning (found in its JSON, so a field added later is covered) is in the report,
+    /// ON or OFF; an `Option` is OFF while none; nothing is ON that the tuning does not have on.
     #[test]
     fn the_report_lists_every_boolean_of_the_default_tuning() {
         fn bools(path: &mut Vec<String>, v: &Value, out: &mut Vec<(String, bool)>) {
@@ -184,11 +188,11 @@ mod tests {
                 _ => {}
             }
         }
-        let default = serde_json::to_value(Tuning::default()).unwrap();
+        let default = serde_json::to_value(Tuning::all_off()).unwrap();
         let mut all = Vec::new();
         bools(&mut Vec::new(), &default, &mut all);
         assert!(all.len() > 40, "the tuning has dozens of switches: {}", all.len());
-        let report = Tuning::default().switch_report();
+        let report = Tuning::all_off().switch_report();
         let name = |(section, text): &(String, String)| format!("{section}.{text}");
         let on: Vec<String> = report.on.iter().map(name).collect();
         let off: Vec<String> = report.off.iter().map(name).collect();
@@ -198,21 +202,32 @@ mod tests {
             assert!(!other.contains(&path), "{path} is on both sides");
         }
         assert!(off.contains(&"unstick.suicide_after_ms".to_owned()), "an option that is none is OFF");
-        assert!(report.changed.is_empty(), "the defaults change nothing: {:?}", report.changed);
+        assert!(report.changed.is_empty(), "the reference changes nothing: {:?}", report.changed);
+        // The defaults have the owner's set on: it is in the report as ON, with the options that are set shown.
+        let report = Tuning::default().switch_report();
+        let on: Vec<String> = report.on.iter().map(name).collect();
+        assert!(on.contains(&"unstick.suicide_after_ms=60000".to_owned()), "{on:?}");
+        assert!(on.contains(&"heal.on".to_owned()) && on.contains(&"grid.gap_links".to_owned()), "{on:?}");
+        assert!(!report.changed.is_empty());
     }
 
     /// A switch turned on moves from OFF to ON, an option that is set shows its value, an enum shows its value and a
     /// number that is not the default's shows with the default.
     #[test]
     fn a_changed_tuning_shows_what_changed() {
-        let tuning = Tuning::from_value(serde_json::json!({
-            "heal": {"on": true},
-            "unstick": {"suicide_after_ms": 60000},
-            "feel": {"lip_guard_ticks": 2},
-            "hazard": {"zone_pools": "routed"},
-            "sense": {"shots": {"by_weapon": {"unknown_m": 150.0}}},
-        }))
+        let mut value = serde_json::to_value(Tuning::all_off()).unwrap();
+        Tuning::apply_patch(
+            &mut value,
+            serde_json::json!({
+                "heal": {"on": true},
+                "unstick": {"suicide_after_ms": 60000},
+                "feel": {"lip_guard_ticks": 2},
+                "hazard": {"zone_pools": "routed"},
+                "sense": {"shots": {"by_weapon": {"unknown_m": 150.0}}},
+            }),
+        )
         .unwrap();
+        let tuning = Tuning::from_value(value).unwrap();
         let report = tuning.switch_report();
         let lines = report.lines();
         assert!(lines[0].contains("heal[interrupt on"), "{}", lines[0]);
@@ -223,8 +238,8 @@ mod tests {
         assert!(lines[3].contains("feel[lip_guard_ticks=2 (default 0)]"), "{}", lines[3]);
     }
 
-    /// The default tuning's four lines, as the logs carry them: a change of a default, or a new switch, changes this
-    /// text on purpose. `SRP_WRITE_GOLDEN=1` prints the new text instead of comparing.
+    /// The default tuning's four lines, as the logs carry them (against the tuning with the owner's options off): a
+    /// change of a default, or a new switch, changes this text on purpose. `SRP_WRITE_GOLDEN=1` prints the new text instead of comparing.
     #[test]
     fn the_default_tuning_report_is_what_it_was() {
         let text = format!("{}\n", Tuning::default().switch_report());

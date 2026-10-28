@@ -370,11 +370,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     }
     let patch = var("TUNING").ok().filter(|text| !text.trim().is_empty());
     if let Some(text) = &patch {
-        let mut patch: serde_json::Value = serde_json::from_str(text)
+        let patch: serde_json::Value = serde_json::from_str(text)
             .unwrap_or_else(|cause| panic!("{prefix}TUNING is not JSON: {cause}"));
-        // The keys of a field that moved into a section still work in a patch.
-        Tuning::upgrade_keys(&mut patch).unwrap_or_else(|cause| panic!("{prefix}TUNING: {cause}"));
-        merge_patch(&mut tuning, patch);
+        // The patch of the `SRP_BOT_TUNING` file ([`Tuning::apply_patch`]): the old keys of a moved field still work.
+        Tuning::apply_patch(&mut tuning, patch).unwrap_or_else(|cause| panic!("{prefix}TUNING: {cause}"));
     }
     let tuning: Tuning = serde_json::from_value(tuning)
         .unwrap_or_else(|cause| panic!("the bench's tuning: {cause}"));
@@ -396,26 +395,6 @@ fn set(tuning: &mut serde_json::Value, path: &str, value: serde_json::Value) {
         .and_then(serde_json::Value::as_object_mut)
         .unwrap_or_else(|| panic!("the bench's tuning has no {parent}"))
         .insert(name.to_owned(), value);
-}
-
-/// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything
-/// else replaces what is there.
-pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Value) {
-    let serde_json::Value::Object(patch) = patch else {
-        *target = patch;
-        return;
-    };
-    if !target.is_object() {
-        *target = serde_json::Value::Object(serde_json::Map::new());
-    }
-    let target = target.as_object_mut().expect("made an object above");
-    for (key, value) in patch {
-        if value.is_null() {
-            target.remove(&key);
-        } else {
-            merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
-        }
-    }
 }
 
 /// [`Bots::poll`] with each part timed; the same steps in the same order.
@@ -2206,31 +2185,29 @@ mod tuning_tests {
         BenchSettings::from_pairs(pairs)
     }
 
-    /// The sight refresh is off with no setting, and `SRP_BENCH_SIGHT_REFRESH` turns all of it on and nothing
-    /// else: the switch and the hold of 450 ms to the next think; `SRP_BENCH_SIGHT_HOLD` then picks the hold.
+    /// The sight refresh is on with no setting (the defaults), `SRP_BENCH_SIGHT_REFRESH` on is the same, and the
+    /// patch is what turns it off; `SRP_BENCH_SIGHT_HOLD` picks the hold.
     #[test]
-    fn the_sight_refresh_setting_turns_all_of_it_on_and_nothing_else() {
-        let off = tuning_from(&settings(&[]), false);
-        assert!(!off.sense.sight_refresh);
-        assert_eq!(off.cheats.sight_hold_ms, 0);
-        assert_eq!(off, Tuning::default());
+    fn the_sight_refresh_setting_is_the_default_and_the_patch_turns_it_off() {
+        let on = tuning_from(&settings(&[]), false);
+        assert!(on.sense.sight_refresh);
         let hold = super::super::know::SIGHT_HOLD_MS;
-        let mut on = Tuning::default();
-        on.sense.sight_refresh = true;
-        on.cheats.sight_hold_ms = hold;
-        for value in ["1", "on"] {
+        assert_eq!(on.cheats.sight_hold_ms, hold);
+        assert_eq!(on, Tuning::default());
+        for value in ["1", "on", "0"] {
             assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", value)]), false), on);
         }
-        assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "0")]), false), off);
+        let mut off = Tuning::default();
+        off.sense.sight_refresh = false;
+        off.cheats.sight_hold_ms = 0;
+        let patched = settings(&[("SRP_BENCH_TUNING", r#"{"sense":{"sight_refresh":false},"cheats":{"sight_hold_ms":0}}"#)]);
+        assert_eq!(tuning_from(&patched, false), off);
         let with_hold = |hold: &str| {
             tuning_from(&settings(&[("SRP_BENCH_SIGHT_REFRESH", "1"), ("SRP_BENCH_SIGHT_HOLD", hold)]), false).cheats
         };
         assert_eq!((with_hold("250").sight_hold_ms, with_hold("250").sight_hold_to_next_think), (250, false));
         assert_eq!((with_hold("think").sight_hold_ms, with_hold("think").sight_hold_to_next_think), (hold, true));
         assert_eq!(with_hold("0").sight_hold_ms, 0);
-        // The patch can name the same switches.
-        let patched = settings(&[("SRP_BENCH_TUNING", r#"{"sense":{"sight_refresh":true},"cheats":{"sight_hold_ms":450}}"#)]);
-        assert_eq!(tuning_from(&patched, false), on);
     }
 
     /// Every older switch gives the tuning it gave, for team 0 and for team 1.
@@ -2339,33 +2316,6 @@ mod tuning_tests {
         // An older switch with a name the tuning lacks is refused too.
         let refused = std::panic::catch_unwind(|| tuning_from(&settings(&[("SRP_BENCH_SENSE", "no_such=1")]), false));
         assert!(refused.is_err());
-    }
-
-    /// RFC 7386's examples of the merge.
-    #[test]
-    fn the_merge_is_rfc_7386() {
-        let cases = [
-            (r#"{"a":"b"}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
-            (r#"{"a":"b"}"#, r#"{"b":"c"}"#, r#"{"a":"b","b":"c"}"#),
-            (r#"{"a":"b"}"#, r#"{"a":null}"#, "{}"),
-            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"b":"c"}"#),
-            (r#"{"a":["b"]}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
-            (r#"{"a":"c"}"#, r#"{"a":["b"]}"#, r#"{"a":["b"]}"#),
-            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d"}}"#),
-            (r#"{"a":[{"b":"c"}]}"#, r#"{"a":[1]}"#, r#"{"a":[1]}"#),
-            (r#"["a","b"]"#, r#"["c","d"]"#, r#"["c","d"]"#),
-            (r#"{"a":"b"}"#, r#"["c"]"#, r#"["c"]"#),
-            (r#"{"a":"foo"}"#, "null", "null"),
-            (r#"{"a":"foo"}"#, r#""bar""#, r#""bar""#),
-            (r#"{"e":null}"#, r#"{"a":1}"#, r#"{"e":null,"a":1}"#),
-            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b"}"#),
-            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{}}}"#),
-        ];
-        for (target, patch, want) in cases {
-            let mut value: serde_json::Value = serde_json::from_str(target).unwrap();
-            merge_patch(&mut value, serde_json::from_str(patch).unwrap());
-            assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
-        }
     }
 }
 

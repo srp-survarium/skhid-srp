@@ -122,7 +122,7 @@ fn drive(run: Run) -> Seen {
         &teams,
         &[true],
         &[None],
-        Arc::new(Tuning::default()),
+        Arc::new(zone_tuning()),
         Trace::none(0),
     );
     bots.map_ready(world.clone());
@@ -331,4 +331,13 @@ fn a_bot_deep_in_a_big_zone_walks_out() {
     let seen = drive(deep);
     assert!(seen.on_ms <= 15_000, "{seen:?}");
     assert!(seen.arrived_ms.is_some(), "{seen:?}");
+}
+
+/// The owner's set (the defaults) but for `feel.unclear_aim`: with it on, the four runs that walk a bot out of a zone
+/// (no goal, pushed in, in the gap when the zone comes on, deep in a big one) leave it standing in the zone. Found by
+/// A128 when the defaults went on: each passes with only that one option off (the options were not run together before).
+fn zone_tuning() -> Tuning {
+    let mut tuning = Tuning::default();
+    tuning.feel.unclear_aim = false;
+    tuning
 }

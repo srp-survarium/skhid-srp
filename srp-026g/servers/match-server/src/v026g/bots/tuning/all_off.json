@@ -1,0 +1,110 @@
+{
+  "aim": {
+    "combat": {
+      "fire": {
+        "weapon_class_by_data": false
+      },
+      "grenade_claim": false,
+      "grenade_push_tracks": true,
+      "grenade_repick": false,
+      "grenade_search": false,
+      "grenade_tracks": false
+    }
+  },
+  "avoid": {
+    "grenade_avoid": false
+  },
+  "cheats": {
+    "sight_hold_ms": 0
+  },
+  "commit": {
+    "crossfire_point": false,
+    "cut_given_crowd": false,
+    "hold_to_arrival": false
+  },
+  "feel": {
+    "band_jump_gate": false,
+    "carrier_jump_m": null,
+    "drop_aim": false,
+    "drop_truth": "height",
+    "drop_walk": false,
+    "landing_cancel_deg": 0.0,
+    "landing_cancel_drops": false,
+    "lip_guard_ticks": 0,
+    "lip_look_ahead_m": 0.0,
+    "sprint_gaps": false,
+    "unclear_aim": false
+  },
+  "grid": {
+    "client_numbers": false,
+    "exact_erosion": false,
+    "floor_paths": false,
+    "gap_links": false,
+    "honest_drops": false
+  },
+  "hazard": {
+    "artefact_know": false,
+    "live_zones": false,
+    "route_crossing": false,
+    "zone_pools": "raw"
+  },
+  "heal": {
+    "bandages": false,
+    "on": false
+  },
+  "kin": {
+    "jump_snap": "any"
+  },
+  "sense": {
+    "bush_notice": 0.0,
+    "grass_notice": 0.0,
+    "ranges": "flat",
+    "shots": "flat",
+    "sight_refresh": false,
+    "sprint_body_mps": null,
+    "use_ray_m": 2.0
+  },
+  "think": {
+    "fall_lock": false,
+    "rest_off_lip": false,
+    "shut_in_gate": false,
+    "stamina": false,
+    "stranded_start": false
+  },
+  "traps": {
+    "cap_team": 4,
+    "chance": 0.35,
+    "enemy_near_m": 50.0,
+    "enemy_quiet_s": 4.0,
+    "min_score": 0.2,
+    "per_life": 1,
+    "react": {
+      "defuse": false,
+      "hear": false,
+      "jump": false,
+      "on": false,
+      "pass": false,
+      "shot": false
+    }
+  },
+  "unstick": {
+    "blind_stop_ms": null,
+    "progress_ms": null,
+    "suicide_after_ms": null,
+    "unknown_meant_needs_keys": false
+  },
+  "plays": {
+    "roam": {
+      "numbers": {
+        "fresh_claims": 0,
+        "join_ahead": 0,
+        "leader_eases": 0
+      }
+    },
+    "buddy": {
+      "numbers": {
+        "respawn_rule": 0
+      }
+    }
+  }
+}

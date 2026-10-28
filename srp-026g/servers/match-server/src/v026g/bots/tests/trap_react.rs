@@ -9,7 +9,7 @@ use survarium::v026g::match_msgs::traps::{PlacedTrap, TrapState};
 fn t() -> ReactTuning {
     ReactTuning {
         on: true,
-        ..ReactTuning::default()
+        ..Tuning::all_off().traps.react
     }
 }
 
@@ -49,7 +49,7 @@ pub(crate) fn the_chance_is_p0_near_falls_to_nothing_far_and_shrinks_in_a_fight(
     assert_eq!(chance(t.far_m + 5.0, false, &t), 0.0);
     assert!((chance(1.0, true, &t) - t.p0 / t.fight_div).abs() < 1e-6);
     // Defaults: off, and the numbers are the guesses of the design.
-    let d = ReactTuning::default();
+    let d = Tuning::all_off().traps.react;
     assert!(!d.on);
     assert_eq!((d.p0, d.near_m, d.far_m, d.roll_s), (0.05, 3.0, 8.0, 20.0));
 }
@@ -219,10 +219,10 @@ pub(crate) fn only_armed_traps_are_the_worlds_to_roll_for() {
 pub(crate) fn off_nothing_is_rolled_and_on_a_bot_near_a_trap_rolls() {
     use super::traps::run_with;
     let trap_at = Vec3::new(18.0, 0.0, 12.0);
-    let (_, off) = run_with(None, Tuning::default(), 12, Some(trap_at));
+    let (_, off) = run_with(None, Tuning::all_off(), 12, Some(trap_at));
     assert_eq!(off.react_counts(), Default::default());
 
-    let mut on = Tuning::default();
+    let mut on = Tuning::all_off();
     on.traps.react.on = true;
     on.traps.react.p0 = 1.0;
     on.traps.react.cone_deg = 360.0;
@@ -243,7 +243,7 @@ pub(crate) fn a_tuning_patch_turns_it_on_and_bad_ones_are_refused() {
     assert_eq!(on.traps.react.p0, 0.1);
     assert_eq!(on.traps.react.far_m, 8.0);
     assert!(serde_json::from_str::<Tuning>(r#"{"traps":{"react":{"shoot":true}}}"#).is_err());
-    let mut bad = Tuning::default();
+    let mut bad = Tuning::all_off();
     bad.traps.react.far_m = bad.traps.react.near_m;
     assert!(bad.validate().is_err());
 }
@@ -258,7 +258,7 @@ fn shoot_t() -> ReactTuning {
     ReactTuning {
         on: true,
         shot: true,
-        ..ReactTuning::default()
+        ..Tuning::all_off().traps.react
     }
 }
 
@@ -497,7 +497,7 @@ pub(crate) fn the_view_error_is_the_angle_to_the_point() {
 pub(crate) fn a_noticed_trap_is_shot_a_few_times_and_given_up() {
     use super::traps::run_with;
     let trap_at = Vec3::new(18.0, 0.0, 12.0);
-    let mut on = Tuning::default();
+    let mut on = Tuning::all_off();
     on.traps.react.on = true;
     on.traps.react.p0 = 1.0;
     on.traps.react.cone_deg = 360.0;
@@ -534,7 +534,7 @@ fn on_the_route(ahead: f32) -> impl FnMut(&Bots) -> Option<Vec3> {
 }
 
 fn noticing() -> Tuning {
-    let mut on = Tuning::default();
+    let mut on = Tuning::all_off();
     on.traps.react.on = true;
     on.traps.react.p0 = 1.0;
     on.traps.react.cone_deg = 360.0;
@@ -641,7 +641,7 @@ pub(crate) fn a_noticed_trap_that_goes_off_at_the_pass_is_counted_as_caught() {
 pub(crate) fn a_trap_that_goes_off_under_a_body_is_given_to_the_ears() {
     use super::traps::{objects_with, run_with};
     use crate::v026g::bots::view::SoundKind;
-    let mut hear = Tuning::default();
+    let mut hear = Tuning::all_off();
     hear.traps.react.hear = true;
     let (_, mut bots) = run_with(None, hear, 5, None);
     bots.entered(1, true, 0);
@@ -682,7 +682,7 @@ pub(crate) fn a_trap_that_goes_off_under_a_body_is_given_to_the_ears() {
     bots.traps_from_world(&objects_with(empty, 2, 3_000), 12_000);
     assert_eq!(bots.snaps_heard(), 1);
     // Off: armed then fired makes none.
-    let (_, mut off) = run_with(None, Tuning::default(), 5, None);
+    let (_, mut off) = run_with(None, Tuning::all_off(), 5, None);
     off.traps_from_world(&objects_with(under, 1, 1_000), 6_000);
     off.traps_from_world(&objects_with(under, 2, 1_000), 7_000);
     assert_eq!(off.snaps_heard(), 0);

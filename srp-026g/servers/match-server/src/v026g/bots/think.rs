@@ -916,7 +916,7 @@ mod phase_tests {
     /// none known falls back to the role's.
     #[test]
     fn an_smg_rusher_is_an_smg_whatever_its_role_is_called() {
-        let tuning = Tuning::default();
+        let tuning = Tuning::all_off();
         let rusher = Bot::new(1, 3, 0, Some("rusher"), &tuning);
         assert_eq!(tuning.personalities[rusher.personality].name, "rusher");
         let mut weapons = vec![None; 4];

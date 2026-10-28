@@ -109,8 +109,9 @@ fn main() {
         Ok(stack) => stack,
         Err(error) => {
             log::error!(
-                "srp: cannot start the 0.26g servers: {error} (is another srp running, or a \
-                 port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / SRP_MATCH_PORT taken?)"
+                "srp: cannot start the 0.26g servers: {error} (if it is not about SRP_BOT_TUNING: \
+                 is another srp running, or a port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / \
+                 SRP_MATCH_PORT taken?)"
             );
             std::process::exit(1);
         }

@@ -10,7 +10,7 @@ use crate::v026g::bots::routes::HumanRoute;
 /// Six bots of team 0 (three pairs: the leaders draw routes, the followers follow) and one of team 1 on the field with two routes for side 0.
 fn bots_on(fresh: bool, seed: u32) -> (Bots, Game, Arc<World>) {
     let world = soak_world();
-    let mut tuning = Tuning::default();
+    let mut tuning = Tuning::all_off();
     // The field's exits make the hold plays the best picks: Roam is put first so the picks are route draws.
     let roam = tuning.plays.entry(PlayKind::Roam).or_insert_with(|| default_tuning(PlayKind::Roam));
     roam.rank = Rank::Alarm;

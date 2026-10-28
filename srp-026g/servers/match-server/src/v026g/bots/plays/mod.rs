@@ -1229,6 +1229,17 @@ pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -
     }
 }
 
+/// The numbers a play's default tuning names, each at its [`numbers`] value: the switches that ship on. A number a
+/// tuning does not name is read at that value too ([`Tuning::number`]); naming it makes the default tuning's JSON, and so
+/// its hash, the same as that of a file that switches it on.
+fn named(kind: PlayKind, names: &[&str]) -> std::collections::BTreeMap<String, f32> {
+    numbers(kind)
+        .iter()
+        .filter(|(known, _)| names.contains(known))
+        .map(|&(name, value)| (name.to_owned(), value))
+        .collect()
+}
+
 /// A play's default tuning.
 pub fn default_tuning(kind: PlayKind) -> PlayTuning {
     match kind {

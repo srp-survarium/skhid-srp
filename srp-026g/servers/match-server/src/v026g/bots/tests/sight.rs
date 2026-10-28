@@ -2,7 +2,7 @@ use super::*;
 
 /// The tuning with the whole sight refresh on (what `SRP_BENCH_SIGHT_REFRESH=1` makes): it is off by default.
 pub(crate) fn refreshed_tuning() -> Tuning {
-    let mut tuning = Tuning::default();
+    let mut tuning = Tuning::all_off();
     tuning.sense.sight_refresh = true;
     tuning.cheats.sight_hold_ms = crate::v026g::bots::know::SIGHT_HOLD_MS;
     tuning
@@ -16,12 +16,12 @@ pub(crate) fn refreshed_tuning() -> Tuning {
 pub(crate) fn a_budget_that_does_not_bind_changes_no_decision() {
     for refresh in [false, true] {
         let run = |rays_per_poll: u32| {
-            let mut tuning = if refresh { refreshed_tuning() } else { Tuning::default() };
+            let mut tuning = if refresh { refreshed_tuning() } else { Tuning::all_off() };
             tuning.think.rays_per_poll = rays_per_poll;
             let out = soak_tuned(4, 3, 0, None, 60, 4, tuning);
             (out.kills, out.shots, out.hits, out.walled, out.hidden)
         };
-        let usual = run(Tuning::default().think.rays_per_poll);
+        let usual = run(Tuning::all_off().think.rays_per_poll);
         assert_eq!(usual, run(4_000), "refresh {refresh}: {usual:?}");
         // A budget with nothing in it does bind (the batteries are not looked
         // at, and without the refresh nor are the enemies), and it is felt.
@@ -29,18 +29,18 @@ pub(crate) fn a_budget_that_does_not_bind_changes_no_decision() {
     }
 }
 
-/// The switch is a switch: off is the default and is not the refresh (the bots decide otherwise with it on),
+/// The switch is a switch: off is the old bots (not the default now) and is not the refresh (the bots decide otherwise with it on),
 /// and each state is the same match twice.
 #[test]
-pub(crate) fn the_sight_refresh_is_off_by_default_and_changes_the_soak_when_on() {
-    assert!(!Tuning::default().sense.sight_refresh);
-    assert_eq!(Tuning::default().cheats.sight_hold_ms, 0);
+pub(crate) fn the_sight_refresh_off_is_the_old_bots_and_changes_the_soak_when_on() {
+    assert!(!Tuning::all_off().sense.sight_refresh);
+    assert_eq!(Tuning::all_off().cheats.sight_hold_ms, 0);
     let run = |tuning: Tuning| {
         let out = soak_tuned(4, 3, 0, None, 60, 4, tuning);
         (out.kills, out.shots, out.hits, out.walled, out.hidden)
     };
-    let off = run(Tuning::default());
-    assert_eq!(off, run(Tuning::default()));
+    let off = run(Tuning::all_off());
+    assert_eq!(off, run(Tuning::all_off()));
     let on = run(refreshed_tuning());
     assert_eq!(on, run(refreshed_tuning()));
     assert_ne!(off, on, "{off:?}");
@@ -77,7 +77,7 @@ pub(crate) fn the_thinks_due_are_counted_from_the_bots_that_have_entered_and_are
         &teams,
         &[true; 4],
         &[None; 4],
-        Arc::new(Tuning::default()),
+        Arc::new(Tuning::all_off()),
         Trace::none(0),
     );
     let mut view = bots.tracker.view(

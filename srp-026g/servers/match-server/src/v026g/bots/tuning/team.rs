@@ -95,9 +95,9 @@ pub struct CommitTuning {
 impl Default for CommitTuning {
     fn default() -> Self {
         Self {
-            hold_to_arrival: false,
-            cut_given_crowd: false,
-            crossfire_point: false,
+            hold_to_arrival: true,
+            cut_given_crowd: true,
+            crossfire_point: true,
             crossfire_point_s: 30.0,
         }
     }
@@ -181,7 +181,7 @@ pub struct AvoidTuning {
 impl Default for AvoidTuning {
     fn default() -> Self {
         Self {
-            grenade_avoid: false,
+            grenade_avoid: true,
             told_ms: (200, 400),
             notice_ms: (400, 900),
             see_m: 30.0,
@@ -212,27 +212,24 @@ pub struct ThinkTuning {
     pub trace_every_ms: u32,
     /// A bot that gave up the tries to leave its pocket (`escape::Trapped::gave_up`)
     /// asks no search and takes no goal outside the pocket (`Ctx::reachable`,
-    /// `drive`): it is the escape's, and `stuck::SelfKill`'s at the end. Off (the default
-    /// until a train turns it on): it asks again for every goal the plays give it, every
+    /// `drive`): it is the escape's, and `stuck::SelfKill`'s at the end. Off: it asks again for every goal the plays give it, every
     /// 0.5 s, as it did.
     pub shut_in_gate: bool,
     /// A rest point (the goal of a walk) on a lip or near one is moved inward to the nearest floor off the edge
     /// ([`super::super::path::off_lip`]): the owner's rule, a body at rest keeps its centre on the floor (the sniper that
-    /// stood with its feet half over a drop). Off (the default until a train turns it on): the goal as the play gave it.
+    /// stood with its feet half over a drop). Off: the goal as the play gave it.
     pub rest_off_lip: bool,
     /// A body that stands on no floor of the grid (on the top of an object, 2.5 m or more above the
     /// floors) plans from the nearest floor it drops to, up to 5 m below ([`super::super::path::stranded_floor`]):
-    /// the first leg of its route is the drop off the edge. Off (the default until a train turns it on): it has
+    /// the first leg of its route is the drop off the edge. Off: it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
     /// The bot's reckoned stamina bar (`stamina::Reckoning`) steers its legs: it lets go of the sprint at an empty bar
     /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
-    /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off (the
-    /// default until the phase-end smoke turns it on): the sprint and the jumps as before; the reckoning is counted.
+    /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off: the sprint and the jumps as before; the reckoning is counted.
     pub stamina: bool,
     /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
-    /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off (the default until a train turns
-    /// it on): the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
+    /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off: the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
     pub fall_lock: bool,
 }
 
@@ -244,11 +241,11 @@ impl Default for ThinkTuning {
             rays_per_poll: 400,
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
             trace_every_ms: 5_000,
-            shut_in_gate: false,
-            rest_off_lip: false,
-            stranded_start: false,
-            stamina: false,
-            fall_lock: false,
+            shut_in_gate: true,
+            rest_off_lip: true,
+            stranded_start: true,
+            stamina: true,
+            fall_lock: true,
         }
     }
 }

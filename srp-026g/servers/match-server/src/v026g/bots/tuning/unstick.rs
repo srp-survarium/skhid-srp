@@ -11,8 +11,7 @@ pub const SUICIDE_AFTER_OWNER_MS: u32 = 60_000;
 pub struct UnstickTuning {
     /// A bot with nothing left to try (every exit of its pocket tried, or the
     /// ladder at its last step three times at one spot) kills itself this
-    /// long after the run began, ms; none: never (the default until a train
-    /// turns it on). Owner: 60 s ([`SUICIDE_AFTER_OWNER_MS`]).
+    /// long after the run began, ms; none: never. The default is the owner's 60 s ([`SUICIDE_AFTER_OWNER_MS`]).
     pub suicide_after_ms: Option<u32>,
     /// … only with no enemy sensed and no hit taken for this long, ms: a bot in
     /// a fight is left to the enemy, whose kill it is.
@@ -37,7 +36,7 @@ pub struct UnstickTuning {
     /// A world the bot has no reckoning of (`BodyTrack::last_meant` none: it
     /// came newer than every tick the bot decided, as in a burst) says how far
     /// the bot's keys meant to move it only by the keys that world shows: a
-    /// walk key held means a walk, none means the bot stood. Off (the default),
+    /// walk key held means a walk, none means the bot stood. Off,
     /// an unknown way is a walk, and a body at rest is flagged stuck
     /// (`stuck::Stuck::walking`; School 12a83438 2:38.2: four resting bots at
     /// once).
@@ -45,7 +44,7 @@ pub struct UnstickTuning {
     /// A body that held walk keys this long, ms, without getting [`PROGRESS_M`](super::super::stuck::PROGRESS_M) further along
     /// its route is not getting there (it goes round a post it cannot pass: J0 0cec7eab, the notch of the team 0 deck, 95 s):
     /// the leg it fails on is kept clear of for the spot's time and the route is planned again. None: the watch is off (the
-    /// default; the held-keys watch only sees a body that stays within half a metre).
+    /// held-keys watch only sees a body that stays within half a metre).
     pub progress_ms: Option<u32>,
     /// A world this long after the one before it, ms, ends the stuck check (the watch starts again at the next
     /// world, no note, no recovery, no spot for the team): the bot was not shown the body for that long, so a body
@@ -54,14 +53,14 @@ pub struct UnstickTuning {
     pub fix_gap_ms: Option<u32>,
     /// A bot whose last world is this old, ms, stands still (no walk key, no sprint) until another world comes: its
     /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
-    /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on (the default).
+    /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on.
     pub blind_stop_ms: Option<u32>,
 }
 
 impl Default for UnstickTuning {
     fn default() -> Self {
         Self {
-            suicide_after_ms: None,
+            suicide_after_ms: Some(SUICIDE_AFTER_OWNER_MS),
             suicide_quiet_ms: 15_000,
             suicide_life_ms: 20_000,
             suicide_match_ms: 120_000,
@@ -70,10 +69,10 @@ impl Default for UnstickTuning {
             suicide_min_tickets: 5,
             suicide_wait_ms: 4_000,
             suicide_ticks: 3,
-            unknown_meant_needs_keys: false,
-            progress_ms: None,
+            unknown_meant_needs_keys: true,
+            progress_ms: Some(6_000),
             fix_gap_ms: None,
-            blind_stop_ms: None,
+            blind_stop_ms: Some(4_500),
         }
     }
 }
@@ -95,12 +94,13 @@ impl Check for UnstickTuning {
 mod tests {
     use super::*;
 
-    /// Off is no number at all: absent or `null` is none, a number is on, and a patch turns it on or off.
+    /// Off is no number at all: `null` is none, a number is on (the defaults have the owner's 60 s), and a patch
+    /// turns it on or off.
     #[test]
     fn the_self_kill_is_off_with_no_number_and_on_with_one() {
         let parse = |json: &str| serde_json::from_str::<Tuning>(json).unwrap().unstick.suicide_after_ms;
-        assert_eq!(Tuning::default().unstick.suicide_after_ms, None);
-        assert_eq!(parse("{}"), None);
+        assert_eq!(Tuning::default().unstick.suicide_after_ms, Some(SUICIDE_AFTER_OWNER_MS));
+        assert_eq!(parse("{}"), Some(SUICIDE_AFTER_OWNER_MS));
         assert_eq!(parse(r#"{"unstick":{"suicide_after_ms":null}}"#), None);
         assert_eq!(parse(r#"{"unstick":{"suicide_after_ms":60000}}"#), Some(SUICIDE_AFTER_OWNER_MS));
         // Under the quiet time it would act in a fight: refused.

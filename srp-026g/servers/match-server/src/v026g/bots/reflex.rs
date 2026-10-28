@@ -893,7 +893,7 @@ pub struct FireTuning {
     /// side-step).
     pub strafe_bolt: f32,
     pub strafe_marksman: f32,
-    /// **Switch (default off).** Which class a weapon is, for everything that
+    /// **Switch (default on).** Which class a weapon is, for everything that
     /// goes by class: the range floor, the bursts' table, the crouch and
     /// side-step shares, the distance band against another weapon. Off: the
     /// dictionary category's, and a server bot's kind by its role. On: the
@@ -941,7 +941,7 @@ impl Default for FireTuning {
             crouch_other: 0.15,
             strafe_bolt: 0.5,
             strafe_marksman: 0.5,
-            weapon_class_by_data: false,
+            weapon_class_by_data: true,
         }
     }
 }
@@ -1091,19 +1091,19 @@ impl Default for CombatTuning {
             grenade_off_m: 8.0,
             grenade_lane_m: 2.0,
             grenade_places: 3,
-            grenade_tracks: false,
+            grenade_tracks: true,
             grenade_track_ms: 4_000,
             grenade_track_gap_ms: 500,
             grenade_track_error_m: 8.0,
             grenade_track_chance: 0.08,
-            grenade_search: false,
+            grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
-            grenade_claim: false,
+            grenade_claim: true,
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
-            grenade_repick: false,
-            grenade_push_tracks: true,
+            grenade_repick: true,
+            grenade_push_tracks: false,
             grenade_volley: false,
             grenade_volley_chance: 0.2,
             grenade_volley_ms: (1_600, 6_000),
@@ -5366,6 +5366,11 @@ mod tests {
     use crate::v026g::bots::know::{DangerSpot, Percept};
     use crate::v026g::bots::view::{Mode, Sound};
 
+    /// The combat tuning with the owner's options off (the bots as they were): what a test of an option's effect starts from.
+    fn combat_off() -> CombatTuning {
+        crate::v026g::bots::tuning::Tuning::all_off().aim.combat
+    }
+
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
         PlaceView {
             place,
@@ -5620,11 +5625,11 @@ mod tests {
     /// ceiling.
     #[test]
     fn the_fire_range_follows_the_weapon_in_hand() {
-        let on = CombatTuning::default();
+        let on = combat_off();
         assert!(on.range_by_weapon);
         let off = CombatTuning {
             range_by_weapon: false,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let gun = |item| guns::gun(item).unwrap();
         for (item, class, range) in CLASS_RANGES {
@@ -5699,10 +5704,10 @@ mod tests {
     /// the flag off keeps the 80 m (the bolt's 120 m) ceiling.
     #[test]
     fn each_class_stops_firing_at_its_range() {
-        let on = CombatTuning::default();
+        let on = combat_off();
         let off = CombatTuning {
             range_by_weapon: false,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         for (item, class, range) in CLASS_RANGES {
             let inside = fire_at_range(item, range - 3.0, None, on.clone(), 100);
@@ -7333,7 +7338,7 @@ mod tests {
         let memory = Memory::default();
         let near = CombatTuning {
             grenade_near_m: 6.0,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let retreat = Retreat {
             margin_m: 0.5,
@@ -7357,7 +7362,7 @@ mod tests {
             reflex
         };
         // The floor as it was: the place is refused for the thrower's blast.
-        let reflex = start(&CombatTuning::default(), Some(retreat));
+        let reflex = start(&combat_off(), Some(retreat));
         assert!(reflex.throw.is_none());
         assert_eq!((reflex.grenade_stats().refused[0][0], reflex.grenade_stats().near), (1, [0; 3]));
         // Lowered, with no avoidance (no retreat known): the same.
@@ -7561,7 +7566,7 @@ mod tests {
             arc::Ground::cast(&arc::Floor { y: 0.0 }, from, dir, max_t)
         };
         let place = Vec3::new(0.0, 0.0, 21.0);
-        let off = CombatTuning::default();
+        let off = combat_off();
         assert!(!off.grenade_search);
         assert_eq!(
             weigh_place(&me, &view, place, (0.0, 0.0), &off, &wall),
@@ -7569,7 +7574,7 @@ mod tests {
         );
         let on = CombatTuning {
             grenade_search: true,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let Ok(ArcPick::Pitch { pitch }) = weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
         else {
@@ -7609,7 +7614,7 @@ mod tests {
         let on = CombatTuning {
             grenade_search: true,
             grenade_search_off_m: 8.0,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let Ok(pick @ ArcPick::Yawed { dyaw, .. }) =
             weigh_place(&me, &view, place, (0.0, 0.0), &on, &wall)
@@ -7620,7 +7625,7 @@ mod tests {
         assert_eq!(pick.kind(), 2);
         // Off: refused, as before.
         assert_eq!(
-            weigh_place(&me, &view, place, (0.0, 0.0), &CombatTuning::default(), &wall),
+            weigh_place(&me, &view, place, (0.0, 0.0), &combat_off(), &wall),
             Err(Refuse::Thrower)
         );
     }
@@ -7634,13 +7639,13 @@ mod tests {
         let on = CombatTuning {
             grenade_tracks: true,
             grenade_track_chance: 1.0,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let run = throw_run_keyed(&[at], &[], on, None, 6_000, None, 0);
         assert!(!run.thrown.is_empty(), "{:?}", run.stats);
         assert_eq!(run.stats.places[0] + run.stats.places[1], 0, "{:?}", run.stats);
         assert!(run.stats.places[2] > 0, "{:?}", run.stats);
-        let off = throw_run_keyed(&[at], &[], CombatTuning::default(), None, 6_000, None, 0);
+        let off = throw_run_keyed(&[at], &[], combat_off(), None, 6_000, None, 0);
         assert!(off.thrown.is_empty());
         assert_eq!(off.stats.rolls, 0);
     }
@@ -7717,7 +7722,7 @@ mod tests {
         let on = CombatTuning {
             grenade_search: true,
             grenade_repick: true,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let mut reflex = Reflex::default();
         assert_eq!(
@@ -7726,7 +7731,7 @@ mod tests {
         );
         assert_eq!(reflex.grenade_stats().rechecks, [1, 0]);
         assert_eq!(reflex.repick(None, &throw, &me, &view, &on, Refuse::Mate(3)), None);
-        assert_eq!(reflex.repick(None, &throw, &me, &view, &CombatTuning::default(), Refuse::Thrower), None);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &combat_off(), Refuse::Thrower), None);
         assert_eq!(reflex.grenade_stats().rechecks, [1, 0], "no search, no count");
     }
 
@@ -8136,7 +8141,7 @@ mod tests {
     /// thrower is not a place to throw at (YaPB refuses a steep wall hit).
     #[test]
     fn a_throw_into_a_wall_near_the_thrower_is_not_made() {
-        let c = CombatTuning::default();
+        let c = combat_off();
         let open = floor_and(&[]);
         let run = throw_run(25.0, &[], c.clone(), Some(&open), 6_000);
         assert!(!run.thrown.is_empty(), "{:?}", run.notes);
@@ -8238,7 +8243,7 @@ mod tests {
         assert!(ahead.distance_xz(Vec3::ZERO) < aside.distance_xz(Vec3::ZERO));
         let one = CombatTuning {
             grenade_places: 1,
-            ..CombatTuning::default()
+            ..combat_off()
         };
         let run = throw_run_at(&[ahead, aside], &[], one, Some(&walled), 6_000);
         assert!(run.thrown.is_empty(), "{:?}", run.notes);
@@ -8253,7 +8258,7 @@ mod tests {
         let run = throw_run_at(
             &[ahead, aside],
             &[],
-            CombatTuning::default(),
+            combat_off(),
             Some(&walled),
             6_000,
         );
@@ -8277,7 +8282,7 @@ mod tests {
         let again = throw_run_at(
             &[ahead, aside],
             &[],
-            CombatTuning::default(),
+            combat_off(),
             Some(&walled),
             6_000,
         );
@@ -8312,7 +8317,7 @@ mod tests {
             Vec3::new(-2.0, 0.0, 25.0),
         ];
         let clear = Vec3::new(20.0, 0.0, 14.0);
-        let c = CombatTuning::default();
+        let c = combat_off();
         assert_eq!(c.grenade_places, 3);
         let pick = |places: &[Vec3], c: &CombatTuning| {
             pick_place(&me, &view, places, (0.0, 0.0), c, &wall)

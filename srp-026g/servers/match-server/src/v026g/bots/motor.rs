@@ -138,12 +138,12 @@ pub struct Feel {
     /// … and none this soon after a jump of the route.
     pub hop_after_jump_s: f32,
     /// The lip guard ([`drive::lip_guard`]): the ticks a walk's keys count held when they are played forward
-    /// to a stop on a lip's floors; 0 is off (the default: it is switched on by the bench's trains).
+    /// to a stop on a lip's floors; 0 is off (the default is 2).
     pub lip_guard_ticks: u32,
-    /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
+    /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the walk looks as far as anywhere; the default is 0.8).
     pub lip_look_ahead_m: Metres,
     /// A body above a drop of the route that is within its look-ahead aims at the drop's landing, not past it
-    /// (`false`, the default, looks as far as anywhere). The route's distance is across the ground, so the look-ahead
+    /// (`false` looks as far as anywhere). The route's distance is across the ground, so the look-ahead
     /// of a drop 0.35 m across (B8, Vector Laboratory) reaches the legs that come back under the way in and the body
     /// turns round on the upper floor instead of stepping off.
     pub drop_aim: bool,
@@ -153,7 +153,7 @@ pub struct Feel {
     /// back, and plans again from where it stands with none (`Motor::aim_point`).
     pub unclear_aim: bool,
     /// The height of the route's points the walk asks whether the body walks to ([`Motor::aim_point`], the run-up,
-    /// the hop's rise) and the threat detour's exposure: `false` (the default) on the line between each leg's ends
+    /// the hop's rise) and the threat detour's exposure: `false` on the line between each leg's ends
     /// ([`Route::point_at`]), which over a hump of the floor (Cologne's deck: a long leg between two lower ends) lies
     /// up to 1.6 m under the floor, so that the grid finds no floor under the point (`line_ends` takes floors up to
     /// 1.0 m over it) and the walk sees no clear point, cuts its look-ahead and, with `unclear_aim`, steers back;
@@ -168,10 +168,10 @@ pub struct Feel {
     /// sprint is let go of [`DROP_WALK_AHEAD_M`] before it, so the body is not carried into the air at 5 m/s over the
     /// steps below (`GridTuning::honest_drops` keeps a Drop link only where the body that walks off at a walk lands
     /// within the harmless fall; [`Route::sprint_unsafe_drop`] asks the same at the sprint's speed). A drop that is
-    /// harmless at a sprint is sprinted off. Off (the default): the sprint as the route's straight stretch asks.
+    /// harmless at a sprint is sprinted off. Off: the sprint as the route's straight stretch asks.
     pub drop_walk: bool,
     /// A sprint gap link ([`Leap::SprintGap`]) is run up to at a sprint, the run turning onto the jump's way, and
-    /// pressed at speed; off (the default), it is made as a walking gap jump.
+    /// pressed at speed; off, it is made as a walking gap jump.
     pub sprint_gaps: bool,
     /// A sprint-band ledge jump (a rise over [`WALK_JUMP_TOP_M`]) is pressed only with the sprint held and the speed
     /// at [`SPRINT_PRESS_SPEED_MS`] or more, at the take-off as before it (the client makes the sprint jump only at
@@ -179,23 +179,22 @@ pub struct Feel {
     /// slower backs off for another run-up, each a try, and a link with no clear run of the grid's
     /// `mapdata::grid::SPRINT_RUN_UP_M` is given up at once so the route is planned again. The lining up of a sprint
     /// ledge or a sprint gap link ([`Feel::sprint_gaps`]) keeps the sprint, which the driver let go of for every
-    /// jump's lining up. Off (the default): the speed is asked only short of the take-off, a run-up as short as half
+    /// jump's lining up. Off: the speed is asked only short of the take-off, a run-up as short as half
     /// of [`SPRINT_RUN_UP_M`] is taken, and the sprint is let go of.
     pub band_jump_gate: bool,
     /// A landing from a jump of the route whose carried run (the planar velocity) goes more than this, degrees,
     /// from both the route's next leg and the way to the goal, or into a wall within its coast, is braked: the
     /// walk's keys are the ones against the run until it is slow (the owner's rule, 2026-10-27: a landing run is
-    /// cancelled when it is against the bot's direction and path, and a wall is no direction). 0 is off (the
-    /// default; the counters ([`landings`]) count the landings either way). 60 is a GUESS to tune on the bench.
+    /// cancelled when it is against the bot's direction and path, and a wall is no direction). 0 is off (the counters ([`landings`]) count the landings either way). 60 is a GUESS to tune on the bench.
     pub landing_cancel_deg: f32,
     /// The landing cancel covers a planned drop too: its window starts when the body walks off the edge
     /// ([`Route::left_drop_edge`]), and the run it lands with is braked by the same rule (the owner's rule,
-    /// 2026-10-27: after a jump or a drop). Off (the default): drop landings are counted, never braked.
+    /// 2026-10-27: after a jump or a drop). Off: drop landings are counted, never braked.
     pub landing_cancel_drops: bool,
     /// What every reader of the route's drops takes a drop to be: the lip guard's planned landings, the drop aim, the
-    /// landing watch, the drop walk ([`DropTruth`]). [`DropTruth::Height`] (the default) is a waypoint a lip's height
+    /// landing watch, the drop walk ([`DropTruth`]). [`DropTruth::Height`] is a waypoint a lip's height
     /// under the one before it, so a stair or a ramp counts and a Drop link of 0.8-1.0 m does not;
-    /// [`DropTruth::Links`] is the planner's Drop links.
+    /// [`DropTruth::Links`] (the default) is the planner's Drop links.
     pub drop_truth: DropTruth,
 }
 
@@ -227,18 +226,18 @@ impl Default for Feel {
             hop_max_turn: 0.35,
             hop_every_s: Positive::of(4.0),
             hop_after_jump_s: 2.0,
-            lip_guard_ticks: 0,
-            lip_look_ahead_m: Metres::of(0.0),
-            drop_aim: false,
-            unclear_aim: false,
+            lip_guard_ticks: 2,
+            lip_look_ahead_m: Metres::of(0.8),
+            drop_aim: true,
+            unclear_aim: true,
             floor_height_clear: false,
-            carrier_jump_m: None,
-            drop_walk: false,
-            sprint_gaps: false,
-            band_jump_gate: false,
-            landing_cancel_deg: 0.0,
-            landing_cancel_drops: false,
-            drop_truth: DropTruth::Height,
+            carrier_jump_m: Some(Positive::of(0.998)),
+            drop_walk: true,
+            sprint_gaps: true,
+            band_jump_gate: true,
+            landing_cancel_deg: 60.0,
+            landing_cancel_drops: true,
+            drop_truth: DropTruth::Links,
         }
     }
 }
@@ -2604,6 +2603,11 @@ mod tests {
     use super::*;
     use crate::v026g::bots::kin::Kinematics;
 
+    /// The feel with the owner's options off (the bots as they were): what a test of an option's effect starts from.
+    fn feel_off() -> Feel {
+        crate::v026g::bots::tuning::Tuning::all_off().feel
+    }
+
     #[test]
     fn the_eight_ways_match_the_movement_model() {
         let kin = Kinematics::default();
@@ -3025,9 +3029,9 @@ mod tests {
         // Facing the landing already: with drop_aim the turn needed is nil; without, the aim lies behind and the
         // turn is the half circle.
         let facing = Pose { yaw, ..pose };
-        let off = turn(Feel::default(), None, &facing).abs();
-        let capped = turn(Feel::default(), Some(0.8), &facing).abs();
-        let on = turn(Feel { drop_aim: true, ..Feel::default() }, None, &facing).abs();
+        let off = turn(feel_off(), None, &facing).abs();
+        let capped = turn(feel_off(), Some(0.8), &facing).abs();
+        let on = turn(Feel { drop_aim: true, ..feel_off() }, None, &facing).abs();
         println!("B8 turn when facing the landing: off {off:.3}, lip cap {capped:.3}, drop_aim {on:.3}");
         assert!(off > 0.05, "without the rule it turns away from the edge: {off}");
         assert!(capped > 0.05, "the lip cap alone still aims past the landing: {capped}");
@@ -3037,7 +3041,7 @@ mod tests {
         let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 3.0, ..Default::default() };
         let run = |drop_aim| {
             let mut rng = Rng::new(3);
-            let mut motor = Motor::new(Feel { sway: 0.0, drop_aim, ..Feel::default() }, &mut rng);
+            let mut motor = Motor::new(Feel { sway: 0.0, drop_aim, ..feel_off() }, &mut rng);
             motor.walk(&mut straight(), &pose, 5.0, |_| true).0
         };
         assert_eq!(run(false), run(true));
@@ -3084,7 +3088,7 @@ mod tests {
         let (s, off) = route.progress(feet);
         assert!(off < 2.0, "{off}");
         let mut rng = Rng::new(3);
-        let motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        let motor = Motor::new(Feel { sway: 0.0, ..feel_off() }, &mut rng);
         // The body is on the far leg's nearest segment: past the doorway by the progress.
         assert!(s > 5.0, "{s}");
         // Off (the default): the point it steers at is one the wall is across.
@@ -3093,7 +3097,7 @@ mod tests {
             other => panic!("{other:?}"),
         }
         // On: a clear point of the route, back of the progress.
-        let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..Feel::default() }, &mut rng);
+        let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..feel_off() }, &mut rng);
         match on.aim_point(&route, s, 2.4, &clear) {
             Aim::Clear(point) => assert!(clear(point) && point.z < 183.0, "{point:?}"),
             Aim::None => {}
@@ -3117,16 +3121,16 @@ mod tests {
         let motor = |feel: Feel| Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3));
         let s = 9.0;
         // As it was: the point at the chord's height is not clear, off and with the rule on its retry finds the floor's.
-        assert!(matches!(motor(Feel::default()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
-        assert!(matches!(motor(Feel { unclear_aim: true, ..Feel::default() }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
+        assert!(matches!(motor(feel_off()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
+        assert!(matches!(motor(Feel { unclear_aim: true, ..feel_off() }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
         // The floor heights: clear at once, at the look-ahead's full length, with the rule off too.
-        match motor(Feel { floor_height_clear: true, ..Feel::default() }).aim_point(&route, s, 3.0, &clear) {
+        match motor(Feel { floor_height_clear: true, ..feel_off() }).aim_point(&route, s, 3.0, &clear) {
             Aim::Clear(point) => assert!((point.x - 12.0).abs() < 1e-3 && (point.y - 1.6).abs() < 1e-3, "{point:?}"),
             other => panic!("{other:?}"),
         }
         // Off the hump nothing differs: the same point either way.
         let flat = |feel| motor(feel).aim_point(&route, 2.0, 1.0, &|_| true);
-        assert_ne!(flat(Feel { floor_height_clear: true, ..Feel::default() }), Aim::None);
+        assert_ne!(flat(Feel { floor_height_clear: true, ..feel_off() }), Aim::None);
     }
 
     /// The Mamayev Kurgan spawn exits (smoke 2, `exit_on_grid`): the platform's lip cell has only a Drop link toward the
@@ -3303,7 +3307,7 @@ mod tests {
         let p = |x: f32| Waypoint { at: Vec3::new(x, 0.0, 0.0), node: 0, jump: None, low: false };
         let keys_of = |deg: f32, velocity: [f32; 2], open: bool| {
             let mut rng = Rng::new(3);
-            let mut motor = Motor::new(Feel { sway: 0.0, landing_cancel_deg: deg, ..Feel::default() }, &mut rng);
+            let mut motor = Motor::new(Feel { sway: 0.0, landing_cancel_deg: deg, ..feel_off() }, &mut rng);
             let at = motor.clock.wrapping_sub((0.8 / TICK_S) as u32);
             motor.last_press = Some(LandingWatch { at, counted: false, from: LandingFrom::Jump });
             let mut route = Route::new(vec![p(0.0), p(10.0)]);
