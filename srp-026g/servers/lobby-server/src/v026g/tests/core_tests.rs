@@ -2049,6 +2049,7 @@ impl World {
                     longest_killstreak: 0,
                     kit_changes: 0,
                     statistics: Some(statistics),
+                    pay_statistics: None,
                     supplies: None,
                 }
             })
@@ -2120,6 +2121,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: None,
+                pay_statistics: None,
                 supplies: None,
             })
             .collect();

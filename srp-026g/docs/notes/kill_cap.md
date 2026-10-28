@@ -1,15 +1,19 @@
-# Kill cap
+# Repeated-kill payment limit
 
-Owner's rule (2026-10-27): killing the same person pays at most 10 times a match.
+PR #691, revised 2026-10-28 after the owner asked to preserve normal play.
 
-- Per player per match, kills of one enemy past 10 pay nothing (no silver, experience or
-  reputation of the kills' row). Every mode, bots' matches too.
-- The headshot, melee, silent and grenade kills (scored events) are cut in the same proportion.
-- The scoreboard, the results screen's kill count, deaths, quests' kills and the rating are not
-  touched: only the statistics the pay is counted from (as `battery_credit.md`'s cap).
-- Who killed whom: the server sees running totals only. A trusted snapshot in which exactly one
-  player's kills went up, and as many deaths of his enemies (no teammate of his dead), pairs
-  them. Kills that come in the same snapshot as another player's kill are not paired, so they
-  pay: the cap only misses kills, it never cuts one it cannot pair.
-- `servers/match-server/src/v026g/kill_cap.rs` (`MOST_PAID`), applied in `Game::build_result`
-  after the battery and Research caps; each cut is logged ("kills counted N, paid M").
+- In PvP, kills of one enemy pay at most **10 + 2 × that enemy's total enemy kills**.
+  A passive feeder still supplies only ten paying kills. An active opponent with six kills
+  allows 22, protecting the historical small-match 18-kill case that lost 33% under the flat cap.
+- Bot matches keep their existing rewards. PvP is not exempt just because its roster is small.
+- Headshot, melee, silent and grenade payment counters are reduced in the same proportion.
+  Score, displayed kills/deaths, all quest counters and rating retain the original statistics.
+- The server sees running totals, not explicit killer-victim events. A trusted snapshot with
+  exactly one player's kills increased and matching enemy deaths (no teammate or unknown-team
+  deaths) pairs them. Ambiguous kills still pay. This cannot detect every farm.
+- Every allowance uses the final **original** victim kill count, captured before reducing anyone's
+  pay. Otherwise roster order would change the outcome. A victim's late combat counts too.
+- `kill_cap.rs` applies the limit; `reward_caps::Payment` owns its payment-only copy and applies
+  it before the Research allowance. Unpaid feeding kills do not buy more Research objective pay.
+- Active opponents can also collude, and a legitimate player can repeatedly kill a passive
+  opponent. This deliberately conservative heuristic does not prove intent. See `farm_cap_audit.md`.

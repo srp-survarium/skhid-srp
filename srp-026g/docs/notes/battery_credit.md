@@ -21,8 +21,9 @@ The owner's rule against farming battery events and how srp keeps it. Code:
   that, nothing." So one battery can pay up to N times per kind: the owner knew it.
   - N is the map's `victory_items_count` (10 on every battery map); Team Deathmatch and Research
     (mode 5, whose captures count in events 6 and 18): no cap.
-  - Research's events (capture 6, neutralisation 18, kill invader 10) have a cap of their own:
-    200 score a player a match (`research_mode.md`, "Rewards: capped", the owner 2026-10-27).
+  - Research captures (6) and neutralisations (18) have a combat-adjusted payment allowance:
+    200 score + 40 per paid kill + 20 per assist. Kill invader (10) stays whole. See
+    `research_mode.md`; these payment-only limits do not change the battery cap's quest policy.
   - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
     most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
     (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.

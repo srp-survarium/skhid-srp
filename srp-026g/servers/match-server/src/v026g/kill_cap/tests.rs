@@ -97,3 +97,57 @@ fn ten_kills_of_each_enemy_are_paid_whole() {
     assert_eq!(cap(&mut played, &pairs), []);
     assert_eq!(played.players[0].total(event::KILL), 20);
 }
+
+#[test]
+fn an_active_opponent_in_a_small_match_is_not_a_passive_feeder() {
+    // Even six enemy kills by the victim raise the allowance to 22, so
+    // all eighteen kills pay. The audited 18/8 case's opponent had 19.
+    let snapshots: Vec<_> = (1..=18).map(|n| [(n, 0), (0, 0), (0, n), (0, 0)]).collect();
+    let pairs = pairs(&snapshots);
+    let mut played = statistics([(18, 8), (0, 0), (6, 18), (0, 0)]);
+    assert!(cap(&mut played, &pairs).is_empty());
+}
+
+#[test]
+fn victim_activity_raises_an_allowance_but_does_not_remove_it() {
+    let snapshots: Vec<_> = (1..=40).map(|n| [(n, 0), (0, 0), (0, n), (0, 0)]).collect();
+    let pairs = pairs(&snapshots);
+    let mut played = statistics([(40, 0), (0, 0), (3, 40), (0, 0)]);
+    assert_eq!(cap(&mut played, &pairs)[0].paid, 16);
+}
+
+#[test]
+fn allowances_use_original_activity_independently_of_roster_order() {
+    let pairs = Pairs(HashMap::from([((0, 2), 50), ((2, 1), 20)]));
+    let mut played = statistics([(50, 0), (0, 20), (20, 50), (0, 0)]);
+    let cuts = cap(&mut played, &pairs);
+    assert_eq!(
+        cuts,
+        [Cut {
+            place: 2,
+            counted: 20,
+            paid: 10
+        }]
+    );
+    // Reverse roster order; the victim now gets its own pay cut first.
+    let pairs = Pairs(HashMap::from([((2, 0), 50), ((0, 1), 20)]));
+    let mut played = statistics([(20, 50), (0, 20), (50, 0), (0, 0)]);
+    assert_eq!(
+        cap(&mut played, &pairs),
+        [Cut {
+            place: 0,
+            counted: 20,
+            paid: 10
+        }]
+    );
+}
+
+#[test]
+fn unknown_teams_are_not_evidence_of_enemy_kills() {
+    let mut played = statistics([(20, 0), (0, 0), (0, 20), (0, 0)]);
+    for teams in [&[0, 0, 255, 1][..], &[255, 0, 1, 1], &[0, 0]] {
+        let mut pairs = Pairs::default();
+        pairs.observe(None, &played, teams);
+        assert!(cap(&mut played, &pairs).is_empty());
+    }
+}

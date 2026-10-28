@@ -56,6 +56,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
         longest_killstreak: statistics.longest_killstreak,
         kit_changes: 0,
         statistics: Some(statistics),
+        pay_statistics: None,
         supplies: None,
     }
 }
@@ -3782,4 +3783,36 @@ fn a_blackout_match_pays_its_points_twice() {
     assert_eq!(columns(&twice.full, 2), (2.0, 165, 245, 0));
     assert_eq!((once.reward.experience, once.reward.money), (132, 167));
     assert_eq!((twice.reward.experience, twice.reward.money), (265, 335));
+}
+
+#[test]
+fn farming_limits_change_payment_without_changing_score_or_quests() {
+    let mut p = player(
+        0,
+        0,
+        "Alice",
+        counters_of(0, &[(event::KILL, 23), (event::HEADSHOT_KILL, 12)]),
+    );
+    let original = result(vec![p.clone()]);
+    p.pay_statistics = Some(counters_of(
+        0,
+        &[(event::KILL, 10), (event::HEADSHOT_KILL, 5)],
+    ));
+    let limited = result(vec![p]);
+    let terms = terms();
+    let before = Shared::of(&original, &terms);
+    let after = Shared::of(&limited, &terms);
+    assert!(after.rows_money(&limited.players[0], 0) < before.rows_money(&original.players[0], 0));
+    assert_eq!(
+        after.score(&limited.players[0]),
+        before.score(&original.players[0])
+    );
+    assert_eq!(
+        after.quest_stats(&limited.players[0]),
+        before.quest_stats(&original.players[0])
+    );
+    let mut untrusted = limited;
+    untrusted.trusted_by = 0;
+    let shared = Shared::of(&untrusted, &terms);
+    assert_eq!(shared.lines(&untrusted.players[0], 0)[0][0].0, 0.0);
 }

@@ -119,6 +119,7 @@ mod registry;
 pub mod replay;
 /// A player's Research units pay at most 200 score a match.
 mod research_cap;
+mod reward_caps;
 mod server;
 pub mod sur;
 pub mod sur_convert;

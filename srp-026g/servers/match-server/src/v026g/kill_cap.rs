@@ -1,10 +1,6 @@
-//! A player's kills of one enemy pay at most [`MOST_PAID`] times in one
-//! match (the owner's rule against farming a willing victim, 2026-10-27,
-//! docs/notes/kill_cap.md). The server sees each player's running totals
-//! only, not who killed whom: so a kill is paired with a death when a
-//! trusted snapshot shows them alone, one player's kills gone up and as
-//! many deaths of his enemies, no teammate of his dead. Kills that came
-//! together with another player's are not paired, and pay.
+//! Conservative payment limits for repeated kills of a passive opponent.
+//! Only confidently paired kills count. An opponent's combat activity raises
+//! the allowance, so small, contested matches are not treated as feeding.
 
 use std::collections::HashMap;
 
@@ -12,8 +8,9 @@ use survarium::v026g::match_msgs::snapshot::{Statistics, event};
 
 use super::battery_cap::cut;
 
-/// Kills of one enemy past this many pay nothing.
+/// Base allowance against an opponent with no enemy kills.
 pub(crate) const MOST_PAID: u32 = 10;
+const PER_VICTIM_KILL: u32 = 2;
 
 /// The kill and the kinds of kill that score besides it: cut together, in
 /// the same proportion.
@@ -56,8 +53,12 @@ impl Pairs {
             return;
         };
         let deaths = gained(event::DEATH);
-        let team = teams.get(killer);
-        if deaths.iter().any(|&(victim, _)| teams.get(victim) == team)
+        let Some(&team @ (0 | 1)) = teams.get(killer) else {
+            return;
+        };
+        if deaths
+            .iter()
+            .any(|&(victim, _)| teams.get(victim) != Some(&(1 - team)))
             || deaths.iter().map(|&(_, died)| died).sum::<u32>() != kills
         {
             return;
@@ -67,13 +68,17 @@ impl Pairs {
         }
     }
 
-    /// How many of `killer`'s kills were of an enemy he had already killed
-    /// [`MOST_PAID`] times.
-    fn over(&self, killer: usize) -> u32 {
+    /// Only kills above the allowance of an opponent who is not fighting
+    /// back. Use the final, unmodified totals for every victim: roster order
+    /// and reductions to another player's pay must not change this decision.
+    fn over(&self, killer: usize, victim_kills: &[u32]) -> u32 {
         self.0
             .iter()
             .filter(|((by, _), _)| *by == killer)
-            .map(|(_, &kills)| kills.saturating_sub(MOST_PAID))
+            .filter_map(|((_, victim), &kills)| {
+                let fought = victim_kills.get(*victim)?;
+                Some(kills.saturating_sub(MOST_PAID + PER_VICTIM_KILL * fought))
+            })
             .sum()
     }
 }
@@ -86,12 +91,17 @@ pub(crate) struct Cut {
     pub paid: u32,
 }
 
-/// Cut each player's kills by those over [`MOST_PAID`] of one enemy.
+/// Pay ten kills of each opponent, plus two per enemy kill that opponent made.
 pub(crate) fn cap(statistics: &mut Statistics, pairs: &Pairs) -> Vec<Cut> {
+    let victim_kills: Vec<_> = statistics
+        .players
+        .iter()
+        .map(|p| p.total(event::KILL))
+        .collect();
     let mut cuts = Vec::new();
     for (place, player) in statistics.players.iter_mut().enumerate() {
         let counted = player.total(event::KILL);
-        let paid = counted.saturating_sub(pairs.over(place));
+        let paid = counted.saturating_sub(pairs.over(place, &victim_kills));
         if paid == counted {
             continue;
         }

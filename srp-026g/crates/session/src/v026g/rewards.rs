@@ -250,6 +250,9 @@ pub struct PlayerResult {
     pub time_in_match_ms: u32,
     /// Its counters in the last trusted snapshot, by event and kit.
     pub statistics: Option<PlayerStatistics>,
+    /// Payment-only counters after anti-farming limits. `None` pays the
+    /// ordinary statistics; scores, quests and rating never use this copy.
+    pub pay_statistics: Option<PlayerStatistics>,
     /// The scoreboard's score from those counters.
     pub score: u32,
     pub kills: u16,
@@ -1687,7 +1690,14 @@ impl<'a> Shared<'a> {
     /// paying events and what they pay before the rates and the match
     /// level ([`pay`]).
     fn lines(&self, player: &PlayerResult, main: usize) -> [[(f64, Pay); KITS]; 3] {
-        let events = self.events(player);
+        let events = if self.trusted {
+            player
+                .pay_statistics
+                .as_ref()
+                .map_or_else(|| counters(player), |s| s.events)
+        } else {
+            [[0; KITS]; EVENTS]
+        };
         let weights = &self.weights;
         let factor = self.points_factor();
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];

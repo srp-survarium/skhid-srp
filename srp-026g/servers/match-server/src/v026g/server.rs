@@ -560,6 +560,7 @@ impl Server {
                             left: false,
                             time_in_match_ms: 0,
                             statistics: None,
+                            pay_statistics: None,
                             score: 0,
                             kills: 0,
                             deaths: 0,

@@ -434,3 +434,16 @@ Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs`
   against 31.2). With the floor the lowest quarter's pay rises to about 4.2k (91 of 555
   players raised); all silver paid rises about 6 %.
 - `rewards.rs` `Shared::money_floor`, applied in `settle_player`.
+
+## 15. Payment-only farming limits (PR #691 revision, 2026-10-28)
+
+`reward_caps::Payment` clones the ordinary statistics after the existing battery policy, then
+applies the repeated-kill limit and Research allowance in that order. The result adapter carries
+this copy as `PlayerResult::pay_statistics`; only `Shared::lines` reads it. Without an override,
+ordinary statistics pay as before. An untrusted result cannot pay from either copy.
+
+Score, quest progress, kit usage and rating use the ordinary counters. This separation fixes the
+initial implementation's unintended reduction of score and combat quest counters. The existing
+battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
+median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
+See `kill_cap.md`, `research_mode.md` and `farm_cap_audit.md` for thresholds and audit limitations.

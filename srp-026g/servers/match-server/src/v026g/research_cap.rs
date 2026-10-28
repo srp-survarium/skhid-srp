@@ -1,18 +1,16 @@
-//! A player's Research score of units captured, units neutralised and
-//! invaders killed pays at most [`MOST_SCORE`] in one match (the owner's
-//! rule against trading units back and forth, 2026-10-27,
-//! docs/notes/research_mode.md). The server sees each player's running
-//! totals only: so the totals are cut, all three in the same proportion.
+//! Limit repeated capture/neutralisation pay, with room for active fighting.
+//! Kill-invader rewards are combat rewards and are never cut here.
 
 use survarium::v026g::match_msgs::snapshot::{Statistics, event};
 use survarium::v026g::match_msgs::static_info::RESEARCH_WEIGHTS;
 
 use super::battery_cap::cut;
 
-/// About six whole captures. On live (the 20 Research matches before
-/// revision 36) no player who fought scored more than about 190 of it; the
-/// farmers scored 350 to 700.
+/// Base objective allowance, plus forty points per paid kill and twenty per
+/// assist. Apply the repeated-kill limit first (see `reward_caps`).
 pub(crate) const MOST_SCORE: u32 = 200;
+const PER_KILL: u32 = 40;
+const PER_ASSIST: u32 = 20;
 
 /// A player's Research score cut: the place, what it scored and what it is
 /// paid, whole points.
@@ -23,46 +21,44 @@ pub(crate) struct Cut {
     pub paid: u32,
 }
 
-/// Cut each player's Research events to [`MOST_SCORE`] of score.
+/// Limit captures and neutralisations to the combat-adjusted allowance.
 pub(crate) fn cap(statistics: &mut Statistics) -> Vec<Cut> {
     let mut cuts = Vec::new();
     for (place, player) in statistics.players.iter_mut().enumerate() {
-        let score: f64 = RESEARCH_WEIGHTS
+        // Both objectives count hundredths and have whole-point weights.
+        // Keep the ratio integral: floating-point truncation can otherwise
+        // drop an extra hundredth even when the scaled total is exact.
+        let score: u64 = RESEARCH_WEIGHTS
             .iter()
-            .map(|&(event, weight)| {
-                f64::from(player.total(event)) * unit(event) * f64::from(weight)
-            })
+            .filter(|&&(kind, _)| kind != event::KILL_INVADER)
+            .map(|&(event, weight)| u64::from(player.total(event)) * weight as u64)
             .sum();
-        let most = f64::from(MOST_SCORE);
+        let allowance = MOST_SCORE
+            + PER_KILL * player.total(event::KILL)
+            + PER_ASSIST * player.total(event::ASSIST);
+        let most = u64::from(allowance) * 100;
         if score <= most {
             continue;
         }
-        let keep = most / score;
         for (event, _) in RESEARCH_WEIGHTS {
+            if event == event::KILL_INVADER {
+                continue;
+            }
             let counted = player.total(event);
             if counted > 0 {
                 cut(
                     &mut player.events[event],
-                    (f64::from(counted) * keep) as u32,
+                    (u64::from(counted) * most / score) as u32,
                 );
             }
         }
         cuts.push(Cut {
             place,
-            scored: score as u32,
-            paid: MOST_SCORE,
+            scored: (score / 100) as u32,
+            paid: allowance,
         });
     }
     cuts
-}
-
-/// A capture and a neutralisation count in hundredths, an invader by ones.
-fn unit(event: usize) -> f64 {
-    if event == event::RESEARCH_CAPTURE || event == event::RESEARCH_NEUTRALISE {
-        0.01
-    } else {
-        1.0
-    }
 }
 
 #[cfg(test)]

@@ -118,7 +118,6 @@ use super::battery_cap;
 use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
-use super::research_cap;
 use super::{LateInputs, Settings};
 
 mod driven;
@@ -4739,35 +4738,36 @@ impl Game {
                         self.batteries()
                     );
                 }
-                // Research's units pay at most research_cap::MOST_SCORE of
-                // score (docs/notes/research_mode.md).
-                if self.game_mode() == mode::RESEARCH {
-                    for cut in research_cap::cap(&mut statistics) {
-                        log::info!(
-                            "Match {:#x}: place {}'s Research score {}, paid {}",
-                            self.id,
-                            cut.place,
-                            cut.scored,
-                            cut.paid
-                        );
-                    }
-                }
-                // Kills of one enemy pay at most kill_cap::MOST_PAID times
-                // (docs/notes/kill_cap.md).
-                for cut in kill_cap::cap(&mut statistics, &self.kill_pairs) {
-                    log::info!(
-                        "Match {:#x}: place {}'s kills counted {}, paid {} (at most {} of one \
-                         enemy)",
-                        self.id,
-                        cut.place,
-                        cut.counted,
-                        cut.paid,
-                        kill_cap::MOST_PAID
-                    );
-                }
                 statistics
             });
         let statistics = statistics.as_ref();
+        let payment = statistics.map(|played| {
+            let payment = super::reward_caps::Payment::of(
+                played,
+                &self.kill_pairs,
+                self.game_mode(),
+                self.formed.vs_bots,
+            );
+            for cut in &payment.objectives {
+                log::info!(
+                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.scored,
+                    cut.paid
+                );
+            }
+            for cut in &payment.kills {
+                log::info!(
+                    "Match {:#x}: place {}'s repeated kills counted {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.counted,
+                    cut.paid
+                );
+            }
+            payment
+        });
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
@@ -4822,6 +4822,10 @@ impl Game {
                     left,
                     time_in_match_ms: in_match,
                     statistics: own.cloned(),
+                    pay_statistics: payment
+                        .as_ref()
+                        .and_then(|p| p.statistics.players.get(index))
+                        .cloned(),
                     score: own.map_or(0, |player| {
                         snapshot::score(player, &self.formed.score_weights)
                     }),
