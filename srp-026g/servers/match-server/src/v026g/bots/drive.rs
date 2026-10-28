@@ -435,9 +435,9 @@ fn drive_tick_inner(
         bot.bench_legs_why = over.legs.filter(|_| !using).map(|legs| legs.why);
     }
     // The bench's stand-in camper keeps to its spot.
-    #[cfg(test)]
-    let held = bot.bench_camper;
-    #[cfg(not(test))]
+    #[cfg(any(test, feature = "client-test"))]
+    let held = bot.holds_ground();
+    #[cfg(not(any(test, feature = "client-test")))]
     let held = false;
     if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {

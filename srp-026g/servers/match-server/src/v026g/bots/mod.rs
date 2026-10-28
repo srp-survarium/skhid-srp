@@ -33,6 +33,8 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod cheats;
+#[cfg(any(test, feature = "client-test"))]
+pub mod client_tests;
 pub mod contact;
 pub mod crossing;
 pub mod curve;
@@ -294,6 +296,9 @@ pub struct Bot {
     /// spot, and the reflex never takes its legs.
     #[cfg(test)]
     pub(crate) bench_camper: bool,
+    /// A client test's script plays this bot (`client_tests`): it keeps its ground, and the reflex never takes its legs.
+    #[cfg(any(test, feature = "client-test"))]
+    pub(crate) scripted: bool,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -355,6 +360,16 @@ pub struct Bot {
 }
 
 impl Bot {
+    /// The bench's stand-in camper or a client test's script keeps this bot where it is: the reflex never takes its legs.
+    #[cfg(any(test, feature = "client-test"))]
+    pub(crate) fn holds_ground(&self) -> bool {
+        #[cfg(test)]
+        if self.bench_camper {
+            return true;
+        }
+        self.scripted
+    }
+
     fn new(match_id: u32, place: Place, team: u8, role: Option<&str>, tuning: &Tuning) -> Self {
         let mut rng = Rng::for_bot(match_id, place);
         let motor = Motor::new(tuning.feel.clone(), &mut rng);
@@ -449,6 +464,8 @@ impl Bot {
             bench_driven: 0,
             #[cfg(test)]
             bench_camper: false,
+            #[cfg(any(test, feature = "client-test"))]
+            scripted: false,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]
@@ -751,6 +768,9 @@ pub struct Bots {
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    /// TEST ONLY: the client-test runner of this match (`client_tests`), when `SRP_CLIENT_TEST` has steps for it.
+    #[cfg(any(test, feature = "client-test"))]
+    pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
@@ -807,6 +827,10 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            #[cfg(feature = "client-test")]
+            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode, teams)),
+            #[cfg(all(test, not(feature = "client-test")))]
+            client_tests: None,
             polls: Default::default(),
             tactics: None,
             memo: Default::default(),
@@ -1684,6 +1708,8 @@ impl Bots {
             }
         }
         self.polls.record(now, &rays);
+        #[cfg(any(test, feature = "client-test"))]
+        self.client_tests_tick(&clock, &view, &notes);
         (made, notes)
     }
 

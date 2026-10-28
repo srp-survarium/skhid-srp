@@ -757,6 +757,8 @@ impl Game {
         }
         let id = self.id;
         let bots_clock = self.bots_clock(clock);
+        #[cfg(feature = "client-test")]
+        let mut says: Vec<String> = Vec::new();
         if let Some(walkers) = self.walkers.as_mut() {
             // Every entry and leave since the last poll, the humans' too.
             for &(at, who, entered) in &self.events[walkers.events_seen..] {
@@ -767,6 +769,8 @@ impl Game {
             if !walkers.absent {
                 let (made, notes) = walkers.bots.poll(bots_clock);
                 log_notes(id, notes);
+                #[cfg(feature = "client-test")]
+                says.extend(walkers.bots.client_test_says());
                 due.extend(
                     made.into_iter()
                         .map(|made| (made.place, made.time, Relayed::Input(made.input))),
@@ -785,6 +789,13 @@ impl Game {
                         },
                     ));
                 }
+            }
+        }
+        // TEST ONLY: the client tests' lines for the owner (the human of the match) go to his game's chat.
+        #[cfg(feature = "client-test")]
+        if let Some(owner) = self.formed.places.iter().find(|place| !place.driven && !place.bot) {
+            for line in &says {
+                crate::v026g::bots::client_tests::say(owner.account_id, line);
             }
         }
         for (index, time, what) in due {
