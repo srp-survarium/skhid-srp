@@ -866,11 +866,14 @@ pub(crate) fn real_bot_cost() {
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             bots.bench_human = human.as_ref().map(|h| h.place);
-            bots.bench_enemy_lanes = bench_settings().flag("SRP_BENCH_ENEMY_HUMAN_LANES");
+            bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
+            // `SRP_BENCH_VIEW_ERROR=1`: every world fix the bots are given is moved by the live error (view_error.rs).
+            let mut view_error = ViewError::from_env(game.bodies.len(), seed);
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             owner.set_pings(ping_ms);
+            owner.set_carried(roster.grenades.clone());
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
             owner.set_camper(bots.bench_camper.map(|(place, _)| place));
@@ -1197,6 +1200,10 @@ pub(crate) fn real_bot_cost() {
                     standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                            let fix = match view_error.as_mut() {
+                                Some(error) => error.perturb(place, fix, clock, 1_000),
+                                None => fix,
+                            };
                             for note in bots.fixed(place, fix, Some(health)) {
                                 routes.note(&note);
                                 owner.note(&note, &game);
@@ -1563,6 +1570,9 @@ pub(crate) fn real_bot_cost() {
             // The refreshed sight's own counts: poll gaps, the ray budget's refusals, sights lost by
             // ping band (the match-end line; the code before the refresh has none of them).
             eprintln!("  sight polls: {}", bots.poll_report());
+            if let Some(error) = view_error.as_ref() {
+                eprintln!("  {}", error.line());
+            }
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
@@ -1933,6 +1943,8 @@ pub(crate) struct BenchRoster {
     pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
     /// What each bot's profile carries of upgrades ([`Upgrades`]).
     pub(crate) upgrades: Vec<Upgrades>,
+    /// The grenades each of a bot's three kits holds (`loadouts::grenades_in`), by place; zeros for a place of no role.
+    pub(crate) grenades: Vec<[u32; 3]>,
 }
 
 /// What a bot's profile carries of upgrades (`loadouts::BOT_UPGRADES`, on with `SRP_BOT_UPGRADES`): the items of the profile
@@ -1985,6 +1997,15 @@ pub(crate) fn bench_roster(
         .collect();
     let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
+        grenades: bots
+            .iter()
+            .map(|bot| {
+                bot.map_or([0; 3], |(equipment, role)| {
+                    let kits = survarium::v026g::loadouts::bot_kits(equipment, role);
+                    std::array::from_fn(|k| survarium::v026g::loadouts::grenades_in(kits[k]))
+                })
+            })
+            .collect(),
         upgrades: profiles.iter().map(Upgrades::of).collect(),
         roles: bots
             .iter()

@@ -214,7 +214,7 @@ impl Bots {
             .flat_map(|b| b.memory.tracks());
         self.teams[usize::from(team)]
             .knowledge
-            .learn_humans_as(team, view, tracks, now, self.bench_enemy_human_lanes());
+            .learn_humans_as(team, view, tracks, now, self.bench_enemy_human_lanes(team));
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {
