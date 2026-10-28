@@ -976,6 +976,14 @@ and the eight standalone helmet binds. The eight surfaces bind rigidly to
 The Biker's three vertices with neck influence deliberately become rigid.
 The animation skeleton, animation clips and hit model are unchanged.
 
+The underside audit found no inner crown faces on Biker, Explorer,
+Paratrooper, Vityaz-S, Scout, OZK-18KB and Mounting. The same edit list sets
+those seven material instances’ `material/g_stage/effect/two_sided/value`
+from false to true so their backfaces render.
+Their original texture maps also cover the reverse side. Keeper already
+has a textured inner surface and keeps its one-sided material. No new
+geometry, UVs, texture maps or material instances are added.
+
 **PROVEN in the executable:** `skeleton_render_model::load_bind_pose`
 (0x15A000, called at 0x128D46) takes its count and order from the render
 bind file, skips names, and builds inverse matrices without consulting the
@@ -1021,10 +1029,14 @@ ownership; Unicorn executes the eight linked hooks, extended commands,
 stock fallback, first-update/shadow/previous matrices, unheld corpses and
 rollback; content edits are checked against the actual stock meshes.
 The executable and content must ship together through the normal release.
-The isolated PR's full manifest build passed on 2026-10-28: all 2,633
+The isolated PR's full manifest build passed on 2026-10-28: all 2,640
 manifest files match when its generated patch overlays the listed player
 patches. The 17 headwear asset transformations also passed separately on
-stock data. No in-game visual check has been made; shape, release motion
+stock data. The packed material audit confirms exactly one boolean byte
+changed in each of the seven materials; Keeper, meshes and texture maps
+are byte-identical to the fly-off build before the material edits. Offline
+underside renders use the actual mesh UVs, diffuse textures and culling
+flags. No in-game visual check has been made; shape, release motion
 and all eight worn/dead models still need a local visual pass before release.
 
 ## Addresses (re-kit rows added in this change)

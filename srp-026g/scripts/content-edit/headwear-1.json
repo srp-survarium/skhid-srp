@@ -61,5 +61,49 @@
       "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/blinn3sg/converted_model",
       "vertices": 1137
     }
+  ],
+  "set_bool": [
+    {
+      "file": "material_instances/characters/human/black_market_01/black_market_01_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/edge_researcher_03/edge_researcher_03_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/renesanse_novice_combat/renesanse_novice_combat_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/renesance_combat/renesance_combat_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/renesanse_scout_1a/renesanse_scout_1a_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/renesanse_anom_specnaz/renesanse_anom_specnaz_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/scavenger_05/scavenger_05_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    }
   ]
 }
