@@ -9,6 +9,30 @@ release that made it what it is now.
 
 ---
 
+## 28 Oct, 18:37 — Game update 37: matchmaking, Research warnings and map data (update required)
+
+<!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. Shipped: #691, #692, #463, #694, #695, #696. -->
+
+Update through the Skhid launcher before playing.
+
+- **Matchmaking:** public 8v8 rooms now open on demand, with equipment
+  brackets and improved queue transitions. Manually created rooms are
+  private. Blackout joins the normal mode pool.
+- **Research:** enemy capture and neutralisation attempts now trigger
+  pulsing warnings.
+- **Kit selection:** a short grace period when the kit screen opens
+  prevents a key pressed just before death from accidentally changing
+  your kit.
+- **Rewards:** farming limits now account for combat activity. Rewards
+  against bots are capped at equipment level 7, and eligible finishers
+  receive a minimum silver payout.
+- **Replays:** solo matches against bots can now be recorded and watched
+  from History.
+- **Map data:** removed 163.5 MiB of unused vegetation editor data across
+  four supported maps and both variants. All 172,493 plant placements
+  remain unchanged.
+
+
 ## 18 Oct, 14:43 — Game update 21: weapon balance, magazine on the weapon card, crash reports as ZIPs (update required)
 
 Start `Skhid.bat`: the launcher updates the game (`survarium_skhid.exe`
@@ -694,13 +718,3 @@ update changes what a match computes.
 - TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
 - TODO: #686 Fix Research markers and countdown layout using Rust
 - TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending
-
-## 28 Oct, 18:37 — TODO: the owner's words (update required)
-
-<!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. To be worded for players; what it shipped: -->
-
-- TODO: #692 Show enemy capture warnings in Research mode
-- TODO: #463 Patch 58: kit keys pick nothing if pressed before the kits came or in their first 300 ms
-- TODO: #694 Create public rooms on demand and fix queue transitions
-- TODO: #695 Remove editor vegetation data from the four supported ported maps
-- TODO: #696 Avoid downloading every patch again during releases
