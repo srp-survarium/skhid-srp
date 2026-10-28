@@ -283,15 +283,28 @@ The C filename in the hash-mismatch field metadata is retained for compatibility
 The top HUD and projected world markers are separate. Neither shows “Capturing unit…”.
 The local world marker grows from 24 to 34 px and has corner brackets; the HUD icon
 grows by the same 34/24 factor. Both teams inside
-means crossed swords, with a two-second pulse measured by elapsed time (not frame count).
+means crossed swords. An enemy alone advancing a capture or neutralisation shows a white
+`!`, on friendly-owned and neutral units alike; it clears when capture stops or finishes.
+Friendly capture shows neither overlay. Swords take priority when both teams are inside.
+Both overlays use `ResearchAlert`, with a two-second pulse measured by elapsed time
+(not frame count), the swords' 54 x 53 image bounds, and the existing per-movie scale.
+The approved warning source is `tools/actionscript/art/ResearchWarning.svg`; its 54 x 53
+RGBA rendering is checked in as `ResearchWarning.png` in both movies. Repeated updates
+keep the pulse phase; changing activity starts the new overlay fully visible.
 The top HUD remains visible during aiming. World markers have alpha 0.55, fill alpha 0.12,
 no opaque backing and sit below player icons in the movie's display list.
 
 At 0x23B207, after the original update_player_icons call, Rust sends
 `root.research_markers(team, count, [cp_id, projected, x, y, distance, owner, capturing,
-progress, ms_left, local_inside] * count, [contested] * count, aiming)` on change and
+progress, ms_left, local_inside] * count, [contested] * count, aiming, [advancing_team] * count)` on change and
 every 60 frames. Projection uses the engine library's point_to_screen with the point
 raised 2 m. Markers behind the camera or off screen are hidden; this is not wall occlusion.
+The appended `advancing_team` is the sole occupying team (0/1, 2 for empty or contested),
+not `capturing`: the latter remains the defender while its progress drains. The movie
+combines this team with `ms_left > 0` to show an enemy warning. Older senders omit the
+tail and show no warning rather than infer the wrong team; older movies ignore the tail.
+The top HUD derives the same activity from its existing occupancy counts and timer.
+No rule state, network message, capture timing, scoring or replay format changes.
 
 Aiming follows the actual weapon state, not the scope attachment or mouse input:
 game+4D58h is the input handler, camera director+84h must equal input+4, input+358h
@@ -302,8 +315,9 @@ hide markers too. Free cameras and dead players do not inherit another player's 
 
 Visibility belongs to the world-marker parent Sprite: smoothstep to zero in 200 ms,
 to one in 300 ms. Repeated packets do not restart the fade; reversals begin at the
-current alpha. Only the crossed swords pulse; the capture icon stays steady. The swords
-animate a child, so they cannot reveal a hidden marker. The normal hide-interface key
+current alpha. Only the activity overlay pulses; the capture icon stays steady. The overlay
+animates a child, so it cannot reveal a hidden marker. Hidden/removed markers stop their
+activity animation. The normal hide-interface key
 still hides this parent.
 
 Retail reference: 0.27d's CapturePointMarker used 24/34 px and alpha 195/255; its

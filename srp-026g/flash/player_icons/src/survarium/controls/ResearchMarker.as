@@ -1,11 +1,8 @@
 package survarium.controls
 {
-   import flash.display.Bitmap;
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
-   import flash.events.Event;
-   import flash.utils.getTimer;
 
    // Research (mode 5): a research unit's marker where the unit is on the
    // screen, as retail's (0.27d's player icon of kind 2, RoundProgress /
@@ -15,8 +12,8 @@ package survarium.controls
    // The unit's letter in a circle of its owner's colour (the game's own team
    // blue, the other red, nobody grey, as the hud's units) and a ring as far
    // round as the capture of the team taking it; retail's crossed swords,
-   // pulsing while both teams
-   // are inside. The layer (HUDIconLayer.research_markers) places it.
+   // pulsing while both teams are inside, or the matching ! while the enemy
+   // alone advances capture. HUDIconLayer.research_markers places it.
    public class ResearchMarker extends Sprite
    {
 
@@ -54,10 +51,6 @@ package survarium.controls
 
       public static const SMALLEST:Number = 1;
 
-      // One fade out and back in takes two seconds at any frame rate.
-      // Counting frames made the retail triangle blink too fast at high FPS.
-      public static const PULSE_MS:uint = 2000;
-
       // ---- the drawing (its own units: the circle RADIUS + RING) ----
 
       protected static const RADIUS:Number = 12;
@@ -73,15 +66,12 @@ package survarium.controls
 
       protected var _active:Shape;
 
-      protected var _swords:Sprite;
+      protected var _alert:ResearchAlert;
 
       protected var _drawn:String = "";
 
-      protected var _pulseStarted:uint = 0;
-
       public function ResearchMarker()
       {
-         var bitmap:Bitmap;
          super();
          mouseEnabled = false;
          mouseChildren = false;
@@ -94,16 +84,11 @@ package survarium.controls
          drawActive(this._active.graphics,RADIUS + RING + 3);
          this._active.visible = false;
          this._art.addChild(this._active);
-         this._swords = new Sprite();
-         bitmap = new Bitmap(new ResearchSwords());
-         bitmap.smoothing = true;
-         bitmap.x = -27 * 1.016;
-         bitmap.y = -26 * 1.016;
-         bitmap.scaleX = bitmap.scaleY = 1.016;
-         this._swords.addChild(bitmap);
-         this._swords.scaleX = this._swords.scaleY = ART;
-         this._swords.visible = false;
-         this._art.addChild(this._swords);
+         this._alert = new ResearchAlert();
+         this._alert.scaleX = this._alert.scaleY = 1.016 * ART;
+         this._alert.x = -27 * 1.016 * ART;
+         this._alert.y = -26 * 1.016 * ART;
+         this._art.addChild(this._alert);
       }
 
       public static function colourOf(team:uint, ownTeam:uint) : uint
@@ -208,8 +193,8 @@ package survarium.controls
 
       // progress 0..100 of the team `capturing`'s capture; left: ms of the
       // capture or neutralisation running, 0 none; metres from the camera;
-      // contested: both teams inside.
-      public function update(cpId:uint, owner:uint, capturing:uint, progress:Number, left:Number, inside:Boolean, ownTeam:uint, metres:Number, contested:Boolean) : void
+      // contested: both teams inside; advancing: sole occupying team (2 unknown/none).
+      public function update(cpId:uint, owner:uint, capturing:uint, progress:Number, left:Number, inside:Boolean, ownTeam:uint, metres:Number, contested:Boolean, advancing:uint = NO_TEAM) : void
       {
          var near:Number = Math.max(0,Math.min(1,(metres - NEAR) / (FAR - NEAR)));
          var drawn:String = [cpId,owner,capturing,progress,ownTeam].join(",");
@@ -232,35 +217,14 @@ package survarium.controls
             drawLetter(g,cpId,RADIUS);
          }
          this._active.visible = inside;
-         if(contested && !this._swords.visible)
-         {
-            this._pulseStarted = uint(getTimer());
-            this._swords.alpha = 1;
-         }
-         this._swords.visible = contested;
-         if(contested)
-         {
-            if(!hasEventListener(Event.ENTER_FRAME))
-            {
-               this._pulseStarted = uint(getTimer());
-               addEventListener(Event.ENTER_FRAME,this.onFrame);
-            }
-         }
-         else if(hasEventListener(Event.ENTER_FRAME))
-         {
-            removeEventListener(Event.ENTER_FRAME,this.onFrame);
-         }
+         this._alert.setState(ResearchAlert.forCapture(ownTeam,advancing,left,contested));
       }
 
-      // Retail's triangle, timed in milliseconds: 1 down to 0 and back.
-      // Unsigned subtraction also handles getTimer's wraparound.
-      protected function onFrame(e:Event) : void
+      // Hide stale activity when a unit leaves the screen or the match ends.
+      public function hide() : void
       {
-         var wave:Number;
-         var elapsed:uint = uint(uint(getTimer()) - this._pulseStarted);
-         wave = Math.abs(1 - (elapsed % PULSE_MS) / PULSE_MS * 2);
-         // Start visible when contested so the opponent is signalled at once.
-         this._swords.alpha = wave;
+         visible = false;
+         this._alert.setState(ResearchAlert.NONE);
       }
    }
 }
