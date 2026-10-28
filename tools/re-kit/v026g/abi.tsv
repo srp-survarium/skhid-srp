@@ -1971,6 +1971,12 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x003b7bd0	vostok::input::input_world::tick	manual	4	
+0x003b8cc0	vostok::input::platform::keyboard::on_activate	manual	0	
+0x003b8cf0	vostok::input::platform::keyboard::on_deactivate	manual	0	
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	manual	4	EAX: 1 the key down (bit 7 of its state), else 0
+0x003b8d20	vostok::input::platform::keyboard::execute	manual	0	
+0x003b9af0	vostok::input::platform::keyboard::process	manual	4	
 0x00306d50		manual	0	EAX: the material pair record of the two material ids (a 128x128 table at +308h, each id first mapped by its material's +66h base id, the default id +1030Ch for an empty slot): +8 the decals, +18h the sound, +24h..+28h the particles (4-byte slots, the next one +64h), +74h the particles' parameter, +8Ch the decal's size
 0x003223e0	survarium::bullet_manager::play_particle	manual	20	none; queues the particle at the point (a functor on the manager's +30h stack, run after the bullets' tick, threads too); nothing when the manager's +90h (the renderer) is 0
 0x003222f0	survarium::bullet_manager::play_sound	manual	12	none; queues the sound at the point as play_particle does

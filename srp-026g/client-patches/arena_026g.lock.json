@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 401445,
-  "sha256": "41572b277e1c6b7d0249dca27b6d2e17df61e28fe9899745df3efc5725f188b4",
+  "sha256": "d72c05b0cff3ed0f068f44c8b50fa4bc061ad9d73d1a8c71b479f69c8b058f38",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -27,12 +27,12 @@
     "match_keys.code": {
       "kind": "code",
       "va": "0xa434000",
-      "size": 264
+      "size": 360
     },
     "match_keys.state": {
       "kind": "state",
       "va": "0xa435000",
-      "size": 74
+      "size": 80
     },
     "hide_ui.code": {
       "kind": "code",
@@ -80,7 +80,7 @@
     "__rodata_bake_cache_code": "0xa43b0e9",
     "__rodata_hide_ui_code": "0xa4361e2",
     "__rodata_kill_feed_code": "0xa439178",
-    "__rodata_match_keys_code": "0xa4340f1",
+    "__rodata_match_keys_code": "0xa434154",
     "__rodata_patches_code": "0xa467a2d",
     "__rodata_research_code": "0xa42ff45",
     "artefacts_fire": "0xa432014",
@@ -179,9 +179,12 @@
     "hook_text_input_on_char": "0xa462d8e",
     "kill_feed_event": "0xa439000",
     "kill_feed_row": "0xa43909f",
-    "match_keys_chat": "0xa4340c3",
-    "match_keys_hud": "0xa434080",
-    "match_keys_keyboard": "0xa434000",
+    "kit_keys": "0xa43504a",
+    "kit_keys_since": "0xa43504c",
+    "match_keys_chat": "0xa434126",
+    "match_keys_hud": "0xa4340e3",
+    "match_keys_keyboard": "0xa43405a",
+    "match_keys_poll": "0xa434000",
     "ragdoll_on_bones": "0xa46782c",
     "ragdoll_on_cull": "0xa4677cf",
     "ragdoll_on_eye": "0xa467888",
