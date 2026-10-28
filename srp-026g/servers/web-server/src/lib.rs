@@ -1760,12 +1760,12 @@ fn room_rules(lang: Lang, squads: bool) -> String {
     let cards = session::v026g::rooms::CARDS;
     let mut items = vec![
         lang.tr(
-            "Matches are played in rooms in the lobby: join one from the list, make your own (its size, max level, maps, wait and an optional PIN), or press Play.",
-            "Матчі грають у кімнатах у лобі: приєднайтеся до однієї зі списку, створіть свою (розмір, макс. рівень, мапи, очікування й PIN за бажанням) або натисніть «Грати».",
+            "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
+            "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
         ),
         lang.tr(
-            "Play puts you in the open room nearest your level, or makes a new one.",
-            "«Грати» ставить вас у відкриту кімнату, найближчу до вашого рівня, або створює нову.",
+            "Play uses rooms capped at equipment level 10 or 15, creating the first room when needed. Full rooms have a queue; six waiting Play users in the same bracket open another room. Players up to level 10 can also choose a level-15 room from Rooms.",
+            "«Грати» підбирає кімнату з максимальним рівнем спорядження 10 або 15, створюючи першу за потреби. У повні кімнати є черга; шість гравців, що очікують через «Грати» в одній групі рівнів, відкривають нову кімнату. Гравці до 10-го рівня також можуть вибрати кімнату до 15-го через список кімнат.",
         ),
         lang.tr(
             &format!(

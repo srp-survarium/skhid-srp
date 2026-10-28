@@ -95,6 +95,8 @@ package
             "Waiting for the creator to start.", false);
          check("open, owner, waiting", 1003, false, true, 0, null, false, 0, "Waiting for players", true);
          check("private, owner, in match", 1004, true, true, 2, "01010", false, 0, null, false);
+         check("open, waiting for next match after player limit", 1005, false, false, 2, null, false, 0,
+            "This match has reached its player limit. You'll join the next match.", true, 7);
          // Out of the room: the list. A private room of max level 0 (the server's for it) and an
          // open room of max level 5; the private one chosen (the first). Then an open room alone
          // under the same key, chosen too.
@@ -102,9 +104,45 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         checkQueueButton();
          checkCreate();
          checkWindowOrder();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // The selected room's footer owns its queue action; there is no
+      // duplicate cancellation button above the list.
+      private function checkQueueButton():void
+      {
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0", "1001;2;15;8;16;0;0;0;0;QueueDemo01"]);
+         queueButton("before queue", "Queue", false);
+         tell(["S1;N;0;1001;1"]);
+         queueButton("queued", "Leave queue", true);
+         // The selected room may show a free seat before admission runs.
+         tell(["S1;L;1;0", "1001;2;15;8;15;0;0;0;0;QueueDemo01"]);
+         queueButton("queued while a place frees", "Leave queue", true);
+         tell(["S1;L;1;0", "1001;2;15;8;16;0;0;0;0;QueueDemo01"]);
+         tell(["S1;N;0;0;0"]);
+         queueButton("queue cancelled", "Queue", false);
+      }
+
+      private function queueButton(what:String, expected:String, enabled:Boolean):void
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         var actions:Array = buttons.filter(function(b:*, ... rest):Boolean
+         {
+            return b.label == "Join" || b.label == "Queue" || b.label == "Leave queue";
+         });
+         if(actions.length != 1 || actions[0].label != expected)
+            failures.push(what + ": expected one " + expected + " button");
+         else if(enabled && !actions[0].enabled)
+            failures.push(what + ": leaving the queue is disabled");
+         else if(actions[0].y < 100)
+            failures.push(what + ": queue action is above the room list");
+         trace("ROOMS " + what + ": " + actions.length + " action(s), "
+            + (actions.length ? actions[0].label : "missing"));
       }
 
       // Exercise the lobby's actual recurring layer adjustment. Background
@@ -256,16 +294,17 @@ package
          }
       }
 
-      // New room pressed; a PIN typed, then cleared: Team size and Max level shown only while
-      // no PIN is typed.
+      // Only private rooms can be made: no public sliders, and Create
+      // needs exactly four PIN digits without disturbing input focus.
       private function checkCreate() : void
       {
+         tell(["S1;M;1;0", "0;61;1;0;1;0"]);
          var buttons:Array = [];
          walk(win,[],[],0,0,buttons);
          var press:* = null;
          for each(var b:* in buttons)
          {
-            if(b.label == "New room")
+            if(b.label == "Private room")
             {
                press = b;
             }
@@ -285,11 +324,13 @@ package
             failures.push("create: New room: " + err.message);
             return;
          }
-         createShows("create, open",true);
+         createShows("create, empty PIN",false);
+         typePin("1");
+         createShows("create, short PIN",false);
          typePin("1234");
-         createShows("create, PIN typed",false);
+         createShows("create, PIN typed",true);
          typePin("");
-         createShows("create, PIN cleared",true);
+         createShows("create, PIN cleared",false);
          Object(win).show(false);
          if(stage.focus != null && win.contains(stage.focus))
             failures.push("hidden room still owns text focus");
@@ -332,10 +373,11 @@ package
          failures.push("create: no PIN field");
       }
 
-      private function createShows(what:String, open:Boolean) : void
+      private function createShows(what:String, enabled:Boolean) : void
       {
          var texts:Array = [];
-         walk(win,[],texts,0,0,[]);
+         var buttons:Array = [];
+         walk(win,[],texts,0,0,buttons);
          var all:Array = texts.map(function(t:Object, ... rest):String
          {
             return t.text;
@@ -345,16 +387,26 @@ package
             return all.indexOf(label) >= 0;
          });
          trace("ROOMS " + what + ": sliders [" + sliders.join(", ") + "]");
-         if(sliders.length != (open ? 4 : 0))
+         if(sliders.length != 0)
          {
             failures.push(what + ": sliders [" + sliders.join(", ") + "]");
          }
+         var found:Boolean = false;
+         for each(var b:* in buttons)
+            if(b.label == "Create")
+            {
+               found = true;
+               if(b.enabled != enabled)
+                  failures.push(what + ": Create enabled=" + b.enabled);
+            }
+         if(!found)
+            failures.push(what + ": no Create button");
       }
 
       // The window told a state of room `key`; its buttons and texts read back: what it says of
       // Alice's column ({alice: 0 left, 1 right, -1 not found}), or null when it could not.
       private function check(what:String, key:int, pin:Boolean, owner:Boolean, phase:int, teams:String,
-         start:Boolean, moves:int, hint:String, sizes:Boolean) : Object
+         start:Boolean, moves:int, hint:String, sizes:Boolean, joinWhy:int = 0) : Object
       {
          var size:int = pin ? 10 : 6;
          var head:String = ["S1","R",key,0,0,size,30,phase,0,owner ? 1 : 0,5,5,key,pin ? 1 : 0,0,pin ? 1 : 2,0].join(";");
@@ -363,13 +415,14 @@ package
          {
             // P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>
             var me:Boolean = owner ? i == 0 : i == 1;
-            names.push(["P",i,0,i == 0 ? 1 : 0,me ? 1 : 0,phase == 2 ? 1 : 0,0,0,WHO[i]].join(";"));
+            names.push(["P",i,0,i == 0 ? 1 : 0,me ? 1 : 0,phase == 2 && !(me && joinWhy != 0) ? 1 : 0,0,0,WHO[i]].join(";"));
          }
          if(teams != null)
          {
             names.push("A;" + teams);
          }
          names.push("L;0");
+         if(joinWhy != 0) names.push("J;-1;" + joinWhy);
          var rows:Array = [];
          for(var r:int = 0; r < names.length; r++)
          {
