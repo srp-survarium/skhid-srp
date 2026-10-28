@@ -994,7 +994,7 @@ filter_medkit	Lääkkeet
 filter_mine	Miinat
 filter_pants	Housut
 filter_pistol	Pistoolit
-filter_rig	Varusteet
+filter_rig	Taisteluliivit
 filter_scaner	Skannerit
 filter_shop	Kauppa
 filter_shop_and_inventory	Tavarat ja kauppa
@@ -1040,7 +1040,7 @@ friendly_user_compliment	Ystävällinen
 friends_online	Paikalla olevat kaverit
 friends_signin_notification_option	Ilmoita kavereiden saapumisesta
 fullscreen_option	Koko näyttö
-general_volume_option	Mestari
+general_volume_option	Pää-äänenvoimakkuus
 generic_money_name	Ruplat
 geometry_quality_option	Geometrian laatu
 go_to_knowledge_base_message	Tietopankki avautuu uuteen selainikkunaan.
@@ -1717,7 +1717,7 @@ repair_voucher_descr	Korjaussarjalla voit korjata varusteiden kaikki vakavat via
 repair_voucher_name	Korjaussarja
 repair_window_label	Korjaa
 reputation	Maine
-reroll	Tyhjennä
+reroll	Nollaa
 reroll_message_broken_item	Vaurioitunutta esinettä ei voi muokata.
 reroll_modifier_lock_hint	Voit vaihtaa vain tätä lisäominaisuutta.
 reroll_timer_hint	Saatavilla

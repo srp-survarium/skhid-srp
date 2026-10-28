@@ -664,7 +664,7 @@ clan_options_tab	Nastavení
 clan_players_level_label	Úr.
 clan_players_list_availabe_postfix	možných
 clan_players_list_availabe_prefix	Seznam hráčů 
-clan_players_name_label	Název
+clan_players_name_label	Jméno
 clan_players_rank_label	Hodnost
 clan_players_ready	Připraven
 clan_players_status_label	Stav
@@ -994,7 +994,7 @@ filter_medkit	Léky
 filter_mine	Miny
 filter_pants	Kalhoty
 filter_pistol	Pistole
-filter_rig	Vybavení
+filter_rig	Nosné vesty
 filter_scaner	Skenery
 filter_shop	Obchod
 filter_shop_and_inventory	Inventář a obchod
@@ -1040,7 +1040,7 @@ friendly_user_compliment	Přátelský
 friends_online	Přátelé online
 friends_signin_notification_option	Upozornit na připojení přátel
 fullscreen_option	Celá obrazovka
-general_volume_option	Mistr
+general_volume_option	Celková hlasitost
 generic_money_name	Rubly
 geometry_quality_option	Kvalita geometrie
 go_to_knowledge_base_message	Znalostní báze se otevře v novém okně prohlížeče.
@@ -1358,7 +1358,7 @@ new_modifier	Nový bonus
 next_ammo_action	Změnit typ munice
 next_fire_queue_action	Změnit režim střelby
 next_weapon	Další zbraň
-nickname	Název
+nickname	Jméno
 no_available_resolution	Nepodporováno
 no_faction_button_label	Výběr
 no_faction_message_label	Spolupráce s frakcemi
@@ -1717,7 +1717,7 @@ repair_voucher_descr	Sada na opravy odstraní jakoukoli závažnou poruchu vybav
 repair_voucher_name	Sada na opravy
 repair_window_label	Opravit
 reputation	Pověst
-reroll	Vymazat
+reroll	Resetovat
 reroll_message_broken_item	Poškozený předmět nemůžeš upravovat.
 reroll_modifier_lock_hint	Měnit můžeš jen tento bonus.
 reroll_timer_hint	Dostupné za

@@ -994,7 +994,7 @@ filter_medkit	Gyógyszerek
 filter_mine	Aknák
 filter_pants	Nadrágok
 filter_pistol	Pisztolyok
-filter_rig	Felszerelés
+filter_rig	Taktikai mellények
 filter_scaner	Szkennerek
 filter_shop	Bolt
 filter_shop_and_inventory	Leltár és bolt
@@ -1040,7 +1040,7 @@ friendly_user_compliment	Barátságos
 friends_online	Online barátok
 friends_signin_notification_option	Értesítés a barátok belépéséről
 fullscreen_option	Teljes képernyő
-general_volume_option	Mester
+general_volume_option	Fő hangerő
 generic_money_name	Rubel
 geometry_quality_option	Geometria minősége
 go_to_knowledge_base_message	A tudástár új böngészőablakban nyílik meg.
@@ -1717,7 +1717,7 @@ repair_voucher_descr	A javítókészlettel bármilyen súlyos felszereléshibát
 repair_voucher_name	Javítókészlet
 repair_window_label	Javítás
 reputation	Hírnév
-reroll	Törlés
+reroll	Visszaállítás
 reroll_message_broken_item	Sérült tárgyat nem módosíthatsz.
 reroll_modifier_lock_hint	Csak ezt a bónuszt cserélheted.
 reroll_timer_hint	Elérhető ennyi idő múlva:
