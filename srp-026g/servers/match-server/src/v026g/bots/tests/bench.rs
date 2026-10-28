@@ -1643,6 +1643,10 @@ pub(crate) fn real_bot_cost() {
                 eprintln!(
                     "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
                 );
+                eprintln!("{}", game.traps.catch_summary());
+                for line in game.traps.catch_lines() {
+                    eprintln!("{line}");
+                }
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!(

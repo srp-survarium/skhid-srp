@@ -94,6 +94,13 @@ pub(crate) struct Trap {
     pub(crate) team: u8,
     /// The tick it was placed.
     pub(crate) placed: u32,
+    /// The placer held crouch when it let go of the key, and how far its feet were from the point, metres
+    /// (ground): the pose and the distance at the press, for the catch lines.
+    pub(crate) placer_crouched: bool,
+    pub(crate) press_m: f32,
+    /// The eye's height over the feet and the view's pitch (down positive) at the release, for the catch lines.
+    pub(crate) eye_m: f32,
+    pub(crate) pitch_down: f32,
     pub(crate) phase: Phase,
     /// A hand defuse under way: who, since when.
     defusing: Option<(Place, u32)>,
@@ -111,7 +118,7 @@ impl Trap {
 pub(crate) enum Event {
     Placed { tick: u32, place: Place },
     /// `victim` set `placer`'s trap off: whose body that is, as a kill's kinds say.
-    Caught { tick: u32, placer: Place, victim: Place, kind: Kill },
+    Caught { tick: u32, placer: Place, victim: Place, kind: Kill, placed: u32, placer_crouched: bool, press_m: f32, eye_m: f32, pitch_down: f32 },
     ShotOff { tick: u32, shooter: Place, placer: Place },
     DefusedBy { tick: u32, by: Place, placer: Place },
 }
@@ -166,6 +173,62 @@ impl Traps {
             }
         }
         c
+    }
+
+    /// One line for each catch: whose body it was, the placer's pose when it let go, how long after placing, and how
+    /// far the point was from its feet then (`traps.press_landing_m`: at least 1 m; the trigger reaches 0.6 m).
+    pub(crate) fn catch_lines(&self) -> Vec<String> {
+        self.events
+            .iter()
+            .filter_map(|event| match event {
+                Event::Caught { tick, placer, victim, kind, placed, placer_crouched, press_m, eye_m, pitch_down } => Some(format!(
+                    "  trap catch: {} (placer {placer}, victim {victim}) placer {} {:.1} s after placing, {:.2} m from its feet at the press (eye {:.2} m, look {:.2} rad down)",
+                    match kind {
+                        Kill::Enemy => "enemy",
+                        Kill::Mate => "mate",
+                        Kill::Own => "own",
+                    },
+                    if *placer_crouched { "crouched" } else { "standing" },
+                    tick.saturating_sub(*placed) as f32 / 1000.0,
+                    press_m,
+                    eye_m,
+                    pitch_down,
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The catches by kind and the placer's pose, and the nearest and median press distance of the placed: one
+    /// line for the log (the players' catches are 85 % enemies, 11 % allies, 4 % the placer: WP-T).
+    pub(crate) fn catch_summary(&self) -> String {
+        let mut by = [[0u32; 2]; 3];
+        for event in &self.events {
+            if let Event::Caught { kind, placer_crouched, .. } = event {
+                by[*kind as usize][usize::from(*placer_crouched)] += 1;
+            }
+        }
+        let mut press: Vec<f32> = self
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                Event::Placed { .. } => None,
+                Event::Caught { press_m, .. } => Some(*press_m),
+                _ => None,
+            })
+            .collect();
+        press.sort_by(f32::total_cmp);
+        let median = press.get(press.len() / 2).copied().unwrap_or(f32::NAN);
+        format!(
+            "  trap catches [standing/crouched placer]: enemy {}/{} mate {}/{} own {}/{}; press distance of the caught: nearest {:.2} m, median {median:.2} m",
+            by[0][0],
+            by[0][1],
+            by[1][0],
+            by[1][1],
+            by[2][0],
+            by[2][1],
+            press.first().copied().unwrap_or(f32::NAN),
+        )
     }
 
     /// The objects section a world shows: the live record of each trap, one after another
@@ -279,8 +342,22 @@ impl Game {
                 continue;
             }
             let team = self.bodies[place].team;
+            let body = &self.bodies[place];
+            let (placer_crouched, press_m) = (body.keys & key::CROUCH != 0, body.feet.distance_xz(at));
+            let (eye_m, pitch_down) = (eye.y - body.feet.y, -pitch);
             self.bodies[place].trap.stock -= 1;
-            self.traps.list.push(Trap { at, placer: place, team, placed: tick, phase: Phase::Armed, defusing: None });
+            self.traps.list.push(Trap {
+                at,
+                placer: place,
+                team,
+                placed: tick,
+                placer_crouched,
+                press_m,
+                eye_m,
+                pitch_down,
+                phase: Phase::Armed,
+                defusing: None,
+            });
             self.traps.events.push(Event::Placed { tick, place });
         }
     }
@@ -324,7 +401,7 @@ impl Game {
                 } else {
                     Kill::Enemy
                 };
-                self.traps.events.push(Event::Caught { tick, placer: trap.placer, victim, kind });
+                self.traps.events.push(Event::Caught { tick, placer: trap.placer, victim, kind, placed: trap.placed, placer_crouched: trap.placer_crouched, press_m: trap.press_m, eye_m: trap.eye_m, pitch_down: trap.pitch_down });
                 let body = &mut self.bodies[victim];
                 body.legs = [0.0; 2];
                 body.leg_broken_until = body.leg_broken_until.max(tick + LEGS_MS);
@@ -576,6 +653,17 @@ mod tests {
             game.trap_tick(game.tick);
             assert_eq!(game.traps.counts()[1..4].iter().sum::<u32>(), 1);
             assert!(matches!(game.traps.events.last(), Some(Event::Caught { kind: k, .. }) if *k == kind));
+            // The catch line: whose body, the placer's pose, how long after, how far from its feet at the press.
+            let lines = game.traps.catch_lines();
+            assert_eq!(lines.len(), 1, "{lines:?}");
+            let word = if kind == Kill::Own { "own" } else { "mate" };
+            assert!(
+                lines[0].contains(&format!("trap catch: {word} (placer 0, victim {stepper}) placer standing"))
+                    && lines[0].contains("s after placing, ")
+                    && lines[0].contains(" m from its feet at the press (eye "),
+                "{lines:?}"
+            );
+            assert!(game.traps.catch_summary().contains("press distance of the caught: nearest "));
         }
     }
 

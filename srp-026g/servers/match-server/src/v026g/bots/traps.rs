@@ -10,9 +10,16 @@
 //! route or assignment is changed.
 //!
 //! - **Where the trap lands** is set by the view alone: the head ray is 2.0 m
-//!   (PROVEN) and a bot looks down at most 1.0 rad (`body::MAX_PITCH`), so
-//!   from the eye's 1.6 m it hits the floor 1.0 m out along the yaw. The
-//!   eight yaws round the bot are the candidates ([`choose`]).
+//!   (PROVEN) and a bot looks down at most 1.0 rad (`body::MAX_PITCH`). The
+//!   eye is not 1.6 m: standing it is 1.46 + 0.16 sin(pitch), crouched and
+//!   still 1.04 + 0.22 sin(pitch) (`view::eye_height`, PROVEN), so at the
+//!   steepest look the ray meets the floor 0.85 m out standing and 0.55 m
+//!   crouched, on the trigger's reach (0.6 m) of the placer's own feet.
+//!   With `TrapTuning::press_landing_m` the habit looks down only so steeply
+//!   that the ray lands that far out ([`press_look`]), from the eye the bot
+//!   has at the press, and presses only when the predicted landing is that
+//!   far from the feet and, off its own route ahead, by the lateral rule
+//!   ([`Aim`]). The eight yaws round the bot are the candidates ([`choose`]).
 //! - **The score** is enemy presence at the spot (the team's lanes of the
 //!   enemy humans, `know::HumanLanes`) less the friend flow (a mate there now
 //!   or in 2 and 4 s weighs; a mate within `friend_m` forbids it). Round it:
@@ -45,10 +52,18 @@ use super::{Bot, TeamState};
 
 /// The steepest look down, radians (`body::MAX_PITCH`).
 pub const LOOK_DOWN: f32 = 1.0;
-/// The view is steep enough to press at this pitch: the head ray meets the
-/// floor within 2.0 m from the standing eye only so steep (1.6 / sin 0.96 =
-/// 1.98).
-pub const PRESS_PITCH: f32 = 0.96;
+/// The press is made this near the pitch the look aims for, radians: at the
+/// steepest look, 1.0 - 0.04 = 0.96, where the head ray met the floor within
+/// 2.0 m from the (guessed) standing eye. Both sides: a view still
+/// slewing past the aim is let go of a tick later, steeper, and lands nearer.
+pub const PRESS_SLACK: f32 = 0.04;
+/// The least of the head ray's 2.0 m left over, metres: a pose that changes
+/// between the plan and the press (the crouched eye rises 0.1 m when the body
+/// moves) must still meet the floor.
+const RAY_MARGIN_M: f32 = 0.1;
+/// The landing the look aims for lies this far past the least the tuning asks
+/// of it, metres, so that the sway of a walking body does not undo it.
+const LANDING_MARGIN_M: f32 = 0.1;
 /// The head ray that puts a trap down is this long, metres (PROVEN: 2.0 m
 /// from the head along the view, `try_to_place_trap` 0x305EA0).
 pub const PLACE_RAY_M: f32 = 2.0;
@@ -112,6 +127,26 @@ pub struct Tick {
     pub pitch: f32,
     /// Nothing calls the bot away: no enemy seen, the reflex aims at none.
     pub calm: bool,
+    /// How steeply to look, and whether a trap let go of now would land where it is wanted.
+    pub aim: Aim,
+}
+
+/// What the press waits for this tick, from the pose the bot has now.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Aim {
+    /// The look aims at this steepness (radians down) and presses within [`PRESS_SLACK`] of it.
+    pub pitch: f32,
+    /// A trap let go of now would land where the tuning wants it ([`landing_ok`]); always so with
+    /// `press_landing_m` off.
+    pub landing_ok: bool,
+}
+
+impl Aim {
+    /// The look of the habit before the eye was reckoned: as steep as the body looks, no condition.
+    pub const STEEPEST: Self = Self {
+        pitch: LOOK_DOWN,
+        landing_ok: true,
+    };
 }
 
 /// What a tick asks of the body.
@@ -151,7 +186,9 @@ pub fn step(state: State, tick: Tick, t: &TrapTuning) -> (State, Out) {
             if tick.now.saturating_sub(since) > t.look_ms {
                 return (cooldown(tick.now, 0.5), Out::default());
             }
-            let on = turn(tick.yaw, yaw).abs() <= t.tolerance_rad && -tick.pitch >= PRESS_PITCH;
+            let on = turn(tick.yaw, yaw).abs() <= t.tolerance_rad
+                && (-tick.pitch - tick.aim.pitch).abs() <= PRESS_SLACK
+                && tick.aim.landing_ok;
             if on {
                 (
                     State::Down { yaw, spot },
@@ -421,6 +458,9 @@ impl Habit {
 /// What the habit needs of the world to pick a spot.
 pub struct Search<'a> {
     pub t: &'a TrapTuning,
+    /// How far ahead of the feet the candidates lie, metres: where the head ray meets the floor at the look
+    /// the bot will press with ([`press_look`]).
+    pub reach_m: f32,
     /// The view's yaw now: the spot that turns it least wins a tie.
     pub view_yaw: f32,
     pub grid: &'a WalkGrid,
@@ -551,9 +591,9 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         let yaw = std::f32::consts::TAU * k as f32 / YAWS as f32;
         let d = dir(yaw);
         let spot = Vec3::new(
-            s.feet.x + d[0] * t.reach_m,
+            s.feet.x + d[0] * s.reach_m,
             s.feet.y,
-            s.feet.z + d[1] * t.reach_m,
+            s.feet.z + d[1] * s.reach_m,
         );
         let Some(spot) = good_floor(s.grid, spot, t) else {
             #[cfg(test)]
@@ -632,12 +672,64 @@ pub fn landing(eye: Vec3, yaw: f32, pitch: f32, floor_y: f32) -> Option<Vec3> {
     Some(Vec3::new(eye.x + d[0] * run, floor_y, eye.z + d[1] * run))
 }
 
-/// The point to look at for a yaw: along it and steeply down, as far as the
-/// head ray goes.
-pub fn look_point(eye: Vec3, yaw: f32) -> Vec3 {
+/// The eye the press is counted on: the body's own, but a crouched body at the height of holding still
+/// ([`press_look`]).
+fn press_eye(me: &PlaceView) -> Vec3 {
+    let speed = if me.crouched() { 0.0 } else { me.speed() };
+    me.feet + Vec3::new(0.0, super::view::eye_height(me.crouched(), speed, me.pitch), 0.0)
+}
+
+/// The point to look at for a yaw: along it and down at `pitch` (radians down), as far as the head ray goes.
+pub fn look_point(eye: Vec3, yaw: f32, pitch: f32) -> Vec3 {
     let d = dir(yaw);
-    let (run, rise) = (LOOK_DOWN.cos() * 2.0, LOOK_DOWN.sin() * 2.0);
+    let (run, rise) = (pitch.cos() * PLACE_RAY_M, pitch.sin() * PLACE_RAY_M);
     Vec3::new(eye.x + d[0] * run, eye.y - rise, eye.z + d[1] * run)
+}
+
+/// How a pose looks down at the floor: the steepness, and where the head ray then meets the floor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PressLook {
+    /// Radians down.
+    pub pitch: f32,
+    /// Along the ground from the feet, metres.
+    pub run_m: f32,
+}
+
+/// The steepest look from the pose (`crouched`, ground `speed`) whose head ray meets the floor at least `run_m`
+/// from the feet, leaving [`RAY_MARGIN_M`] of the ray's 2.0 m; none if no look of the body does (the ray is then
+/// too short to meet the floor). The eye falls as the view goes down (`view::eye_height`), so the same pitch lands
+/// nearer for a crouched body: 0.55 m crouched and still, 0.85 m standing, at 1.0 rad.
+pub fn press_look(crouched: bool, speed: f32, run_m: f32) -> Option<PressLook> {
+    const STEP: f32 = 0.01;
+    // A crouched body's eye is 0.1 m lower when it holds still (1.04 against 1.14): the bot's own reckoning of its
+    // speed lags the body's, so the lower eye is the one counted on, and the trap lands at least as far as asked.
+    let speed = if crouched { 0.0 } else { speed };
+    let mut pitch = LOOK_DOWN;
+    while pitch > 0.2 {
+        let eye = super::view::eye_height(crouched, speed, -pitch);
+        let ray = eye / pitch.sin();
+        if ray > PLACE_RAY_M - RAY_MARGIN_M {
+            return None;
+        }
+        let run = eye / pitch.tan();
+        if run >= run_m {
+            return Some(PressLook { pitch, run_m: run });
+        }
+        pitch -= STEP;
+    }
+    None
+}
+
+/// Whether a trap let go of at `landing` (what [`landing`] predicts from the pose now) is where `t` wants it:
+/// at least `press_landing_m` from the feet, and, unless the bot stays, off its own route ahead by the lateral
+/// rule. Always so with `press_landing_m` off.
+pub fn landing_ok(t: &TrapTuning, landing: Option<Vec3>, feet: Vec3, staying: bool, ahead: &[Vec3]) -> bool {
+    let Some(min_m) = t.press_landing_m else {
+        return true;
+    };
+    landing.is_some_and(|at| {
+        at.distance_xz(feet) >= min_m && (staying || off_route_m(ahead, at) >= t.lateral_m.max(AVOID_M) - 1e-3)
+    })
 }
 
 impl TeamState {
@@ -768,9 +860,24 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         .filter(|p| p.place != me.place)
         .map(|p| (p.feet, p.velocity))
         .collect();
-    let staying = matches!(bot.intent.go, super::plays::Go::Stay)
-        && me.velocity[0].hypot(me.velocity[1]) < STANDING_MS;
+    let staying = is_staying(bot, me);
     let in_spawn = |at: Vec3| due.tactics.in_spawn_area(at, None);
+    // Where the head ray will meet the floor at the look it presses with, from the eye of the pose it has now
+    // (a crouched holder lands 0.3 m nearer than a walker): none, and no trap, where no look reaches that far.
+    let reach_m = match t.press_landing_m {
+        None => t.reach_m,
+        Some(min_m) => {
+            let wanted = t.reach_m.max(min_m + LANDING_MARGIN_M);
+            match press_look(me.crouched(), me.speed(), wanted) {
+                Some(look) => look.run_m,
+                None => {
+                    #[cfg(test)]
+                    gates::count(gates::NO_LOOK);
+                    return;
+                }
+            }
+        }
+    };
     let own: Vec<Vec3> = state
         .knowledge
         .traps
@@ -779,6 +886,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         .collect();
     let search = Search {
         t,
+        reach_m,
         grid: &due.tactics.world.grid,
         now: due.now,
         view_yaw: me.yaw,
@@ -826,13 +934,17 @@ pub mod gates {
     pub const R_BODY: usize = 17;
     pub const R_FRIEND: usize = 18;
     pub const R_SCORE: usize = 19;
-    pub const NAMES: [&str; 20] = [
+    /// No look of the body's pose reaches the floor far enough from the feet (`press_landing_m`).
+    pub const NO_LOOK: usize = 20;
+    /// A tick the look was on but a trap let go of would have landed too near the feet or on the route.
+    pub const PRESS_WAIT: usize = 21;
+    pub const NAMES: [&str; 22] = [
         "thinks", "chance", "jump", "no_spot", "planned", "play", "carrying", "health", "enemy", "hit", "reloading",
         "team_cap", "other", "cand_floor", "cand_spawn", "cand_own", "cand_route", "cand_body", "cand_friend",
-        "cand_score",
+        "cand_score", "no_look", "press_wait",
     ];
 
-    static COUNTS: [AtomicU64; 20] = [const { AtomicU64::new(0) }; 20];
+    static COUNTS: [AtomicU64; 22] = [const { AtomicU64::new(0) }; 22];
 
     pub fn of(refusal: Refusal) -> usize {
         FIRST_REFUSAL
@@ -905,12 +1017,14 @@ pub(super) fn drive(
         return None;
     }
     let kit = bot.features.traps.habit.kit()?;
+    let aim = aim_of(bot, me, t);
     let out = bot.features.traps.habit.tick(
         Tick {
             now,
             yaw: me.yaw,
             pitch: me.pitch,
             calm,
+            aim,
         },
         t,
     );
@@ -924,13 +1038,44 @@ pub(super) fn drive(
             bot.traced.push(serde_json::json!({
                 "t": now, "bot": bot.place, "trap_promise": landed.map(Vec3::to_array),
                 "planned": planned.to_array(),
+                "crouched": me.crouched(), "speed": me.speed(),
+                "feet_to_landing": landed.map(|at| at.distance_xz(me.feet)),
             }));
         }
     }
     Some(TrapDrive {
-        look: out.look_yaw.map(|yaw| look_point(me.eye(), yaw)),
+        look: out.look_yaw.map(|yaw| look_point(me.eye(), yaw, aim.pitch)),
         key: if out.key_down { kit.key } else { 0 },
     })
+}
+
+/// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
+/// pose the bot has now (it may have changed since the plan: the walk, a crouch). With `press_landing_m` off
+/// always the steepest look and no condition.
+fn aim_of(bot: &Bot, me: &PlaceView, t: &TrapTuning) -> Aim {
+    let Some(min_m) = t.press_landing_m else {
+        return Aim::STEEPEST;
+    };
+    let wanted = t.reach_m.max(min_m + LANDING_MARGIN_M);
+    let pitch = press_look(me.crouched(), me.speed(), wanted).map_or(LOOK_DOWN, |look| look.pitch);
+    // The key is down and let go a tick later with the view where it was: the look holds the aim until then.
+    let State::Looking { spot, .. } = bot.features.traps.habit.state() else {
+        return Aim { pitch, landing_ok: true };
+    };
+    let staying = is_staying(bot, me);
+    let ahead = if staying { Vec::new() } else { route_ahead(bot, me, t).0 };
+    let landed = landing(press_eye(me), me.yaw, me.pitch, spot.y);
+    let landing_ok = landing_ok(t, landed, me.feet, staying, &ahead);
+    #[cfg(test)]
+    if !landing_ok {
+        gates::count(gates::PRESS_WAIT);
+    }
+    Aim { pitch, landing_ok }
+}
+
+/// Whether the bot stays where it is: its play holds it and it is slow. Its spot then need not lie off the route.
+fn is_staying(bot: &Bot, me: &PlaceView) -> bool {
+    matches!(bot.intent.go, super::plays::Go::Stay) && me.speed() < STANDING_MS
 }
 
 /// What the habit asks of a drive tick.
@@ -1048,6 +1193,7 @@ mod tests {
             yaw,
             pitch,
             calm,
+            aim: Aim::STEEPEST,
         }
     }
 
@@ -1112,7 +1258,7 @@ mod tests {
     #[test]
     fn the_look_point_is_the_steepest_look_and_the_head_ray_reaches_the_floor() {
         let eye = Vec3::new(10.0, 1.6, 10.0);
-        let p = look_point(eye, 0.0);
+        let p = look_point(eye, 0.0, LOOK_DOWN);
         let (dx, dz) = (p.x - eye.x, p.z - eye.z);
         let pitch = (eye.y - p.y).atan2(dx.hypot(dz));
         assert!((pitch - LOOK_DOWN).abs() < 1e-4);
@@ -1141,6 +1287,7 @@ mod tests {
     ) -> Search<'a> {
         Search {
             t,
+            reach_m: t.reach_m,
             grid: &s.tactics.world.grid,
             now: 100_000,
             view_yaw: 0.0,
@@ -1290,5 +1437,87 @@ mod tests {
         let mut bad = crate::v026g::bots::tuning::Tuning::all_off();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
+    }
+
+    /// The eye of a pose at the pitch a look down has (`view::eye_height`, up positive).
+    fn eye_at(feet: Vec3, crouched: bool, speed: f32, pitch_down: f32) -> Vec3 {
+        feet + Vec3::new(0.0, crate::v026g::bots::view::eye_height(crouched, speed, -pitch_down), 0.0)
+    }
+
+    /// The steepest look lands 0.85 m out standing and 0.55 m crouched and still: on the trigger's 0.6 m of the
+    /// placer's own foot. The look that [`press_look`] picks lands where it was asked, from either pose, with the
+    /// head ray inside its 2.0 m, and the landing [`landing`] predicts from the pose at the press is as far.
+    #[test]
+    fn the_press_look_lands_where_asked_from_a_standing_or_a_crouched_eye() {
+        let (feet, yaw) = (Vec3::new(10.0, 0.0, 4.0), kin::yaw_of([1.0, 0.0]));
+        for (crouched, steepest_m) in [(false, 0.85), (true, 0.55)] {
+            let eye = eye_at(feet, crouched, 0.0, LOOK_DOWN);
+            let at = landing(eye, yaw, -LOOK_DOWN, 0.0).expect("lands");
+            assert!(
+                (at.distance_xz(feet) - steepest_m).abs() < 0.03 && at.distance_xz(feet) < TRIGGER_M + 0.3,
+                "crouched {crouched}: the steepest look lands {} m out",
+                at.distance_xz(feet)
+            );
+            let look = press_look(crouched, 0.0, 1.1).expect("a look reaches 1.1 m");
+            assert!(look.pitch < LOOK_DOWN && look.run_m >= 1.1 && look.run_m < 1.2, "{look:?}");
+            let eye = eye_at(feet, crouched, 0.0, look.pitch);
+            let at = landing(eye, yaw, -look.pitch, 0.0).expect("lands");
+            assert!((at.distance_xz(feet) - look.run_m).abs() < 1e-3, "{at:?} {look:?}");
+            assert!((eye.y / look.pitch.sin()) <= PLACE_RAY_M - RAY_MARGIN_M + 1e-3);
+            // Within the press slack it lands about where asked, farther if flatter and nearer if steeper.
+            let flatter = look.pitch - PRESS_SLACK;
+            let slack = landing(eye_at(feet, crouched, 0.0, flatter), yaw, -flatter, 0.0);
+            assert!(slack.is_some_and(|at| at.distance_xz(feet) >= look.run_m - 1e-3), "{slack:?}");
+        }
+        // A distance no look reaches: the head ray of 2.0 m runs out before the floor.
+        assert_eq!(press_look(true, 0.0, 1.8), None);
+        assert_eq!(press_look(false, 0.0, 3.0), None);
+    }
+
+    #[test]
+    fn a_press_waits_for_the_landing_and_the_steepness_and_the_old_look_asks_for_neither() {
+        let mut t = TrapTuning::default();
+        let feet = Vec3::ZERO;
+        let route: Vec<Vec3> = (0..=12).map(|k| Vec3::new(k as f32, 0.0, 0.0)).collect();
+        let far = Some(Vec3::new(0.0, 0.0, 1.2));
+        assert!(landing_ok(&t, far, feet, false, &route));
+        // Too near the feet (a crouched placer's own), none at all (the ray ends in the air), on the route.
+        assert!(!landing_ok(&t, Some(Vec3::new(0.0, 0.0, 0.7)), feet, false, &route));
+        assert!(!landing_ok(&t, None, feet, false, &route));
+        assert!(!landing_ok(&t, Some(Vec3::new(3.0, 0.0, 0.4)), Vec3::new(3.0, 0.0, 1.6), false, &route));
+        // A bot that stays has no route to keep off; the feet are still kept clear.
+        assert!(landing_ok(&t, Some(Vec3::new(3.0, 0.0, 1.2)), Vec3::new(3.0, 0.0, 0.0), true, &route));
+        assert!(!landing_ok(&t, Some(Vec3::new(0.0, 0.0, 0.5)), feet, true, &route));
+        // Off: whatever the landing.
+        t.press_landing_m = None;
+        assert!(landing_ok(&t, None, feet, false, &route));
+        // The step: on the yaw and steep enough but with a bad landing, no key; with a good one, the key.
+        let looking = State::Looking { yaw: 1.0, spot: Vec3::ZERO, since: 1_000 };
+        let wait = Tick { aim: Aim { pitch: 0.7, landing_ok: false }, ..tick(1_100, 1.0, -0.7, true) };
+        let (state, out) = step(looking, wait, &t);
+        assert!(!out.key_down && matches!(state, State::Looking { .. }));
+        let go = Tick { aim: Aim { pitch: 0.7, landing_ok: true }, ..wait };
+        assert!(step(looking, go, &t).1.key_down);
+        // A flatter look than the aim minus the slack is not on, nor one steeper than the aim plus it (still slewing).
+        let flat = Tick { pitch: -0.6, ..go };
+        assert!(!step(looking, flat, &t).1.key_down);
+        let steep = Tick { pitch: -0.76, ..go };
+        assert!(!step(looking, steep, &t).1.key_down);
+    }
+
+    #[test]
+    fn the_candidates_lie_where_the_look_reaches() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let tuning = TrapTuning::default();
+        let feet = Vec3::new(30.0, 0.0, 10.0);
+        let not_spawn = |_: Vec3| false;
+        let lanes = lanes_at(Vec3::new(33.0, 0.0, 10.0), 6, 100_000);
+        let look = press_look(true, 0.0, 1.1).unwrap();
+        let chosen = choose(&Search {
+            reach_m: look.run_m,
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        })
+        .expect("a spot");
+        assert!((chosen.spot.distance_xz(feet) - look.run_m).abs() < 1e-3, "{chosen:?}");
     }
 }
