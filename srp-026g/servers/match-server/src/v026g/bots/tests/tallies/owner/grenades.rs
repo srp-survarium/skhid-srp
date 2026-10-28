@@ -270,6 +270,36 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
     assert!(run(false).get("grenade_live").is_none());
 }
 
+/// The stand-in explodes only the throws a thrower's kit still had a grenade for in that life: two grenades in the kit make
+/// the first two throws of a life carried, the third phantom; a new life (one more death) has them again; a kit of none
+/// throws only phantoms; with no roster every throw is carried.
+#[test]
+pub(crate) fn only_a_throw_the_kit_had_a_grenade_for_goes_off() {
+    let at = Vec3::new(10.0, 0.0, 10.0);
+    let mut counts = GrenadeCounts { carried: Some(vec![[2, 0, 0], [0, 0, 0]]), kit_now: vec![0, 0], ..Default::default() };
+    for _ in 0..3 {
+        counts.grenade_thrown(0, 0, at, 5_000, 0);
+    }
+    assert_eq!((counts.carried_throws, counts.phantom_throws, counts.throws.len()), (2, 1, 2));
+    // The next life: the kit is full again.
+    counts.grenade_thrown(0, 0, at, 9_000, 1);
+    assert_eq!((counts.carried_throws, counts.phantom_throws), (3, 1));
+    // A bot whose kit holds none.
+    counts.grenade_thrown(1, 1, at, 5_000, 0);
+    assert_eq!((counts.carried_throws, counts.phantom_throws, counts.grenades), (3, 2, 5));
+    // The kit in hand decides: kit 1 of bot 0 holds none.
+    counts.kit_now[0] = 1;
+    counts.grenade_thrown(0, 0, at, 12_000, 2);
+    assert_eq!(counts.phantom_throws, 3);
+    // No roster: every throw is carried.
+    let mut free = GrenadeCounts::default();
+    free.grenade_thrown(0, 0, at, 5_000, 0);
+    free.grenade_thrown(0, 0, at, 5_100, 0);
+    free.grenade_thrown(0, 0, at, 5_200, 0);
+    assert_eq!((free.carried_throws, free.phantom_throws), (0, 0), "unchecked throws are not split");
+    assert_eq!(free.throws.len(), 3);
+}
+
 /// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
 /// younger than the last reading is a new life; nothing is said where no bot thought.
 #[test]
@@ -627,7 +657,7 @@ impl GrenadeCounts {
             self.phantom_throws += 1;
             return;
         }
-        self.carried_throws += 1;
+        self.carried_throws += u32::from(self.carried.is_some());
         self.throws.push(Throw {
             thrower,
             aim,

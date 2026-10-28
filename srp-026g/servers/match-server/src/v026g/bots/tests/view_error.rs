@@ -12,8 +12,19 @@
 //! the true bodies, so a shot at the picture goes where the picture is. The error applies to every body, the bots' own too
 //! (the table's bots rows, median 0.36 m).
 //!
-//! Off by default: it is on in no arm until the flip counts (`tallies/owner/outcomes.rs`, `view_flip_*`) show it near the live
-//! 22 % / 20 %.
+//! Off by default: no arm has it until the owner of the bench scripts turns it on. Calibrated on 9 matches a side (School and
+//! Cologne batteries, Vector Laboratory TDM, 10 a side, tier 13-15, with the live pings) against the flip counts of
+//! `tallies/owner/outcomes.rs` (`view_flip`), live 22 % missed sight / 20 % fire into cover:
+//!
+//! | arm | missed sight | fire into cover |
+//! |---|---|---|
+//! | no error (the pings alone) | 8.6 % | 9.1 % |
+//! | scale 1.0 | 24.6 % | 23.6 % |
+//! | scale 0.75 | 23.0 % | 21.7 % |
+//! | scale 0.6 | 21.5 % | 19.0 % |
+//!
+//! The bench's pings already give it a ninth of those; the tables' errors include the lateness, so the whole table over-counts.
+//! The default is [`DEFAULT_SCALE`] (0.7).
 
 use mapdata::Vec3;
 
@@ -67,6 +78,9 @@ pub(crate) fn age_factor(age_ms: u32) -> f32 {
     p90 / 0.93
 }
 
+/// The scale that puts the flip counts at the live 22 % / 20 % with the bench's pings on (see the module docs).
+pub(crate) const DEFAULT_SCALE: f32 = 0.7;
+
 /// The error model of a run.
 pub(crate) struct ViewError {
     rng: Rng,
@@ -85,7 +99,7 @@ impl ViewError {
         let settings = bench_settings();
         settings.var("SRP_BENCH_VIEW_ERROR").is_ok_and(|v| v == "1").then(|| Self {
             rng: Rng::new(0x71E3_0000 + u64::from(seed)),
-            scale: settings.number("SRP_BENCH_VIEW_ERROR_SCALE").unwrap_or(1.0),
+            scale: settings.number("SRP_BENCH_VIEW_ERROR_SCALE").unwrap_or(DEFAULT_SCALE),
             last_y: vec![None; places],
             fixes: 0,
             metres: 0.0,
