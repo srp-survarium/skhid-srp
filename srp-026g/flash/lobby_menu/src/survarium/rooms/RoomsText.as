@@ -226,7 +226,7 @@ package survarium.rooms
             ["School", "Школа", "Школа", "Schule", "Szkoła", "Škola"],
             ["Vostok Radar Station", "РЛС \"Восток\"", "РЛС \"Восток\"", "RS Vostok", "Stacja Radarowa \"Vostok\"", "Radarska stanica Vostok"],
             ["Chemical Plant", "Хімзавод", "Химзавод", "Chemiebetrieb", "Zakłady chemiczne", "Hemijska fabrika"],
-            ["Tarakanovsky Fort", "Тараканівський форт", "Таракановский форт", "Tarakanowski Fort", "Fort Tarakanów", "Tarakanovska tvrđava"],
+            ["Tarakanovsky Fort", "Тараканівський форт", "Таракановский форт", "Tarakanowski Fort", "Fort Tarakanów", "Tarakanovski fort"],
             ["Mamayev Kurgan", "Мамаїв курган", "Мамаев курган", "Mamaew kurgan", "Kurhan Mamaja", "Mamajev kurgan"],
             ["Vector Laboratory", "Лабораторія \"Вектор\"", "Лаборатория \"Вектор\"", "Labor Vektor", "Laboratorium \"Wektor\"", "Laboratorija Vektor"],
             ["Cologne", "Кельн", "Кельн", "Köln", "Most w Kolonii", "Keln"],
