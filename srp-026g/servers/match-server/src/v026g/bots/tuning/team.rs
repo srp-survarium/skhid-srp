@@ -156,6 +156,11 @@ pub struct AvoidTuning {
     /// A bot steps out of the blast of every grenade it knows of (below). Off: no bot knows of one, the
     /// list is not read.
     pub grenade_avoid: bool,
+    /// The server's live list reads a server bot's pockets from its profile, as a human's: a bot's throw key
+    /// lists a grenade only if its kit in use holds one with units left (the client throws nothing otherwise).
+    /// Off: every throw key of a bot is listed as a frag, so mates stepped out of blasts that never came
+    /// (155 of 204 bot throws in the owner's matches of 2026-10-28 had empty pockets).
+    pub bot_pockets: bool,
     /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
     /// human team can call it, few do); they step out after this long, ms, drawn.
     pub told_ms: (u32, u32),
@@ -182,6 +187,7 @@ impl Default for AvoidTuning {
     fn default() -> Self {
         Self {
             grenade_avoid: true,
+            bot_pockets: true,
             told_ms: (200, 400),
             notice_ms: (400, 900),
             see_m: 30.0,

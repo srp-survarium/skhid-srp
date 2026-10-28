@@ -54,7 +54,7 @@ use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::arc::Grenade;
-use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
+use crate::v026g::bots::live_grenades::{KitPockets, Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -159,7 +159,12 @@ impl Walkers {
             .iter()
             .map(|profile| weapon_of(profile, by_data))
             .collect();
-        let pockets = formed.profiles.iter().map(pockets_of).collect();
+        let bot_pockets = tuning.avoid.bot_pockets;
+        let pockets = formed
+            .profiles
+            .iter()
+            .map(|profile| pockets_of(profile, bot_pockets))
+            .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
         let armours: Vec<_> = formed.profiles.iter().map(zone_armour_of).collect();
@@ -366,42 +371,49 @@ fn weapon_in_slot_7(
     WeaponKind::of_item(kind, category)
 }
 
-/// A player's pockets (profile slots 13..=18 of its first kit) for the
-/// throw keys: what each holds, a frag (a grenade whose blast hurts, with its own fuse and radius: the game data's `rgd-5`), a smoke (another grenade item, `rdg-m`) or
-/// something else the quick-use keys count, and the units. A server bot's
-/// throw key is a frag, so it has none. The first kit is the one the
-/// player spawns in unless it picked another (LIKELY: `kit_changes`
-/// counts the picks; the picked kit is not tracked here).
+/// A player's pockets for the throw keys: for each kit of its profile (slots 13..=18) what each holds, a frag (a
+/// grenade whose blast hurts, with its own fuse and radius: the game data's `rgd-5`), a smoke (another grenade
+/// item, `rdg-m`) or something else the quick-use keys count, and the units. The kit in use is the one a world
+/// names (`Bots::kit_in_use`, from `players::Supplies::kit`); the first until the first world. A server bot's
+/// pockets are read like a human's when `bot_pockets` is on (`AvoidTuning::bot_pockets`: it throws what its kit
+/// holds, as the client does), else it has none and its throw key is a frag.
 fn pockets_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
-) -> Option<Pockets> {
-    if survarium::v026g::loadouts::bot_role_of(profile).is_some() {
+    bot_pockets: bool,
+) -> Option<KitPockets> {
+    if !bot_pockets && survarium::v026g::loadouts::bot_role_of(profile).is_some() {
         return None;
     }
-    let kit = profile.kits.first()?;
     let dictionary = survarium::v026g::dictionary::Dictionary::shared();
-    let slots = std::array::from_fn(|i| {
-        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
-        let (index, units) = kit.slots[slot]?;
-        let item = profile.items.get(usize::from(index))?;
-        let name = dictionary.item(item.dict_id)?.name.as_str();
-        // By the game data: a frag is a grenade whose blast hurts (with its own fuse and radius), a smoke
-        // any other grenade item.
-        let held = match (Grenade::named(name), survarium::v026g::weapons::is_grenade_item(name)) {
-            (Some(_), _) => Pocketed::Frag,
-            (None, true) => Pocketed::Smoke,
-            (None, false) => Pocketed::Other,
-        };
-        Some((held, units))
-    });
-    let grenades = std::array::from_fn(|i| {
-        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
-        let (index, _) = kit.slots[slot]?;
-        let item = profile.items.get(usize::from(index))?;
-        let name = dictionary.item(item.dict_id)?.name.as_str();
-        Grenade::named(name).copied()
-    });
-    Some(Pockets::new(slots).with_grenades(grenades))
+    let kits = profile
+        .kits
+        .iter()
+        .map(|kit| {
+            let slots = std::array::from_fn(|i| {
+                let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+                let (index, units) = kit.slots[slot]?;
+                let item = profile.items.get(usize::from(index))?;
+                let name = dictionary.item(item.dict_id)?.name.as_str();
+                // By the game data: a frag is a grenade whose blast hurts (with its own fuse and radius), a
+                // smoke any other grenade item.
+                let held = match (Grenade::named(name), survarium::v026g::weapons::is_grenade_item(name)) {
+                    (Some(_), _) => Pocketed::Frag,
+                    (None, true) => Pocketed::Smoke,
+                    (None, false) => Pocketed::Other,
+                };
+                Some((held, units))
+            });
+            let grenades = std::array::from_fn(|i| {
+                let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+                let (index, _) = kit.slots[slot]?;
+                let item = profile.items.get(usize::from(index))?;
+                let name = dictionary.item(item.dict_id)?.name.as_str();
+                Grenade::named(name).copied()
+            });
+            Pockets::new(slots).with_grenades(grenades)
+        })
+        .collect();
+    KitPockets::new(kits)
 }
 
 /// How far a shot of a place's weapon 1 (the item in slot 7 of its first
@@ -681,6 +693,10 @@ impl Game {
         };
         let dictionary = survarium::v026g::dictionary::Dictionary::shared();
         for (place, supplies) in state.supplies.iter().enumerate() {
+            // The kit a place is in, for its throw keys' pockets: a human's too.
+            if let Some(supplies) = supplies {
+                walkers.bots.kit_in_use(place, usize::from(supplies.kit));
+            }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
             if let (true, Some(supplies), Some(profile)) =
                 (driven, supplies, self.formed.profiles.get(place))
@@ -977,6 +993,31 @@ mod tests {
             kind(BotTier::Low, RusherKit::Smg, BotRole::Rusher),
             Some(WeaponKind::Shotgun)
         );
+    }
+
+    /// A server bot's pockets are read from its profile like a human's when `bot_pockets` is on: they hold what its
+    /// kit holds (with the owner's kit on, none of the rusher's, flanker's or camper's holds a grenade), and are none
+    /// with the switch off (its throw key is then a frag).
+    #[test]
+    fn a_bots_pockets_are_its_kits_when_the_switch_is_on() {
+        use crate::v026g::drive::key;
+        let equipment = BotEquipment { tier: BotTier::Mid, rusher: RusherKit::Smg, mask: BotMask::Table };
+        for role in BotRole::ALL {
+            let profile = bot_profile(1, 0, role, equipment);
+            assert!(pockets_of(&profile, false).is_none(), "{role:?}: switch off");
+            let mut pockets = pockets_of(&profile, true).expect("a bot's pockets");
+            let mut thrown = 0;
+            while pockets.throw_grenade(key::GRENADE).is_some() && thrown < 10 {
+                thrown += 1;
+            }
+            if survarium::v026g::loadouts::new_kit() && role != BotRole::Support {
+                assert_eq!(thrown, 0, "{role:?} carries traps, not a grenade");
+            }
+            assert!(thrown < 10, "{role:?}");
+            // A new life fills them again.
+            pockets.refill();
+            assert_eq!(pockets.throw_grenade(key::GRENADE).is_some(), thrown > 0, "{role:?}");
+        }
     }
 
     /// On the live game data (`SRP_GAME_DATA`): the 13-15 rusher's P90 and

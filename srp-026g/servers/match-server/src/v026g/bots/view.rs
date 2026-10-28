@@ -35,7 +35,7 @@ use super::arc::{self, Flight, Grenade, Mesh};
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
 use super::live_grenades::{
-    LiveGrenade, LAUNCH_MS, Phase, Pocketed, Pockets, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
+    KitPockets, LiveGrenade, LAUNCH_MS, Phase, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
 };
 use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
 use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
@@ -539,9 +539,9 @@ struct PlaceState {
     stats: (u32, u32, u32),
     /// The last few uses pressed.
     uses: VecDeque<UsePress>,
-    /// A human's pockets (its profile's first kit), for the throw keys; a
-    /// server bot's throw key is always a frag.
-    pockets: Option<Pockets>,
+    /// The place's pockets over its kits, for the throw keys; with none read a
+    /// server bot's throw key is a frag.
+    pockets: Option<KitPockets>,
     /// The press of its last throw ([`SAME_THROW_MS`]).
     last_throw: Option<u32>,
     last_shot: Option<u32>,
@@ -766,12 +766,21 @@ impl Tracker {
         }
     }
 
-    /// Each place's pockets by place (a human's: its profile's first kit),
-    /// for the throw keys; `None` for a server bot and for a profile that
-    /// did not read.
-    pub fn set_pockets(&mut self, pockets: Vec<Option<Pockets>>) {
+    /// Each place's pockets by place (all its kits), for the throw keys;
+    /// `None` for a profile that did not read, and for a server bot while
+    /// its pockets are not read (`AvoidTuning::bot_pockets`: its throw key
+    /// is then a frag).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<KitPockets>>) {
         for (state, pockets) in self.places.iter_mut().zip(pockets) {
             state.pockets = pockets;
+        }
+    }
+
+    /// A world says `place` is in its kit `kit` (`players::Supplies::kit`): its throw keys act on that kit's
+    /// pockets.
+    pub fn kit_in_use(&mut self, place: Place, kit: usize) {
+        if let Some(pockets) = self.places.get_mut(place).and_then(|state| state.pockets.as_mut()) {
+            pockets.use_kit(kit);
         }
     }
 
@@ -941,17 +950,25 @@ impl Tracker {
         if pressed & THROW_KEYS != 0
             && state.last_throw.is_none_or(|last| time >= last + SAME_THROW_MS)
         {
-            let thrown = if state.bot {
-                (pressed & key::GRENADE != 0).then_some((Pocketed::Frag, *Grenade::bots()))
-            } else if let Some(pockets) = state.pockets.as_mut() {
-                pockets.throw_grenade(pressed)
-            } else {
-                self.throws.no_pockets += 1;
-                None
+            let thrown = match state.pockets.as_mut() {
+                Some(pockets) => {
+                    let thrown = pockets.throw_grenade(pressed);
+                    if thrown.is_none() && state.bot && pressed & key::GRENADE != 0 {
+                        self.throws.bot_empty += 1;
+                    }
+                    thrown
+                }
+                // Pockets not read: a server bot's throw key is a frag (the reflex's only grenade).
+                None if state.bot => (pressed & key::GRENADE != 0).then_some((Pocketed::Frag, *Grenade::bots())),
+                None => {
+                    self.throws.no_pockets += 1;
+                    None
+                }
             };
             match thrown {
                 Some((Pocketed::Frag, grenade)) => {
                     self.throws.frag += 1;
+                    self.throws.human_frag += u32::from(!state.bot);
                     state.last_throw = Some(time);
                     self.grenades.push(LiveGrenade {
                         by: place,

@@ -12,6 +12,7 @@
     }
   },
   "avoid": {
+    "bot_pockets": false,
     "grenade_avoid": false
   },
   "cheats": {

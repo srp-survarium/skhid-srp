@@ -917,7 +917,7 @@ impl Bots {
 
     /// Every place's pockets (a human's), for the throw keys
     /// ([`live_grenades`]).
-    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::KitPockets>>) {
         self.tracker.set_pockets(pockets);
     }
 

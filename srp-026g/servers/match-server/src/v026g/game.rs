@@ -4862,6 +4862,11 @@ impl Game {
                 self.id,
                 walkers.bots.pocket_report()
             );
+            log::info!(
+                "Match {:#x}: the live grenade list: {}",
+                self.id,
+                walkers.bots.grenade_report()
+            );
         }
         self.result = Some(result);
         self.result_made = true;
