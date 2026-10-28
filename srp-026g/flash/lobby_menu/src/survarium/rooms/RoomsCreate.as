@@ -23,8 +23,9 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH,
-            GameMode.RESEARCH];
+        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch and Research.
+        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
         // A slider after the design: the label and the gold value on one
         // line, a thin track gold up to a round gold knob, its range small
         // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
@@ -222,24 +223,39 @@ package survarium.rooms
             y += 30;
             look.text(look._content, win.say("pin").toUpperCase(), 14, y + 4, 100, 12, RoomsLook.DIM);
             _makePin = look.input(look._content, 110, y, _makePinText);
+            _makePin.addEventListener(Event.CHANGE, onPinChange, false, 0, true);
             look.text(look._content, win.say("pinHint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
             y += 38;
-            slider(y, win.say("size"), "size");
-            y += SLIDER_H;
-            slider(y, win.say("minPlayers"), "min");
-            y += SLIDER_H;
-            slider(y, win.say("max"), "max");
-            y += SLIDER_H;
-            slider(y, win.say("wait"), "wait");
-            y += SLIDER_H + 12;
-            // The modes: the two kinds of protective device apart, team
+            // A private room (a PIN typed) has no size, players to start, max
+            // level or time to start (the owner's of 2026-10-26: its owner
+            // starts it, any equipment comes in): their sliders hidden, their
+            // values kept for the next open room.
+            if (privateRoom())
+            {
+                look.text(look._content, win.say("privateRoom"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
+                y += 48;
+            }
+            else
+            {
+                slider(y, win.say("size"), "size");
+                y += SLIDER_H;
+                slider(y, win.say("minPlayers"), "min");
+                y += SLIDER_H;
+                slider(y, win.say("max"), "max");
+                y += SLIDER_H;
+                slider(y, win.say("wait"), "wait");
+                y += SLIDER_H + 12;
+            }
+            // The modes the server's pool offers, in MODE_ORDER: the three kinds
+            // of protective device apart (plain, chargers, blackout), team
             // deathmatch and Research; a mode out takes all its entries out of
             // the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
-            for (var mi:int = 0; mi < MODE_ORDER.length; mi++)
+            var offered:Array = poolModes();
+            for (var mi:int = 0; mi < offered.length; mi++)
             {
-                var mode:int = MODE_ORDER[mi];
+                var mode:int = offered[mi];
                 var toggle:Sprite = new Sprite();
                 toggle.x = 14;
                 toggle.y = y - 14;
@@ -266,6 +282,22 @@ package survarium.rooms
             // No map chosen: nothing to make, the button is off.
             made[1].enabled = poolChosen();
             renderPool();
+        }
+
+        // Whether the room being made is private: a PIN typed (as last drawn).
+        internal function privateRoom():Boolean
+        {
+            return _makePinText.length > 0;
+        }
+
+        // A PIN typed or cleared turns the window private or open: drawn
+        // again, the typing going on in the field.
+        private function onPinChange(e:Event):void
+        {
+            if (_makePin == null || (_makePin.text.length > 0) == privateRoom())
+                return;
+            _makePinText = _makePin.text;
+            win.render();
         }
 
         private function myName():String
@@ -570,6 +602,20 @@ package survarium.rooms
             drawSlider(_drag);
         }
 
+        // The modes of the pool's entries, in MODE_ORDER.
+        private function poolModes():Array
+        {
+            var modes:Array = [];
+            for (var m:int = 0; m < MODE_ORDER.length; m++)
+                for (var i:int = 0; i < win._pool.length; i++)
+                    if (int(win._pool[i].mode) == MODE_ORDER[m])
+                    {
+                        modes.push(MODE_ORDER[m]);
+                        break;
+                    }
+            return modes;
+        }
+
         // The pool's entries by map and weather: a tile takes all its modes.
         private function poolTiles():Array
         {
@@ -667,7 +713,11 @@ package survarium.rooms
             var wait:int = RoomsWire.WAITS.indexOf(_wait);
             if (wait < 0)
                 wait = WAIT_INDEX_DEFAULT;
-            valueOf("max");
+            // The max level as the slider shows it; a private room's is
+            // hidden and kept as it is (the server keeps it for the next
+            // open room, which fits it to the gear then).
+            if (!withPin)
+                valueOf("max");
             var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
             win._steps.push(RoomsWire.CREATE + code);
             if (withPin)

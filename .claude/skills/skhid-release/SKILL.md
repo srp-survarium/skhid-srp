@@ -52,6 +52,11 @@ Ask, in this order:
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
+3. **Did a bot-data file change** (a newly benched map, routes table or
+   foliage)? Its row in `release/bot-data.tsv` is changed or added by the PR
+   that benched it (`release/bot-data add`, below); the release ships what the
+   list says from `$SKHID_BOT_DATA` and stops when the owner's folder does not
+   have it. `release/bot-data check` says so before the dry run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
@@ -166,6 +171,58 @@ replaced since by one of the same size is not seen so (the updater's
 sha256 check still refuses it, and moves on to the next URL). Delete a
 line, or the file, to have a URL downloaded whole again.
 
+## The bots' data files: release/bot-data.tsv
+
+The bots read private data from the data volume's `mapdata/` folder: the
+maps (`<project>.mapdata`, game data), the routes humans took
+(`bot-routes.json`, play 17, Cut, Crossfire) and, with #544, the foliage
+(`bot-foliage.json`). They were copied by hand, so what live had was nobody's
+record: on 2026-10-26 live had **no routes table at all**, while every bench
+had one. `release/bot-data.tsv` now lists what was benched (the ledger's F2,
+F3, F7): one row a file, its path under the volume, sha256 and size, and the
+file's name in the owner's folder when it is called otherwise there. The files
+stay out of git; **`$SKHID_BOT_DATA`** (release.env) is a folder laid out as the
+volume (`mapdata/level_01_day_2.mapdata`, ...; the owner's private folder
+with its `mapdata/` and `bot-routes/` works as it is).
+
+`release.sh` checks the folder against the list in the preflight (**a missing
+or different file, or `SKHID_BOT_DATA` unset, is a problem: the release stops
+before the go**), compares each file with the volume's own (a read), prints
+what differs in the plan, stages those in the release folder during the
+countdown (sha256 checked there) and, at the swap, with srp26 stopped, copies
+them into the volume (the owner and mode of `srp.db`; an atomic rename; the old
+ones kept in the folder as `old-bot-data/`, `bot-data.log` says `replaced` or
+`created`). A failed check rolls them back with the rest (`rollback.sh`: the
+old files copied back, the created ones removed). `--no-bot-data` leaves all
+of it out, said loudly.
+
+```sh
+release/bot-data check [<folder>]                  # each file as listed (default $SKHID_BOT_DATA)
+release/bot-data add <folder> mapdata/x.mapdata    # a new benched file: a row (commit the list)
+release/bot-data add <folder> mapdata/bot-routes.json=bot-routes/routes-3d.json
+release/bot-data add --replace <folder> <path>...  # a newly benched file with other bytes
+release/bot-data list
+```
+
+**Routes caveat:** on `main`, srp reads a routes table only when `SRP_BOT_ROUTES`
+names one (`driven.rs`); there is no default file and it takes format 1 only,
+while `routes-3d.json` is format 2. So `mapdata/bot-routes.json` is put in the
+volume by the release but is **not read** until `feat/bots-tiers-combined` lands
+(its `DEFAULT_FILE` `<MAPDATA>/bot-routes.json`, formats 1 and 2). The 16
+`.mapdata` files take effect at once.
+
+A new data file (the foliage) is one row; whoever lands its behaviour adds it
+with the PR that benched it. **The maps' built grids and trees** are not
+shipped: `mapdata/built/` is srp's own cache, written by the first match that
+needs a map, keyed by the map file's content and `SIGHT_ALGO`/`GRID_ALGO`
+(`crates/mapdata/src/lib.rs`). srp has no command that builds them before a
+match asks (`bots/maps.rs` `Maps::get`; the build is a test), so the release
+cannot pre-build: the preflight says whether the constants differ between main
+and the live tree, or map files change (then the first match on each map builds
+it again, on the host's one core, 0.3-0.8 s off the match thread on a PC and
+seconds there: watch CPU and RAM at the first matches, the container is capped
+at 1600 MB).
+
 ## release/release.sh
 
 ```
@@ -173,7 +230,7 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
-                   [--dry-run] [--yes --i-know]
+                   [--no-bot-data] [--dry-run] [--yes --i-know]
 ```
 
 After the preflight it waits for the owner's go; at the go it plans the

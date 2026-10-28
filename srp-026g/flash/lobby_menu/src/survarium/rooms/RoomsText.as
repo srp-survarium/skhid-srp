@@ -58,6 +58,33 @@ package survarium.rooms
             "all": ["All", "Усі", "Все", "Alle", "Wszystkie"],
             "nothing": ["None", "Жодної", "Ни одной", "Keine", "Żadna"],
             "waiting": ["Waiting for players", "Чекаємо гравців", "Ждём игроков", "Warten auf Spieler", "Czekamy na graczy"],
+            // A private room (a PIN; the owner's of 2026-10-26): no size, no
+            // players to start, no countdown; its owner's Start.
+            "startMatch": ["Start", "Почати", "Начать", "Starten", "Rozpocznij"],
+            "startHint": ["Press Start when everyone is in.", "Натисніть «Почати», коли всі зайдуть.",
+                "Нажмите «Начать», когда все зайдут.", "Drücke Starten, wenn alle da sind.",
+                "Naciśnij Rozpocznij, gdy wszyscy wejdą."],
+            "waitingOwner": ["Waiting for the creator to start.", "Чекаємо, поки творець почне.",
+                "Ждём, пока создатель начнёт.", "Warten, bis der Ersteller startet.",
+                "Czekamy, aż twórca rozpocznie."],
+            // Its two teams, arranged by its owner with « and ».
+            "team1": ["Team 1", "Команда 1", "Команда 1", "Team 1", "Drużyna 1"],
+            "team2": ["Team 2", "Команда 2", "Команда 2", "Team 2", "Drużyna 2"],
+            // A team's free places, one line after its last member.
+            "openSlots": ["%N open", "вільно: %N", "свободно: %N", "%N frei", "wolne: %N"],
+            "teamsOwner": ["Move players between the teams with « and ».", "Переміщуйте гравців між командами кнопками « і ».",
+                "Перемещайте игроков между командами кнопками « и ».", "Verschiebe Spieler mit « und » zwischen den Teams.",
+                "Przenoś graczy między drużynami przyciskami « i »."],
+            "teamsLater": ["The teams can be changed after the match.", "Команди можна змінити після матчу.",
+                "Команды можно изменить после матча.", "Die Teams lassen sich nach dem Match ändern.",
+                "Drużyny można zmienić po meczu."],
+            "teamsMember": ["The creator arranges the teams.", "Команди розставляє творець.", "Команды расставляет создатель.",
+                "Der Ersteller stellt die Teams zusammen.", "Drużyny ustawia twórca."],
+            "privateRoom": ["Private room: up to 20 players; you set the teams and start.",
+                "Приватна кімната: до 20 гравців; команди й старт за вами.",
+                "Приватная комната: до 20 игроков; команды и старт за вами.",
+                "Privater Raum: bis 20 Spieler; du stellst die Teams und startest.",
+                "Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start."],
             "starts": ["Match starts in", "Матч почнеться через", "Матч начнётся через", "Match beginnt in", "Mecz za"],
             "playing": ["Match in progress", "Триває матч", "Идёт матч", "Match läuft", "Trwa mecz"],
             "vote": ["Vote for the next map", "Голосуйте за наступну карту", "Голосуйте за следующую карту",
@@ -218,7 +245,9 @@ package survarium.rooms
             "3": ["Protective device: chargers", "Захисний пристрій: зарядники", "Защитное устройство: зарядники",
                 "Schutzeinrichtung: Ladestationen", "Urządzenie ochronne: ładowarki"],
             "4": ["Team Deathmatch", "Командний бій", "Командный бой", "Kommandokampf", "Walka drużynowa"],
-            "5": ["Research", "Дослідження", "Исследование", "Forschung", "Badania"]
+            "5": ["Research", "Дослідження", "Исследование", "Forschung", "Badania"],
+            "6": ["Protective device: blackout", "Захисний пристрій: блекаут", "Защитное устройство: блэкаут",
+                "Schutzeinrichtung: Blackout", "Urządzenie ochronne: blackout"]
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {

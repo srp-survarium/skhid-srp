@@ -59,7 +59,9 @@ static bool Hook(HMODULE module, const char* function, ULONG_PTR replacement) {
     return false;
 }
 int wmain(int argc, wchar_t** argv) {
-    if (argc != 4) return 2;
+    // Arguments after the third (a game option such as -localization=russian)
+    // are only for the DLL, which reads this process's command line.
+    if (argc < 4) return 2;
     // Only run in a disposable test profile: redirect its Documents folder.
     const wchar_t* keys[] = {
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders",

@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.text.TextField;
+   import flash.geom.ColorTransform;
    import flash.utils.Timer;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.DragSlot;
@@ -88,6 +89,7 @@ package survarium.controls
             container = (contentCanvas as MovieClip).container;
             if(_content)
             {
+               _content.transform.colorTransform = new ColorTransform();
                if(container.contains(_content))
                {
                   container.removeChild(_content);
@@ -286,9 +288,9 @@ package survarium.controls
                   this.count.text = "";
                }
             }
-            if(_data.timer != undefined)
+            if(_data.timer != undefined || _data.activitySeconds > 0)
             {
-               sec = int(_data.timer);
+               sec = _data.activitySeconds > 0 ? int(_data.activitySeconds) : int(_data.timer);
                contentContainer = contentCanvas as MovieClip;
                trace("_lastTimer::",this._lastId,_data.icon_id,this._lastTimer,sec,"cooldown::",_data.cooldown);
                if(sec != 0)
@@ -296,7 +298,7 @@ package survarium.controls
                   this.count_timer.text = Util.getZeroString(sec);
                   this.timerBack.visible = true;
                   trace("contentContainer::check_glow",contentContainer,contentContainer.currentFrame,this._lastTimer,sec,this._lastId,_data.icon_id);
-                  if(contentContainer && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
+                  if(_data.is_artefact && contentContainer && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
                   {
                      if(this._lastTimer != sec)
                      {
@@ -337,6 +339,7 @@ package survarium.controls
                {
                   contentContainer.gotoAndStop(1);
                }
+               this.count_timer.text = "";
                this.timerBack.visible = false;
             }
             if(_data.cooldown != undefined && _data.cooldown > 0)
@@ -357,6 +360,7 @@ package survarium.controls
             }
             else
             {
+               if(this.overCooldown) this.overCooldown.graphics.clear();
                trace("!cooldnown::",_data.timer,_data.is_artefact,_data.icon_id,_data.grayIcon);
                if(_data.icon_id != 13 && _data.icon_id != 42 && _data.icon_id != 67 && _data.icon_id != 74 && _data.icon_id != 110 && _data.icon_id != 113)
                {
@@ -372,6 +376,7 @@ package survarium.controls
          else
          {
             content = null;
+            if(this.overCooldown) this.overCooldown.graphics.clear();
             _lastCount = -1;
             _lastTimer = -1;
             _lastId = -1;
@@ -391,6 +396,14 @@ package survarium.controls
             {
                this.timerBack.visible = false;
             }
+         }
+         if(_content)
+         {
+            // Medical icons are mostly white already. Desaturation alone is
+            // invisible; dim the icon itself while the native delay is pending.
+            // This dynamic child is not controlled by the renderer's timeline.
+            var shade:Number = _data && _data.activityPhase == 1 ? 0.5 : 1;
+            _content.transform.colorTransform = new ColorTransform(shade,shade,shade);
          }
       }
       

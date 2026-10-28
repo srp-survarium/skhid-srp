@@ -1784,8 +1784,8 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
         ),
         lang.tr(
-            "Private rooms (with a PIN) give no rewards.",
-            "Приватні кімнати (з PIN) не дають нагород.",
+            "Private rooms (with a PIN) give no rewards. Their creator starts the match, with any number of players.",
+            "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
         ),
     ];
     if !squads {

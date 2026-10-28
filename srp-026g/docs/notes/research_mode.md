@@ -6,7 +6,7 @@ for its points' rate, 1.25 x 0.27d's ("let's make it 1.25x faster", 2026-10-22);
 though, and will go into the next one" and "we need to find everything associated with the
 release too" (2026-10-22). Not in revision 28.
 
-Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_native_026g.c`
+Code: exe patch 53 (`crates/research-rule` the rules, `client-patches/research_arena`
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
@@ -48,12 +48,20 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
-- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
-  to capture a point either way"). Captures, neutralisations and kill invader pay as their
-  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
-  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
-  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
-  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
+- **Rewards: combat-adjusted cap** (PR #691, revised 2026-10-28):
+  - captures and neutralisations share a payment allowance of **200 score + 40 per paid
+    enemy kill + 20 per assist**. Above it, those two counters are reduced proportionally;
+    their weights remain 30 per whole capture/neutralisation. Kill-invader rewards stay whole;
+  - the repeat-kill cap runs first, so unpaid feeding kills cannot expand the allowance.
+    `reward_caps::Payment` owns this order and the payment-only copy. Bot matches skip these event caps and have a tier-7 reward ceiling instead;
+  - the earlier flat 200-point cap cut a contested 12/10 player's silver by 46% and a
+    9/8 player's by 43% in match `7964b894`. Both now fit within the allowance. Conversely,
+    21 captures and 20 neutralisations with zero kills/assists still pay at most 200 points;
+  - score, quests and rating use the ordinary statistics; only the payment copy is reduced.
+    Kills, help and the fixed payment are not cut by the objective rule;
+  - these counters are evidence of repeated objectives, not proof of collusion. Objective-only
+    legitimate play can still cross the allowance, while coordinated combat can raise it.
+    Historical audit details and limits: `farm_cap_audit.md`.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred right under them, as in rev 30;
   the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
   following its position every frame, so the indicator's centring never counts them) (letter,
@@ -200,12 +208,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
   writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
-  `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
-  today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
+  `research.code` (research_026g.asm and research_arena) and `research.state`
+  (the cook and UI cache; addresses in `arena_026g.lock.json`); its hooks take their targets from
   the link by symbol. Patch 58's kit keys have blocks of their own the same way,
   and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
-  Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
+  Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside, then remaining capture/neutralisation ms per unit)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.
 
 ## Inventory of the builds (2026-10-22)
@@ -248,7 +256,7 @@ Left out, and why:
 
 ## Tests
 
-- `test_research_rule_026g.c` (the rules, the wire, the water-fill), `check_research_026g.py`
+- `cargo test -p research-rule` (the rules, the wire, the water-fill, capture countdown), `check_research_026g.py`
   (the built exe's hooks and slots under Unicorn on made-up worlds), `selftest_026g.py`.
 - srp: `match_msgs::rules` (decode), maps (mode 5 playable), rewards (weights, no battery caps).
 - In the game: see the PR's test plan.
@@ -263,3 +271,76 @@ Left out, and why:
   `set_capture_data`, `update_capture_progress`; minimap objects `capture_point` with `cp_id`.
 - Source: `/mnt/hdd/Projects/Survarium Builds/v0.27d0-build2500` (Inno + `.sup`, unpacked into
   `/mnt/hdd/Projects/weapon-survey-20261016/work/builds/v027d0`); the exe is x86-BCJ filtered.
+
+
+## Research markers and aiming (2026-10-27)
+
+Only Research is taken from the Rust port (`195bad01`, `feat/rust-port`): the pure
+rules crate, the engine-facing arena crate, aligned entry stubs and the small runtime.
+The rule layout, wire and simulation stay compatible with the previous implementation.
+The C filename in the hash-mismatch field metadata is retained for compatibility.
+
+The top HUD and projected world markers are separate. Neither shows “Capturing unit…”.
+The local world marker grows from 24 to 34 px and has corner brackets; the HUD icon
+grows by the same 34/24 factor. Both teams inside
+means crossed swords. An enemy alone advancing a capture or neutralisation shows a white
+`!`, on friendly-owned and neutral units alike; it clears when capture stops or finishes.
+Friendly capture shows neither overlay. Swords take priority when both teams are inside.
+Both overlays use `ResearchAlert`, with a two-second pulse measured by elapsed time
+(not frame count), the swords' 54 x 53 image bounds, and the existing per-movie scale.
+The approved warning source is `tools/actionscript/art/ResearchWarning.svg`; its 54 x 53
+RGBA rendering is checked in as `ResearchWarning.png` in both movies. Repeated updates
+keep the pulse phase; changing activity starts the new overlay fully visible.
+The top HUD remains visible during aiming. World markers have alpha 0.55, fill alpha 0.12,
+no opaque backing and sit below player icons in the movie's display list.
+
+At 0x23B207, after the original update_player_icons call, Rust sends
+`root.research_markers(team, count, [cp_id, projected, x, y, distance, owner, capturing,
+progress, ms_left, local_inside] * count, [contested] * count, aiming, [advancing_team] * count)` on change and
+every 60 frames. Projection uses the engine library's point_to_screen with the point
+raised 2 m. Markers behind the camera or off screen are hidden; this is not wall occlusion.
+The appended `advancing_team` is the sole occupying team (0/1, 2 for empty or contested),
+not `capturing`: the latter remains the defender while its progress drains. The movie
+combines this team with `ms_left > 0` to show an enemy warning. Older senders omit the
+tail and show no warning rather than infer the wrong team; older movies ignore the tail.
+The top HUD derives the same activity from its existing occupancy counts and timer.
+No rule state, network message, capture timing, scoring or replay format changes.
+
+Aiming follows the actual weapon state, not the scope attachment or mouse input:
+game+4D58h is the input handler, camera director+84h must equal input+4, input+358h
+must be first-person mode 0 or attached-spectator mode 4. Find the live viewed player
+whose +F470h is that handler, then its held weapon (+128h, vtable A04174h); +5E8h
+is the aimed byte. The observed writers are 2E1B5A and 2E1BFB. Iron sights therefore
+hide markers too. Free cameras and dead players do not inherit another player's aim.
+
+Visibility belongs to the world-marker parent Sprite: smoothstep to zero in 200 ms,
+to one in 300 ms. Repeated packets do not restart the fade; reversals begin at the
+current alpha. Only the activity overlay pulses; the capture icon stays steady. The overlay
+animates a child, so it cannot reveal a hidden marker. Hidden/removed markers stop their
+activity animation. The normal hide-interface key
+still hides this parent.
+
+Retail reference: 0.27d's CapturePointMarker used 24/34 px and alpha 195/255; its
+crossed-swords art is reused. Its frame-based triangle pulse sped up at higher FPS.
+The new elapsed-time pulse keeps the same two-second period at 30, 60 and 144 FPS.
+
+Research's respawn and pre-match countdowns use 18 px text with a dark outline,
+below the point icons and capture timers. If both messages arrive during a transition,
+they occupy separate rows. The layout helper restores the original label geometry,
+font and layout alignment when the HUD switches out of mode 5; other modes keep their
+existing timers. The engine's countdown values and death-screen state are unchanged.
+
+Research centres the score bars on the live stage midpoint, converted into the HUD's
+coordinate space, before following them with its point icons. It does not depend on
+the generic layout's initial viewport or the changing width of its labels; only its
+horizontal layout is overridden, and switching modes restores the stock alignment.
+Countdown spacing counts visible point graphics and timers only, with a 4 px gap:
+hidden capture timers cannot leave an empty row after the capture ends.
+
+The Research respawn text is a separate TextField under the score indicator. It
+reads the engine's label value synchronously, inherits the indicator's visibility
+and scale, and hides the original label only while Research owns the layout.
+Changing the original label's TextField auto-size fought CLIK's own sizing and
+timeline, producing a narrow flash on death. The separate field is unaffected by
+late label validation or animation; leaving Research removes it and restores the
+native label's visibility without changing that label's font or geometry.

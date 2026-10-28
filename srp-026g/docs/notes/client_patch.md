@@ -891,7 +891,7 @@ The owner's wish: a player can kill their own character in a match, to respawn a
 - **What `commit_suicide` is** (PROVEN). A game action, not a console command or a message: the action table 0xA74AF0..0xA74FB4 (20-byte entries `{name, action, kind, toggle, default key}`) has `commit_suicide` at 0xA74D20, action 1Fh, kind 5, default key `kK`; no other action has K by default. A key bound to an action reaches `player_input_handler::on_keyboard_action` (0x23FE00), which asks `key_binder::get_binded_action` (0x207D50) and pushes `{action, state}` into the handler's event buffer (+98h: the write and read indexes, then 65 pairs; push_back 0x242580); key down is state 0 (0x23FEA4), a repeat 1, up 2. So K puts action 1Fh in the buffer in the original.
 - **Why nothing happened** (PROVEN). `player_input_handler::process_first_person_mode` (0x241250) builds the input's action mask (handler+33Ch, the `actions_mask` the relay carries) by asking `action_present` (0x242460: `(handler, action, &state)`, `ret 0Ch`; true for an action in the buffer, with its state, or held, state 2) for 35 actions, one bit each (the table in `drive.rs::key`). Action 1Fh is not asked, and bit 24 (1000000h) is the one bit of 0..28 it never sets.
 - **What bit 24 does** (PROVEN). `base_player::process_quick_slots` (0x2D8BB0, called only from the input apply 0x2D86E0 at 0x2D8777, which every game runs for every player's input) begins with `test dword [edi+4],1000000h` (0x2D8BC1): with the bit it builds the bone name "brain" (0xA1067C), pushes two floats 1.0 and calls the player's hit receiver (+118h, vtable+20h = `base_player::hit` 0x2D9AE0, which calls `hit_impl` 0x2D9B90), the attacker the player itself (+110h); then it stops if the player is dead (+33Dh). `hit_impl` returns at once for a dead player. `on_player_killed` (0x2F4EB0) counts a kill whose killer is the victim (0x2F4F38) as a death (event 2) and a suicide (event 3), no kill; Team Deathmatch charges it one ticket (0x31614E, `rules.rs::tdm_death_costs_ticket`); the score weighs a suicide 0.
-- **The patch** (`SUICIDE_KEY_HOOK` in `patch_026g.py`; `suicide_key_026g.asm` at `.srp`+980h, after the pickup code, before the seek code, 40 bytes): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes `call suicide`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and jumps to 0x242460 with the original arguments and return address. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
+- **The patch** (`SUICIDE_KEY_HOOK` in `patch_026g.py`; the arena's block `suicide_key.code`: `suicide_key_026g.asm`'s `RUST_HOOK` entry and the Rust crate `rust/suicide_key`, the Rust framework's example, `rust_patches.md`; 40 bytes of NASM at `.srp`+980h before it): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes `call suicide`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and jumps to 0x242460 with the original arguments and return address. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
 - **Why every game does the same.** The bit is an ordinary input bit: the owner's game applies the input at once and the server relays it unchecked (0xDC/0xDD → 0xEB), as the fire or grenade bit; every game, of any revision, applies it through 0x2D86E0 → 0x2D8BC1 at the input's tick, from what the world holds. A game without the patch cannot send the bit but plays it from the others, so no revision is needed for the match to agree. The server must not take the bit out of a relayed input: the owner has applied it already (as §20 of `match.md` says for any bit).
 - **Replays and recordings.** What a match computes does not change (the simulation is the original's; only the input a key makes does): no row in `simulation_changes.tsv`. The server's bots never send bit 24 (`drive.rs::key::NEVER`).
 - **Rules.** A suicide is a death in the statistics and in Team Deathmatch a ticket, and no one's kill, in the game's own counting; the respawn time is a death's. No server guard: the server cannot drop the bit without parting the worlds, and the game already charges it.
@@ -1653,6 +1653,61 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
   - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
   **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
+### 3.58 Blackout: a battery match with no interface, the players' markers on Tab (written 2026-10-24, the Rust framework's 2026-10-26; README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options read, the markers' feed, Tab and the input run with Unicorn from the game's own code before each site; not run in a game
+
+- **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
+  them): a team colour painted into each torso's sleeve, carried in each player's profile; the
+  findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
+- **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
+  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
+  +57870h. The options are read for 0xE4 (process_static_match_info, its call at 0x27B928: ESI the
+  options, which the call keeps; the reader {begin, cursor, size} its local at EBP-2Ch) and for a
+  replay's chunk 1 (0x1F096C: the options the function's first argument, [esp+40h]; the reader its
+  local at esp+14h). After either call the reader's cursor is where the options end: srp's block
+  is read from there (patch 63 reads it inside, at the function's end 0x1F0F30, the same bytes).
+- **The markers** (PROVEN in the code). The player icons' movie (`player_icons.swf`) is loaded with
+  each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons (0x23AA10,
+  from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props 0x23B1C0).
+  Its ids: a player's is his index (player::initialize_player_icon 0x1F29D0, 0x1F29E8); the
+  match's objects' from 25h (initialize_match 0x235771.., update_player_icons 0x23AA83: their
+  own list, each visible by team). The first Blackout build hid the movie at initialize_match's
+  reset with root.hide_interface and the owner still saw a teammate's name and marker: LIKELY the
+  hud then still held a movie that did not take it (the game world's own comes with it). So the
+  forced state is told from the feed: at update_player_icons' start (each frame) the movies the hud
+  holds are told it at a change of movie or state, and again while the Invoke answers 0. Forced,
+  the player icons hide their objects' icons (ids from 37) and show the players' only while Tab is
+  held (`root.force_interface_tab`, told with it; the owner, 2026-10-26).
+- **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
+  (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
+  the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
+  ebx the handler) builds the input's actions mask at handler+33Ch from action_present (0x242460)
+  per action (bits 0..28: forward 0Bh 1, back 0Ch 2, rstrafe 0Eh 8, lstrafe 0Dh 4, jump 4 10h, fire
+  26h 20h, reload 27h 40h, aim 28h/29h 80h, crouch 5/6 100h, sprint 7/8 200h, fire mode 9 400h, ammo
+  type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
+  use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
+  8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
+  After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
+  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
+  bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
+  kits Tab shows and show_player_list still gets Tab.
+- **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
+  them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
+  kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`
+  (scaleform_callback 0x233F06: game_world::select_profile 0x1F8070, then
+  show_profiles_selector(false), which does nothing while the game's +53C8h is set, 0x2383D8).
+  The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
+  0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
+- **The patch:** README patch 65: the Rust module `patches::blackout` (rust/patches/src/
+  blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
+  (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
+  0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
+  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
+  (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
+  62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
+  (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.
+- **Checked:** selftest check 65; `check_blackout_026g.py` (Unicorn, from the game's code before each
+  site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
+  (Ruffle). **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -2011,14 +2066,13 @@ section table (0x210..0x400): 12 slots
   .srp .srpd .srpc .srpw                           (ours, 8..11)
   .srpx                                            (the arena, 12)
 
-.srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
-  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
-                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
-  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
-  artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
-  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
-  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000, 0x168
-  match_keys.state state 0x1000   its option's variable, kit_keys        -> 0xA434000, 0x50
+.srpx (VA 0xA42D000), its first blocks (the lock records every block):
+  research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3874
+  research.state   state 0x1000  research_arena STATE                 -> 0xa431000, 0x44
+  artefacts.code   code  0x1000  artefacts_026g.asm                   -> 0xa432000, 0x440
+  engine.code      code  0x1000  engine_026g.asm (0.5)                -> 0xa433000, 0x5dd
+  match_keys.code  code  0x1000  match_keys_026g.asm (patch 58)       -> 0xa434000, 0x168
+  match_keys.state state 0x1000  its option's variable, kit_keys      -> 0xa435000, 0x50
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 
@@ -2293,3 +2347,22 @@ malloc_impl 0xE4F90's result, and the pool lookup 0x2E58B0, the artefact
 effect 0x313350, the allocation's name 0x420789 and query_resources 0xE5B60
 in full. The asm patches still call by hand; moving them is a follow-up
 (README, the library's section).
+
+### Medical consumable activity (patch 77)
+
+`consumable_activity` is a Rust presentation hook before the native quick-slot
+update (0x23B7A0). `vostok::QuickSlotActivity` reads the live local player's
+mapped item. Only the medkit primary vtable permits reading medical state.
+Inactive/dead, waiting for the native use delay, and active are distinct states;
+waiting and active each carry their remaining milliseconds and skill-modified
+duration. Waiting uses modifier 33 with weight 1, active uses modifier 34 with
+the medicine's skill weight, matching native set_active.
+No inventory, simulation timer, or snapshot is modified.
+
+The HUD receives `set_quick_slot_activity(slot, phase, remaining, duration)`.
+QuickSlots owns the combination of that snapshot with the native slot descriptor:
+an exhausted stack retains its icon during its remaining delay/effect, and is
+removed when the native effect ends. Waiting maps to the existing gray icon and
+filled cooldown sector. Active displays only ceiling seconds in the native
+countdown field; no custom outlined ring is added. Artefacts retain their
+native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.

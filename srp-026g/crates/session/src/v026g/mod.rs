@@ -32,6 +32,7 @@ pub mod account;
 pub mod autobuy;
 pub mod balance;
 pub mod bonus;
+pub mod bot_kits;
 pub mod bots;
 pub mod clans;
 pub mod extras;
@@ -682,6 +683,27 @@ impl GameAccounts {
             top: rows.into_iter().map(|(_, row)| row).collect(),
             battles,
         }
+    }
+
+    /// The server's bots' kits of every level from the accounts' kits and
+    /// presets ([`bot_kits`]); test bots ([`bots`]) are not counted. Locks
+    /// each account in turn: call it with none locked.
+    pub fn bot_kits(&self, now: u64) -> bot_kits::BotKits {
+        let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(&id, account)| (id, account.clone()))
+            .collect();
+        let bots = self.bots.locked().clone();
+        let mut gathering = bot_kits::Gathering::default();
+        for (id, account) in accounts {
+            let account = account.locked();
+            if !bots.contains(&account.name.to_ascii_lowercase()) {
+                gathering.add(id, &account, now);
+            }
+        }
+        gathering.finish()
     }
 
     /// The account changed: it is written on the next pass. Never waits on

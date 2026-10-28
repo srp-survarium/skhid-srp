@@ -1,0 +1,35 @@
+# The Rust exe patches (docs/notes/rust_patches.md): one crate, `patches`,
+# the staticlib the arena's block patches.code links (patch_026g.py's ARENA),
+# in three layers, its modules:
+# - raw: generated from engine_026g.tsv and fields_026g.tsv (the game's
+#   functions, kernel32's imports, the fields' addresses); unsafe, no logic;
+# - vostok: the engine's safe API over raw, and the runtime (the hook
+#   context, the log, the panic handler);
+# - the patches, a module each: `#![forbid(unsafe_code)]`, vostok only.
+# Logic shared beyond the client (with srp, the match server) would be a
+# library crate of its own here: pure Rust, no game bindings.
+#
+# Built for the game's i686 only, everywhere (.cargo/config.toml):
+# link_026g.py builds the game's (rustc alone, offline, its RUSTFLAGS);
+# `cargo test` and `cargo clippy --all-targets` here are the checks, their
+# test binaries linked against 32-bit glibc (the dev shell). No crates.io.
+#
+# Not a member of srp-026g's workspace: the server never links these.
+[workspace]
+members = ["patches"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+# The game's build aborts on a panic (link_026g.py); cargo's tests unwind.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

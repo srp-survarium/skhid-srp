@@ -551,8 +551,9 @@ at a time. A player who waits in the queue does not see JOIN on.
 
 ### 9.8 A match against the server's bots ("Player vs Bots", 2026-10-16)
 
-The owner's decisions of 2026-10-16. A player of equipment level 5 or
-lower (`SRP_PVB_MAX_GEAR`), alone (no squad), not searching, not in a
+The owner's decisions of 2026-10-16 (and of 2026-10-26: every equipment
+level). A player of any equipment level (at most `SRP_PVB_MAX_GEAR`, 15;
+5 until 2026-10-26), alone (no squad), not searching, not in a
 match, chooses a size (6, 8 or 10 a side) and a map in the changed lobby
 movie (`lobby.md` §2.16.2); its Play then makes the match at once:
 
@@ -560,10 +561,13 @@ movie (`lobby.md` §2.16.2); its Play then makes the match at once:
   `Matchmaking::seat_solo` seats it alone on team 0, the teams fixed;
 - the lobby adds 2N − 1 of the server's bots after it
   (`play::server_bot_teams`, each to the side with fewer places: N − 1 on
-  the player's side, N on the other), on the map chosen (not
+  the player's side, N on the other), wearing kits of the player's
+  equipment level (`player_bots.md` §8), on the map chosen (not
   `choose_map`); the play is no map play of the player's (the rotation
   of §5 is the PvP queue's);
-- the match's level is the player's own (§4, a match of one level);
+- the match's level is the player's own (§4, a match of one level); in
+  the sides' counts (§9.2's predictions) a bot counts for its gear
+  level, as a player of level 0 with no rating;
 - fixed teams: it takes no late joiner (§9.2's `late_admission` is
   `None`, the list says code 7), and nobody of the queue goes into it;
 - at most `SRP_PVB_MAX_MATCHES` (5) run at once, counting the choices held

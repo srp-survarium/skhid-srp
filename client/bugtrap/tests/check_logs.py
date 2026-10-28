@@ -35,10 +35,10 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         os.utime(path, (now - age, now - age))
         return path
 
-    def check(expected, mode="none", lock=None, messages=(), forbidden=()):
+    def check(expected, mode="none", lock=None, messages=(), forbidden=(), args=()):
         old = set(game.glob("*.zip"))
         result = subprocess.run(["wine", str(game / "logs_probe.exe"), "Z:" + str(docs), mode,
-                        "Z:" + str(lock or folder)], cwd=root, check=True,
+                        "Z:" + str(lock or folder), *args], cwd=root, check=True,
                        capture_output=True, timeout=45)
         if mode == "watch":
             assert b"log_stream_high_water=" in result.stdout, result.stdout
@@ -51,11 +51,11 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
             for message in messages:
                 assert message in manifest, (message, manifest)
             contribution = sum(30 + 46 + 2 * len(e.filename.encode("utf-8")) + e.compress_size
-                for e in archive.infolist() if e.filename not in (dump, "logs/collection.txt"))
+                for e in archive.infolist() if e.filename not in (dump, "crash.txt", "logs/collection.txt"))
             assert contribution <= 16 * 1024 * 1024, contribution
             assert f"compressed_log_zip_bytes={contribution}" in manifest, manifest
             logs = {n: archive.read(n) for n in archive.namelist()
-                    if n not in (dump, "logs/collection.txt")}
+                    if n not in (dump, "crash.txt", "logs/collection.txt")}
             assert all(re.fullmatch(r"logs/[a-z-]+/source-[0-9]{2}\.txt", n) for n in logs), list(logs)
             actual = Counter((n.split("/")[1], data) for n, data in logs.items())
             wanted = Counter((n.split("/")[1], data) for n, data in expected.items())
@@ -196,3 +196,50 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         assert source.read_bytes() == raw
         source.unlink()
     print("PASS UTF-16/binary/oversized/multiline sources omitted atomically without credential echo", flush=True)
+    # Legacy code pages: the game writes its log in its locale's code page
+    # (Kobalt's log, 2026-10-26, -localization=russian: the audio devices in
+    # cp1251). Such lines are transcoded to UTF-8, then filtered as any other.
+    def sound(device):
+        return (safe.decode() + f"sound <info>\t[11:00:25.100]\t0: {device}\r\n"
+                "sound <info>\t[11:00:25.100]\trole: NotDefaultDevice \r\n"
+                f"sound <info>\t[11:00:25.100]\t1: {device}\r\n" + safe.decode())
+    for localization, code_page, device in (
+            ("russian", 1251, "Динамики (Realtek(R) Audio)"),
+            ("original", 1251, "Динамики (Realtek(R) Audio)"),
+            ("polish", 1250, "Głośniki (Realtek(R) Audio)"),
+            ("english", 1252, "Kopfhörer (Realtek(R) Audio)"),
+            ("ukrainian", 28591, "Kopfhörer (Realtek(R) Audio)")):
+        text = sound(device)
+        raw = text.encode(f"cp{code_page}" if code_page != 28591 else "latin-1")
+        source = add("Survarium_legacy.log", raw)
+        check({"logs/documents/Survarium_legacy.log": text.encode()}, args=(f"-localization={localization}",),
+              messages=(f"Legacy code page: cp{code_page} (the game's -localization",
+                        f"removed_lines=0, transcoded_lines=2 from cp{code_page},"))
+        assert source.read_bytes() == raw
+        source.unlink()
+    # UTF-8 stays as it is and is not counted. With no -localization the game's
+    # default (original) is cp1251, whatever Windows' ANSI code page.
+    source = add("Survarium_utf8.log", sound("Динамики").encode())
+    check({"logs/documents/Survarium_utf8.log": sound("Динамики").encode()},
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "transcoded_lines=0,"))
+    source.unlink()
+    source = add("Survarium_default.log", sound("Динамики").encode("cp1251"))
+    check({"logs/documents/Survarium_default.log": sound("Динамики").encode()},
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "removed_lines=0, transcoded_lines=2 from cp1251,"))
+    source.unlink()
+    # A control byte in a cp1251 line still omits the source; a sensitive cp1251
+    # record is still removed with its continuation.
+    source = add("Survarium_control.log", sound("Ди\x1bнамики").encode("cp1251"))
+    check({}, args=("-localization=russian",), messages=("unsafe text encoding", "source rolled back"))
+    source.unlink()
+    secret = "SYNTHETIC_CP1251"
+    raw = (safe.decode() + f"core <info>\t[01:02:03.456]\tИгрок password={secret} Динамики\r\n"
+           f"продолжение-{secret}\r\n" + safe.decode()).encode("cp1251")
+    source = add("Survarium_sensitive.log", raw)
+    check({"logs/documents/Survarium_sensitive.log": safe + removed + safe}, args=("-localization=russian",),
+          messages=("removed_lines=2, transcoded_lines=2 from cp1251,",), forbidden=(secret.encode(),))
+    assert source.read_bytes() == raw
+    source.unlink()
+    print("PASS cp1251/cp1250/cp1252/Latin-1 logs transcoded by the game's -localization; control bytes still refused; cp1251 credentials removed", flush=True)

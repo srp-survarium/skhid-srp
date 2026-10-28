@@ -74,7 +74,7 @@ services:
       # The worlds the match server accepted are kept here to compare.
       - SRP_SNAPSHOT_DIR=/srv/srp/data/snapshots
       # Every datagram of a match in and out, one file per match, kept when
-      # SRP_RECORD_MIN_PLAYERS (default 6, late joiners counted) have entered
+      # SRP_RECORD_MIN_PLAYERS (default 6 for PvP; 1 human for PvE) have entered
       # it; kept files over SRP_RECORD_MAX_MB (default 5000) together go
       # oldest first. `off`: no recordings.
       - SRP_RECORD_DIR=${SRP_RECORD_DIR:-/srv/srp/data/recordings}
@@ -132,6 +132,7 @@ services:
       - SRP_CLOCK_CORRECTION
       - SRP_CHECK_INITIAL_WORLD
       - SRP_COMPRESS_STATE
+      - SRP_BLACKOUT
       - SRP_ENTRY_STATE_SECONDS
       - SRP_RELAY_PACK_MS
       - SRP_PACKET_LOG

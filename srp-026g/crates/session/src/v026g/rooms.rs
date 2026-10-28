@@ -5,7 +5,8 @@
 //! - A room is made by a player with a team size (6 v 6 to 10 v 10), a
 //!   max level (the highest equipment
 //!   level let in, 0 for any, never under its maker's own), a wait (15 s to a minute), an optional
-//!   PIN and a pool of maps. It is named after its maker and cannot be
+//!   PIN and a pool of maps (a private room has no max level, [`Door`]).
+//!   It is named after its maker and cannot be
 //!   changed once made. Its owner may take a member out.
 //! - Once two players are in it who can play (a kit with a weapon and its
 //!   ammo, equipment within the max level; one who cannot is marked red in
@@ -28,6 +29,17 @@
 //!   (the owner's of 2026-10-20, [`Rooms::match_over`]).
 //! - Play with nothing else chosen puts a player into an open room (no
 //!   PIN, a place free; [`Rooms::open_rooms`]), or makes a new one.
+//! - A private room (a PIN; the owner's of 2026-10-26) has no team size
+//!   and no players to start: it takes the most a match has (10 v 10), and
+//!   nothing counts down in it. Its owner starts its match when it wants,
+//!   with whoever is in, 1 v 0 too ([`Rooms::start`]): on the vote's
+//!   winner then (its cards are there, and voted for, as in any room).
+//!   After the match it waits for its owner again. Its owner arranges its
+//!   two teams, any split up to 10 a side ([`Rooms::move_member`]), and
+//!   its match plays them as they are ([`Room::arranged`]). It has no max
+//!   level either (the owner's of 2026-10-26: "private room shouldn't have
+//!   max level too"): whoever has its PIN comes in with any equipment, and
+//!   nothing takes a member out of it for its equipment ([`Door::Pin`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -40,8 +52,11 @@ use std::time::{Duration, Instant};
 pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 /// How long a PIN given before a JOIN waits for that JOIN.
 pub const PIN_LIFE: Duration = Duration::from_secs(60);
-/// The fewest players a vote (and so a match) starts with.
+/// The fewest players an open room's vote (and so its match) starts with.
 pub const START_PLAYERS: usize = 2;
+/// A private room's team size: the most a match has, 10 v 10 (the owner's
+/// of 2026-10-26: no size to choose).
+pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
 /// The pool entries one piece of a draft carries.
@@ -58,12 +73,51 @@ pub const CHAT_KEPT: usize = 20;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Spec {
     pub size: u8,
-    /// The highest equipment level let in; 0: any.
-    pub max_level: u8,
     pub wait: u8,
-    pub pin: Option<u16>,
-    /// The players it needs before its vote begins: 2 (1 v 1), 4 or 6.
+    /// Who it lets in: an open room's max level, a private room's PIN.
+    pub door: Door,
+    /// The players an open room needs before its vote begins: 2 (1 v 1), 4
+    /// or 6. A private room has none: its owner starts it ([`Room::needs`]).
     pub min_players: u8,
+}
+
+/// Who a room lets in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Door {
+    /// An open room: anyone whose equipment level is within `max_level`
+    /// (0: any).
+    Open { max_level: u8 },
+    /// A private room: whoever gives its PIN, with any equipment (the
+    /// owner's of 2026-10-26: no max level).
+    Pin(u16),
+}
+
+impl Door {
+    /// Whether a player of equipment level `gear` comes in.
+    pub fn lets_in(self, gear: u8) -> bool {
+        match self {
+            Door::Open { max_level } => max_level == 0 || gear <= max_level,
+            Door::Pin(_) => true,
+        }
+    }
+
+    /// The highest equipment level let in as the movie and a join's offer
+    /// are told it: an open room's (0: any); 0 for a private room, which
+    /// has none.
+    pub fn max_level(self) -> u8 {
+        match self {
+            Door::Open { max_level } => max_level,
+            Door::Pin(_) => 0,
+        }
+    }
+
+    /// Whether the PIN given last (`given`) opens it: an open room's always.
+    fn opens(self, given: Option<u16>) -> bool {
+        match self {
+            Door::Open { .. } => true,
+            Door::Pin(pin) => given == Some(pin),
+        }
+    }
 }
 
 /// The vote's own time before each match: always this long, whatever the
@@ -136,6 +190,17 @@ pub struct Room {
     /// Play to put them into the room nearest their level (the owner's of
     /// 2026-10-20). Choosing the room later makes one a chosen member.
     pub by_play: HashSet<u32>,
+    /// A private room's teams as its owner arranged them: each member's
+    /// side, 0 or 1 (the owner's of 2026-10-26: "the owner should be able
+    /// to arrange both teams (even 1 vs 10)"). A member comes on the side
+    /// with fewer; its owner moves it ([`Rooms::move_member`]); its match
+    /// plays them as they are. Empty in an open room (its sides are drawn
+    /// at the start, [`sides`]).
+    pub sides: HashMap<u32, u8>,
+    /// The members who came while its match is played: a private room's
+    /// newcomers, whose late join goes to the side with fewer (their team in
+    /// the arrangement is not the owner's choice yet). Cleared with the match.
+    pub came_in_match: HashSet<u32>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -154,9 +219,59 @@ impl Room {
         2 * usize::from(self.spec.size)
     }
 
-    /// The players it needs before its vote begins (two at least).
+    /// The players its match needs: an open room's before its vote begins
+    /// (two at least); a private room's one, its owner starting it with
+    /// whoever is in ([`Rooms::start`]).
     pub fn needs(&self) -> usize {
-        usize::from(self.spec.min_players).max(START_PLAYERS)
+        if self.is_open() {
+            usize::from(self.spec.min_players).max(START_PLAYERS)
+        } else {
+            1
+        }
+    }
+
+    /// The members of a private room's side `side` in its arrangement.
+    pub fn side_count(&self, side: u8) -> usize {
+        self.sides.values().filter(|&&each| each == side).count()
+    }
+
+    /// A private room's arrangement: the members of each side, in the
+    /// room's order (what its owner's Start plays).
+    pub fn arranged(&self) -> [Vec<u32>; 2] {
+        let on = |side: u8| {
+            self.members
+                .iter()
+                .copied()
+                .filter(|member| self.sides.get(member).copied().unwrap_or(0) == side)
+                .collect()
+        };
+        [on(0), on(1)]
+    }
+
+    /// A member comes: last in the list; in a private room on the side with
+    /// fewer (side 0 of two alike).
+    fn add_member(&mut self, account_id: u32) {
+        self.members.push(account_id);
+        if !self.is_open() {
+            let side = u8::from(self.side_count(1) < self.side_count(0));
+            self.sides.insert(account_id, side);
+        }
+        if matches!(self.stage, Stage::InMatch { .. }) {
+            self.came_in_match.insert(account_id);
+        }
+    }
+
+    /// The team a private room's member goes into its match on when it
+    /// goes in late (it missed the start: its game away or started anew, a
+    /// late join that failed): the one its owner put it on (the owner's of
+    /// 2026-10-26: "Start plays exactly that"). None in an open room, and
+    /// for one who came while the match is played (it goes to the side with
+    /// fewer, as in any room).
+    pub fn arranged_side(&self, account_id: u32) -> Option<u8> {
+        if self.is_open() || self.came_in_match.contains(&account_id) {
+            return None;
+        }
+        self.sides.get(&account_id).copied()
     }
 
     pub fn is_full(&self) -> bool {
@@ -164,12 +279,18 @@ impl Room {
     }
 
     pub fn is_open(&self) -> bool {
-        self.spec.pin.is_none()
+        matches!(self.spec.door, Door::Open { .. })
     }
 
-    /// Whether a player of equipment level `gear` is let in.
+    /// Whether a player of equipment level `gear` is let in, and may play
+    /// its matches (a private room: any).
     pub fn lets_in(&self, gear: u8) -> bool {
-        self.spec.max_level == 0 || gear <= self.spec.max_level
+        self.spec.door.lets_in(gear)
+    }
+
+    /// Its max level as the movie is told it ([`Door::max_level`]).
+    pub fn max_level(&self) -> u8 {
+        self.spec.door.max_level()
     }
 
     /// The votes each card has.
@@ -213,6 +334,34 @@ pub enum Due {
     /// The room's vote and wait are over: its match is to start on `map_id`,
     /// the vote's winner then.
     Start { key: u32, map_id: u8 },
+}
+
+/// Why an owner's Start did nothing ([`Rooms::start`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartRefused {
+    /// The asker is in no room (or its room has no cards).
+    NoRoom,
+    /// Only its owner starts a room's match.
+    NotOwner,
+    /// An open room starts by its countdown, not by a Start.
+    Open,
+    /// Its match is being played.
+    Playing,
+}
+
+/// Why an owner's move of a member did nothing ([`Rooms::move_member`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoveRefused {
+    NoRoom,
+    NotOwner,
+    /// An open room's sides are drawn at its start.
+    Open,
+    /// Its match is being played.
+    Playing,
+    /// No member at that place.
+    NoMember,
+    /// The other side has its [`PRIVATE_SIZE`].
+    Full,
 }
 
 /// A pool being sent in pieces before its create.
@@ -353,13 +502,15 @@ impl Rooms {
     /// The account makes a room: it leaves the one it is in, and owns the
     /// new one. `entries` are the maps a pool may hold; the room's pool is
     /// the account's draft of them, or the `default` pool with none. The
-    /// owner's equipment level `gear` must be within the room's max level.
+    /// owner's equipment level `gear` must be within an open room's max
+    /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
+    /// says.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         &mut self,
         owner: u32,
         gear: u8,
-        spec: Spec,
+        mut spec: Spec,
         entries: &[u8],
         default: &[u8],
         most_rooms: usize,
@@ -372,7 +523,10 @@ impl Rooms {
         if pool.is_empty() || spec.size == 0 {
             return Err(Refused::Bad);
         }
-        if spec.max_level != 0 && gear > spec.max_level {
+        if let Door::Pin(_) = spec.door {
+            spec.size = PRIVATE_SIZE;
+        }
+        if !spec.door.lets_in(gear) {
             return Err(Refused::GearTooHigh);
         }
         if self.rooms.len() >= most_rooms
@@ -385,27 +539,28 @@ impl Rooms {
         let serial = self.next_serial();
         // The vote is always there: its cards from the start.
         let cards = Self::draw(&pool, below);
-        self.rooms.insert(
+        let mut room = Room {
             key,
-            Room {
-                key,
-                owner,
-                maker: owner,
-                spec,
-                pool,
-                members: vec![owner],
-                stage: Stage::Waiting,
-                cards,
-                votes: HashMap::new(),
-                last_map: 0,
-                after_match: false,
-                in_match: HashSet::new(),
-                serial,
-                kicked: HashSet::new(),
-                chat: VecDeque::new(),
-                by_play: HashSet::new(),
-            },
-        );
+            owner,
+            maker: owner,
+            spec,
+            pool,
+            members: Vec::new(),
+            stage: Stage::Waiting,
+            cards,
+            votes: HashMap::new(),
+            last_map: 0,
+            after_match: false,
+            in_match: HashSet::new(),
+            serial,
+            kicked: HashSet::new(),
+            chat: VecDeque::new(),
+            by_play: HashSet::new(),
+            sides: HashMap::new(),
+            came_in_match: HashSet::new(),
+        };
+        room.add_member(owner);
+        self.rooms.insert(key, room);
         self.of_account.insert(owner, key);
         self.dequeue(owner);
         Ok(key)
@@ -432,7 +587,7 @@ impl Rooms {
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
-        if room.spec.pin.is_some_and(|wanted| pin != Some(wanted)) {
+        if !room.spec.door.opens(pin) {
             return Err(Refused::WrongPin);
         }
         if !room.lets_in(gear) {
@@ -446,7 +601,7 @@ impl Rooms {
         let Some(room) = self.rooms.get_mut(&key) else {
             return Err(Refused::Unknown);
         };
-        room.members.push(account_id);
+        room.add_member(account_id);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         // In a room: no queue any more.
@@ -490,6 +645,8 @@ impl Rooms {
         room.votes.remove(&account_id);
         room.in_match.remove(&account_id);
         room.by_play.remove(&account_id);
+        room.sides.remove(&account_id);
+        room.came_in_match.remove(&account_id);
         room.serial = serial;
         if room.members.is_empty() {
             self.rooms.remove(&key);
@@ -521,9 +678,9 @@ impl Rooms {
     }
 
     /// The account waits in the full room's queue: it is in no room (the
-    /// lobby only), the room lets it in (its PIN given just before, its
-    /// max level, not turned out). One queue at a time: a new one takes it
-    /// out of the last. Its place, 1 the first.
+    /// lobby only), the room lets it in (its PIN given just before, an
+    /// open room's max level, not turned out). One queue at a time: a new
+    /// one takes it out of the last. Its place, 1 the first.
     pub fn enqueue(
         &mut self,
         account_id: u32,
@@ -539,7 +696,7 @@ impl Rooms {
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
-        if room.spec.pin.is_some_and(|wanted| pin != Some(wanted)) {
+        if !room.spec.door.opens(pin) {
             return Err(Refused::WrongPin);
         }
         if !room.lets_in(gear) {
@@ -631,7 +788,7 @@ impl Rooms {
         if room.is_full() {
             return false;
         }
-        room.members.push(account_id);
+        room.add_member(account_id);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         true
@@ -644,7 +801,7 @@ impl Rooms {
         let room = self.rooms.get(&key)?;
         // Only a private room (with a PIN) turns anyone out: an open one is
         // everybody's (the owner's of 2026-10-19).
-        if room.owner != owner || room.spec.pin.is_none() {
+        if room.owner != owner || room.is_open() {
             return None;
         }
         let member = *room.members.get(place)?;
@@ -674,6 +831,33 @@ impl Rooms {
         true
     }
 
+    /// The owner of a private room starts its match now, on the vote's
+    /// winner then (the owner's of 2026-10-26: no countdown, its owner's
+    /// Start with whoever is in). The lobby makes the match as for a
+    /// [`Due::Start`] of [`Rooms::tick`], with as many members as can play
+    /// (one at the least, [`Room::needs`]).
+    pub fn start(
+        &self,
+        account_id: u32,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Result<Due, StartRefused> {
+        let room = self.of(account_id).ok_or(StartRefused::NoRoom)?;
+        if room.owner != account_id {
+            return Err(StartRefused::NotOwner);
+        }
+        if room.is_open() {
+            return Err(StartRefused::Open);
+        }
+        if room.stage != Stage::Waiting {
+            return Err(StartRefused::Playing);
+        }
+        let map_id = room.winner(below).ok_or(StartRefused::NoRoom)?;
+        Ok(Due::Start {
+            key: room.key,
+            map_id,
+        })
+    }
+
     /// Three cards from the pool, all different while the pool has as many.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
@@ -692,7 +876,8 @@ impl Rooms {
     /// over, with two who count, the room is due to start its match on the
     /// vote's winner then ([`Due::Start`]), which the lobby answers with
     /// [`Rooms::started`] or [`Rooms::not_started`]. Fewer than two members stop it; a member who
-    /// stops counting for a while (changing its kit) does not.
+    /// stops counting for a while (changing its kit) does not. A private
+    /// room counts nothing down: its owner starts it ([`Rooms::start`]).
     /// `counts`: whether a member can play the match now (in the lobby, a
     /// kit that can play, equipment within the max level).
     pub fn tick(
@@ -717,7 +902,7 @@ impl Rooms {
             }
             let present = room.members.len() >= room.needs();
             match room.stage {
-                Stage::Waiting if enough => {
+                Stage::Waiting if enough && room.is_open() => {
                     let extra = if room.after_match {
                         AFTER_MATCH
                     } else {
@@ -785,11 +970,48 @@ impl Rooms {
         self.drafts.remove(&account_id);
     }
 
-    /// A member went into the room's running match late.
-    pub fn seated_late(&mut self, key: u32, account_id: u32) {
+    /// A member went into the room's running match late, on side `team`:
+    /// in a private room its side in the arrangement from now on, as it
+    /// plays, while that team has a place (never more than
+    /// [`PRIVATE_SIZE`]); one on its own team keeps it.
+    pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
+            let team = team.min(1);
+            if room
+                .sides
+                .get(&account_id)
+                .is_some_and(|&side| side != team)
+                && room.side_count(team) < usize::from(PRIVATE_SIZE)
+            {
+                room.sides.insert(account_id, team);
+            }
         }
+    }
+
+    /// The owner of a private room moves the member at `place` of its
+    /// list (itself too) to the other side (the owner's of 2026-10-26: "a
+    /// button to move the player into any team"), while the room waits;
+    /// never onto a side of [`PRIVATE_SIZE`] already. Its side now.
+    pub fn move_member(&mut self, owner: u32, place: usize) -> Result<u8, MoveRefused> {
+        let key = *self.of_account.get(&owner).ok_or(MoveRefused::NoRoom)?;
+        let room = self.rooms.get_mut(&key).ok_or(MoveRefused::NoRoom)?;
+        if room.owner != owner {
+            return Err(MoveRefused::NotOwner);
+        }
+        if room.is_open() {
+            return Err(MoveRefused::Open);
+        }
+        if room.stage != Stage::Waiting {
+            return Err(MoveRefused::Playing);
+        }
+        let member = *room.members.get(place).ok_or(MoveRefused::NoMember)?;
+        let to = 1 - room.sides.get(&member).copied().unwrap_or(0).min(1);
+        if room.side_count(to) >= usize::from(PRIVATE_SIZE) {
+            return Err(MoveRefused::Full);
+        }
+        room.sides.insert(member, to);
+        Ok(to)
     }
 
     /// A member that went into the room's running match late was let go
@@ -822,6 +1044,7 @@ impl Rooms {
         // while this one was played.
         room.stage = Stage::Waiting;
         room.in_match.clear();
+        room.came_in_match.clear();
         room.after_match = true;
         for &member in &leaving {
             self.leave(member);
@@ -839,6 +1062,7 @@ impl Rooms {
         )?;
         room.stage = Stage::Waiting;
         room.in_match.clear();
+        room.came_in_match.clear();
         room.after_match = false;
         Some(room.key)
     }
@@ -948,9 +1172,8 @@ mod tests {
     fn spec(size: u8, pin: Option<u16>) -> Spec {
         Spec {
             size,
-            max_level: 0,
             wait: 30,
-            pin,
+            door: pin.map_or(Door::Open { max_level: 0 }, Door::Pin),
             min_players: 2,
         }
     }
@@ -1037,6 +1260,118 @@ mod tests {
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
+    }
+
+    /// The owner's of 2026-10-26: a private room is 10 v 10, counts nothing
+    /// down, and its owner starts its match when it wants, on the vote's
+    /// winner then; nobody else, never an open room, never while its match
+    /// is played. After the match it waits for its owner again.
+    #[test]
+    fn a_private_room_starts_by_its_owner_only() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let open = room_of(&mut rooms, 1, 6, None, now);
+        let private = room_of(&mut rooms, 2, 6, Some(1234), now);
+        assert_eq!(rooms.get(private).unwrap().spec.size, PRIVATE_SIZE);
+        assert_eq!(rooms.get(private).unwrap().capacity(), 20);
+        assert_eq!(rooms.get(open).unwrap().spec.size, 6);
+        assert_eq!(rooms.get(private).unwrap().needs(), 1);
+        rooms.give_pin(3, 1234, now);
+        rooms.join(3, 0, private, now).unwrap();
+        rooms.join(4, 0, open, now).unwrap();
+        // Two in each: the open room votes, the private one waits.
+        assert!(rooms.tick(now, &mut first, |_| true).is_empty());
+        assert!(matches!(rooms.get(open).unwrap().stage, Stage::Vote { .. }));
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+        let later = now + Duration::from_secs(600);
+        let due = rooms.tick(later, &mut first, |_| true);
+        assert!(matches!(due[..], [Due::Start { key, .. }] if key == open));
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+
+        assert_eq!(rooms.start(3, &mut first), Err(StartRefused::NotOwner));
+        assert_eq!(rooms.start(1, &mut first), Err(StartRefused::Open));
+        assert_eq!(rooms.start(9, &mut first), Err(StartRefused::NoRoom));
+        // The member's vote decides the map.
+        assert!(rooms.vote(3, 2));
+        let cards = rooms.get(private).unwrap().cards.clone();
+        assert_eq!(
+            rooms.start(2, &mut first),
+            Ok(Due::Start {
+                key: private,
+                map_id: cards[2]
+            })
+        );
+        rooms.started(private, 77, cards[2], &[2, 3], later);
+        assert_eq!(rooms.start(2, &mut first), Err(StartRefused::Playing));
+        rooms.match_over(77);
+        rooms.tick(later, &mut first, |_| true);
+        rooms.tick(later + Duration::from_secs(600), &mut first, |_| true);
+        assert_eq!(rooms.get(private).unwrap().stage, Stage::Waiting);
+        assert!(rooms.start(2, &mut first).is_ok());
+        // Its owner gone, the next member owns it and starts it.
+        rooms.leave(2);
+        assert!(rooms.start(3, &mut first).is_ok());
+    }
+
+    /// The owner's of 2026-10-26: a private room's owner arranges its teams,
+    /// any split up to 10 a side; a newcomer comes on the side with fewer; a
+    /// leaver goes out of it; the arrangement stays across matches.
+    #[test]
+    fn a_private_rooms_owner_arranges_its_teams() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for member in 2..=4 {
+            rooms.give_pin(member, 1234, now);
+            rooms.join(member, 0, key, now).unwrap();
+        }
+        // Each on the side with fewer.
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![1, 3], vec![2, 4]]);
+        assert_eq!(rooms.move_member(2, 0), Err(MoveRefused::NotOwner));
+        assert_eq!(rooms.move_member(1, 9), Err(MoveRefused::NoMember));
+        // The owner moves itself and member 3: 0 v 4, then 1 v 3.
+        assert_eq!(rooms.move_member(1, 0), Ok(1));
+        assert_eq!(rooms.move_member(1, 2), Ok(1));
+        assert_eq!(
+            rooms.get(key).unwrap().arranged(),
+            [vec![], vec![1, 2, 3, 4]]
+        );
+        assert_eq!(rooms.move_member(1, 1), Ok(0));
+        // Kept across a match; no move while it is played.
+        rooms.started(key, 7, 61, &[1, 2, 3, 4], now);
+        assert_eq!(rooms.move_member(1, 1), Err(MoveRefused::Playing));
+        rooms.match_over(7);
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![2], vec![1, 3, 4]]);
+        // A leaver is out of it; the next comes on the side with fewer.
+        rooms.leave(3);
+        rooms.give_pin(5, 1234, now);
+        rooms.join(5, 0, key, now).unwrap();
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![2, 5], vec![1, 4]]);
+        // An open room has none.
+        let open = room_of(&mut rooms, 9, 6, None, now);
+        assert_eq!(rooms.move_member(9, 0), Err(MoveRefused::Open));
+        assert!(rooms.get(open).unwrap().sides.is_empty());
+    }
+
+    /// A side holds 10 at most: 10 v 1 takes no move onto the ten.
+    #[test]
+    fn a_private_rooms_side_holds_ten() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for member in 2..=11 {
+            rooms.give_pin(member, 1234, now);
+            rooms.join(member, 0, key, now).unwrap();
+        }
+        // 1, 3, ... 11 on side 0 (6), the rest on side 1 (5): to 10 v 1.
+        for place in 0..rooms.get(key).unwrap().members.len() {
+            let member = rooms.get(key).unwrap().members[place];
+            if rooms.get(key).unwrap().sides[&member] == 1 && member != 2 {
+                assert_eq!(rooms.move_member(1, place), Ok(0));
+            }
+        }
+        assert_eq!(rooms.get(key).unwrap().side_count(0), 10);
+        assert_eq!(rooms.move_member(1, 1), Err(MoveRefused::Full));
     }
 
     #[test]
@@ -1421,7 +1756,7 @@ mod tests {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let capped = Spec {
-            max_level: 5,
+            door: Door::Open { max_level: 5 },
             ..spec(8, None)
         };
         // Not under its maker's own equipment level.
@@ -1437,6 +1772,29 @@ mod tests {
         assert_eq!(rooms.join(2, 5, key, now), Ok(()));
         let any = room_of(&mut rooms, 3, 8, None, now);
         assert_eq!(rooms.join(4, 15, any, now), Ok(()));
+    }
+
+    /// A private room has no max level (the owner's of 2026-10-26): its
+    /// PIN lets in the highest equipment and the lowest, its queue too, and
+    /// its members always fit; Play never takes anyone into it.
+    #[test]
+    fn a_private_room_lets_in_any_equipment() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = rooms
+            .create(1, 15, spec(8, Some(42)), &POOL, &POOL, 50, now, &mut first)
+            .unwrap();
+        let room = rooms.get(key).unwrap();
+        assert!(room.lets_in(15) && room.lets_in(0));
+        assert_eq!(room.max_level(), 0);
+        rooms.give_pin(2, 42, now);
+        assert_eq!(rooms.join(2, 15, key, now), Ok(()));
+        rooms.give_pin(3, 42, now);
+        assert_eq!(rooms.join(3, 0, key, now), Ok(()));
+        assert_eq!(rooms.get(key).unwrap().members, [1, 2, 3]);
+        rooms.give_pin(4, 42, now);
+        assert_eq!(rooms.enqueue(4, 15, key, now), Ok(1));
+        assert!(rooms.open_rooms(5, 0).next().is_none());
     }
 
     #[test]

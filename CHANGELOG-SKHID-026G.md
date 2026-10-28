@@ -632,3 +632,65 @@ kept and can be put back).
 - TODO: #456 SVD at equipment level 15
 - TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
 - TODO: #458 Revert Research HUD markers (#367) for rev 34
+
+## 26 Oct, 15:08 — Game update 35: Blackout, London spawns and ragdolls (update required)
+
+<!-- Revision 35 (026g-rev35), released 2026-10-26 15:08 UTC. To be worded for players; what it shipped: -->
+
+Close the game and start `Skhid.bat`. The launcher installs revision 35 and
+its new game content. Older game versions can no longer sign in.
+Recordings made before revision 35 can no longer be watched, because this
+update changes what a match computes.
+
+- **Blackout — a new Protective device mode.** Collect batteries with the
+  usual rules, but with the normal interface hidden: no crosshair, minimap,
+  health or ammunition display, score, kill feed or objective markers.
+  Hold **Tab** to check ammunition, quick-use items, player markers, match
+  time and chat history. Looking around still works while checking, but
+  movement and other actions pause; release Tab, then press an action again
+  to use it. When dead, Tab also shows your kits, and **1–3** still selects
+  a kit. Chat appears while typing. Blackout awards **double match points,
+  silver, experience and reputation**; PIN rooms still give no rewards.
+  It is available in the normal room mode pool, and room creators can
+  deselect it.
+- **London:** removed the anomalies and moved both teams' spawn points
+  inside their buildings, onto the first floor above ground level. Each
+  side has ten spawn positions, used consistently in Protective device,
+  Protective device with chargers, Team deathmatch and Research.
+- **Ragdolls:** bodies now collapse in response to the killing hit, carry
+  their running momentum and settle against the ground and stairs. Dropped
+  weapons fall beside them, and further shots can move a body again. The
+  death camera follows your body's head while still letting you look
+  around. Bodies do not block bullets or battery pickup.
+- **Private rooms:** the creator starts the match with **Start** and uses
+  the **« / »** buttons to arrange both teams. You can start alone at
+  **1 v 0**, practise with uneven teams such as **1 v 10**, or fill all
+  twenty places, with up to ten players per side. The game keeps the
+  chosen teams between matches and waits for the creator to start again.
+- **Death effect:** the view gradually dims, loses colour and narrows
+  around the edges during the respawn countdown. Its pace follows the
+  time left, the scene remains visible, and the view clears on respawn.
+  Kit selection and the rest of the interface stay readable above it.
+- **Weapon icons:** weapons added from later versions now show their own
+  kill-feed icons, including the HK416, P90, MP7, Saiga-12K and Pecheneg.
+  The M4A1 also uses the correct M4 icon.
+- **Minimap:** choosing Hidden now keeps it hidden after restarting the
+  game or loading another match. Changing its position takes effect
+  immediately.
+- **Crash reports:** the crash window now shows useful details even when
+  Windows cannot save a memory dump, with a **Copy** button for reporting
+  them. Reports also retain game logs containing Cyrillic, Polish or
+  other supported local characters instead of discarding those logs.
+
+## 27 Oct, 21:18 — TODO: the owner's words (update required)
+
+<!-- Revision 36 (026g-rev36), released 2026-10-27 21:18 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #556 Changelog: revision 35 for players
+- TODO: #558 release: ship and check the bots' data files (maps, routes table) with the release
+- TODO: #566 release: the bots' foliage file in the bot data list
+- TODO: #578 Bots at every equipment level, in the top players' kits
+- TODO: #569 Rooms: a private room has no max level
+- TODO: #599 Firewall script: in Russian, and it asks for administrator rights itself
+- TODO: #686 Fix Research markers and countdown layout using Rust
+- TODO: #689 Medicines: accurate card values, activation sweep and effect countdown in the quick slots, gray while pending

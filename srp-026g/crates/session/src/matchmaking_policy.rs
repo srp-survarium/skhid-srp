@@ -100,6 +100,29 @@ pub fn place_joiner(
         )
     };
     let side = usize::from(key(1) < key(0));
+    placed(sides, joiner, side, rule)
+}
+
+/// Where a match being played takes `joiner` that has a side of its own
+/// (a private room's member, on the team its owner put it on; the owner's
+/// of 2026-10-26: "Start plays exactly that"): `side` while it has a place,
+/// else the other one. The match's `room` stops it as in [`place_joiner`].
+pub fn place_joiner_on(
+    sides: [Worth; 2],
+    joiner: Worth,
+    side: u8,
+    rule: &LateRule,
+) -> Option<LatePlacement> {
+    let side = usize::from(side.min(1));
+    placed(sides, joiner, side, rule).or_else(|| placed(sides, joiner, 1 - side, rule))
+}
+
+/// `joiner` on `side`, unless that side is full with it or the match has
+/// no place.
+fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Option<LatePlacement> {
+    let worth = |sides: &[Worth; 2], side: usize| {
+        rule.player_value * sides[side].players as i64 + sides[side].strength + rule.lead[side]
+    };
     let mut after = sides;
     after[side].players += joiner.players;
     after[side].strength += joiner.strength;
@@ -129,6 +152,19 @@ mod tests {
             player_value: 1200,
             lead: [0, 0],
         }
+    }
+
+    /// A private room's member goes to its own team, fewer or not, while it
+    /// has a place; a full one sends it to the other.
+    #[test]
+    fn a_joiner_with_its_own_side_goes_there_while_it_has_a_place() {
+        let one = side(1, 0);
+        let placed = place_joiner_on([side(1, 0), side(3, 0)], one, 1, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        assert_eq!(placed.sides[1].players, 4);
+        let placed = place_joiner_on([side(2, 0), side(10, 0)], one, 1, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
+        assert!(place_joiner_on([side(10, 0), side(10, 0)], one, 0, &rule()).is_none());
     }
 
     #[test]

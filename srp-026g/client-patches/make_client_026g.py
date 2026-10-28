@@ -99,7 +99,9 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/Skhid-network-setup.cmd
         Windows Firewall outbound allow rules for the three programs and,
         asked, a Microsoft Defender exclusion of game\binaries\x86; --undo removes
-        them, --dry-run prints the commands (Skhid-network-setup.cmd here).
+        them, --dry-run prints the commands. It asks Windows for
+        administrator rights itself (the UAC prompt) and says everything in
+        Russian (Skhid-network-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -330,10 +332,15 @@ def vpn_help():
 
 
 def network_setup():
-    """`Skhid-network-setup.cmd`: plain ASCII (cmd reads a script in the
-    console's code page) with CRLF line ends."""
-    script = crlf(Path(HERE, NETWORK_SETUP).read_bytes())
-    script.decode("ascii")
+    """`Skhid-network-setup.cmd`: kept in UTF-8, shipped in code page 866
+    (DOS Cyrillic) with CRLF line ends. cmd reads each line of a script in
+    the console's code page at the time; the script switches it to 866
+    (`chcp 866`) before its first Russian line, so everything above that
+    line is ASCII."""
+    text = Path(HERE, NETWORK_SETUP).read_bytes().decode("utf-8")
+    script = crlf(text.encode("cp866"))
+    switch = script.index(b"\r\nchcp 866 >nul 2>&1\r\n")
+    script[:switch].decode("ascii")
     return script
 
 
@@ -391,7 +398,8 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "for newer Skhid files and installs them by itself.",
             "",
             "CANNOT REACH THE SERVER?",
-            f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows). In",
+            f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
+            "Russian) and answer Yes when Windows asks for administrator rights. In",
             f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
             "",
             "WHAT THE ARCHIVE ADDS",

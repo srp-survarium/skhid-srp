@@ -38,6 +38,7 @@ given), LIKELY or GUESS.
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |
 | [client_patch.md](client_patch.md) | Porting the srp client patch, the function map |
+| [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
 | [password-reset.md](password-reset.md) | The admin's password reset while srp runs: the page's Password tab (confirm step), a script's one POST and its answers, the curl from the jump host, the owner's rule (2026-10-18) |
@@ -62,6 +63,7 @@ given), LIKELY or GUESS.
 | [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
 | [research_mode.md](research_mode.md) | Research (mode 5, capture points) as 0.27d shipped it: the rules, the data, the inventory of the builds (what is ported, what is left out and why), exe patch 53, the pack, the server's part |
+| [london.md](london.md) | London (level_09): no anomalies, the owner's first-floor map-editor spawns in each team's base building (content-edit `london-1.json`) |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
 | [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
@@ -69,6 +71,8 @@ given), LIKELY or GUESS.
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
 | [dynamic_anomalies.md](dynamic_anomalies.md) | **Not shipped** (taken out of revision 31, the owner, 2026-10-23: the pre-built cores overflow the saved world; redesign pending; the code is on `feat/dynamic-anomalies`). Dynamic anomalies as the release had them, on London and Cologne only (the owner, 2026-10-22; they charge, hurt, hold an artefact and go when it is taken; 27 places on London, 29 on Cologne; every other map static): the release's code, 0.26g's, the design, the rules, the maps, the server (exe patch 42 and a resources.db patch) |
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
+| [ragdoll.md](ragdoll.md) | **Being built (patch 76, not run in a game).** Ragdolls on death (the owner, 2026-10-25): 0.26g has no joints in its Bullet; corpses are out of the simulation's physics; option C3, a visual-only XPBD ragdoll (crate `ragdoll`) reading the level by ray_test; phase 2: the bone array, the queries, the death key (+328h), the eye (+44Ch is "Item"), the battery, the cull, the threads; the Bodycam recipe; tests and costs |
+| [death-eyes.md](death-eyes.md) | The view fading on the death screen (the owner, 2026-10-26): over the respawn countdown, at its speed, the view loses brightness and colour under a narrowing vignette, three faint heartbeat dims, never fully dark, clear at once at the respawn; how the hud knows the time (the hud movie) |
 | [required-patches.md](required-patches.md) | The game requires its release's patches (2026-10-21 crashes; exe patch 49): a release's exe stops at its start without a patch its server offers, built in from the offered-patch list by `release/build-zip`, checked by `release.sh` and `deploy` |
 | [item-search.md](item-search.md) | Item search (the owner, 2026-10-22): Ctrl+F over the shop, the inventory or the craft and upgrade windows' list opens a box above the item panel's buttons; the list follows each key, by the shown name, accents and Cyrillic folded, typos tolerated; Esc, Enter and the exe's window keys |
 | [esc.md](esc.md) | Esc in the lobby (the owner, 2026-10-23): Esc closes the topmost modal only; every modal (windows, popups, the Upgrade and rooms windows, messages, the right-click menu) registers on open and leaves on close (`Modals`); a message's Esc is its own close (Cancel, OK) |
@@ -172,7 +176,7 @@ Every setting has a default; none is needed on a dev PC.
   `SRP_DROP_PLAYTIME_BONUS` (off): the play time bonus to the drop chance.
   `SRP_DAILY_BONUS` (on), `SRP_DAILY_BONUS_RESET_HOUR` (0): the daily bonus.
 - `SRP_SNAPSHOT_DIR` (default `logs/snapshots`; `off`): uploaded worlds.
-- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6),
+- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6 for PvP; PvE needs one human),
   `SRP_RECORD_MAX_MB` (5000): match recordings, every datagram of a match
   in and out, kept for matches that 6 or more players entered (late
   joiners counted). Format: `match-server/src/v026g/record.rs`; reader:

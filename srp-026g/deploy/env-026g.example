@@ -166,7 +166,7 @@ RUST_LOG=info
 # after which a match whose player uploads no world it is asked for is
 # over.
 # SRP_PVB=on
-# SRP_PVB_MAX_GEAR=5
+# SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.5
 # SRP_PVB_STALL_S=60
