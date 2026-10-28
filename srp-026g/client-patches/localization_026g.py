@@ -5,6 +5,7 @@ Accepts extracted resource trees, dbgrab's flat filenames, and UTF-8 JSON.
 Game resources are inputs supplied by the operator, never repository fixtures.
 """
 import json
+import re
 from pathlib import Path
 import struct
 import zlib
@@ -17,7 +18,10 @@ LANGUAGES = (
     ('german', 'DE'), ('polish', 'PL'), ('serbian', 'SR'),
     ('czech', 'CS'), ('hungarian', 'HU'), ('finnish', 'FI'),
 )
-TRANSLATED_LANGUAGES = tuple(name for name, _ in LANGUAGES[5:])
+CATALOG = Path(__file__).resolve().parent / 'localization'
+# These unused directional controls intentionally have no visible label.
+EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
+                       for direction in ('down', 'left', 'up', 'right'))
 
 
 def unique_object(pairs):
@@ -90,15 +94,26 @@ def read_strings(path):
 
 
 def read_translations(path):
+    """Read a two-column UTF-8 TSV; escapes keep each key on one physical line."""
     pairs = []
-    for number, line in enumerate(Path(path).read_text(encoding='utf-8').splitlines(), 1):
-        if not line or line.startswith('#'):
-            continue
+    lines = Path(path).read_text(encoding='utf-8').splitlines()
+    if not lines or lines[0] != 'key\ttext':
+        raise ValueError(f'{path}: expected key<TAB>text header')
+    for number, line in enumerate(lines[1:], 2):
         if line.count('\t') != 1:
             raise ValueError(f'{path}:{number}: expected key, TAB, translation')
         key, text = line.split('\t')
-        key = key[1:] if key.startswith('@') else 'st_' + key
-        pairs.append((key, text.replace('\\n', '\n')))
+        if not re.fullmatch(r'[A-Za-z0-9_]+', key):
+            raise ValueError(f'{path}:{number}: invalid full dictionary key: {key!r}')
+        def unescape(match):
+            escapes = {'\\': '\\', 'n': '\n', 'r': '\r', 't': '\t'}
+            if match[1] not in escapes:
+                raise ValueError(f'{path}:{number}: invalid escape: {match[0]!r}')
+            return escapes[match[1]]
+        text = re.sub(r'\\(.)|\\$', unescape, text)
+        if '\0' in text:
+            raise ValueError(f'{path}:{number}: NUL in text')
+        pairs.append((key, text))
     return unique_object(pairs)
 
 

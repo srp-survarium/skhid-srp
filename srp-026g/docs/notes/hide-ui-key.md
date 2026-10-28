@@ -65,7 +65,7 @@ too, for screenshots.
   leave the interface as forced. Each movie keeps what a forced interface keeps: the hud the
   pre-match countdown and its Tab view, the player icons the players' markers on Tab.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
-  label is content edit `hide-interface-1.json`.
+  label is in `client-patches/localization/*.tsv`.
 - No simulation change, no server change.
 
 ## Later: a match without UI

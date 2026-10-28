@@ -3198,7 +3198,7 @@ does what no config of 0.26g could.
   [ebx-0C30h] / push 0BB8h`) the time on screen becomes the active's time left (+F14h), and of
   the Onyx fired by one press (state 4, the same activation time +2A0h) only the first of the
   slots shows it. The hud movie's set_parameterized_message writes a text's `%s` as that time in
-  seconds (rounded up); the six hints say "75% for %s s" (`artefact-texts-1.json`). Not `{s}`:
+  seconds (rounded up); all language hints say "75% for %s s" (`localization/*.tsv`). Not `{s}`:
   the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
   other name nothing (the owner's test of `{s}`: "for  s.").
 
@@ -3310,7 +3310,7 @@ of its own, saved in `user.cfg` (`cc_value<bool>` 0x1DDB0 through the engine lib
 cc_bool vtable 0x9E7C4C, as the hud registers its own `show_quests_progress` at 0x2339C9). So
 the option is live and kept. The main menu enables its checkbox (where its timeline makes it,
 `settingsTabs_15`, and in `Settings.create_content`);
-`match-chat-off-1.json` labels it "Hide chat in match" in the six tables (Chat im Kampf
+`localization/*.tsv` labels it "Hide chat in match" in all language tables (Chat im Kampf
 ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою).
 A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the handler, the
 channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
@@ -3381,7 +3381,7 @@ and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in 
 `hide_ui.data`, and points the six functions at it (their immediates) with counts of 29h. Saving
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
-`hide-interface-1.json` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
+`localization/*.tsv` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
 ausblenden, Ukryj interfejs). The default stays the action table's F11 (the options' reset sets
 the binder's defaults).
 

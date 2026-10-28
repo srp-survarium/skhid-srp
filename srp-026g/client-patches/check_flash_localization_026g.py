@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import re
 
-from localization_026g import LANGUAGES
+from localization_026g import LANGUAGES, read_translations
 
 STR = r'"(?:[^"\\]|\\.)*"'
 ROWS = re.compile(r'\[\s*' + STR + r'(?:\s*,\s*' + STR + r'){4,}\s*\]')
@@ -14,6 +14,45 @@ IDENTIFIERS = {
     ('clan_team_commander', 'clan_team_soldier', 'clan_team_reserve', 'clan_team_invites', ''),
     ('friend_state_lobby', 'friend_state_game', 'friend_state_offline', 'friend_state_away', 'friend_invite'),
 }
+
+
+def audit_native_labels(root, catalog):
+    """Native labels are also the Flash menus' language detectors."""
+    root, catalog = Path(root), Path(catalog)
+    issues = []
+    tables = []
+    for filename, name, key in (
+            ('rooms/RoomsText.as', 'FRIENDS', 'st_btn_friends'),
+            ('messages/MessageMoneyExchange.as', 'CANCEL', 'st_cancel')):
+        source = (root / 'lobby_menu/src/survarium' / filename).read_text(encoding='utf-8')
+        match = re.search(name + r':Array\s*=\s*(\[.*?\]);', source)
+        if not match:
+            raise ValueError(f'{filename}: missing {name} language table')
+        tables.append((filename, key, json.loads(match[1])))
+    login = (root / 'login_menu/src/SrpLoginHint.as').read_text(encoding='utf-8')
+    detectors = [(path, (root / 'lobby_menu/src/survarium' / path).read_text(encoding='utf-8'))
+                 for path in ('gsearch/MatchMakingSettings.as', 'controls/NotificationListScrollContent.as')]
+    for index, (language, code) in enumerate(LANGUAGES):
+        path = catalog / f'{language}.tsv'
+        if not path.exists():
+            continue  # The catalog audit reports missing language files.
+        strings = read_translations(path)
+        for filename, key, row in tables:
+            if index >= len(row) or row[index] != strings.get(key):
+                issues.append(f'{filename}: {language} label differs from native {key}')
+        label = json.dumps(strings.get('st_registration_str'), ensure_ascii=False)
+        if label + ':' not in login:
+            issues.append(f'SrpLoginHint.as: missing {language} registration label {label}')
+        if index:  # English is the detector's fallback.
+            label = json.dumps(strings.get('st_btn_friends'), ensure_ascii=False)
+            pattern = r'if\(word == ' + re.escape(label) + r'\)\s*\{\s*return Language\.' + code + ';'
+            for filename, source in detectors:
+                # Legacy German/Polish replay messages deliberately use English.
+                if filename == 'controls/NotificationListScrollContent.as' and code in ('DE', 'PL'):
+                    continue
+                if not re.search(pattern, source):
+                    issues.append(f'{filename}: missing {language} Friends detector')
+    return issues
 
 
 def audit_flash(root):

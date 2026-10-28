@@ -204,7 +204,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
 | `INVALID_USER_NAME_OR_PASSWORD` | 0x0A, unchanged |
 | `TOO_MANY_ATTEMPTS` | 0x0C, unchanged |
 | `REGISTRATION_CLOSED` (access level) | 0x12 → **0x20** |
-| `USER_BANNED` | 0x11 → **one of 0x12..0x1F**. 0x11 now shows a plain connection error. Use 0x1E (cheating) or 0x1C (administrator); 0x1B is incorrect_info (checked against the tables 0x21bd04 and 0x21f2a4: code N shows status N − 6). The client shows `st_login_menu_status_user_banned` then `st_ban_reason_X`, joined with no space. Stock texts: the header names prohibited software ("You are banned (Use / distribution / advertisement of prohibited software).") for every reason, and 0x1C is "Pretending to be administrator of the game"; content edit list `ban-texts-1.json` makes them "You are banned. " and "Decision of the administration." (srp's fallback for a reason with no keyword). |
+| `USER_BANNED` | 0x11 → **one of 0x12..0x1F**. 0x11 now shows a plain connection error. Use 0x1E (cheating) or 0x1C (administrator); 0x1B is incorrect_info (checked against the tables 0x21bd04 and 0x21f2a4: code N shows status N − 6). The client shows `st_login_menu_status_user_banned` then `st_ban_reason_X`, joined with no space. Stock texts: the header names prohibited software ("You are banned (Use / distribution / advertisement of prohibited software).") for every reason, and 0x1C is "Pretending to be administrator of the game"; `client-patches/localization/*.tsv` makes them "You are banned. " and "Decision of the administration." (srp's fallback for a reason with no keyword). |
 | "already online" | 0x13 → **0x21** |
 | invalid version | 0x14 → **0x22** |
 

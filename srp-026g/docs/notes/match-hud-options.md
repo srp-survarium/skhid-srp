@@ -34,4 +34,4 @@ A player's ask (2026-10-21): "option to turn off in-game chat".
 - **Off by default; remembered** in `user.cfg` (`g_private_messages_in_game on`).
 - **Typing still works:** T opens the chat as before.
 - **How:** exe patch 58 (the option's variable, the lines dropped), the main menu enables the
-  checkbox, content edit `match-chat-off-1.json` (its label in en, de, pl, ru, uk).
+  checkbox, `client-patches/localization/*.tsv` (its label in every language).

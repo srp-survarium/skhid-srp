@@ -1,5 +1,13 @@
 # content-edit: game data changes as resources.db patches
 
+Native dictionary text is maintained in
+[`client-patches/localization/*.tsv`](../../client-patches/localization/README.md),
+one complete file per language. `localization-1.json`, the final manifest edit,
+compiles them all. The text-only edit lists described historically below have
+been folded into those TSVs; add new item names and descriptions there in every
+language, then run `python3 srp-026g/client-patches/check_localization_026g.py`
+from the repository root. Gameplay values and UI key mappings remain edit lists.
+
 `content_edit.py` makes a patch folder by editing the live game configs in place:
 only the bytes of the edited values change (a renamed key's table is re-sorted by
 name CRC, as the game's lookup needs; new names and strings go after the file's
@@ -11,7 +19,8 @@ on other data.
 ## Making the patch
 
 An edit list is live when it has its row in `release/content.tsv` (`edit<TAB><file>.json<TAB>-<TAB><what>`,
-after the edit rows already there: they are applied in that order). `release/build-content
+after the other relevant edit rows, but before the final localization catalog edit:
+they are applied in that order). `release/build-content
 <revision>` applies every one to the files as the base patches and the packs leave them (so the
 `from` values are those, never a later release's), compares the results with what players have,
 and packs only the files that differ into `resources.db.patch_<revision>`, with the server game data

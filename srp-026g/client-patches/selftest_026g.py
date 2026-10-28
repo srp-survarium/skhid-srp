@@ -4128,14 +4128,14 @@ def test_artefacts(original, image, before):
           "(+2F0h, at ebx-0C30h) with set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms) once for "
           "each Onyx; 0x25F9DD's eleven bytes are whole instructions before `push 14h` at 0x25F9E8")
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
-    hints = [e["to"] for e in json.load(open(os.path.join(HERE, "..", "scripts", "content-edit",
-                                                          "artefact-texts-1.json"), encoding="utf-8"))["edit_text"]
-             if e["path"] == "strings/st_onyx_activation_hint"]
+    from localization_026g import CATALOG, LANGUAGES, read_translations
+    hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
+             for language, _ in LANGUAGES]
     check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
-          and len(hints) == 6 and all(h.count("%s") == 1 and "75" in h for h in hints),
+          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 and "75" in h for h in hints),
           "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
-          "six Onyx activation hints say 75 % for %s")
+          "all Onyx activation hints say 75 % for %s")
     check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
                                           "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
                                           "movss xmm0,dword [eax]"]
@@ -4259,11 +4259,11 @@ def test_match_keys(original, image, before):
                                                                 "Settings.as")
           and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
                                                           "settingsTabs_15.as")
-          and "\nedit\tmatch-chat-off-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+          and "\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                             encoding="utf-8").read(),
           "the hud movie has root.select_kit_key, the main menu enables the option's checkbox (_no_in_batle: its "
           "timeline and create_content), "
-          "release/content.tsv labels it (match-chat-off-1.json)")
+          "release/content.tsv labels it (localization-1.json)")
 
 
 def test_hide_ui(original, image, before):
@@ -4397,9 +4397,9 @@ def test_hide_ui(original, image, before):
           <= {v for kind, v in image.relocations().values() if kind == 3},
           "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
           "the build without the late join has them as the original")
-    check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+    check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
-          "release/content.tsv makes the label (hide-interface-1.json)")
+          "release/content.tsv makes the label (localization-1.json)")
     # the movies' side: each movie's interface is its root, hidden in one step; every layer the
     # game put on the stage is in the root's _stageLayer (the lobby's: _layers and _overlay)
     tree = lambda movie: {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "..", "flash", movie, "src")):
