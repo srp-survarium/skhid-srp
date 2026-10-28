@@ -160,6 +160,14 @@ class LocalizationTests(unittest.TestCase):
         path.write_text(path.read_text().replace('FI:int = 8', 'FI:int = 9'))
         self.assertTrue(any('expected language indices' in issue for issue in audit_flash(self.root)['issues']))
 
+    def test_flash_numbered_labels_without_cyrillic_still_require_all_languages(self):
+        row = ['Loadout {n}', '{n}', '{n}', '{n}', '{n}', 'Komplet {n}']
+        self.flash_fixture(row)
+        self.assertTrue(any('expected 9 language columns' in issue
+                            for issue in audit_flash(self.root)['issues']))
+        self.flash_fixture(row + ['Výbava {n}', '{n}. összeállítás', 'Varustesetti {n}'])
+        self.assertEqual(audit_flash(self.root)['issues'], [])
+
     def test_added_dictionary_labels_match_flash_detectors(self):
         here = Path(__file__).resolve().parent
         flash = here.parent / 'flash'

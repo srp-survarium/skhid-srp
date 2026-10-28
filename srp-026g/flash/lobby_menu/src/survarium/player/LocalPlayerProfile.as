@@ -174,9 +174,9 @@ package survarium.player
          "empty":["empty","порожній","пустой","leer","pusty", "prazno", "prázdná", "üres", "tyhjä"],
          "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry", "nije spreman", "nelze hrát", "nem használható", "ei pelikelpoinen"],
          "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu.", "Nije moguće izabrati komplet.", "Výbavu se nepodařilo vybrat.", "Nem sikerült kiválasztani az összeállítást.", "Varustesetin valinta epäonnistui."],
-         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?", "Koristi se u kompletu {n}. Ipak prodati?", "Používá výbava {n}. Přesto prodat?", "A(z) {n}. összeállításban használod. Így is eladod?", "Käytössä varustesetissä {n}. Myydäänkö silti?"],
-         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?", "Koristi se u: {list}. Ipak prodati?", "Používá {list}. Přesto prodat?", "Ezekben használod: {list}. Így is eladod?", "Käytössä: {list}. Myydäänkö silti?"],
-         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}", "Komplet {n}"],
+         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?", "Koristi se u kompletu {n}. Ipak prodati?", "Používá se ve výbavě {n}. Přesto prodat?", "A(z) {n}. összeállításban használod. Így is eladod?", "Käytössä varustesetissä {n}. Myydäänkö silti?"],
+         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?", "Koristi se u: {list}. Ipak prodati?", "Použito v: {list}. Přesto prodat?", "Ezekben használod: {list}. Így is eladod?", "Käytössä: {list}. Myydäänkö silti?"],
+         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}", "Komplet {n}", "Výbava {n}", "{n}. összeállítás", "Varustesetti {n}"],
          "sellAnd":[" and "," і "," и "," und "," i ", " i ", " a ", " és ", " ja "]
       };
       

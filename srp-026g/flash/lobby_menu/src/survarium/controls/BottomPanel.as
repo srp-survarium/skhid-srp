@@ -452,7 +452,7 @@ package survarium.controls
          var modes:Object = {
             "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj", "Ochranné zařízení", "Védelmi berendezés", "Suojalaite"],
             "3":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj", "Ochranné zařízení", "Védelmi berendezés", "Suojalaite"],
-            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba", "Týmový deathmatch", "Csapatos deathmatch", "Joukkuekuolonottelu"],
+            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba", "Týmový deathmatch", "Csapatos deathmatch", "Joukkuekuolemanottelu"],
             "5":["Research","Дослідження","Исследование","Forschung","Badania", "Istraživanje", "Výzkum", "Kutatás", "Tutkimus"]
          };
          return {

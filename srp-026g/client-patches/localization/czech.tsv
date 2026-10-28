@@ -103,7 +103,7 @@ ammo_sp5_description	Popis zatím není k dispozici.
 ammo_sp6_description	Popis zatím není k dispozici.
 ammo_storage_label	Sklad
 aniso_filtering_option	Anizotropní filtrování
-anomaly_damage_corr_perc_name	Poškození anomálií
+anomaly_damage_corr_perc_name	Poškození od anomálií
 anomaly_skills_label	Znalost Lesa.
 antialiasing_option	Vyhlazování hran
 antitoxin_description	Kombinovaný lék k neutralizaci jedů a toxinů v těle. Pro nejlepší účinek ho užij před vystavením škodlivinám. 
@@ -274,7 +274,7 @@ btn_change_name_label	Změnit přezdívku
 btn_chat	Chat
 btn_clan_team_invite_memeber	Pozvat
 btn_close_upgrades_label	Dokončit změnu vzhledu předmětu
-btn_craft_accept	Připraven
+btn_craft_accept	Hotovo
 btn_craft_label	Vylepšit
 btn_create_clan_team	Vytvořit tým
 btn_disband_clan_label	Rozpustit
@@ -599,7 +599,7 @@ characteristics_label	Statistiky hráče
 chat_channel_clan	Klanový chat
 chat_channel_clan_team	Klanový tým
 chat_channel_general	Obecný chat
-chat_channel_match	Všechny
+chat_channel_match	Všichni
 chat_channel_private	Soukromý
 chat_channel_squad	Četa
 chat_channel_system	Systém
@@ -633,7 +633,7 @@ clan_abbreviation	Zkratka klanu
 clan_abbreviation_default_text	Vybrat zkratku
 clan_abbreviation_info	(3 až 6 znaků)
 clan_accept_button_label	Zaregistrovat
-clan_buy_registration_button_label	Zaplatíš
+clan_buy_registration_button_label	Zaplatit
 clan_cancel_button_label	Zrušit registraci
 clan_control_tab	Správa klanu
 clan_creation_info_description	K registraci klanu potřebuješ podporu alespoň 5 hráčů. Po registraci se automaticky stanou jeho členy.
@@ -649,17 +649,17 @@ clan_kick_1	Opravdu chceš vyhodit hráče
 clan_kick_2	z klanu?
 clan_leave_button_label	Opustit klan
 clan_level_label	Úroveň klanu
-clan_level_up_1	Náš klan dosáhl
-clan_level_up_2	úrovně.
+clan_level_up_1	Klanová úroveň
+clan_level_up_2	dosažena.
 clan_manage_window_label	Klan
 clan_max_members_count_error	Dosáhl jsi maximálního počtu členů klanu.
 clan_member_joined	vstoupil do klanu.
 clan_member_kicked	byl vyhozen z klanu
 clan_member_left	opustil klan.
 clan_name	Název klanu
-clan_name_and_abbr_are_not_valid	Tato přezdívka nebo zkratka je už zabraná
+clan_name_and_abbr_are_not_valid	Tento název nebo zkratka je už zabraná
 clan_name_default_text	Zadej název klanu
-clan_name_is_not_valid	Tato přezdívka je už zabraná
+clan_name_is_not_valid	Tento název je už zabraný
 clan_options_tab	Nastavení
 clan_players_level_label	Úr.
 clan_players_list_availabe_postfix	možných
@@ -1158,7 +1158,7 @@ items_notes_frame_5_text_1	Kapacitu kapes zvýšíš vybavením\ns odpovídajíc
 izh27_bundle_descr	<white>Obsahuje:\n- Vylepšenou MP-27M Lancaster.\n- 1000 brokových nábojů 12x70.</white>
 izh27_bundle_name	Balíček MP-27M Lancaster
 izh27_description	Popis zatím není k dispozici.
-izh27_premium_2_description	Ruská kozlice ráže 12, vyráběná Iževským mechanickým závodem pod značkou Baikal. Jedna z nejrozšířenějších loveckých a sportovních dvojek. Dvě hlavně, každá na jednu ránu. Lze střílet zvlášť nebo oběma naráz. Prémiová verze se zvláštní kamufláží.
+izh27_premium_2_description	Ruská kozlice ráže 12, vyráběná Iževským mechanickým závodem pod značkou Baikal. Jedna z nejrozšířenějších loveckých a sportovních dvouhlavňových brokovnic. Dvě hlavně, každá na jednu ránu. Lze střílet zvlášť nebo oběma naráz. Prémiová verze se zvláštní kamufláží.
 jump_action	Skok
 kedr_description	Sovětský samopal na náboje 9x18 PM. Navržený Jevgenijem Dragunovem začátkem 70. let. Sériová výroba začala až v 90. letech pro ruské ministerstvo vnitra a policii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
 kick_clan_message	Opravdu chceš hráče vyhodit z klanu?
@@ -1228,7 +1228,7 @@ login_menu_status_user_not_confirmed	Účet není ověřený. Ověř ho pomocí 
 login_str	E-mail
 lost_modifier	Ztracený bonus
 loyalty_bonus_rep	Věrnostní bonus
-m4a1_description	Americká karabina na náboje 5.56x45. Kratší a lehčí vývoj M16, zavedený v americké armádě v 90. letech. Verze M4A1 střílí automaticky a používají ji speciální síly. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+m4a1_description	Americká karabina na náboje 5.56x45. Kratší a lehčí varianta pušky M16, zavedená v americké armádě v 90. letech. Verze M4A1 střílí automaticky a používají ji speciální síly. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
 magnum_description	Šestiranný revolver ráže .357 Magnum, uvedený v roce 1955. Podle některých patří k nejlepším ve své třídě. Vyniká hladkým chodem spouště a vysokou přesností.
 maintenance	Probíhá údržba serverů. Aplikace se zavře.
 map	Mapa
@@ -1349,7 +1349,7 @@ multiplicative_stamina_spending_modifier	Spotřeba energie
 munition	Výstroj
 music_volume_option	Hudba
 must_be_in_clan_team	Musíš být v klanovém týmu.
-my_place	Moje hodnost
+my_place	Moje umístění
 neostead_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány.
 neostead_premium_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány. Prémiová verze se zvláštní kamufláží.
 new_items_unlocked	Nové předměty v obchodě: X
@@ -1572,7 +1572,7 @@ registration_str	Vytvořit účet
 regular_fix	Opravit
 regular_money	Stříbro
 reload_speed_description	Rychlost přebíjení
-reload_speed_name	Přebít
+reload_speed_name	Přebíjení
 relocate	Přesunout
 rem700_description	Americká puška na náboje 7.62x51. Osvědčila se ve sportu, lovu i jako odstřelovačská zbraň. Zásobník na 5 nábojů.
 rem700_premium_description	Americká puška na náboje 7.62x51. Osvědčila se ve sportu, lovu i jako odstřelovačská zbraň. Zásobník na 5 nábojů. Prémiová verze se zvláštní kamufláží.
@@ -1877,7 +1877,7 @@ shop_scope_pso_1_old_description	Optika se 4x zvětšením
 shop_scope_pso_1_old_name	Optika PSO-1 O, 4x
 shop_scope_pu_3_5x_description	Optika se 3,5x zvětšením
 shop_scope_pu_3_5x_name	Optika PU, 3,5x
-shop_showcase	Hlavní
+shop_showcase	Hlavní stránka
 short_clan_string	Jméno je příliš krátké
 show_ammo	Zobrazit munici 
 show_character_action	Okno postavy

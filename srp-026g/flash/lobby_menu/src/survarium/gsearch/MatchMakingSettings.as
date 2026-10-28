@@ -688,7 +688,7 @@ package survarium.gsearch
       {
          var key:String = mode == GameMode.TEAM_DEATHMATCH ? "match_settings_checkbox_team_match" : "match_settings_checkbox_battery_charge";
          var word:String = LocalizationData.getName(key);
-         var spare:Array = mode == GameMode.TEAM_DEATHMATCH ? ["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba", "Týmový deathmatch", "Csapatos deathmatch", "Joukkuekuolonottelu"] : ["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj", "Ochranné zařízení", "Védelmi berendezés", "Suojalaite"];
+         var spare:Array = mode == GameMode.TEAM_DEATHMATCH ? ["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba", "Týmový deathmatch", "Csapatos deathmatch", "Joukkuekuolemanottelu"] : ["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj", "Ochranné zařízení", "Védelmi berendezés", "Suojalaite"];
          if(!word || word.length == 0 || word.charAt(0) == "#")
          {
             word = String(spare[this.pvbLang]);

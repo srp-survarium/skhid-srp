@@ -65,9 +65,11 @@ def audit_flash(root):
             if tuple(row) in IDENTIFIERS or re.search(r'words\s*:\s*$', source[max(0, match.start()-20):match.start()]):
                 continue
             # The established order starts with English, Ukrainian, Russian.
+            # A numbered label can consist only of a substitution in those
+            # languages (e.g. "Loadout {n}", "{n}", "{n}"). Include it too.
             # Other arrays are animation names, item identifiers, etc.
             if not (all(re.search('[\u0400-\u04ff]', s) for s in row[1:3])
-                    or len(set(row)) == 1):
+                    or len(set(row)) == 1 or TOKENS.search(row[0])):
                 continue
             check(row, f'{path.relative_to(root)}:{source.count(chr(10), 0, match.start()) + 1}')
         if path.name == 'NotificationListScrollContent.as':

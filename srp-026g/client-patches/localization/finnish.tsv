@@ -148,7 +148,7 @@ ban_reason_reallife_treating	Tosielämän uhkaukset.
 ban_reason_teamkilling	Liittolaisten tappaminen.
 bandit_026_mask_desc	Rosvon kypärähuppu perutusta S.T.A.L.K.E.R. 2:sta.
 bandit_026_mask_name	Rosvon kypärähuppu
-base_bandages_description	Parantaa kädet ja jalat täysin. Parantaa 35% vartalon ja pään vammoista sekä kivusta.
+base_bandages_description	Parantaa kädet ja jalat täysin. Palauttaa 35% vartalon ja pään terveydestä ja vähentää kipua 35%.
 base_bandages_name	Sidepakkaus
 base_medkit_description	Perusensiapupakkaus. Hoitaa vakavat haavat ja kohentaa loukkaantuneen vointia.
 base_medkit_name	Ensiapupakkaus
@@ -557,7 +557,7 @@ character_decals_5_14_name	Turkmenistanin vaakuna
 character_decals_5_15_name	Azerbaidžanin vaakuna
 character_decals_5_16_name	Armenian vaakuna
 character_decals_5_17_name	NATOn tunnus
-character_decals_5_18_name	YKn tunnus
+character_decals_5_18_name	YK:n tunnus
 character_decals_5_19_name	Saksan vaakuna
 character_decals_5_1_name	Punatähti
 character_decals_5_20_name	Ison-Britannian vaakuna
@@ -633,7 +633,7 @@ clan_abbreviation	Klaanin lyhenne
 clan_abbreviation_default_text	Valitse lyhenne
 clan_abbreviation_info	(3–6 merkkiä)
 clan_accept_button_label	Rekisteröi
-clan_buy_registration_button_label	Maksat
+clan_buy_registration_button_label	Maksa
 clan_cancel_button_label	Peru rekisteröinti
 clan_control_tab	Klaanin hallinta
 clan_creation_info_description	Klaanin rekisteröintiin tarvitaan vähintään 5 pelaajan tuki. Rekisteröinnin jälkeen he liittyvät siihen automaattisesti.
@@ -649,17 +649,17 @@ clan_kick_1	Haluatko varmasti erottaa pelaajan
 clan_kick_2	klaanista?
 clan_leave_button_label	Poistu klaanista
 clan_level_label	Klaanin taso
-clan_level_up_1	Klaanimme saavutti tason
-clan_level_up_2	taso.
+clan_level_up_1	Klaanin taso
+clan_level_up_2	saavutettu.
 clan_manage_window_label	Klaani
 clan_max_members_count_error	Klaanin jäsenmäärä on täynnä.
 clan_member_joined	liittyi klaaniin.
 clan_member_kicked	erotettiin klaanista
 clan_member_left	poistui klaanista.
 clan_name	Klaanin nimi
-clan_name_and_abbr_are_not_valid	Nimimerkki tai lyhenne on jo varattu
+clan_name_and_abbr_are_not_valid	Nimi tai lyhenne on jo varattu
 clan_name_default_text	Anna klaanin nimi
-clan_name_is_not_valid	Nimimerkki on jo varattu
+clan_name_is_not_valid	Nimi on jo varattu
 clan_options_tab	Asetukset
 clan_players_level_label	Taso
 clan_players_list_availabe_postfix	mahdollista
@@ -986,7 +986,7 @@ filter_equipment	Varusteet
 filter_gloves	Käsineet
 filter_grenade	Kranaatit
 filter_helmet	Kypärä
-filter_inventory	Tavaraluettelo
+filter_inventory	Tavarat
 filter_items	Esineet
 filter_machine_gun	Konekiväärit
 filter_mask	Naamari
@@ -1116,7 +1116,7 @@ inv_rpm	Tulinopeus
 inv_splash_radius	Räjähdyssäde
 inv_stamina_regen	Kestävyyden palautuminen
 inv_stopingpower	Pysäytysvoima
-inventory_label	Tavaraluettelo
+inventory_label	Tavarat
 inventrory	Varusteet
 invite_from_friends_option	Kutsut vain kavereilta
 invite_to_clan	Kutsu klaaniin
@@ -1138,7 +1138,7 @@ item_drop_chance_label	Esinelöydön todennäköisyys
 item_drop_chance_match_result	Taisteluetu:
 item_drop_chance_penalty	Toimettomuusrangaistus:
 item_drop_chance_team_premium	Premium-pelaajat ottelussa:
-item_hint_label	Tavaraluettelo
+item_hint_label	Tavarat
 item_hint_label_shop	Kauppa
 item_level	Esineen taso
 item_modification	Lisäominaisuuksien vaihtaminen
@@ -1246,7 +1246,7 @@ match_settings_checkbox_capture_points_hint	Taistelutila, jossa vallataan avainp
 match_settings_checkbox_clan_match_hint	Klaanijoukkueiden taistelutilat
 match_settings_checkbox_rank_match	Luokiteltu ottelu
 match_settings_checkbox_rank_match_hint	Satunnaisesti valittujen klaanijoukkueiden kamppailu klaaniluokituksessa
-match_settings_checkbox_team_match	Joukkuekuolonottelu
+match_settings_checkbox_team_match	Joukkuekuolemanottelu
 match_settings_checkbox_team_match_hint	Taistelutila, jossa vihollinen on tuhottava kokonaan
 match_settings_checkbox_tournament_match	Turnausottelu
 match_settings_checkbox_tournament_match_hint	Klaanijoukkueiden kamppailu käynnissä olevassa turnauksessa
@@ -1303,11 +1303,11 @@ mode_02_name	Suojalaite
 mode_03_description	Myrsky lähestyy. Ainoa tapa selviytyä on löytää kartalta akkuja ja palauttaa suojalaitteet, jotka torjuvat Myrskyn. Mitä enemmän akkuja löydät, sitä varmempi suoja. Eniten akkuja kerännyt joukkue voittaa.
 mode_03_name	Suojalaite
 mode_04_description	Vahvista joukkueesi asemaa alueella eliminoimalla mahdollisimman monta vihollista. Jokainen kuolema vie joukkueelta yhden vahvistuspisteen. Eniten pisteitä ottelun lopussa säilyttänyt joukkue voittaa.
-mode_04_name	Joukkuekuolonottelu
+mode_04_name	Joukkuekuolemanottelu
 mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokainen vallattu yksikkö tuottaa joukkueellesi anomaliatutkimuspisteitä. Eniten pisteitä ottelun lopussa kerännyt joukkue voittaa.
 mode_05_name	Tutkimus
 modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
-modification_screen_hint	Vedä maastokuvio tai merkki tavaraluettelosta esineen muokkauspaikkaan
+modification_screen_hint	Vedä maastokuvio tai merkki tavaroistasi esineen muokkauspaikkaan
 modified	Muokattu
 modifier_reroll_description	Voit vaihtaa esineestä vain yhtä lisäominaisuutta, mutta rajattomasti. Vaihtaessasi valitset yhden kolmesta satunnaisesta lisäominaisuudesta.
 modifier_reroll_timer_description	Hopealla voi yrittää vain kerran 6 tunnissa.
@@ -1338,7 +1338,7 @@ movement_speed_when_aiming_name	Taisteluasento
 mp153_description	Venäläinen itselataava sileäpiippuinen haulikko, kaliiperi 12x70. Edullisuus ja luotettavuus tekivät siitä suositun metsästys- ja urheiluaseen. Piipun alla 4 patruunan putkilipas.
 msbs_carbine_description	Puolalainen modulaarinen karbiini, kaliiperi 5.56x45. Varsovan sotilasteknisen yliopiston ja Radomin asetehtaan 2010-luvun kehitystyö. Puolan armeijan käytössä nimellä Grot. EOTech 552 -tähtäin ja 30 patruunan lipas. Kerta-, purske- ja sarjatuli.
 multiplicative_breath_vibration_modifier	Tähtäimen heilunta
-multiplicative_chamber_a_round_time_modifier	Patruunan pesitysaika
+multiplicative_chamber_a_round_time_modifier	Latausliikkeen kesto
 multiplicative_device_damage_modifier	Laitevahinko
 multiplicative_recoil_modifier	Rekyyli
 multiplicative_reliability_modifier	Luotettavuus
@@ -1349,7 +1349,7 @@ multiplicative_stamina_spending_modifier	Energiankulutus
 munition	Varustus
 music_volume_option	Musiikki
 must_be_in_clan_team	Sinun on kuuluttava klaanijoukkueeseen.
-my_place	Oma arvo
+my_place	Oma sijoitus
 neostead_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli.
 neostead_premium_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli. Premium-versio erikoismaastokuvioinnilla.
 new_items_unlocked	X uutta esinettä kaupassa:
@@ -1572,7 +1572,7 @@ registration_str	Luo tili
 regular_fix	Korjaa
 regular_money	Hopea
 reload_speed_description	Latausnopeus
-reload_speed_name	Lataa
+reload_speed_name	Lataaminen
 relocate	Siirrä
 rem700_description	Amerikkalainen kivääri, kaliiperi 7.62x51. Arvostettu urheilu-, metsästys- ja tarkkuuskiväärinä. 5 patruunan lipas.
 rem700_premium_description	Amerikkalainen kivääri, kaliiperi 7.62x51. Arvostettu urheilu-, metsästys- ja tarkkuuskiväärinä. 5 patruunan lipas. Premium-versio erikoismaastokuvioinnilla.
@@ -1877,13 +1877,13 @@ shop_scope_pso_1_old_description	4x kiikaritähtäin
 shop_scope_pso_1_old_name	PSO-1 O -kiikaritähtäin, 4x
 shop_scope_pu_3_5x_description	3,5x kiikaritähtäin
 shop_scope_pu_3_5x_name	PU-kiikaritähtäin, 3,5x
-shop_showcase	Ensisijainen
+shop_showcase	Etusivu
 short_clan_string	Nimi on liian lyhyt
 show_ammo	Näytä ammukset 
 show_character_action	Hahmoikkuna
 show_enemy_killed_marker	Näytä tappoilmaisin
 show_friends_action	Kaverit
-show_inventory_action	Tavaraluettelo
+show_inventory_action	Tavarat
 show_options_action	Asetukset
 show_player_info_button_hint	Näytä pelaajan tiedot
 show_player_info_hint	Näytä tiedot kaksoisklikkaamalla
@@ -1945,7 +1945,7 @@ sr3m_bundle_name	SR-3M Vihr -paketti
 sr3m_description	Kuvausta ei vielä ole.
 srp_attachments	Lisävarusteet
 srp_optics	Optiikka
-srp_scope_screen_hint	Vedä tähtäin tavaraluettelosta aseen muokkauspaikkaan
+srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
 stamina_boost_name	Uusi puhti
 stamina_boost_time_description	Vihollisen taposta palautuva energia:
 stamina_loss_on_hit_description	Kestävyyshaitta haavoittuessa.
@@ -2065,7 +2065,7 @@ vsk94_premium_description	Venäläinen tarkkuuskivääri, kaliiperi 9x39. Tulan 
 vss_bundle_descr	<white>Sisältö:\n- Parannettu VSS Vintorez.\n- 1000 patruunaa 9x39 SP-5.</white>\n
 vss_bundle_name	VSS Vintorez -paketti
 vss_description	Kuvausta ei vielä ole.
-vssk_camo_description	Venäläinen pulttilukkoinen tarkkuuskivääri, kaliiperi 12.7x55. Tulan TsKIB SOO:n 2000-luvun malli suurella vaimentimella. Erikoisyksiköille hiljaisiin laukauksiin suojaan tai suojaliiviin. 5 patruunan lipas. Vain kertatuli. Erikoismaastokuvioitu versio.
+vssk_camo_description	Venäläinen pulttilukkoinen tarkkuuskivääri, kaliiperi 12.7x55. Tulan TsKIB SOO:n 2000-luvun malli suurella vaimentimella. Erikoisyksiköille hiljaiseen ammuntaan suojan takana olevia tai suojaliiviä käyttäviä kohteita vastaan. 5 patruunan lipas. Vain kertatuli. Erikoismaastokuvioitu versio.
 vssk_description	Kuvausta ei vielä ole.
 vsync_option	Pystytahdistus
 vz58_description	Tšekkoslovakialainen rynnäkkökivääri, kaliiperi 7.62x39. Jiří Čermákin suunnittelema, käyttöön 1958. Muistuttaa Kalašnikovia, mutta käyttää omaa lyhytiskuista mäntää ja lukitusta. P-versiossa kiinteä puutukki. 30 patruunan lipas. Kerta- ja sarjatuli.

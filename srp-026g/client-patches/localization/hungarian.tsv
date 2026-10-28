@@ -117,7 +117,7 @@ artefact_activated_message	Artefaktum aktiválva
 artefact_booster_description	Az artefaktumok begyűjtésére barkácsolt eszköz második változata. A beépített anomáliaelnyomó felgyorsítja a kinyerést.
 artefact_booster_name	Artefaktummester
 artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
-artefact_search_failed	Nincs artefaktum
+artefact_search_failed	Nem találtál artefaktumot
 artefact_search_success	Szereztél egy artefaktumot! 
 ash12_description	A leírás még nem érhető el.
 attention	Hiba történt a Survarium indítóprogramjának indításakor. Próbáld újra később.
@@ -148,7 +148,7 @@ ban_reason_reallife_treating	Valós életbeli fenyegetés.
 ban_reason_teamkilling	Csapattársak megölése.
 bandit_026_mask_desc	Banditamaszk a törölt S.T.A.L.K.E.R. 2-ből.
 bandit_026_mask_name	Banditamaszk
-base_bandages_description	Teljesen meggyógyítja a karokat és lábakat. A törzs és a fej sérülésének, valamint a fájdalomnak a 35%-át helyreállítja.
+base_bandages_description	Teljesen meggyógyítja a karokat és lábakat. A törzs és a fej életerejének 35%-át visszaállítja, és ugyanennyivel csökkenti a fájdalmat.
 base_bandages_name	Kötszercsomag
 base_medkit_description	Alap elsősegélycsomag. Nemcsak a súlyos sebeket kezeli, hanem a sérült általános állapotát is javítja.
 base_medkit_name	Elsősegélycsomag
@@ -171,7 +171,7 @@ best_support_healed	Gyógyítás:
 best_support_saved	Megmentve:
 bind_text	Nyomd meg a gombot
 black_market_faction	Feketepiac
-blackmarket_bring_x_items_descr	A Vihar minket és az ellenséget sem kíméli. A túléléshez minél több akkumulátort kell az óvóberendezéshez vinnünk. A területen szétszórva találhatók, de az ellenség bázisáról is ellophatjuk őket.
+blackmarket_bring_x_items_descr	A Vihar minket és az ellenséget sem kíméli. A túléléshez minél több akkumulátort kell a védelmi berendezéshez vinnünk. A területen szétszórva találhatók, de az ellenség bázisáról is ellophatjuk őket.
 blackmarket_bring_x_items_name	Közös ügy
 blackmarket_bring_x_items_obj	Keress és hozz akkumulátorokat:
 blackmarket_entrap_enemies_descr	Mit csináltál a járvány előtt? Talán állatoknak állítottál csapdát az erdőben? Ideje elővenni a régi tudást. Csakhogy most emberre vadászol!
@@ -321,7 +321,7 @@ buy_post_premium	Bónuszok átvétele
 buy_premium_with_discount	Vedd meg most kedvezménnyel!
 buy_profile_confirmation_text	Új karakter létrehozása? 
 buy_profile_price_text	A profil ára: 
-buy_treasure_maps	Pálya vásárlása
+buy_treasure_maps	Térkép vásárlása
 camo_black_leather_01_name	Holló
 camo_black_leather_name	Fekete halál
 camo_blue_leather_name	Szellő
@@ -633,7 +633,7 @@ clan_abbreviation	Klánrövidítés
 clan_abbreviation_default_text	Rövidítés kiválasztása
 clan_abbreviation_info	(3–6 karakter)
 clan_accept_button_label	Regisztráció
-clan_buy_registration_button_label	Fizetsz
+clan_buy_registration_button_label	Fizetés
 clan_cancel_button_label	Regisztráció visszavonása
 clan_control_tab	Klánkezelés
 clan_creation_info_description	A klán regisztrálásához legalább 5 játékost kell toboroznod. Regisztráció után automatikusan csatlakoznak hozzá.
@@ -649,17 +649,17 @@ clan_kick_1	Biztosan kirúgod ezt a játékost:
 clan_kick_2	a klánból?
 clan_leave_button_label	Klán elhagyása
 clan_level_label	Klánszint
-clan_level_up_1	A klánunk elérte ezt a szintet:
-clan_level_up_2	szint.
+clan_level_up_1	Klánszint
+clan_level_up_2	elérve.
 clan_manage_window_label	Klán
 clan_max_members_count_error	Elérted a klántagok maximális számát.
 clan_member_joined	csatlakozott a klánhoz.
 clan_member_kicked	kirúgva a klánból
 clan_member_left	kilépett a klánból.
 clan_name	Klánnév
-clan_name_and_abbr_are_not_valid	Ez a becenév vagy rövidítés már foglalt
+clan_name_and_abbr_are_not_valid	Ez a név vagy rövidítés már foglalt
 clan_name_default_text	Add meg a klán nevét
-clan_name_is_not_valid	Ez a becenév már foglalt
+clan_name_is_not_valid	Ez a név már foglalt
 clan_options_tab	Beállítások
 clan_players_level_label	Szint
 clan_players_list_availabe_postfix	lehetséges
@@ -1076,7 +1076,7 @@ hud_tutorial_frame_4_text_2	Ugráshoz nyomd meg a szóközt
 hud_tutorial_frame_5_text_1	Guggolás
 hud_tutorial_frame_5_text_2	Guggoláshoz tartsd nyomva a CTRL-t,\nvagy nyomd meg a C-t
 hud_tutorial_frame_6_text_1	Harcra fel!
-hud_tutorial_frame_6_text_2	Elvégezted az alap harci kiképzést.\nSok szerencsét!
+hud_tutorial_frame_6_text_2	Elvégezted a harci alapkiképzést.\nSok szerencsét!
 hud_tutorial_frame_6_text_3	A jutalmad:
 ignored	Tiltólista
 in_develepoment_hint	Fejlesztés alatt
@@ -1132,7 +1132,7 @@ item_craft_label	Fejlesztés
 item_craft_main_slot	Fejlesztendő tárgy
 item_craft_success_label	Siker esélye (+1 bónusz)
 item_damage_state	Állapot
-item_drop_chance_base	Tárgyszerzés alap esélye:
+item_drop_chance_base	Tárgyszerzés alapesélye:
 item_drop_chance_by_premium	Prémium fiók
 item_drop_chance_label	Tárgyszerzés esélye
 item_drop_chance_match_result	Harci előny:
@@ -1349,7 +1349,7 @@ multiplicative_stamina_spending_modifier	Energiaigény
 munition	Felszerelés
 music_volume_option	Zene
 must_be_in_clan_team	Kláncsapatban kell lenned.
-my_place	Saját rang
+my_place	Saját helyezés
 neostead_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés.
 neostead_premium_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés. Prémium változat különleges álcafestéssel.
 new_items_unlocked	X új tárgy a boltban:
@@ -1562,7 +1562,7 @@ rattle_activation_hint	Csörgő aktiválva! Az ellenség nem hallja a lépteidet
 rattle_pickup_hint	Csörgő artefaktum. 50%-kal halkítja a lépéseket.
 rdgm_descr	A leírás még nem érhető el.
 rdgm_name	RDG-M füstgránát
-reach_level	elérte ezt a <green>szintet</green>
+reach_level	elérte a következő <green>szintet</green>:
 ready	Kész
 refill_ammo_btn	Alkalmazás
 refill_ammo_label	Lőszer
@@ -1877,7 +1877,7 @@ shop_scope_pso_1_old_description	4x nagyítású távcső
 shop_scope_pso_1_old_name	PSO-1 O távcső, 4x
 shop_scope_pu_3_5x_description	3,5x nagyítású távcső
 shop_scope_pu_3_5x_name	PU távcső, 3,5x
-shop_showcase	Elsődleges
+shop_showcase	Főoldal
 short_clan_string	A név túl rövid
 show_ammo	Lőszer mutatása 
 show_character_action	Karakterablak
