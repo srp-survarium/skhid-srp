@@ -176,7 +176,7 @@ Every setting has a default; none is needed on a dev PC.
   `SRP_DROP_PLAYTIME_BONUS` (off): the play time bonus to the drop chance.
   `SRP_DAILY_BONUS` (on), `SRP_DAILY_BONUS_RESET_HOUR` (0): the daily bonus.
 - `SRP_SNAPSHOT_DIR` (default `logs/snapshots`; `off`): uploaded worlds.
-- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6),
+- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6 for PvP; PvE needs one human),
   `SRP_RECORD_MAX_MB` (5000): match recordings, every datagram of a match
   in and out, kept for matches that 6 or more players entered (late
   joiners counted). Format: `match-server/src/v026g/record.rs`; reader:

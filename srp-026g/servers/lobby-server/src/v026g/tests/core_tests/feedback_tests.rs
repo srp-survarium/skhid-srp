@@ -431,6 +431,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: Some(PlayerStatistics::default()),
+                pay_statistics: None,
                 supplies: None,
             }],
         };

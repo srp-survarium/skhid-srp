@@ -107,6 +107,15 @@ pub const ACTIVITY_WON: Pay = Pay::new(
 pub const ACTIVITY_NOT_WON: f64 = 0.5;
 // ------------------------------------------------------------- GUESS ends
 
+/// The floor of a match's lowest (the owner's, 2026-10-27: the players
+/// with the fewest points need the silver most): a player who stayed to
+/// the end and scored at least [`FLOOR_MIN_SCORE`] gets at least this share
+/// of the silver of the match's median player's rows, the rest added to
+/// its activity line (`docs/notes/results.md`, "The floor").
+pub const FLOOR_OF_MEDIAN: f64 = 0.8;
+/// The least score that takes the floor: an idle player gets none.
+pub const FLOOR_MIN_SCORE: u32 = 30;
+
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
 /// file's f32 for 1.05 is a hair under it, and 20 × 1.05 must be 21.
 pub fn multiplier(k: f32) -> f64 {

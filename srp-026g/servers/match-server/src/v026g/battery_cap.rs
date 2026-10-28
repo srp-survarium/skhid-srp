@@ -58,7 +58,7 @@ pub(crate) fn cap(statistics: &mut Statistics, batteries: usize) -> Vec<Cut> {
 /// counted keeps at least 1, so it is still a kit used in the match (its
 /// wear, its part of the pay: `rewards`); the rest is shared in proportion
 /// to what each kit counted above that 1.
-fn cut(counts: &mut [u16; KITS], paid: u32) {
+pub(super) fn cut(counts: &mut [u16; KITS], paid: u32) {
     let was = *counts;
     let used = was.iter().filter(|&&count| count > 0).count() as u32;
     let above: u32 = was

@@ -48,12 +48,20 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
-- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
-  to capture a point either way"). Captures, neutralisations and kill invader pay as their
-  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
-  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
-  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
-  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
+- **Rewards: combat-adjusted cap** (PR #691, revised 2026-10-28):
+  - captures and neutralisations share a payment allowance of **200 score + 40 per paid
+    enemy kill + 20 per assist**. Above it, those two counters are reduced proportionally;
+    their weights remain 30 per whole capture/neutralisation. Kill-invader rewards stay whole;
+  - the repeat-kill cap runs first, so unpaid feeding kills cannot expand the allowance.
+    `reward_caps::Payment` owns this order and the payment-only copy. Bot matches skip these event caps and have a tier-7 reward ceiling instead;
+  - the earlier flat 200-point cap cut a contested 12/10 player's silver by 46% and a
+    9/8 player's by 43% in match `7964b894`. Both now fit within the allowance. Conversely,
+    21 captures and 20 neutralisations with zero kills/assists still pay at most 200 points;
+  - score, quests and rating use the ordinary statistics; only the payment copy is reduced.
+    Kills, help and the fixed payment are not cut by the objective rule;
+  - these counters are evidence of repeated objectives, not proof of collusion. Objective-only
+    legitimate play can still cross the allowance, while coordinated combat can raise it.
+    Historical audit details and limits: `farm_cap_audit.md`.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred right under them, as in rev 30;
   the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
   following its position every frame, so the indicator's centring never counts them) (letter,

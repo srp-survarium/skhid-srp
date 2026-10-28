@@ -56,6 +56,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
         longest_killstreak: statistics.longest_killstreak,
         kit_changes: 0,
         statistics: Some(statistics),
+        pay_statistics: None,
         supplies: None,
     }
 }
@@ -296,6 +297,44 @@ fn a_draw_pays_no_win_and_moves_no_rating() {
         assert_eq!(columns(&player.full, 2), (1.0, 41, 61, 0));
     }
     assert_eq!(report.players[0].reward.experience, 9 + 1 + 61);
+}
+
+#[test]
+fn the_lowest_who_scored_thirty_get_eighty_percent_of_the_median() {
+    // Silver of the rows: 12 kills won 300 + 82, 10 won 250 + 82, 9 won
+    // 225 + 82, 3 lost 75 + 41, 1 lost 25 + 41. The median is 307: the
+    // floor is 245.
+    let kills = |place: u8, team: u8, kills: u16| {
+        player(
+            place,
+            team,
+            &format!("P{place}"),
+            counters_of(0, &[(event::KILL, kills)]),
+        )
+    };
+    let players = vec![
+        kills(0, 0, 12),
+        kills(1, 0, 10),
+        kills(2, 0, 9),
+        kills(3, 1, 3),
+        kills(4, 1, 1),
+    ];
+    let store = accounts(&players);
+    let report = Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let money = |place: usize| report.players[place].reward.money;
+    assert_eq!((money(0), money(1), money(2)), (382, 332, 307));
+    // Score 30: the rest of the floor in its activity cell, 41 + 129.
+    let low = &report.players[3];
+    assert_eq!(low.reward.score, 30);
+    assert_eq!(columns(&low.full, 0), (3.0, 75, 9, 0));
+    assert_eq!(columns(&low.full, 2), (1.0, 170, 61, 0));
+    assert_eq!(low.reward.money, 245);
+    assert_eq!(low.full.premium.columns[0].money, 122);
+    // Score 10: under the floor's score, paid as it was.
+    assert_eq!(report.players[4].reward.score, 10);
+    assert_eq!(money(4), 66);
 }
 
 #[test]
@@ -3744,4 +3783,65 @@ fn a_blackout_match_pays_its_points_twice() {
     assert_eq!(columns(&twice.full, 2), (2.0, 165, 245, 0));
     assert_eq!((once.reward.experience, once.reward.money), (132, 167));
     assert_eq!((twice.reward.experience, twice.reward.money), (265, 335));
+}
+
+#[test]
+fn farming_limits_change_payment_without_changing_score_or_quests() {
+    let mut p = player(
+        0,
+        0,
+        "Alice",
+        counters_of(0, &[(event::KILL, 23), (event::HEADSHOT_KILL, 12)]),
+    );
+    let original = result(vec![p.clone()]);
+    p.pay_statistics = Some(counters_of(
+        0,
+        &[(event::KILL, 10), (event::HEADSHOT_KILL, 5)],
+    ));
+    let limited = result(vec![p]);
+    let terms = terms();
+    let before = Shared::of(&original, &terms);
+    let after = Shared::of(&limited, &terms);
+    assert!(after.rows_money(&limited.players[0], 0) < before.rows_money(&original.players[0], 0));
+    assert_eq!(
+        after.score(&limited.players[0]),
+        before.score(&original.players[0])
+    );
+    assert_eq!(
+        after.quest_stats(&limited.players[0]),
+        before.quest_stats(&original.players[0])
+    );
+    let mut untrusted = limited;
+    untrusted.trusted_by = 0;
+    let shared = Shared::of(&untrusted, &terms);
+    assert_eq!(shared.lines(&untrusted.players[0], 0)[0][0].0, 0.0);
+}
+
+#[test]
+fn pve_rewards_stop_at_level_seven_including_the_money_rate_and_premium() {
+    let players = alice_and_bob();
+    let mut terms = terms();
+    terms.money_rate = pay::MoneyRate::ByLevel;
+    let settle = |level, vs_bots| {
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        let store = accounts(&players);
+        store.get(10).unwrap().locked().premium_until = terms.now + 3600;
+        Results::new()
+            .settle(&outcome, &store, &terms, &mut Rng::new(1))
+            .unwrap()
+    };
+    let seven = settle(7, true);
+    let fifteen = settle(15, true);
+    for (low, high) in seven.players.iter().zip(&fifteen.players) {
+        assert_eq!(high.full.components, low.full.components);
+        assert_eq!(high.reward.money, low.reward.money);
+        assert_eq!(high.reward.experience, low.reward.experience);
+        assert_eq!(high.reward.reputation, low.reward.reputation);
+        assert_eq!(high.full.premium, low.full.premium);
+    }
+    // PvP retains its normal level scaling; lower PvE levels stay lower.
+    assert!(settle(15, false).players[0].reward.money > settle(7, false).players[0].reward.money);
+    assert!(settle(3, true).players[0].reward.money < seven.players[0].reward.money);
 }

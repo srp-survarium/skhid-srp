@@ -244,6 +244,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
                 left: player.left,
                 time_in_match_ms: player.time_in_match_ms,
                 statistics: player.statistics,
+                pay_statistics: player.pay_statistics,
                 score: player.score,
                 kills: player.kills,
                 deaths: player.deaths,

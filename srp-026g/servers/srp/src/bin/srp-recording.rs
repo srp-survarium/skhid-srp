@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use match_server::v026g::record::{self, IN, NOTE, OUT};
+use match_server::v026g::record::{self, ACCEPTED_INPUT, ACCEPTED_PROFILE, IN, NOTE, OUT};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -31,6 +31,8 @@ fn main() -> ExitCode {
                 IN => "IN ",
                 OUT => "OUT",
                 NOTE => "NOTE",
+                ACCEPTED_INPUT => "INPUT",
+                ACCEPTED_PROFILE => "KIT",
                 _ => "?",
             };
             if record.kind == NOTE {

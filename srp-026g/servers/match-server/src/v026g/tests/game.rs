@@ -3330,3 +3330,29 @@ fn the_registry_says_a_match_with_its_result_is_over() {
     bench.run_long(8_000);
     assert!(bench.registry.live_matches(bench.now()).is_empty());
 }
+
+#[test]
+fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run_long(130_000);
+    let at = bench.clock() / 50 * 50 + 100;
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.kills_from = Some((at, 23));
+    }
+    assert!(bench.until(12_000, |bench| {
+        bench.clients.iter().all(|client| client.closed)
+    }));
+    let result = bench.results.try_recv().expect("a result");
+    let player = &result.players[0];
+    assert_eq!(player.kills, 23);
+    assert_eq!(player.statistics.as_ref().unwrap().total(event::KILL), 23);
+    assert_eq!(
+        player.pay_statistics.as_ref().unwrap().total(event::KILL),
+        10
+    );
+    assert_eq!(player.score, 230);
+    bench.assert_no_faults();
+}
