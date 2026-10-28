@@ -1,5 +1,113 @@
-owner-test outcomes: holders (kills from one place within 10 m): 4 runs of 2+ kills, 0 of 3+ = 0.0 % (live 25 %, the owner 45 %); holders killed after two 2, by a flank 1 = 50.0 % (live 32 %, the owner 9 %); quick second kills (within 3 s of the shooter's last) 1 of 11 = 9.1 % (live 3.5-3.9 %, the owner 18 %); lane entries a 10 s of held time 0.86 (live 0.24-0.60, bots against the owner 0.84-1.42); fights: carriers in clear sight within 40 m 359 s, not targeted 265 s; hurt (pain < 30 %, an enemy within 30 m) 1, alive 15 s later 1; battery retake mean ms (no hurt enemy within 10 m of the drop: 0 of 0, one: 0 of 0); objectives: pickups from a zone floor 0, died within 10 s 0, Escort 'no way' ends 0, Collect 'no way' ends 4; traps by the placer's stance [standing, crouched]: placed [0, 0], caught [enemy, mate, own] [[0, 0, 0], [0, 0, 0]]; sight: truly visible 0, the picture says hidden 0 = 0.0 % (live 22 %); the picture says visible 0, truly hidden 0 = 0.0 % (live 20 %) (the picture is the bots' reckoned bodies, a pair a second, the 2 nearest enemies)
+owner-test outcomes: holders (kills from one place within 10 m): 4 runs of 2+ kills, 0 of 3+ = 0.0 % (live 25 %, the owner 45 %); holders killed after two 2, by a flank 1 = 50.0 % (live 32 %, the owner 9 %); quick second kills (within 3 s of the shooter's last) 1 of 11 = 9.1 % (live 3.5-3.9 %, the owner 18 %); lane entries a 10 s of held time 0.86 (live 0.24-0.60, bots against the owner 0.84-1.42); fights: carriers in clear sight within 40 m 359 s, not targeted 265 s; hurt (pain < 30 %, an enemy within 30 m) 1, alive 15 s later 1; battery retake mean ms (no hurt enemy within 10 m of the drop: 0 of 0, one: 0 of 0); objectives: pickups from a zone floor 0, died within 10 s 0, Escort 'no way' ends 0, Collect 'no way' ends 4; traps by the placer's stance [standing, crouched]: placed [0, 0], caught [enemy, mate, own] [[0, 0, 0], [0, 0, 0]]; sight: truly visible 0, the picture says hidden 0 = 0.0 % (live 22 %); the picture says visible 0, truly hidden 0 = 0.0 % (live 20 %) (the picture is the bots' reckoned bodies, a pair a second, the 2 nearest enemies); by team: [team 0: kills 6, holds 2+/3+ 2/0, holders killed 0 (flank 0), quick second 0, carrier not targeted 125 s, hurt 0 (alive 15 s 0), zone takes 0 (died 0), no-way ends 0+3, view flips 0/0 and 0/0] [team 1: kills 5, holds 2+/3+ 2/0, holders killed 2 (flank 1), quick second 1, carrier not targeted 140 s, hurt 1 (alive 15 s 1), zone takes 0 (died 0), no-way ends 0+1, view flips 0/0 and 0/0]
 {
+  "by_team": {
+    "0": {
+      "carrier_clear_not_targeted_s": 125.0,
+      "carrier_clear_s": 166.5,
+      "collect_no_way_ends": 3,
+      "escort_no_way_ends": 0,
+      "hold_3rd_share": 0.0,
+      "hold_runs_2": 2,
+      "hold_runs_3": 0,
+      "holders_flank_share": 0.0,
+      "holders_killed_after_2": 0,
+      "holders_killed_flank": 0,
+      "hurt_alive_15s": 0,
+      "hurt_alive_15s_share": 0.0,
+      "hurt_enemies": 0,
+      "kills": 6,
+      "quick_second_kills": 0,
+      "quick_second_share": 0.0,
+      "retake_ms_hurt_near": [
+        0,
+        0
+      ],
+      "retake_ms_no_hurt_near": [
+        0,
+        0
+      ],
+      "trap_caught_by_stance": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "trap_placed_by_stance": [
+        0,
+        0
+      ],
+      "view_flip": {
+        "fire_into_cover_share": 0.0,
+        "missed_sight_share": 0.0,
+        "picture_hidden": 0,
+        "picture_visible": 0,
+        "samples": 0,
+        "truly_hidden": 0,
+        "truly_visible": 0
+      },
+      "zone_take_died_10s": 0,
+      "zone_takes": 0
+    },
+    "1": {
+      "carrier_clear_not_targeted_s": 140.0,
+      "carrier_clear_s": 192.25,
+      "collect_no_way_ends": 1,
+      "escort_no_way_ends": 0,
+      "hold_3rd_share": 0.0,
+      "hold_runs_2": 2,
+      "hold_runs_3": 0,
+      "holders_flank_share": 0.5,
+      "holders_killed_after_2": 2,
+      "holders_killed_flank": 1,
+      "hurt_alive_15s": 1,
+      "hurt_alive_15s_share": 1.0,
+      "hurt_enemies": 1,
+      "kills": 5,
+      "quick_second_kills": 1,
+      "quick_second_share": 0.2,
+      "retake_ms_hurt_near": [
+        0,
+        0
+      ],
+      "retake_ms_no_hurt_near": [
+        0,
+        0
+      ],
+      "trap_caught_by_stance": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "trap_placed_by_stance": [
+        0,
+        0
+      ],
+      "view_flip": {
+        "fire_into_cover_share": 0.0,
+        "missed_sight_share": 0.0,
+        "picture_hidden": 0,
+        "picture_visible": 0,
+        "samples": 0,
+        "truly_hidden": 0,
+        "truly_visible": 0
+      },
+      "zone_take_died_10s": 0,
+      "zone_takes": 0
+    }
+  },
   "carrier_clear_not_targeted_s": 265.0,
   "carrier_clear_s": 358.75,
   "collect_no_way_ends": 4,

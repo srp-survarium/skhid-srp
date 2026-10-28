@@ -51,6 +51,7 @@ const FLIP_M: f32 = 80.0;
 /// A shooter's hold under way.
 #[derive(Clone, Debug)]
 struct Hold {
+    team: u8,
     spot: Vec3,
     last: u32,
     kills: u32,
@@ -60,6 +61,8 @@ struct Hold {
 /// A battery dropped and not yet taken again.
 #[derive(Clone, Copy, Debug)]
 struct Drop {
+    /// The team that dropped it.
+    team: u8,
     battery: usize,
     t: u32,
     hurt_near: bool,
@@ -69,53 +72,144 @@ struct Drop {
 /// them truly hidden]`.
 type Flips = [u32; 4];
 
-#[derive(Default)]
-pub(super) struct OutcomeCounts {
-    // Holders.
-    kills_seen: usize,
-    last_kill: Option<(u32, Place, Place)>,
-    holds: BTreeMap<Place, Hold>,
+/// The numbers one team's bots earned (the team a count is of is said at each field); the topic keeps one per team, so a
+/// one-sided run (`SRP_BENCH_ONE_SIDE`) is read by side, and the log's `by_team` object has the same keys per team.
+#[derive(Clone, Copy, Default)]
+struct Counts {
+    // Holders (by the shooter's team; a holder killed, by the holder's).
     /// Holds that reached two kills, and of them three.
     hold_runs: [u32; 2],
     /// Holders killed with two kills made, and of them by a flank.
     holders_killed: [u32; 2],
     kills: u32,
     quick_second: u32,
-    last_by: BTreeMap<Place, u32>,
-    // Fights.
+    // Fights (by the carrier's team; the hurt body's; the team that dropped the battery).
     carrier_clear_ms: u32,
     carrier_clear_off_ms: u32,
-    /// By body: since when it is hurt (pain under [`HURT_PAIN`]), its spawn then, and whether a bot of the other team was near.
-    hurt: Vec<Option<(u32, u32, bool)>>,
-    /// By body: its hurt spell was counted and has not ended (pain back over the line, or a death).
-    hurt_counted: Vec<bool>,
     hurt_events: u32,
     hurt_lived: u32,
-    /// By battery: carried at the last reading.
-    carried: Vec<bool>,
-    drops: Vec<Drop>,
     /// Retake times by [no hurt enemy near the drop, one near]: the sum, ms, and the number.
     retake: [(u64, u32); 2],
-    // Objectives.
+    // Objectives (by the carrier's team; the bot that ended its play).
     zone_takes: u32,
-    zone_pickups: Vec<(Place, u32)>,
     zone_take_died: u32,
     escort_no_way: u32,
     collect_no_way: u32,
-    // Gear.
-    traps_seen: usize,
-    /// By place: crouched at the last placement.
-    stance: BTreeMap<Place, bool>,
-    /// By stance [standing, crouched]: placed, and caught [enemy, mate, own].
+    // Gear (by the placer's team). By stance [standing, crouched]: placed, and caught [enemy, mate, own].
     placed: [u32; 2],
     caught: [[u32; 3]; 2],
-    // Sight.
-    estimates: Vec<Option<Vec3>>,
+    // Sight (by the looking bot's team): `[truly visible, of them the picture says hidden, the picture says visible, of them
+    // truly hidden]`.
     flips: Flips,
     flip_samples: u32,
 }
 
+impl Counts {
+    fn plus(mut self, o: &Counts) -> Counts {
+        let add2 = |a: &mut [u32; 2], b: &[u32; 2]| a.iter_mut().zip(b).for_each(|(x, y)| *x += y);
+        add2(&mut self.hold_runs, &o.hold_runs);
+        add2(&mut self.holders_killed, &o.holders_killed);
+        add2(&mut self.placed, &o.placed);
+        for (row, other) in self.caught.iter_mut().zip(&o.caught) {
+            row.iter_mut().zip(other).for_each(|(x, y)| *x += y);
+        }
+        self.flips.iter_mut().zip(&o.flips).for_each(|(x, y)| *x += y);
+        for (r, q) in self.retake.iter_mut().zip(&o.retake) {
+            r.0 += q.0;
+            r.1 += q.1;
+        }
+        self.kills += o.kills;
+        self.quick_second += o.quick_second;
+        self.carrier_clear_ms += o.carrier_clear_ms;
+        self.carrier_clear_off_ms += o.carrier_clear_off_ms;
+        self.hurt_events += o.hurt_events;
+        self.hurt_lived += o.hurt_lived;
+        self.zone_takes += o.zone_takes;
+        self.zone_take_died += o.zone_take_died;
+        self.escort_no_way += o.escort_no_way;
+        self.collect_no_way += o.collect_no_way;
+        self.flip_samples += o.flip_samples;
+        self
+    }
+
+    /// The counts as the log's keys (shares as the reports read them).
+    fn json(&self) -> serde_json::Value {
+        let rate = Scale::rate;
+        let retake = |k: usize| {
+            let (sum, n) = self.retake[k];
+            if n > 0 { (sum / u64::from(n)) as u32 } else { 0 }
+        };
+        let [vis, vis_hidden, pic, pic_blocked] = self.flips;
+        serde_json::json!({
+            "hold_runs_2": self.hold_runs[0],
+            "hold_runs_3": self.hold_runs[1],
+            "hold_3rd_share": rate(self.hold_runs[1], self.hold_runs[0]),
+            "holders_killed_after_2": self.holders_killed[0],
+            "holders_killed_flank": self.holders_killed[1],
+            "holders_flank_share": rate(self.holders_killed[1], self.holders_killed[0]),
+            "kills": self.kills,
+            "quick_second_kills": self.quick_second,
+            "quick_second_share": rate(self.quick_second, self.kills),
+            "carrier_clear_s": f64::from(self.carrier_clear_ms) / 1000.0,
+            "carrier_clear_not_targeted_s": f64::from(self.carrier_clear_off_ms) / 1000.0,
+            "hurt_enemies": self.hurt_events,
+            "hurt_alive_15s": self.hurt_lived,
+            "hurt_alive_15s_share": rate(self.hurt_lived, self.hurt_events),
+            "retake_ms_no_hurt_near": [retake(0), self.retake[0].1],
+            "retake_ms_hurt_near": [retake(1), self.retake[1].1],
+            "zone_takes": self.zone_takes,
+            "zone_take_died_10s": self.zone_take_died,
+            "escort_no_way_ends": self.escort_no_way,
+            "collect_no_way_ends": self.collect_no_way,
+            "trap_placed_by_stance": self.placed,
+            "trap_caught_by_stance": self.caught,
+            "view_flip": {
+                "samples": self.flip_samples,
+                "truly_visible": vis,
+                "picture_hidden": vis_hidden,
+                "missed_sight_share": rate(vis_hidden, vis),
+                "picture_visible": pic,
+                "truly_hidden": pic_blocked,
+                "fire_into_cover_share": rate(pic_blocked, pic),
+            },
+        })
+    }
+}
+
+/// A team's index in the per-team counts (the game has two).
+fn side(team: u8) -> usize {
+    usize::from(team.min(1))
+}
+
+#[derive(Default)]
+pub(super) struct OutcomeCounts {
+    /// Team 0's and team 1's.
+    by: [Counts; 2],
+    kills_seen: usize,
+    last_kill: Option<(u32, Place, Place)>,
+    holds: BTreeMap<Place, Hold>,
+    last_by: BTreeMap<Place, u32>,
+    /// By body: since when it is hurt (pain under [`HURT_PAIN`]), its spawn then, and whether a bot of the other team was near.
+    hurt: Vec<Option<(u32, u32, bool)>>,
+    /// By body: its hurt spell was counted and has not ended (pain back over the line, or a death).
+    hurt_counted: Vec<bool>,
+    /// By battery: its carrier's place at the last reading.
+    carried: Vec<Option<Place>>,
+    drops: Vec<Drop>,
+    zone_pickups: Vec<(Place, u32)>,
+    traps_seen: usize,
+    /// By place: crouched at the last placement.
+    stance: BTreeMap<Place, bool>,
+    estimates: Vec<Option<Vec3>>,
+}
+
 impl OutcomeCounts {
+    /// Both teams' counts together.
+    #[cfg(test)]
+    fn all(&self) -> Counts {
+        self.by[0].plus(&self.by[1])
+    }
+
     /// The kills the game logged since the last tick: holds, quick second kills, holders killed.
     fn kills_tick(&mut self, game: &Game) {
         if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
@@ -134,16 +228,17 @@ impl OutcomeCounts {
             // A holder with two kills made, killed.
             if let Some(hold) = self.holds.remove(&victim) {
                 if hold.kills >= 2 {
-                    self.holders_killed[0] += 1;
+                    let c = &mut self.by[side(v.team)];
+                    c.holders_killed[0] += 1;
                     let from = yaw_of([s.feet.x - hold.spot.x, s.feet.z - hold.spot.z]);
                     let flank = hold.bearings.iter().all(|&w| wrap(w - from).abs().to_degrees() > FLANK_DEG);
-                    self.holders_killed[1] += u32::from(flank);
+                    c.holders_killed[1] += u32::from(flank);
                 }
                 self.close(&hold);
             }
-            self.kills += 1;
+            self.by[side(s.team)].kills += 1;
             if self.last_by.insert(shooter, t).is_some_and(|before| t.saturating_sub(before) <= QUICK_MS) {
-                self.quick_second += 1;
+                self.by[side(s.team)].quick_second += 1;
             }
             let bearing = yaw_of([v.feet.x - s.feet.x, v.feet.z - s.feet.z]);
             match self.holds.get_mut(&shooter) {
@@ -156,7 +251,7 @@ impl OutcomeCounts {
                     if let Some(old) = self.holds.remove(&shooter) {
                         self.close(&old);
                     }
-                    self.holds.insert(shooter, Hold { spot: s.feet, last: t, kills: 1, bearings: vec![bearing] });
+                    self.holds.insert(shooter, Hold { team: s.team, spot: s.feet, last: t, kills: 1, bearings: vec![bearing] });
                 }
             }
         }
@@ -164,8 +259,9 @@ impl OutcomeCounts {
 
     /// A hold is over: the runs that reached two and three kills.
     fn close(&mut self, hold: &Hold) {
-        self.hold_runs[0] += u32::from(hold.kills >= 2);
-        self.hold_runs[1] += u32::from(hold.kills >= 3);
+        let c = &mut self.by[side(hold.team)];
+        c.hold_runs[0] += u32::from(hold.kills >= 2);
+        c.hold_runs[1] += u32::from(hold.kills >= 3);
     }
 
     /// Every [`SAMPLE_TICKS`] ticks: carriers in clear sight and not targeted.
@@ -182,8 +278,9 @@ impl OutcomeCounts {
                 }
                 *rays += 1;
                 if sight.visible(still_eye(enemy.feet, enemy.keys & key::CROUCH != 0), chest) {
-                    self.carrier_clear_ms += ms;
-                    self.carrier_clear_off_ms += ms * u32::from(enemy.target != Some(place));
+                    let c = &mut self.by[side(carrier.team)];
+                    c.carrier_clear_ms += ms;
+                    c.carrier_clear_off_ms += ms * u32::from(enemy.target != Some(place));
                 }
             }
         }
@@ -207,7 +304,7 @@ impl OutcomeCounts {
                         // Died (or was born again): not alive 15 s later.
                         self.hurt[place] = None;
                     } else if game.tick >= since + HURT_LIVES_MS {
-                        self.hurt_lived += u32::from(near);
+                        self.by[side(body.team)].hurt_lived += u32::from(near);
                         self.hurt[place] = None;
                     }
                 }
@@ -217,7 +314,7 @@ impl OutcomeCounts {
                         .bodies
                         .iter()
                         .any(|o| o.alive && o.team != body.team && o.feet.distance_xz(body.feet) <= HURT_NEAR_M);
-                    self.hurt_events += u32::from(near);
+                    self.by[side(body.team)].hurt_events += u32::from(near);
                     self.hurt[place] = Some((game.tick, body.spawned, near));
                 }
                 None => {}
@@ -228,36 +325,35 @@ impl OutcomeCounts {
     /// The batteries: a drop (carried, then lying) and its retake; a pickup from a zone floor.
     fn batteries(&mut self, bots: &Bots, game: &Game) {
         if self.carried.len() < game.batteries.len() {
-            self.carried.resize(game.batteries.len(), false);
+            self.carried.resize(game.batteries.len(), None);
         }
         let full = Pools::default().pain;
         for (i, lying) in game.batteries.iter().enumerate() {
             match *lying {
-                Lying::Free(at, _) if self.carried[i] => {
-                    self.carried[i] = false;
+                Lying::Free(at, _) if self.carried[i].is_some() => {
+                    let team = self.carried[i].and_then(|p| game.bodies.get(p)).map_or(0, |b| b.team);
+                    self.carried[i] = None;
                     let hurt_near = game.bodies.iter().any(|b| {
                         b.alive && b.pools.pain < HURT_PAIN * full && b.feet.distance_xz(at) <= RETAKE_NEAR_M && b.carrying.is_none()
                     });
-                    self.drops.push(Drop { battery: i, t: game.tick, hurt_near });
+                    self.drops.push(Drop { team, battery: i, t: game.tick, hurt_near });
                 }
                 Lying::Carried(by) => {
-                    if !self.carried[i] {
-                        self.carried[i] = true;
+                    if self.carried[i].is_none() {
+                        self.carried[i] = Some(by);
                         self.retaken(i, game.tick);
                         if let Some(body) = game.bodies.get(by)
                             && bots.tactics.as_ref().is_some_and(|t| {
                                 game.world.grid.locate(body.feet, 1.0).is_some_and(|node| t.hazards.zones_at(node).next().is_some())
                             })
                         {
-                            self.zone_takes += 1;
+                            self.by[side(body.team)].zone_takes += 1;
                             self.zone_pickups.push((by, game.tick));
                         }
                     }
                 }
                 Lying::Home(_) => {
-                    if self.carried[i] {
-                        self.carried[i] = false;
-                    }
+                    self.carried[i] = None;
                     self.retaken(i, game.tick);
                 }
                 Lying::Free(..) => {}
@@ -269,7 +365,7 @@ impl OutcomeCounts {
     fn retaken(&mut self, i: usize, tick: u32) {
         if let Some(k) = self.drops.iter().position(|d| d.battery == i) {
             let drop = self.drops.remove(k);
-            let slot = &mut self.retake[usize::from(drop.hurt_near)];
+            let slot = &mut self.by[side(drop.team)].retake[usize::from(drop.hurt_near)];
             slot.0 += u64::from(tick.saturating_sub(drop.t));
             slot.1 += 1;
         }
@@ -278,10 +374,11 @@ impl OutcomeCounts {
     /// Carriers that took a battery from a zone and died soon after.
     fn zone_deaths(&mut self, game: &Game) {
         let tick = game.tick;
+        let by = &mut self.by;
         self.zone_pickups.retain(|&(place, t)| {
             let died = game.bodies.get(place).is_some_and(|b| !b.alive);
             if died {
-                self.zone_take_died += 1;
+                by[side(game.bodies[place].team)].zone_take_died += 1;
             }
             !died && tick < t + ZONE_DEATH_MS
         });
@@ -295,7 +392,8 @@ impl OutcomeCounts {
                 TrapEvent::Placed { place, .. } => {
                     let crouched = game.bodies.get(place).is_some_and(|b| b.keys & key::CROUCH != 0);
                     self.stance.insert(place, crouched);
-                    self.placed[usize::from(crouched)] += 1;
+                    let team = game.bodies.get(place).map_or(0, |b| b.team);
+                    self.by[side(team)].placed[usize::from(crouched)] += 1;
                 }
                 TrapEvent::Caught { placer, kind, .. } => {
                     let stance = usize::from(self.stance.get(&placer).copied().unwrap_or(false));
@@ -304,7 +402,8 @@ impl OutcomeCounts {
                         KillKind::Mate => 1,
                         KillKind::Own => 2,
                     };
-                    self.caught[stance][k] += 1;
+                    let team = game.bodies.get(placer).map_or(0, |b| b.team);
+                    self.by[side(team)].caught[stance][k] += 1;
                 }
                 _ => {}
             }
@@ -317,7 +416,7 @@ impl OutcomeCounts {
     fn flip_sample(&mut self, game: &Game) {
         let sight = &game.world.sight;
         let picture = |place: Place| self.estimates.get(place).copied().flatten();
-        let mut flips = self.flips;
+        let mut flips = [Flips::default(); 2];
         for (me, body) in game.bodies.iter().enumerate() {
             let Some(my_picture) = picture(me).filter(|_| body.alive) else {
                 continue;
@@ -341,14 +440,17 @@ impl OutcomeCounts {
                     still_eye(my_picture, crouch),
                     their_picture + (Game::chest(o) - o.feet),
                 );
-                flips[0] += u32::from(truth);
-                flips[1] += u32::from(truth && !seen);
-                flips[2] += u32::from(seen);
-                flips[3] += u32::from(seen && !truth);
+                let f = &mut flips[side(body.team)];
+                f[0] += u32::from(truth);
+                f[1] += u32::from(truth && !seen);
+                f[2] += u32::from(seen);
+                f[3] += u32::from(seen && !truth);
             }
         }
-        self.flips = flips;
-        self.flip_samples += 1;
+        for (c, f) in self.by.iter_mut().zip(flips) {
+            c.flips.iter_mut().zip(f).for_each(|(x, y)| *x += y);
+            c.flip_samples += 1;
+        }
     }
 }
 
@@ -369,12 +471,13 @@ impl Topic for OutcomeCounts {
         }
     }
 
-    fn note(&mut self, _run: &Run, note: &Note, _kind: &NoteKind<'_>, _game: &Game) {
+    fn note(&mut self, _run: &Run, note: &Note, _kind: &NoteKind<'_>, game: &Game) {
+        let team = side(game.bodies.get(note.place).map_or(0, |b| b.team));
         if note.text.starts_with("ends Escort:") && note.text.contains("no way") {
-            self.escort_no_way += 1;
+            self.by[team].escort_no_way += 1;
         }
         if note.text.starts_with("ends Collect:") && note.text.contains("no way") {
-            self.collect_no_way += 1;
+            self.by[team].collect_no_way += 1;
         }
     }
 
@@ -389,82 +492,78 @@ impl Topic for OutcomeCounts {
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, shared: &Shared) -> Vec<(&'static str, Part)> {
         // The holds still under way count as they stand.
-        let open: Vec<Hold> = self.holds.values().cloned().collect();
-        let mut runs = self.hold_runs;
-        for hold in &open {
-            runs[0] += u32::from(hold.kills >= 2);
-            runs[1] += u32::from(hold.kills >= 3);
+        let mut by = self.by;
+        for hold in self.holds.values() {
+            let c = &mut by[side(hold.team)];
+            c.hold_runs[0] += u32::from(hold.kills >= 2);
+            c.hold_runs[1] += u32::from(hold.kills >= 3);
         }
+        let all = by[0].plus(&by[1]);
         let num = |name: &str| shared.get(name).and_then(serde_json::Value::as_f64).unwrap_or(0.0);
         let (entries, held_s) = (num("camper_entries"), num("camper_held_s"));
         let per_10s = if held_s > 0.0 { (1000.0 * 10.0 * entries / held_s).round() / 1000.0 } else { 0.0 };
+        let rate = Scale::rate;
         let retake = |k: usize| {
-            let (sum, n) = self.retake[k];
+            let (sum, n) = all.retake[k];
             if n > 0 { (sum / u64::from(n)) as u32 } else { 0 }
         };
-        let rate = Scale::rate;
-        let [vis, vis_hidden, pic, pic_blocked] = self.flips;
-        let json = serde_json::json!({
-            "hold_runs_2": runs[0],
-            "hold_runs_3": runs[1],
-            "hold_3rd_share": rate(runs[1], runs[0]),
-            "holders_killed_after_2": self.holders_killed[0],
-            "holders_killed_flank": self.holders_killed[1],
-            "holders_flank_share": rate(self.holders_killed[1], self.holders_killed[0]),
-            "kills": self.kills,
-            "quick_second_kills": self.quick_second,
-            "quick_second_share": rate(self.quick_second, self.kills),
-            "lane_entries_per_10s": per_10s,
-            "carrier_clear_s": f64::from(self.carrier_clear_ms) / 1000.0,
-            "carrier_clear_not_targeted_s": f64::from(self.carrier_clear_off_ms) / 1000.0,
-            "hurt_enemies": self.hurt_events,
-            "hurt_alive_15s": self.hurt_lived,
-            "hurt_alive_15s_share": rate(self.hurt_lived, self.hurt_events),
-            "retake_ms_no_hurt_near": [retake(0), self.retake[0].1],
-            "retake_ms_hurt_near": [retake(1), self.retake[1].1],
-            "zone_takes": self.zone_takes,
-            "zone_take_died_10s": self.zone_take_died,
-            "escort_no_way_ends": self.escort_no_way,
-            "collect_no_way_ends": self.collect_no_way,
-            "trap_placed_by_stance": self.placed,
-            "trap_caught_by_stance": self.caught,
-            "view_flip": {
-                "samples": self.flip_samples,
-                "truly_visible": vis,
-                "picture_hidden": vis_hidden,
-                "missed_sight_share": rate(vis_hidden, vis),
-                "picture_visible": pic,
-                "truly_hidden": pic_blocked,
-                "fire_into_cover_share": rate(pic_blocked, pic),
-            },
-        });
+        let [vis, vis_hidden, pic, pic_blocked] = all.flips;
+        let mut json = all.json();
+        // Lane entries are the camper topic's, not split by team; the rest of the keys are per team too.
+        json["lane_entries_per_10s"] = serde_json::json!(per_10s);
+        json["by_team"] = serde_json::json!({ "0": by[0].json(), "1": by[1].json() });
+        let team_line = |t: usize| {
+            let c = &by[t];
+            format!(
+                "team {t}: kills {}, holds 2+/3+ {}/{}, holders killed {} (flank {}), quick second {}, carrier not targeted {:.0} s, hurt {} (alive 15 s {}), zone takes {} (died {}), no-way ends {}+{}, view flips {}/{} and {}/{}",
+                c.kills,
+                c.hold_runs[0],
+                c.hold_runs[1],
+                c.holders_killed[0],
+                c.holders_killed[1],
+                c.quick_second,
+                f64::from(c.carrier_clear_off_ms) / 1000.0,
+                c.hurt_events,
+                c.hurt_lived,
+                c.zone_takes,
+                c.zone_take_died,
+                c.escort_no_way,
+                c.collect_no_way,
+                c.flips[1],
+                c.flips[0],
+                c.flips[3],
+                c.flips[2],
+            )
+        };
         let text = format!(
-            "owner-test outcomes: holders (kills from one place within {HOLD_M} m): {} runs of 2+ kills, {} of 3+ = {:.1} % (live 25 %, the owner 45 %); holders killed after two {}, by a flank {} = {:.1} % (live 32 %, the owner 9 %); quick second kills (within 3 s of the shooter's last) {} of {} = {:.1} % (live 3.5-3.9 %, the owner 18 %); lane entries a 10 s of held time {per_10s} (live 0.24-0.60, bots against the owner 0.84-1.42); fights: carriers in clear sight within 40 m {:.0} s, not targeted {:.0} s; hurt (pain < 30 %, an enemy within 30 m) {}, alive 15 s later {}; battery retake mean ms (no hurt enemy within 10 m of the drop: {} of {}, one: {} of {}); objectives: pickups from a zone floor {}, died within 10 s {}, Escort 'no way' ends {}, Collect 'no way' ends {}; traps by the placer's stance [standing, crouched]: placed {:?}, caught [enemy, mate, own] {:?}; sight: truly visible {vis}, the picture says hidden {vis_hidden} = {:.1} % (live 22 %); the picture says visible {pic}, truly hidden {pic_blocked} = {:.1} % (live 20 %) (the picture is the bots' reckoned bodies, a pair a second, the 2 nearest enemies)",
-            runs[0],
-            runs[1],
-            100.0 * rate(runs[1], runs[0]),
-            self.holders_killed[0],
-            self.holders_killed[1],
-            100.0 * rate(self.holders_killed[1], self.holders_killed[0]),
-            self.quick_second,
-            self.kills,
-            100.0 * rate(self.quick_second, self.kills),
-            f64::from(self.carrier_clear_ms) / 1000.0,
-            f64::from(self.carrier_clear_off_ms) / 1000.0,
-            self.hurt_events,
-            self.hurt_lived,
+            "owner-test outcomes: holders (kills from one place within {HOLD_M} m): {} runs of 2+ kills, {} of 3+ = {:.1} % (live 25 %, the owner 45 %); holders killed after two {}, by a flank {} = {:.1} % (live 32 %, the owner 9 %); quick second kills (within 3 s of the shooter's last) {} of {} = {:.1} % (live 3.5-3.9 %, the owner 18 %); lane entries a 10 s of held time {per_10s} (live 0.24-0.60, bots against the owner 0.84-1.42); fights: carriers in clear sight within 40 m {:.0} s, not targeted {:.0} s; hurt (pain < 30 %, an enemy within 30 m) {}, alive 15 s later {}; battery retake mean ms (no hurt enemy within 10 m of the drop: {} of {}, one: {} of {}); objectives: pickups from a zone floor {}, died within 10 s {}, Escort 'no way' ends {}, Collect 'no way' ends {}; traps by the placer's stance [standing, crouched]: placed {:?}, caught [enemy, mate, own] {:?}; sight: truly visible {vis}, the picture says hidden {vis_hidden} = {:.1} % (live 22 %); the picture says visible {pic}, truly hidden {pic_blocked} = {:.1} % (live 20 %) (the picture is the bots' reckoned bodies, a pair a second, the 2 nearest enemies); by team: [{}] [{}]",
+            all.hold_runs[0],
+            all.hold_runs[1],
+            100.0 * rate(all.hold_runs[1], all.hold_runs[0]),
+            all.holders_killed[0],
+            all.holders_killed[1],
+            100.0 * rate(all.holders_killed[1], all.holders_killed[0]),
+            all.quick_second,
+            all.kills,
+            100.0 * rate(all.quick_second, all.kills),
+            f64::from(all.carrier_clear_ms) / 1000.0,
+            f64::from(all.carrier_clear_off_ms) / 1000.0,
+            all.hurt_events,
+            all.hurt_lived,
             retake(0),
-            self.retake[0].1,
+            all.retake[0].1,
             retake(1),
-            self.retake[1].1,
-            self.zone_takes,
-            self.zone_take_died,
-            self.escort_no_way,
-            self.collect_no_way,
-            self.placed,
-            self.caught,
+            all.retake[1].1,
+            all.zone_takes,
+            all.zone_take_died,
+            all.escort_no_way,
+            all.collect_no_way,
+            all.placed,
+            all.caught,
             100.0 * rate(vis_hidden, vis),
             100.0 * rate(pic_blocked, pic),
+            team_line(0),
+            team_line(1),
         );
         vec![("outcomes", Part::new(json, text))]
     }
@@ -484,9 +583,9 @@ pub(crate) fn a_hold_of_three_a_flank_killer_and_quick_second_kills_are_counted(
         &[],
     );
     let counts = tally.topic::<OutcomeCounts>();
-    assert_eq!(counts.hold_runs, [1, 1]);
-    assert_eq!(counts.holders_killed, [1, 1]);
-    assert_eq!((counts.kills, counts.quick_second), (4, 2));
+    assert_eq!(counts.all().hold_runs, [1, 1]);
+    assert_eq!(counts.all().holders_killed, [1, 1]);
+    assert_eq!((counts.all().kills, counts.all().quick_second), (4, 2));
     let (_, json) = tally.finish(&game);
     assert_eq!(json["hold_3rd_share"], 1.0);
     assert_eq!(json["holders_flank_share"], 1.0);
@@ -505,9 +604,9 @@ pub(crate) fn a_killer_in_the_killed_lane_is_no_flank() {
         &[],
     );
     let counts = tally.topic::<OutcomeCounts>();
-    assert_eq!(counts.holders_killed, [1, 0]);
-    assert_eq!(counts.quick_second, 0);
-    assert_eq!(counts.hold_runs, [1, 0]);
+    assert_eq!(counts.all().holders_killed, [1, 0]);
+    assert_eq!(counts.all().quick_second, 0);
+    assert_eq!(counts.all().hold_runs, [1, 0]);
 }
 
 /// A carrier in an enemy's clear sight is counted, and not targeted unless the enemy's target is him.
@@ -522,9 +621,9 @@ pub(crate) fn a_carrier_in_clear_sight_is_counted_targeted_or_not() {
         vec![bot_now(); 2]
     });
     let counts = tally.topic::<OutcomeCounts>();
-    assert!(counts.carrier_clear_ms >= 4_000, "{}", counts.carrier_clear_ms);
+    assert!(counts.all().carrier_clear_ms >= 4_000, "{}", counts.all().carrier_clear_ms);
     // The first 60 ticks (3 s) not targeted, the last 40 targeted: the off share is the larger part of the first.
-    assert!(counts.carrier_clear_off_ms >= 2_500 && counts.carrier_clear_off_ms < counts.carrier_clear_ms, "{} of {}", counts.carrier_clear_off_ms, counts.carrier_clear_ms);
+    assert!(counts.all().carrier_clear_off_ms >= 2_500 && counts.all().carrier_clear_off_ms < counts.all().carrier_clear_ms, "{} of {}", counts.all().carrier_clear_off_ms, counts.all().carrier_clear_ms);
 }
 
 /// An enemy hurt to pain under 30 % with a bot near, alive 15 s later, is counted; one who dies before is not.
@@ -542,19 +641,21 @@ pub(crate) fn hurt_enemies_that_live_fifteen_seconds_more_are_counted() {
         vec![bot_now(); 3]
     });
     let counts = tally.topic::<OutcomeCounts>();
-    assert_eq!((counts.hurt_events, counts.hurt_lived), (2, 1));
+    assert_eq!((counts.all().hurt_events, counts.all().hurt_lived), (2, 1));
 }
 
 /// A battery lying again is retaken: the time since its drop, by whether a hurt enemy was near the drop.
 #[test]
 pub(crate) fn a_retaken_battery_is_timed_by_the_hurt_enemy_near_its_drop() {
     let mut counts = OutcomeCounts::default();
-    counts.drops.push(Drop { battery: 0, t: 1_000, hurt_near: true });
-    counts.drops.push(Drop { battery: 1, t: 1_000, hurt_near: false });
+    counts.drops.push(Drop { team: 0, battery: 0, t: 1_000, hurt_near: true });
+    counts.drops.push(Drop { team: 1, battery: 1, t: 1_000, hurt_near: false });
     counts.retaken(0, 5_000);
     counts.retaken(1, 11_000);
     counts.retaken(1, 12_000);
-    assert_eq!(counts.retake, [(10_000, 1), (4_000, 1)]);
+    assert_eq!(counts.all().retake, [(10_000, 1), (4_000, 1)]);
+    // By the team that dropped it.
+    assert_eq!((counts.by[0].retake, counts.by[1].retake), ([(0, 0), (4_000, 1)], [(10_000, 1), (0, 0)]));
     assert!(counts.drops.is_empty());
 }
 
@@ -575,6 +676,6 @@ pub(crate) fn traps_are_counted_by_the_placers_stance() {
         vec![bot_now(); 2]
     });
     let counts = tally.topic::<OutcomeCounts>();
-    assert_eq!(counts.placed, [0, 1]);
-    assert_eq!(counts.caught, [[0, 0, 0], [0, 0, 1]]);
+    assert_eq!(counts.all().placed, [0, 1]);
+    assert_eq!(counts.all().caught, [[0, 0, 0], [0, 0, 1]]);
 }
