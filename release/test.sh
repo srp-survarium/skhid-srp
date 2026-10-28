@@ -571,6 +571,27 @@ check "build-server-db: a published file not in the list is not offered" bash -c
 check "the data is made of the stock db and the listed patches" quiet "$bin" check "$T/work/sgd.db" --db "$T/resources.db" \
     --patch "$patch=$P/resources.db.patch_3" --patch "$T/r12/resources.db.patch_12=$P/resources.db.patch_12"
 rm "$T/patches/resources.db.patch_9"
+: >"$TEST_ARGS"
+cached_out=$("$here/build-server-db" --out "$T/work/sgd-cached.db" 2>&1) || fail "build-server-db cached: $cached_out"
+check "build-server-db: cached build is byte-identical" cmp -s "$T/work/sgd.db" "$T/work/sgd-cached.db"
+# shellcheck disable=SC2016 # $1 belongs to the child shell.
+check "build-server-db: warm cache requests only first bytes" \
+    bash -c 'test "$(grep -c "^curl " "$1")" = 2 && ! grep "^curl " "$1" | grep -v -- "-r 0-12"' _ "$TEST_ARGS"
+cached_patch=$T/cache/skhid-release/patches/resources.db.patch_3
+python3 - "$cached_patch" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+data = bytearray(p.read_bytes())
+data[-1] ^= 1
+p.write_bytes(data)
+PY
+"$here/build-server-db" --out "$T/work/sgd-repaired-cache.db" >"$T/cache-repair.log" 2>&1 || fail "build-server-db corrupt cache"
+check "build-server-db: corrupt cache is downloaded again" grep -q 'resources.db.patch_3: downloading' "$T/cache-repair.log"
+check "build-server-db: repaired cache gives the same data" cmp -s "$T/work/sgd.db" "$T/work/sgd-repaired-cache.db"
+mv "$T/patches/resources.db.patch_3" "$T/patches/resources.db.patch_3.saved"
+expect_refused "build-server-db: valid cache cannot hide an unavailable primary URL" "answers 404" \
+    "$here/build-server-db" --out "$T/work/sgd-missing-primary.db"
+mv "$T/patches/resources.db.patch_3.saved" "$T/patches/resources.db.patch_3"
 expect_refused "build-server-db never overwrites" "never overwritten" "$here/build-server-db" --out "$T/work/sgd.db"
 expect_refused "build-server-db refuses another server's list" "is not http://127.0.0.1:$site_port/resources.db.patch_3" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCHES_URL=.*|SKHID_PATCHES_URL=http://127.0.0.1:$site_port|")" "$here/build-server-db" --out "$T/work/sgd2.db"
@@ -578,7 +599,7 @@ printf 'resources.db.patch_7\t%s\t5\t%s\n' "$sha3" "$P/resources.db.patch_7" >"$
 expect_refused "build-server-db needs each listed patch at 200" "answered 404, not 200" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
 printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$sha12" "$(stat -c %s "$patch")" "$P/resources.db.patch_3" >"$T/bad.tsv"
-expect_refused "build-server-db checks the served sha256 against the list" "the list says\|says $sha12" \
+expect_refused "build-server-db checks the served sha256 against the list" "sha256 $sha12" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
 printf 'resources.db.patch_12\t%s\t1\t%s\nresources.db.patch_3\t%s\t1\t%s\n' "$sha12" "$P/resources.db.patch_12" "$sha3" "$P/resources.db.patch_3" >"$T/bad.tsv"
 expect_refused "build-server-db refuses a list out of order" "not above the row before it" \
