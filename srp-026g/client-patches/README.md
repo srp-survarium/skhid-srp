@@ -3466,7 +3466,7 @@ other patch is touched and patch 63 (team damage, 0x1F0F30) and Research's marke
 land beside it unchanged:
 
 - **The flag.** srp's block after the static info's squads ("SRPX", tagged entries; tag 2, one
-  byte 1: `SRP_BLACKOUT=on`, battery maps), read from the reader's cursor after each call of
+  byte 1: Blackout on battery maps), read from the reader's cursor after each call of
   match_options::deserialize: `static_info.options_read` (0x27B92D: ESI the options, the reader
   at EBP-2Ch) and `replay.options_read` (0x1F0971: the options at [esp+40h], the reader at
   esp+14h). The options' +57870h holds "SRBO", else zeros; the patch keeps the match's flag.

@@ -422,6 +422,8 @@ pub enum RoomCode {
     /// (`presets.md`, the owner's of 2026-10-23). The movie greys those by
     /// the same rule and says nothing of this code.
     KitCantPlay = 15,
+    /// Public rooms are created by Play as demand grows, never by a client.
+    PublicCreate = 16,
 }
 
 /// A room in [`room_list`].
@@ -568,6 +570,8 @@ pub enum JoinHold {
     Maintenance = 5,
     /// The match is ending (its mode's rule, or its result).
     Ending = 6,
+    /// All lifetime roster places were used; leaving cannot free one.
+    PlayerLimit = 7,
 }
 
 /// A room to switch to (`W` row of [`room_state`]).

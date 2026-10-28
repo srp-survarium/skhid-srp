@@ -73,13 +73,12 @@ package survarium.rooms
                 look._content.getChildAt(look._content.numChildren - 1).x = 220;
             else if (win._queueKey != 0)
             {
-                // Waiting in a full room's queue: our place, and a way out.
+                // Waiting in a full room's queue: our place and its name.
                 var queued:String = "";
                 for (var qi:int = 0; qi < win._rooms.length; qi++)
                     if (win._rooms[qi].key == win._queueKey)
                         queued = " · " + win._rooms[qi].name;
                 look.text(look._content, win.say("inQueue") + ": " + win._queuePlace + queued, 220, 52, 360, 16, RoomsLook.GOLD);
-                look.button(look._content, win.say("leaveQueue"), 590, 46, 170, onUnqueue, null, 32);
             }
             var cols:Array = [0, 0.29, 0.37, 0.46, 0.74, 0.84];
             var heads:Array = ["name", "level", "max", "map", "players", "state"];
@@ -154,11 +153,13 @@ package survarium.rooms
                     joinable = win._rooms[j];
             // A member queues for no room (from no room only): Join, off for
             // a full room and for its own.
-            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 && win._room == null
-                ? win.say("queue") : win.say("join");
+            var queuedHere:Boolean = queuedFor(joinable);
+            var joinWord:String = queuedHere ? win.say("leaveQueue")
+                : joinable != null && joinable.players >= joinable.size * 2 && win._room == null
+                    ? win.say("queue") : win.say("join");
             var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
-            if (joinable != null && (!joins(joinable) || !mayGoIn(joinable)))
+            if (joinable != null && !queuedHere && (!joins(joinable) || !mayGoIn(joinable)))
             {
                 made[1].enabled = false;
                 // Greyed by a reason (presets.md): the reasons in its tip.
@@ -446,7 +447,15 @@ package survarium.rooms
             if (room == null || win._steps.length > 0)
                 return;
             win.busy(e);
-            joinRoom(room);
+            if (queuedFor(room))
+                win.leaveQueue();
+            else
+                joinRoom(room);
+        }
+
+        private function queuedFor(room:Object):Boolean
+        {
+            return room != null && win._room == null && win._queueKey == room.key;
         }
 
         // Whether no reason greys Join (or Queue) for `room` (presets.md): a
@@ -515,11 +524,6 @@ package survarium.rooms
         internal function joinWith(room:Object, preset:int):void
         {
             joinRoom(room, preset);
-        }
-
-        private function onUnqueue(e:Event):void
-        {
-            win.ask(RoomsWire.UNQUEUE, 1);
         }
 
         // A friend's room (RoomsWindow.joinFriend; `room`: {key, players,

@@ -1198,7 +1198,6 @@ package survarium.rooms
             listView._stateCells = {};
             listView._listHits = [];
             roomView._roomHits = [];
-            createView._sliders = {};
             listView._joinPin = null;
             if (createView._makePin != null)
                 createView._makePinText = createView._makePin.text;
