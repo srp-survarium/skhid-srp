@@ -33,13 +33,14 @@ package
                 menu.panelContainer.addChild(hint);
             }
             // Match the stock localized registration string supplied by the
-            // native client. This covers all five supported client languages.
+            // native client. This covers all six supported client languages.
             var translations:Object = {
                 "Create account": "Account created on first sign-in",
                 "Створити новий акаунт": "Акаунт створюється під час першого входу",
                 "Создать учетную запись": "Аккаунт создаётся при первом входе",
                 "Konto registrieren": "Konto wird beim ersten Login erstellt",
-                "Utwórz konto": "Konto powstaje przy pierwszym logowaniu"
+                "Utwórz konto": "Konto powstaje przy pierwszym logowaniu",
+                "Napravi nalog": "Nalog se pravi pri prvoj prijavi"
             };
             var text:String = translations[LocalizationData.getName("registration_str")];
             hint.text = text != null ? text : "Account created on first sign-in";

@@ -433,27 +433,27 @@ package survarium.controls
       
       protected function matchesNameTable() : Object
       {
-         var friends:Array = ["Friends","Друзі","Друзья","Freunde","Znajomi"];
+         var friends:Array = ["Friends","Друзі","Друзья","Freunde","Znajomi", "Prijatelji"];
          var levels:Object = {
-            "1":["Rudnya","Рудня","Рудня","Rudnya","Rudnia"],
-            "2":["School","Школа","Школа","Schule","Szkoła"],
-            "3":["Vostok Radar Station","РЛС \"Восток\"","РЛС \"Восток\"","RS Vostok","Stacja Radarowa \"Vostok\""],
-            "4":["Chemical Plant","Хімзавод","Химзавод","Chemiebetrieb","Zakłady chemiczne"],
-            "5":["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów"],
-            "6":["Mamayev Kurgan","Мамаїв курган","Мамаев курган","Mamaew kurgan","Kurhan Mamaja"],
-            "7":["Vector Laboratory","Лабораторія \"Вектор\"","Лаборатория \"Вектор\"","Labor Vektor","Laboratorium \"Wektor\""],
-            "8":["Cologne","Кельн","Кельн","Köln","Most w Kolonii"],
-            "9":["London","Лондон","Лондон","London","Londyn"],
-            "10":["Vostok Radar Station (v0.21)","РЛС \"Восток\" (v0.21)","РЛС \"Восток\" (v0.21)","RS Vostok (v0.21)","Stacja Radarowa \"Vostok\" (v0.21)"],
-            "11":["Mamayev Kurgan (v0.21)","Мамаїв курган (v0.21)","Мамаев курган (v0.21)","Mamaew kurgan (v0.21)","Kurhan Mamaja (v0.21)"],
-            "12":["Chemical Plant (v0.11)","Хімзавод (v0.11)","Химзавод (v0.11)","Chemiebetrieb (v0.11)","Zakłady chemiczne (v0.11)"],
-            "13":["Vostok Radar Station (v0.11)","РЛС \"Восток\" (v0.11)","РЛС \"Восток\" (v0.11)","RS Vostok (v0.11)","Stacja Radarowa \"Vostok\" (v0.11)"]
+            "1":["Rudnya","Рудня","Рудня","Rudnya","Rudnia", "Rudnja"],
+            "2":["School","Школа","Школа","Schule","Szkoła", "Škola"],
+            "3":["Vostok Radar Station","РЛС \"Восток\"","РЛС \"Восток\"","RS Vostok","Stacja Radarowa \"Vostok\"", "Radarska stanica Vostok"],
+            "4":["Chemical Plant","Хімзавод","Химзавод","Chemiebetrieb","Zakłady chemiczne", "Hemijska fabrika"],
+            "5":["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów", "Tarakanovska tvrđava"],
+            "6":["Mamayev Kurgan","Мамаїв курган","Мамаев курган","Mamaew kurgan","Kurhan Mamaja", "Mamajev kurgan"],
+            "7":["Vector Laboratory","Лабораторія \"Вектор\"","Лаборатория \"Вектор\"","Labor Vektor","Laboratorium \"Wektor\"", "Laboratorija Vektor"],
+            "8":["Cologne","Кельн","Кельн","Köln","Most w Kolonii", "Keln"],
+            "9":["London","Лондон","Лондон","London","Londyn", "London"],
+            "10":["Vostok Radar Station (v0.21)","РЛС \"Восток\" (v0.21)","РЛС \"Восток\" (v0.21)","RS Vostok (v0.21)","Stacja Radarowa \"Vostok\" (v0.21)", "Radarska stanica Vostok (v0.21)"],
+            "11":["Mamayev Kurgan (v0.21)","Мамаїв курган (v0.21)","Мамаев курган (v0.21)","Mamaew kurgan (v0.21)","Kurhan Mamaja (v0.21)", "Mamajev kurgan (v0.21)"],
+            "12":["Chemical Plant (v0.11)","Хімзавод (v0.11)","Химзавод (v0.11)","Chemiebetrieb (v0.11)","Zakłady chemiczne (v0.11)", "Hemijska fabrika (v0.11)"],
+            "13":["Vostok Radar Station (v0.11)","РЛС \"Восток\" (v0.11)","РЛС \"Восток\" (v0.11)","RS Vostok (v0.11)","Stacja Radarowa \"Vostok\" (v0.11)", "Radarska stanica Vostok (v0.11)"]
          };
          var modes:Object = {
-            "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
-            "3":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
-            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"],
-            "5":["Research","Дослідження","Исследование","Forschung","Badania"]
+            "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj"],
+            "3":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne", "Zaštitni uređaj"],
+            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa", "Timska borba"],
+            "5":["Research","Дослідження","Исследование","Forschung","Badania", "Istraživanje"]
          };
          return {
             "friends":friends,
@@ -488,9 +488,9 @@ package survarium.controls
       
       protected function matchesText(key:int) : String
       {
-         var words:Array = [["Matches","Матчі","Матчи","Matches","Rozgrywki"],["No matches right now","Зараз матчів немає","Сейчас матчей нет","Zurzeit keine Matches","Brak rozgrywek w tej chwili"],["waiting","очікування","ожидание","Warten","oczekiwanie"],["starting","старт","старт","Start","start"],["joining…","приєднання…","вход…","Beitritt…","dołączanie…"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce"],["This match is closed","Цей матч уже закритий","Этот матч уже закрыт","Dieses Match ist geschlossen","Ta rozgrywka jest już zamknięta"],["You cannot join now","Зараз приєднатися не можна","Сейчас присоединиться нельзя","Beitritt gerade nicht möglich","Nie możesz teraz dołączyć"],["No answer, try again","Немає відповіді, спробуйте ще","Нет ответа, попробуйте ещё","Keine Antwort, erneut versuchen","Brak odpowiedzi, spróbuj ponownie"],["Match is already balanced","Матч уже збалансований","Матч уже сбалансирован"
-         ,"Match ist bereits ausgeglichen","Rozgrywka jest już wyrównana"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce"],["Another player is joining","Інший гравець уже приєднується","Другой игрок уже присоединяется","Ein anderer Spieler tritt gerade bei","Inny gracz właśnie dołącza"],["Match has not started yet","Матч ще не почався","Матч ещё не начался","Match hat noch nicht begonnen","Rozgrywka jeszcze się nie zaczęła"],["Match ends soon","Матч скоро завершиться","Матч скоро закончится","Match endet bald","Rozgrywka wkrótce się skończy"],["Match takes no new players","Матч не приймає нових гравців","Матч не принимает новых игроков","Match nimmt keine neuen Spieler auf","Rozgrywka nie przyjmuje nowych graczy"],["You are already in a match","Ви вже в матчі","Вы уже в матче","Du bist bereits in einem Match","Jesteś już w rozgrywce"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд"
-         ,"Verlasse zuerst deine Abteilung","Najpierw opuść brygadę"],["Update your game","Оновіть гру","Обновите игру","Aktualisiere dein Spiel","Zaktualizuj grę"],["You already played in this match","Ви вже грали в цьому матчі","Вы уже играли в этом матче","Du hast in diesem Match schon gespielt","Twoje miejsce w tej rozgrywce już wykorzystano"],["Ends after maintenance starts","Завершиться після початку обслуговування","Закончится после начала обслуживания","Endet nach Beginn der Wartung","Skończy się po rozpoczęciu konserwacji"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab","Najpierw przerwij wyszukiwanie"]];
+         var words:Array = [["Matches","Матчі","Матчи","Matches","Rozgrywki", "Mečevi"],["No matches right now","Зараз матчів немає","Сейчас матчей нет","Zurzeit keine Matches","Brak rozgrywek w tej chwili", "Trenutno nema mečeva"],["waiting","очікування","ожидание","Warten","oczekiwanie", "čekanje"],["starting","старт","старт","Start","start", "početak"],["joining…","приєднання…","вход…","Beitritt…","dołączanie…", "pridruživanje…"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce", "Nema slobodnog mesta u ovom meču"],["This match is closed","Цей матч уже закритий","Этот матч уже закрыт","Dieses Match ist geschlossen","Ta rozgrywka jest już zamknięta", "Ovaj meč je zatvoren"],["You cannot join now","Зараз приєднатися не можна","Сейчас присоединиться нельзя","Beitritt gerade nicht möglich","Nie możesz teraz dołączyć", "Trenutno ne možeš da se pridružiš"],["No answer, try again","Немає відповіді, спробуйте ще","Нет ответа, попробуйте ещё","Keine Antwort, erneut versuchen","Brak odpowiedzi, spróbuj ponownie", "Nema odgovora, pokušaj ponovo"],["Match is already balanced","Матч уже збалансований","Матч уже сбалансирован"
+         ,"Match ist bereits ausgeglichen","Rozgrywka jest już wyrównana", "Meč je već uravnotežen"],["No free place in this match","У матчі немає вільних місць","В матче нет свободных мест","Kein freier Platz im Match","Brak wolnych miejsc w rozgrywce", "Nema slobodnog mesta u ovom meču"],["Another player is joining","Інший гравець уже приєднується","Другой игрок уже присоединяется","Ein anderer Spieler tritt gerade bei","Inny gracz właśnie dołącza", "Drugi igrač se pridružuje"],["Match has not started yet","Матч ще не почався","Матч ещё не начался","Match hat noch nicht begonnen","Rozgrywka jeszcze się nie zaczęła", "Meč još nije počeo"],["Match ends soon","Матч скоро завершиться","Матч скоро закончится","Match endet bald","Rozgrywka wkrótce się skończy", "Meč se uskoro završava"],["Match takes no new players","Матч не приймає нових гравців","Матч не принимает новых игроков","Match nimmt keine neuen Spieler auf","Rozgrywka nie przyjmuje nowych graczy", "Meč ne prima nove igrače"],["You are already in a match","Ви вже в матчі","Вы уже в матче","Du bist bereits in einem Match","Jesteś już w rozgrywce", "Već si u meču"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд"
+         ,"Verlasse zuerst deine Abteilung","Najpierw opuść brygadę", "Prvo napusti odred"],["Update your game","Оновіть гру","Обновите игру","Aktualisiere dein Spiel","Zaktualizuj grę", "Ažuriraj igru"],["You already played in this match","Ви вже грали в цьому матчі","Вы уже играли в этом матче","Du hast in diesem Match schon gespielt","Twoje miejsce w tej rozgrywce już wykorzystano", "Već si igrao u ovom meču"],["Ends after maintenance starts","Завершиться після початку обслуговування","Закончится после начала обслуживания","Endet nach Beginn der Wartung","Skończy się po rozpoczęciu konserwacji", "Završava se nakon početka održavanja"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab","Najpierw przerwij wyszukiwanie", "Prvo prekini pretragu"]];
          return words[key][this._matchesLang];
       }
       

@@ -132,7 +132,7 @@ package survarium.player
       // The title's text (the owner's of 2026-10-23: bigger): 24 px, the
       // panel's stock title 22; still one line in the bar. Its field is
       // the bar's width less the caret's room each side, so the longest
-      // title of the five languages ("Loadout 3 · nicht spielbar") fits,
+      // title of the six languages ("Loadout 3 · nicht spielbar") fits,
       // and set 1 px higher so the larger text stays centred in the bar.
       private static const TITLE_SIZE:int = 24;
       
@@ -162,22 +162,22 @@ package survarium.player
       // A choice shown before the server's answer, at most this long (ms).
       private static const PRESET_PENDING_MS:int = 5000;
       
-      // The words, in the lobby's five languages (RoomsText.language: en, uk,
-      // ru, de, pl). Players see "Loadout", never "preset" (the owner's of
+      // The words, in the lobby's six languages (RoomsText.language: en, uk,
+      // ru, de, pl, sr). Players see "Loadout", never "preset" (the owner's of
       // 2026-10-23; presets.md has the table). The level's word is the kit
       // tabs' own ("Lvl."), this one if it is missing. A sale's question:
       // "one" for one loadout ({n}), "many" for more ({list}: each "item",
       // the last after "and").
       private static const PRESET_WORDS:Object = {
-         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw"],
-         "level":["Lvl.","Рів.","Ур.","Stufe","Poz."],
-         "empty":["empty","порожній","пустой","leer","pusty"],
-         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry"],
-         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu."],
-         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?"],
-         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?"],
-         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}"],
-         "sellAnd":[" and "," і "," и "," und "," i "]
+         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw", "Komplet"],
+         "level":["Lvl.","Рів.","Ур.","Stufe","Poz.", "Niv."],
+         "empty":["empty","порожній","пустой","leer","pusty", "prazno"],
+         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry", "nije spreman"],
+         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu.", "Nije moguće izabrati komplet."],
+         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?", "Koristi se u kompletu {n}. Ipak prodati?"],
+         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?", "Koristi se u: {list}. Ipak prodati?"],
+         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}", "Komplet {n}"],
+         "sellAnd":[" and "," і "," и "," und "," i ", " i "]
       };
       
       // The title bar's press area and its hover / open look (below the
@@ -752,16 +752,16 @@ package survarium.player
       
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
       // each with its text: the game's own key where it has one ("#key"
-      // when it is missing), else ours, in the lobby's five languages.
+      // when it is missing), else ours, in the lobby's six languages.
       private static const BLOCK_MAINTENANCE:int = 32;
       
       private static const REASONS:Array = [
-         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany"]},
-         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu"]},
-         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach"]},
-         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni"]},
-         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni"]},
-         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min"]}
+         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany", "Ovaj profil je zaključan"]},
+         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu", "Dva predmeta zauzimaju isto mesto"]},
+         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach", "Isti tip predmeta u dva džepa"]},
+         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni", "Premalo municije za oružje"]},
+         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni", "Nema oružja"]},
+         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min", "Održavanje servera za {n} min"]}
       ];
       
       // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or

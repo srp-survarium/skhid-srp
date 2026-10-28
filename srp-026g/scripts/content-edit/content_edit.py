@@ -52,6 +52,10 @@ Edits (edits.json):
                                                        with `from`) is also a new file at `to` + the rest
                                                        of its path, a path no live file has; applied first,
                                                        the globs below see the copies
+  "translate":      [{"file", "target", "translations", "keep", "extra", "latin"}]
+                    translate a newly copied localization dictionary; TSV and keep-list paths
+                    are relative to the edit list. Every source key must be translated or explicitly
+                    kept; missing keys, unexpected keys, broken markup or placeholders stop the build.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -770,6 +774,24 @@ def main():
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    for e in edits.get('translate', []):
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
+        from build_localization_026g import translate
+        p = e['target']
+        if copies.get(p) != e['file']:
+            raise ValueError('translate target must be a new copy of its source')
+        directory = Path(edits_file).resolve().parent
+        source = bytes(buf(e['file']))
+        result = translate(source, directory / e['translations'], directory / e['keep'],
+                           e.get('extra', []), e.get('latin', False))
+        bufs[p] = bytearray(result)
+        old_keys = {q for q, t, _ in walk(source) if t == T_STR}
+        new_keys = {q for q, t, _ in walk(result) if t == T_STR}
+        allowed.setdefault(p, set()).update(old_keys)
+        added.setdefault(p, []).extend(sorted(new_keys - old_keys))
+        grown.setdefault(p, {})['/strings'] = len(new_keys) - len(old_keys)
+        print('translate %s: %d keys, no fallback' % (p, len(new_keys)))
     for e in edits.get('add_entry', []):
         n = 0
         for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):

@@ -38,7 +38,7 @@ package survarium.messages
          "Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.",
          "Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.",
          "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
-         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
+         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów.", "Možeš promeniti bilo koji modifikator predmeta neograničen broj puta. Zatim biraš jedan od tri nasumična modifikatora."];
 
       // The original movie places the game's lock hint (one modification an item) on this window;
       // since any modification may be changed it is not used (configUI hides it).

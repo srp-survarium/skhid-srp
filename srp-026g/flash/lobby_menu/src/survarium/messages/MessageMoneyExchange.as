@@ -48,19 +48,19 @@ package survarium.messages
       private static const FALLBACK_RATE:int = 100;
 
       private static const TEXT:Object = {
-         "title":["Exchange","Обмін","Обмен","Tausch","Wymiana"],
-         "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz"],
-         "receive":["Receive","Отримуєте","Получаете","Sie erhalten","Otrzymujesz"],
-         "silver":["Silver","Срібло","Серебро","Silber","Srebro"],
-         "gold":["Gold","Золото","Золото","Gold","Złoto"],
-         "balance":["Balance","Баланс","Баланс","Guthaben","Saldo"],
-         "short_silver":["Not enough silver","Недостатньо срібла","Недостаточно серебра","Nicht genug Silber","Za mało srebra"],
-         "short_gold":["Not enough gold","Недостатньо золота","Недостаточно золота","Nicht genug Gold","Za mało złota"],
-         "button":["Exchange","Обміняти","Обменять","Tauschen","Wymień"]
+         "title":["Exchange","Обмін","Обмен","Tausch","Wymiana", "Razmeni"],
+         "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz", "Plati"],
+         "receive":["Receive","Отримуєте","Получаете","Sie erhalten","Otrzymujesz", "Primi"],
+         "silver":["Silver","Срібло","Серебро","Silber","Srebro", "Srebro"],
+         "gold":["Gold","Золото","Золото","Gold","Złoto", "Zlato"],
+         "balance":["Balance","Баланс","Баланс","Guthaben","Saldo", "Stanje"],
+         "short_silver":["Not enough silver","Недостатньо срібла","Недостаточно серебра","Nicht genug Silber","Za mało srebra", "Nema dovoljno srebra"],
+         "short_gold":["Not enough gold","Недостатньо золота","Недостаточно золота","Nicht genug Gold","Za mało złota", "Nema dovoljno zlata"],
+         "button":["Exchange","Обміняти","Обменять","Tauschen","Wymień", "Razmeni"]
       };
 
       // The client's own "cancel" names its language.
-      private static const CANCEL:Array = ["Cancel","Скасувати","Отмена","Abrechnen","Anuluj"];
+      private static const CANCEL:Array = ["Cancel","Скасувати","Отмена","Abrechnen","Anuluj", "Otkaži"];
 
       public var textFieldLabel:TextField;
 

@@ -1,0 +1,2089 @@
+# Serbian Latin (sr-Latn). Key suffix after st_ (or @full_key), TAB, translation.
+# Literal \n denotes a line break. Preserve placeholders and markup.
+@bm_back_1_desc	Opis još nije dostupan.
+@bm_back_1_name	Kontejner Pljačkaš
+@mouse_wheel_down	Točkić nadole
+@mouse_wheel_up	Točkić nagore
+a545_description	Opis još nije dostupan.
+a545_name	A-545
+a9_91_description	Opis još nije dostupan.
+a9_91_name	9A-91
+abilities	Veštine
+accept	Prihvati
+accept_changes	Primeni
+account	nalog
+account_trading_claim	Trgovina nalozima
+achieved	dostignuto!
+achievements_label	Dostignuća igrača
+action_premium_activated	Premijum je aktiviran! Vaša nagrada:
+activate_premium	Aktiviraj premijum nalog
+add	Dodaj
+add_profile_button_blocked_hint_text	Dostignut je najveći broj profila!
+add_profile_button_hint_text	Dodaj novi profil lika
+add_to_clan_request	vas poziva u klan 
+add_to_clan_team_request	vas poziva u tim klana
+add_to_friends	Dodaj u prijatelje
+add_to_friends_request	Zahtev za prijateljstvo
+add_to_ignore	Blokiraj
+add_to_squad_request	Pridruži se odredu
+additional_max_weight_name	Nosivost
+additive_quick_slot_size_modifier	Kapacitet džepova
+aek919k_description	Kompaktni ruski automat kalibra 9x18 PM. Razvijen devedesetih u Kovrovu za Ministarstvo unutrašnjih poslova i druge službe. Okvir prima 20 metaka. Podržava pojedinačnu i automatsku paljbu.
+aim_time_description	Brzina nišanjenja:
+aim_time_name	Brza reakcija
+aim_toggle_action	Nišani
+aiming_booster_description	Tablete na recept kojima je istekao rok. Vremenom su oslabile, ali i dalje deluju umirujuće.
+aiming_booster_name	Ekstrakt srdačice
+aiming_speed_correction_perc_name	Brzina nišanjenja
+ak12_description	Opis još nije dostupan.
+ak12_premium_description	Ruska jurišna puška nove generacije Kalašnjikova. Razvio ju je Ižmaš početkom 2010-ih, sa šinama za dodatke i izmenjenim kundakom i komandama. Okvir prima 30 metaka. Podržava pojedinačnu, rafalnu i automatsku paljbu. Premijum verzija sa posebnom kamuflažom.
+ak74m_description	Savremena verzija Kalašnjikova kalibra 5,45x39. Usvojena je u vojsci i stekla dobar ugled. Podržava pojedinačnu i rafalnu paljbu.
+ak74n_bundle_descr	<white>Paket sadrži:\n- Unapređeni AK-74N.\n- 2000 metaka 5.45x39 7N6M.</white>\n
+ak74n_bundle_name	Paket AK-74N
+ak74n_description	Opis još nije dostupan.
+ak74n_name	AK-74N
+ak74u_description	Skraćena verzija AK74 kalibra 5,45x39. Zbog malih dimenzija koristile su je pomorske, policijske i bezbednosne jedinice. Podržava pojedinačnu i rafalnu paljbu.
+ak74u_premium_description	Skraćena verzija AK74 kalibra 5,45x39. Zbog dimenzija koristile su je pomorske, policijske i bezbednosne jedinice. Podržava pojedinačnu i rafalnu paljbu. Premijum verzija sa posebnom kamuflažom.
+akmn_description	Jurišna puška Kalašnjikov prilagođena municiji 7,62x39. Snaga i pouzdanost čine je korisnom i danas. Podržava pojedinačnu i automatsku paljbu.
+akmn_premium_2_description	Jurišna puška Kalašnjikov kalibra 7,62x39. Snaga i pouzdanost čine je korisnom i danas. Podržava pojedinačnu i automatsku paljbu. Premijum verzija sa posebnom kamuflažom.
+akmn_premium_description	Jurišna puška Kalašnjikov kalibra 7,62x39. Snaga i pouzdanost čine je korisnom i danas. Podržava pojedinačnu i automatsku paljbu. Premijum verzija sa posebnom kamuflažom.
+all_factions	Svi trgovci
+all_quests	Prikaži sve zadatke
+already_as_reserve_in_team	Igrač je već u rezervi.
+already_as_soldier_in_team	Igrač je već u timu.
+already_exist_clan_string	Ovo ime je već zauzeto.
+already_has_status_clan_team	Igrač je već pozvan ili je član tima klana.
+already_in_clan_team	Igrač je već u timu.
+already_in_inventory	Već posedujete ovaj predmet. Želite li ipak da ga kupite?
+ambient_occlusion_options	Kvalitet ambijentalnog senčenja
+ammo	Municija
+ammo_127x54_pt_description	Opis još nije dostupan.
+ammo_127x54_pt_name	12.7x54 PT
+ammo_127x54_vps_description	Opis još nije dostupan.
+ammo_127x55_description	Opis još nije dostupan.
+ammo_12mm_buck2_desc	Pojačana lovačka municija kalibra 12. Krupnija sačma povećava probojnost i efektivni domet.
+ammo_12mm_buck2_name	12x70, sačma
+ammo_12mm_buck_desc	Standardni lovački patron sa sitnom sačmom. Nanosi veliku štetu neoklopljenim metama.
+ammo_12mm_buck_name	12x70, sačma
+ammo_12mm_slug_desc	Lovačka municija kalibra 12 sa obloženim jedinačnim zrnom. Ima veliku zaustavnu moć i probojnost.
+ammo_12mm_slug_name	12x70, jedinačno zrno
+ammo_30_description	Američka puščana municija, efikasna do 150 metara. Prva civilna municija sa bezdimnim barutom.
+ammo_357m_description	Snažna američka revolverska municija. Uvedena je tokom prohibicije kao moćnija zamena za standardnu policijsku municiju.
+ammo_45acp_description	Opis još nije dostupan.
+ammo_46x30_description	Metak koji je Heckler & Koch razvio za MP7. Malo, tvrdo zrno namenjeno je probijanju pancira na malim i srednjim daljinama.
+ammo_545x39_7n10_description	Opis još nije dostupan.
+ammo_545x39_7n22_description	Opis još nije dostupan.
+ammo_545x39_7n6m_description	Sovjetski metak srednje snage sa čeličnim jezgrom i malim trzajem. Lako zrno i velika početna brzina daju ravnu putanju.
+ammo_556x45_description	NATO puščani metak srednje snage, izveden iz američkog .223 Remington i standardizovan 1980. Lako i brzo zrno ima ravnu putanju i mali trzaj.
+ammo_57x28_description	Metak koji je FN Herstal razvio oko 1990. za P90, a kasnije i pištolj Five-seveN. Lako, brzo zrno namenjeno je probijanju pancira.
+ammo_65x39_description	Opis još nije dostupan.
+ammo_762x25_description	Prvi sovjetski jedinstveni pištoljski metak, namenjen pištoljima i automatima.
+ammo_762x39_7n23_description	Opis još nije dostupan.
+ammo_762x39_description	Metak 7,62x39, razvijen 1943. godine. Opisuje se kao jedan od tri najsnažnija puščana kalibra na svetu.
+ammo_762x39_m_description	Opis još nije dostupan.
+ammo_762x39_m_name	7.62x39 RPD
+ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
+ammo_762x51_description	Rasprostranjeni vojni metak sa potpuno obloženim zrnom, namenjen snajperskom i civilnom oružju.
+ammo_762x54R_old_description	Jedan od najstarijih puščanih metaka, pronađen u skladištima. Starost i uslovi čuvanja smanjili su njegovu efikasnost.
+ammo_9x18_description	Sovjetski metak napravljen kao zamena za zastareli 7,62 mm. Povoljan je i dobro probija nemetalne površine.
+ammo_9x18_pbm_description	Probojni metak 9x18 PBM 7N25. U odnosu na 9x18 PM ima znatno veću početnu brzinu i zaustavnu moć.
+ammo_9x19p_7n21_description	Municija povećanog pritiska +P+ sa čeličnim probojnim jezgrom. Ima veću zaustavnu moć od komercijalne municije 9x19 Parabellum.
+ammo_9x19p_7n31_description	Opis još nije dostupan.
+ammo_9x19p_para_description	Pištoljski metak 9x19 Parabellum sa potpuno obloženim zrnom. Posle Drugog svetskog rata usvojen je kao standardna municija NATO-a.
+ammo_9x21_description	Opis još nije dostupan.
+ammo_ammo_762x54_7n13_description	Ruski puščani metak 7,62x54R sa ojačanim čeličnim jezgrom za bolju probojnost. Koristi se u mitraljezima i snajperskim puškama; isporučuje se u redenicima.
+ammo_ammo_762x54_7n1_description	Opis još nije dostupan.
+ammo_ammo_762x54_7n1_name	7.62x54 7N1
+ammo_bags_description	Dobijate dodatnu torbicu za municiju.
+ammo_bags_name	Municija
+ammo_equipped_label	Ranac
+ammo_label	Municija
+ammo_pab9_description	Opis još nije dostupan.
+ammo_sp5_description	Opis još nije dostupan.
+ammo_sp6_description	Opis još nije dostupan.
+ammo_storage_label	Skladište
+aniso_filtering_option	Anizotropno filtriranje
+anomaly_damage_corr_perc_name	Šteta od anomalija
+anomaly_skills_label	Poznavanje Šume
+antialiasing_option	Zaglađivanje ivica
+antitoxin_description	Složen lek za neutralisanje otrova i toksina u telu. Najdelotvorniji je ako se uzme pre izlaganja štetnim materijama.
+antitoxin_name	Protivotrov
+apply_changes_msg	Želite li da primenite podešavanja?
+aps_description	Opis još nije dostupan.
+army_026_mask_desc	Vojna potkapa sa jednim širokim prorezom za oči, iz otkazanog projekta S.T.A.L.K.E.R. 2.
+army_026_mask_name	Vojna potkapa
+artcontainer_time_corr_perc_name	Vreme sakupljanja
+artefact_activated_message	Artefakt je aktiviran
+artefact_booster_description	Druga verzija zanatskog uređaja za vađenje artefakata. Ugrađeni prigušivač anomalne aktivnosti ubrzava postupak izvlačenja.
+artefact_booster_name	Majstor za artefakte
+artefact_no_free_slots	Nema slobodnog mesta za artefakt!
+artefact_search_failed	Artefakt nije pronađen
+artefact_search_success	Pronašli ste artefakt!
+ash12_description	Opis još nije dostupan.
+attention	Došlo je do greške pri pokretanju programa Survarium. Pokušajte ponovo kasnije.
+auto	Automatski
+auto_button_hint	Automatski dopuni municiju
+auto_repair_button_label	Automatska popravka
+auto_repair_hint	Automatski popravi manja oštećenja opreme
+autobuy_button_label	Automatska kupovina
+autobuy_money	Dopuni municiju
+autobuy_money_ammo	Municija
+autobuy_money_consulabels	Specijalna oprema
+autorepair_money	Cena popravke
+back_use_action	Boca sa kiseonikom
+backpack	Ranac
+ban_reason_account_trading	Prodaja ili pokušaj prodaje naloga.
+ban_reason_administrator	Odluka administracije.
+ban_reason_advertising	Širenje reklamnog sadržaja.
+ban_reason_bad_language	Nepristojan govor.
+ban_reason_cheating	Širenje, reklamiranje ili rasprava o nedozvoljenom softveru.
+ban_reason_discuss_admins	Rasprava o postupcima administracije.
+ban_reason_faschism	Ispoljavanje rasizma, nacizma ili nacionalizma.
+ban_reason_flood	Neželjene, ponovljene ili besmislene poruke.
+ban_reason_incorrect_info	Širenje netačnih informacija.
+ban_reason_insult	Vređanje ili provociranje.
+ban_reason_nickname	Nedozvoljeno ime lika.
+ban_reason_politics	Rasprava o politici.
+ban_reason_reallife_treating	Pretnje u stvarnom životu.
+ban_reason_teamkilling	Ubijanje saveznika.
+bandit_026_mask_desc	Banditska potkapa iz otkazanog projekta S.T.A.L.K.E.R. 2.
+bandit_026_mask_name	Banditska potkapa
+base_bandages_description	Potpuno leči ruke i noge. Obnavlja 35% zdravlja trupa i glave i ublažava bol za 35%.
+base_bandages_name	Paket zavoja
+base_medkit_description	Osnovni komplet prve pomoći. Ublažava kritične povrede i poboljšava stanje ranjenika.
+base_medkit_name	Prva pomoć
+base_painkiller_description	Snažan anestetik koji privremeno podiže prag bola. Kod nesmrtonosnih povreda sprečava gubitak svesti usled bolnog šoka.
+base_painkiller_name	Anestetik
+base_trap_description	Obična lovačka zamka sa snažnom oprugom. Može da slomi nogu krupnoj životinji ili čoveku.
+base_trap_name	Zamka
+benelli_description	Italijanska poluautomatska sačmarica kalibra 12. Benelli ju je razvio krajem devedesetih sa gasnim pogonom, a američki marinci usvojili kao M1014. Puni se iz cevastog magacina ispod cevi. Samo pojedinačna paljba.
+best	Najbolji
+best_explorer	ISTRAŽIVAČ
+best_explorer_artefacts	Artefakti:
+best_explorer_items	Predmeti:
+best_player	IGRAČ
+best_player_score	Poeni:
+best_sniper	STRELAC
+best_sniper_accuracy	Preciznost:
+best_sniper_shots	Hici:
+best_support	PODRŠKA
+best_support_healed	Izlečeno:
+best_support_saved	Spaseno:
+bind_text	Pritisnite taster
+black_market_faction	Crno tržište
+blackmarket_bring_x_items_descr	Oluja ne štedi ni nas ni neprijatelje. Za opstanak nam treba što više baterija u zaštitnom uređaju. Traži ih širom oblasti ili ih ukradi iz neprijateljske baze.
+blackmarket_bring_x_items_name	Zajednički cilj
+blackmarket_bring_x_items_obj	Pronađite i donesite baterije:
+blackmarket_entrap_enemies_descr	Šta si radio pre epidemije? Možda si postavljao zamke u šumi? Vreme je da se podsetiš tih veština, samo što sada loviš ljude!
+blackmarket_entrap_enemies_name	Krivolovac
+blackmarket_entrap_enemies_obj	Uhvatite neprijatelje u zamku:
+blackmarket_grenade_enemies_descr	Nema boljeg poklona od dobre granate, naročito bez osigurača! Ako si vešt, jedan poklon može obradovati više neprijatelja. Samo ga ne poklanjaj svom timu.
+blackmarket_grenade_enemies_name	Mali poklon!
+blackmarket_grenade_enemies_obj	Ubijte neprijatelje granatom u jednom meču:
+blackmarket_headshots_descr	Pancir može da spase život, ali ne štiti glavu. Ni šlem nije potpuna zaštita. Pogodak u glavu štedi vreme, municiju i živce.
+blackmarket_headshots_name	Pogoci u glavu
+blackmarket_headshots_obj	Ubijte neprijatelje pogotkom u glavu:
+blackmarket_kd_ratio_descr	Neka nas se plaše! Mi smo Crno tržište. Ne bojimo se smrti i rado ćemo sa sobom povesti dva ili tri neprijatelja!
+blackmarket_kd_ratio_name	Zastraši i vladaj!
+blackmarket_kd_ratio_obj	Pobedite u meču uz odnos ubistava i smrti od najmanje
+blackmarket_kill_enemies_descr	Kad se borba završi, neprijatelji razbeže, a plen podeli, lepo je sa prijateljima podeliti slavne trenutke. Pobrini se da imaš šta da ispričaš.
+blackmarket_kill_enemies_name	Lična stvar
+blackmarket_kill_enemies_obj	Ubijte protivnike u jednom meču:
+blackmarket_kill_enemy_x_descr	Sakupljači nisu naši najljući neprijatelji, ali povremeno ih treba postaviti na mesto. Najbolje jasnim primerom.
+blackmarket_kill_enemy_x_name	Lov na glave
+blackmarket_kill_enemy_x_obj	Ubijte pripadnike Sakupljača u jednom meču:
+blackmarket_killstreak_descr	Ponekad su neprijatelji brojniji. Neki to smatraju problemom. Mi smatramo da više poraženih neprijatelja donosi veću slavu.
+blackmarket_killstreak_name	Mašina smrti
+blackmarket_killstreak_obj	Ostvarite niz ubistava:
+blackmarket_level_0	Nepoznat
+blackmarket_level_1	Regrut
+blackmarket_level_2	Borac
+blackmarket_level_3	Vođa
+blackmarket_level_4	Centurion
+blackmarket_level_5	Elita
+blackmarket_level_unlock_0	Čestitamo! Dostupni su zadaci frakcije Crno tržište!
+blackmarket_level_unlock_1	Čestitamo! Novi čin: Regrut (Crno tržište).
+blackmarket_level_unlock_2	Čestitamo! Novi čin: Borac (Crno tržište).
+blackmarket_level_unlock_3	Čestitamo! Novi čin: Vođa (Crno tržište).
+blackmarket_level_unlock_4	Čestitamo! Novi čin: Centurion (Crno tržište).
+blackmarket_level_unlock_5	Čestitamo! Novi čin: Elita (Crno tržište).
+blackmarket_meele_kill_descr	Kad posao ne možeš obaviti čisto, uprljaj ruke. To nas razlikuje od ostalih. Dokaži da si jedan od nas — upotrebi ruke.
+blackmarket_meele_kill_name	Prljav posao
+blackmarket_meele_kill_obj	Ubijte neprijatelje u bliskoj borbi:
+blackmarket_represent	Morate nositi opremu Crnog tržišta.
+blackmarket_starter_bundle_descr	<white>Paket sadrži:\n- Banditsku jaknu.\n- Banditske pantalone.\n- Unapređeni UZI.\n- 2000 metaka 9x19 Parabellum.</white>
+blackmarket_starter_bundle_name	Paket Bandit
+blackmarket_steal_box_descr	Jednim udarcem dve muve! Krađom baterije neprijatelju slabiš zaštitu, a istovremeno pomažeš svom timu.
+blackmarket_steal_box_name	Pljačka
+blackmarket_steal_box_obj	Ukradite bateriju iz neprijateljske baze i donesite je u svoju.
+blackmarket_win_score_descr	Šta je bolje od pobede? Potpuna pobeda! Kad neprijatelji nemaju nikakve šanse, saterani u ugao mole da se košmar završi.
+blackmarket_win_score_name	Dominacija
+blackmarket_win_score_obj	Pobedite u meču sa donetim baterijama:
+blackmarket_win_x_games_descr	Ništa nije slađe od pobede! Plen, slava i poštovanje pripadaju pobedniku. A tu je i ugled među braćom Crnog tržišta!
+blackmarket_win_x_games_name	Živelo Crno tržište!
+blackmarket_win_x_games_obj	Pobedite u mečevima:
+bm_boots_1_desc	Upadljive kaubojske čizme. Pre katastrofe bile su obavezna oprema rokera i bajkera.
+bm_boots_1_name	Kozaci
+bm_boots_2_desc	Niske kožne čizme koje dobro štite noge. Pravi ih majstor Pauk u bazi Crnog tržišta i na svaku stavlja svoj znak. Udobnost smanjuje zamor tokom sprinta.
+bm_boots_2_name	Roper čizme
+bm_boots_3_desc	Masivne kaubojske čizme sa metalnim umecima i trakama. Pokazuju status u bandama Crnog tržišta.
+bm_boots_3_name	Čoper čizme
+bm_gloves_1_desc	Kožne rukavice bez prstiju, zgodne za tuču, rukovanje oružjem i punjenje lule pred put. Povećavaju brzinu punjenja oružja za 2%.
+bm_gloves_1_name	Bajkerske rukavice
+bm_gloves_2_desc	Teške rukavice ojačane metalnim šiljcima. Korisne kad ponestane metaka i ishod borbe odlučuju pesnice.
+bm_gloves_2_name	Rukavice sa šiljcima
+bm_helmet_1_desc	Kožni bajkerski šlem. Štiti glavu od udaraca teškim predmetima. Neizostavan je tokom obračuna boraca Crnog tržišta.
+bm_helmet_1_name	Bajkerski šlem
+bm_helmet_5_desc	Opis još nije dostupan.
+bm_helmet_5_name	Šlem Pljačkaš
+bm_legs_1_desc	Izdržljive farmerke iz opljačkane prodavnice. Štite noge od hladnoće, a džepovi primaju nekoliko zamki ili granata.
+bm_legs_1_name	Farmerke
+bm_legs_2_desc	Izdržljive farmerke ojačane štitnicima za kolena. Štite noge od hladnoće i povreda.
+bm_legs_2_name	Ojačane farmerke
+bm_legs_4_desc	Opis još nije dostupan.
+bm_legs_4_name	Banditske pantalone
+bm_legs_5_desc	Opis još nije dostupan.
+bm_legs_5_name	Pantalone Pljačkaš
+bm_mask_1_desc	Opis još nije dostupan.
+bm_mask_1_name	Maska Korsar
+bm_rep_modifier	Ugled kod Crnog tržišta
+bm_torso_1_desc	Bajkerska jakna bez rukava, znak pripadnosti Crnom tržištu. Štiti od hladnoće i nevremena. Ima posebne džepove za dodatnu municiju, zamke i granate.
+bm_torso_1_name	Kožni prsluk
+bm_torso_2_desc	Teška jakna od debele kože sa zakovicama i zaštitnim pločama. Ime je dobila po krupnim borcima Crnog tržišta koji su je prvi nosili. Lobanja na rukavu pokazuje neustrašivost pred smrću.
+bm_torso_2_name	Siledžijska jakna
+bm_torso_3_desc	Teška kožna jurišna jakna Crnog tržišta, ojačana metalnim pločama. Juriš borca u Korsaru zastrašuje i iskusne preživele. Ima džepove za dodatnu municiju, zamke i granate.
+bm_torso_3_name	Jakna Korsar
+bm_torso_4_desc	Opis još nije dostupan.
+bm_torso_4_name	Banditska jakna
+bm_torso_5_desc	Opis još nije dostupan.
+bm_torso_5_name	Jakna Pljačkaš
+bonus_day	Dan
+bonus_victory	Bonus za pobedu
+border_faction	Naseljenici sa oboda
+born_leader_compliment	Rođeni komandant
+bot_or_cheater_claim	Bot ili varalica
+breath_holding_time_description	Vreme zadržavanja daha:
+breath_holding_time_name	Gvozdena pluća
+bring_item_to_base	Donesite bateriju u svoju bazu!
+btn_add_premium_label	Nabavi zlato
+btn_add_premium_message	Nabavi zlato
+btn_add_rank_label	Dodaj čin
+btn_become_commander	Postani komandant
+btn_cancel_decal	Otkaži
+btn_change_name_label	Promeni nadimak
+btn_chat	Ćaskanje
+btn_clan_team_invite_memeber	Pozovi
+btn_close_upgrades_label	Završi promenu izgleda predmeta
+btn_craft_accept	Spremno
+btn_craft_label	Unapredi
+btn_create_clan_team	Napravi tim
+btn_disband_clan_label	Raspusti
+btn_disband_clan_team	Raspusti tim
+btn_end_tutorial_label	Završi
+btn_equipment	Oprema
+btn_exchange_premium_money	Zameni zlato za rublje
+btn_exit_label	Izađi
+btn_find_player	Pronađi igrača
+btn_friends	Prijatelji
+btn_friends_online_filter	Prijatelji na mreži
+btn_go_to_online_store	Nastavi
+btn_invite_clan_memeber_label	Pozovi
+btn_item_craft	Unapredi
+btn_join_team	Pridruži se
+btn_kick_clan_memeber_label	Izbaci
+btn_knowledge_base	Baza znanja
+btn_leave_clan_label	Napusti
+btn_leave_clan_team	Napusti tim
+btn_no	Ne
+btn_not_ready	Nisam spreman
+btn_paperdoll	Oprema
+btn_premium_hint	Aktiviraj premijum nalog
+btn_rank_down_clan_memeber_label	Snizi čin
+btn_rank_up_clan_memeber_label	Unapredi čin
+btn_ready	Spreman
+btn_remove_rank_label	Ukloni čin
+btn_reroll_change_label	Promeni
+btn_reroll_choose_label	Izaberi
+btn_reroll_label	Modifikacija
+btn_settings_label	Podešavanja
+btn_show_log_list	Istorija
+btn_show_log_list_hint	Prikaži događaje iz tekuće sesije
+btn_upgrade_hint	Izmeni predmet
+btn_upgrade_label	Izgled
+btn_use_item	Upotrebi predmet
+btn_yes	Da
+bundle_clik_hint	Kliknite na paket za više informacija
+button_buy_profile_text	Kupi profil lika
+button_exit	Zatvori
+button_skip_tutorial_label	Preskoči obuku
+buy	Kupi
+buy_post_premium	Preuzmi bonuse
+buy_premium_with_discount	Kupite sada uz popust!
+buy_profile_confirmation_text	Želite li da napravite novog lika?
+buy_profile_price_text	Cena profila: 
+buy_treasure_maps	Kupi mapu
+camo_black_leather_01_name	Gavran
+camo_black_leather_name	Crna smrt
+camo_blue_leather_name	Povetarac
+camo_brown_leather_01_name	Koža 2
+camo_brown_leather_02_name	Koža 3
+camo_brown_leather_03_name	Koža 4
+camo_brown_leather_04_name	Koža 5
+camo_brown_leather_05_name	Ifrit
+camo_brown_leather_name	Koža
+camo_camouflage_green_01_name	Lovnik
+camo_camouflage_green_name	Hrast
+camo_chemical_fabric_01_name	Zeleno ABHO odelo
+camo_chemical_fabric_02_name	Zeleno lišće
+camo_chemical_fabric_03_name	Plavo nebo
+camo_city_camo_name	Panter
+camo_cyfra_01_camo_name	Digitalna N
+camo_cyfra_02_camo_name	Digitalna
+camo_cyfra_03_camo_name	Ratnik
+camo_denim_01_name	Tamni teksas
+camo_denim_name	Teksas
+camo_desert_camo_name	Pustinja
+camo_fabric_brown_01_name	Suva zemlja
+camo_fabric_brown_02_name	Pustinjska oluja
+camo_fabric_brown_03_name	Škorpion
+camo_fabric_brown_name	Smeđa tkanina
+camo_fabric_camouflage_name	Preživeli
+camo_fabric_green_01_name	Zelena tkanina
+camo_fabric_green_name	Bela tkanina
+camo_fabric_grey_name	Duh
+camo_flecktarn_01_camo_name	Flektarn
+camo_flecktarn_02_camo_name	Šuma
+camo_generic_desc	Promenite izgled prsluka i pantalona pomoću kamuflaže u prozoru opreme.
+camo_green_leather_name	Zelena koža
+camo_izlom_name	Prelom
+camo_khaki_fabric_01_name	Vreo pesak
+camo_khaki_fabric_02_name	Vrelo sunce
+camo_khaki_fabric_03_name	Prašina
+camo_multicam_name	Fatamorgana
+camo_new_year	Nova godina 2015.
+camo_quilted_fabric_name	Prošivena tkanina
+camo_red_leather_name	Legionar
+camo_rubber_green_01_name	Tragač
+camo_rubber_green_02_name	Žuta guma
+camo_rubber_green_name	Zelena guma
+camo_slot	Kamuflaža
+camo_spekrt_01_name	Spektar — jesen
+camo_spekrt_02_name	Spektar — proleće
+camo_spekrt_03_name	Spektar — leto
+camo_steam	Steam kamuflaža
+camo_suede_leather_name	Antilop
+camo_yellow_leather_name	Žuta koža
+can_be_installed_on	Može da se postavi na
+can_sprint_description	Možete sprintati i kada ste preopterećeni.
+can_sprint_name	Sprint
+cancel	Otkaži
+cannot_buy_item	Kupovina predmeta nije uspela.
+cannot_craft_item	Ovaj predmet ne može da se unapredi.
+cannot_pickup_item	Već nosite kontejner!
+cannot_pickup_item_broken_hand	Ruke su vam povređene! Ne možete da podignete kontejner.
+cannot_relocate_item	Predmet ne može da se premesti.
+cannot_repair_item	Popravka predmeta nije uspela.
+cannot_reroll_skills	Greška pri poništavanju veština.
+cannot_select_rerolled_modification	Greška pri promeni modifikacije.
+cannot_upgrade_item	Greška pri izmeni predmeta. Pokušajte ponovo.
+cannot_use_drop_card	Mapa skrovišta ne može da se upotrebi.
+cant_add_clan_member	Greška pri dodavanju igrača u klan.
+cant_add_clan_team_member	Greška pri dodavanju igrača u tim.
+cant_buy_clan_registration	Greška pri plaćanju registracije klana.
+cant_buy_premium_message	Nemate dovoljno zlatnih rubalja za kupovinu.
+cant_cancel_clan_registration	Greška pri otkazivanju registracije klana.
+cant_change_clan_team_battle_status	Greška pri promeni položaja u timu.
+cant_change_commander_team_role	Uloga komandanta ne može da se promeni.
+cant_change_permission	Greška pri promeni ovlašćenja.
+cant_change_rank_clan_member	Greška pri promeni čina igrača.
+cant_change_ready_state	Greška pri promeni statusa spremnosti.
+cant_change_role_himself	Ne možete da promenite sopstveni čin.
+cant_change_status_clan_team_member	Greška pri promeni statusa igrača.
+cant_clan_match_closed	Greška pri napuštanju tima klana.
+cant_create_clan	Greška pri osnivanju klana.
+cant_create_clan_rank	Greška pri stvaranju čina u klanu.
+cant_create_clan_team	Greška pri stvaranju tima.
+cant_delete_default_rank	Podrazumevani čin ne može da se ukloni.
+cant_disband_clan_team	Greška pri raspuštanju tima.
+cant_find_player	Igrač sa tim imenom nije pronađen.
+cant_invite_player_to_clan	Greška pri pozivanju igrača u klan.
+cant_invite_player_to_clan_team	Greška pri pozivanju igrača u tim.
+cant_kick_himself	Ne možete da izbacite sebe iz klana.
+cant_kick_member	Greška pri izbacivanju igrača iz klana.
+cant_leave_clan_team	Greška pri napuštanju tima.
+cant_oust_commander	Greška pri promeni komandanta.
+cant_oust_yourself	Ne možete da izbacite sebe iz tima.
+cant_rank_up_clan_member	Greška pri unapređenju čina igrača.
+cant_remove_clan_rank	Greška pri uklanjanju čina iz klana.
+cant_remove_clan_team_member	Greška pri izbacivanju igrača iz tima.
+cant_remove_yourself	Ne možete da isključite sebe iz tima.
+cant_request_to_join_clan_team	Greška pri prijavi za tim klana.
+cant_reserve_clan	Greška pri rezervaciji imena.
+cant_set_clan_team_commander	Greška pri postavljanju komandanta tima klana.
+cant_set_daily_message	Greška pri postavljanju dnevne poruke.
+cant_set_yourself	Ne možete sebe da postavite za komandanta tima.
+cant_upgrade_while_repair_hint	Predmet ne može da se unapredi tokom popravke.
+capture_info	Zauzimanje uređaja…
+chamber_a_round_description	Brzina repetiranja:
+chamber_a_round_name	Kontrola okidača
+change	Preimenuj
+change_name_error	Greška pri promeni imena lika.
+change_name_label	Promeni nadimak
+change_order	Promeni redosled
+change_profile	Promeni profil
+change_quest	Promeni zadatak
+change_quest_label	Promeni zadatak
+change_weapon_speed_description	Brzina zamene oružja:
+change_weapon_speed_name	Vešte ruke
+character	Lik
+character_decals_1_12_name	Jarilo
+character_decals_1_1_name	Književnik
+character_decals_1_2_name	Odred Alfa
+character_decals_1_3_name	Preživeli
+character_decals_1_4_name	Istraživač
+character_decals_1_5_name	Veteran
+character_decals_1_6_name	Glavna jačina zvuka
+character_decals_1_7_name	Legenda
+character_decals_1_8_name	Krilati husari
+character_decals_2_1_name	Početnik Sakupljača
+character_decals_2_2_name	Veteran Sakupljača
+character_decals_2_3_name	Regrut Crnog tržišta
+character_decals_2_4_name	Elita Crnog tržišta
+character_decals_2_5_name	Vojnik Vojske preporoda
+character_decals_2_6_name	Pukovnik Vojske preporoda
+character_decals_2_7_name	Lovac Naseljenika sa oboda
+character_decals_2_8_name	Magistar Naseljenika sa oboda
+character_decals_3_10_name	Smrtonosan
+character_decals_3_11_name	Životinjska lobanja
+character_decals_3_12_name	Metak
+character_decals_3_13_name	Granata
+character_decals_3_14_name	Prva pomoć
+character_decals_3_15_name	Nišan
+character_decals_3_16_name	Specnaz
+character_decals_3_17_name	VDV
+character_decals_3_18_name	Stotina
+character_decals_3_19_name	Bodež
+character_decals_3_1_name	Biološka opasnost
+character_decals_3_20_name	Amblem atoma
+character_decals_3_21_name	Spirala DNK
+character_decals_3_2_name	Zabranjeno oružje
+character_decals_3_3_name	Anarhija
+character_decals_3_4_name	Gusar
+character_decals_3_5_name	Radioaktivnost
+character_decals_3_6_name	Eksplozivno
+character_decals_3_7_name	Zabranjena Šuma
+character_decals_3_8_name	Drvo života
+character_decals_3_9_name	Peščani sat
+character_decals_4_10_name	Zastava Gruzije
+character_decals_4_11_name	Zastava Uzbekistana
+character_decals_4_12_name	Zastava Tadžikistana
+character_decals_4_13_name	Zastava Kirgistana
+character_decals_4_14_name	Zastava Turkmenistana
+character_decals_4_15_name	Zastava Azerbejdžana
+character_decals_4_16_name	Zastava Jermenije
+character_decals_4_17_name	Zastava Nemačke
+character_decals_4_18_name	Zastava Velike Britanije
+character_decals_4_19_name	Zastava Francuske
+character_decals_4_1_name	Zastava SSSR-a
+character_decals_4_20_name	Zastava Italije
+character_decals_4_21_name	Zastava Španije
+character_decals_4_22_name	Zastava Poljske
+character_decals_4_23_name	Zastava Rumunije
+character_decals_4_24_name	Zastava Holandije
+character_decals_4_25_name	Zastava Grčke
+character_decals_4_26_name	Zastava Portugalije
+character_decals_4_27_name	Zastava Češke
+character_decals_4_28_name	Zastava Belgije
+character_decals_4_29_name	Zastava Mađarske
+character_decals_4_2_name	Zastava Rusije
+character_decals_4_30_name	Zastava Švedske
+character_decals_4_31_name	Zastava Austrije
+character_decals_4_32_name	Zastava Švajcarske
+character_decals_4_33_name	Zastava Bugarske
+character_decals_4_34_name	Zastava Srbije
+character_decals_4_35_name	Zastava Danske
+character_decals_4_36_name	Zastava Slovačke
+character_decals_4_37_name	Zastava Norveške
+character_decals_4_38_name	Zastava Irske
+character_decals_4_39_name	Zastava Hrvatske
+character_decals_4_3_name	Zastava Ukrajine
+character_decals_4_40_name	Zastava Bosne i Hercegovine
+character_decals_4_41_name	Zastava Turske
+character_decals_4_42_name	Zastava SAD-a
+character_decals_4_43_name	Zastava Kanade
+character_decals_4_44_name	Zastava Brazila
+character_decals_4_45_name	Zastava Argentine
+character_decals_4_46_name	Zastava Australije
+character_decals_4_47_name	Zastava Finske
+character_decals_4_48_name	Zastava Novog Zelanda
+character_decals_4_49_name	Zastava Irske
+character_decals_4_4_name	Zastava Belorusije
+character_decals_4_50_name	Zastava Škotske
+character_decals_4_51_name	Zastava Engleske
+character_decals_4_52_name	Zastava Južne Koreje
+character_decals_4_53_name	Zastava Japana
+character_decals_4_54_name	Zastava Kine
+character_decals_4_55_name	Zastava Indije
+character_decals_4_56_name	Zastava Indonezije
+character_decals_4_57_name	Zastava Malezije
+character_decals_4_58_name	Zastava Filipina
+character_decals_4_59_name	Zastava Tajlanda
+character_decals_4_5_name	Zastava Kazahstana
+character_decals_4_60_name	Zastava Vijetnama
+character_decals_4_61_name	Zastava Bolivije
+character_decals_4_62_name	Zastava Čilea
+character_decals_4_63_name	Zastava Kolumbije
+character_decals_4_64_name	Zastava Ekvadora
+character_decals_4_65_name	Zastava Paragvaja
+character_decals_4_66_name	Zastava Perua
+character_decals_4_67_name	Zastava Urugvaja
+character_decals_4_68_name	Zastava Venecuele
+character_decals_4_69_name	Zastava Albanije
+character_decals_4_6_name	Zastava Letonije
+character_decals_4_70_name	Zastava Kube
+character_decals_4_71_name	Zastava Slovenije
+character_decals_4_72_name	Zastava Angole
+character_decals_4_73_name	Zastava Nigerije
+character_decals_4_74_name	Zastava Južnoafričke Republike
+character_decals_4_75_name	Zastava Velsa
+character_decals_4_7_name	Zastava Litvanije
+character_decals_4_8_name	Zastava Estonije
+character_decals_4_9_name	Zastava Moldavije
+character_decals_5_10_name	Grb Gruzije
+character_decals_5_11_name	Grb Uzbekistana
+character_decals_5_12_name	Grb Tadžikistana
+character_decals_5_13_name	Grb Kirgistana
+character_decals_5_14_name	Grb Turkmenistana
+character_decals_5_15_name	Grb Azerbejdžana
+character_decals_5_16_name	Grb Jermenije
+character_decals_5_17_name	Amblem NATO-a
+character_decals_5_18_name	Amblem UN-a
+character_decals_5_19_name	Grb Nemačke
+character_decals_5_1_name	Crvena zvezda
+character_decals_5_20_name	Grb Velike Britanije
+character_decals_5_21_name	Grb Francuske
+character_decals_5_22_name	Grb Italije
+character_decals_5_23_name	Grb Španije
+character_decals_5_24_name	Grb Poljske
+character_decals_5_25_name	Grb Rumunije
+character_decals_5_26_name	Grb Holandije
+character_decals_5_27_name	Grb Grčke
+character_decals_5_28_name	Grb Portugalije
+character_decals_5_29_name	Grb Češke
+character_decals_5_2_name	Grb Rusije
+character_decals_5_30_name	Grb Belgije
+character_decals_5_31_name	Grb Mađarske
+character_decals_5_32_name	Grb Švedske
+character_decals_5_33_name	Grb Austrije
+character_decals_5_34_name	Grb Švajcarske
+character_decals_5_35_name	Grb Bugarske
+character_decals_5_36_name	Grb Srbije
+character_decals_5_37_name	Grb Danske
+character_decals_5_38_name	Grb Slovačke
+character_decals_5_39_name	Grb Norveške
+character_decals_5_3_name	Grb Ukrajine
+character_decals_5_40_name	Grb Irske
+character_decals_5_41_name	Grb Hrvatske
+character_decals_5_42_name	Grb Bosne i Hercegovine
+character_decals_5_4_name	Grb Belorusije
+character_decals_5_5_name	Grb Kazahstana
+character_decals_5_6_name	Grb Litvanije
+character_decals_5_7_name	Grb Litvanije
+character_decals_5_8_name	Grb Estonije
+character_decals_5_9_name	Grb Moldavije
+character_decals_7_27_name	Ukras detelina
+character_decals_7_28_name	Potkovica
+character_decals_7_9_name	Bilje
+character_decals_generic_desc	Promenite izgled prsluka i pantalona pomoću oznaka u prozoru opreme.
+characteristics_label	Statistika igrača
+chat_channel_clan	Ćaskanje klana
+chat_channel_clan_team	Tim klana
+chat_channel_general	Opšte ćaskanje
+chat_channel_match	Svi
+chat_channel_private	Privatno
+chat_channel_squad	Odred
+chat_channel_system	Sistem
+chat_channel_team	Tim
+checkbox_battle_commander_permission	Terenski komandant
+checkbox_clan_change_rank_permission	Promena činova igrača
+checkbox_clan_daily_message_permission	Promena dnevne poruke
+checkbox_clan_invite_permission	Pozivanje
+checkbox_clan_member_kick_permission	Izbacivanje
+checkbox_compare_items	Poređenje predmeta
+checkbox_compare_items_hint	Prikaži opis opremljenog predmeta
+checkbox_players_live_search	Pretraga igrača uživo
+checkbox_show_locked_items	Nedostupno
+checkbox_show_locked_items_hint	Prikaži nedostupne predmete
+checkbox_show_offline_players	Prikaži igrače van mreže
+checkbox_show_player_groups	Prikaži grupe igrača
+checkbox_show_shop_items	Prodavnica
+checkbox_show_shop_items_hint	Prikaži predmete iz prodavnice
+choose	Izaberi
+choose_faction_button_hint	Izaberi frakciju
+choose_faction_description	Frakcije su glavni dobavljači opreme, oružja i municije. Izvršavanjem njihovih zadataka stičete ugled i pristup boljoj robi. Istovremeno možete sarađivati samo sa jednom frakcijom.
+choose_faction_label	Izaberi frakciju
+choose_modifier	Promeni modifikator:
+choose_premium_subscription	Izaberi premijum pretplatu:
+claim_player	Prijavi igrača
+claims_count_per_day_owerflow	Dostigli ste dnevno ograničenje broja prijava.
+claims_count_per_user_owerflow	Istog igrača ne možete prijaviti dvaput dnevno!
+clan	Klan
+clan_abbr_is_not_valid	Ova skraćenica je već zauzeta.
+clan_abbreviation	Skraćenica klana
+clan_abbreviation_default_text	Izaberite skraćenicu
+clan_abbreviation_info	(od 3 do 6 znakova)
+clan_accept_button_label	Registruj
+clan_buy_registration_button_label	Plati
+clan_cancel_button_label	Otkaži registraciju
+clan_control_tab	Upravljanje klanom
+clan_creation_info_description	Za registraciju klana potrebna vam je podrška najmanje 5 igrača. Nakon registracije oni će se automatski pridružiti klanu.
+clan_creation_info_label	Prikupite podršku igrača
+clan_daily_message	Dnevna poruka
+clan_invite_1	Igrač
+clan_invite_2	je uspešno pozvan u klan.
+clan_invite_accepted	Prihvaćeno
+clan_invite_pending	Čeka se odgovor na poziv u klan
+clan_invite_player_button_label	Pozovi
+clan_invite_rejected	Odbijeno
+clan_kick_1	Da li zaista želite da izbacite igrača
+clan_kick_2	iz klana?
+clan_leave_button_label	Napusti klan
+clan_level_label	Nivo klana
+clan_level_up_1	Naš klan je dostigao
+clan_level_up_2	nivo.
+clan_manage_window_label	Klan
+clan_max_members_count_error	Dostigli ste najveći broj članova klana.
+clan_member_joined	se pridružio klanu.
+clan_member_kicked	je izbačen iz klana.
+clan_member_left	je napustio klan.
+clan_name	Ime klana
+clan_name_and_abbr_are_not_valid	Ovo ime ili skraćenica je već zauzeto.
+clan_name_default_text	Unesite ime klana
+clan_name_is_not_valid	Ovo ime je već zauzeto.
+clan_options_tab	Podešavanja
+clan_players_level_label	Nivo
+clan_players_list_availabe_postfix	moguće
+clan_players_list_availabe_prefix	Spisak igrača 
+clan_players_name_label	Ime
+clan_players_rank_label	Čin
+clan_players_ready	Spreman
+clan_players_status_label	Status
+clan_rank	Rang klana
+clan_rank_assistant	Zamenik komandanta
+clan_rank_commander	Komandant
+clan_rank_soldier	Vojnik
+clan_rank_warlord	Narednik
+clan_registration_cost	Cena\nregistracije
+clan_registration_paid	Plaćeno
+clan_reserve_name_button_label	Otvori račun
+clan_system_message_sender	Sistemska poruka klana
+clan_team_commander	Terenski komandant
+clan_team_invite_2	je uspešno pozvan u tim klana.
+clan_team_invites	Prijave
+clan_team_is_full	Dostignut je najveći broj igrača za klansku borbu.
+clan_team_reserve	Rezerva
+clan_team_soldier	Sastav tima
+clan_team_window_label	Sastav tima
+clan_was_disbanded	Komandant je raspustio vaš klan.
+clan_window_close_message	Želite li zaista da napustite tim?
+clan_window_close_message_commander	Želite li zaista da napustite tim?
+clan_window_label	Registracija klana
+clear	Očisti
+close	Zatvori
+collect_statistics_option	Omogući prikupljanje statistike
+compliment_count_per_day_owerflow	Dostigli ste dnevno ograničenje broja pohvala.
+compliment_count_per_user_owerflow	Istog igrača ne možete pohvaliti dvaput dnevno!
+compliment_player	Pohvali
+confirm	Potvrdi
+conflict_message	Ova dodela tastera promeniće sledeće:
+convert_weapon_slot_to_pocket_description	Dobijate dodatno mesto za specijalnu opremu, ali ne možete nositi drugo oružje.
+convert_weapon_slot_to_pocket_name	Duboki džepovi
+cost	Cena
+count	Količina
+craft	Unapredi
+craft_message_broken_item	Oštećeni predmet ne može da se unapredi.
+craft_message_equipped_item	Opremljeni predmet ne može da se unapredi tokom traženja meča.
+craft_message_modifers_count	Dostignut je najveći broj modifikatora. Predmet ne može dalje da se unapredi.
+craft_message_modifiers_difference	Predmet sa više modifikatora ne može biti donor. Želite li da zamenite predmete?
+craft_result_fail_label	Nažalost, neuspešan pokušaj je pogoršao predmet.
+craft_result_neutral_label	Nažalost, unapređenje predmeta nije uspelo.
+craft_result_success_label	Predmet je uspešno unapređen!
+critical_damages	Kritična oštećenja
+crosshair_static_option	Statični nišan
+crosshair_type_option	Izbor nišana
+crouch_action	Čučni (drži)
+crouch_toggle_action	Čučni
+ct_max_members_count_error	Tim klana već ima najveći broj igrača.
+current_value	\nTrenutna vrednost:
+daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
+daily_bonus_hint	Prikaži ekran dobrodošlice
+daily_bonus_label	Dobro došli nazad
+daily_bonus_progress	Vaš današnji napredak
+daily_bonus_reward_complete	<gold>Završeno</gold>
+daily_bonus_reward_description	<gold>Sedmog dana</gold> dobijate
+daily_bonus_victories	pobede
+daily_message_label	Poruka dana:
+day_short	d.
+dealy_breath_action	Zadrži dah
+decal_editor_description	Levi taster miša - postavi oznaku\nALT - rotiraj oznaku\nCTRL - promeni veličinu
+decal_editor_label	Režim uređivanja
+decal_slot	Oznaka
+decorations_options	Kvalitet dekoracija
+default_profile_name1	Profil 1
+default_profile_name2	Profil 2
+default_profile_name3	Profil 3
+default_scope_name	Fabrički nišan
+defeat	Poraz
+defuse_trap	Onesposobi ({USE})
+disband_clan_message	Želite li zaista da raspustite klan?
+disband_clan_money_message	Želite li zaista da raspustite klan? Srebro uplaćeno za registraciju biće izgubljeno.
+disband_squad	Raspusti odred
+disconnected_from_lobby	Prekinuta je veza sa serverom predvorja!
+dispersion_correction_perc_name	Rasipanje pri paljbi sa boka
+dispersion_from_hip_description	Preciznost pri paljbi sa boka:
+dispersion_from_hip_name	Preciznost
+dispersion_movement_influence_description	Preciznost u pokretu:
+dispersion_movement_influence_name	Čvrst stisak
+dont_have_permission	Nemate dovoljno ovlašćenja za ovu radnju.
+drop	Skini
+drop_action	Baci
+drop_card_descr	Upotrebite mapu skrovišta posle meča da pronađete više predmeta.
+drop_card_name	Mapa skrovišta
+duty_026_boots_desc	Teške oklopljene čizme koje borci Dužnosti nose uz teški oklop.
+duty_026_boots_name	Čizme Dužnosti
+duty_026_gloves_desc	Ojačane rukavice bez prstiju koje borci Dužnosti nose uz teški oklop.
+duty_026_gloves_name	Rukavice Dužnosti
+duty_026_head_desc	Zaptiveni šlem eksperimentalnog egzoskeleta Dužnosti sa ugrađenim respiratorom. Pokriva celu glavu i lice.
+duty_026_helmet_name	Šlem egzoskeleta Dužnosti
+duty_026_suit_desc	Eksperimentalni vojni egzoskelet. Zbog velike cene i konstrukcionih mana nikada nije masovno proizvođen. Male serije i dalje nastaju u tajnim pogonima van Ukrajine. Ima ugrađen kontejner za artefakte.
+duty_026_suit_name	Egzoskelet Dužnosti
+edge_accuracy_descr	Jedan precizan hitac vredi više od deset metaka ispaljenih u prazno, naročito sada kada je svaki metak dragocen. Dokaži da zaslužuješ ime lovca.
+edge_accuracy_name	Oštrooki strelac
+edge_accuracy_obj	Pobedite u meču sa preciznošću:
+edge_back_1_desc	Naseljenici sa oboda su stručnjaci za artefakte. Ako umeš da ih nađeš i koristiš, ovaj veliki kontejner za dva artefakta je pouzdan izbor.
+edge_back_1_name	Kontejner Dar 2M
+edge_back_2_desc	Opis još nije dostupan.
+edge_back_2_name	Stalkerski ranac
+edge_back_3_desc	Opis još nije dostupan.
+edge_back_3_name	Sistem za disanje Povetarac
+edge_back_5_desc	Opis još nije dostupan.
+edge_back_5_name	Kontejner Lutalica
+edge_back_6_desc	Opis još nije dostupan.
+edge_back_6_name	Kontejner Hodočasnik
+edge_boots_1_desc	Visoke, lake čizme sa mekim đonom. Odlične za prikradanje plenu i manje zamaraju na dugim putovanjima.
+edge_boots_1_name	Lovačke čizme
+edge_boots_2_desc	Opis još nije dostupan.
+edge_boots_2_name	Stalkerske čizme
+edge_boots_3_desc	Opis još nije dostupan.
+edge_boots_3_name	Istraživačke čizme
+edge_boots_4_desc	Opis još nije dostupan.
+edge_boots_4_name	Majstorske čizme
+edge_boots_5_desc	Opis još nije dostupan.
+edge_boots_5_name	Čuvarske čizme
+edge_boots_6_desc	Opis još nije dostupan.
+edge_boots_6_name	Čizme Hodočasnik
+edge_bring_x_items_descr	Zemlja ne podnosi nasilje. Svaka iskra agresije izaziva odgovor prirode koji zovemo Oluja. Naučili smo da se štitimo, ali moramo pronaći baterije za zaštitni uređaj.
+edge_bring_x_items_name	Tragač
+edge_bring_x_items_obj	Pronađite i donesite baterije:
+edge_defend_items_descr	Zaštita sopstvene teritorije sveta je dužnost Naseljenika sa oboda. Ako ne možeš zaštititi bazu od pljačke, kako ćeš spasiti čovečanstvo od istrebljenja?
+edge_defend_items_name	Čuvar
+edge_defend_items_obj	Pobedite u meču bez gubitka baterija
+edge_find_artifacts_descr	Naša snaga je sklad sa prirodom. Artefakti su dar nečega mudrijeg od nas. Ako nam pomažu da preživimo, bilo bi glupo da ih ne koristimo.
+edge_find_artifacts_name	Darovi prirode
+edge_find_artifacts_obj	Pronađite artefakte u jednom meču:
+edge_gloves_2_desc	Opis još nije dostupan.
+edge_gloves_2_name	Stalkerske rukavice
+edge_gloves_3_desc	Opis još nije dostupan.
+edge_gloves_3_name	Istraživačke rukavice
+edge_gloves_4_desc	Opis još nije dostupan.
+edge_gloves_4_name	Majstorske rukavice
+edge_gloves_5_desc	Opis još nije dostupan.
+edge_gloves_5_name	Čuvarske rukavice
+edge_gloves_6_desc	Opis još nije dostupan.
+edge_gloves_6_name	Rukavice Hodočasnik
+edge_grenade_enemies_descr	Kad oružje ne probija pancir, granata uvek dobro dođe. Jedno precizno bacanje pretvoriće protivnika u hranu za crve.
+edge_grenade_enemies_name	Bacač
+edge_grenade_enemies_obj	Ubijte neprijatelje granatom u jednom meču:
+edge_headshots_descr	U stvarnom svetu nasilje je teško izbeći. Ako već moramo ubiti neprijatelja, učinimo to brzo — pogotkom u glavu.
+edge_headshots_name	Milost
+edge_headshots_obj	Ubijte neprijatelje pogotkom u glavu:
+edge_helmet_1_desc	Kapuljača od čvrste kože štiti od kiše, sitnih krhotina i slabijih metaka.
+edge_helmet_1_name	Lovačka kapuljača
+edge_helmet_3_desc	Opis još nije dostupan.
+edge_helmet_3_name	Istraživačka kapa
+edge_helmet_4_desc	Opis još nije dostupan.
+edge_helmet_4_name	Majstorska kapuljača
+edge_helmet_5_desc	Opis još nije dostupan.
+edge_helmet_5_name	Šlem Čuvar
+edge_helmet_6_desc	Opis još nije dostupan.
+edge_helmet_6_name	Šlem Hodočasnik
+edge_kd_ratio_descr	Jesi li žrtva ili grabljivac? Lovac ili plen? Posle apokalipse svako brine o sebi. Preživljavaju samo najjači.
+edge_kd_ratio_name	Prirodna selekcija
+edge_kd_ratio_obj	Pobedite u meču uz odnos ubistava i smrti od najmanje
+edge_legs_1_desc	Pantalone od debele kože mutanata štite od anomalija i metaka malog kalibra. Povećavaju brzinu kretanja za 3%.
+edge_legs_1_name	Lovačke pantalone
+edge_legs_2_desc	Opis još nije dostupan.
+edge_legs_2_name	Stalkerske pantalone
+edge_legs_3_desc	Opis još nije dostupan.
+edge_legs_3_name	Istraživačke pantalone
+edge_legs_4_desc	Opis još nije dostupan.
+edge_legs_4_name	Pantalone Leši
+edge_legs_5_desc	Opis još nije dostupan.
+edge_legs_5_name	Pantalone Čuvar
+edge_legs_6_desc	Opis još nije dostupan.
+edge_legs_6_name	Pantalone Hodočasnik
+edge_level_0	Nepoznat
+edge_level_1	Lovac
+edge_level_10	Magistar
+edge_level_2	Lovnik
+edge_level_3	Lutalica
+edge_level_4	Tragač
+edge_level_5	Posvećenik
+edge_level_6	Starešina
+edge_level_7	Glavna jačina zvuka
+edge_level_8	Vidovnjak
+edge_level_9	Čuvar
+edge_level_unlock_0	Čestitamo! Dostupni su zadaci frakcije Naseljenici sa oboda!
+edge_level_unlock_1	Čestitamo! Novi čin: Lovac (Naseljenici sa oboda).
+edge_level_unlock_10	Čestitamo! Novi čin: Magistar (Naseljenici sa oboda).
+edge_level_unlock_2	Čestitamo! Novi čin: Lovnik (Naseljenici sa oboda).
+edge_level_unlock_3	Čestitamo! Novi čin: Lutalica (Naseljenici sa oboda).
+edge_level_unlock_4	Čestitamo! Novi čin: Tragač (Naseljenici sa oboda).
+edge_level_unlock_5	Čestitamo! Novi čin: Posvećenik (Naseljenici sa oboda).
+edge_level_unlock_6	Čestitamo! Novi čin: Starešina (Naseljenici sa oboda).
+edge_level_unlock_7	Čestitamo! Novi čin: Majstor (Naseljenici sa oboda).
+edge_level_unlock_8	Čestitamo! Novi čin: Vidovnjak (Naseljenici sa oboda).
+edge_level_unlock_9	Čestitamo! Novi čin: Čuvar (Naseljenici sa oboda).
+edge_mask_2_desc	Opis još nije dostupan.
+edge_mask_2_name	Uređaj za noćno osmatranje
+edge_mask_5_desc	Opis još nije dostupan.
+edge_mask_5_name	Maska Čuvar
+edge_meele_kill_descr	Priroda je stvorila čoveka snažnim i hrabrim. Oružje ga je učinilo slabijim i plašljivijim. Ne pucaj kada nije neophodno.
+edge_meele_kill_name	Zakoni prirode
+edge_meele_kill_obj	Ubijte neprijatelje u bliskoj borbi:
+edge_rep_modifier	Ugled kod Naseljenika sa oboda
+edge_represent	Morate nositi opremu Naseljenika sa oboda.
+edge_reps_3_desc	Opis još nije dostupan.
+edge_resp_1_desc	Opis još nije dostupan.
+edge_resp_1_name	Respirator Malahit
+edge_resp_3_name	Gas-maska Smaragd
+edge_steal_box_descr	Ne moraš svojim rukama uništiti neprijatelje. Dovoljno je da oslabiš njihovu zaštitu od Oluje. Priroda će uraditi ostalo.
+edge_steal_box_name	Tajni upad
+edge_steal_box_obj	Ukradite bateriju iz neprijateljske baze i donesite je u svoju.
+edge_torso_1_desc	Lovačka kožna jakna sa amajlijama protiv besa prirode. Vučja koža tera grabljivce i plaši neprijatelje. Praktična torbica pruža mesto za predmete.
+edge_torso_1_name	Lovačka jakna
+edge_torso_2_desc	Opis još nije dostupan.
+edge_torso_2_name	Stalkerska jakna
+edge_torso_3_desc	Opis još nije dostupan.
+edge_torso_3_name	Istraživačka jakna
+edge_torso_4_desc	Opis još nije dostupan.
+edge_torso_4_name	Prsluk Leši
+edge_torso_5_desc	Opis još nije dostupan.
+edge_torso_5_name	Pancir Čuvar
+edge_torso_6_desc	Opis još nije dostupan.
+edge_torso_6_name	Pancir Hodočasnik
+edge_win_score_descr	Što smo bolje zaštićeni od Oluje, lakše ćemo poraziti neprijatelje. Više baterija za nas znači manje za njih. Oluja će završiti započeto.
+edge_win_score_name	Umeće ratovanja
+edge_win_score_obj	Pobedite u meču sa donetim baterijama:
+edge_win_x_games_descr	Moramo biti spremni da branimo sebe i svoju zemlju. Pobeđujući neprijatelja stičemo pravo na život i štitimo teritoriju od upada.
+edge_win_x_games_name	Na straži
+edge_win_x_games_obj	Pobedite u mečevima:
+elo_after	Trenutni rejting
+elo_before	Rejting pre borbe
+empty_ammo_message	Nema dovoljno municije!
+empty_clan_string	Unesite ime klana
+empty_name_string	Unesite ime
+enable_seeding_in_lobby_option	Omogući deljenje datoteka
+eng_active_time_desc	Produžava vreme rada aktiviranih uređaja.
+eng_active_time_name	Trajanje
+eng_electronic_desc	Omogućava upotrebu najnovijih elektronskih uređaja i prototipova.
+eng_electronic_name	Elektroničar
+eng_encrypting_desc	Štiti elektronske uređaje od neprijateljskog hakovanja.
+eng_encrypting_name	Šifrovanje
+eng_explosive_master_desc	Povećava štetu od granata i drugih eksploziva.
+eng_explosive_master_name	Stručnjak za eksploziv
+eng_fast_recoil_desc	Skraćuje vreme do ponovne upotrebe uređaja.
+eng_fast_recoil_name	Brzo ponovno pokretanje
+eng_hacker_desc	Omogućava da preprogramirate neprijateljske uređaje u svoju korist.
+eng_hacker_name	Haker
+eng_sapper_desc	Omogućava neprimetno onesposobljavanje neprijateljskih zamki.
+eng_sapper_name	Deminer
+engineer_succ_chance_corr_perc_name	Verovatnoća uspeha
+engineer_use_time_corr_perc_name	Brzina upotrebe
+engineering_skills_descr	Poboljšava rukovanje spravama i uređajima.
+engineering_skills_label	Tehničke veštine
+engineering_skills_name	Tehničke veštine
+enter_char_name	Unesite ime
+enter_chat_message	Unesite poruku
+enter_name_warning	Nedozvoljeni znakovi
+enter_profile_name	Unesite ime profila
+enter_rank_name	Unesite naziv čina
+enter_search_player_name	Unesite ime za pretragu
+eotech_552_collimator_desc	Američki holografski nišan kompanije EOTech. Prikazuje holografsku končanicu umesto svetleće tačke i koristi obične AA baterije. Čest je u vojsci i policiji.
+eotech_552_collimator_name	Kolimatorski nišan EOTech 552
+equipment_cost	Ukupna cena:
+equipment_level	Nivo opreme
+equipment_weight	Težina
+equipped	Opremljeno
+error_during_storing_user_comment	Greška baze podataka. Pokušajte ponovo.
+error_while_using_premium_access_voucher	Greška pri aktiviranju premijum naloga. Pokušajte ponovo.
+event_capture_the_point_description	Zauzimanje uređaja
+event_kill_invader_description	Ubistvo osvajača
+exchange_button	Zameni
+exchange_window_label	Zameni zlato za rublje
+exit_from_login	Izađi
+exit_game_confirm_accept	Izađi
+exit_game_confirm_cancel	Otkaži
+exit_game_confirm_text	Želite li zaista da napustite igru?
+exit_match_confirm_accept	Napusti
+exit_match_confirm_cancel	Otkaži
+exit_match_confirm_text	Želite li zaista da napustite meč?
+exp_reward_match	Stečeno iskustvo
+exp_reward_premium	Premijum bonus
+experience	Iskustvo
+experience_modifier	Dobijeno iskustvo
+face_069d_balaclava_3_hole_desc	Pletena potkapa sa otvorima za oči i usta. Greje i skriva lice.
+face_069d_balaclava_3_hole_name	Potkapa sa tri otvora
+face_069d_balaclava_desc	Pripijena vojna potkapa sa otvorom za oči, namenjena nošenju ispod šlema.
+face_069d_balaclava_name	Potkapa
+face_069d_buff_desc	Cevasti šal sa otiskom lobanje, navučen preko nosa i usta. Skriva lice i štiti od prašine.
+face_069d_buff_name	Cevasti šal
+face_069d_keffiyeh_desc	Pamučna kefija obmotana oko glave i lica. Štiti od prašine i vetra i blago ublažava okrznuća.
+face_069d_keffiyeh_name	Kefija
+face_069d_protective_mask_desc	Platnena kapuljača sa zavarivačkim naočarima i nastavkom sa filterom za usta. Pokriva celu glavu i bolje zaustavlja krhotine nego isparenja.
+face_069d_protective_mask_name	Zaštitna maska
+faction_1_description	Oprema Sakupljača je namenjena borbi na srednjim i velikim daljinama i preživljavanju u anomalijama. Veterani imaju pristup snajperskim puškama.
+faction_2_description	Kožna oprema Crnog tržišta pruža slabu zaštitu od anomalija, ali dobru zaštitu u drugim uslovima. Oružje je namenjeno bliskoj borbi, a elita koristi AK74u.
+faction_3_description	Vojska preporoda ima najširi izbor opreme i oružja. Vojnici se bore na svim daljinama, čak i u zagađenim oblastima. Najbolji imaju pristup teškim pancirima i mitraljezima.
+faction_4_description	Oprema Naseljenika sa oboda pruža najbolju zaštitu od anomalija i prilagođena je pronalaženju i upotrebi artefakata. Oružje je pogodnije za zasede nego za otvorenu borbu.
+faction_blackmarket_blocked_text	Crno tržište odbija da vam da zadatke.
+faction_edge_blocked_text	Potreban je najveći ugled kod Sakupljača ili Crnog tržišta.
+faction_info	Informacije
+faction_join	Pridruži se
+faction_mercenaries_blocked_text	Omega odbija da vam da zadatke.
+faction_renaissance_blocked_text	Potreban je najveći ugled kod Sakupljača ili Crnog tržišta.
+faction_reputation_label	Ugled kod frakcije
+faction_scavengers_blocked_text	Sakupljači odbijaju da vam daju zadatke.
+faction_scientists_blocked_text	Naučnici odbijaju da vam daju zadatke.
+fall_damage_description	Šteta pri padu:
+fall_damage_name	Padobranac
+few_alpha_clan_string	Neispravno ime
+filter_all	Prikaži sve
+filter_ammo	Municija
+filter_ammo_assault_rifle	Jurišne puške
+filter_ammo_machine_gun	Mitraljezi
+filter_ammo_pistol	Pištolji
+filter_ammo_shotgun	Sačmarice
+filter_ammo_sniper_rifle	Snajperske puške
+filter_ammo_submachine_gun	Automati
+filter_assault_rifle	Jurišne puške
+filter_body_armor	Pancir
+filter_boots	Čizme
+filter_camo	Kamuflaža
+filter_decal	Oznake
+filter_device	Uređaji
+filter_equipment	Oprema
+filter_gloves	Rukavice
+filter_grenade	Granate
+filter_helmet	Šlem
+filter_inventory	Inventar
+filter_items	Predmeti
+filter_machine_gun	Mitraljezi
+filter_mask	Maska
+filter_medkit	Lekovi
+filter_mine	Mine
+filter_pants	Pantalone
+filter_pistol	Pištolji
+filter_rig	Oprema
+filter_scaner	Skeneri
+filter_shop	Prodavnica
+filter_shop_and_inventory	Inventar i prodavnica
+filter_shotgun	Sačmarice
+filter_sniper_rifle	Snajperske puške
+filter_stimulator	Stimulansi
+filter_submachine_gun	Automati
+filter_upgrades	Unapređenja
+filter_vouchers	Potrošni predmeti
+filter_weapons	Oružje
+final_countdown	Čekanje početka meča:
+find_player	Pronađi igrača
+finish_match_mode_02_loser_message	Poraz. Neprijateljski tim je sakupio sve baterije.
+finish_match_mode_02_winner_message	Pobeda! Vaš tim je sakupio sve baterije.
+finish_match_mode_03_loser_message	Poraz. Neprijateljski tim je sakupio sve baterije.
+finish_match_mode_03_winner_message	Pobeda! Vaš tim je sakupio sve baterije.
+finish_match_mode_04_loser_message	Poraz. Vaš tim je eliminisan.
+finish_match_mode_04_winner_message	Pobeda! Svi neprijatelji su poraženi.
+finish_match_mode_05_draw_message	Nerešeno. Oba tima su ostvarila isti napredak u istraživanju.
+finish_match_mode_05_loser_message	Poraz. Neprijateljski tim je završio istraživanje anomalne aktivnosti.
+finish_match_mode_05_winner_message	Pobeda! Vaš tim je završio istraživanje anomalne aktivnosti.
+first_weapon_action	Oružje 1
+fix	Popravi
+fn_fnc_description	Belgijska jurišna puška kalibra 5,56x45, razvijena u FN Herstalu sedamdesetih. Usvojila ju je belgijska vojska, a licencne verzije koriste Švedska i Indonezija. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+fn_p90_description	Belgijsko oružje za ličnu odbranu kalibra 5,7x28. FN Herstal ga je razvio oko 1990. zajedno sa namenskom municijom. Bulpap konstrukcija sa okvirom od 50 metaka iznad cevi. Koriste ga specijalne jedinice i policija. Pojedinačna i automatska paljba.
+fort_17_description	Ukrajinski poluautomatski pištolj kalibra 9x18, u proizvodnji od 2004. Koristile su ga unutrašnje i specijalne jedinice. Okvir prima 12 metaka.
+fov_option	Vidno polje
+freedom_026_boots_desc	Teške oklopljene čizme u bojama Slobode, za nošenje uz teški oklop.
+freedom_026_boots_name	Čizme Slobode
+freedom_026_gloves_desc	Ojačane rukavice bez prstiju u bojama Slobode, za nošenje uz teški oklop.
+freedom_026_gloves_name	Rukavice Slobode
+freedom_026_head_desc	Zaptiveni šlem egzoskeleta Slobode sa ugrađenim respiratorom. Pokriva celu glavu i lice.
+freedom_026_helmet_name	Šlem egzoskeleta Slobode
+freedom_026_suit_desc	Eksperimentalni vojni egzoskelet prefarban u boje Slobode. Zbog cene i konstrukcionih mana nije masovno proizvođen; male serije još izlaze iz tajnih radionica. Ima ugrađen kontejner za artefakte.
+freedom_026_suit_name	Egzoskelet Slobode
+friend_options_label	Opcije prijatelja
+friend_search_hint	Pritisnite Enter za pretragu
+friend_state_away	Odsutan
+friend_state_game	Na mreži
+friend_state_lobby	U predvorju
+friend_state_offline	Van mreže
+friendly_user_compliment	Druželjubiv
+friends_online	Prijatelji na mreži
+friends_signin_notification_option	Obavesti kada prijatelji dođu na mrežu
+fullscreen_option	Ceo ekran
+general_volume_option	Glavna jačina zvuka
+generic_money_name	Rublje
+geometry_quality_option	Kvalitet geometrije
+go_to_knowledge_base_message	Baza znanja će se otvoriti u novom prozoru pregledača.
+go_to_online_store_message	Internet prodavnica će se otvoriti u pregledaču. Nastaviti?
+go_to_video_tutorial_message	Video-uputstvo će se otvoriti u pregledaču. Nastaviti?
+gold_2	X zlata
+good_player_compliment	Odličan igrač
+goto_shop	U prodavnicu
+graphics_quality_option	Kvalitet grafike
+grenade_throw_power_description	Daljina bacanja:
+grenade_throw_power_name	Bombaš
+health_regen_correction_perc_name	Regeneracija
+hide_ammo	Sakrij municiju
+hide_interface_action	Sakrij interfejs
+hide_quest_list	Sakrij zadatke
+hide_spam_option	Sakrij neželjene poruke
+hide_squad_list	Sakrij odred
+hk416_description	Nemačka jurišna puška kalibra 5,56x45. Heckler & Koch je sredinom 2000-ih prilagodio AR-15 klipnom gasnom sistemu kratkog hoda. Koriste je specijalne jedinice i više NATO vojski. Ima nišan EOTech 552 i okvir za 30 metaka. Pojedinačna i automatska paljba.
+hk_mp7_description	Nemačko oružje za ličnu odbranu kalibra 4,6x30. Heckler & Koch ga je razvio sa posebnom probojnom municijom. Uvedeno 2001, koristi se u Bundesveru i policijskim specijalnim jedinicama. Okvir prima 20 metaka. Pojedinačna i automatska paljba.
+hk_mp7_silencer_description	Nemačko oružje za ličnu odbranu kalibra 4,6x30, u verziji MP7A1 sa prigušivačem. Heckler & Koch ga je razvio sa posebnom probojnom municijom. Koriste ga Bundesver i policijske specijalne jedinice. Okvir prima 20 metaka. Pojedinačna i automatska paljba.
+hk_mp7_silencer_special_description	Nemačko oružje za ličnu odbranu MP7A1 kalibra 4,6x30 sa prigušivačem i probojnom municijom. Koriste ga Bundesver i policijske specijalne jedinice. Okvir prima 20 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
+hour_short	č.
+hud_tutorial_frame_0_text_1	Upravljanje kamerom
+hud_tutorial_frame_0_text_2	Pomerajte miš da pogledate oko sebe
+hud_tutorial_frame_1_text_1	Kretanje
+hud_tutorial_frame_1_text_2	Koristite tastere W, A, S i D za kretanje
+hud_tutorial_frame_2_text_1	Nišanjenje
+hud_tutorial_frame_2_text_2	Za nišanjenje držite\ndesni taster miša ili pritisnite\nsrednji taster miša
+hud_tutorial_frame_3_text_1	Sprint
+hud_tutorial_frame_3_text_2	Za sprint držite\nSHIFT ili pritisnite X
+hud_tutorial_frame_4_text_1	Skok
+hud_tutorial_frame_4_text_2	Za skok pritisnite razmaknicu
+hud_tutorial_frame_5_text_1	Čučanj
+hud_tutorial_frame_5_text_2	Za čučanj držite CTRL\nili pritisnite C
+hud_tutorial_frame_6_text_1	U borbu!
+hud_tutorial_frame_6_text_2	Završili ste osnovnu\nborbenu obuku. Srećno!
+hud_tutorial_frame_6_text_3	Vaša nagrada:
+ignored	Blokirani igrači
+in_develepoment_hint	U razvoju
+ingame_volume_option	Igra
+injury_penalty_description	Povećano rasipanje zbog povrede ruku:
+injury_penalty_name	Pribranost
+inv_activation_time_sec	Aktiviranje
+inv_activity_time_sec	Trajanje
+inv_additional_ammo_bags	Torbice za municiju
+inv_ano_armor	Izolacija
+inv_armor	Oklop
+inv_arp	Probojnost oklopa
+inv_artefact_slots	Kontejner za artefakte
+inv_buckshot	Sačma
+inv_clip_size	Metaka u paketu
+inv_clip_weight	Težina paketa
+inv_damage	Šteta
+inv_damage_protection_infection	Zaštita od infekcije
+inv_damage_protection_pain	Prag bola
+inv_device_slots	Mesta za predmete
+inv_dispersion	Rasipanje
+inv_heal_amount	Lečenje
+inv_heal_amount_infection	Dezinfekcija
+inv_heal_amount_pain	Ublažavanje bola
+inv_heal_broken_parts	Leči teške povrede
+inv_healing_body_head	Lečenje: trup / glava
+inv_healing_limbs	Lečenje: ruke / noge
+inv_item_weight	Težina
+inv_magazine	Rezervna municija
+inv_magazine_size	Okvir
+inv_max_damage_distance	Daljina
+inv_move_speed_modifier	Brzina kretanja
+inv_oxygen_amount	Kapacitet kiseonika
+inv_pain_relief	Ublažavanje bola
+inv_reload	Brzina punjenja
+inv_rpm	Brzina paljbe
+inv_splash_radius	Poluprečnik eksplozije
+inv_stamina_regen	Obnova izdržljivosti
+inv_stopingpower	Zaustavna moć
+inventory_label	Inventar
+inventrory	Oprema
+invite_from_friends_option	Pozivi samo od prijatelja
+invite_to_clan	Pozovi u klan
+invite_to_squad	Pozovi u odred
+item_bought	Kupovina je završena
+item_craft_description	Priprema je završena. Možete početi unapređenje.
+item_craft_description_choose_donor	Izaberite donorski predmet
+item_craft_description_choose_item	Izaberite predmet za unapređenje.
+item_craft_description_no_items	Izaberite predmet za unapređenje.
+item_craft_donor_slot	Donorski predmet
+item_craft_fail_label	Verovatnoća neuspeha (-1 mod.)
+item_craft_label	Unapređenje
+item_craft_main_slot	Predmet za unapređenje
+item_craft_success_label	Verovatnoća uspeha (+1 mod.)
+item_damage_state	Stanje
+item_drop_chance_base	Osnovna verovatnoća dobijanja predmeta:
+item_drop_chance_by_premium	Premijum nalog
+item_drop_chance_label	Verovatnoća dobijanja predmeta
+item_drop_chance_match_result	Prednost u borbi:
+item_drop_chance_penalty	Kazna za neaktivnost:
+item_drop_chance_team_premium	Premijum igrači u meču:
+item_hint_label	Inventar
+item_hint_label_shop	Prodavnica
+item_level	Nivo predmeta
+item_modification	Promena modifikacija
+item_piece_postfix	kom.
+item_sell_precondition_faction_1	Potreban je ugled kod Sakupljača
+item_sell_precondition_faction_2	Potreban je ugled kod Crnog tržišta
+item_sell_precondition_faction_3	Potreban je ugled kod Vojske preporoda
+item_sell_precondition_faction_4	Potreban je ugled kod Naseljenika sa oboda
+item_sold	Predmet je prodat
+items_notes	Zalihe
+items_notes_frame_1_text_1	Da povećate šanse za preživljavanje,\nponesite zalihe u borbu
+items_notes_frame_1_text_2	Zalihe su granate, prva pomoć,\nzamke, mine i slično
+items_notes_frame_2_text_1	Zalihe se stavljaju u džepove
+items_notes_frame_3_text_1	Broj džepova povećavate\nopremom sa odgovarajućom osobinom
+items_notes_frame_4_text_1	U jedno mesto staje ograničen\nbroj predmeta istog tipa
+items_notes_frame_5_text_1	Kapacitet džepova povećavate\nopremom sa odgovarajućom osobinom
+izh27_bundle_descr	<white>Paket sadrži:\n- Unapređeni MP-27M Lancaster.\n- 1000 patrona 12x70 sa sačmom.</white>
+izh27_bundle_name	Paket MP-27M Lancaster
+izh27_description	Opis još nije dostupan.
+izh27_premium_2_description	Ruska sačmarica kalibra 12 sa vertikalno postavljenim cevima. Proizvodi je Iževski mehanički zavod pod imenom Bajkal. Dve cevi sa po jednim patronom mogu opaliti zasebno ili zajedno. Premijum verzija sa posebnom kamuflažom.
+jump_action	Skoči
+kedr_description	Sovjetski automat kalibra 9x18 PM, koji je Jevgenij Dragunov osmislio početkom sedamdesetih. Serijska proizvodnja počela je devedesetih za rusko Ministarstvo unutrašnjih poslova i policiju. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+kick_clan_message	Želite li zaista da izbacite igrača iz klana?
+kiparis_description	Automat kalibra 9x18 PM, razvijen sedamdesetih godina bez masovne proizvodnje. Ponovo je uveden devedesetih za potrebe ruskih unutrašnjih snaga. Okvir prima 30 metaka.
+knowledge_skills_descr	Istraživanjem novog sveta učite da bolje koristite artefakte i anomalije.
+knowledge_skills_name	Poznavanje sveta
+knw_advanced_art_desc	Produžava trajanje aktiviranih artefakata.
+knw_advanced_art_name	Stručnjak za artefakte
+knw_artefact_hunter_desc	Omogućava upotrebu najnovijih detektora i uređaja zasnovanih na artefaktima.
+knw_artefact_hunter_name	Lovac na artefakte
+knw_artefacts_desc	Omogućava oslobađanje unutrašnje energije artefakta radi aktiviranja.
+knw_artefacts_name	Aktiviranje artefakata
+knw_covering_desc	Pruža dodatnu zaštitu od otkrivanja dok ste u anomaliji.
+knw_covering_name	Pod zaklonom
+knw_empathy_desc	Osećate kada se u blizini pojavi novi artefakt.
+knw_empathy_name	Osećaj za prirodu
+knw_protecting_desc	U anomaliji dobijate dodatnu zaštitu od metaka i eksplozija.
+knw_protecting_name	Štit anomalije
+knw_synergy_desc	Snaga artefakata raste sa njihovim brojem.
+knw_synergy_name	Sinergija
+kriss_vector_description	Američki automat kalibra .45 ACP, uveden tokom 2000-ih. Sistem trzaja usmerava zatvarač nadole i smanjuje podizanje cevi. Ima nišan Walther Competition II i okvir za 30 metaka. Podržava pojedinačnu, rafalnu i automatsku paljbu.
+label_invites	Pozivi
+label_leave_queue_btn	Napusti red
+label_quenue	Čekanje igrača:
+label_reports	Izveštaji
+label_status	Status
+label_support	Sistemske poruke
+label_teamA	Saveznici
+label_teamB	Protivnici
+label_time_average	Vreme čekanja:
+leave_button	Napusti
+leave_clan_message	Želite li zaista da napustite klan?
+leave_clan_money_message	Želite li zaista da napustite klan? Srebro uplaćeno za registraciju biće izgubljeno.
+leave_squad	Napusti odred
+left_strafe_action	Kreći se ulevo
+less_then_hour	manje od jednog časa
+level_01_name	Rudnja
+level_02_name	Škola
+level_03_name	Radarska stanica Vostok
+level_04_name	Hemijsko postrojenje
+level_05_name	Tarakanovska tvrđava
+level_06_name	Mamajev kurgan
+level_07_name	Laboratorija Vektor
+level_08_name	Keln
+level_09_name	London
+level_10_name	Radarska stanica Vostok (v0.21)
+level_11_name	Mamajev kurgan (v0.21)
+level_12_name	Hemijsko postrojenje (v0.11)
+level_13_name	Radarska stanica Vostok (v0.11)
+lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su izlečene! Zdravlje je obnovljeno!
+lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
+lightning_quality_option	Kvalitet osvetljenja
+login_button_label	Prijavi se
+login_default_text	E-pošta
+login_eula_label	Ugovor o licenci
+login_menu_accept	Prihvati
+login_menu_cancel	Otkaži
+login_menu_status_access_level_restriction	Nemate dovoljan nivo pristupa za prijavu.
+login_menu_status_connecting	Prijavljivanje…
+login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Dozvolite igru u zaštitnom zidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte .exe datoteke igre u njega (VPN.txt).
+login_menu_status_invalid_user_or_password	Pogrešna adresa e-pošte ili lozinka.
+login_menu_status_invalid_version	Koristite zastarelu verziju igre.
+login_menu_status_sign_in_already_online	Korisnik je već u igri.
+login_menu_status_sign_in_attempt_interval_violated	Previše pokušaja prijave. Pokušajte ponovo za 10 sekundi.
+login_menu_status_user_banned	Pristup vam je zabranjen. 
+login_menu_status_user_not_confirmed	Nalog nije potvrđen. Potvrdite ga putem veze poslate na vašu adresu e-pošte.
+login_str	E-pošta
+lost_modifier	Izgubljeni modifikator
+loyalty_bonus_rep	Bonus za odanost
+m4a1_description	Američki karabin kalibra 5,56x45, kraća i lakša verzija M16 usvojena devedesetih. M4A1 omogućava automatsku paljbu i koriste ga specijalne jedinice. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+magnum_description	Revolver sa šest metaka kalibra .357 Magnum, uveden 1955. Mnogi ga smatraju jednim od najboljih u klasi. Odlikuju ga gladak okidač i velika preciznost.
+maintenance	U toku je održavanje servera. Program će se zatvoriti.
+map	Mapa
+match_items_found	Pronađeno
+match_making_level	Nivo meča
+match_rewards	Nagrada za zadatak
+match_settings_checkbox_PVE	Slobodna igra
+match_settings_checkbox_PVE_hint	Preživljavanje među drugim igračima u surovim uslovima nemilosrdne Šume.
+match_settings_checkbox_PVP	PvP
+match_settings_checkbox_PVP_hint	Borba na nivou vaše opreme, sa timovima sastavljenim prema ličnom rejtingu.
+match_settings_checkbox_battery_charge	Zaštitni uređaj
+match_settings_checkbox_battery_charge_hint	Timovi sakupljaju baterije za zaštitne uređaje.
+match_settings_checkbox_capture_points	Istraživanje
+match_settings_checkbox_capture_points_hint	Borba za zauzimanje ključnih tačaka
+match_settings_checkbox_clan_match_hint	Režimi borbe klanskih timova
+match_settings_checkbox_rank_match	Rangirani meč
+match_settings_checkbox_rank_match_hint	Borba nasumično izabranih klanskih timova za mesto na rang-listi.
+match_settings_checkbox_team_match	Timska eliminacija
+match_settings_checkbox_team_match_hint	Borba u kojoj treba potpuno eliminisati neprijatelja.
+match_settings_checkbox_tournament_match	Turnirski meč
+match_settings_checkbox_tournament_match_hint	Borba klanskih timova u okviru tekućeg turnira.
+match_settings_checkbox_training_match	Trening meč
+match_settings_checkbox_training_match_hint	Soba za trening
+match_settings_clan_match	Klanski meč
+match_time_is_up	Vreme meča je isteklo!
+max_carried_weight_description	Nosivost:
+max_carried_weight_name	Atleta
+max_carried_weight_ultimate_description	Težina više ne utiče na brzinu kretanja, ali ne možete sprintati.
+max_carried_weight_ultimate_name	Teškaš
+med_combat_shock_desc	Posledice kritičnih povreda udova počinju nekoliko sekundi kasnije.
+med_combat_shock_name	U žaru borbe
+med_farmacial_desc	Produžava dejstvo lekova.
+med_farmacial_name	Farmacija
+med_fast_use_desc	Znatno skraćuje vreme pripreme lekova.
+med_fast_use_name	Brza upotreba
+med_medical_desc	Omogućava upotrebu najnovijih lekova i medicinskih uređaja.
+med_medical_name	Bolničar
+med_reanimation_desc	Znatno poboljšava stanje oživljenih saveznika.
+med_reanimation_name	Reanimacija
+med_refining_desc	Povećava delotvornost lekova.
+med_refining_name	Prečišćavanje lekova
+med_revive_desc	Omogućava da sami oživite ako imate potreban uređaj.
+med_revive_name	Poslednji napor
+medicial_skills_descr	Povećava šanse za preživljavanje i osposobljava vas za upotrebu lekova i medicinskih uređaja.
+medicial_skills_name	Preživljavanje i prva pomoć
+meele_hit_range_description	Biće dostupno u sledećem ažuriranju.
+meele_hit_range_name	Skok sa nožem
+meele_hit_ultimate_description	Biće dostupno u sledećem ažuriranju.
+meele_hit_ultimate_name	Malj
+melee_action	Bliska borba
+member_dont_have_battle_permission	Igrač nema dovoljno ovlašćenja za terenskog komandanta.
+mercenaries_faction	Plaćenici
+message_reroll_text	Želite li da poništite veštine?
+messages_censor_option	Omogući filtriranje poruka
+messages_only_from_friends_option	Primaj privatne poruke samo od prijatelja
+microphone_sensitivity_option	Osetljivost mikrofona
+minimap	Mini-mapa
+minimap_bottom	Donji levi ugao
+minimap_off	Isključena mini-mapa
+minimap_position	Položaj mini-mape
+minimap_rotable_option	Fiksiraj mini-mapu
+minimap_top	Gornji levi ugao
+missile_weapon_action	Granata
+missions	Zadaci
+mm_button_back	Nazad
+mm_button_exit_to_os	Izađi iz igre
+mm_button_leave_match	Napusti meč
+mm_button_settings	Podešavanja
+mm_match_found	Meč je pronađen!\nČekanje servera.
+mode_02_description	Oluja se približava. Jedini način da preživite jeste da pronađete baterije na mapi i osposobite zaštitne stanice koje neutrališu njeno dejstvo. Više baterija pruža pouzdaniju zaštitu. Pobeđuje tim koji sakupi najviše baterija.
+mode_02_name	Zaštitni uređaj
+mode_03_description	Oluja se približava. Jedini način da preživite jeste da pronađete baterije na mapi i osposobite zaštitne stanice koje neutrališu njeno dejstvo. Više baterija pruža pouzdaniju zaštitu. Pobeđuje tim koji sakupi najviše baterija.
+mode_03_name	Zaštitni uređaj
+mode_04_description	Osigurajte položaj svog tima eliminisanjem neprijatelja. Svaka smrt oduzima jedan poen iz zalihe pojačanja tog tima. Pobeđuje tim koji na kraju meča ima više poena pojačanja.
+mode_04_name	Timska eliminacija
+mode_05_description	Zauzmite pokretne istraživačke uređaje. Svaki uređaj pod kontrolom vašeg tima donosi poene istraživanja anomalne aktivnosti. Pobeđuje tim sa najviše poena na kraju meča.
+mode_05_name	Istraživanje
+modification_screen_edit_decal_hint	Kliknite na mesto oznake da promenite njenu veličinu i položaj.
+modification_screen_hint	Prevucite kamuflažu ili oznaku iz inventara na mesto za izmenu predmeta.
+modified	Izmenjeno
+modifier_reroll_description	Na predmetu možete menjati samo jedan modifikator, ali neograničen broj puta. Pri promeni birate jedan od tri nasumična modifikatora.
+modifier_reroll_timer_description	Plaćanje srebrom omogućava jedan pokušaj na svakih 6 sati.
+module_is_installed_on	Modul je postavljen na
+money	Novac
+money_modifier	Dobijeno srebro
+money_reward_match	Nagrada za meč
+money_reward_premium	Premijum bonus
+money_reward_quest	Nagrada za zadatak
+monitor_ajust	Podešavanje monitora
+monitor_count_option	Aktivni monitor
+mosin_description	Repetirajuća puška kalibra 7,62x54 koju je usvojila ruska carska vojska. Dokazala se u oba svetska rata. Nepokretni magacin prima 5 metaka.
+mosin_name	Mosin karabin
+motion_blur_amount_options	Zamućenje pokreta
+mouse_invertion_option	Obrni smer miša
+mouse_sensitivity_option	Osetljivost miša
+move_backward_action	Nazad
+move_forward_action	Napred
+move_speed_weapon_penalty_description	Uklanja usporavanje pri nošenju glomaznog oružja.
+move_speed_weapon_penalty_name	Snažne ruke
+move_to_reserve	U rezervu
+move_to_team	Premesti u tim
+movement_speed_correction_perc_name	Brzina kretanja
+movement_speed_description	Brzina kretanja:
+movement_speed_name	Brzina
+movement_speed_when_aiming_description	Brzina kretanja tokom nišanjenja:
+movement_speed_when_aiming_name	Borbeni stav
+mp153_description	Ruska poluautomatska sačmarica kalibra 12x70. Niska cena i pouzdanost učinile su je popularnom za lov i sport. Cevasti magacin ispod cevi prima 4 patrona.
+msbs_carbine_description	Poljski modularni karabin kalibra 5,56x45. Razvili su ga Vojnotehnički univerzitet u Varšavi i fabrika oružja u Radomu tokom 2010-ih. Vojska ga je usvojila kao Grot. Ima EOTech 552 i okvir za 30 metaka. Pojedinačna, rafalna i automatska paljba.
+multiplicative_breath_vibration_modifier	Ljuljanje nišana
+multiplicative_chamber_a_round_time_modifier	Vreme repetiranja
+multiplicative_device_damage_modifier	Šteta uređaja
+multiplicative_recoil_modifier	Trzaj oružja
+multiplicative_reliability_modifier	Pouzdanost
+multiplicative_reload_time_modifier	Brzina punjenja
+multiplicative_respawn_time_modifier	Vreme ponovnog pojavljivanja
+multiplicative_splash_radius_modifier	Poluprečnik eksplozije
+multiplicative_stamina_spending_modifier	Potrošnja energije
+munition	Municija
+music_volume_option	Muzika
+must_be_in_clan_team	Morate biti u timu klana.
+my_place	Moj rang
+neostead_description	Južnoafrička sačmarica kalibra 12, koju je Toni Neofitu razvio devedesetih. Bulpap konstrukcija sa dva cevasta magacina iznad cevi; repetira se guranjem potkundaka napred. Prima 12 patrona. Samo pojedinačna paljba.
+neostead_premium_description	Južnoafrička sačmarica kalibra 12, razvijena devedesetih. Bulpap konstrukcija sa dva cevasta magacina iznad cevi; repetira se guranjem potkundaka napred. Prima 12 patrona. Samo pojedinačna paljba. Premijum verzija sa posebnom kamuflažom.
+new_items_unlocked	X novih predmeta u prodavnici:
+new_level_reached	Dostigli ste novi nivo!
+new_modifier	Novi modifikator
+next_ammo_action	Promeni vrstu municije
+next_fire_queue_action	Promeni režim paljbe
+next_weapon	Sledeće oružje
+nickname	Ime
+no_available_resolution	Nije podržano
+no_faction_button_label	Izbor
+no_faction_message_label	Saradnja sa frakcijama
+no_faction_message_text	Frakcije su glavni dobavljači opreme, oružja i municije. Izvršavanjem njihovih zadataka stičete ugled i pristup boljoj robi. Istovremeno možete sarađivati samo sa jednom frakcijom.
+non_faction_items	Nezavisni trgovci
+non_sport_behavior_claim	Ubijanje saigrača
+not_all_team_members_ready	Nisu svi igrači potvrdili spremnost.
+not_enough_money	Nemate dovoljno novca za ovu transakciju.
+not_enought_money_for_repair	Nemate dovoljno novca za popravku.
+not_enougth_money	Nedovoljno sredstava
+not_enougth_money_for_reroll	Nemate dovoljno novca za poništavanje veština.
+not_logged_id	Greška pri identifikaciji. Ponovo pokrenite igru.
+not_ready	Nije spreman
+notes_if_you_read	Nakon čitanja
+notes_reward	dobijate:
+novice_026_helmet_desc	Pletena kapa stalkera početnika iz otkazanog projekta S.T.A.L.K.E.R. 2.
+novice_026_helmet_name	Početnička pletena kapa
+of	od
+ok	U redu
+on_enemy_theft_item	Neprijatelj je ukrao bateriju iz vaše baze! Zaustavite ga!
+on_spawn_victory_item	Baterija je napunjena! Donesite je u svoju bazu.
+one_handed	Sporedno oružje
+online_store	Kupi zlato
+onyx_activation_hint	Oniks je aktiviran! Smanjuje štetu i probojnost dolazećih metaka za 75% tokom %s s.
+onyx_pickup_hint	Artefakt Oniks. Smanjuje štetu i probojnost metaka koji vas pogode za 5%.
+open	Otvori
+options_adjust_gamma	Gama:
+options_apply	Primeni
+options_cancel	Otkaži
+options_chat	Ćaskanje:
+options_chat_keys	Ćaskanje:
+options_controller	Kontrole
+options_cross_type	Nišan:
+options_custom	Prilagođeno
+options_default_controls	Podrazumevana podešavanja
+options_default_video	Podrazumevana podešavanja
+options_friends	Prijatelji:
+options_game	Igra:
+options_gameplay	Igra
+options_high	Visoko
+options_lobby	Predvorje:
+options_low	Nisko
+options_medium	Srednje
+options_minimum	Najniže
+options_off	Isključeno
+options_ok	U redu
+options_on	Uključeno
+options_optimal_video	Optimalna podešavanja
+options_sound	Zvuk
+options_ultra	Najviše
+options_video	Grafika
+options_voice	Glas:
+options_volume	Jačina zvuka:
+other	Ostalo
+oust_commander	Promeni komandanta
+overweight_penalty_description	Uticaj težine na brzinu kretanja:
+overweight_penalty_name	Nosač
+oxygen_tank_description	Boca sa kiseonikom ručno izrađena u logoru Sakupljača. Gas za disanje čuva se pod pritiskom, bez utečnjavanja.
+oxygen_tank_name	Boca sa kiseonikom
+pain_healt_correction_perc_name	Prag bola
+paperdoll_btn_ammo	Municija
+paperdoll_btn_fix	Popravi
+paperdoll_btn_weight	Težina
+paperdoll_label	Lik
+particles_quality_options	Kvalitet čestica
+password_default_text	Lozinka
+password_str	Lozinka
+pause_game_action	Pauza
+pd_artefact	Artefakt
+pd_back	ranac
+pd_foot	čizme
+pd_hands	rukavice
+pd_head	šlem
+pd_legs	pantalone
+pd_mask	maska
+pd_torso	jakna
+pd_weapon	Oružje
+personal_statistics	Lična dostignuća
+phy_adrenalin_desc	Svaki primljeni pogodak malo povećava brzinu kretanja i obnavlja deo izdržljivosti.
+phy_adrenalin_name	Nalet adrenalina
+phy_athlet_desc	Smanjuje uticaj težine tereta na brzinu kretanja.
+phy_athlet_name	Atleta
+phy_ignor_pain_desc	Tokom sprinta znatno ste manje osetljivi na bol.
+phy_ignor_pain_name	Zanemarivanje bola
+phy_melee_rush_desc	Povećava daljinu sa koje možete ubiti neprijatelja u bliskoj borbi.
+phy_melee_rush_name	Skok sa oružjem
+phy_second_breath_desc	Potpuno obnavlja izdržljivost kada je niska. Može se aktivirati jednom u minutu.
+phy_second_breath_name	Drugi dah
+phy_sprinter_desc	Povećava brzinu sprinta.
+phy_sprinter_name	Sprinter
+phy_war_rage_desc	Ubistvo u bliskoj borbi potpuno obnavlja izdržljivost i uklanja bol od povreda.
+phy_war_rage_name	Borbeni bes
+physical_skills_descr	Povećava brzinu kretanja, nosivost i obnovu izdržljivosti.
+physical_skills_label	Fizička priprema
+physical_skills_name	Fizička priprema
+picatinny_scope_medium_name	Optika / kolimatori
+pickup_item	Podigni ({USE})
+pkp_pecheneg_description	Ruski univerzalni mitraljez kalibra 7,62x54R, zasnovan na PKM-u i usvojen 2001. Teška cev sa vazdušnim hlađenjem omogućava duge rafale bez zamene cevi. Koristi redenik od 100 metaka. Pojedinačna i automatska paljba.
+place	Mesto
+play_button	Igraj
+player_equipment_level	Nivo opreme
+player_info_label	Podaci o igraču:
+player_is_already_in_clan	Igrač je već u klanu.
+player_level	NIVO
+player_not_found	Igrač nije pronađen.
+player_skills_check_failed	Greška pri potvrđivanju unapređenja veština.
+players_list_filter_text	Filtriraj po imenu
+pm_description	Pištolj Makarov kalibra 9x18 PM, razvijen 1948. kao zamena za Tokarev. Usvojile su ga vojska i policija. Okvir prima 8 metaka.
+pockets	Džepovi
+point	poen
+points_aviable	Dostupni poeni
+points_earned	Vaš nivo
+post_process_options	Kvalitet naknadne obrade
+pp2000_description	Opis još nije dostupan.
+ppsh_description	Automat Špagin, legendarno oružje pobede. U nekim zemljama korišćen je do kraja osamdesetih. Opremljen je kutijastim okvirom za 35 metaka.
+premium	Premijum
+premium_3_day	3 dana
+premium_3_day_descr	(72 sata)
+premium_3_month	3 meseca
+premium_3_month_descr	(90 dana)
+premium_6_month	6 meseci
+premium_6_month_descr	(180 dana)
+premium_access_1d_voucher_descr	Ovaj vaučer aktivira premijum nalog na jedan dan.
+premium_access_1d_voucher_name	Premijum nalog
+premium_action	Akcija!
+premium_advert	Aktivirajte premijum sada\ni dobićete sve bonuse za ovaj meč.
+premium_ally_members	Zahvaljujući premijum igračima
+premium_bonus	Iskustvo\nZarada\nUgled
+premium_bonus_experience	VIŠE ISKUSTVA!
+premium_bonus_item_search	BONUS ZA PRONALAŽENJE PREDMETA!
+premium_bonus_money	NAGRADA ZA BORBU!
+premium_bonus_profile	Profil opreme
+premium_bonus_reputation	BONUS ZA UGLED KOD FRAKCIJE!
+premium_button_advert	Kupi PREMIJUM
+premium_day	24 sata
+premium_day_descr	(24 sata)
+premium_discount	Popust
+premium_left	Preostalo:
+premium_money	Zlato
+premium_money_name	Zlato
+premium_month	Mesec
+premium_month_descr	(30 dana)
+premium_post_reward_descr	Aktivirajte premijum nalog sada\ni preuzmite sve bonuse\nza prethodnu nedelju!
+premium_post_reward_label	Dobijte više uz premijum nalog!
+premium_profile_hint	Dostupno uz premijum nalog
+premium_profile_unlock_description	Treći profil opreme dostupan je samo uz premijum nalog.
+premium_reward_part_1	Posle borbe pronaći ćete 
+premium_reward_part_2	više predmeta
+premium_week	Nedelja
+premium_week_descr	(7 dana)
+premium_year	Godina
+premium_year_descr	(365 dana)
+prepare_to_battle_notes	Priprema za borbu
+prepare_to_battle_notes_frame_1_text_1	U meču učestvuju dva tima
+prepare_to_battle_notes_frame_2_text_1	Saveznici su obeleženi\nsimbolima iznad glave
+prepare_to_battle_notes_frame_2_text_2	prikaži imena saigrača
+prepare_to_battle_notes_frame_3_text_1	Budite oprezni, neprijatelj\nmože biti skriven
+prepare_to_battle_notes_frame_3_text_2	Krećite se oprezno
+prepare_to_battle_notes_frame_4_text_1	Pokazivač povreda prikazuje\ntrenutno stanje tela
+prepare_to_battle_notes_frame_4_text_2	Upotrebite prvu pomoć\nda ublažite bol i izlečite rane
+prepare_to_battle_notes_frame_5_text_1	Možete zadobiti kritičnu povredu\nruke ili noge
+prepare_to_battle_notes_frame_5_text_2	Ona smanjuje preciznost pucanja\ni brzinu kretanja
+prepare_to_battle_notes_frame_6_text_1	Ako su obe ruke slomljene,\nne možete koristiti\ndvoručno oružje
+prepare_to_battle_notes_frame_7_text_1	Ako su obe noge slomljene,\nne možete se kretati
+prev_weapon	Prethodno oružje
+private_messages_in_game_option	Sakrij ćaskanje u meču
+profile	Profil
+profile_check_failed	Ne možete ući u borbu bez oružja!
+profile_check_failed_weapon	Ne možete ući u borbu bez oružja!
+profile_check_failed_weapon_ammo	Nedovoljno municije u rancu za ulazak u borbu!
+profile_check_failed_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u borbu!
+profile_play_time	Vreme igranja
+profile_rename	Preimenuj profil
+profile_rename_label	Preimenuj profil
+profile_selection_warning	Promena profila produžava ponovno pojavljivanje na 20 sekundi.
+profile_warning_weapon	Ne možete ući u borbu bez oružja!
+profile_warning_weapon_ammo	Nedovoljno municije u rancu za ulazak u borbu!
+profile_warning_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u borbu!
+ptt_action	Pritisni za govor
+ptt_button_option	Pritisni za govor
+put_item	Postavi ({USE})
+quest_change_warning	Pažnja! Promena zadataka smanjuje odanost frakciji!
+quest_completed	Zadatak je izvršen!
+quest_failed	Zadatak nije uspeo!
+quest_progress	Napredak zadatka
+quest_reward_info	Konačna nagrada zavisi od nivoa meča.
+quests	Zadaci
+quests_label	Zadaci
+quests_progress_text_alpha_option	Providnost
+quick_fix	Brza popravka
+quick_use_action_1	Predmet 1
+quick_use_action_2	Predmet 2
+quick_use_action_3	Predmet 3
+quick_use_action_4	Predmet 4
+quick_use_action_5	Predmet 5
+quick_use_action_6	Predmet 6
+rank_up_to_commander_message	Želite li zaista da ovaj igrač postane komandant klana umesto vas?
+ranking	Rang-lista
+ranking_diff	Razlika
+rattle_activation_hint	Zvečka je aktivirana! Neprijatelj ne može da čuje vaše korake.
+rattle_pickup_hint	Artefakt Zvečka. Utišava korake za 50%.
+rdgm_descr	Opis još nije dostupan.
+rdgm_name	Dimna granata RDG-M
+reach_level	je dostigao <green>nivo</green>
+ready	Spreman
+refill_ammo_btn	Primeni
+refill_ammo_label	Municija
+regen_booster_description	Stari vojni obroci, korišćeni u zemljama ZND-a pre krize. Ubrzavaju metabolizam i još uvek su ukusni.
+regen_booster_name	Vojni obrok
+registration_str	Napravi nalog
+regular_fix	Popravka
+regular_money	Srebro
+reload_speed_description	Brzina punjenja
+reload_speed_name	Punjenje
+relocate	Premesti
+rem700_description	Američka puška kalibra 7,62x51. Poznata kao sportsko, lovačko i snajpersko oružje. Magacin prima 5 metaka.
+rem700_premium_description	Američka puška kalibra 7,62x51, poznata kao sportsko, lovačko i snajpersko oružje. Magacin prima 5 metaka. Premijum verzija sa posebnom kamuflažom.
+rem870_description	Američka repetirka sa kliznim potkundakom, kalibra 12x70. Široko korišćena u policiji i lovu. Lovačka verzija ima cevasti magacin za 4 patrona.
+remove	Ukloni
+remove_from_friends	Ukloni iz prijatelja
+remove_from_ignore	Odblokiraj
+remove_from_squad	Ukloni iz odreda
+remove_from_team	Izbaci iz tima
+ren_back_1_desc	Opis još nije dostupan.
+ren_back_1_name	Jurišni ranac
+ren_back_3_desc	Opis još nije dostupan.
+ren_back_3_name	Boca Zarja 4N
+ren_back_5_desc	Opis još nije dostupan.
+ren_back_5_name	Boca UKV-1
+ren_boots_1_desc	Pouzdane vojničke čizme koje štite stopala od mehaničkih povreda i manjih zamki.
+ren_boots_1_name	Vojničke čizme
+ren_boots_3_desc	Opis još nije dostupan.
+ren_boots_3_name	Izviđačke čizme
+ren_boots_4_desc	Opis još nije dostupan.
+ren_boots_4_name	Ojačane čizme
+ren_boots_5_desc	Opis još nije dostupan.
+ren_boots_5_name	Čizme OZK-18KB
+ren_boots_6_desc	Opis još nije dostupan.
+ren_boots_6_name	Čizme Zubr UM-4
+ren_gloves_1_desc	Opis još nije dostupan.
+ren_gloves_1_name	Jurišne rukavice
+ren_gloves_4_desc	Opis još nije dostupan.
+ren_gloves_4_name	Ojačane rukavice
+ren_gloves_5_desc	Opis još nije dostupan.
+ren_gloves_5_name	Rukavice OZK-18KB
+ren_gloves_6_desc	Opis još nije dostupan.
+ren_gloves_6_name	Rukavice Zubr UM-4
+ren_helmet_1_desc	Sovjetski padobranski šlem, važan simbol Vojske preporoda. Štiti glavu od udaraca, a ušivene čelične ploče mogu zaustaviti metke malog kalibra.
+ren_helmet_1_name	Padobranski šlem
+ren_helmet_2_desc	Opis još nije dostupan.
+ren_helmet_2_name	Šlem Vitjaz-S
+ren_helmet_3_desc	Opis još nije dostupan.
+ren_helmet_3_name	Izviđački šlem
+ren_helmet_4_desc	Opis još nije dostupan.
+ren_helmet_4_name	Šlem Molot UM-2
+ren_helmet_5_desc	Opis još nije dostupan.
+ren_helmet_5_name	Šlem OZK-18KB
+ren_helmet_6_desc	Opis još nije dostupan.
+ren_helmet_6_name	Šlem Zubr UM-4
+ren_legs_1_desc	Maskirne pantalone sa ručno ojačanim štitnicima kolena. Kvalitetna izrada i udoban kroj omogućavaju slobodno i brže kretanje potpuno opremljenom vojniku. Imaju dodatni džep za predmete.
+ren_legs_1_name	Vojničke pantalone
+ren_legs_2_desc	Opis još nije dostupan.
+ren_legs_2_name	Pantalone Šturm
+ren_legs_3_desc	Opis još nije dostupan.
+ren_legs_3_name	Izviđačke pantalone
+ren_legs_4_desc	Opis još nije dostupan.
+ren_legs_4_name	Pantalone Molot UM-2
+ren_legs_5_desc	Opis još nije dostupan.
+ren_legs_5_name	Pantalone OZK-18KB
+ren_legs_6_desc	Opis još nije dostupan.
+ren_legs_6_name	Pantalone Zubr UM-4
+ren_mask_2_desc	Opis još nije dostupan.
+ren_mask_2_name	Jurišna maska
+ren_mask_3_desc	Opis još nije dostupan.
+ren_mask_3_name	Respirator Zanaves
+ren_mask_5_desc	Opis još nije dostupan.
+ren_mask_5_name	Gas-maska PMK-7S
+ren_rep_modifier	Ugled kod Vojske preporoda
+ren_torso_1_desc	Uobičajeni vojni pancir klase II, prilagođen svetu posle apokalipse. Brojne torbice pružaju veliki kapacitet za municiju i opremu.
+ren_torso_1_name	Vojni pancir
+ren_torso_2_desc	Opis još nije dostupan.
+ren_torso_2_name	Pancir Šturm
+ren_torso_3_desc	Opis još nije dostupan.
+ren_torso_3_name	Pancir Sokol
+ren_torso_4_desc	Opis još nije dostupan.
+ren_torso_4_name	Prsluk Molot UM-2
+ren_torso_5_desc	Opis još nije dostupan.
+ren_torso_5_name	Prsluk OZK-18KB
+ren_torso_6_desc	Opis još nije dostupan.
+ren_torso_6_name	Pancir Zubr UM-4
+renaissance_bring_x_items_descr	Novi svet doneo je nove izazove. Za preživljavanje nije dovoljno poraziti neprijatelja. Moramo aktivirati poseban uređaj koji nas štiti od Oluje.
+renaissance_bring_x_items_name	Zaštita od Oluje
+renaissance_bring_x_items_obj	Pronađite i donesite baterije:
+renaissance_defend_items_descr	U ratu nema sitnica. Dobra odbrana važna je koliko i napad. Brani bazu od neprijatelja i čuvaj ono za šta su saveznici prolili krv.
+renaissance_defend_items_name	Pouzdana odbrana
+renaissance_defend_items_obj	Pobedite u meču bez gubitka baterija
+renaissance_faction	Vojska preporoda
+renaissance_grenade_enemies_descr	Granate su dokazale delotvornost i u napadu i u odbrani. Svaki vojnik mora znati da ih koristi.
+renaissance_grenade_enemies_name	Bombaš
+renaissance_grenade_enemies_obj	Ubijte neprijatelje granatom u jednom meču:
+renaissance_headshots_descr	Dokaži da vladaš oružjem. Nije važno da li držiš automat ili snajpersku pušku. Dobar vojnik uvek nišani precizno.
+renaissance_headshots_name	Oštrooki strelac
+renaissance_headshots_obj	Ubijte neprijatelje pogotkom u glavu:
+renaissance_kd_ratio_descr	Dobar vojnik nije fanatični koljač. Samokontrola i disciplina razlikuju nas od rulje i čine snažnijim. Dokaži to na delu!
+renaissance_kd_ratio_name	Nadmoć!
+renaissance_kd_ratio_obj	Pobedite u meču uz odnos ubistava i smrti od najmanje
+renaissance_kill_enemies_descr	U ratu kao u ratu. Pobeda nije uvek moguća uz malo žrtava, zato se brzo obračunajte sa neprijateljem. Svaki poraženi protivnik približava nas pobedi!
+renaissance_kill_enemies_name	Delotvorna paljba
+renaissance_kill_enemies_obj	Ubijte protivnike u jednom meču:
+renaissance_killstreak_descr	Vojna slava čeka te na bojištu, ali samo pravi junak može da je zasluži. Dokaži da si dostojan zvanja heroja Vojske preporoda!
+renaissance_killstreak_name	Junak!
+renaissance_killstreak_obj	Ostvarite niz ubistava:
+renaissance_level_0	Nepoznat
+renaissance_level_1	Vojnik
+renaissance_level_10	Pukovnik
+renaissance_level_2	Razvodnik
+renaissance_level_3	Narednik
+renaissance_level_4	Stariji narednik
+renaissance_level_5	Zastavnik
+renaissance_level_6	Poručnik
+renaissance_level_7	Kapetan
+renaissance_level_8	Major
+renaissance_level_9	Potpukovnik
+renaissance_level_unlock_0	Čestitamo! Dostupni su zadaci frakcije Vojska preporoda!
+renaissance_level_unlock_1	Čestitamo! Novi čin: Vojnik (Vojska preporoda).
+renaissance_level_unlock_10	Čestitamo! Novi čin: Pukovnik (Vojska preporoda).
+renaissance_level_unlock_2	Čestitamo! Novi čin: Razvodnik (Vojska preporoda).
+renaissance_level_unlock_3	Čestitamo! Novi čin: Narednik (Vojska preporoda).
+renaissance_level_unlock_4	Čestitamo! Novi čin: Stariji narednik (Vojska preporoda).
+renaissance_level_unlock_5	Čestitamo! Novi čin: Zastavnik (Vojska preporoda).
+renaissance_level_unlock_6	Čestitamo! Novi čin: Poručnik (Vojska preporoda).
+renaissance_level_unlock_7	Čestitamo! Novi čin: Kapetan (Vojska preporoda).
+renaissance_level_unlock_8	Čestitamo! Novi čin: Major (Vojska preporoda).
+renaissance_level_unlock_9	Čestitamo! Novi čin: Potpukovnik (Vojska preporoda).
+renaissance_meele_kill_descr	Vojnici Vojske preporoda snažni su telom i duhom. Izdržljivost i hrabrost vode do pobede. Nauči da se braniš u bliskoj borbi.
+renaissance_meele_kill_name	Brza reakcija
+renaissance_meele_kill_obj	Ubijte neprijatelje u bliskoj borbi:
+renaissance_represent	Morate nositi opremu Vojske preporoda.
+renaissance_steal_box_descr	Borba licem u lice zaslužuje poštovanje, ali nije uvek efikasna. Dobra diverzija iza neprijateljskih linija može preokrenuti bitku i doneti pobedu!
+renaissance_steal_box_name	Diverzant
+renaissance_steal_box_obj	Ukradite bateriju iz neprijateljske baze i donesite je u svoju.
+renaissance_win_score_descr	Vojska preporoda nikada ne počiva na lovorikama. Što više baterija povežemo, manje ćemo trpeti od Oluje.
+renaissance_win_score_name	Slavna pobeda!
+renaissance_win_score_obj	Pobedite u meču sa donetim baterijama:
+renaissance_win_x_games_descr	Korak po korak, bitka za bitkom, pobeda za pobedom — tako Vojska preporoda obnavlja svet! Nemamo kuda da se povučemo. Pobeda po svaku cenu!
+renaissance_win_x_games_name	Za otadžbinu!
+renaissance_win_x_games_obj	Pobedite u mečevima:
+rename_account_voucher_descr	Ovaj vaučer omogućava besplatnu promenu nadimka.
+rename_account_voucher_name	Vaučer za promenu imena lika
+rep_reward_match	Stečeni ugled
+rep_reward_premium	Premijum bonus
+rep_reward_quest	Nagrada za zadatak
+repair_time	Popravka
+repair_time_label	vreme
+repair_voucher_descr	Komplet za popravku otklanja svaki kritični kvar opreme.
+repair_voucher_name	Komplet za popravku
+repair_window_label	Popravka
+reputation	Ugled
+reroll	Poništi
+reroll_message_broken_item	Oštećeni predmet ne može da se izmeni.
+reroll_modifier_lock_hint	Možete menjati samo ovaj modifikator.
+reroll_timer_hint	Biće dostupno za
+research_unit_a_captured	Uređaj A je zauzet
+research_unit_a_lost	Uređaj A je izgubljen
+research_unit_b_captured	Uređaj B je zauzet
+research_unit_b_lost	Uređaj B je izgubljen
+research_unit_c_captured	Uređaj C je zauzet
+research_unit_c_lost	Uređaj C je izgubljen
+resolution_option	Rezolucija
+respawn_booster_description	Civilni radio FD3. Veoma koristan u borbi za organizovanje odreda i saradnju.
+respawn_booster_name	Radio
+respawn_time_pref	Ponovno pojavljivanje za
+resupply_check_empty_inventory	Nedovoljno municije u skladištu
+resupply_check_full_ammo	Municija je popunjena
+resupply_finished	Municija i zalihe su dopunjene!
+revenue	Zarada
+reward	Nagrada
+rgd5_descr	Ofanzivna ručna protivpešadijska granata. Eksplozija raspršuje delove omotača.
+rgd5_name	Granata RGD-5
+rgo_descr	Opis još nije dostupan.
+right_strafe_action	Kreći se udesno
+rpd_description	Opis još nije dostupan.
+rpk_description	Opis još nije dostupan.
+saiga_12_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija K ima kratku cev i preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+save_password_str	Sačuvaj lozinku
+scav_back_1_desc	Ručno izrađen kontejner za artefakte u obliku ranca. Koristan za odlazak u potragu za artefaktima.
+scav_back_1_name	Ranac sa kontejnerom
+scav_boots_1_desc	Grube čizme sa otpada ili skinute sa mrtvaca. Štite noge od povreda i često pomažu na teškim putovanjima.
+scav_boots_1_name	Kožne čizme
+scav_boots_2_desc	Nepropusna zaštita nogu pri kretanju po otrovnim površinama. Omogućava pristup oblastima nedostupnim većini preživelih.
+scav_boots_2_name	Čizme za hemijsku zaštitu
+scav_boots_3_desc	Čvrste vodootporne čizme sa čeličnom kapom i izolacijom. Dragocen plen za Sakupljača, posebno po nevremenu. Povećavaju brzinu kretanja za 2%.
+scav_boots_3_name	Vojne čizme
+scav_gloves_1_desc	Jednostavne rukavice bez prstiju koje greju i štite šake. Udobne su i ne moraju se skidati tokom rada. Povećavaju brzinu nišanjenja za 2%.
+scav_gloves_1_name	Rukavice bez prstiju
+scav_gloves_2_desc	Gumirane izolacione rukavice za rad sa zagađenim i anomalnim materijalima. Obavezna oprema lovca na artefakte.
+scav_gloves_2_name	Rukavice za hemijsku zaštitu
+scav_gloves_4_desc	Opis još nije dostupan.
+scav_gloves_4_name	Grube rukavice
+scav_helmet_1_desc	Opis još nije dostupan.
+scav_helmet_1_name	Građevinski šlem
+scav_legs_1_desc	Grube pantalone koje greju noge i podnose lutanje kroz ruševine.
+scav_legs_1_name	Lanene pantalone
+scav_legs_2_desc	Izolacione pantalone koje ručno izrađuju Sakupljači. Štite od otrovnih materija. Praktičan džep prima nekoliko kompleta prve pomoći ili granata.
+scav_legs_2_name	Pantalone za hemijsku zaštitu
+scav_legs_3_desc	Uredno sašivene pantalone od izdržljivog materijala sa štitnicima kolena i nosačima opreme. Štite u teškim uslovima. Džep prima nekoliko kompleta prve pomoći ili granata.
+scav_legs_3_name	Terenske pantalone
+scav_legs_4_desc	Opis još nije dostupan.
+scav_legs_4_name	Pantalone preživelog
+scav_legs_5_desc	Opis još nije dostupan.
+scav_legs_5_name	Ojačane pantalone
+scav_rep_modifier	Ugled kod Sakupljača
+scav_resp_1_desc	Respirator koji su Sakupljači prilagodili za zaštitu disajnih organa od otrovnih isparenja i radioaktivne prašine.
+scav_resp_1_name	Respirator Ćilibar
+scav_torso_1_desc	Laka prošivena jakna jednostavne izrade, prva oprema Sakupljača. Štiti od nevremena. Prostrani džepovi primaju prvu pomoć, granate i dodatnu municiju.
+scav_torso_1_name	Prošivena jakna
+scav_torso_2_desc	Neophodna pri istraživanju zagađenih oblasti. Štiti trup i ruke od dodira sa otrovnim materijama. Ima ugrađen kontejner za artefakte.
+scav_torso_2_name	Jakna za hemijsku zaštitu
+scav_torso_3_desc	Vojni prsluk koji su Sakupljači prepravili, uzet sa palog vojnika ili iz opljačkanog skladišta. Torbice primaju prvu pomoć, granate i dodatnu municiju.
+scav_torso_3_name	Laki pancir
+scav_torso_4_desc	Opis još nije dostupan.
+scav_torso_4_name	Jakna preživelog
+scav_torso_5_desc	Prošivena pamučna jakna, iznutra ojačana savijenim metalnim pločama, a spolja kožnim zakrpama. Dobar izbor za iskusnog Sakupljača.
+scav_torso_5_name	Ojačana postavljena jakna
+scavenger_starter_bundle_descr	<white>Paket sadrži:\n- Jaknu preživelog.\n- Pantalone preživelog.\n- Unapređeni OTs-02 Kiparis.\n- 1000 metaka 9x18 PM.</white>
+scavenger_starter_bundle_name	Paket Preživeli
+scavengers_accuracy_descr	Čemu pucanje na sve strane? Jedan metak je dovoljan da odnese život. Nauči da štediš municiju.
+scavengers_accuracy_name	Streljačke veštine
+scavengers_accuracy_obj	Pobedite u meču sa preciznošću većom od
+scavengers_bring_x_items_descr	Bitka se ne dobija uvek oružjem. Pamti glavni cilj: sakupi što više baterija za zaštitni uređaj.
+scavengers_bring_x_items_name	Doprinos pobedi
+scavengers_bring_x_items_obj	Pronađite i donesite baterije:
+scavengers_defend_items_descr	Neprijatelj ne igra uvek po pravilima. Brani bazu i osujeti svaki pokušaj krađe baterija.
+scavengers_defend_items_name	Odbrana imovine
+scavengers_defend_items_obj	Pobedite u meču bez gubitka baterija
+scavengers_faction	Sakupljači
+scavengers_find_artifacts_descr	Istražuj anomalije u potrazi za artefaktima. U žaru borbe ojačaj sebe artefaktom na pojasu. Zaštita od anomalija znatno olakšava potragu.
+scavengers_find_artifacts_name	Pronađi artefakte
+scavengers_find_artifacts_obj	Pronađite artefakte u jednom meču:
+scavengers_grenade_enemies_descr	Dobro bacanje granata važno je koliko i precizno pucanje. Ponekad je granata jedini način da dohvatiš neprijatelja.
+scavengers_grenade_enemies_name	Precizno bacanje
+scavengers_grenade_enemies_obj	Ubijte neprijatelje granatom u jednom meču:
+scavengers_kd_ratio_descr	Lako je biti junak, teško je ostati živ. Što duže živiš, više koristiš timu. Ne skrivaj se kao kukavica — nauči da preživiš!
+scavengers_kd_ratio_name	Preživljavanje
+scavengers_kd_ratio_obj	Pobedite u meču uz odnos ubistava i smrti od najmanje
+scavengers_kill_enemies_descr	Kad se nađeš oči u oči sa neprijateljem, nema vremena za osećanja. Dvoboj ima samo jednog pobednika. Bolje da to budeš ti!
+scavengers_kill_enemies_name	Samoodbrana
+scavengers_kill_enemies_obj	Ubijte protivnike u jednom meču:
+scavengers_level_0	Nepoznat
+scavengers_level_1	Početnik
+scavengers_level_2	Odlučan
+scavengers_level_3	Iskusan
+scavengers_level_4	Prekaljen
+scavengers_level_5	Veteran
+scavengers_level_unlock_0	Čestitamo! Dostupni su zadaci frakcije Sakupljači!
+scavengers_level_unlock_1	Čestitamo! Novi čin: Početnik (Sakupljači).
+scavengers_level_unlock_2	Čestitamo! Novi čin: Odlučan (Sakupljači).
+scavengers_level_unlock_3	Čestitamo! Novi čin: Iskusan (Sakupljači).
+scavengers_level_unlock_4	Čestitamo! Novi čin: Prekaljen (Sakupljači).
+scavengers_level_unlock_5	Čestitamo! Novi čin: Veteran (Sakupljači).
+scavengers_meele_kill_descr	Ako je sukob neizbežan, reši ga brzo i tiho. Prikradanje i napad nožem privlače manje pažnje.
+scavengers_meele_kill_name	Bez buke
+scavengers_meele_kill_obj	Ubijte neprijatelje u bliskoj borbi:
+scavengers_represent	Morate nositi opremu Sakupljača.
+scavengers_steal_box_descr	Uzeti bateriju od neprijatelja dvostruko je zadovoljstvo. Neki to zovu krađom, ali ako ne čuvaju svoju imovinu, očigledno im ne treba.
+scavengers_steal_box_name	Sitna krađa
+scavengers_steal_box_obj	Ukradite bateriju iz neprijateljske baze i donesite je u svoju.
+scavengers_win_score_descr	Što više baterija aktiviraš u uređaju, veća je nagrada za pobedu u meču.
+scavengers_win_score_name	Besprekorna pobeda
+scavengers_win_score_obj	Pobedite u meču sa donetim baterijama:
+scavengers_win_x_games_descr	Živimo u surovom svetu. Pobednik uzima sve, a poraženi dobija ostatke. Pobednički tim uvek dobija veću nagradu.
+scavengers_win_x_games_name	Ukus pobede
+scavengers_win_x_games_obj	Pobedite u mečevima:
+scientists_faction	Institut
+search_label	Pretraga
+search_range	Nivo meča
+second_weapon_action	Oružje 2
+seconds_short	s.
+seed_settings	Deljenje datoteka u predvorju
+seeding_max_upload_in_kb_option	Ograničenje brzine slanja:
+select_send_to_action	Izaberi primaoca
+sell	Prodaj
+send	Pošalji
+send_message	Pošalji poruku
+send_message_action	Pošalji poruku
+server_maintenance	Vreme do redovnog održavanja servera
+settings	Podešavanja
+settings_label	Podešavanja
+shading_quality_option	Kvalitet šejdera
+shadow_quality_option	Kvalitet senki
+shooting_skills_label	Obuka za vatreno oružje
+shop	Prodavnica
+shop_label	Prodavnica
+shop_scope_1p69_hyperon_description	Nišan sa uvećanjem x4.
+shop_scope_1p69_hyperon_name	Optički nišan Zenit Hyperion, x4
+shop_scope_acog_ta31_description	Nišan sa uvećanjem x4.
+shop_scope_acog_ta31_name	Optički nišan TA31, x4
+shop_scope_aimpoint_compm4_description	Švedski refleksni nišan sa tačkom od 2 MOA i baterijom koja traje do osam godina neprekidne upotrebe. Američka vojska ga je usvojila kao M68 CCO. Postavlja se na Pikatinijevu šinu.
+shop_scope_aimpoint_compm4_name	Kolimatorski nišan CompM4
+shop_scope_cobra_ekp_8_description	Ruski kolimatorski nišan sa četiri crvene končanice. Omogućava brzo nišanjenje sa oba oka otvorena. Postavlja se na bočnu šinu oružja tipa Kalašnjikov.
+shop_scope_cobra_ekp_8_name	Kolimatorski nišan Kobra EKP-8
+shop_scope_docter_description	Kompaktni nemački otvoreni refleksni nišan sa crvenom tačkom. Lak i brz za nišanjenje, namenjen sačmaricama, pištoljima i kratkom oružju.
+shop_scope_docter_name	Kolimatorski nišan Docter
+shop_scope_elcan_specterdr_description	Nišan sa uvećanjem x4.
+shop_scope_elcan_specterdr_name	Optički nišan SpecterDR, x4
+shop_scope_eotech_552_description	Američki holografski nišan sa prstenom od 65 MOA i središnjom tačkom od 1 MOA. Napaja se AA baterijama. Brz na malim i srednjim daljinama. Postavlja se na Pikatinijevu šinu.
+shop_scope_eotech_552_name	Kolimatorski nišan EOTech 552
+shop_scope_leupold_deltapoint_description	Kompaktni američki refleksni nišan sa crvenim trouglom. Namenjen pištoljima i lakom oružju; dovoljno mali da ne smeta.
+shop_scope_leupold_deltapoint_name	Kolimatorski nišan Leupold DeltaPoint
+shop_scope_leupold_mk4_description	Nišan sa uvećanjem x4.
+shop_scope_leupold_mk4_name	Optički nišan Leupold MK4, x4
+shop_scope_pso_1_description	Nišan sa uvećanjem x4.
+shop_scope_pso_1_name	Optički nišan PSO-1, x4
+shop_scope_pso_1_old_description	Nišan sa uvećanjem x4.
+shop_scope_pso_1_old_name	Optički nišan PSO-1 O, x4
+shop_scope_pu_3_5x_description	Nišan sa uvećanjem x3,5.
+shop_scope_pu_3_5x_name	Optički nišan PU, x3,5
+shop_showcase	Glavno
+short_clan_string	Ime je prekratko.
+show_ammo	Prikaži municiju
+show_character_action	Prozor lika
+show_enemy_killed_marker	Prikaži oznaku ubistva
+show_friends_action	Prijatelji
+show_inventory_action	Inventar
+show_options_action	Podešavanja
+show_player_info_button_hint	Prikaži podatke o igraču
+show_player_info_hint	Dvoklik za prikaz podataka
+show_quest_list	Prikaži zadatke
+show_quests_progress_option	Prikaži napredak zadataka u meču
+show_shop_action	Prodavnica
+show_squad_list	Prikaži odred
+skills_already_rerolled	Veštine su već poništene.
+sks_description	Poluautomatski karabin Simonov kalibra 7,62x39, usvojen u sovjetskoj vojsci 1949. Kasnije su ga zamenile automatske puške. Nepokretni magacin prima 10 metaka.
+sks_premium_2_description	Poluautomatski karabin Simonov kalibra 7,62x39, usvojen u sovjetskoj vojsci 1949. Kasnije su ga zamenile automatske puške. Nepokretni magacin prima 10 metaka. Premijum verzija sa posebnom kamuflažom.
+sks_premium_description	Poluautomatski karabin Simonov kalibra 7,62x39, usvojen u sovjetskoj vojsci 1949. Kasnije su ga zamenile automatske puške. Nepokretni magacin prima 10 metaka. Premijum verzija sa posebnom kamuflažom.
+slide1_button_accept_label	Dalje
+slide1_text	Zdravo, preživeli. Imao si sreće da preživiš kraj sveta. Posle nedelja lutanja konačno si stigao do mesta koja Šuma još nije progutala.
+slide1_text_enter_name	Koje ime biraš u novom svetu?
+slide1_tutorial_reward	Po završetku obuke dobijaš nagradu:
+slot_control_label	Izaberi količinu
+slots	Mesta
+sniper_skills_descr	Poboljšava rukovanje oružjem, preciznost pucanja i brzinu nišanjenja.
+sniper_skills_name	Obuka za vatreno oružje
+snp_fast_draw_desc	Omogućava bržu zamenu oružja.
+snp_fast_draw_name	Brza zamena oružja
+snp_fast_reload_desc	Naučili ste da brže punite oružje.
+snp_fast_reload_name	Brzo punjenje
+snp_fast_shot_desc	Povećava brzinu povlačenja okidača poluautomatskog oružja.
+snp_fast_shot_name	Kontrola okidača
+snp_iron_breath_desc	Omogućava duže zadržavanje daha pri nišanjenju.
+snp_iron_breath_name	Gvozdena pluća
+snp_sniper_desc	Znatno povećava preciznost uz snajperske, taktičke i kolimatorske nišane.
+snp_sniper_name	Snajperista
+snp_steady_breath_desc	Ubrzava oporavak posle zadržavanja daha.
+snp_steady_breath_name	Mirno disanje
+snp_steady_grip_desc	Povećava preciznost pucanja u pokretu.
+snp_steady_grip_name	Čvrst stisak
+soc_vepr_description	Ruski poluautomatski karabin porodice Vepr, kalibra 7,62x39. Fabrika Molot ga izrađuje na ojačanom sanduku mitraljeza RPK za lov i sport. Okvir prima 10 metaka. Samo pojedinačna paljba.
+socom16_description	Opis još nije dostupan.
+sort	Poređaj
+sort_cost	Po ceni
+sort_label	Filter
+sort_level	Po nivou
+sort_reset	Poništi
+space_symbol_clan_string	Nedozvoljeni razdvajači
+spam_filter_block_notification	Filter neželjenih poruka je blokirao vašu poruku. Sačekajte
+spam_filter_block_notification_fin	sek.
+spas12_description	Opis još nije dostupan.
+special_offer	Posebna ponuda
+speed_booster_description	Energetski napitak sa kofeinom i taurinom. Okrepljuje i stimuliše centralni nervni sistem.
+speed_booster_name	Energetski napitak Tornado
+spot_action	Uočen neprijatelj
+spring_activation_hint	Opruga je aktivirana! Brzina kretanja i nišanjenja +10%. Ubrzana obnova energije! Meci vas ne usporavaju!
+spring_pickup_hint	Artefakt Opruga. Povećava brzinu kretanja i nišanjenja za 5%.
+sprint_action	Sprint (drži)
+sprint_toggle_action	Sprint
+squad	Odred
+squad_list_locked_hint	Ne možete napraviti odred dok ste u timu klana.
+squad_not_ready	Odred nije spreman
+sr2m_description	Opis još nije dostupan.
+sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 metaka 9x39 SP-6.</white>\n
+sr3m_bundle_name	Paket SR-3M Vihr
+sr3m_description	Opis još nije dostupan.
+srp_attachments	Dodaci
+srp_optics	Optika
+srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+stamina_boost_name	Drugi dah
+stamina_boost_time_description	Energija obnovljena ubistvom neprijatelja:
+stamina_loss_on_hit_description	Gubitak izdržljivosti pri ranjavanju:
+stamina_loss_on_hit_name	Nezaustavljiv
+stamina_regen_correction_perc_name	Obnova izdržljivosti
+stamina_regeneration_speed_description	Brzina obnove energije:
+stamina_regeneration_speed_name	Disanje
+stamina_spending_speed_description	Potrošnja energije:
+stamina_spending_speed_name	Izdržljivost
+start_chat_action	Ćaskanje
+start_match_welcome_message	Pronađite baterije i donesite ih u svoju bazu!
+start_match_welcome_message_2	Pronađite i zaštitite stanice za punjenje baterija!
+start_match_welcome_message_3	Eliminišite što više neprijatelja!
+start_match_welcome_message_5	Pronađite i zauzmite istraživačke uređaje!
+statistic_sync_text	Preuzimanje statistike meča
+statistics_daily_bonus	Dnevni bonus
+statistics_equipment_bonus	Bonus opreme
+statistics_exp	Stečeno iskustvo:
+statistics_money	Zarađeni novac:
+statistics_rating_delta	Promena rejtinga
+statistics_score	Osvojeni poeni:
+statistics_score_game_events	Nagrade za aktivnosti u meču
+statistics_score_help	Pomoć savezniku
+statistics_score_kills	Ubijeni neprijatelji
+statistics_score_match	Prema rezultatu meča
+statistics_score_premium	Premijum nalog
+statistics_score_quests	Za izvršene zadatke
+stats_accuracy	Preciznost:
+stats_artefacts_gathered	Sakupljeni artefakti:
+stats_assists	Asistencije:
+stats_deaths	Smrti:
+stats_headshots	Pogoci u glavu:
+stats_healed	Izlečeno:
+stats_items_defended	Odbranjene baterije:
+stats_items_gathered	Pronađene baterije:
+stats_kills	Ubistva:
+stats_max_killstreak	Niz ubistava:
+stats_melee_kills	Ubistva u bliskoj borbi:
+stats_saved	Spaseno:
+stats_silent_kills	Tiha ubistva:
+stats_stolen_victory_items	Ukradene baterije:
+status_str	Status:
+storage	Skladište
+string_pattern_error	Ime sadrži nedozvoljene znakove ili je predugačko ili prekratko.
+support	Podrška
+survival_notes	Beleške preživelog
+survival_notes_complete	Završili ste
+survival_skills_label	Veštine preživljavanja
+sv_98_description	Opis još nije dostupan.
+svd_description	Poluautomatska snajperska puška Dragunov kalibra 7,62x54. Godinama glavno snajpersko oružje sovjetske vojske. Okvir prima 5 metaka.
+swear_clan_string	Tekst sadrži nepristojne reči.
+swearing_claim	Nepristojan govor
+team_already_has_commander	Tim klana već ima komandanta.
+team_member_is_not_commander	Član tima nije komandant.
+texture_quality_option	Kvalitet tekstura
+there_is_no_item_in_inventory	Predmet nije pronađen u inventaru.
+thief_item	Uzmi kontejner
+throw_grenade_action	Baci granatu
+time_current	Traženje igrača:
+time_was_resynchronized	Obnavljanje veze…
+to_all	Svima
+top100	Najboljih 100
+total	Ukupno
+tournaments	Turniri
+toz122_description	Lovački karabin sa olučenom cevi kalibra 7,62x51, namenjen amaterskom i profesionalnom lovu. Kutijasti magacin prima 5 metaka.
+toz34_description	Lovačka sačmarica sa vertikalno postavljenim cevima, kalibra 12x70. Jedna od prvih serijski proizvođenih lovačkih pušaka. Laka je i ima dobro grupisanje pogodaka.
+toz66_description	Lovačka dvocevna sačmarica kalibra 12x70. Dva gotovo trenutna hica čine je efikasnom na maloj daljini.
+trap_damage	Šteta zamke
+treasure_map_advert	Upotrebite mapu skrovišta da pronađete više predmeta.
+tt_description	Tulski Tokarev, uveden 1933, koristi municiju 7,62x25. Razvijen je kao prvi sovjetski vojni poluautomatski pištolj. Okvir prima 8 metaka.
+tutorial_apply_ammo_message_1	Potvrdite izbor pritiskom na <tutorial_highlight>„Primeni“</tutorial_highlight> ili <tutorial_highlight>„Sakrij municiju“</tutorial_highlight>.
+tutorial_choose_ammo_message_1	Broj metaka je naznačen na kutijama. Različite vrste municije mogu imati različit broj metaka u kutiji.
+tutorial_choose_ammo_message_2	Uzmite najveću dozvoljenu količinu municije.
+tutorial_choose_faction_message_1	Istovremeno možete sarađivati samo sa jednom frakcijom. Ugled stičete uspešnim radnjama u borbi i izvršavanjem zadataka frakcije.
+tutorial_choose_faction_message_2	Pridružite se jednoj od frakcija.
+tutorial_choose_wpn_message_1	U borbu možete poneti samo dva oružja. Pažljivo izaberite čime ćete se boriti.
+tutorial_choose_wpn_message_2	Prevucite Mosin karabin ili\nPPŠ-41 na prazno mesto za oružje.
+tutorial_click_ammo_message_1	Možete nositi ograničenu količinu municije. <tutorial_highlight>Kliknite na „Prikaži municiju“</tutorial_highlight> da sami izaberete koliko metaka nosite u borbu.
+tutorial_click_inventory_message_1	Šuma nije jedina opasnost novog sveta. Države su propale i svako se bori za sebe. Za hranu, lekove i pravo na opstanak morate se izboriti. Oružje iz starih skrovišta možda nije najbolje, ali je bolje nego ništa.
+tutorial_click_inventory_message_2	Otvorite karticu „Oprema“ da opremite lika oružjem i oklopom.
+tutorial_complete_label	Čestitamo!\nZavršili ste obuku.
+tutorial_complete_reward_label	Vaša nagrada za ovu radnju:
+tutorial_equip_drop_message_1	Novo oružje i opremu možete dobiti na više načina. Posle svake borbe imate priliku da pronađete predmet na bojištu. Poboljšajte odnose sa frakcijama da pristupite njihovoj posebnoj robi.
+tutorial_equip_drop_message_2	Otvorite prozor za izbor frakcije.
+tutorial_exit_warning	Ako napustite obuku, ne možete joj se vratiti i dobiti nagradu. Želite li zaista da nastavite?
+tutorial_press_play_message_1	Kliknite na <tutorial_highlight>Igraj</tutorial_highlight> za prvu borbu. Više informacija naći ćete u <tutorial_highlight>„Beleškama preživelog“</tutorial_highlight>, dostupnim posle borbe.
+two_handed	Glavno oružje
+ump45_description	Opis još nije dostupan.
+unknown_faction	Neutralan
+unlimited_upload	bez ograničenja
+use_action	Upotrebi
+use_artefact_container	Izvadi artefakt ({USE})
+use_fix_voucher	Komplet za popravku
+use_item_message	Želite li zaista da upotrebite ovaj predmet?
+use_ladder	Merdevine
+use_microphone_option	Koristi mikrofon
+use_resupply_zone	Dopuni municiju ({USE})
+use_two_double_handed_weapons_description	Možete poneti dva dvoručna oružja u meč.
+use_two_double_handed_weapons_name	Terminator
+using_progress_message	Napredak:
+uzi_description	Automat kalibra 9x19, razvijen 1954. za izraelsku vojsku. Postao je jedno od najrasprostranjenijih oružja na svetu. Podržava pojedinačnu i rafalnu paljbu.
+uzi_premium_2_description	Automat kalibra 9x19, razvijen 1954. za izraelsku vojsku. Jedno od najrasprostranjenijih oružja na svetu. Podržava pojedinačnu i rafalnu paljbu. Premijum verzija sa posebnom kamuflažom.
+val_description	Opis još nije dostupan.
+valmet_description	Finska jurišna puška kalibra 7,62x39, zasnovana na Kalašnjikovu. Valmet i Sako su je razvili, a vojska usvojila 1962. Poznata je po preciznosti i pouzdanosti u arktičkim uslovima. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+vepr_12_description	Ruska poluautomatska sačmarica kalibra 12, proizvedena u Molotu na ojačanom sanduku RPK-a. Uvedena tokom 2000-ih za sport, lov i obezbeđenje. Okvir prima 8 patrona. Samo pojedinačna paljba.
+vepr_12_premium_description	Ruska poluautomatska sačmarica kalibra 12 na ojačanom sanduku RPK-a. Molot ju je uveo tokom 2000-ih za sport, lov i obezbeđenje. Okvir prima 8 patrona. Samo pojedinačna paljba. Premijum verzija sa posebnom kamuflažom.
+vepr_description	Opis još nije dostupan.
+vepr_premium_description	Ruski karabin porodice Vepr, kalibra 5,45x39. Molot ga izrađuje na ojačanom sanduku mitraljeza RPK-74. Okvir prima 30 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
+victory	Pobeda
+victory_screen_no_dropped_item	Niste pronašli ništa na bojištu.
+vityaz_bundle_descr	<white>Paket sadrži:\n- Unapređeni PP-19-01 Vitjaz.\n- 2000 metaka 9x19 Parabellum.</white>
+vityaz_bundle_name	Paket PP-19-01 Vitjaz
+vityaz_description	Automat kalibra 9x19, razvijen 2004. za potrebe ruskih specijalnih snaga. Podržava pojedinačnu i rafalnu paljbu.
+voice_chat_volume_option	Glasovno ćaskanje
+vsk94_description	Opis još nije dostupan.
+vsk94_premium_description	Ruska snajperska puška kalibra 9x39, razvijena devedesetih u birou KBP u Tuli na osnovi 9A-91. Ima prigušivač i snajperski kundak za tihu paljbu na malim i srednjim daljinama. Okvir prima 20 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
+vss_bundle_descr	<white>Paket sadrži:\n- Unapređeni VSS Vintorez.\n- 1000 metaka 9x39 SP-5.</white>\n
+vss_bundle_name	Paket VSS Vintorez
+vss_description	Opis još nije dostupan.
+vssk_camo_description	Ruska repetirajuća snajperska puška kalibra 12,7x55, razvijena tokom 2000-ih u Tuli. Veliki prigušivač omogućava tihe hice protiv ciljeva iza zaklona ili u panciru. Okvir prima 5 metaka. Samo pojedinačna paljba. Verzija sa posebnom kamuflažom.
+vssk_description	Opis još nije dostupan.
+vsync_option	Vertikalna sinhronizacija
+vz58_description	Čehoslovačka jurišna puška kalibra 7,62x39, koju je Jirži Čermak projektovao, a vojska usvojila 1958. Liči na Kalašnjikov, ali ima sopstveni klipni i bravarski sistem. Verzija P ima drveni kundak. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+waiting_for_players	Čekanje ostalih igrača:
+walther_competition2_collimator_desc	Nemački kolimatorski nišan Walther, prvobitno namenjen sportskom streljaštvu. U cevastom kućištu nalazi se osvetljena nišanska tačka.
+walther_competition2_collimator_name	Kolimatorski nišan Competition II
+wasted	Potrošnja
+weapon_aim_action	Nišani (drži)
+weapon_could_not_be_used	Ruke su povređene! Ne možete da koristite oružje.
+weapon_fire_action	Pucaj
+weapon_reload_action	Napuni oružje
+wear	Primeni
+weight_booster_description	Protein sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.
+weight_booster_name	Protein Anomalna snaga
+winchester1894_description	Puška koju je američki konstruktor razvio 1894, a proizvodila se do 2006. Jedna od najpoznatijih lovačkih pušaka. Repetira se polugom i ima cevasti magacin za 6 metaka.
+wrong_skill_points_count	Pogrešan broj poena veština
+wrong_symbol_clan_string	Tekst sadrži znak koji ne može da se prikaže.
+you_have_no_voucher_for_premium	Nemate vaučer za aktiviranje premijum naloga.
+you_have_no_voucher_for_rename	Nemate vaučer za promenu imena lika.
+you_have_no_voucher_for_repair	Nemate komplet za popravku.
+youtube_video_tutorial_button	Pogledajte video-uputstvo!

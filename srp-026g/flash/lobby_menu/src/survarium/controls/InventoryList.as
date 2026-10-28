@@ -182,8 +182,8 @@ package survarium.controls
       
       private static const SEARCH_ICON_GAP:int = 4;
       
-      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl)
-      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj"];
+      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl, sr)
+      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj", "Pretraga"];
       
       // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
       // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
@@ -214,15 +214,15 @@ package survarium.controls
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","шолом","шлем"],category:ItemCategory.HELMETS},
-         {words:["mask","маска"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет"],category:ItemCategory.BODY_ARMOR},
-         {words:["rig","розвантаження","разгрузка"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки"],category:ItemCategory.GLOVES},
-         {words:["pants","trousers","штани","штаны"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки"],category:ItemCategory.BOOTS}];
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti"],group:SuperCategory.ITEMS},
+         {words:["helmet","шолом","шлем","šlem"],category:ItemCategory.HELMETS},
+         {words:["mask","маска","maska"],category:ItemCategory.MASKS},
+         {words:["body","armour","armor","vest","бронежилет","pancir"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","розвантаження","разгрузка","prsluk"],category:ItemCategory.RIGS},
+         {words:["gloves","рукавички","перчатки","rukavice"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны","pantalone"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки","čizme"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;

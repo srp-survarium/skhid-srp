@@ -1,0 +1,12 @@
+{
+  "_about": "Serbian Latin. Copy English support resources, translate every dictionary key, and include missing stock UI keys. The EULA and profanity data remain English; they are not Serbian translations.",
+  "copy": [{"files": "localization/english/*", "from": "localization/english/", "to": "localization/serbian/"}],
+  "translate": [{
+    "file": "localization/english/localization",
+    "target": "localization/serbian/localization",
+    "translations": "../../client-patches/localization/serbian.tsv",
+    "keep": "../../client-patches/localization/serbian_keep.txt",
+    "latin": true,
+    "extra": ["st_bonus_victory", "st_change_profile", "st_checkbox_players_live_search", "st_checkbox_show_player_groups", "st_choose_faction_button_hint", "st_friend_options_label", "st_label_status", "st_slots", "st_special_offer"]
+  }]
+}
