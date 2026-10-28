@@ -1,6 +1,6 @@
 //! Match recordings (`SRP_RECORD_DIR`): every datagram of a match, in and
 //! out, in one file per match, kept when enough players played in it
-//! (`SRP_RECORD_MIN_PLAYERS`, late joiners counted), for learning from
+//! (`SRP_RECORD_MIN_PLAYERS`, late joiners counted; one human for PvE), for learning from
 //! later (player bots). Off unless the folder is set.
 //!
 //! A file holds what the server and the clients said to each other, so
@@ -23,7 +23,8 @@
 //! 0x8000}])`). Unpacked, a block is records:
 //!
 //! ```text
-//! u8 kind (1 datagram in, 2 datagram out, 3 note), u8 place (0xFF: none),
+//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit),
+//! u8 place (0xFF: none),
 //! u32 LE ms since the recording began, u32 LE length, the bytes
 //! ```
 //!
@@ -52,6 +53,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use session::v026g::replays::Replays;
 use survarium::v026g::lzma2;
+use survarium::v026g::match_msgs::PlayerInput;
 
 /// The file's first bytes.
 pub const MAGIC: &[u8; 8] = b"SRPREC01";
@@ -59,6 +61,11 @@ pub const MAGIC: &[u8; 8] = b"SRPREC01";
 pub const IN: u8 = 1;
 pub const OUT: u8 = 2;
 pub const NOTE: u8 = 3;
+/// Accepted human action in PvE: full match time (u32 LE), rotation (4
+/// bytes), actions (u32 LE). Recorded after validation and late placement.
+pub const ACCEPTED_INPUT: u8 = 4;
+/// Accepted human kit choice in PvE: full match time (u32 LE), kit (u8).
+pub const ACCEPTED_PROFILE: u8 = 5;
 /// The place of a record that is no player's.
 pub const NO_PLACE: u8 = 0xFF;
 /// A block is packed and written once it holds this much ...
@@ -75,7 +82,7 @@ const EXTENSION: &str = "srprec";
 pub(crate) struct RecordSettings {
     pub dir: PathBuf,
     /// A match is kept once this many players (test bots not counted) have
-    /// entered it, at its start or later.
+    /// entered it, at its start or later. PvE needs only one human.
     pub min_players: usize,
     /// Kept files over this many bytes together: the oldest go.
     pub max_bytes: u64,
@@ -186,11 +193,18 @@ impl Recorder {
     }
 
     /// The recording of a new match: its header note goes first.
-    pub fn open(&self, match_id: u32, header: serde_json::Value, now: Instant) -> Recording {
+    pub fn open(
+        &self,
+        match_id: u32,
+        vs_bots: bool,
+        header: serde_json::Value,
+        now: Instant,
+    ) -> Recording {
         let started = SystemTime::now();
         let name = format!("rec026g_{}_{match_id:08x}", utc_stamp(started));
         let mut recording = Recording {
             recorder: self.clone(),
+            min_players: if vs_bots { 1 } else { self.min_players },
             match_id,
             began: now,
             entered: HashSet::new(),
@@ -203,7 +217,7 @@ impl Recorder {
             object.insert("note".into(), "header".into());
             object.insert("format".into(), 1.into());
             object.insert("began_unix_ms".into(), unix_ms(started).into());
-            object.insert("min_players".into(), self.min_players.into());
+            object.insert("min_players".into(), recording.min_players.into());
             object.insert("srp".into(), env!("CARGO_PKG_VERSION").into());
         }
         recording.note(&header, now);
@@ -215,6 +229,7 @@ impl Recorder {
 /// minimum, else deleted.
 pub(crate) struct Recording {
     recorder: Recorder,
+    min_players: usize,
     match_id: u32,
     began: Instant,
     /// The places that entered, test bots not counted.
@@ -267,6 +282,23 @@ impl Recording {
         self.record(OUT, place_byte(place), datagram, now);
     }
 
+    /// A human input accepted at its final time, even when there is no
+    /// other client to receive a relay (a solo bot match).
+    pub fn accepted_input(&mut self, place: usize, time: u32, input: &PlayerInput, now: Instant) {
+        let mut bytes = [0; 12];
+        bytes[..4].copy_from_slice(&time.to_le_bytes());
+        bytes[4..8].copy_from_slice(&input.rotation);
+        bytes[8..].copy_from_slice(&input.actions.to_le_bytes());
+        self.record(ACCEPTED_INPUT, place_byte(place), &bytes, now);
+    }
+
+    pub fn accepted_profile(&mut self, place: usize, time: u32, kit: u8, now: Instant) {
+        let mut bytes = [0; 5];
+        bytes[..4].copy_from_slice(&time.to_le_bytes());
+        bytes[4] = kit;
+        self.record(ACCEPTED_PROFILE, place_byte(place), &bytes, now);
+    }
+
     /// A JSON note.
     pub fn note(&mut self, note: &serde_json::Value, now: Instant) {
         self.record(NOTE, NO_PLACE, note.to_string().as_bytes(), now);
@@ -276,7 +308,7 @@ impl Recording {
     /// the minimum have.
     pub fn entered(&mut self, place: usize) {
         self.entered.insert(place);
-        if !self.kept && self.entered.len() >= self.recorder.min_players {
+        if !self.kept && self.entered.len() >= self.min_players {
             self.kept = true;
             log::info!(
                 "Match {:#x}: {} players have entered; its recording is kept",
@@ -749,6 +781,68 @@ mod tests {
     }
 
     #[test]
+    fn a_bot_match_is_kept_after_one_human_but_empty_and_small_pvp_matches_are_not() {
+        use session::v026g::replays::{Known, ReplaySettings, Status};
+        let root = temp_dir("solo-bots");
+        let dir = root.join("recordings");
+        let replays = Arc::new(Replays::new(
+            Some(
+                ReplaySettings {
+                    replay_dir: root.join("replays"),
+                    record_dir: dir.clone(),
+                    modes_dir: root.join("modes"),
+                    max_recording_bytes: 1 << 20,
+                    max_replay_bytes: 1 << 20,
+                }
+                .checked()
+                .unwrap(),
+            ),
+            6,
+        ));
+        let mut settings = settings(&dir, 6);
+        settings.replays = Some(Desk(replays.clone()));
+        let recorder = Recorder::start(settings).unwrap();
+        let now = Instant::now();
+        let empty = recorder.open(1, true, serde_json::json!({}), now);
+        drop(empty);
+        let mut pvp = recorder.open(2, false, serde_json::json!({}), now);
+        pvp.entered(0);
+        drop(pvp);
+        let mut pve = recorder.open(3, true, serde_json::json!({}), now);
+        pve.entered(0);
+        drop(pve);
+        let names = settle(&dir, |names| {
+            names.len() == 1
+                && names[0].ends_with("_00000003.srprec")
+                && read_header(&dir.join(&names[0])).is_ok_and(|h| h.is_some())
+        });
+        assert_eq!(names.len(), 1, "{names:?}");
+        assert!(names[0].ends_with("_00000003.srprec"));
+        let header = read_header(&dir.join(&names[0])).unwrap().unwrap();
+        let header: serde_json::Value = serde_json::from_slice(&header.bytes).unwrap();
+        assert_eq!(header["min_players"], 1);
+        assert!(
+            replays.jobs().is_empty(),
+            "conversion waits for a watch request"
+        );
+        assert_eq!(
+            replays.ask(
+                1,
+                3,
+                Some(14),
+                Some(Known {
+                    played: true,
+                    places: 1
+                }),
+                now + Duration::from_secs(10)
+            ),
+            Status::Preparing
+        );
+        assert_eq!(replays.jobs(), [3]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn utc_stamps() {
         assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
         let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
@@ -762,7 +856,8 @@ mod tests {
         let dir = temp_dir("kept");
         let recorder = Recorder::start(settings(&dir, 2)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(0xAB, serde_json::json!({"match_id": "0xab"}), now);
+        let mut recording =
+            recorder.open(0xAB, false, serde_json::json!({"match_id": "0xab"}), now);
         recording.datagram_in(0, &[1, 2, 3], now);
         recording.entered(0);
         // A late joiner makes the second.
@@ -817,7 +912,7 @@ mod tests {
         let dir = temp_dir("small");
         let recorder = Recorder::start(settings(&dir, 6)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(0xCD, serde_json::json!({}), now);
+        let mut recording = recorder.open(0xCD, false, serde_json::json!({}), now);
         for place in 0..5 {
             recording.entered(place);
             recording.datagram_in(place, &[place as u8], now);
@@ -864,7 +959,7 @@ mod tests {
         // The new file is small: only it fits with neither old one.
         settings.max_bytes = 700;
         let recorder = Recorder::start(settings).unwrap();
-        let mut recording = recorder.open(3, serde_json::json!({}), Instant::now());
+        let mut recording = recorder.open(3, false, serde_json::json!({}), Instant::now());
         recording.entered(0);
         drop(recording);
         let names = settle(&dir, |names| names.len() == 1);
@@ -906,11 +1001,11 @@ mod tests {
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
         let now = Instant::now();
-        let mut kept = recorder.open(0xAB, serde_json::json!({}), now);
+        let mut kept = recorder.open(0xAB, false, serde_json::json!({}), now);
         kept.entered(0);
         kept.entered(1);
         drop(kept);
-        let mut small = recorder.open(0xCD, serde_json::json!({}), now);
+        let mut small = recorder.open(0xCD, false, serde_json::json!({}), now);
         small.entered(0);
         drop(small);
         // The writer works on its own thread: wait for both closes.
@@ -965,7 +1060,7 @@ mod tests {
         let dir = temp_dir("blocks");
         let recorder = Recorder::start(settings(&dir, 1)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(4, serde_json::json!({}), now);
+        let mut recording = recorder.open(4, false, serde_json::json!({}), now);
         recording.entered(0);
         // 3 MB of datagrams: three blocks or more.
         let datagram: Vec<u8> = (0..500u32).map(|i| (i * 7 % 251) as u8).collect();

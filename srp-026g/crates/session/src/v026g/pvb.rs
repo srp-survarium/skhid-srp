@@ -7,10 +7,14 @@
 //!   the server's bots at once; the match server keeps that many bots'
 //!   maps in memory at most when the mode is on;
 //! - `SRP_PVB_PAY` (default 0.5, 0 to 1): what a match against bots pays of
-//!   a match's silver and experience.
+//!   a match's silver and experience;
+//! - PvE reward multipliers and silver rates use at most tier 7.
 
 /// `SRP_PVB_MAX_MATCHES` when unset.
 pub const DEFAULT_MAX_MATCHES: usize = 5;
+/// Highest reward-table level for PvE; equipment and bot difficulty still
+/// use their normal levels. Owner's choice, 2026-10-28.
+pub const MAX_REWARD_LEVEL: u16 = 7;
 /// `SRP_PVB_PAY` when unset: half.
 pub const DEFAULT_PAY: f64 = 0.5;
 /// The most `SRP_PVB_MAX_MATCHES` may be.

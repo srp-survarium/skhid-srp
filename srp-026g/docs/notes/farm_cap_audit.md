@@ -23,10 +23,13 @@ in either case. Bots are exempt. The original audit's snapshot-attribution limit
 |---|---:|---:|---:|---:|
 | Earlier human matches | 596 | 17 | 10 | 7 |
 | Current-sample human matches | 107 | 77 | 70 | 7 |
-| Bot matches | 62 | 21 | 0 | 21 |
-| Total | 765 | 115 | 80 | 35 |
+| Human-match total | 703 | 94 | 80 | 14 |
 
-No previously unaffected result crosses a revised cap. This does **not** classify all remaining
+This table isolates the PvP event caps. The 62 bot-match results are excluded: after the first
+revision, the owner requested a separate **tier-7 PvE reward ceiling** (`results.md` §16). Their
+per-victim caps are removed, but they no longer necessarily retain their original payouts.
+
+No previously unaffected PvP result crosses a revised event cap. This does **not** classify all remaining
 80 results as farming or all restored results as legitimate. It does not recompute the entire new
 payout distribution. Exact revised aggregate silver, including the one uncertain attribution,
 requires replaying the revised code against saved snapshots. The silver floor is excluded from
@@ -42,7 +45,7 @@ these cap comparisons; its implementation is unchanged.
 | `64b3770`: 5/10 with 4 assists, 499.2 objective points | Exceeded 200 | Allowance 480; about 3.6% total silver reduction estimated |
 | `51de3e34`: small PvP, 18/8 | 3,384 → 2,275 | Full payment; the opposing player had 19 kills |
 | `537680e1`: small PvP, 14/6 | 23,645 → 19,439 | Full payment; the opponent had 5 kills |
-| `2cbb0374`: bot match, 128/11 | 63,389 → 48,207 | Full payment |
+| `2cbb0374`: bot match, 128/11 | 63,389 → 48,207 | No per-victim cap; tier-7 reward ceiling applies separately |
 | `74fbcbde`: 23 kills of a zero-kill opponent | 13 kills unpaid | Still 13 kills unpaid |
 
 The 3.6% estimate scales the old objective-payment loss by the newly removed objective share;
@@ -56,7 +59,7 @@ zero-combat example uses the same counters as the original cap and so retains it
   The allowance deliberately errs towards keeping contested play paid; it does not exempt every
   player who happens to have a few kills. A 1,230-point zero-combat farm still has a 200-point limit.
 - Repeated kills of each opponent pay up to **10 + 2 per enemy kill made by that opponent**.
-  An active opponent is less evidence of passive feeding. Bot matches keep their existing pay.
+  An active opponent is less evidence of passive feeding. Bot matches skip this cap; their reward tier is capped at seven instead.
 - One owner applies both rules to a payment-only copy, repeated kills first. Reduced kills cannot
   buy additional objective allowance. Original counters still supply score, quests and rating;
   battery-cap quest semantics are unchanged.

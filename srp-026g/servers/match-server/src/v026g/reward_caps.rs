@@ -12,7 +12,7 @@ pub(super) struct Payment {
 
 impl Payment {
     /// The original statistics remain available for score and quests. PvE
-    /// keeps its existing reward policy. Unpaid feeding kills cannot buy
+    /// skips these event caps (settlement caps its reward tier). Unpaid feeding kills cannot buy
     /// extra objective allowance: both steps live here, in a fixed order.
     pub fn of(played: &Statistics, pairs: &kill_cap::Pairs, mode: u8, vs_bots: bool) -> Self {
         let mut payment = Self {

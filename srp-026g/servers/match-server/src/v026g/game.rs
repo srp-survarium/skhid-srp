@@ -994,11 +994,12 @@ impl Game {
             "mode": map.mode,
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
+            "vs_bots": self.formed.vs_bots,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, header, now));
+        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
     }
 
     /// The places from `from` on, for a recording.
@@ -3563,6 +3564,19 @@ impl Game {
     }
 
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
+        // A solo human's inputs have no recipient. Keep the accepted
+        // action after rejection/retiming, not the unchecked inbound packet.
+        if self.formed.vs_bots
+            && !self.formed.places[index].driven
+            && let Some(recording) = self.recording.as_mut()
+        {
+            match what {
+                Relayed::Input(input) => recording.accepted_input(index, time, input, now),
+                Relayed::Profile { value, .. } => {
+                    recording.accepted_profile(index, time, *value, now)
+                }
+            }
+        }
         let message = relay(index, what);
         let clock = self.clock(now);
         for (other, peer) in self.peers.iter_mut().enumerate() {

@@ -3816,3 +3816,32 @@ fn farming_limits_change_payment_without_changing_score_or_quests() {
     let shared = Shared::of(&untrusted, &terms);
     assert_eq!(shared.lines(&untrusted.players[0], 0)[0][0].0, 0.0);
 }
+
+#[test]
+fn pve_rewards_stop_at_level_seven_including_the_money_rate_and_premium() {
+    let players = alice_and_bob();
+    let mut terms = terms();
+    terms.money_rate = pay::MoneyRate::ByLevel;
+    let settle = |level, vs_bots| {
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        let store = accounts(&players);
+        store.get(10).unwrap().locked().premium_until = terms.now + 3600;
+        Results::new()
+            .settle(&outcome, &store, &terms, &mut Rng::new(1))
+            .unwrap()
+    };
+    let seven = settle(7, true);
+    let fifteen = settle(15, true);
+    for (low, high) in seven.players.iter().zip(&fifteen.players) {
+        assert_eq!(high.full.components, low.full.components);
+        assert_eq!(high.reward.money, low.reward.money);
+        assert_eq!(high.reward.experience, low.reward.experience);
+        assert_eq!(high.reward.reputation, low.reward.reputation);
+        assert_eq!(high.full.premium, low.full.premium);
+    }
+    // PvP retains its normal level scaling; lower PvE levels stay lower.
+    assert!(settle(15, false).players[0].reward.money > settle(7, false).players[0].reward.money);
+    assert!(settle(3, true).players[0].reward.money < seven.players[0].reward.money);
+}

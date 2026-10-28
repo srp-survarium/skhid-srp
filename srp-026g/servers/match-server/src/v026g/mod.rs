@@ -66,7 +66,7 @@
 //!   statistics in it;
 //! - `SRP_RECORD_DIR=<dir>` (default off): every datagram of a match in
 //!   and out, one file per match, kept when `SRP_RECORD_MIN_PLAYERS`
-//!   (default 6, late joiners counted) have entered it; kept files over
+//!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
 //!   ([`record`]);
 //! - `SRP_REPLAY_DIR=<dir>`, `SRP_GAME_MODES_DIR=<dir>` (default off; both

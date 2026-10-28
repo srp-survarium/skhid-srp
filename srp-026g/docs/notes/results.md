@@ -447,3 +447,17 @@ initial implementation's unintended reduction of score and combat quest counters
 battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
 median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
 See `kill_cap.md`, `research_mode.md` and `farm_cap_audit.md` for thresholds and audit limitations.
+
+## 16. PvE reward ceiling (owner's choice, 2026-10-28)
+
+PvE settles match rewards at `min(actual match level, 7)` (`pvb::MAX_REWARD_LEVEL`). One effective
+level in `Shared` selects both the dictionary's money/experience/reputation multipliers and the
+silver rate. At seven these are 4.97 / 1.3 / 1.3 and 170% silver with the default by-level rates.
+The usual `SRP_PVB_PAY` share (default 50% for silver and experience) and premium still apply.
+Lower-tier PvE and all PvP retain their normal level scaling. Equipment, bot kits and the actual
+match level are unchanged; this is a payment ceiling, not a change to combat simulation.
+
+The supplied 128/7 bot-match screenshot paid 49,992 base silver plus 24,996 premium = 74,988.
+At the ceiling, its silver scales by `(4.97 * 1.7) / (10.17 * 2.2)`, about 28.3k including premium,
+subject to per-cell rounding. No live balance is changed retroactively. The floor uses these
+capped base rewards; a sole human already earns their own median and gets no floor addition.

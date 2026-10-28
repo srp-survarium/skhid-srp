@@ -1417,7 +1417,10 @@ struct Shared<'a> {
     /// The weights its score was counted with: the terms', with Research's
     /// own in mode 5 ([`static_info::weights_of`]).
     weights: [f32; EVENTS],
-    /// The match level's multipliers: money, experience, reputation.
+    /// Reward-table level, capped at seven for PvE. The match's actual
+    /// level and equipment remain unchanged.
+    reward_level: u16,
+    /// The reward level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
     /// A test bot was in the match, or it is a room with a PIN's
     /// ([`MatchResult::private`]): nobody's rating moves.
@@ -1439,8 +1442,13 @@ impl<'a> Shared<'a> {
                 }
             }
         }
+        let reward_level = if result.vs_bots {
+            result.match_level.min(super::pvb::MAX_REWARD_LEVEL)
+        } else {
+            result.match_level
+        };
         let multipliers = Dictionary::shared()
-            .match_level(usize::from(result.match_level))
+            .match_level(usize::from(reward_level))
             .map_or((1.0, 1.0, 1.0), |level| {
                 (
                     pay::multiplier(level.money_k),
@@ -1456,6 +1464,7 @@ impl<'a> Shared<'a> {
             batteries,
             stole,
             weights: static_info::weights_of(result.game_mode, terms.score_weights),
+            reward_level,
             multipliers,
             unrated: false,
             money_floor: 0,
@@ -1471,7 +1480,7 @@ impl<'a> Shared<'a> {
         } else {
             1.0
         };
-        self.multipliers.0 * f64::from(self.terms.money_rate.at(self.result.match_level)) / 100.0
+        self.multipliers.0 * f64::from(self.terms.money_rate.at(self.reward_level)) / 100.0
             * pvb_pay
     }
 

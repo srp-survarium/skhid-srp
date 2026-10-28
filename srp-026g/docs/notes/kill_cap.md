@@ -5,7 +5,8 @@ PR #691, revised 2026-10-28 after the owner asked to preserve normal play.
 - In PvP, kills of one enemy pay at most **10 + 2 × that enemy's total enemy kills**.
   A passive feeder still supplies only ten paying kills. An active opponent with six kills
   allows 22, protecting the historical small-match 18-kill case that lost 33% under the flat cap.
-- Bot matches keep their existing rewards. PvP is not exempt just because its roster is small.
+- Bot matches skip this per-victim cap; settlement caps their reward tier at 7 instead. PvP is not
+  exempt just because its roster is small.
 - Headshot, melee, silent and grenade payment counters are reduced in the same proportion.
   Score, displayed kills/deaths, all quest counters and rating retain the original statistics.
 - The server sees running totals, not explicit killer-victim events. A trusted snapshot with

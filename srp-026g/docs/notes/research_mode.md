@@ -53,7 +53,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
     enemy kill + 20 per assist**. Above it, those two counters are reduced proportionally;
     their weights remain 30 per whole capture/neutralisation. Kill-invader rewards stay whole;
   - the repeat-kill cap runs first, so unpaid feeding kills cannot expand the allowance.
-    `reward_caps::Payment` owns this order and the payment-only copy. Bot matches are exempt;
+    `reward_caps::Payment` owns this order and the payment-only copy. Bot matches skip these event caps and have a tier-7 reward ceiling instead;
   - the earlier flat 200-point cap cut a contested 12/10 player's silver by 46% and a
     9/8 player's by 43% in match `7964b894`. Both now fit within the allowance. Conversely,
     21 captures and 20 neutralisations with zero kills/assists still pay at most 200 points;
