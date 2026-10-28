@@ -80,6 +80,9 @@ Edits (edits.json):
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
                                                        tracks stay byte for byte (see clip_parse)
+  "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
+                                                       preserve runtime positions/normals byte for byte;
+                                                       reject unknown, duplicate or malformed chunks
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -91,6 +94,7 @@ may differ from the live file (the check prints each difference).
 """
 import fnmatch
 import json
+import math
 import os
 import struct
 import sys
@@ -687,6 +691,42 @@ def game_path(name):
     return name.replace('__', '/')
 
 
+def vegetation_chunks(data):
+    """The 0.26g sequential chunk format; validate before dropping editor data."""
+    chunks = {}
+    offset = 0
+    while offset < len(data):
+        if len(data) - offset < 8:
+            raise ValueError('vegetation: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, offset)
+        end = offset + 8 + size
+        if kind not in (0x4d, 0x4e, 0x58, 0x59):
+            raise ValueError('vegetation: unknown chunk %#x' % kind)
+        if kind in chunks or end > len(data):
+            raise ValueError('vegetation: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[offset:end]
+        offset = end
+    if 0x58 not in chunks or 0x59 not in chunks:
+        raise ValueError('vegetation: missing positions or normals')
+    positions, normals = chunks[0x58][8:], chunks[0x59][8:]
+    if len(positions) != len(normals) or len(positions) % 12:
+        raise ValueError('vegetation: positions/normals must be matching float3 arrays')
+    for payload in (positions, normals):
+        if any(not math.isfinite(v) for (v,) in struct.iter_unpack('<f', payload)):
+            raise ValueError('vegetation: non-finite position or normal')
+    return chunks
+
+
+def runtime_vegetation(data):
+    """Keep complete runtime chunks in original order, including their headers."""
+    original = vegetation_chunks(data)
+    expected = {kind: chunk for kind, chunk in original.items() if kind in (0x58, 0x59)}
+    result = b''.join(expected.values())
+    if vegetation_chunks(result) != expected:
+        raise ValueError('vegetation: runtime chunks changed on read-back')
+    return result
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
@@ -866,6 +906,22 @@ def main():
         add_event_channel(clips[p], e['from'], e['add'])
         print('event channel %s: %s knots %s domains %s' % (p, e['add']['name'], e['add']['knots'], e['add']['domains']))
 
+    vegetation = {}
+    for e in edits.get('runtime_vegetation', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            sys.exit('runtime_vegetation: no files match ' + e['files'])
+        for p in paths:
+            if not p.endswith('.veg') or p in bufs or p in clips:
+                sys.exit('runtime_vegetation: invalid or conflicting edit of ' + p)
+            source = open(files[p], 'rb').read()
+            try:
+                vegetation[p] = runtime_vegetation(source)
+            except ValueError as why:
+                sys.exit('%s: %s' % (p, why))
+            print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
+                  (p, len(source), len(vegetation[p])))
+
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
                for e in edits.get('rename_key', [])]
@@ -919,12 +975,12 @@ def main():
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:
         print('%d new files (copies), %d of them byte for byte' % (len(copies), same_copies))
-    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips), bad))
+    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips) + len(vegetation), bad))
     if bad:
         sys.exit(1)
     if check:
         return
-    for p, b in list(bufs.items()) + list(clips.items()):
+    for p, b in list(bufs.items()) + list(clips.items()) + list(vegetation.items()):
         dst = os.path.join(out, *p.split('/'))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, 'wb') as f:
