@@ -216,6 +216,11 @@ impl KitPockets {
         }
     }
 
+    /// The index of the kit in use.
+    pub fn in_use(&self) -> usize {
+        self.in_use
+    }
+
     /// [`Pockets::throw_grenade`] on the kit in use.
     pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
         self.kits[self.in_use].throw_grenade(pressed)
@@ -239,6 +244,9 @@ pub struct ThrowCounts {
     pub frag: u32,
     /// ... of them a human's.
     pub human_frag: u32,
+    /// ... of a human's, thrown with a quick-use key (not the throw key), and from a kit other than the profile's first.
+    pub human_quick: u32,
+    pub human_other_kit: u32,
     /// A bot's throw key with its pockets known and no grenade to throw: the client throws nothing, so nothing
     /// is listed (before the bots' pockets were read, every one of these was listed as a frag).
     pub bot_empty: u32,
@@ -273,9 +281,11 @@ impl super::Bots {
         }
         let by_notice = |n: [u32; 3]| format!("{}/{}/{}", n[0], n[1], n[2]);
         format!(
-            "{} frags listed ({} a human's), {} smokes, {} throws with no pockets known, {} bot throws with no grenade              left (not listed), {} launched, {} unplaced, {} thrower dead; avoidance (told/saw/heard): noticed {},              stepped {}, already out {}, out when it came to act {}, no way out {}, escaped {}, caught {}",
+            "{} frags listed ({} a human's: {} by a quick-use key, {} from another kit than the first), {} smokes, {} throws with no pockets known, {} bot throws with no grenade              left (not listed), {} launched, {} unplaced, {} thrower dead; avoidance (told/saw/heard): noticed {},              stepped {}, already out {}, out when it came to act {}, no way out {}, escaped {}, caught {}",
             counts.frag,
             counts.human_frag,
+            counts.human_quick,
+            counts.human_other_kit,
             counts.smoke,
             counts.no_pockets,
             counts.bot_empty,
@@ -709,5 +719,46 @@ mod tests {
         press(&mut tracker, 1, 3_050, 0);
         assert_eq!(tracker.live_grenades().len(), 2);
         assert!(KitPockets::new(Vec::new()).is_none());
+    }
+
+    /// The owner throws with G and with a quick-use number, from any kit (2026-10-29): every throw is detected from the
+    /// key the server sees (the client's throw is the key, PROVEN `loadouts::GRENADE_BIT`, `QUICK_USE_ORDER`) against the pockets of the kit in
+    /// use. Kit 0 holds a medkit; kit 1 a medkit in pocket 13 and two frags in pocket 14, so its frags are quick use 2.
+    #[test]
+    fn a_quick_use_throw_from_a_second_kit_is_listed_and_counted_by_key_and_kit() {
+        let first = Pockets::new([Some((Pocketed::Other, 1)), None, None, None, None, None]);
+        let second = Pockets::new([
+            Some((Pocketed::Other, 1)),
+            Some((Pocketed::Frag, 2)),
+            None,
+            None,
+            None,
+            None,
+        ]);
+        let kits = KitPockets::new(vec![first, second]).expect("two kits");
+        let mut tracker = stand_pockets(None, Some(kits));
+        // Spawned in kit 1 (a world says so): quick use 2 is the frag, quick use 1 the medkit (no throw).
+        tracker.kit_in_use(1, 1);
+        press(&mut tracker, 1, 1_000, key::QUICK[0]);
+        press(&mut tracker, 1, 1_050, 0);
+        assert!(tracker.live_grenades().is_empty(), "the medkit's key is no throw");
+        press(&mut tracker, 1, 2_000, key::QUICK[1]);
+        press(&mut tracker, 1, 2_050, 0);
+        assert_eq!(tracker.live_grenades().len(), 1);
+        // G throws the second one from the same kit.
+        press(&mut tracker, 1, 4_000, key::GRENADE);
+        press(&mut tracker, 1, 4_050, 0);
+        assert_eq!(tracker.live_grenades().len(), 2);
+        let counts = tracker.throw_counts();
+        assert_eq!((counts.frag, counts.human_frag, counts.human_quick, counts.human_other_kit), (2, 2, 1, 2));
+        // Back in kit 0 after a death (a new life, the world says kit 0): neither key lists anything.
+        tracker.fixed(1, fix(6_000, 11), Some(1.0), &Kinematics::default(), None);
+        tracker.kit_in_use(1, 0);
+        press(&mut tracker, 1, 7_000, key::GRENADE);
+        press(&mut tracker, 1, 7_050, 0);
+        press(&mut tracker, 1, 8_000, key::QUICK[1]);
+        press(&mut tracker, 1, 8_050, 0);
+        assert_eq!(tracker.live_grenades().len(), 2);
+        assert_eq!(tracker.throw_counts().human_frag, 2);
     }
 }

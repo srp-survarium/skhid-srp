@@ -950,8 +950,10 @@ impl Tracker {
         if pressed & THROW_KEYS != 0
             && state.last_throw.is_none_or(|last| time >= last + SAME_THROW_MS)
         {
+            let mut kit = 0;
             let thrown = match state.pockets.as_mut() {
                 Some(pockets) => {
+                    kit = pockets.in_use();
                     let thrown = pockets.throw_grenade(pressed);
                     if thrown.is_none() && state.bot && pressed & key::GRENADE != 0 {
                         self.throws.bot_empty += 1;
@@ -968,7 +970,11 @@ impl Tracker {
             match thrown {
                 Some((Pocketed::Frag, grenade)) => {
                     self.throws.frag += 1;
-                    self.throws.human_frag += u32::from(!state.bot);
+                    if !state.bot {
+                        self.throws.human_frag += 1;
+                        self.throws.human_quick += u32::from(pressed & key::GRENADE == 0);
+                        self.throws.human_other_kit += u32::from(kit != 0);
+                    }
                     state.last_throw = Some(time);
                     self.grenades.push(LiveGrenade {
                         by: place,
