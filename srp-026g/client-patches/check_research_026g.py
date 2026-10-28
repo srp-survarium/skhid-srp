@@ -762,7 +762,7 @@ def main():
     check("update_ui, its gates closed: update_player_icons(ui) once, then research_markers: A on the screen at "
           "(500, 400), 10 m away, contested; B and C off it; B's 10 s left; research_update too (in play), B's 10 s",
           moved == 0xC and run.player_icons == [ui] and len(marks) == 1 and marks[0][0] == icons
-          and len(values) == 36 and values[:2] == [0, 3] and values[32:] == [1, 0, 0, 0]
+          and len(values) == 39 and values[:2] == [0, 3] and values[32:36] == [1, 0, 0, 0] and values[36:38] == [2, 0]
           and values[2:7] == [0, 1, 500, 400, 10] and values[12:22] == [1, 0, 0, 0, 101, 2, 0, 50, 10000, 0]
           and values[22:24] == [2, 0] and values[26] == 200
           and sent[-1][1] == "root.research_update" and sent[-1][3][33] == 10000, f"{sent} esp {moved}")
@@ -781,8 +781,36 @@ def main():
     sent, _ = frame()
     marks = [i[3] for i in sent if i[1] == "root.research_markers"]
     check("a player of each team in B: the markers say it is contested (retail's swords), no time left",
-          len(marks) == 1 and marks[0][32:] == [1, 1, 0, 0] and marks[0][20] == 0, str(sent))
+          len(marks) == 1 and marks[0][32:36] == [1, 1, 0, 0] and marks[0][36:38] == [2, 2] and marks[0][20] == 0, str(sent))
     run.emu.mem_write(b + 7, bytes([0]))
+    frame()
+
+    # Occupancy, rather than the team whose progress remains, drives !.
+    saved_b = bytes(run.emu.mem_read(b, ZONE))
+    for owner, capture_team, counts, expected, label in [
+        (0, 0, [0, 1], 1, "enemy neutralising our point"),
+        (2, 1, [0, 1], 1, "enemy capturing a neutral point"),
+        (2, 0, [0, 1], 1, "enemy draining our neutral progress"),
+        (1, 1, [1, 0], 0, "friendly neutralising an enemy point"),
+        (2, 1, [0, 0], 2, "unoccupied neutral progress decaying"),
+        (0, 0, [1, 1], 2, "both teams contesting"),
+    ]:
+        run.word(b, FULL // 2)
+        run.emu.mem_write(b + 4, bytes([capture_team, owner, *counts]))
+        before = bytes(run.emu.mem_read(rule + R_STATE, R_SIZE - R_STATE))
+        frame()
+        packet = [i[3] for i in run.invokes if i[1] == "root.research_markers"][-1]
+        check(label + ": correct acting team without changing simulation",
+              packet[37] == expected and packet[18] == capture_team
+              and (packet[20] > 0) == (expected < 2)
+              and bytes(run.emu.mem_read(rule + R_STATE, R_SIZE - R_STATE)) == before,
+              str(packet))
+    run.word(b, FULL)
+    run.emu.mem_write(b + 4, bytes([1, 1, 0, 1]))
+    frame()
+    packet = [i[3] for i in run.invokes if i[1] == "root.research_markers"][-1]
+    check("enemy capture finished: occupant remains, zero timer clears warning", packet[37] == 1 and packet[20] == 0)
+    run.emu.mem_write(b, saved_b)
     frame()
 
     # Scope visibility is local presentation, appended only to the world
@@ -799,7 +827,7 @@ def main():
     def scope_flag(label, expected):
         sent, moved = frame()
         packets = [i[3] for i in run.invokes if i[1] == "root.research_markers"]
-        check(label, moved == 0xC and packets[-1][-1] == expected
+        check(label, moved == 0xC and packets[-1][35] == expected
               and all(i[1] != "root.research_update" for i in sent)
               and bytes(run.emu.mem_read(rule + R_STATE, R_SIZE - R_STATE)) == before_rule, str(sent))
 

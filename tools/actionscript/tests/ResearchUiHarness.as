@@ -21,16 +21,17 @@ package
       private var phase:int = 0;
       private var fadeStart:int;
       private var lastAlpha:Number;
-      private function packet(aiming:Boolean, legacy:Boolean = false):Array
+      private function packet(aiming:Boolean, legacy:Boolean = false, advancing:uint = 2, contested:Boolean = true):Array
       {
-         var a:Array = [0,1,0,1,200,200,20,1,1,70,0,1,1];
-         if(!legacy) a.push(aiming ? 1 : 0);
+         var a:Array = [0,1,0,1,200,200,20,0,0,70,contested ? 0 : 7000,0,contested ? 1 : 0];
+         if(!legacy) a.push(aiming ? 1 : 0,advancing);
          return a;
       }
       private var swords:Sprite;
       private var started:int;
       private var sample:int;
       private var rate:int = 30;
+      private var pulseState:uint = 1;
       private var initialized:Boolean = false;
 
       public function ResearchUiHarness()
@@ -55,14 +56,91 @@ package
       private function startPulse():void
       {
          stage.frameRate = rate;
-         marker.update(0,1,1,70,0,true,0,20,false);
-         marker.update(0,1,1,70,0,true,0,20,true);
-         units.update([{cp_id:0,owner:1,capturing:1,progress:70,inside_0:1,inside_1:1,local:true,left:0}],0);
+         marker.update(0,0,0,70,0,true,0,20,false);
+         var contested:Boolean = pulseState == 1;
+         marker.update(0,0,0,70,contested ? 0 : 7000,true,0,20,contested,1);
+         units.update([{cp_id:0,owner:0,capturing:0,progress:70,inside_0:contested ? 1 : 0,inside_1:1,local:true,left:contested ? 0 : 7000}],0);
          topSwords = Sprite(units.getChildAt(0)).getChildAt(0);
-         layer.research_markers(packet(true));
+         layer.research_markers(packet(true,false,1,contested));
          started = getTimer();
          sample = 1;
-         check(swords.visible && swords.alpha == 1,"swords immediately visible at " + rate + " FPS");
+         check(swords.visible && swords.alpha == 1,"overlay " + pulseState + " immediately visible at " + rate + " FPS");
+      }
+
+      private function checkCaptureWarnings():void
+      {
+         var hudDomain:ApplicationDomain = hud.contentLoaderInfo.applicationDomain;
+         var worldDomain:ApplicationDomain = icons.contentLoaderInfo.applicationDomain;
+         var cls:Class = hudDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
+         var points:* = new cls(); addChild(points);
+         cls = worldDomain.getDefinition("survarium.controls.ResearchMarker") as Class;
+         var target:* = new cls(); addChild(target);
+         var worldAlert:* = Sprite(target.getChildAt(0)).getChildAt(2);
+         var point:Object = {cp_id:0,owner:2,capturing:0,progress:50,inside_0:0,inside_1:1,local:false,left:7000};
+         for each(var own:uint in [0,1])
+         {
+            var enemy:uint = 1 - own;
+            point.inside_0 = own == 0 ? 0 : 1;
+            point.inside_1 = own == 0 ? 1 : 0;
+            for each(var owner:uint in [own,2])
+            {
+               point.owner = owner;
+               // The defender's progress may still be draining. Ownership and
+               // progress-team fields must not determine the warning.
+               point.capturing = own;
+               points.update([point],own);
+               var topAlert:* = Sprite(points.getChildAt(0)).getChildAt(0);
+               target.update(0,owner,own,50,7000,false,own,20,false,enemy);
+               check(topAlert.state == 2 && worldAlert.state == 2 && topAlert.alpha == 1 && worldAlert.alpha == 1,
+                  "enemy warning from first update, own team " + own + ", owner " + owner);
+               check(topAlert.getChildAt(0).bitmapData.width == 54 && topAlert.getChildAt(0).bitmapData.height == 53,
+                  "warning keeps the swords' asset dimensions");
+               check(Bitmap(topAlert.getChildAt(0)).bitmapData.getPixel32(27,15) == 0xFFFFFFFF &&
+                  Bitmap(worldAlert.getChildAt(0)).bitmapData.getPixel32(27,15) == 0xFFFFFFFF &&
+                  Bitmap(topAlert.getChildAt(0)).bitmapData.getPixel32(0,0) == 0,
+                  "both movies load the white warning artwork with transparent padding");
+               point.left = 0; points.update([point],own);
+               target.update(0,owner,own,100,0,false,own,20,false,enemy);
+               check(topAlert.state == 0 && worldAlert.state == 0 && !topAlert.visible && !worldAlert.visible,
+                  "finished or idle capture clears warning for either team");
+               point.left = 7000;
+            }
+            point.inside_0 = point.inside_1 = 1;
+            points.update([point],own);
+            target.update(0,own,own,50,7000,false,own,20,true,enemy);
+            check(topAlert.state == 1 && worldAlert.state == 1 && topAlert.alpha == 1 && worldAlert.alpha == 1,
+               "contested swords take priority over enemy capture");
+            point.inside_0 = own == 0 ? 1 : 0; point.inside_1 = own == 0 ? 0 : 1;
+            points.update([point],own);
+            target.update(0,enemy,enemy,50,7000,false,own,20,false,own);
+            check(topAlert.state == 0 && worldAlert.state == 0,
+               "friendly neutralisation never shows the enemy warning");
+            point.inside_0 = point.inside_1 = 0;
+            points.update([point],own);
+            check(topAlert.state == 0,"unoccupied point has no enemy warning");
+         }
+         cls = worldDomain.getDefinition("survarium.controls.HUDIconLayer") as Class;
+         var testLayer:* = new cls(); addChild(testLayer);
+         testLayer.research_markers(packet(false,false,1,false));
+         var testMarker:* = Sprite(testLayer.getChildAt(0)).getChildAt(0);
+         var testAlert:* = Sprite(testMarker.getChildAt(0)).getChildAt(2);
+         check(testAlert.state == 2,"native occupancy tail reaches the world warning");
+         testLayer.research_markers(packet(false,true,1,false));
+         check(testAlert.state == 0,"legacy packet never guesses a capture side");
+         testLayer.research_markers(packet(false,false,1,false));
+         var offscreen:Array = packet(false,false,1,false); offscreen[3] = 0;
+         testLayer.research_markers(offscreen);
+         check(!testMarker.visible && testAlert.state == 0 && !testAlert.hasEventListener(Event.ENTER_FRAME),
+            "offscreen marker stops its alert animation");
+         testLayer.research_markers(packet(false,false,1,false));
+         testLayer.research_markers([0,0]);
+         check(!testMarker.visible && testAlert.state == 0,"match end clears world alerts");
+         point.inside_0 = 0; point.inside_1 = 1; point.left = 7000;
+         points.update([point],0);
+         check(topAlert.hasEventListener(Event.ENTER_FRAME),"enemy warning animation runs");
+         points.update([],0);
+         check(topAlert.state == 0 && !topAlert.hasEventListener(Event.ENTER_FRAME),"removed unit releases its animation");
+         removeChild(points); removeChild(target); removeChild(testLayer);
       }
 
       private function checkCountdownLayout():void
@@ -191,6 +269,7 @@ package
             {
                if(hud.content == null || icons.content == null) return;
                initialized = true;
+               checkCaptureWarnings();
                checkCountdownLayout();
                checkResearchCentering();
                var cls:Class = hud.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.ResearchUnits") as Class;
@@ -265,7 +344,7 @@ package
                {
                   check(world.alpha == 1,"legacy sender restores visibility smoothly");
                   marker.update(0,2,0,40,7000,true,0,20,false);
-                  check(!marker.hasEventListener(Event.ENTER_FRAME),"capture alone starts no blinking animation");
+                  check(!swords.hasEventListener(Event.ENTER_FRAME),"friendly capture starts no blinking animation");
                   phase=4; fadeStart=getTimer();
                }
                else if(phase == 4 && elapsed >= 1000)
@@ -281,20 +360,34 @@ package
             var expected:Number = [1,0.5,0,0.5,1][sample];
             check(Math.abs(swords.alpha - expected) < 0.15,
                rate + " FPS, " + sample * 500 + " ms: alpha " + swords.alpha.toFixed(3) + " near " + expected);
-            check(world.alpha == 0,"world stays hidden through contested pulse");
+            check(world.alpha == 0,"world stays hidden through activity pulse");
             check(units.alpha == 1 && units.visible,"top HUD stays visible while scoped");
-            check(Math.abs(topSwords.alpha-expected) < 0.15,"top swords have the same two-second period");
+            check(Math.abs(topSwords.alpha-expected) < 0.15,"top overlay has the same two-second period");
+            if(pulseState == 2)
+            {
+               var oldAlpha:Number = swords.alpha;
+               marker.update(0,0,0,70,7000,true,0,20,false,1);
+               units.update([{cp_id:0,owner:0,capturing:0,progress:70,inside_0:0,inside_1:1,local:true,left:7000}],0);
+               check(swords.alpha == oldAlpha && Math.abs(topSwords.alpha-oldAlpha) < 0.15,
+                  "repeated capture updates do not restart the warning pulse");
+            }
             if(++sample <= 4) return;
             marker.update(0,1,1,70,0,true,0,20,false);
-            check(!swords.visible && !marker.hasEventListener(Event.ENTER_FRAME),"contest ends: swords and animation stop");
+            check(!swords.visible && !swords.hasEventListener(Event.ENTER_FRAME),"activity ends: overlay and animation stop");
             if(rate == 30)
             {
                rate = 144;
                startPulse();
                return;
             }
+            if(pulseState == 1)
+            {
+               pulseState = 2; rate = 30;
+               startPulse();
+               return;
+            }
             units.update([],0);
-            check(!units.hasEventListener(Event.ENTER_FRAME),"top animation stops when units disappear");
+            check(!topSwords.hasEventListener(Event.ENTER_FRAME),"top animation stops when units disappear");
             layer.research_markers(packet(false));
             check(world.alpha == 0,"aim exit does not pop visible");
             phase=1; fadeStart=getTimer();

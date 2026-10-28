@@ -72,9 +72,16 @@ java -jar "$FLEX/lib/mxmlc.jar" +flexlib="$FLEX/frameworks" \
 
 Run the SWF with Ruffle's filesystem access enabled (use a private virtual display for
 automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the absent
-caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested pulses
+caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested and enemy-capture pulses
 at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
 It also checks countdown spacing and restoration of other modes' timer styles.
+Enemy warnings cover both team orientations, friendly-owned and neutral units,
+neutralisation with the defender's progress, contested priority, completion, legacy
+packets, repeated updates, and offscreen/removed animation cleanup.
+The `ResearchAlert.as` implementation and warning bitmap are identical in both movie
+trees. The editable warning artwork is `art/ResearchWarning.svg`; render it to transparent
+54 x 53 RGBA at its natural size (the approved preview uses browser SVG/canvas rendering),
+then copy those same PNG bytes to both `bitmaps/ResearchWarning.png` files.
 The spacing regression includes hidden capture timers; centering is checked before
 resize with different initial positions and scaled, translated parents.
 Death/respawn transitions check immediate full-width text, late native label
