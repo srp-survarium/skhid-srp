@@ -37,3 +37,11 @@ handler = "on_ray"
 [[hook]]
 site = "player_draw.held_item"
 handler = "on_held_item"
+
+[[hook]]
+site = "player_draw.post_bones"
+handler = "on_post_bones"
+
+[[hook]]
+site = "render.skeleton_updated"
+handler = "on_render_bones"

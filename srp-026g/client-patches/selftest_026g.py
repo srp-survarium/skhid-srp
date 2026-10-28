@@ -4697,7 +4697,7 @@ def test_bake_cache(original, image, before):
 
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
-    ../docs/notes/ragdoll.md). Static, on the bytes: the six sites and what
+    ../docs/notes/ragdoll.md). Static, on the bytes: the eight sites and what
     follows each in the original, the jmps to the generated lohook entries in
     patches.code in the build, no base relocation under a site and no
     branch inside one, the block the link's, the entries' shapes, the
@@ -4752,8 +4752,12 @@ def test_ragdoll(original, image, before):
     data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
     sym = linked.symbols
     hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F],
-          "the Rust patch ragdoll's six lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
+                                  0x2477DF, 0x15A950],
+          "the Rust patch ragdoll's eight lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    check(rows(stock, 0x2477DF, 9) == ["mov ecx,[ebp-0x1c]", "mov edx,[ebx+0xf290]"]
+          and rows(stock, 0x15A94D, 10) == ["mov edx,[ebp+0x14]", "cmp byte [edi+0x62d8],0x0"],
+          "headwear: before mt_draw pushes its render command; after the render bone loop, count in EDX")
     check(rows(stock, 0x24754F, 0xE) == ["mov esi,[ebx+0x128]", "test esi,esi", "jz near 0x24781e"]
           and rows(stock, 0x2477FE, 0x20)[:4] == ["mov edx,[ecx+0x5360]", "mov edi,[edx+0x200064]", "call 0x22490",
                                                   "jmp short 0x24781e"],

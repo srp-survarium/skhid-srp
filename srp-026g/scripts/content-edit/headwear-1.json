@@ -1,0 +1,65 @@
+{
+  "append_headwear_bind": [
+    {
+      "file": "models/character/human/base/base_character_full.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/black_market/black_market_01_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/edge/edge_researcher_03_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/edge/edge_assault_05_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_novice_combat_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/renesanse/renesance_combat_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_scout_1a_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_anom_specnaz_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/bind_pose"
+    }
+  ],
+  "rigid_headwear": [
+    {
+      "file": "models/character/human/black_market/black_market_01_helmet.skinned_model/render/black_market_01_helmet_s/converted_model",
+      "vertices": 509
+    },
+    {
+      "file": "models/character/human/edge/edge_researcher_03_helmet.skinned_model/render/edge_researcher_03_helmet_s/converted_model",
+      "vertices": 278
+    },
+    {
+      "file": "models/character/human/edge/edge_assault_05_helmet.skinned_model/render/edge_assault_05_helmet_s/converted_model",
+      "vertices": 870
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_novice_combat_helmet.skinned_model/render/renesanse_novice_combat_helmet_s/converted_model",
+      "vertices": 553
+    },
+    {
+      "file": "models/character/human/renesanse/renesance_combat_helmet.skinned_model/render/renesance_combat_helmet_s/converted_model",
+      "vertices": 594
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_scout_1a_helmet.skinned_model/render/renesanse_scout_1a_helmet_s/converted_model",
+      "vertices": 1473
+    },
+    {
+      "file": "models/character/human/renesanse/renesanse_anom_specnaz_helmet.skinned_model/render/renesanse_anom_specnaz_renesanse_anom_specnaz_helmet_s/converted_model",
+      "vertices": 707
+    },
+    {
+      "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/blinn3sg/converted_model",
+      "vertices": 1137
+    }
+  ]
+}

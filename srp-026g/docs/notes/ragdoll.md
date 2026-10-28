@@ -959,6 +959,74 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
   update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
   (the original's je), and a carrier's ragdoll with no gun.
 
+## 15. Cosmetic helmet fly-off (2026-10-28)
+
+The owner's candidate list, with Pilgrim explicitly excluded: the currently
+available Biker's helmet, Explorer's hat, Keeper, Paratrooper's helmet,
+Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet. Other names in the
+list are not present in the mounted helmet configs and are not ported here.
+Hoods, closed helmets with replacement heads, and the exoskeleton helmets
+retain their existing bindings.
+
+`headwear-1.json`, listed in `release/content.tsv`, changes source assets
+through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
+bind index 69, an exact copy of Head (44), to the combined character's bind
+and the eight standalone helmet binds. The eight surfaces bind rigidly to
+69. Positions, normals, UVs, material references and indices stay exact.
+The Biker's three vertices with neck influence deliberately become rigid.
+The animation skeleton, animation clips and hit model are unchanged.
+
+**PROVEN in the executable:** `skeleton_render_model::load_bind_pose`
+(0x15A000, called at 0x128D46) takes its count and order from the render
+bind file, skips names, and builds inverse matrices without consulting the
+animation skeleton. `update_render_matrices` uses the command's count;
+its current, alternate and previous matrix buffers each hold 128 matrices.
+The scene command copies at most 80 matrices. The extended count is 70.
+
+Two additional Rust lohooks:
+
+- `player_draw.post_bones` (0x2477DF), before the original render command's
+  arguments are pushed: for an extended bind, copy the 69 drawn matrices
+  and append the cosmetic bone. Alive or canned bodies use Head's pose;
+  ragdolls use their own headwear pose. The command copies the temporary
+  arrays, then the hook exits to 0x24781E. The unheld-corpse path uses the
+  same posting API. No pointer to temporary data survives the call.
+- `render.skeleton_updated` (0x15A950), on the rendering thread after the
+  matrix loop: a 69-matrix command with the extended bind copies Head's
+  skinned matrices into 69, including previous/shadow data and first-update
+  initialization. This covers ordinary commands and baking. A 70-matrix
+  command already supplies the detached pose and is left alone.
+
+The extra channel is recognized by the immutable render bind: exactly 70
+matrices and inverse bind 69 equal to finite inverse bind 44. Stock data
+therefore keeps the original draw path. Only edited meshes use the extra
+channel; it is visually unused for other equipment, including Pilgrim.
+The cosmetic body exists with an extended character rig even when no mesh
+uses that channel, avoiding a second item table in client code.
+
+The channel starts exactly at the captured Head pose, inherits its motion,
+and gets a small release velocity (0.8 m/s up, 0.5 m/s sideways) and tumble.
+It uses the solver's ground/battery queries, fixed substeps, friction,
+finite fallback and settling. It shares the corpse's ownership and death
+key: rollback/respawn discards it, the same death keeps it, slot eviction
+falls back to the worn pose. It is cosmetic: no inventory removal, armour
+change, pickup, simulation-world body or replay compatibility change.
+Like the dropped gun, it has no collision response against the corpse and
+does not receive subsequent bullet hits. Shape and release motion need
+in-game visual tuning; the initial capsule is 0.04 m half-length and 0.10 m
+radius with a 0.10 m offset above the captured Head bone.
+
+Validation: solver tests cover independent fall, ground contact and death
+ownership; Unicorn executes the eight linked hooks, extended commands,
+stock fallback, first-update/shadow/previous matrices, unheld corpses and
+rollback; content edits are checked against the actual stock meshes.
+The executable and content must ship together through the normal release.
+The isolated PR's full manifest build passed on 2026-10-28: all 2,633
+manifest files match when its generated patch overlays the listed player
+patches. The 17 headwear asset transformations also passed separately on
+stock data. No in-game visual check has been made; shape, release motion
+and all eight worn/dead models still need a local visual pass before release.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |

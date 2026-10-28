@@ -18,6 +18,10 @@
 //! - `on_held_item` (mt_draw, before the held item is read): a corpse of
 //!   ours holding nothing (a battery carrier's once the battery drops: the
 //!   game then updates no bone) is posed from its ragdoll alone.
+//! - `on_post_bones`: the content's extra render bone follows Head while
+//!   worn, and the cosmetic headwear body after death;
+//! - `on_render_bones`: ordinary 69-bone commands initialize the extra
+//!   render bone for the lobby, baking and other renderer callers.
 //!
 //! The world is read once a frame into the crate's types (the places seen
 //! alive or dead with their death's key, the bones' matrices as world
@@ -31,7 +35,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
@@ -39,7 +43,7 @@ use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::world::{BodyId, GameWorld, Held, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId};
-use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, Thread, camera, clock};
+use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the foot IK's level (group 24h,
@@ -375,6 +379,7 @@ fn seen(
     // the battery itself, 0x300E50)
     let gun = (player.held() == Held::Item).then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
+    death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
@@ -764,6 +769,28 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The rendered accessory pose of the same death, in the player's model space.
+fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
+    let (_, slot, _) = draw_of(state, player)?;
+    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
+    Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
+}
+
+/// mt_draw's render command, after its weapon draw and before any arguments
+/// have been pushed. Alive/canned bodies use Head; a ragdoll uses its own pose.
+pub fn on_post_bones(ctx: &mut Context<'_>) -> Flow<RagdollOnPostBonesExit> {
+    let posted = DrawnBones::at(ctx).is_some_and(|bones| {
+        let extra = STATE.with(ctx.thread(), |state| headwear_pose(state, &bones.player()));
+        bones.post_headwear(extra)
+    });
+    if posted { Flow::Exit(RagdollOnPostBonesExit::Posted) } else { Flow::Continue }
+}
+
+pub fn on_render_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    headwear::finish_update(ctx);
+    Flow::Continue
+}
+
 fn apply(state: &mut State, bones: &DrawnBones<'_>) {
     let player = bones.player();
     let Some((_, slot, index)) = draw_of(state, &player) else { return };
@@ -791,7 +818,11 @@ fn apply(state: &mut State, bones: &DrawnBones<'_>) {
 pub fn on_held_item(ctx: &mut Context<'_>) -> Flow<RagdollOnHeldItemExit> {
     // the bones made under the lock, given to the renderer after it
     let posed = draw::unheld_player(ctx).is_some_and(|player| {
-        STATE.with(ctx.thread(), |state| pose_unheld(state, &player)).is_some_and(|b| draw::post_bones(&player, &b))
+        STATE.with(ctx.thread(), |state| {
+            pose_unheld(state, &player).map(|b| (b, headwear_pose(state, &player)))
+        }).is_some_and(|(b, extra)| {
+            draw::post_headwear(&player, &b, extra) || draw::post_bones(&player, &b)
+        })
     });
     if posed {
         draw::no_held_item(ctx);

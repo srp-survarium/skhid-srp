@@ -919,6 +919,81 @@ pub mod renderer {
     }
 }
 
+/// vostok::render::skeleton_instance's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod skeleton_instance {
+    use core::ffi::c_void;
+
+    /// +0x62b4 (u32): immutable skeleton render model (update_render_matrices 0x15A5AA)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_instance.
+    #[inline(always)]
+    pub unsafe fn original(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x62b4).cast() }
+    }
+
+    /// +0x290 (u32): previous skinned matrix array (0x15A7BF)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_instance.
+    #[inline(always)]
+    pub unsafe fn previous_matrices(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x290).cast() }
+    }
+
+    /// +0x229c (u32): current skinned matrix array (0x15A7B9)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_instance.
+    #[inline(always)]
+    pub unsafe fn matrices(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x229c).cast() }
+    }
+
+    /// +0x42a8 (u32): second skinned matrix array (0x15A844)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_instance.
+    #[inline(always)]
+    pub unsafe fn shadow_matrices(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x42a8).cast() }
+    }
+
+    /// +0x62d8 (u8): first update copies current into previous (0x15A950)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_instance.
+    #[inline(always)]
+    pub unsafe fn first_update(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x62d8).cast() }
+    }
+}
+
+/// vostok::render::skeleton_render_model's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod skeleton_render_model {
+    use core::ffi::c_void;
+
+    /// +0x140 (u32): inverse-bind vector begin, filled in file order by 0x15A000
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_render_model.
+    #[inline(always)]
+    pub unsafe fn inverse_binds(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x140).cast() }
+    }
+
+    /// +0x144 (u32): inverse-bind vector end (resize at 0x15A01F)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::skeleton_render_model.
+    #[inline(always)]
+    pub unsafe fn inverse_binds_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x144).cast() }
+    }
+}
+
 /// vostok::buffer_reader's fields (fields_026g.tsv).
 #[allow(dead_code)]
 pub mod buffer_reader {

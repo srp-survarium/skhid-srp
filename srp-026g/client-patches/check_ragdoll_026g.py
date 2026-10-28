@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run patch 76's six hooks (the death ragdoll; ../docs/notes/ragdoll.md)
+"""Run patch 76's eight hooks (ragdoll and headwear; ../docs/notes/ragdoll.md)
 in the built exe, with Unicorn (2.1.4).
 
     python check_ragdoll_026g.py <original survarium.exe>
 
 The exe is built as patch_026g.py builds it (with the late join and the
-arena); the build without the late join keeps the original's six sites.
+arena); the build without the late join keeps the original's eight sites.
 The hooks are the Rust patch `ragdoll` (rust/patches/src/ragdoll.rs, its
 lohooks ragdoll.toml), each site a jmp to its generated entry
 (hook_entries_026g.asm), which saves the machine, calls the handler and
@@ -31,7 +31,7 @@ play_sound (0x3222F0), which record their arguments. The material pair
 (0x306D50) is the game's own code on a made-up material manager.
 
 Checked:
-- the six sites: the original's bytes in the original and the build
+- the eight sites: the original's bytes in the original and the build
   without the late join, a jmp to the hook's entry in patches.code here;
 - every hook keeps the registers the game's code after it reads, and the
   flags of the two compares it stands in for (the step's `[esp+0Fh]`, the
@@ -89,6 +89,8 @@ EYE_SITE, EYE_NEXT = 0x1F3643, 0x1F3649
 BULLET_SITE, BULLET_NEXT = 0x32D627, 0x32D631
 HELD_SITE, HELD_NEXT, NO_BONES = 0x24754F, 0x24755D, 0x24781E      # mt_draw's read of the held item, its je's target
 UPDATE_SKELETON = 0x22490
+POST_SITE, POST_NEXT = 0x2477DF, 0x2477E8
+RENDER_SITE, RENDER_NEXT = 0x15A950, 0x15A957
 VICTORY_ITEM_VTABLE = 0xA042AC
 RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
@@ -545,8 +547,9 @@ def main():
     linked = base.arena()
     block = linked.blocks["patches.code"]
     hooks = [h for h in base.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE],
-          "the Rust patch ragdoll's six lohooks (ragdoll.toml, sites_026g.tsv)")
+    check([h[0] for h in hooks] == [STEP_SITE, CULL_SITE, APPLY_SITE, EYE_SITE, BULLET_SITE, HELD_SITE,
+                                  POST_SITE, RENDER_SITE],
+          "the Rust patch ragdoll's eight lohooks (ragdoll.toml, sites_026g.tsv)")
     for va, old, symbol, opcode in hooks:
         at = base.file_offset(va)
         target = linked.symbols[symbol]
@@ -843,7 +846,72 @@ def main():
     still = all(max(abs(a - b) for a, b in zip(m, n)) < 1e-5 for m, n in zip(frames[-1], frames[-2]))
     check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
           f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
+    check_headwear(built)
     print("all checks passed")
+
+
+def check_headwear(built):
+    game = Game(built)
+    player = game.add_player(0, 0.0, 0.0)
+    instance, model, binds = (HEAP + x for x in (0xC00000, 0xC10000, 0xC20000))
+    current, shadow, previous = (HEAP + x for x in (0xC30000, 0xC34000, 0xC38000))
+    game.u32(MODEL + 0x108, instance)
+    game.u32(instance + 0x62B4, model)
+    game.u32(model + 0x140, binds)
+    game.u32(model + 0x144, binds + 70 * 64)
+    identity = struct.pack('<16f', *matrix((0, 0, 0)))
+    game.emu.mem_write(binds, identity * 70)
+    for offset, array in ((0x229C, current), (0x42A8, shadow), (0x290, previous)):
+        game.u32(instance + offset, array)
+        game.emu.mem_write(array, identity * 80)
+        game.emu.mem_write(array + 44 * 64, struct.pack('<16f', *matrix((offset, 2, 3))))
+    snapshot = {a: bytes(game.emu.mem_read(a, 80 * 64)) for a in (current, shadow, previous)}
+    for first in (0, 1):
+        for a, b in snapshot.items(): game.emu.mem_write(a, b)
+        game.u8(instance + 0x62D8, first)
+        out = game.run(RENDER_SITE, RENDER_NEXT, {UC_X86_REG_EDI: instance, UC_X86_REG_EDX: 69})
+        for a in snapshot:
+            source = current if a == previous and first else a
+            check(game.floats(a + 69 * 64, 16) == game.floats(source + 44 * 64, 16)
+                  and bytes(game.emu.mem_read(a, 69 * 64)) == snapshot[a][:69 * 64]
+                  and bytes(game.emu.mem_read(a + 70 * 64, 10 * 64)) == snapshot[a][70 * 64:],
+                  f'headwear render initialization: array {a:#x}, first={first}, only bone 69 changes')
+        check(bool(out[UC_X86_REG_EFLAGS] & ZF) == (first == 0), 'render hook preserves the first-update compare')
+    before = bytes(game.emu.mem_read(current, 80 * 64))
+    game.run(RENDER_SITE, RENDER_NEXT, {UC_X86_REG_EDI: instance, UC_X86_REG_EDX: 70})
+    check(bytes(game.emu.mem_read(current, 80 * 64)) == before, 'an explicit detached pose is not overwritten')
+    game.u32(model + 0x144, binds + 69 * 64)
+    game.run(RENDER_SITE, RENDER_NEXT, {UC_X86_REG_EDI: instance, UC_X86_REG_EDX: 69})
+    check(bytes(game.emu.mem_read(current, 80 * 64)) == before, 'stock render binds are left untouched')
+    game.draw(player)
+    game.run(POST_SITE, POST_NEXT, {UC_X86_REG_EBX: player, UC_X86_REG_EBP: FRAME})
+    check(not game.skeletons, 'stock content keeps the original skeleton command path')
+    game.u32(model + 0x144, binds + 70 * 64)
+
+    def post():
+        drawn, _ = game.draw(player)
+        game.run(POST_SITE, NO_BONES, {UC_X86_REG_EBX: player, UC_X86_REG_EBP: FRAME})
+        call = game.skeletons[-1]
+        check(call[4] == 70 and call[5][:69] == drawn, 'extended command preserves all 69 animation matrices')
+        return call[5]
+
+    worn = post()
+    check(worn[69] == worn[44], 'a living player wears the helmet on Head')
+    game.set_alive(player, False, 1000)
+    for _ in range(40):
+        game.step()
+        game.draw(player)
+    dropped = post()
+    check(math.dist(dropped[69][12:15], dropped[44][12:15]) > 0.15, 'the helmet moves separately from the dead head')
+    game.u32(player + HELD, 0)
+    calls = game.held_item(player)[2]
+    check(len(calls) == 1 and calls[0][4] == 70
+          and math.dist(calls[0][5][69][12:15], calls[0][5][44][12:15]) > 0.15,
+          'a corpse holding nothing retains its detached helmet')
+    game.set_alive(player, True, 1000)
+    game.step()
+    restored = post()
+    check(restored[69] == restored[44], 'rollback or respawn restores the worn helmet')
 
 
 if __name__ == "__main__":

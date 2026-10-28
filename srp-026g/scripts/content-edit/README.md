@@ -22,6 +22,16 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### Headwear render assets
+
+`headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
+(`file`, expected `vertices`). `headwear.py` checks the native bind order,
+skin layout, weights and index bounds. It appends a Head-equivalent render
+bone and rebinds only the approved helmet surfaces; all geometric and
+texture data stays exact. The Biker's three blended neck vertices become
+rigid. These edits require the matching client hooks; build and ship them
+together through the normal release. See `docs/notes/ragdoll.md` section 15.
+
 ### The value-type check
 
 `release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit

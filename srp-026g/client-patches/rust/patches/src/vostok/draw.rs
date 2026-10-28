@@ -31,6 +31,18 @@ pub fn post_bones(player: &Player<'_>, bones: &[[f32; 16]]) -> bool {
     true
 }
 
+/// A command owning copies of all 69 animation matrices and the separate
+/// render bone. update_skeleton copies both arrays before returning.
+pub fn post_headwear(player: &Player<'_>, bones: &[[f32; 16]], extra: Option<[f32; 16]>) -> bool {
+    if bones.len() != super::headwear::BONE || super::headwear::of_player(player).is_none() {
+        return false;
+    }
+    let mut extended = [[0.0; 16]; super::headwear::COUNT];
+    extended[..bones.len()].copy_from_slice(bones);
+    extended[super::headwear::BONE] = extra.unwrap_or(bones[super::headwear::HEAD]);
+    post_bones(player, &extended)
+}
+
 /// The most matrices update_skeleton takes (its abi row: at most 80).
 pub const MAX_BONES: usize = 80;
 
@@ -93,5 +105,17 @@ impl<'t> DrawnBones<'t> {
             // SAFETY: as get; the draw's own array.
             unsafe { self.bones.add(index as usize).write_volatile(matrix) }
         }
+    }
+
+    pub fn post_headwear(&self, extra: Option<[f32; 16]>) -> bool {
+        if self.count as usize != super::headwear::BONE {
+            return false;
+        }
+        let mut matrices = [[0.0; 16]; super::headwear::BONE];
+        for (i, matrix) in matrices.iter_mut().enumerate() {
+            let Some(value) = self.get(i as u32) else { return false };
+            *matrix = value;
+        }
+        post_headwear(&self.player, &matrices, extra)
     }
 }

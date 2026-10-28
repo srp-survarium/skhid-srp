@@ -79,6 +79,9 @@ Edits (edits.json):
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
+  "append_headwear_bind": [{"file"}]                   append the render-only Head copy to a native bind
+  "rigid_headwear": [{"file", "vertices"}]             bind a checked Head/Neck surface to that render bone;
+                                                       geometry, UVs and indices stay byte for byte
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -899,6 +902,26 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+
+    # Binary render assets: each operation checks its format and unchanged bytes.
+    if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('headwear', os.path.join(os.path.dirname(__file__), 'headwear.py'))
+        headwear = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(headwear)
+        for operation, transform in (
+            ('append_headwear_bind', lambda b, e: headwear.append_headwear_bind(b)),
+            ('rigid_headwear', lambda b, e: headwear.rigid_headwear(b, e['vertices'])),
+        ):
+            for e in edits.get(operation, []):
+                p = e['file']
+                if p in bufs or p in clips:
+                    sys.exit('%s: %s already edited' % (operation, p))
+                if p not in files:
+                    sys.exit('%s: not in the live folder' % p)
+                source = open(files[p], 'rb').read()
+                clips[p] = transform(source, e)
+                print('%s %s: %d -> %d bytes' % (operation, p, len(source), len(clips[p])))
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])

@@ -66,6 +66,13 @@ survarium::player	game_world	0xF474	u32	its game world (mt_draw 0x2477E8: +9Ch i
 survarium::game	renderer	0x5360	u32	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
 vostok::render::game::renderer	scene_renderer	0x200064	u32	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
 survarium::player_model	render_instance	0x108	u32	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
+vostok::render::skeleton_instance	original	0x62B4	u32	immutable skeleton render model (update_render_matrices 0x15A5AA)
+vostok::render::skeleton_instance	previous_matrices	0x290	u32	previous skinned matrix array (0x15A7BF)
+vostok::render::skeleton_instance	matrices	0x229C	u32	current skinned matrix array (0x15A7B9)
+vostok::render::skeleton_instance	shadow_matrices	0x42A8	u32	second skinned matrix array (0x15A844)
+vostok::render::skeleton_instance	first_update	0x62D8	u8	first update copies current into previous (0x15A950)
+vostok::render::skeleton_render_model	inverse_binds	0x140	u32	inverse-bind vector begin, filled in file order by 0x15A000
+vostok::render::skeleton_render_model	inverse_binds_end	0x144	u32	inverse-bind vector end (resize at 0x15A01F)
 survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
 survarium::match_options	srp_blackout	0x57870	u32	patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
 vostok::buffer_reader	begin	0x0	u32	a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
