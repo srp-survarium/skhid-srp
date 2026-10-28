@@ -439,7 +439,7 @@ package survarium.controls
             "2":["School","Школа","Школа","Schule","Szkoła", "Škola", "Škola", "Iskola", "Koulu"],
             "3":["Vostok Radar Station","РЛС \"Восток\"","РЛС \"Восток\"","RS Vostok","Stacja Radarowa \"Vostok\"", "Radarska stanica Vostok", "Radarová stanice Vostok", "Vosztok radarállomás", "Vostokin tutka-asema"],
             "4":["Chemical Plant","Хімзавод","Химзавод","Chemiebetrieb","Zakłady chemiczne", "Hemijska fabrika", "Chemička", "Vegyi üzem", "Kemiantehdas"],
-            "5":["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów", "Tarakanovska tvrđava", "Tarakanovská pevnost", "Tarakanovi erőd", "Tarakanovin linnoitus"],
+            "5":["Tarakanovsky Fort","Тараканівський форт","Таракановский форт","Tarakanowski Fort","Fort Tarakanów", "Tarakanovski fort", "Tarakanovská pevnost", "Tarakanovi erőd", "Tarakanovin linnoitus"],
             "6":["Mamayev Kurgan","Мамаїв курган","Мамаев курган","Mamaew kurgan","Kurhan Mamaja", "Mamajev kurgan", "Mamajova mohyla", "Mamajev-kurgán", "Mamajevin kurgaani"],
             "7":["Vector Laboratory","Лабораторія \"Вектор\"","Лаборатория \"Вектор\"","Labor Vektor","Laboratorium \"Wektor\"", "Laboratorija Vektor", "Laboratoř Vektor", "Vektor laboratórium", "Vektor-laboratorio"],
             "8":["Cologne","Кельн","Кельн","Köln","Most w Kolonii", "Keln", "Kolín nad Rýnem", "Köln", "Köln"],

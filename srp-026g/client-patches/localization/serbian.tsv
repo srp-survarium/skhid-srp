@@ -372,7 +372,7 @@ camo_spekrt_02_name	Spektar — proleće
 camo_spekrt_03_name	Spektar — leto
 camo_steam	Steam kamuflaža
 camo_suede_leather_name	Antilop
-camo_yellow_leather_name	Žuta koža
+camo_yellow_leather_name	Oker koža
 can_be_installed_on	Može da se postavi na
 can_sprint_description	Možete sprintati i kada ste preopterećeni.
 can_sprint_name	Sprint
@@ -436,7 +436,7 @@ change_quest_label	Promeni zadatak
 change_weapon_speed_description	Brzina zamene oružja:
 change_weapon_speed_name	Vešte ruke
 character	Lik
-character_decals_1_12_name	Jarilo
+character_decals_1_12_name	Sunašce
 character_decals_1_1_name	Književnik
 character_decals_1_2_name	Odred Alfa
 character_decals_1_3_name	Preživeli
@@ -680,7 +680,7 @@ clan_system_message_sender	Sistemska poruka klana
 clan_team_commander	Terenski komandant
 clan_team_invite_2	je uspešno pozvan u tim klana.
 clan_team_invites	Prijave
-clan_team_is_full	Dostignut je najveći broj igrača za klansku borbu.
+clan_team_is_full	Dostignut je najveći broj igrača za klanski boj.
 clan_team_reserve	Rezerva
 clan_team_soldier	Sastav tima
 clan_team_window_label	Sastav tima
@@ -955,7 +955,7 @@ face_069d_protective_mask_name	Zaštitna maska
 faction_1_description	Oprema Sakupljača je namenjena borbi na srednjim i velikim daljinama i preživljavanju u anomalijama. Veterani imaju pristup snajperskim puškama.
 faction_2_description	Kožna oprema Crnog tržišta pruža slabu zaštitu od anomalija, ali dobru zaštitu u drugim uslovima. Oružje je namenjeno bliskoj borbi, a elita koristi AK74u.
 faction_3_description	Vojska preporoda ima najširi izbor opreme i oružja. Vojnici se bore na svim daljinama, čak i u zagađenim oblastima. Najbolji imaju pristup teškim pancirima i mitraljezima.
-faction_4_description	Oprema Naseljenika sa oboda pruža najbolju zaštitu od anomalija i prilagođena je pronalaženju i upotrebi artefakata. Oružje je pogodnije za zasede nego za otvorenu borbu.
+faction_4_description	Oprema Naseljenika sa oboda pruža najbolju zaštitu od anomalija i prilagođena je pronalaženju i upotrebi artefakata. Oružje je pogodnije za zasede nego za otvoren boj.
 faction_blackmarket_blocked_text	Crno tržište odbija da vam da zadatke.
 faction_edge_blocked_text	Potreban je najveći ugled kod Sakupljača ili Crnog tržišta.
 faction_info	Informacije
@@ -1075,7 +1075,7 @@ hud_tutorial_frame_4_text_1	Skok
 hud_tutorial_frame_4_text_2	Za skok pritisnite razmaknicu
 hud_tutorial_frame_5_text_1	Čučanj
 hud_tutorial_frame_5_text_2	Za čučanj držite CTRL\nili pritisnite C
-hud_tutorial_frame_6_text_1	U borbu!
+hud_tutorial_frame_6_text_1	U boj!
 hud_tutorial_frame_6_text_2	Završili ste osnovnu\nborbenu obuku. Srećno!
 hud_tutorial_frame_6_text_3	Vaša nagrada:
 ignored	Blokirani igrači
@@ -1149,7 +1149,7 @@ item_sell_precondition_faction_3	Potreban je ugled kod Vojske preporoda
 item_sell_precondition_faction_4	Potreban je ugled kod Naseljenika sa oboda
 item_sold	Predmet je prodat
 items_notes	Zalihe
-items_notes_frame_1_text_1	Da povećate šanse za preživljavanje,\nponesite zalihe u borbu
+items_notes_frame_1_text_1	Da povećate šanse za preživljavanje,\nponesite zalihe u boj
 items_notes_frame_1_text_2	Zalihe su granate, prva pomoć,\nzamke, mine i slično
 items_notes_frame_2_text_1	Zalihe se stavljaju u džepove
 items_notes_frame_3_text_1	Broj džepova povećavate\nopremom sa odgovarajućom osobinom
@@ -1198,15 +1198,15 @@ less_then_hour	manje od jednog časa
 level_01_name	Rudnja
 level_02_name	Škola
 level_03_name	Radarska stanica Vostok
-level_04_name	Hemijsko postrojenje
-level_05_name	Tarakanovska tvrđava
+level_04_name	Hemijska fabrika
+level_05_name	Tarakanovski fort
 level_06_name	Mamajev kurgan
 level_07_name	Laboratorija Vektor
 level_08_name	Keln
 level_09_name	London
 level_10_name	Radarska stanica Vostok (v0.21)
 level_11_name	Mamajev kurgan (v0.21)
-level_12_name	Hemijsko postrojenje (v0.11)
+level_12_name	Hemijska fabrika (v0.11)
 level_13_name	Radarska stanica Vostok (v0.11)
 lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su izlečene! Zdravlje je obnovljeno!
 lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
@@ -1489,7 +1489,7 @@ premium_ally_members	Zahvaljujući premijum igračima
 premium_bonus	Iskustvo\nZarada\nUgled
 premium_bonus_experience	VIŠE ISKUSTVA!
 premium_bonus_item_search	BONUS ZA PRONALAŽENJE PREDMETA!
-premium_bonus_money	NAGRADA ZA BORBU!
+premium_bonus_money	NAGRADA ZA BOJ!
 premium_bonus_profile	Profil opreme
 premium_bonus_reputation	BONUS ZA UGLED KOD FRAKCIJE!
 premium_button_advert	Kupi PREMIJUM
@@ -1511,7 +1511,7 @@ premium_week	Nedelja
 premium_week_descr	(7 dana)
 premium_year	Godina
 premium_year_descr	(365 dana)
-prepare_to_battle_notes	Priprema za borbu
+prepare_to_battle_notes	Priprema za boj
 prepare_to_battle_notes_frame_1_text_1	U meču učestvuju dva tima
 prepare_to_battle_notes_frame_2_text_1	Saveznici su obeleženi\nsimbolima iznad glave
 prepare_to_battle_notes_frame_2_text_2	prikaži imena saigrača
@@ -1526,17 +1526,17 @@ prepare_to_battle_notes_frame_7_text_1	Ako su obe noge slomljene,\nne možete se
 prev_weapon	Prethodno oružje
 private_messages_in_game_option	Sakrij ćaskanje u meču
 profile	Profil
-profile_check_failed	Ne možete ući u borbu bez oružja!
-profile_check_failed_weapon	Ne možete ući u borbu bez oružja!
-profile_check_failed_weapon_ammo	Nedovoljno municije u rancu za ulazak u borbu!
-profile_check_failed_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u borbu!
+profile_check_failed	Ne možete ući u boj bez oružja!
+profile_check_failed_weapon	Ne možete ući u boj bez oružja!
+profile_check_failed_weapon_ammo	Nedovoljno municije u rancu za ulazak u boj!
+profile_check_failed_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u boj!
 profile_play_time	Vreme igranja
 profile_rename	Preimenuj profil
 profile_rename_label	Preimenuj profil
 profile_selection_warning	Promena profila produžava ponovno pojavljivanje na 20 sekundi.
-profile_warning_weapon	Ne možete ući u borbu bez oružja!
-profile_warning_weapon_ammo	Nedovoljno municije u rancu za ulazak u borbu!
-profile_warning_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u borbu!
+profile_warning_weapon	Ne možete ući u boj bez oružja!
+profile_warning_weapon_ammo	Nedovoljno municije u rancu za ulazak u boj!
+profile_warning_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u boj!
 ptt_action	Pritisni za govor
 ptt_button_option	Pritisni za govor
 put_item	Postavi ({USE})
@@ -1929,11 +1929,11 @@ spam_filter_block_notification	Filter neželjenih poruka je blokirao vašu poruk
 spam_filter_block_notification_fin	sek.
 spas12_description	Opis još nije dostupan.
 special_offer	Posebna ponuda
-speed_booster_description	Energetski napitak sa kofeinom i taurinom. Okrepljuje i stimuliše centralni nervni sistem.
-speed_booster_name	Energetski napitak Tornado
+speed_booster_description	Energetsko piće sa kofeinom i taurinom. Izbor nolajfera!
+speed_booster_name	Energetsko piće Tornado
 spot_action	Uočen neprijatelj
-spring_activation_hint	Opruga je aktivirana! Brzina kretanja i nišanjenja +10%. Ubrzana obnova energije! Meci vas ne usporavaju!
-spring_pickup_hint	Artefakt Opruga. Povećava brzinu kretanja i nišanjenja za 5%.
+spring_activation_hint	Feder je aktiviran! Brzina kretanja i nišanjenja +10%. Ubrzana obnova energije! Meci vas ne usporavaju!
+spring_pickup_hint	Artefakt Feder. Povećava brzinu kretanja i nišanjenja za 5%.
 sprint_action	Sprint (drži)
 sprint_toggle_action	Sprint
 squad	Odred
@@ -2021,9 +2021,9 @@ tutorial_choose_ammo_message_1	Broj metaka je naznačen na kutijama. Različite 
 tutorial_choose_ammo_message_2	Uzmite najveću dozvoljenu količinu municije.
 tutorial_choose_faction_message_1	Istovremeno možete sarađivati samo sa jednom frakcijom. Ugled stičete uspešnim radnjama u borbi i izvršavanjem zadataka frakcije.
 tutorial_choose_faction_message_2	Pridružite se jednoj od frakcija.
-tutorial_choose_wpn_message_1	U borbu možete poneti samo dva oružja. Pažljivo izaberite čime ćete se boriti.
+tutorial_choose_wpn_message_1	U boj možete poneti samo dva oružja. Pažljivo izaberite čime ćete se boriti.
 tutorial_choose_wpn_message_2	Prevucite Mosin karabin ili\nPPŠ-41 na prazno mesto za oružje.
-tutorial_click_ammo_message_1	Možete nositi ograničenu količinu municije. <tutorial_highlight>Kliknite na „Prikaži municiju“</tutorial_highlight> da sami izaberete koliko metaka nosite u borbu.
+tutorial_click_ammo_message_1	Možete nositi ograničenu količinu municije. <tutorial_highlight>Kliknite na „Prikaži municiju“</tutorial_highlight> da sami izaberete koliko metaka nosite u boj.
 tutorial_click_inventory_message_1	Šuma nije jedina opasnost novog sveta. Države su propale i svako se bori za sebe. Za hranu, lekove i pravo na opstanak morate se izboriti. Oružje iz starih skrovišta možda nije najbolje, ali je bolje nego ništa.
 tutorial_click_inventory_message_2	Otvorite karticu „Oprema“ da opremite lika oružjem i oklopom.
 tutorial_complete_label	Čestitamo!\nZavršili ste obuku.
@@ -2031,7 +2031,7 @@ tutorial_complete_reward_label	Vaša nagrada za ovu radnju:
 tutorial_equip_drop_message_1	Novo oružje i opremu možete dobiti na više načina. Posle svake borbe imate priliku da pronađete predmet na bojištu. Poboljšajte odnose sa frakcijama da pristupite njihovoj posebnoj robi.
 tutorial_equip_drop_message_2	Otvorite prozor za izbor frakcije.
 tutorial_exit_warning	Ako napustite obuku, ne možete joj se vratiti i dobiti nagradu. Želite li zaista da nastavite?
-tutorial_press_play_message_1	Kliknite na <tutorial_highlight>Igraj</tutorial_highlight> za prvu borbu. Više informacija naći ćete u <tutorial_highlight>„Beleškama preživelog“</tutorial_highlight>, dostupnim posle borbe.
+tutorial_press_play_message_1	Kliknite na <tutorial_highlight>Igraj</tutorial_highlight> za prvi boj. Više informacija naći ćete u <tutorial_highlight>„Beleškama preživelog“</tutorial_highlight>, dostupnim posle borbe.
 two_handed	Glavno oružje
 ump45_description	Opis još nije dostupan.
 unknown_faction	Neutralan
@@ -2059,7 +2059,7 @@ victory_screen_no_dropped_item	Niste pronašli ništa na bojištu.
 vityaz_bundle_descr	<white>Paket sadrži:\n- Unapređeni PP-19-01 Vitjaz.\n- 2000 metaka 9x19 Parabellum.</white>
 vityaz_bundle_name	Paket PP-19-01 Vitjaz
 vityaz_description	Automat kalibra 9x19, razvijen 2004. za potrebe ruskih specijalnih snaga. Podržava pojedinačnu i rafalnu paljbu.
-voice_chat_volume_option	Glasovno ćaskanje
+voice_chat_volume_option	Glasovni čet
 vsk94_description	Opis još nije dostupan.
 vsk94_premium_description	Ruska snajperska puška kalibra 9x39, razvijena devedesetih u birou KBP u Tuli na osnovi 9A-91. Ima prigušivač i snajperski kundak za tihu paljbu na malim i srednjim daljinama. Okvir prima 20 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
 vss_bundle_descr	<white>Paket sadrži:\n- Unapređeni VSS Vintorez.\n- 1000 metaka 9x39 SP-5.</white>\n
@@ -2074,12 +2074,12 @@ walther_competition2_collimator_desc	Nemački kolimatorski nišan Walther, prvob
 walther_competition2_collimator_name	Kolimatorski nišan Competition II
 wasted	Potrošnja
 weapon_aim_action	Nišani (drži)
-weapon_could_not_be_used	Ruke su povređene! Ne možete da koristite oružje.
+weapon_could_not_be_used	Ruke su vam povređene! Ne možete da koristite oružje.
 weapon_fire_action	Pucaj
 weapon_reload_action	Napuni oružje
 wear	Primeni
-weight_booster_description	Protein sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.
-weight_booster_name	Protein Anomalna snaga
+weight_booster_description	Proteinski dodatak sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.
+weight_booster_name	Proteinski dodatak - Anomalna snaga
 winchester1894_description	Puška koju je američki konstruktor razvio 1894, a proizvodila se do 2006. Jedna od najpoznatijih lovačkih pušaka. Repetira se polugom i ima cevasti magacin za 6 metaka.
 wrong_skill_points_count	Pogrešan broj poena veština
 wrong_symbol_clan_string	Tekst sadrži znak koji ne može da se prikaže.
