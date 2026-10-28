@@ -26,6 +26,9 @@
     },
     {
       "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/ported/novice_026/hat.skinned_model/render/bind_pose"
     }
   ],
   "rigid_headwear": [
@@ -60,6 +63,10 @@
     {
       "file": "models/character/human/scavengers/scavengers_05_helmet.skinned_model/render/blinn3sg/converted_model",
       "vertices": 1137
+    },
+    {
+      "file": "models/ported/novice_026/hat.skinned_model/render/hat/converted_model",
+      "vertices": 241
     }
   ],
   "set_bool": [
@@ -101,6 +108,12 @@
     },
     {
       "file": "material_instances/characters/human/scavenger_05/scavenger_05_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/ported/novice_026/hat.material",
       "path": "material/g_stage/effect/two_sided/value",
       "from": false,
       "to": true

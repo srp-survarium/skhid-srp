@@ -963,7 +963,8 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
 
 The owner's candidate list, with Pilgrim explicitly excluded: the currently
 available Biker's helmet, Explorer's hat, Keeper, Paratrooper's helmet,
-Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet. Other names in the
+Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet, plus the level-2
+ported beanie (`novice_026_helmet`, 241 vertices). Other names in the
 list are not present in the mounted helmet configs and are not ported here.
 Hoods, closed helmets with replacement heads, and the exoskeleton helmets
 retain their existing bindings.
@@ -971,14 +972,15 @@ retain their existing bindings.
 `headwear-1.json`, listed in `release/content.tsv`, changes source assets
 through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
 bind index 69, an exact copy of Head (44), to the combined character's bind
-and the eight standalone helmet binds. The eight surfaces bind rigidly to
+and the nine standalone headwear binds. The nine surfaces bind rigidly to
 69. Positions, normals, UVs, material references and indices stay exact.
 The Biker's three vertices with neck influence deliberately become rigid.
 The animation skeleton, animation clips and hit model are unchanged.
 
 The underside audit found no inner crown faces on Biker, Explorer,
 Paratrooper, Vityaz-S, Scout, OZK-18KB and Mounting. The same edit list sets
-those seven material instances’ `material/g_stage/effect/two_sided/value`
+those seven materials plus the beanie’s
+`material/g_stage/effect/two_sided/value`
 from false to true so their backfaces render.
 Their original texture maps also cover the reverse side. Keeper already
 has a textured inner surface and keeps its one-sided material. No new
@@ -1029,15 +1031,17 @@ ownership; Unicorn executes the eight linked hooks, extended commands,
 stock fallback, first-update/shadow/previous matrices, unheld corpses and
 rollback; content edits are checked against the actual stock meshes.
 The executable and content must ship together through the normal release.
-The isolated PR's full manifest build passed on 2026-10-28: all 2,640
+The isolated PR's full manifest build passed on 2026-10-28: all 2,643
 manifest files match when its generated patch overlays the listed player
-patches. The 17 headwear asset transformations also passed separately on
-stock data. The packed material audit confirms exactly one boolean byte
-changed in each of the seven materials; Keeper, meshes and texture maps
-are byte-identical to the fly-off build before the material edits. Offline
-underside renders use the actual mesh UVs, diffuse textures and culling
-flags. No in-game visual check has been made; shape, release motion
-and all eight worn/dead models still need a local visual pass before release.
+patches. The 19 bind/skin transformations are checked against the source
+assets, including the beanie from the published content patches. The
+packed material audit confirms exactly one boolean byte changed in each
+of the eight edited materials; Keeper’s material and all geometry, UVs
+and texture maps are preserved. Offline underside renders cover the
+eight original candidates. A local capture client and an isolated bot
+server now support a visual pass: bots cycle through all nine headwear
+items in both kits. Native lighting, shape and release motion still need
+the owner’s visual assessment before release.
 
 ## Addresses (re-kit rows added in this change)
 
