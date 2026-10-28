@@ -29,8 +29,8 @@
 //!   every [`WAITING_REFRESH`] while one waits to see its body (just
 //!   entered, or dead). Until the map's walk grid is built (0.3 to 0.8 s,
 //!   on a thread of its own) they stand; if the map has no file they run
-//!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
-//!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
+//!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON merge patch over
+//!   the defaults, read once when the server starts: a file it cannot use stops the server) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
 //!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `bot-routes.json` in
 //!   the mapdata folder, or the file `SRP_BOT_ROUTES` names (a JSON file,
 //!   private: made from the players' saved worlds; empty or `off`: none),
@@ -59,7 +59,6 @@ use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
-use crate::v026g::bots::tuning::Tuning;
 use crate::v026g::bots::view::{BatteryState, Clock, WorldFacts};
 use crate::v026g::bots::{Bots, Note};
 use crate::v026g::drive::{self, Drive};
@@ -92,7 +91,7 @@ pub(super) struct Walkers {
 
 impl Walkers {
     /// With `SRP_MAPDATA_DIR` and a server's bot in the match; the map's
-    /// build starts now, the tuning file is read now.
+    /// build starts now, with the tuning the server was started on.
     pub(super) fn new(formed: &Formed, settings: &Settings) -> Option<Self> {
         let maps = settings.maps.clone()?;
         let driven: Vec<bool> = formed.places.iter().map(|place| place.driven).collect();
@@ -100,16 +99,7 @@ impl Walkers {
             return None;
         }
         let id = formed.match_id;
-        let tuning = match std::env::var_os("SRP_BOT_TUNING").filter(|path| !path.is_empty()) {
-            Some(path) => match Tuning::load(path.as_ref()) {
-                Ok(tuning) => tuning,
-                Err(why) => {
-                    log::warn!("Match {id:#x}: SRP_BOT_TUNING not used ({why}); the defaults");
-                    Tuning::default()
-                }
-            },
-            None => Tuning::default(),
-        };
+        let tuning = settings.bot_tuning.tuning().clone();
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
             Some(dir) => {
@@ -130,7 +120,7 @@ impl Walkers {
         log::info!(
             "Match {id:#x}: {}",
             switch_log::data_files(
-                &switch_log::tuning_file(std::env::var_os("SRP_BOT_TUNING").as_deref()),
+                &settings.bot_tuning.data_line(),
                 std::env::var_os("SRP_BOT_ROUTES").as_deref(),
                 std::env::var_os("SRP_BOT_FOLIAGE").as_deref(),
                 std::env::var_os("SRP_BOT_GRASS").as_deref(),
@@ -187,7 +177,7 @@ impl Walkers {
                 &teams,
                 &driven,
                 &roles,
-                Arc::new(tuning),
+                tuning,
                 trace,
             )
             .with_container_teams(formed.map.container_teams)

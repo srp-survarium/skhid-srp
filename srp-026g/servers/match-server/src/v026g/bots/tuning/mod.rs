@@ -1,14 +1,19 @@
 //! Every number the bots go by (`docs/notes/player_bots_research.md` B7):
 //! typed structs, a default for each, and an optional JSON file
-//! (`SRP_BOT_TUNING`) read when a match is made, so a new file is taken up
-//! by the next match and never in the middle of one. Unknown fields are
+//! (`SRP_BOT_TUNING`) read once when the server starts ([`LoadedTuning`]): a
+//! file the server cannot use stops it at the start, with the reason, and
+//! never falls back to the defaults. Unknown fields are
 //! refused and the values checked ([`Tuning::validate`]); each trace line
 //! names the tuning's hash ([`Tuning::hash`]), so a match can be replayed
 //! with what it ran on.
 //!
-//! The file names only what it changes: a section given replaces that
-//! section's defaults field by field (`#[serde(default)]`); a play given
-//! replaces that play's tuning whole.
+//! The defaults are the bots as the owner wants them played: every option that shipped is on in
+//! `Tuning::default()` (the switch report names what is not, [`SwitchReport`]). The file is a JSON
+//! merge patch (RFC 7386) over the defaults ([`Tuning::patched`]): it names only what it changes,
+//! objects merge key by key, a list or a number replaces, so a play given with its numbers only keeps
+//! its rank and considerations. A whole tuning dumped from the defaults is a patch that changes
+//! nothing. `null` sets an optional field to none (the RFC would take the key out, which gives the
+//! default back: not an off switch now that the defaults are on) and is refused for any other field.
 //!
 //! A feature owns its section: the struct, its `Default` and its limits are in its
 //! area file, and `Tuning` only names it. Limits are parsed where a type can hold them
@@ -18,6 +23,8 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -106,6 +113,43 @@ pub use traps::TrapTuning;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
 pub use unstick::UnstickTuning;
 
+/// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything
+/// else replaces what is there.
+pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Value) {
+    let serde_json::Value::Object(patch) = patch else {
+        *target = patch;
+        return;
+    };
+    if !target.is_object() {
+        *target = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let target = target.as_object_mut().expect("made an object above");
+    for (key, value) in patch {
+        if value.is_null() {
+            target.remove(&key);
+        } else {
+            merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
+        }
+    }
+}
+
+/// The `null`s of `patch` for keys that have a value in `base` are put in `base` and taken out of `patch`
+/// ([`Tuning::apply_patch`]).
+fn nulls_set_none(base: &mut serde_json::Value, patch: &mut serde_json::Value) {
+    let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) = (base, patch) else { return };
+    patch.retain(|key, value| match base.get_mut(key) {
+        Some(slot) if value.is_null() && !slot.is_null() => {
+            *slot = serde_json::Value::Null;
+            false
+        }
+        Some(slot) => {
+            nulls_set_none(slot, value);
+            true
+        }
+        None => true,
+    });
+}
+
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
     if ok { Ok(()) } else { Err(what.to_owned()) }
@@ -128,11 +172,42 @@ impl Tuning {
         self.grid.body()
     }
 
-    /// The defaults with the file's changes.
+    /// The tuning with every option that the defaults have on put back off (`all_off.json`): the bots as they were
+    /// before the owner's set shipped. The switch report is against it ([`Tuning::switch_report`]), the tests of what
+    /// an option changes start from it, and its JSON is the bench's OFF arm.
+    pub fn all_off() -> Self {
+        Self::parse(include_str!("all_off.json")).expect("all_off.json is a valid patch")
+    }
+
+    /// The defaults with the changes of the patch in the file (see [`Tuning::patched`]).
     pub fn load(path: &Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-        Self::from_value(value).map_err(|e| format!("{}: {e}", path.display()))
+        Self::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// The defaults with the changes of the patch in `text` (see [`Tuning::patched`]).
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let patch = serde_json::from_str(text).map_err(|e| format!("not JSON: {e}"))?;
+        Self::patched(patch)
+    }
+
+    /// The defaults with the changes of a JSON merge patch (RFC 7386, [`Tuning::apply_patch`]), checked.
+    pub fn patched(patch: serde_json::Value) -> Result<Self, String> {
+        let mut value = serde_json::to_value(Self::default()).map_err(|e| e.to_string())?;
+        Self::apply_patch(&mut value, patch)?;
+        Self::from_value(value)
+    }
+
+    /// `patch` merged into a tuning's JSON `value`: the old keys of a moved field read as their new ones, an object
+    /// merges key by key, a list or a scalar replaces what is there ([`merge_patch`]), and a `null` for a field
+    /// that has a value there sets the field to none. (RFC 7386 takes the key out, and an absent key is the field's
+    /// default; the defaults are on, so a patch that switches an optional number off says `null`. A field that
+    /// cannot be none refuses the `null` when the whole is read.)
+    pub fn apply_patch(value: &mut serde_json::Value, mut patch: serde_json::Value) -> Result<(), String> {
+        legacy::upgrade(&mut patch)?;
+        nulls_set_none(value, &mut patch);
+        merge_patch(value, patch);
+        Ok(())
     }
 
     /// A patch's or a file's JSON with the old key of a moved field at its new place (`legacy`).
@@ -189,6 +264,72 @@ impl Tuning {
                 debug_assert!(false, "{kind:?} has no number {name}");
                 0.0
             })
+    }
+}
+
+/// Where the server's tuning comes from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Source {
+    /// `SRP_BOT_TUNING` is not set: [`Tuning::default`].
+    Defaults,
+    /// The patch file `SRP_BOT_TUNING` names, with the digest of the bytes that were read.
+    File { path: PathBuf, sha: String },
+}
+
+/// The tuning every bot match of a server runs on, parsed once when the server starts. A match is never made on
+/// anything else: a file that is there but cannot be used (unreadable, not JSON, a name or a value refused) is an
+/// error at the start, never the defaults.
+#[derive(Clone, Debug)]
+pub struct LoadedTuning {
+    source: Source,
+    tuning: Arc<Tuning>,
+}
+
+impl Default for LoadedTuning {
+    /// The defaults, as a server with no file runs.
+    fn default() -> Self {
+        Self { source: Source::Defaults, tuning: Arc::new(Tuning::default()) }
+    }
+}
+
+impl PartialEq for LoadedTuning {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source && self.tuning.hash() == other.tuning.hash()
+    }
+}
+
+impl Eq for LoadedTuning {}
+
+impl LoadedTuning {
+    /// The file `SRP_BOT_TUNING` names (unset or empty: the defaults).
+    pub fn from_env() -> Result<Self, String> {
+        match std::env::var_os("SRP_BOT_TUNING").filter(|path| !path.is_empty()) {
+            Some(path) => Self::from_file(path.as_ref()),
+            None => Ok(Self::default()),
+        }
+    }
+
+    /// The defaults with the changes of the patch file at `path`; the error says which file and what is wrong with it.
+    pub fn from_file(path: &Path) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| format!("SRP_BOT_TUNING {}: {e}", path.display()))?;
+        let text = std::str::from_utf8(&bytes).map_err(|e| format!("SRP_BOT_TUNING {}: not UTF-8: {e}", path.display()))?;
+        let tuning = Tuning::parse(text).map_err(|e| format!("SRP_BOT_TUNING {}: {e}", path.display()))?;
+        Ok(Self {
+            source: Source::File { path: path.to_owned(), sha: super::switch_log::bytes_sha(&bytes) },
+            tuning: Arc::new(tuning),
+        })
+    }
+
+    pub fn tuning(&self) -> &Arc<Tuning> {
+        &self.tuning
+    }
+
+    /// The tuning part of a match's data line: the file (with its digest) or `tuning=defaults`.
+    pub fn data_line(&self) -> String {
+        match &self.source {
+            Source::Defaults => "tuning=defaults".to_owned(),
+            Source::File { path, sha } => format!("tuning={} {sha}", path.display()),
+        }
     }
 }
 
@@ -258,9 +399,9 @@ mod tests {
         // The defaults are at the caps, and a longer think gap moves them.
         let at_the_cap = Tuning::default();
         assert_eq!(at_the_cap.sense.sight_untested_ms, at_the_cap.think.think_ms.1 + 50);
-        // The refresh and the hold are off by default; the hold of the alias is at the cap too.
-        assert!(!at_the_cap.sense.sight_refresh);
-        assert_eq!(at_the_cap.cheats.sight_hold_ms, 0);
+        // The refresh and the hold are on by default, the hold at the cap too (and so is the alias's).
+        assert!(at_the_cap.sense.sight_refresh);
+        assert_eq!(at_the_cap.cheats.sight_hold_ms, at_the_cap.sense.sight_untested_ms);
         assert_eq!(crate::v026g::bots::know::SIGHT_HOLD_MS, at_the_cap.sense.sight_untested_ms);
         assert!(wrong(|t| t.sense.sight_untested_ms = 450).is_ok());
         assert!(wrong(|t| t.sense.sight_untested_ms = 451).is_err());
@@ -277,6 +418,7 @@ mod tests {
         named(wrong(|t| t.sense.sight_untested_ms = 5_000), "sense.sight_untested_ms");
         named(wrong(|t| t.cheats.sight_hold_ms = 451), "cheats.sight_hold_ms");
         assert!(wrong(|t| t.cheats.sight_hold_ms = 0).is_ok());
+        assert!(wrong(|t| t.cheats.sight_hold_ms = 450).is_ok());
         assert!(wrong(|t| t.sense.sight_grace_ms = 400).is_ok());
         named(wrong(|t| t.sense.sight_grace_ms = 401), "sense.sight_grace_ms");
         assert!(wrong(|t| t.sense.sight_grace_ms = 149).is_err());
@@ -291,6 +433,173 @@ mod tests {
         let fine = r#"{"sense":{"sight_grace_ms":150},"cheats":{"sight_hold_ms":250}}"#;
         std::fs::write(&path, fine).unwrap();
         assert!(Tuning::load(&path).is_ok());
+    }
+
+    /// RFC 7386's examples of the merge.
+    #[test]
+    fn the_merge_is_rfc_7386() {
+        let cases = [
+            (r#"{"a":"b"}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"b":"c"}"#, r#"{"a":"b","b":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"a":null}"#, "{}"),
+            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"b":"c"}"#),
+            (r#"{"a":["b"]}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"c"}"#, r#"{"a":["b"]}"#, r#"{"a":["b"]}"#),
+            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d"}}"#),
+            (r#"{"a":[{"b":"c"}]}"#, r#"{"a":[1]}"#, r#"{"a":[1]}"#),
+            (r#"["a","b"]"#, r#"["c","d"]"#, r#"["c","d"]"#),
+            (r#"{"a":"b"}"#, r#"["c"]"#, r#"["c"]"#),
+            (r#"{"a":"foo"}"#, "null", "null"),
+            (r#"{"a":"foo"}"#, r#""bar""#, r#""bar""#),
+            (r#"{"e":null}"#, r#"{"a":1}"#, r#"{"e":null,"a":1}"#),
+            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b"}"#),
+            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{}}}"#),
+        ];
+        for (target, patch, want) in cases {
+            let mut value: serde_json::Value = serde_json::from_str(target).unwrap();
+            merge_patch(&mut value, serde_json::from_str(patch).unwrap());
+            assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
+        }
+    }
+
+    /// The owner's options are the defaults: a server with no file runs on the all-ON set, and the
+    /// numbers a play names are the ones its table says.
+    #[test]
+    fn the_defaults_are_the_options_the_owner_turned_on() {
+        let on = Tuning::default();
+        assert!(on.heal.on && on.heal.bandages);
+        assert!(on.traps.react.on && on.traps.react.shot && on.traps.react.pass);
+        assert!(on.traps.react.jump && on.traps.react.hear && on.traps.react.defuse);
+        assert_eq!((on.traps.per_life, on.traps.cap_team), (2, 6));
+        assert!(on.grid.gap_links && on.grid.floor_paths && on.grid.client_numbers);
+        assert!(on.grid.exact_erosion && on.grid.honest_drops);
+        assert_eq!(on.kin.jump_snap, crate::v026g::bots::kin::JumpSnap::ByKeys);
+        assert_eq!(on.feel.drop_truth, crate::v026g::bots::path::DropTruth::Links);
+        assert_eq!(on.hazard.zone_pools, ZonePools::Routed);
+        assert_eq!(on.cheats.sight_hold_ms, 450);
+        assert_eq!(on.unstick.progress_ms, Some(6_000));
+        assert_eq!(on.unstick.suicide_after_ms, Some(SUICIDE_AFTER_OWNER_MS));
+        // The switches that stay off, each for its recorded reason.
+        assert!(!on.cheats.batteries);
+        assert!(!on.aim.combat.grenade_push_tracks);
+        assert!(!on.aim.combat.grenade_volley);
+        // A number a default tuning names is the table's own.
+        let roam = &on.plays[&PlayKind::Roam].numbers;
+        assert_eq!(roam.len(), 3);
+        assert_eq!(on.number(PlayKind::Roam, "fresh_claims"), 1.0);
+        assert_eq!(on.number(PlayKind::Buddy, "respawn_rule"), 1.0);
+        for kind in PlayKind::ALL.iter() {
+            for (name, value) in &on.plays[kind].numbers {
+                let table = plays::numbers(*kind).iter().find(|(known, _)| known == name);
+                assert_eq!(table.map(|(_, table)| table), Some(value), "{kind:?}.{name}");
+            }
+        }
+    }
+
+    /// The file is a merge patch: a play given with its numbers only keeps its rank and considerations, a whole
+    /// tuning dumped from the defaults changes nothing, and `null` switches an optional field off.
+    #[test]
+    fn the_file_is_a_merge_patch_over_the_defaults() {
+        let defaults = Tuning::default();
+        let kept = Tuning::parse(r#"{"plays":{"roam":{"numbers":{"join_ahead":0}}}}"#).unwrap();
+        assert_eq!(kept.number(PlayKind::Roam, "join_ahead"), 0.0);
+        assert_eq!(kept.number(PlayKind::Roam, "fresh_claims"), 1.0);
+        assert_eq!(kept.plays[&PlayKind::Roam].rank, defaults.plays[&PlayKind::Roam].rank);
+        assert_eq!(kept.plays[&PlayKind::Roam].considerations, defaults.plays[&PlayKind::Roam].considerations);
+        assert_eq!(kept.plays[&PlayKind::Buddy], defaults.plays[&PlayKind::Buddy]);
+        // The whole tuning as a patch, and an empty one, are the defaults.
+        let dump = serde_json::to_string(&defaults).unwrap();
+        assert_eq!(Tuning::parse(&dump).unwrap().hash(), defaults.hash());
+        assert_eq!(Tuning::parse("{}").unwrap().hash(), defaults.hash());
+        // `null` for an optional field that has a value switches it off, and the rest is the defaults.
+        let off = Tuning::parse(
+            r#"{"unstick":{"progress_ms":null,"blind_stop_ms":null,"suicide_after_ms":null},"feel":{"carrier_jump_m":null},"sense":{"sprint_body_mps":null}}"#,
+        )
+        .unwrap();
+        assert_eq!(off.unstick.progress_ms, None);
+        assert_eq!(off.unstick.blind_stop_ms, None);
+        assert_eq!(off.unstick.suicide_after_ms, None);
+        assert_eq!(off.feel.carrier_jump_m, None);
+        assert_eq!(off.sense.sprint_body_mps, None);
+        assert_eq!(off.unstick.unknown_meant_needs_keys, defaults.unstick.unknown_meant_needs_keys);
+        // A `null` for a field that cannot be none is refused, whichever way it is said.
+        for bad in [
+            r#"{"heal":{"on":null}}"#,
+            r#"{"sense":null}"#,
+            r#"{"plays":{"roam":null}}"#,
+            r#"{"sense":{"shot_range":70}}"#,
+            r#"[1]"#,
+            "{not json",
+        ] {
+            assert!(Tuning::parse(bad).is_err(), "{bad}");
+        }
+    }
+
+    /// A server never runs on settings other than the file it was told: a file that cannot be used is an error at
+    /// the start with the file and the reason, and the defaults are for no file at all.
+    #[test]
+    fn a_tuning_file_the_server_cannot_use_is_an_error_not_the_defaults() {
+        let dir = std::env::temp_dir().join(format!("srp-loaded-tuning-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bots.json");
+        let loaded = |text: &str| {
+            std::fs::write(&path, text).unwrap();
+            LoadedTuning::from_file(&path)
+        };
+        let ok = loaded(r#"{"plays":{"roam":{"numbers":{"join_ahead":0}}}}"#).unwrap();
+        assert_eq!(ok.tuning().number(PlayKind::Roam, "join_ahead"), 0.0);
+        assert!(ok.data_line().contains("bots.json sha256:"), "{}", ok.data_line());
+        assert_ne!(ok, LoadedTuning::default());
+        assert_eq!(loaded("{}").unwrap().tuning().hash(), LoadedTuning::default().tuning().hash());
+        assert_eq!(LoadedTuning::default().data_line(), "tuning=defaults");
+        // The first form of the old failure: a play with numbers only, in a file that is a full tuning but for that.
+        assert!(loaded(r#"{"plays":{"roam":{"numbers":{"join_ahead":1}},"buddy":{"numbers":{"respawn_rule":1}}}}"#).is_ok());
+        for bad in ["", "{not json", r#"{"sense":{"no_such":1}}"#, r#"{"plays":{"roam":{"numbers":{"no_such":1}}}}"#, r#"{"sense":{"view_deg":0}}"#] {
+            let why = loaded(bad).unwrap_err();
+            assert!(why.starts_with("SRP_BOT_TUNING ") && why.contains("bots.json"), "{bad}: {why}");
+        }
+        let missing = LoadedTuning::from_file(&dir.join("absent.json")).unwrap_err();
+        assert!(missing.contains("absent.json"), "{missing}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `all_off.json` is the patch that puts every option the defaults have on back off (the bench's OFF arm,
+    /// `SRP_BENCH_TUNING`): each of its values differs from the default it patches, so none is stale, and the
+    /// tuning it makes is a valid one with the options off.
+    #[test]
+    fn the_all_off_patch_switches_off_what_the_defaults_have_on() {
+        let patch: serde_json::Value = serde_json::from_str(include_str!("all_off.json")).unwrap();
+        let defaults = serde_json::to_value(Tuning::default()).unwrap();
+        fn leaves<'a>(value: &'a serde_json::Value, at: String, out: &mut Vec<(String, &'a serde_json::Value)>) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    for (key, value) in map {
+                        leaves(value, format!("{at}/{key}"), out);
+                    }
+                }
+                other => out.push((at, other)),
+            }
+        }
+        let mut changes = Vec::new();
+        leaves(&patch, String::new(), &mut changes);
+        assert!(changes.len() > 60, "{}", changes.len());
+        for (pointer, off) in changes {
+            // A play's number that is not in the default tuning is read at its table's value, which is on.
+            let on = defaults.pointer(&pointer).cloned().or_else(|| {
+                let (play, name) = pointer.strip_prefix("/plays/")?.split_once("/numbers/")?;
+                let kind: PlayKind = serde_json::from_value(play.into()).ok()?;
+                plays::numbers(kind).iter().find(|(known, _)| *known == name).map(|(_, value)| (*value).into())
+            });
+            assert!(on.as_ref().is_some_and(|on| on != off), "{pointer} is {on:?} by default, the patch says {off}");
+        }
+        let off = Tuning::patched(patch).unwrap();
+        assert!(!off.heal.on && !off.traps.react.on && !off.grid.gap_links && !off.think.stamina);
+        assert_eq!(off.number(PlayKind::Roam, "fresh_claims"), 0.0);
+        assert_eq!(off.number(PlayKind::Buddy, "respawn_rule"), 0.0);
+        assert_eq!(off.unstick.progress_ms, None);
+        assert_eq!(off.feel.carrier_jump_m, None);
+        assert_eq!(off.sense.ranges, HearingRanges::Flat);
+        assert!(off.aim.combat.grenade_push_tracks);
     }
 
     #[test]

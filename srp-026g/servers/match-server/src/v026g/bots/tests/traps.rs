@@ -117,7 +117,7 @@ pub(super) fn run_on(
 pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key() {
     let key = key::QUICK[1];
     let kit = TrapKit { count: 2, key };
-    let (sent, bots) = run(Some(kit), Tuning::default(), 40);
+    let (sent, bots) = run(Some(kit), Tuning::all_off(), 40);
     let down: Vec<usize> = (0..sent.len()).filter(|&i| sent[i].1 & key != 0).collect();
     eprintln!("key down at inputs {down:?}");
     assert_eq!(down.len(), 1, "one pulse: {down:?}");
@@ -140,9 +140,9 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
     assert!(bots.react_counts().line().starts_with("trap react: rolls "));
     assert_eq!(bots.teams[0].knowledge.traps.all().len(), 1);
     // None without the kit, and none with the habit switched off.
-    let (sent, _) = run(None, Tuning::default(), 40);
+    let (sent, _) = run(None, Tuning::all_off(), 40);
     assert!(sent.iter().all(|s| s.1 & key == 0));
-    let mut off = Tuning::default();
+    let mut off = Tuning::all_off();
     off.traps.enabled = false;
     let (sent, _) = run(Some(kit), off, 40);
     assert!(sent.iter().all(|s| s.1 & key == 0));
@@ -176,7 +176,7 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
         count: 2,
         key: key::QUICK[1],
     };
-    let (_, mut bots) = run(Some(kit), Tuning::default(), 40);
+    let (_, mut bots) = run(Some(kit), Tuning::all_off(), 40);
     let promised = bots.teams[0].knowledge.traps.all()[0];
     let Phase::Promised { released } = promised.phase else {
         panic!("{promised:?}");
@@ -207,7 +207,7 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
 /// it is not.
 #[test]
 pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_team_catch() {
-    let (_, mut bots) = run(None, Tuning::default(), 4);
+    let (_, mut bots) = run(None, Tuning::all_off(), 4);
     let clock = Clock {
         clock: 5_000,
         time_left_s: 0.0,
@@ -271,7 +271,7 @@ pub(crate) fn a_bots_habit_is_armed_from_the_traps_in_its_kit() {
         &[0, 0, 1, 1],
         &[true; 4],
         &roles,
-        Arc::new(Tuning::default()),
+        Arc::new(Tuning::all_off()),
         Trace::none(0),
     )
     .with_tiers(&[Some(equipment); 4]);

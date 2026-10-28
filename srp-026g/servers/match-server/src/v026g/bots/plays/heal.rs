@@ -915,9 +915,10 @@ mod tests {
             ..on()
         };
         assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &no_habit, 10_000), None);
-        // The rework off (the default): the tip's bots, nothing wished.
+        // The rework off: the tip's bots, nothing wished.
+        let off = HealTuning { on: false, ..HealTuning::default() };
         assert_eq!(
-            wish(None, 0.5, 10_000, false, &fresh, &HealTuning::default(), 10_000),
+            wish(None, 0.5, 10_000, false, &fresh, &off, 10_000),
             None
         );
     }
@@ -975,9 +976,9 @@ mod tests {
     }
 
     #[test]
-    fn the_bandage_habit_is_off_by_default_and_a_low_pain_pool_alone_is_never_a_need() {
-        let defaults = HealTuning::default();
-        assert!(!defaults.bandages, "merged switched off");
+    fn the_bandage_habit_is_on_by_default_and_with_it_off_a_low_pain_pool_alone_is_never_a_need() {
+        let defaults = HealTuning { bandages: false, ..HealTuning::default() };
+        assert!(HealTuning::default().bandages, "the owner's set");
         assert_eq!(defaults.weights_in_use(), defaults.weights);
         assert_eq!(bandage_habit(true).weights_in_use().pain, 0.4);
         assert_eq!(bandage_habit(true).weights_in_use().body, defaults.weights.body);

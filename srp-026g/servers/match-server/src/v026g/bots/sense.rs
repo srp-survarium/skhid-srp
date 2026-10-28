@@ -621,7 +621,13 @@ pub fn notice_ms(tuning: &SenseTuning, distance: f32, busy: bool, skill_factor: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::tuning::Tuning;
     use crate::v026g::bots::view::{Mode, Sound};
+
+    /// The tuning with the owner's options off (the bots as they were): what a test of an option's effect starts from.
+    fn off() -> Tuning {
+        Tuning::all_off()
+    }
 
     fn place(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
         PlaceView {
@@ -687,8 +693,8 @@ mod tests {
             &me,
             &view,
             &sight,
-            &SenseTuning::default(),
-            &CheatTuning::default(),
+            &off().sense,
+            &off().cheats,
             500,
             &[1, 2],
             &mut rays,
@@ -705,8 +711,8 @@ mod tests {
             &me,
             &view,
             &sight,
-            &SenseTuning::default(),
-            &CheatTuning::default(),
+            &off().sense,
+            &off().cheats,
             500,
             &[1, 2],
             &mut none,
@@ -722,7 +728,7 @@ mod tests {
             &view,
             &sight,
             &refreshed(),
-            &CheatTuning::default(),
+            &off().cheats,
             500,
             &[1, 2],
             &mut none,
@@ -834,14 +840,14 @@ mod tests {
         );
         let tuning = SenseTuning {
             step_m: 8.0,
-            ..SenseTuning::default()
+            ..off().sense
         };
         let percepts = sense(
             &me,
             &view,
             &RayTree::build(&[]),
             &tuning,
-            &CheatTuning::default(),
+            &off().cheats,
             500,
             &[1, 2, 3, 4],
             &mut RayBudget::new(10),
@@ -863,7 +869,7 @@ mod tests {
                 step_m: 0.0,
                 ..tuning
             },
-            &CheatTuning::default(),
+            &off().cheats,
             500,
             &[1, 2, 3, 4],
             &mut RayBudget::new(10),

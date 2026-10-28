@@ -906,7 +906,13 @@ mod tests {
         assert!(!Arc::ptr_eq(&day.world.grid, &evening.world.grid));
         assert!(!Arc::ptr_eq(&day.world.sight, &evening.world.sight));
         // A shared grid is the grid the project builds on its own.
-        let alone = World::build(tiny_map("tiny/rain_4"), mapdata::CELL, mapdata::Body::default());
+        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let alone = World::build_with_links(
+            tiny_map("tiny/rain_4"),
+            mapdata::CELL,
+            defaults.grid_body(),
+            defaults.off_mesh_links(),
+        );
         assert_eq!(rain.world.grid.digest(), alone.grid.digest());
         assert_eq!(rain.world.sight.digest(), alone.sight.digest());
         let _ = std::fs::remove_dir_all(dir);

@@ -120,11 +120,24 @@ impl Class {
     }
 }
 
+thread_local! {
+    /// A test's word on [`by_data`], for its own thread.
+    static FORCED_BY_DATA: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts the stand-in's weapon class by the data on or off for its own thread (`None`: as the run says).
+pub(crate) fn force_by_data(on: Option<bool>) {
+    FORCED_BY_DATA.with(|f| f.set(on));
+}
+
 /// Whether the stand-in's hits go by the game data's weapon class: it follows
 /// the run's switch (`FireTuning::weapon_class_by_data`), so that the bots'
 /// and the stand-in's idea of a weapon change together. Off: the stand-in's
 /// own rule (`parameters.type` first for an SMG, the category for the rest).
 fn by_data() -> bool {
+    if let Some(on) = FORCED_BY_DATA.with(std::cell::Cell::get) {
+        return on;
+    }
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| super::bench::bench_tuning().aim.combat.fire.weapon_class_by_data)
 }

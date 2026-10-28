@@ -16,18 +16,17 @@ pub struct HazardTuning {
     /// decides by it (picking and using artefacts are later work). Off: none of it is built.
     pub artefact_know: bool,
     /// Whether the bots read the anomaly fields a world holds (`Bots::fields_from_world`, `live_zones.rs`): the
-    /// floors they cover are kept off while a field hurts, and a bot caught in one is got out. Off (the default:
-    /// merged switched off): the worlds' fields are not read, today's decisions (the bench's switch,
+    /// floors they cover are kept off while a field hurts, and a bot caught in one is got out. Off: the worlds' fields are not read, today's decisions (the bench's switch,
     /// `SRP_BENCH_LIVE_ZONES=1` on).
     pub live_zones: bool,
     /// What a battery's crossing of a damage zone is weighed against (F2, [`ZonePools`]): the body
-    /// pool and the zone's raw hit (the default, as it was), or the pools the zone's hits really
+    /// pool and the zone's raw hit (as it was), or the pools (the default) the zone's hits really
     /// take from, through the bot's armour on the parts it hits (`zone_cost.rs`). The bench's
     /// switch, `SRP_BENCH_ZONE_POOLS=routed`.
     pub zone_pools: ZonePools,
     /// A battery in zones on all match that no straight walk crosses to (a wall or a drop between it and
     /// the dry floor) is offered when the motor's own crossing route over the zones' floors is borne
-    /// (`collect::routed_crossing_to`), and the motor walks it; off (the default): only the straight
+    /// (`collect::routed_crossing_to`), and the motor walks it; off: only the straight
     /// crossings, as it was. The bench's switch, `SRP_BENCH_ROUTE_CROSSING=1`.
     pub route_crossing: bool,
 }
@@ -38,10 +37,10 @@ pub struct HazardTuning {
 pub enum ZonePools {
     /// The body pool and the zone's raw hit: toxic and radiation zones are measured against a pool they
     /// never touch, and no armour counts.
-    #[default]
     Raw,
     /// The pools the zone's type routes to (infection, pain, body, head), by the armour the bot wears on the
     /// parts the zone hits.
+    #[default]
     Routed,
 }
 
@@ -50,10 +49,10 @@ impl Default for HazardTuning {
         Self {
             margin_m: Metres::of(1.0),
             escape: EscapeRule::UnderStartZone,
-            artefact_know: false,
-            live_zones: false,
-            zone_pools: ZonePools::Raw,
-            route_crossing: false,
+            artefact_know: true,
+            live_zones: true,
+            zone_pools: ZonePools::Routed,
+            route_crossing: true,
         }
     }
 }

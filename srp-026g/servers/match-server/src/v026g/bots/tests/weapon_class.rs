@@ -31,7 +31,7 @@ fn row(kind: &'static str, category: u8, auto: bool, bolt: bool) -> WeaponParams
 fn on() -> FireTuning {
     FireTuning {
         weapon_class_by_data: true,
-        ..FireTuning::default()
+        ..Tuning::all_off().aim.combat.fire
     }
 }
 
@@ -93,7 +93,7 @@ fn the_83_live_weapons_have_the_class_the_data_says_and_the_one_their_category_g
 
 #[test]
 fn with_the_switch_off_every_weapon_goes_by_its_category_as_before() {
-    let fire = FireTuning::default();
+    let fire = Tuning::all_off().aim.combat.fire;
     assert!(!fire.weapon_class_by_data);
     for gun in guns::guns() {
         assert_eq!(gun.class(), class_before(gun), "{}", gun.item);
@@ -133,10 +133,10 @@ fn with_the_switch_on_the_ak_74u_is_an_smg() {
     // The SMG's bursts' table, the SMG's band, the SMG's range floor.
     assert_eq!(fire.auto_class(ak, AutoClass::Rifle), AutoClass::Smg);
     assert_eq!(WeaponKind::of_class(ak.class), WeaponKind::Smg);
-    let off = CombatTuning::default();
+    let off = Tuning::all_off().aim.combat;
     let by_data = CombatTuning {
         fire,
-        ..CombatTuning::default()
+        ..Tuning::all_off().aim.combat
     };
     assert_eq!(off.fire_range_m(ak, 200.0), off.range_floor_rifle_m);
     assert_eq!(by_data.fire_range_m(ak, 200.0), by_data.range_floor_smg_m);
@@ -164,7 +164,7 @@ fn with_the_switch_on_the_other_families_move_as_the_data_says() {
     // the side-step with the switch on, as with it off.
     let sks = gun("wpn_aslt", 8, false, false);
     assert_eq!(fire.crouch_chance(&sks, 0.5), fire.crouch_marksman);
-    assert_eq!(FireTuning::default().crouch_chance(&sks, 0.5), fire.crouch_marksman);
+    assert_eq!(Tuning::all_off().aim.combat.fire.crouch_chance(&sks, 0.5), fire.crouch_marksman);
     // The kinds of the five classes' neighbours.
     for (class, kind) in [
         (WeaponClass::Pistol, WeaponKind::Pistol),
@@ -200,7 +200,7 @@ fn a_weapon_of_a_type_nobody_knows_takes_the_class_of_its_category() {
 }
 
 fn bots_with(fire_on: bool, roles: &[Option<&str>]) -> (Bots, Arc<Tuning>) {
-    let mut tuning = Tuning::default();
+    let mut tuning = Tuning::all_off();
     tuning.aim.combat.fire.weapon_class_by_data = fire_on;
     let tuning = Arc::new(tuning);
     let teams: Vec<u8> = (0..roles.len()).map(|place| (place % 2) as u8).collect();

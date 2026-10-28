@@ -62,7 +62,7 @@ pub struct TrapTuning {
 
 /// How a bot notices a trap of the other team or a human's (C18), and what is
 /// done about it. **Off** (`on` false) the bots are as before, bit for bit;
-/// a train turns it on by a tuning patch (`traps.react.on`). Every number is
+/// on by default (`traps.react.on`). Every number is
 /// a GUESS: the recordings show no measurable reaction of the players to an
 /// armed trap, so the chance and the distances are tuned by the bench against
 /// the players' numbers (about 10 % of traps end disarmed; a walk-through
@@ -152,14 +152,14 @@ pub struct ReactTuning {
 impl Default for ReactTuning {
     fn default() -> Self {
         Self {
-            on: false,
+            on: true,
             p0: 0.05,
             near_m: 3.0,
             far_m: 8.0,
             cone_deg: 140.0,
             roll_s: 20.0,
             fight_div: 3.0,
-            shot: false,
+            shot: true,
             shoot_m: 14.0,
             aim_ok_rad: 0.012,
             aim_settle_ms: 250,
@@ -171,12 +171,12 @@ impl Default for ReactTuning {
             claim_ms: 1500,
             claim_m: 6.0,
             claim_yaw_deg: 40.0,
-            pass: false,
-            jump: false,
+            pass: true,
+            jump: true,
             jump_before_m: 1.1,
-            hear: false,
+            hear: true,
             snap_near_m: 3.0,
-            defuse: false,
+            defuse: true,
             defuse_p: 0.3,
             defuse_walk_m: 10.0,
             defuse_walk_s: 8.0,
@@ -192,23 +192,23 @@ impl Default for TrapTuning {
     fn default() -> Self {
         Self {
             enabled: true,
-            per_life: 1,
-            cap_team: 4,
+            per_life: 2,
+            cap_team: 6,
             reach_m: 1.0,
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             friend_m: 2.5,
             near_own_m: 4.0,
             open_floors: 12,
-            enemy_quiet_s: 4.0,
-            enemy_near_m: 50.0,
+            enemy_quiet_s: 2.0,
+            enemy_near_m: 40.0,
             hit_quiet_s: 6.0,
             min_health: 0.5,
             jump_ahead_m: 6.0,
-            min_score: 0.2,
+            min_score: 0.05,
             w_friend: 1.0,
             presence_scale: 3.0,
-            chance: 0.35,
+            chance: 0.7,
             tolerance_rad: 0.07,
             look_ms: 900,
             cooldown_s: 20.0,

@@ -27,14 +27,6 @@ pub fn sha_prefix(path: &Path) -> String {
     }
 }
 
-/// The tuning part of the data line for a server: the file `SRP_BOT_TUNING` names (with its hash), or the defaults.
-pub fn tuning_file(var: Option<&OsStr>) -> String {
-    match var.filter(|path| !path.is_empty()) {
-        Some(path) => file("tuning", Some(Path::new(path)), false),
-        None => "tuning=defaults".to_owned(),
-    }
-}
-
 /// `name=path sha256:...`, `name=none` or `name=off`.
 fn file(name: &str, path: Option<&Path>, off: bool) -> String {
     match path {
@@ -64,7 +56,7 @@ fn mapdata(dir: Option<&Path>) -> String {
     format!("mapdata={} ({} files, names+sizes {})", dir.display(), files.len(), bytes_sha(listing.as_bytes()))
 }
 
-/// The line `data files: ...` of a match: the tuning part ([`tuning_file`] for a server), the routes table, the foliage and
+/// The line `data files: ...` of a match: the tuning part ([`super::tuning::LoadedTuning::data_line`] for a server), the routes table, the foliage and
 /// the grass files, and the mapdata folder. The arguments are the variables and the folder the bots read them from
 /// (`SRP_BOT_ROUTES`, `SRP_BOT_FOLIAGE`, `SRP_BOT_GRASS`).
 pub fn data_files(
@@ -104,6 +96,7 @@ pub fn env_switches() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::bots::tuning::LoadedTuning;
 
     /// The line names every file the bots read, with a hash for a file that is there and a word for one that is not.
     #[test]
@@ -113,7 +106,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("level_01_day_2.mapdata"), b"map").unwrap();
         std::fs::write(dir.join("bot-routes.json"), b"{}").unwrap();
-        let line = data_files(&tuning_file(None), None, None, None, Some(&dir));
+        let line = data_files(&LoadedTuning::default().data_line(), None, None, None, Some(&dir));
         assert!(line.starts_with("data files: tuning=defaults; routes="), "{line}");
         assert!(line.contains("bot-routes.json sha256:"), "{line}");
         assert!(line.contains("foliage=none; grass=none;"), "{line}");
@@ -122,7 +115,7 @@ mod tests {
         assert!(off.contains("routes=off; foliage=none"), "{off}");
         let tuning = dir.join("tuning.json");
         std::fs::write(&tuning, b"{}").unwrap();
-        let with = data_files(&tuning_file(Some(tuning.as_os_str())), None, None, None, None);
+        let with = data_files(&LoadedTuning::from_file(&tuning).unwrap().data_line(), None, None, None, None);
         assert!(with.contains("tuning=") && with.contains("tuning.json sha256:") && with.contains("mapdata=none"), "{with}");
         let _ = std::fs::remove_dir_all(&dir);
     }

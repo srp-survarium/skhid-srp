@@ -451,6 +451,9 @@ impl Stack {
         accounts: Arc<GameAccounts>,
         options: Options,
     ) -> io::Result<Self> {
+        // The bots' tuning file, read once: one the server cannot use stops srp here, with the reason, and
+        // never starts the matches on the defaults.
+        let bot_tuning = matches::bot_tuning_from_env()?;
         // Kept in the accounts' repository: a restart forgets neither a
         // results screen not shown yet nor an account's play period.
         let results = Results::attached(&accounts);
@@ -573,6 +576,7 @@ impl Stack {
                     move |result| settler.match_ended(result),
                     &flag,
                     Some(replays.clone()),
+                    bot_tuning.clone(),
                 )
             }));
         }

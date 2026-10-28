@@ -87,20 +87,20 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // A run may start on a route's point this much behind the bot by the
     // walk's progress (0-1), no farther back (a route may wind a little).
     ("behind_tol", 0.05),
-    // Switches (0 off, the tip's behaviour; 1 on): a pair's leader walks on at a walk for
+    // Switches (0 off, the old behaviour; 1 on, the default): a pair's leader walks on at a walk for
     // a follower behind it instead of standing (N2); a run joins its route ahead of the
     // bot by the walk's progress and a far start is drawn less (R2).
-    ("leader_eases", 0.0),
-    ("join_ahead", 0.0),
+    ("leader_eases", 1.0),
+    ("join_ahead", 1.0),
     // A route whose start is `join_m` metres off counts `join_min` of one
     // starting at the bot, between them in proportion.
     ("join_m", 150.0),
     ("join_min", 0.3),
-    // Switch (0 off, the tip's behaviour; 1 on): a teammate's run drawn on a route not more
+    // Switch (0 off, the old behaviour; 1 on, the default): a teammate's run drawn on a route not more
     // than `fresh_s` seconds ago counts as one standing on it (`friend_factor`) in the draw,
     // though it is still on its way there, so bots that leave the spawn together do not all
     // draw the same route (A111).
-    ("fresh_claims", 0.0),
+    ("fresh_claims", 1.0),
     ("fresh_s", 15.0),
     // On its way, not this much further in `headway_s`: the run ends,
     // metres and seconds. GUESS: past a pair's wait for its follower (6 s)
@@ -117,7 +117,7 @@ pub fn tuning() -> PlayTuning {
             considerations::near(250.0),
             Consideration::new(Input::FriendsNearTarget, 0.0, 3.0, Curve::Linear).inverted(),
         ],
-        numbers: Default::default(),
+        numbers: super::named(PlayKind::Roam, &["leader_eases", "join_ahead", "fresh_claims"]),
     }
 }
 
@@ -803,7 +803,7 @@ mod tests {
         // About 0.89 against 0.69 of a weight: 56 % south.
         assert!(south > north + 30, "{north} {south}");
         assert!(north > 100, "still drawn: {north} {south}");
-        // Switched off (the default), the start's distance weighs nothing: the south route is drawn less.
+        // Switched off, the start's distance weighs nothing: the south route is drawn less.
         s.number(PlayKind::Roam, "join_ahead", 0.0);
         let (_, south_off) = draws(&s, 600);
         assert!(south_off + 20 < south, "{south_off} {south}");

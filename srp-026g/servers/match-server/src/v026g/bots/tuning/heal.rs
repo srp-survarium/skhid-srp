@@ -10,13 +10,13 @@ use super::{check, Check};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HealTuning {
-    /// The consumable rework as a whole (#520), **off by default: with it off the bots are the tip's** (the old
+    /// The consumable rework as a whole (#520), **on by default; with it off the bots are the old tip's** (the old
     /// Heal play: a medkit under the play's `below` number out of every known enemy's line of sight, then still
     /// and crouched, fire held; Retreat's medkit count per life). On: the graded need rule over the pools, the
     /// drugs of the kit counted for the match from the worlds (`stock.rs`), and, with `interrupt`, the reflex's
     /// habit. The bench's stand-in has the drugs only with it on (`standin_heal::model_on`).
     pub on: bool,
-    /// The bandage habit, **off by default** (needs `on`): the pain pool counts as a need of its own for the
+    /// The bandage habit, **on by default** (needs `on`): the pain pool counts as a need of its own for the
     /// kit's bandages, so a bot presses them after a medkit when its pain pool is low, or alone when the body
     /// is full (the owner, 2026-10-26: "bots that carry bandages use them"). The medkit gives no pain
     /// (`resources.db` rev 32: the bandages give pain +0.35, body +0.35, head +0.14, full limbs; 1 s delay,
@@ -99,8 +99,8 @@ impl HealTuning {
 impl Default for HealTuning {
     fn default() -> Self {
         Self {
-            on: false,
-            bandages: false,
+            on: true,
+            bandages: true,
             bandage_pain_weight: 0.4,
             start_need: 0.15,
             urgent_need: 0.2,
@@ -142,19 +142,21 @@ mod tests {
     use super::super::Tuning;
 
     #[test]
-    fn the_rework_is_off_by_default_and_a_file_changes_only_what_it_names() {
+    fn the_rework_is_on_by_default_and_a_file_changes_only_what_it_names() {
         let defaults = Tuning::default();
-        assert!(!defaults.heal.on, "merged switched off: the bots are the tip's");
+        assert!(defaults.heal.on && defaults.heal.bandages, "the owner's set: the rework and the bandages are on");
         assert!(defaults.heal.interrupt, "the habit is on once the rework is");
         let dir = std::env::temp_dir().join(format!("srp-heal-tuning-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("bots.json");
-        std::fs::write(&path, r#"{"heal":{"on":true,"weights":{"legs":0.2}}}"#).unwrap();
+        std::fs::write(&path, r#"{"heal":{"weights":{"legs":0.2}}}"#).unwrap();
         let tuning = Tuning::load(&path).unwrap();
         assert!(tuning.heal.on);
         assert_eq!(tuning.heal.weights.legs, 0.2);
         assert_eq!(tuning.heal.weights.body, defaults.heal.weights.body);
         assert_eq!(tuning.heal.start_need, defaults.heal.start_need);
+        std::fs::write(&path, r#"{"heal":{"on":false}}"#).unwrap();
+        assert!(!Tuning::load(&path).unwrap().heal.on, "the bots as they were");
         std::fs::write(&path, r#"{"heal":{"start_need":0.5,"urgent_need":0.3}}"#).unwrap();
         assert!(Tuning::load(&path).is_err());
         std::fs::write(&path, r#"{"heal":{"medkits":3}}"#).unwrap();

@@ -56,8 +56,8 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // 13 % of the time, `push-record.md` R1).
     ("rejoin_m", 40.0),
     ("leader_settle_s", 20.0),
-    // The switch for that rule (0 off, the tip's behaviour; 1 on).
-    ("respawn_rule", 0.0),
+    // The switch for that rule (0 off, the old behaviour; 1 on, the default).
+    ("respawn_rule", 1.0),
     ("give_up_s", 90.0),
     // Near him: the direction it watches, off his facing, is drawn again
     // this often, seconds. GUESS, cover_human's.
@@ -88,7 +88,7 @@ pub fn tuning() -> PlayTuning {
                 },
             ),
         ],
-        numbers: Default::default(),
+        numbers: super::named(PlayKind::Buddy, &["respawn_rule"]),
     }
 }
 
@@ -487,7 +487,7 @@ mod tests {
         // 21 s on, out of the area: followed again.
         at_home(&mut s, now.saturating_sub(21_000));
         assert!(leader(&s.cx(2)).is_some());
-        // Switched off (the default): followed, as before.
+        // Switched off: followed, as before.
         at_home(&mut s, now.saturating_sub(2_000));
         s.number(PlayKind::Buddy, "respawn_rule", 0.0);
         assert!(leader(&s.cx(2)).is_some());

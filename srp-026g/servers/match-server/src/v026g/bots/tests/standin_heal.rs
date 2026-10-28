@@ -822,7 +822,7 @@ mod tests {
     /// active medkit (the stock is the game's), in every life of the run.
     /// The tuning with the rework switched on (the default is off: the tip's bots and stand-in).
     fn rework_on() -> Tuning {
-        let mut tuning = Tuning::default();
+        let mut tuning = Tuning::all_off();
         tuning.heal.on = true;
         tuning
     }
@@ -995,7 +995,7 @@ mod tests {
         // The rework off (the default: the tip's bots and the stand-in without drugs): the tip's Heal play is
         // assigned, the kit's pantry is not looked at, and a press heals nobody.
         let mut assigned_tip = 0;
-        let game = short_run(120_000, Tuning::default(), |bots, game, _, made| {
+        let game = short_run(120_000, Tuning::all_off(), |bots, game, _, made| {
             if made.is_none() && game.tick % 30_000 == 0 && game.tick > 0 {
                 game.bodies[0].health = game.bodies[0].health.min(0.5);
                 game.bodies[5].health = game.bodies[5].health.min(0.5);

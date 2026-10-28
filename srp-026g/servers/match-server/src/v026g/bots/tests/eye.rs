@@ -264,6 +264,10 @@ struct EyeOff;
 impl EyeOff {
     fn new() -> Self {
         super::view::set_live_eye(false);
+        // The stand-in's models follow the run's tuning, which is the owner's set now; the pinned counts
+        // predate them.
+        super::standin_heal::force_model(Some(false));
+        super::standin_damage::force_by_data(Some(false));
         Self
     }
 }
@@ -271,6 +275,8 @@ impl EyeOff {
 impl Drop for EyeOff {
     fn drop(&mut self) {
         super::view::set_live_eye(true);
+        super::standin_heal::force_model(None);
+        super::standin_damage::force_by_data(None);
     }
 }
 
@@ -290,9 +296,9 @@ pub(crate) fn with_the_switch_off_the_eye_is_the_old_constants() {
 /// is on.
 #[test]
 pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
-    assert!(Tuning::default().aim.combat.live_eye);
+    assert!(Tuning::all_off().aim.combat.live_eye);
     for on in [false, true, false] {
-        let mut tuning = Tuning::default();
+        let mut tuning = Tuning::all_off();
         tuning.aim.combat.live_eye = on;
         let mut bots = Bots::new(
             1,
@@ -328,7 +334,8 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
 /// tuning.<section>.<switch> = <the value that is the old behaviour>;
 /// ```
 fn pre_eye_pin_tuning() -> Tuning {
-    let mut tuning = bench_tuning();
+    // The owner's set of options (the defaults) postdates the pinned counts: it is off.
+    let mut tuning = Tuning::all_off();
 
     // #534: the eye is where the game's bullet starts.
     tuning.aim.combat.live_eye = false;

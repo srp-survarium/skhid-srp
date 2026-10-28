@@ -1,6 +1,6 @@
 use super::*;
 
-/// How far sounds are heard: the flat ranges (the default) or the game's.
+/// How far sounds are heard: the flat ranges or the game's (the default).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HearingRanges {
@@ -56,8 +56,7 @@ pub struct SenseTuning {
     /// A sight that begins through bushes the map draws and gives no collision
     /// object (`foliage.rs`) is noticed this much later for each metre of bush on
     /// the line to the chest: the delay times `1 + bush_notice * metres`, at most
-    /// `foliage_cap` times (0: bushes hide nobody, as it was; the default until a train
-    /// turns it on, 0.5 was the benched strength). A sight that goes on
+    /// `foliage_cap` times (0: bushes hide nobody, as it was; the default is 0.5, the benched strength). A sight that goes on
     /// is not delayed again. GUESS: a player cannot see through the leaves, the
     /// game has no rule for it, and nothing in the recordings measures the delay
     /// (worlds 5 s apart); strong for a bush, the owner tunes it.
@@ -67,7 +66,7 @@ pub struct SenseTuning {
     /// chest (of the body as he stands, or crouches) hidden in blades within 100 m, each
     /// counted by the share of its square metre the clumps cover; the delay times
     /// `1 + bush_notice * bush metres + grass_notice * grass metres`, at most `foliage_cap`
-    /// times (0: grass hides nobody, as it was; the default until a train turns it on).
+    /// times (0: grass hides nobody, as it was; the default is 0.1).
     /// GUESS: a player cannot switch grass off and cannot see a crouched body in 1.0-1.8 m
     /// grass, and nothing in the recordings measures the delay.
     pub grass_notice: f32,
@@ -85,20 +84,20 @@ pub struct SenseTuning {
     /// within reach engaged within 1 s rose 8.6 ± 2.5 points a seed.
     pub step_m: f32,
     pub step_speed: f32,
-    /// Flat ranges (the default) or the game's ([`HearingRanges`]).
+    /// Flat ranges or the game's ([`HearingRanges`], the default).
     pub ranges: HearingRanges,
     /// The length of the client's use ray the bots count with, metres: the
     /// container and zone stands, a take's reach, the belief about where a
-    /// use's ray went. 2.0 (the default) is the client's compiled value; the
-    /// client runs with 1.80 (stock `startup.cfg` sets
+    /// use's ray went. 2.0 is the client's compiled value; the
+    /// client runs with 1.80 (the default; stock `startup.cfg` sets
     /// `usable_objects_detection_distance`, PROVEN: 0xAA2DF8 -> 0xA710D8, read
     /// by `base_player::detect_usable_object` 0x2D84C0). The bench's stand-in
     /// client uses the same value.
     pub use_ray_m: f32,
-    /// Shots heard at the flat range (the default) or by the weapon
-    /// ([`ShotRanges`], H1c).
+    /// Shots heard at the flat range or by the weapon
+    /// ([`ShotRanges`], H1c, the default).
     pub shots: ShotRanges,
-    /// The sprint sound follows the body (H1a). `None` (the default, off): a
+    /// The sprint sound follows the body (H1a). `None` (off): a
     /// bot or player holding SPRINT and FORWARD makes the sprint sound, as it
     /// was. `Some(m/s)`: only when the body also moves that fast, so a body
     /// the client keeps out of the sprint state (`base_player::can_sprint`
@@ -129,7 +128,7 @@ pub struct SenseTuning {
     /// Timed batteries: a station's spawner seen this long ago is worth a
     /// look again, ms.
     pub spawner_recheck_ms: u32,
-    /// The sight refresh as a whole, **off by default: with it off the bots are the tip's** (a sight is
+    /// The sight refresh as a whole, **on by default; with it off the bots are the old tip's** (a sight is
     /// stamped with the poll clock and read on the tick clock for 400 ms after the think that sensed it, by
     /// that think alone; the enemies in view take the poll's rays and a poll's order turns; no look, grace or
     /// hold is used). On: one information clock for every sight (`MatchView::clock`), the target's sight
@@ -164,19 +163,19 @@ impl Default for SenseTuning {
             notice_far_ms: 500,
             notice_far_m: 60.0,
             notice_moving: 0.7,
-            bush_notice: 0.0,
+            bush_notice: 0.5,
             foliage_cap: 3.0,
-            grass_notice: 0.0,
+            grass_notice: 0.1,
             shot_m: 60.0,
             sprint_m: 15.0,
             reload_m: 10.0,
             use_m: 8.0,
             step_m: 8.0,
             step_speed: 1.5,
-            ranges: HearingRanges::Flat,
-            use_ray_m: 2.0,
-            shots: ShotRanges::Flat,
-            sprint_body_mps: None,
+            ranges: HearingRanges::Game { crouch_step_m: 4.5 },
+            use_ray_m: 1.8,
+            shots: ShotRanges::ByWeapon { unknown_m: 150.0 },
+            sprint_body_mps: Some(4.6),
             heard_error: 0.15,
             callout_ms: 1_000,
             forget_ms: 3_000,
@@ -186,7 +185,7 @@ impl Default for SenseTuning {
             battery_rays: 3,
             battery_moved_m: 0.2,
             spawner_recheck_ms: 45_000,
-            sight_refresh: false,
+            sight_refresh: true,
             sight_untested_ms: crate::v026g::bots::know::SIGHT_UNTESTED_MS,
             sight_grace_ms: crate::v026g::bots::know::SIGHT_GRACE_MS,
         }
@@ -242,7 +241,7 @@ impl Default for CheatTuning {
             radar_every_ms: 5_000,
             hearing: 1.25,
             forget_ms: 5_000,
-            sight_hold_ms: 0,
+            sight_hold_ms: 450,
             sight_hold_to_next_think: true,
         }
     }

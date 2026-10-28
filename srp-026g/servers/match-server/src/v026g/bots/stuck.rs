@@ -354,6 +354,10 @@ impl Stuck {
     /// taken as walking); `keys`: the keys the world shows held. `Some`
     /// when it is stuck: what to do about it, and whether the held keys
     /// alone told ([`HELD_AFTER_MS`]; the reckoning meant no walk).
+    ///
+    /// For the tests of the watch as it was: under the rule with the owner's options off
+    /// ([`crate::v026g::bots::tuning::Tuning::all_off`]).
+    #[cfg(test)]
     pub fn walking(
         &mut self,
         time: u32,
@@ -361,7 +365,7 @@ impl Stuck {
         meant: Option<f32>,
         keys: u32,
     ) -> Option<(Recovery, bool)> {
-        self.walking_in(time, feet, meant, keys, &UnstickTuning::default())
+        self.walking_in(time, feet, meant, keys, &crate::v026g::bots::tuning::Tuning::all_off().unstick)
     }
 
     /// [`Self::walking`] under `rule`.
@@ -1333,7 +1337,7 @@ mod tests {
     #[test]
     fn an_unknown_way_at_rest_is_not_stuck_when_the_rule_asks_for_the_keys() {
         let spot = Vec3::new(10.0, 0.0, 10.0);
-        let old = UnstickTuning::default();
+        let old = UnstickTuning { unknown_meant_needs_keys: false, ..UnstickTuning::default() };
         let new = UnstickTuning {
             unknown_meant_needs_keys: true,
             ..UnstickTuning::default()
