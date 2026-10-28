@@ -52,7 +52,23 @@ are its own topic file (`tallies/owner/<package>.rs`, a golden of its own, one l
 
 The view error: a fix's place moves by a draw from the quantile table of the body's state (still, walking, sprinting,
 crouched, height change, jump) and the fix's age, in a direction drawn evenly, carried by the reckoning to the next fix.
-RESULTS_PLACEHOLDER
+
+### Checks of this PR (WSL `srp-split`, `/mnt/out/split/fx-bench-20261029/`, `SRP_BENCH_ENEMY_HUMAN_LANES=team1`)
+
+- **Phantom grenades (1):** 9 matches (3 maps x seeds 4-6): 36 logged throws, 6 carried, 30 phantom (the old stand-in blasted all 36).
+- **View error (3):** base (ping only) 9.3 % missed sight / 8.8 % fire into cover; with the error at scale 0.7 on seeds 4-6, which
+  were not used to set it: **21.9 % / 20.8 %** against the live 22 % / 20 % (scale 1.0 gave 24.6 / 23.6, 0.75 23.0 / 21.7, 0.6 21.5 / 19.0
+  on seeds 1-3). `view_flip.samples` reads 1620 in both arms (not 0).
+- **Moving camper (2):** 6 matches (School and Vector Laboratory, seeds 1-3), hidden spot, long gun:
+  `still` / `still_crouch` / `move` -> `holders_killed_flank` 0 / 2 / 5 of `holders_killed_after_2` 18 / 29 / 26, `counter_runs_flank`
+  1 / 0 / 0 of 38 / 38 / 33 counter runs, `camper_runs_3` 6 / 1 / 6. The old stand-in did **not** over-credit Flank here (the
+  `counter_runs_flank` of 4.3 is about zero in all three arms): what the moving camper changes is who dies to a flank, not the
+  counters' count. Six matches are too few to say more; this PR only makes the case runnable.
+- **Scenarios (2):** `battery` / `container` / `exit`, 6 matches each (batteries on School, Cologne, Vector Laboratory, Rudnya, seeds 1-2): the
+  `camper:` line has a spot in 17 of 18 logs (one `None`: no route point near the anchor), `camper_kills` 58 / 65 / 62.
+- The new counters read as expected on every log (`outcomes` part present, the golden pins its shape). The activity counters above
+  (`grenade_carry`, `view_flip.samples`, `hold_runs_2`, `hurt_enemies`, `carrier_clear_s`) are non-zero in these runs; `zone_takes` is
+  4 and 2 in the 9 matches.
 
 ## 4. Changes the private bench scripts need (for the coordinator; not applied)
 
@@ -104,9 +120,8 @@ and cells for the three scenarios, each a value of `SRP_BENCH_CAMPER_AT` (one ce
 | a camper by his container | `container` | the same | the same, the raiders' way to a container (an-anticamper RC3) |
 | a camper at a spawn exit that cannot be flanked | `exit` | the same | what the other team does when every sight on him comes from one way: `holders_flank_share`, `lane_entries_per_10s`, `hold_3rd_share`, the `threat` line and `Flank` / `Crossfire` takes on him |
 
-Arms: the stage's ON and OFF as in 4.1, plus (once) `still` / `still_crouch` against `move` to show that the old stand-in over-credits Flank
-(`counter_runs_flank` is high with `SRP_BENCH_CAMPER_CROUCH=1` and nothing moving; it must fall to the owner's level, about zero, with
-`SRP_BENCH_CAMPER_MOVE=1`). 10 a side, tier 13-15, seeds 1-4, 180 s. The camper tally already scores his holds within 10 m.
+Arms: the stage's ON and OFF as in 4.1, plus (once) `still` / `still_crouch` against `move` to see what a moving camper changes
+(measured 2026-10-29: `counter_runs_flank` is about zero in all three arms, so read `holders_killed_flank` and `camper_runs_3` instead, see "Checks of this PR"). 10 a side, tier 13-15, seeds 1-4, 180 s. The camper tally already scores his holds within 10 m.
 
 ### 4.4 The new counters in the reports
 
