@@ -17,6 +17,7 @@ use super::modifications::{self, Modifications};
 use super::quests::{self, Quests};
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 use super::skills::{self, SkillsTree};
+use super::ui_properties::{self, UiProperties};
 
 /// The file at `path` of `data`, which a table needs.
 fn needed<'a>(data: &'a GameData, path: &str) -> Result<&'a [u8], GameDataError> {
@@ -65,6 +66,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
             needed(data, modifications::REROLL_PATH)?,
         ),
     )?;
+    // Before item_params: it reads the premium pieces' bonuses.
+    super::golden::check_content(data, &dictionary)?;
     let params = item_params::derive(data, &dictionary)?;
     for row in &params {
         for &id in row.default_modifications {
@@ -81,6 +84,24 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         }
     }
     check_shop_camos(&dictionary, &params)?;
+    let properties = parsed(
+        ui_properties::PATH,
+        UiProperties::parse(needed(data, ui_properties::PATH)?),
+    )?;
+    if let Some(modification) = modifications.modifications.iter().find(|modification| {
+        properties
+            .get(modification.shown.property)
+            .and_then(|property| property.name.as_ref())
+            .is_none()
+    }) {
+        return Err(GameDataError(format!(
+            "{}: modification {} shows property {}, which {} has not with a name",
+            modifications::MODIFICATIONS_PATH,
+            modification.id,
+            modification.shown.property,
+            ui_properties::PATH
+        )));
+    }
     modifications::derive_item_mods(data, &dictionary)?;
     // A variant left out is logged when the table is first used
     // ([`ScopeFits::shared`]); only a scope config that does not read stops

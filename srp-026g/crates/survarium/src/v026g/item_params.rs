@@ -62,6 +62,9 @@ pub struct ItemParams {
     /// with a built-in mask covers the mask's; the Duty exoskeleton, worn in
     /// the back slot, all six others.
     pub covered_slots: &'static [u8],
+    /// The localization key of its name (`ui_desc.text_descriptions.name`),
+    /// if it has one.
+    pub name_key: Option<&'static str>,
 }
 
 /// What `gameplay/players/default.player` says of what a player carries.
@@ -282,6 +285,21 @@ impl ItemParams {
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),
+            name_key: match config
+                .get("ui_desc")
+                .and_then(|desc| desc.get("text_descriptions"))
+                .and_then(|texts| texts.get("name"))
+            {
+                None => None,
+                Some(name) => Some(&*Box::leak(
+                    name.as_str()
+                        .ok_or_else(|| {
+                            ConfigError("`ui_desc.text_descriptions.name` is not a string".into())
+                        })?
+                        .to_owned()
+                        .into_boxed_str(),
+                )),
+            },
         })
     }
 }
