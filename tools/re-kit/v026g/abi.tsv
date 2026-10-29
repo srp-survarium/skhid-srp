@@ -2005,3 +2005,4 @@ va	name	source	ret_cleanup	result
 0x002f1430	survarium::item_config_cook::find_modifier_target	manual	0	EAX: matching config node or null; missing path at 0x2F1462 returns null, skipped by cook at 0x2F1ABF.
 0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
