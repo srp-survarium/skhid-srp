@@ -1313,6 +1313,63 @@ mod tests {
         assert_eq!(looked(&me, &respawned, 600, &open), LookOutcome::Seen);
     }
 
+    /// A smoke cloud between hides him from a think's look and a new enemy's sight, both refresh paths, with
+    /// no ray cast for a part it hides; one off to the side, or the switch off, leaves the sight as it was.
+    #[test]
+    fn a_cloud_between_hides_an_enemy_and_one_aside_does_not() {
+        use crate::v026g::bots::smoke::{Cloud, Clouds, MatchMs, SmokeGrenade};
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let enemy = enemy_ahead(30.0);
+        let cloud = |x: f32| Cloud {
+            by: 1,
+            team: 1,
+            centre: Vec3::new(x, 0.0, 15.0),
+            thrown: MatchMs(0),
+            pours: MatchMs(0),
+            shape: SmokeGrenade::RDG_M.cloud,
+        };
+        let mut view = view(vec![me.clone(), enemy], vec![]);
+        view.clock = 5_000;
+        let open = RayTree::build(&[]);
+        let looks = |view: &MatchView, smoke: &SmokeTuning, tuning: &SenseTuning| {
+            let veil = view.smoke.veil(view.clock, smoke);
+            let mut rays = RayBudget::new(10);
+            let (percepts, looks) = sense_looks_through(
+                &me,
+                view,
+                &open,
+                veil,
+                tuning,
+                &off().cheats,
+                500,
+                &[1],
+                &mut rays,
+                &mut Rng::new(1),
+            );
+            let seen = percepts.iter().any(|p| p.who == 1 && p.source == Source::Seen);
+            (seen, looks.first().map(|l| l.1))
+        };
+        let on = SmokeTuning::default();
+        let off_switch = SmokeTuning {
+            sight: false,
+            ..SmokeTuning::default()
+        };
+        for tuning in [refreshed(), off().sense] {
+            assert!(looks(&view, &on, &tuning).0, "no cloud: seen");
+            view.smoke = Clouds::new(vec![cloud(0.0)]);
+            let (seen, look) = looks(&view, &on, &tuning);
+            assert!(!seen);
+            if tuning.sight_refresh {
+                assert_eq!(look, Some(LookOutcome::Failed(Miss::Smoke)));
+            }
+            assert!(looks(&view, &off_switch, &tuning).0, "the switch off: seen through");
+            view.smoke = Clouds::new(vec![cloud(12.0)]);
+            assert!(looks(&view, &on, &tuning).0, "a cloud 12 m aside: seen");
+            view.smoke = Clouds::default();
+        }
+    }
+
     /// A look is the sight's test and nothing else: the same rays as a
     /// think's for a new enemy, at most `LOOK_RAYS` of them, none drawn at
     /// random (it takes no random stream), and a starved one is untested,

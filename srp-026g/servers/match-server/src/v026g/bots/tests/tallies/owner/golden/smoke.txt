@@ -1,0 +1,47 @@
+owner-test smoke (by team 0, 1): thrown [0, 0] clouds [0, 0] dropped [0, 0]; looks lost to smoke [0, 0], sights not begun for it [0, 0], aim's target lost in it [0, 0], spray ticks [0, 0]; through smoke hits [0, 0] kills [0, 0]; time in smoke [0.0, 0.0] s, deaths there [0, 0]
+{
+  "smoke_aim_lost": [
+    0,
+    0
+  ],
+  "smoke_clouds": [
+    0,
+    0
+  ],
+  "smoke_deaths_in": [
+    0,
+    0
+  ],
+  "smoke_dropped": [
+    0,
+    0
+  ],
+  "smoke_hits_through": [
+    0,
+    0
+  ],
+  "smoke_in_s": [
+    0.0,
+    0.0
+  ],
+  "smoke_kills_through": [
+    0,
+    0
+  ],
+  "smoke_not_seen": [
+    0,
+    0
+  ],
+  "smoke_sight_lost": [
+    0,
+    0
+  ],
+  "smoke_spray_ticks": [
+    0,
+    0
+  ],
+  "smoke_thrown": [
+    0,
+    0
+  ]
+}

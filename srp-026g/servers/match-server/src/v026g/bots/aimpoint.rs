@@ -812,6 +812,83 @@ mod tests {
         assert!(longest <= 2, "longest burst {} ms", longest * 50);
     }
 
+    /// A duel in the open at 20 m with a smoke cloud between from `hides_at` (its puffs dense enough then),
+    /// read by `smoke`: the ticks it fired.
+    fn smoke_duel(smoke: &crate::v026g::bots::tuning::SmokeTuning, hides_at: u32) -> Vec<u32> {
+        use crate::v026g::bots::smoke::{Cloud, Clouds, MatchMs, SmokeGrenade};
+        let world = world_of(&[]);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let mut me = body(0, 0, Vec3::ZERO, false);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
+        let shape = SmokeGrenade::RDG_M.cloud;
+        let pours = MatchMs(hides_at - shape.forming_ms);
+        view.smoke = Clouds::new(vec![Cloud {
+            by: 1,
+            team: 1,
+            centre: Vec3::new(0.0, 0.0, 10.0),
+            thrown: MatchMs(pours.0.saturating_sub(shape.fuse_ms)),
+            pours,
+            shape,
+        }]);
+        let aim = AimTuning::default();
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(5);
+        let seen = |time| Percept {
+            who: 1,
+            at: enemy.feet,
+            error_m: 0.0,
+            time,
+            source: Source::Seen,
+            busy: false,
+        };
+        memory.update(&[seen(1_000)], 1_000, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(1_300)], 1_300, |_| 300, 3_000, 20_000);
+        reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+        let mut fired = Vec::new();
+        for k in 0..60 {
+            let now = 1_300 + k * 50;
+            // The memory keeps him (the reacquire grace is the sight's, not this test's).
+            memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
+            view.clock = now;
+            reflex.look_through(&me, &view, &world, &mut memory, &SenseTuning::default(), smoke, now);
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            facing(&mut me, o.look_at.unwrap());
+            if o.fire {
+                fired.push(now);
+            }
+        }
+        fired
+    }
+
+    #[test]
+    fn smoke_hides_him_and_only_fire_already_going_sprays_his_last_spot_for_a_moment() {
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let on = SmokeTuning::default();
+        let off = SmokeTuning {
+            sight: false,
+            ..SmokeTuning::default()
+        };
+        let no_spray = SmokeTuning {
+            spray_ms: 0,
+            ..SmokeTuning::default()
+        };
+        let hides_at = 2_500;
+        // The switch off: the smoke is not read, it fires to the end.
+        let blind = smoke_duel(&off, hides_at);
+        assert!(blind.iter().any(|&t| t > hides_at + 1_000), "{blind:?}");
+        // On: it fires before the smoke, sprays at most `spray_ms` after it last saw him, then stops.
+        let fired = smoke_duel(&on, hides_at);
+        assert!(fired.iter().any(|&t| t < hides_at), "{fired:?}");
+        let last = *fired.last().unwrap();
+        assert!(last >= hides_at && last <= hides_at + on.spray_ms, "sprayed to {last}: {fired:?}");
+        // No spray: it stops once the look finds the smoke (a look every 100 ms).
+        let stopped = smoke_duel(&no_spray, hides_at);
+        assert!(stopped.iter().all(|&t| t < hides_at + LOOK_AGAIN_MS), "{stopped:?}");
+        // Smoke from the start: it never saw him, so nothing is going and nothing is sprayed.
+        assert!(smoke_duel(&on, 1_000).is_empty());
+    }
+
     #[test]
     fn fully_behind_a_wall_it_does_not_fire_though_its_memory_says_seen() {
         // He just stepped behind 3 m of wall; the memory's sight lasts.

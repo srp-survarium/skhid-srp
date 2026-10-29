@@ -400,6 +400,39 @@ mod tests {
     }
 
     #[test]
+    fn a_humans_smoke_key_becomes_a_cloud_where_the_arc_rests_it_and_the_view_carries_it() {
+        use crate::v026g::bots::smoke::{MatchMs, SmokeGrenade};
+        let world = floor_world();
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
+        let mut tracker = stand(Some(pockets));
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        press(&mut tracker, 1, 1_050, 0);
+        assert!(tracker.live_grenades().is_empty(), "no frag listed");
+        assert!(tracker.clouds().is_empty(), "in the hand");
+        tracker.launch_grenades(2_100, Some(&*world));
+        let clouds = tracker.clouds().to_vec();
+        assert_eq!(clouds.len(), 1);
+        let cloud = clouds[0];
+        assert_eq!((cloud.by, cloud.team, cloud.thrown), (1, 1, MatchMs(1_000)));
+        // The fuse from the press (the game data's, else the RDG-M's 4 s), the rest 9-13 m ahead as a frag's.
+        let smoke = SmokeGrenade::of_game_data();
+        assert_eq!(cloud.pours, MatchMs(1_000 + smoke.cloud.fuse_ms));
+        assert!(cloud.centre.x.abs() < 0.1 && (9.0..13.0).contains(&cloud.centre.z), "{cloud:?}");
+        let counts = tracker.smoke_counts();
+        assert_eq!((counts.thrown, counts.clouds, counts.dropped), ([0, 1], [0, 1], [0, 0]));
+        let clock = Clock {
+            clock: 6_000,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        assert_eq!(tracker.view(&clock, &Kinematics::default(), Some(&*world)).smoke.all(), &clouds[..]);
+        // Gone at its end.
+        tracker.launch_grenades(cloud.ends().0, Some(&*world));
+        assert!(tracker.clouds().is_empty());
+    }
+
+    #[test]
     fn a_new_life_fills_the_pockets_and_a_human_with_none_known_lists_nothing() {
         let kin = Kinematics::default();
         let one_frag = Pockets::new([Some((Pocketed::Frag, 1)), None, None, None, None, None]);
