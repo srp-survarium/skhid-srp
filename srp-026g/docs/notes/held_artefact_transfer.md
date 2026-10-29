@@ -7,7 +7,10 @@
   sees the same pose. H is the game's own unused action `artefact` (23h), a
   row of Options, Controls ("Hold artifact"), rebound there like any other
   key. Alt only shows names again. A quick-use key without H uses the item as
-  before; letting go of H before the quick key never uses it.
+  before; letting go of H before the quick key never uses it. H held, then
+  the quick key, is the chord as the other order: the game gives the action
+  only on H's down and up ticks, so the carry keeps H's state between them
+  (`CarryKey`); the quick key never reaches the native quick use.
 - **Taking:** Use takes a teammate's offered artefact into a free container
   (within 2.2 m, looked at, nothing in between), with no pickup animation.
   The hint "Take artifact (E)" shows only when Use would take; without a

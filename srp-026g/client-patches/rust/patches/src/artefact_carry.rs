@@ -3,9 +3,9 @@
 #![forbid(unsafe_code)]
 
 use artefact_carry::{ArtefactId, Place, Refused};
-use artefact_carry::carry::{self, Carry, Event, QuickSlot, Token};
+use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
+use crate::vostok::{Action, ActionState, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -33,6 +33,7 @@ static OWNERS: Lock<Owners> = Lock::new(Owners([None; 60]));
 /// the models it took out must still go back before anything draws them.
 static HIDDEN: Lock<HiddenWeapons> = Lock::new(HiddenWeapons::NEW);
 static CHORD: GameCell<carry::Chord> = GameCell::new(carry::Chord::Idle);
+static CARRY_KEY: GameCell<CarryKey> = GameCell::new(CarryKey::Up);
 static HINT: GameCell<Option<(usize, bool)>> = GameCell::new(None);
 
 fn machine(player: &Player<'_>, ctx: &Context<'_>) -> Carry {
@@ -151,7 +152,14 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut handler) = InputHandler::at_builder_end(ctx) {
         let actions = handler.actions().bits();
         let mut chord = CHORD.get(ctx.thread());
-        let encoded = chord.step(actions, handler.held(Action::ARTEFACT));
+        let press = match handler.action_state(Action::ARTEFACT) {
+            Some(ActionState::Down | ActionState::Repeat) => Some(KeyPress::Pressed),
+            Some(ActionState::Up) => Some(KeyPress::Released),
+            None => None,
+        };
+        let key = CARRY_KEY.get(ctx.thread()).step(press);
+        CARRY_KEY.set(ctx.thread(), key);
+        let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
     }
