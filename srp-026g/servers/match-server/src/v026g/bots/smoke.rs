@@ -404,6 +404,112 @@ pub struct SmokeCounts {
     pub moved_dm: [u32; 2],
 }
 
+/// What a smoke throw is for: the uses of part 2, each its own switch (`SmokeTuning`), and the plays that call the
+/// API (fx-threat-obj's Breach and spawn-exit breakout: `Breach`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SmokeUse {
+    /// A bot or group about to cross a lane a held spot covers (#703's K1): between the holder and the crossing.
+    CrossLane,
+    /// Hit from beyond its weapon's reach: on the sniper's sightline, as near him as it reaches.
+    AntiSniper,
+    /// An objective actor's exposed crossing (the carrier now; a capturer entering a zone later, MODES-READY 2).
+    ObjectiveActor,
+    /// A Breach job's thrower (`design-p1c.md` 1), or the spawn-exit breakout.
+    Breach,
+}
+
+/// Where to put a smoke, and why: the floor point to land it on, and how much smoke the planned cloud puts on the
+/// line it is for (metres, at its full radius).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SmokePlan {
+    pub at: Vec3,
+    pub for_use: SmokeUse,
+    pub covers_m: f32,
+}
+
+/// A planned cloud covers its line with this much more smoke than the sight rule, metres: the arc lands a throw
+/// within a few metres of its point (median 2 m from the view's prediction, `arc.rs`), and a line half a metre over
+/// the rule still hides with the cloud a little off.
+pub const PLAN_MARGIN_M: f32 = 1.5;
+/// The points tried along a line, metres apart.
+const PLAN_STEP_M: f32 = 1.0;
+
+/// What a smoke plan reads of the map and the thrower: whether a throw from `thrower_eye` reaches `at` (the arc's
+/// flat throw, `arc::Grenade::pitch_for`, with the smoke's throw power), and the floor under a point.
+pub struct Reach<'a> {
+    pub mesh: &'a mapdata::RayTree,
+    pub grenade: SmokeGrenade,
+    pub thrower_eye: Vec3,
+}
+
+impl Reach<'_> {
+    /// The floor under `point`, if there is one within [`FLOOR_BELOW_M`].
+    fn floor(&self, point: Vec3) -> Option<Vec3> {
+        floor_under(self.mesh, point).map(|y| Vec3::new(point.x, y, point.z))
+    }
+
+    /// Whether the thrower's flat throw comes down at `at` (on a level ground at its height).
+    fn reaches(&self, at: Vec3) -> bool {
+        let hand = super::arc::hand_of(self.thrower_eye);
+        self.grenade
+            .flight
+            .pitch_for(hand.distance_xz(at), hand.y - at.y)
+            .is_some()
+    }
+
+    /// The smoke a cloud of this grenade at full radius on `floor` puts on the line from `a` to `b`, metres.
+    fn smoke_on_line(&self, floor: Vec3, a: Vec3, b: Vec3) -> f32 {
+        let cloud = Cloud {
+            by: 0,
+            team: 0,
+            placed: Placed::Arc,
+            centre: floor,
+            thrown: MatchMs(0),
+            pours: MatchMs(0),
+            shape: self.grenade.cloud,
+        };
+        cloud.inside_m(a, b, MatchMs(self.grenade.cloud.forming_ms))
+    }
+}
+
+/// A smoke between a threat and a crossing (`SmokeUse::CrossLane`, `AntiSniper`, `ObjectiveActor`, `Breach`): the
+/// point on the line from the threat's eye to the crossing (a chest over it), as near the threat as the throw reaches,
+/// whose cloud covers that line by `thin_m` + [`PLAN_MARGIN_M`]. Near the threat first: "the closer the smoke is
+/// placed to the sniper's location, the more effective" (FM 23-10 6-8a(7)); smoke near our own side still helps,
+/// so the points go on toward the crossing. None when no point of the line both reaches and covers.
+pub fn smoke_between(
+    reach: &Reach<'_>,
+    threat_eye: Vec3,
+    crossing: Vec3,
+    thin_m: f32,
+    for_use: SmokeUse,
+) -> Option<SmokePlan> {
+    let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+    let length = threat_eye.distance_xz(chest);
+    let steps = (length / PLAN_STEP_M).floor() as u32;
+    (0..=steps).find_map(|k| {
+        let t = (k as f32 * PLAN_STEP_M / length.max(1e-3)).min(1.0);
+        let on_line = threat_eye + (chest - threat_eye) * t;
+        let floor = reach.floor(on_line)?;
+        if !reach.reaches(floor) {
+            return None;
+        }
+        let covers_m = reach.smoke_on_line(floor, threat_eye, chest);
+        (covers_m > thin_m + PLAN_MARGIN_M).then_some(SmokePlan { at: floor, for_use, covers_m })
+    })
+}
+
+/// A smoke on a spot (a held spot, its holder's eye `spot_eye`): the floor under it, if the throw reaches it. Its
+/// `covers_m` is the smoke on the line from the spot's eye to `toward` (the thrower's side).
+pub fn smoke_on(reach: &Reach<'_>, spot_eye: Vec3, toward: Vec3, for_use: SmokeUse) -> Option<SmokePlan> {
+    let floor = reach.floor(spot_eye)?;
+    reach.reaches(floor).then(|| SmokePlan {
+        at: floor,
+        for_use,
+        covers_m: reach.smoke_on_line(floor, spot_eye, toward),
+    })
+}
+
 /// The bench's counts of what smoke did to the bots' eyes, by the bot's team, on this thread (a bench match
 /// runs on one thread; the tally reads the change over the match).
 #[cfg(test)]
@@ -744,6 +850,64 @@ mod scenarios {
         assert!(!up.covers(at.0, &tuning, eye, Vec3::new(0.0, 0.3, 20.0)), "the rest's height leaves the shins");
         // No floor under it within reach: the rest itself.
         assert_eq!(throw.cloud_at(Vec3::new(0.0, 2.5, 11.95), |_| None).centre.y, 2.5);
+    }
+
+    /// A floor at 0, 200 m a side.
+    fn flat() -> RayTree {
+        let (a, b) = (Vec3::new(-100.0, 0.0, -100.0), Vec3::new(100.0, 0.0, -100.0));
+        let (c, d) = (Vec3::new(100.0, 0.0, 100.0), Vec3::new(-100.0, 0.0, 100.0));
+        RayTree::from_corners([[a, b, c], [a, c, d]])
+    }
+
+    #[test]
+    fn a_smoke_between_goes_as_near_the_threat_as_the_throw_reaches_and_covers_the_line() {
+        let mesh = flat();
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let tuning = SmokeTuning::default();
+        let thin = tuning.thin_m.get();
+        // A holder 50 m out, a crossing 15 m to the thrower's side: the line runs from 50 m to 15 m out.
+        let (threat, crossing) = (Vec3::new(0.0, 1.6, 50.0), Vec3::new(10.0, 0.0, 15.0));
+        let plan = smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane).unwrap();
+        let out = plan.at.distance_xz(reach.thrower_eye);
+        // The RDG-M's flat throw lands about 30 m out at most: the point is the line's nearest-the-holder reachable one.
+        assert!((20.0..32.0).contains(&out), "{plan:?} at {out} m");
+        assert!(plan.covers_m > thin + PLAN_MARGIN_M && plan.at.y.abs() < 1e-3, "{plan:?}");
+        // The cloud there hides the crossing from him.
+        let cloud = Cloud {
+            by: 0,
+            team: 0,
+            placed: Placed::Arc,
+            centre: plan.at,
+            thrown: MatchMs(0),
+            pours: MatchMs(0),
+            shape: SmokeGrenade::RDG_M.cloud,
+        };
+        assert!(Clouds::new(vec![cloud]).covers(5_000, &tuning, threat, crossing + Vec3::new(0.0, 1.3, 0.0)));
+        // Nearer, the first point of the line (by the holder) is in reach: on it.
+        let near = smoke_between(&reach, Vec3::new(0.0, 1.6, 20.0), crossing, thin, SmokeUse::AntiSniper).unwrap();
+        assert!(near.at.distance_xz(Vec3::new(0.0, 0.0, 20.0)) < 1.5, "{near:?}");
+        // A line wholly out of reach: none.
+        let far = (Vec3::new(0.0, 1.6, 90.0), Vec3::new(10.0, 0.0, 70.0));
+        assert_eq!(smoke_between(&reach, far.0, far.1, thin, SmokeUse::CrossLane), None);
+    }
+
+    #[test]
+    fn a_smoke_on_a_spot_lands_on_its_floor_when_the_throw_reaches_it() {
+        let mesh = flat();
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let toward = Vec3::new(0.0, 1.6, 0.0);
+        let plan = smoke_on(&reach, Vec3::new(5.0, 1.6, 22.0), toward, SmokeUse::Breach).unwrap();
+        assert!(plan.at.distance_xz(Vec3::new(5.0, 0.0, 22.0)) < 1e-3 && plan.at.y.abs() < 1e-3);
+        assert!(plan.covers_m > 2.0, "{plan:?}");
+        assert_eq!(smoke_on(&reach, Vec3::new(5.0, 1.6, 45.0), toward, SmokeUse::Breach), None);
     }
 
     /// The cost of a sight query (`aimpoint::look_parts` through the veil) with 0, 1 and 4 live clouds off the

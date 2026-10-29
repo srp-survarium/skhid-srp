@@ -5,9 +5,16 @@
 //! `Veil::hides` with the default tuning, a spray's apart), and the bodies' time in a cloud and deaths there.
 //!
 //! **Fairness** (BENCH-DECISIONS D): sightings and fire through smoke, read from outside the bots' sight code so
-//! that a later bypass shows: a bot's `Seen` sensing of an enemy (its memory's track refreshed this tick) whose
-//! line from its eye to his chest the default veil hides, and a shot at a target through smoke that is not a
-//! spray. Both must read 0 with `smoke.sight` on; with it off they count.
+//! that a path that bypasses the veil shows. The definition (coordinator, 2026-10-29): a count is a sighting or a
+//! shot where **every part a look tests is clearly behind smoke**:
+//! - a sighting: a bot's `Seen` track refreshed this tick (its memory's), from its eye in the game to where that track
+//!   has him (the place its view sensed);
+//! - a shot: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen` track had him;
+//! - "every part": each part of `aimpoint::Part::SIGHT_ORDER`, standing and crouched, is hidden;
+//! - "clearly": by [`FAIR_MARGIN_M`] (0.5 m) more smoke than the bots' 2 m rule, so the few tenths of a metre between
+//!   the bot's view and the game's bodies at a cloud's edge do not count as a bypass.
+//!
+//! Both read 0 with `smoke.sight` on and count with it off: the loop test below reads 0 / 0 on and 1500 / 131 off.
 //!
 //! The eyes' counts are the bots' own (`smoke::tally`, this thread's, the change over the match); the rest is
 //! read from the stand-in game, the bots' memories and the tracker's clouds each tick. A smoke throw by a bot comes
