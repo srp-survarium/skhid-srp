@@ -405,10 +405,7 @@ impl std::fmt::Display for StaticInfoError {
             Self::TooLarge(len) => write!(f, "{len} bytes of options"),
             Self::Truncated => write!(f, "the options end early"),
             Self::Trailing(len) => write!(f, "{len} bytes after the options"),
-            Self::SrpBlock => write!(
-                f,
-                "srp's block after the options is not one the patches read"
-            ),
+            Self::SrpBlock => write!(f, "srp's block after the options is not one the patches read"),
             Self::Lzma2 => write!(f, "not a stored LZMA2 stream"),
             Self::LocalIndex { index, roster } => {
                 write!(f, "local index {index} in a roster of {roster}")

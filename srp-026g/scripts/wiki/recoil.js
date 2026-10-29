@@ -54,8 +54,13 @@
     const n = clip.period_frames, at = ((frame % n) + n) % n, i = Math.floor(at), f = at - i, j = (i + 1) % n;
     return [clip.yaw[i] + (clip.yaw[j] - clip.yaw[i]) * f, clip.pitch[i] + (clip.pitch[j] - clip.pitch[i]) * f];
   }
-  // `hip`: firing from the hip (the spread grows, the shake plays), else aimed.
-  function simulate(model, requestedShots, seed = 1, hip = false) {
+  // `hip`: firing from the hip (the spread grows, the shake plays), else
+  // aimed. `click`: seconds between clicks for single shots (never faster
+  // than the weapon fires), 0 to hold the trigger. The modes share every
+  // rule (the configs have none per mode): only the shots' pace differs; a
+  // shot's kick still ramps over 60/rpm.
+  function simulate(model, requestedShots, seed = 1, hip = false, click = 0) {
+    const spacing = Math.max(model.interval, click * 1000);
     const shots = Math.min(model.magazine, Math.max(1, Math.floor(requestedShots)));
     const random = generator(seed), extra = generator((seed ^ 0x9e3779b9) >>> 0);
     const draw = range => range[0] + (range[1] - range[0]) * random();
@@ -67,8 +72,8 @@
     const frames = [], events = [];
     let fired = 0, shotSpread = 0, shakeFrame = 0;
     const spreadNow = () => model.spread ? model.spread.base + (hip ? model.spread.hip + shotSpread : 0) : 0;
-    const lastShot = (shots - 1) * model.interval;
-    const end = Math.ceil((shots * model.interval + 3000) / TICK) * TICK;
+    const lastShot = (shots - 1) * spacing;
+    const end = Math.ceil(((shots - 1) * spacing + model.interval + 3000) / TICK) * TICK;
     for (let now = 0; now <= end; now += TICK) {
       if (now > 0) {
         const dt = TICK / 1000;
@@ -88,8 +93,8 @@
         // The clip runs while the weapon fires from the hip, and stops after.
         if (hip && model.shake && fired > 0 && now - TICK < lastShot + model.interval) shakeFrame += model.shake.timeScale * 30 * dt;
       }
-      while (fired < shots && fired * model.interval <= now + .001) {
-        const time = fired * model.interval;
+      while (fired < shots && fired * spacing <= now + .001) {
+        const time = fired * spacing;
         const top = draw(model.top) / TOP, right = draw(model.right), left = draw(model.left);
         const side = (right - left) / SIDE;
         const shake = model.shake ? model.shake.range[0] + (model.shake.range[1] - model.shake.range[0]) * extra() : 0;

@@ -37,6 +37,11 @@ assert.ok(Math.abs(hip.events[1].spread-(5.2+2-10*(hip.events[1].time-hip.events
 assert.ok(hip.events.every(event=>Math.hypot(event.bullet.side,event.bullet.up)<=event.spread/2+1e-9), 'a bullet stays inside the cone');
 assert.ok(hip.frames.some(frame=>frame.shake.up!==0), 'hip: the shake plays');
 assert.ok(hip.frames.at(-1).shake.up===0||Math.abs(hip.frames.at(-1).shake.up)<1e-3, 'the shake dies out');
+// Clicking: the same rules at a slower pace, so the climb recovers between shots.
+const held = WeaponRecoil.simulate(model,10,7), clicked = WeaponRecoil.simulate(model,10,7,false,.5);
+assert.ok(Math.abs(clicked.events[1].time-clicked.events[0].time-.5)<.051, 'a click every half second');
+assert.ok(Math.max(...clicked.frames.map(frame=>frame.vertical)) < Math.max(...held.frames.map(frame=>frame.vertical)), 'clicking climbs less than holding');
+assert.deepEqual(WeaponRecoil.simulate(model,10,7,false,.01).frames, held.frames, 'never faster than the weapon fires');
 console.log('PASS: native recoil reference, cancellation, recovery, magazine/single shot, deterministic sampling and missing data, spread and shake');
 if (process.argv[2]) {
   const source=fs.readFileSync(process.argv[2], 'utf8');

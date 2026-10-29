@@ -163,11 +163,10 @@
       }
       drawSight(time);
     }
-    // The crosshair as the kick moves it: the kick climbing from the origin,
-    // the path so far and each shot's mark. The side kick is far smaller than
-    // the climb: it fills the width, and the corner says how much the climb
-    // is squeezed against it (at most ÷100). Each weapon has
-    // its own view, all on one scale so they compare.
+    // The crosshair as the kick moves it, in degrees of view at true scale
+    // both ways: the aim's path, each shot's mark and bullet's hit, and the
+    // spread around the aim. Each weapon has its own view, all on one scale
+    // so they compare.
     function drawSight(time) {
       const frames = simulation.series.flatMap(series => series.frames);
       // In degrees of view: the kick as the camera turns. The pattern is the
@@ -185,22 +184,14 @@
         ...simulation.series.flatMap(series => series.events.map(event => ({...hit(series, event), r: 0})))];
       const up = Math.max(0, ...points.map(point => point.up + point.r));
       const down = Math.max(0, ...points.map(point => point.r - point.up));
-      // The aim's path may be stretched sideways (its side drift is small);
-      // the spread and the hits are drawn at true size around the aim.
-      const side = Math.max(0, ...frames.map(frame => Math.abs(aim(frame).side)));
-      const scale = 250 / Math.max(.1, up + down);
-      // A weapon with no side kick (bolt-action rifles) keeps one scale: its
-      // side values are rounding noise, not drift to magnify.
-      const room = 140 - Math.max(0, ...points.map(point => point.r)) * scale;
-      const sideScale = side > 1e-4 ? Math.min(scale * 100, Math.max(scale, Math.max(20, room) / side)) : scale;
+      const side = Math.max(0, ...points.map(point => Math.abs(point.side) + point.r));
+      const scale = 250 / Math.max(.1, up + down, 2 * side * 250 / 280);
       const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
-      const x = degrees => 150 + degrees * sideScale, y = degrees => oy - degrees * scale;
-      // A hit: its aim point on the stretched path, its bullet's turn at true size.
+      const x = degrees => 150 + degrees * scale, y = degrees => oy - degrees * scale;
       const hitAt = (series, event) => {
-        const point = aim(sample(series, event.time));
-        return [x(point.side) + event.bullet.side * scale, y(point.up + event.bullet.up)];
+        const point = hit(series, event);
+        return [x(point.side), y(point.up)];
       };
-      const magnified = Math.round(sideScale / scale);
       const views = simulation.series.map(series => {
         const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${tr('where it aims as the recoil moves it', 'куди цілиться під дією відбою')}`});
         const view = document.createElement('div'); view.className = 'sim-view';
@@ -210,7 +201,6 @@
       });
       find('.sim-sight-views').replaceChildren(...views.map(({view}) => view));
       for (const {series, svg} of views) {
-        if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`vertical ÷${magnified}`, `вертикаль ÷${magnified}`)));
         svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
         svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
         if (distance) {
@@ -277,7 +267,8 @@
       // A full magazine; with two weapons, the smaller one's from each.
       const shots = Math.min(...ids.map(id => models.get(id).magazine));
       const series = sides.map(({id, side}) => {
-        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value), find('.sim-stance').value === 'hip');
+        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value), find('.sim-stance').value === 'hip',
+          Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
         result.events.forEach(event => {event.time += .05;});
@@ -291,6 +282,7 @@
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     find('.sim-stance').addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
+    find('.sim-trigger').addEventListener('change', () => rebuild());
     find('.sim-reset').addEventListener('click', () => seek(0));
     // Last shot: the whole pattern at once.
     find('.sim-last').addEventListener('click', () => {

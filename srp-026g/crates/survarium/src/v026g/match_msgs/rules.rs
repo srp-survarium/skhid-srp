@@ -465,23 +465,11 @@ mod tests {
     #[test]
     fn research_at_the_goal_is_led_by_the_millionths() {
         // Both show 100; team 0 reached it, team 1 has 99.5.
-        assert_eq!(
-            research_winner([100, 100], [100_000_000, 99_500_000], true),
-            0
-        );
-        assert_eq!(
-            research_winner([100, 100], [99_600_000, 100_000_000], true),
-            1
-        );
+        assert_eq!(research_winner([100, 100], [100_000_000, 99_500_000], true), 0);
+        assert_eq!(research_winner([100, 100], [99_600_000, 100_000_000], true), 1);
         // Before the goal, the shown points: equal is a draw.
-        assert_eq!(
-            research_winner([37, 37], [37_400_000, 37_200_000], false),
-            DRAW
-        );
-        assert_eq!(
-            research_winner([40, 37], [40_000_000, 37_000_000], false),
-            0
-        );
+        assert_eq!(research_winner([37, 37], [37_400_000, 37_200_000], false), DRAW);
+        assert_eq!(research_winner([40, 37], [40_000_000, 37_000_000], false), 0);
     }
 
     #[test]

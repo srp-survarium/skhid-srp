@@ -251,12 +251,7 @@ fn shop_actions() {
         }
     );
     assert_eq!(read("47 04 64000000"), M::ExchangePremium { amount: 100 });
-    assert_eq!(
-        read("47 04 FFFFFF3F"),
-        M::ExchangePremium {
-            amount: 0x3FFF_FFFF
-        }
-    );
+    assert_eq!(read("47 04 FFFFFF3F"), M::ExchangePremium { amount: 0x3FFF_FFFF });
     assert_eq!(read("47 04 05000040"), M::BuyPremium { gold: 5 });
     assert_eq!(read("47 04 00000040"), M::BuyPremium { gold: 0 });
     assert_eq!(

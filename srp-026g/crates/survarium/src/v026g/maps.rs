@@ -66,9 +66,7 @@ pub const BLACKOUT_RULES: u8 = mode::BATTERIES;
 /// never). The lobby's rooms pool, cards and rows carry the lobby's id; a
 /// match is made on the id played, with the flag.
 pub fn blackout_pairs_of(dictionary_ids: &[u8], rules_ids: &[u8]) -> Vec<(u8, u8)> {
-    let mut free = (1..=u8::MAX)
-        .rev()
-        .filter(|id| !dictionary_ids.contains(id));
+    let mut free = (1..=u8::MAX).rev().filter(|id| !dictionary_ids.contains(id));
     let mut played: Vec<u8> = rules_ids.to_vec();
     played.sort_unstable();
     played.dedup();

@@ -1370,10 +1370,7 @@ impl Decoded<'_> {
     pub fn standing(&self, game_mode: u8, teams: &[u8]) -> Option<Standing> {
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
         if game_mode == mode::RESEARCH {
-            let research = self
-                .rules
-                .as_ref()
-                .and_then(|rules| rules.research.as_ref());
+            let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
             if let Some(research) = research {
                 return Some(Standing {
                     points: research.scores,
@@ -2081,9 +2078,7 @@ mod tests {
         let whole = body(&statistics, &[]);
         let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
         assert_eq!(
-            decoded
-                .standing(mode::RESEARCH, &[0, 1])
-                .map(|standing| standing.winner),
+            decoded.standing(mode::RESEARCH, &[0, 1]).map(|standing| standing.winner),
             Some(rules::DRAW)
         );
     }
