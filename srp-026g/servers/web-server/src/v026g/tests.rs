@@ -494,8 +494,8 @@ fn bans_maintenance_and_registration_are_the_stores() {
 fn the_pages_are_the_026g_ones() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
-    assert!(home.contains("survarium_skhid.exe -localization=english -server="));
-    assert!(home.contains("-mt_allocator=768 -minimum_resources_memory_size=768"));
+    // The exe has the server and memory built in and its language in Settings.
+    assert!(!home.contains("-localization") && !home.contains("-mt_allocator"));
     assert!(!home.contains("-client") && !home.contains("0.21d") && !home.contains("0.21D"));
     assert!(home.contains("Survarium 0.26g client"));
     assert!(!home.contains("/exchange"));
