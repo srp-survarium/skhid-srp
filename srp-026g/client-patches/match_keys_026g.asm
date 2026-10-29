@@ -65,7 +65,7 @@
 ; configs are run) registers a cc_bool of that name on hide_chat, kept in
 ; user.cfg, as the hud's own show_quests_progress is (0x2339C9): the option is
 ; live, its checkbox enabled by the movie and labelled "Hide chat in match"
-; (content edit match-chat-off-1.json). A received chat line goes through
+; (its text in client-patches/localization/*.tsv). A received chat line goes through
 ; chat_handler::add_message (0x208AD0, stdcall: the handler, the channel, the
 ; body, the name, the tag; `ret 14h`) from process_incoming_text_message's
 ; (0x26B6F0) call at 0x26B916; with the option on, in a match (the handler's +0Dh, set_mode's

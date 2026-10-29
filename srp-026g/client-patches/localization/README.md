@@ -53,6 +53,8 @@ text here as well; keep gameplay values and UI key mappings in their edit lists.
 
 The compiler rejects missing translations and any source dictionary key absent
 from the TSV catalog, so a new content pack cannot silently lose its text.
+A content pack that changes the text of an existing key needs the same change
+here: the final compile writes the TSV text over the pack's.
 It also requires every native Flash UI mapping key to exist. Binary dictionaries
 use the engine's CRC key order, while TSVs use readable alphabetical order.
 Build with `release/build-content` as usual; never assemble a resource patch manually.
