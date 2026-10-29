@@ -83,13 +83,13 @@ pub(super) struct ResupplyNow {
 pub(super) fn nearly_dry(bots: &Bots, bot: &super::super::Bot, feet: Vec3) -> Nearly {
     use crate::v026g::bots::plays::{PlayKind, Rank};
     let ammo = bot.ammo();
-    if ammo.missing() == 0 || ammo.share() > bots.tuning.number(PlayKind::Resupply, "dry_share") {
+    if ammo.missing() == 0 || ammo.share() > bots.tunings.of(bot.team).number(PlayKind::Resupply, "dry_share") {
         return Nearly::Fine;
     }
     let bound = bot
         .assignment
         .as_ref()
-        .and_then(|a| bots.tuning.plays.get(&a.kind))
+        .and_then(|a| bots.tunings.of(bot.team).plays.get(&a.kind))
         .is_some_and(|play| play.rank == Rank::Objective);
     if !bound {
         return Nearly::Other;

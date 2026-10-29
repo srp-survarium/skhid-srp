@@ -655,7 +655,7 @@ pub(crate) fn a_trap_that_goes_off_under_a_body_is_given_to_the_ears() {
             total_s: 0.0,
             playing: true,
         };
-        let view = bots.tracker.view(&clock, &bots.tuning.kin, None);
+        let view = bots.tracker.view(&clock, &bots.match_wide_tuning().kin, None);
         view.sounds
             .iter()
             .filter(|s| s.kind == SoundKind::Trap)

@@ -11,8 +11,11 @@
 //! number that is not the default's shows as `name=value (default d)`; a list that is not the default's shows as
 //! changed. A section is the first part of the name (`feel`, `sense`, `grid`...).
 //!
-//! The text has four lines with fixed prefixes, for the scripts that read the logs (`switches ON:`, `switches OFF:`,
-//! `switch values:`, `changed numbers:`); each line is `section[name name=value ...] section[...]`, or `none`.
+//! The text has one line per kind and section, sections in alphabetical order, with fixed prefixes for the scripts that read
+//! the logs (`switches ON <section>:`, `switches OFF <section>:`, `switch values <section>:`, `changed numbers <section>:`);
+//! each line is `name name=value ...`. A kind with no entries is one line `switches ON: none` (and so on). A change to one
+//! section's switches touches only that section's lines, so two changes to different sections never touch the same line of
+//! the golden text.
 
 use std::fmt;
 
@@ -48,14 +51,16 @@ impl Tuning {
 }
 
 impl SwitchReport {
-    /// The four lines of the report, each with its fixed prefix.
+    /// The lines of the report: the ON lines, then OFF, values and changed numbers, one per section in each, each with its
+    /// fixed prefix.
     pub fn lines(&self) -> Vec<String> {
-        vec![
-            format!("switches ON: {}", group(&self.on)),
-            format!("switches OFF: {}", group(&self.off)),
-            format!("switch values: {}", group(&self.values)),
-            format!("changed numbers: {}", group(&self.changed)),
-        ]
+        let mut lines = Vec::new();
+        for (prefix, entries) in
+            [("switches ON", &self.on), ("switches OFF", &self.off), ("switch values", &self.values), ("changed numbers", &self.changed)]
+        {
+            lines.extend(section_lines(prefix, entries));
+        }
+        lines
     }
 }
 
@@ -65,28 +70,19 @@ impl fmt::Display for SwitchReport {
     }
 }
 
-/// `section[a b=1] section[c]`, or `none`.
-fn group(entries: &Entries) -> String {
-    if entries.is_empty() {
-        return "none".to_owned();
-    }
-    let mut out = String::new();
-    let mut open: Option<&str> = None;
+/// `prefix section: a b=1` for each section of the entries, in the order of the sections; `prefix: none` when there are none.
+fn section_lines(prefix: &str, entries: &Entries) -> Vec<String> {
+    let mut sections: Vec<(&str, Vec<&str>)> = Vec::new();
     for (section, text) in entries {
-        if open != Some(section.as_str()) {
-            if open.is_some() {
-                out.push_str("] ");
-            }
-            out.push_str(section);
-            out.push('[');
-            open = Some(section);
-        } else {
-            out.push(' ');
+        match sections.last_mut() {
+            Some((open, texts)) if *open == section => texts.push(text),
+            _ => sections.push((section, vec![text])),
         }
-        out.push_str(text);
     }
-    out.push(']');
-    out
+    if sections.is_empty() {
+        return vec![format!("{prefix}: none")];
+    }
+    sections.into_iter().map(|(section, texts)| format!("{prefix} {section}: {}", texts.join(" "))).collect()
 }
 
 /// A number as it reads: whole numbers as they are, others as the `f32` they were (0.8, not 0.800000011920929).
@@ -228,17 +224,42 @@ mod tests {
         )
         .unwrap();
         let tuning = Tuning::from_value(value).unwrap();
-        let report = tuning.switch_report();
-        let lines = report.lines();
-        assert!(lines[0].contains("heal[interrupt on"), "{}", lines[0]);
-        assert!(lines[0].contains("unstick[suicide_after_ms=60000]"), "{}", lines[0]);
-        assert!(lines[1].contains("heal[bandages]"), "{}", lines[1]);
-        assert!(lines[2].contains("zone_pools=routed"), "{}", lines[2]);
-        assert!(lines[2].contains("shots={\"by_weapon\""), "{}", lines[2]);
-        assert!(lines[3].contains("feel[lip_guard_ticks=2 (default 0)]"), "{}", lines[3]);
+        let lines = tuning.switch_report().lines();
+        let line = |prefix: &str| lines.iter().find(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("no `{prefix}` in {lines:?}"));
+        assert!(line("switches ON heal:").contains("interrupt on"), "{lines:?}");
+        assert!(line("switches ON unstick:").contains("suicide_after_ms=60000"), "{lines:?}");
+        assert!(line("switches OFF heal:").contains("bandages"), "{lines:?}");
+        assert!(line("switch values hazard:").contains("zone_pools=routed"), "{lines:?}");
+        assert!(line("switch values sense:").contains("shots={\"by_weapon\""), "{lines:?}");
+        assert!(line("changed numbers feel:").contains("lip_guard_ticks=2 (default 0)"), "{lines:?}");
     }
 
-    /// The default tuning's four lines, as the logs carry them (against the tuning with the owner's options off): a
+    /// The report is one line per kind and section, sections in alphabetical order, and a switch of one section moves
+    /// only that section's lines: the text two changes to different sections edit never shares a line.
+    #[test]
+    fn one_line_per_section_and_a_change_moves_only_its_section() {
+        let lines = Tuning::default().switch_report().lines();
+        for prefix in ["switches ON ", "switches OFF ", "switch values ", "changed numbers "] {
+            let sections: Vec<&str> =
+                lines.iter().filter_map(|l| l.strip_prefix(prefix)).map(|rest| rest.split(':').next().unwrap()).collect();
+            let mut sorted = sections.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(sections, sorted, "{prefix}: one line per section, in order");
+        }
+        assert!(lines.iter().all(|l| l.contains(": ")), "{lines:?}");
+        // A kind with no entries is one `none` line.
+        assert_eq!(section_lines("switches ON", &Entries::new()), ["switches ON: none"]);
+        // One switch flipped: the lines that differ are those of its own section.
+        let mut value = serde_json::to_value(Tuning::all_off()).unwrap();
+        Tuning::apply_patch(&mut value, serde_json::json!({"heal": {"on": true}})).unwrap();
+        let flipped = Tuning::from_value(value).unwrap().switch_report().lines();
+        let base = Tuning::all_off().switch_report().lines();
+        let moved: Vec<&String> = flipped.iter().filter(|l| !base.contains(l)).collect();
+        assert!(moved.iter().all(|l| l.contains(" heal:") || l.ends_with(": none")), "{moved:?}");
+    }
+
+    /// The default tuning's report lines, as the logs carry them (against the tuning with the owner's options off): a
     /// change of a default, or a new switch, changes this text on purpose. `SRP_WRITE_GOLDEN=1` prints the new text instead of comparing.
     #[test]
     fn the_default_tuning_report_is_what_it_was() {

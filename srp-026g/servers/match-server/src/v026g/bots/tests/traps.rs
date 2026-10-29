@@ -215,7 +215,7 @@ pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_te
         playing: true,
     };
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
-    let view = bots.tracker.view(&clock, &bots.tuning.kin, world.as_deref());
+    let view = bots.tracker.view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
     let at = view.place(0).unwrap().feet + Vec3::new(1.0, 0.0, 0.0);
     // Legs whole: a trap went off, nobody caught.
     bots.count_own_traps(5_000, &[(0, at)]);

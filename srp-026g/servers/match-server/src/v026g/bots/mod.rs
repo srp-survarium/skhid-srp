@@ -724,11 +724,9 @@ pub struct Bots {
     /// The static info's seed (`registry::static_id`): every anomaly's
     /// random stream starts from it (`anomalies.rs`).
     static_seed: u32,
-    pub tuning: Arc<Tuning>,
-    /// The real-map bench's one-sided runs: team 1 plays by this tuning
-    /// instead (`real_bot_cost`, `SRP_BENCH_ONE_SIDE`).
-    #[cfg(test)]
-    side1_tuning: Option<Arc<Tuning>>,
+    /// The tuning each team plays by: `tunings.of(team)` for a decision, `tunings.match_wide()` for what exists once
+    /// for both teams ([`tuning::TeamTunings`]).
+    tunings: tuning::TeamTunings,
     /// The real-map bench's human stand-in (`SRP_BENCH_HUMAN`, CG-12):
     /// the plays take this bot for a human, and its commander gives it
     /// Raid whenever Raid is a candidate.
@@ -781,6 +779,21 @@ impl Bots {
         tuning: Arc<Tuning>,
         trace: Trace,
     ) -> Self {
+        Self::new_with(match_id, mode, level, teams, driven, roles, tuning::TeamTunings::new(tuning), trace)
+    }
+
+    /// [`Self::new`] with the tuning each team plays by (the bench's one-sided runs give team 1 another).
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with(
+        match_id: u32,
+        mode: u8,
+        level: u8,
+        teams: &[u8],
+        driven: &[bool],
+        roles: &[Option<&str>],
+        tunings: tuning::TeamTunings,
+        trace: Trace,
+    ) -> Self {
         let team_state = |tuning: &Tuning| TeamState {
             knowledge: TeamKnowledge::default(),
             mods: Mods::default(),
@@ -796,7 +809,7 @@ impl Bots {
             .enumerate()
             .map(|(place, (&team, &driven))| {
                 let role = roles.get(place).copied().flatten();
-                driven.then(|| Bot::new(match_id, place, team, role, &tuning))
+                driven.then(|| Bot::new(match_id, place, team, role, tunings.of(team)))
             })
             .collect();
         Self {
@@ -810,12 +823,10 @@ impl Bots {
             polls: Default::default(),
             tactics: None,
             memo: Default::default(),
-            teams: [team_state(&tuning), team_state(&tuning)],
+            teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
             bots,
             trace,
-            tuning,
-            #[cfg(test)]
-            side1_tuning: None,
+            tunings,
             #[cfg(test)]
             bench_human: None,
             #[cfg(test)]
@@ -842,12 +853,11 @@ impl Bots {
     /// them): each team's skill starts at the tier's and keeps above its
     /// floor ([`tuning::SkillTuning::of_tier`]). Without it, the 4-5 tier.
     pub fn with_tier(mut self, tier: BotTier) -> Self {
-        for state in &mut self.teams {
-            state.skill = Skill::new(&self.tuning.skill, tier);
+        for (team, state) in (0u8..).zip(&mut self.teams) {
+            state.skill = Skill::new(&self.tunings.of(team).skill, tier);
         }
-        let start = self.tuning.skill.of_tier(tier).start;
         for bot in self.bots.iter_mut().flatten() {
-            bot.skill = start;
+            bot.skill = self.tunings.of(bot.team).skill.of_tier(tier).start;
         }
         self
     }
@@ -927,7 +937,7 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tuning.hazard.margin_m.get());
+        let tactics = Tactics::new(world, self.tunings.match_wide().hazard.margin_m.get());
         self.tactics_ready(tactics)
     }
 
@@ -936,14 +946,14 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
-        tactics.escape = self.tuning.hazard.escape;
-        tactics.clear_step_sees_lip = self.tuning.aim.combat.clear_step_sees_lip;
+        let tuning = self.tunings.match_wide();
+        tactics.escape = tuning.hazard.escape;
+        tactics.clear_step_sees_lip = tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
-        self.features.artefacts = self
-            .tuning
+        self.features.artefacts = tuning
             .hazard
             .artefact_know
             .then(|| artefact_know::ArtefactKnow::of(&tactics.world.map));
@@ -1080,8 +1090,8 @@ impl Bots {
         if self.is_bot(place) {
             return;
         }
-        view::set_live_eye(self.tuning.aim.combat.live_eye);
-        view::set_use_ray_m(self.tuning.sense.use_ray_m);
+        view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
@@ -1096,7 +1106,7 @@ impl Bots {
             input.actions,
             turn,
             0.0,
-            &self.tuning.kin,
+            &self.tunings.match_wide().kin,
             world.as_deref(),
         );
     }
@@ -1156,14 +1166,14 @@ impl Bots {
 
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
-        view::set_live_eye(self.tuning.aim.combat.live_eye);
-        view::set_use_ray_m(self.tuning.sense.use_ray_m);
+        view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let new_life = self
             .tracker
-            .fixed(place, fix, health, &self.tuning.kin, world.as_deref());
+            .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return notes;
         };
@@ -1173,7 +1183,7 @@ impl Bots {
             if new_life {
                 bot.stuck.forget_heights();
             }
-            bot.stuck.track_fall(time, feet, self.tuning.think.fall_lock);
+            bot.stuck.track_fall(time, feet, self.tunings.of(bot.team).think.fall_lock);
         }
         // A world ends a blind stop (`UnstickTuning::blind_stop_ms`); its reckoning is put right by the world itself.
         if bot.blind_since.is_some() && self.tracker.body(place).and_then(|body| body.fix()).is_some_and(|last| last.time == time) {
@@ -1214,7 +1224,8 @@ impl Bots {
             stuck::fix_gaps::count(0);
         }
         let ends_check = self
-            .tuning
+            .tunings
+            .of(bot.team)
             .unstick
             .fix_gap_ms
             .is_some_and(|ms| gap.is_some_and(|gap| gap > ms));
@@ -1232,7 +1243,7 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tuning.unstick) {
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1350,7 +1361,7 @@ impl Bots {
             return notes;
         }
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
-        if let Some(window_ms) = self.tuning.unstick.progress_ms
+        if let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {
             let length = route.length();
@@ -1430,7 +1441,7 @@ impl Bots {
     /// zones of this match (`Tuning::live_zones`; off: nothing is read and nothing changes). Returns the fields the
     /// board holds.
     pub fn fields_from_world(&mut self, time: u32) -> usize {
-        if !self.tuning.hazard.live_zones {
+        if !self.tunings.match_wide().hazard.live_zones {
             return 0;
         }
         self.tactics.as_mut().map_or(0, |tactics| {
@@ -1448,7 +1459,7 @@ impl Bots {
     /// As [`Self::fields_from_world`], off with `Tuning::live_zones`.
     #[cfg(test)]
     pub fn fields_given(&mut self, fields: &[live_zones::WorldField], time: u32) -> usize {
-        if !self.tuning.hazard.live_zones {
+        if !self.tunings.match_wide().hazard.live_zones {
             return 0;
         }
         self.tactics.as_mut().map_or(0, |tactics| {
@@ -1461,8 +1472,8 @@ impl Bots {
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
     pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
-        let react = self.tuning.traps.react.on;
-        let hear = self.tuning.traps.react.hear;
+        let react = self.tunings.match_wide().traps.react.on;
+        let hear = self.tunings.match_wide().traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
         if !own && !react && !hear {
             return 0;
@@ -1499,7 +1510,7 @@ impl Bots {
     /// (`SoundKind::Trap`, `traps.react.hear`). A disarmed trap makes none.
     fn hear_snaps(&mut self, found: &[PlacedTrap], time: u32) {
         let at = |trap: &PlacedTrap| Vec3::new(trap.position[0], trap.position[1], trap.position[2]);
-        let near = self.tuning.traps.react.snap_near_m;
+        let near = self.tunings.match_wide().traps.react.snap_near_m;
         for fired in found.iter().filter(|trap| trap.state == TrapState::Fired) {
             let spot = at(fired);
             if !self.features.snaps.armed.iter().any(|armed| armed.distance_xz(spot) < trap_know::MATCH_M)
@@ -1537,7 +1548,7 @@ impl Bots {
         };
         let view = self
             .tracker
-            .view(&clock, &self.tuning.kin, world.as_deref());
+            .view(&clock, &self.tunings.match_wide().kin, world.as_deref());
         for &(team, at) in went_off {
             self.features.own_traps.fired += 1;
             let caught = self.bots.iter().flatten().any(|bot| {
@@ -1597,7 +1608,8 @@ impl Bots {
                 continue;
             };
             let weapons = &self.features.weapons;
-            let kind = |by_data| bot.weapon_by(weapons, &self.tuning, by_data);
+            let tuning = self.tunings.of(bot.team);
+            let kind = |by_data| bot.weapon_by(weapons, tuning, by_data);
             counts.add(arms.primary.0, kind(false) != kind(true));
         }
         counts
@@ -1621,19 +1633,19 @@ impl Bots {
 
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
-        view::set_live_eye(self.tuning.aim.combat.live_eye);
-        view::set_use_ray_m(self.tuning.sense.use_ray_m);
+        view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
+        self.tracker.held_sounds(now, self.tunings.match_wide().sense.sprint_body_mps);
         self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }
         let view = self
             .tracker
-            .view(&clock, &self.tuning.kin, world.as_deref());
+            .view(&clock, &self.tunings.match_wide().kin, world.as_deref());
         if self.tactics.is_some() {
             for team in 0..2u8 {
                 if self.commander_due(team, &clock, &view) {
@@ -1641,10 +1653,10 @@ impl Bots {
                 }
             }
         }
-        let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
+        let mut rays = RayBudget::new(self.tunings.match_wide().think.rays_per_poll);
         rays.thinks_left = self.thinks_due(&view);
         self.features.searching.left = SEARCHES_PER_POLL;
-        self.features.searching.floors = self.tuning.think.search_floors_per_poll as usize;
+        self.features.searching.floors = self.tunings.match_wide().think.search_floors_per_poll as usize;
         self.go_on_searching();
         let claims_on = [0u8, 1].map(|team| self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5);
         for index in 0..self.bots.len() {
@@ -1744,13 +1756,14 @@ impl Bots {
 
     /// The tuning team `team` plays by: the match's (the bench's one-sided
     /// runs give team 1 another).
-    #[cfg_attr(not(test), allow(unused_variables))]
     fn tuning_of(&self, team: u8) -> Arc<Tuning> {
-        #[cfg(test)]
-        if let Some(tuning) = self.side1_tuning.as_ref().filter(|_| team == 1) {
-            return tuning.clone();
-        }
-        self.tuning.clone()
+        self.tunings.of(team).clone()
+    }
+
+    /// The tuning of what exists once for both teams (see [`tuning::TeamTunings::match_wide`]): for the server's map
+    /// build and the bench's per-poll setup, never for a decision of a bot or a team ([`Self::tuning_of`]).
+    pub fn match_wide_tuning(&self) -> &Tuning {
+        self.tunings.match_wide()
     }
 
 }
