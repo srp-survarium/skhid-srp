@@ -10,10 +10,13 @@
 //!   made it (`smoke::tally::SeenLook`: its eye as its view had it, his feet and crouch as its view had them, the
 //!   look's clock), had every part `aimpoint::look_parts` tests hidden by the clouds then (`smoke.thin_m`, no margin);
 //! - a sighting with no look: a `Seen` track refreshed with no recorded look at its time (a path around the looks);
-//! - a shot: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen` track had him,
-//!   every part a look tests hidden, standing and crouched, "clearly" ([`FAIR_MARGIN_M`], 0.5 m past the 2 m rule)
-//!   and from every eye ([`FAIR_EYE_UP_M`] above and below, [`FAIR_EYE_SIDE_M`] to either side across the line);
-//! - [diagnosis] the sightings that same five-eye margin test from the game's bodies counts at the sensing's time:
+//! - a shot through smoke: a shot at a target that is not a spray, from the shooter's eye to where its last `Seen`
+//!   track had him, every part a look tests hidden, standing and crouched, "clearly" ([`FAIR_MARGIN_M`], 0.5 m past
+//!   the 2 m rule) and from every eye ([`FAIR_EYE_UP_M`] above and below, [`FAIR_EYE_SIDE_M`] to either side across
+//!   the line), with no look of the shooter's that showed him within `smoke.spray_ms` (0.75 s, the owner's cap for
+//!   fire through cover), replayed as for a sighting: a shot a tick after a clear look is fire continued, not a shot
+//!   through smoke (`h2h-radio-vs-off-20261029T1852`: all 51 such shots came within 250 ms of a look);
+//! - [diagnosis] the shots that test counts whatever the look, and the sightings that same five-eye margin test from the game's bodies counts at the sensing's time:
 //!   where the game's bodies and the bots' view part at a cloud's rim or flat top (`h2h-radio-vs-off-20261029T1211`
 //!   had 74 with one eye and no replay: 34 within 1 m of a rim, 32 skimming a top or bottom).
 //!
@@ -72,6 +75,9 @@ pub(super) struct SmokeCounts {
     /// Fairness, by the bot's team: `Seen` sensings through smoke, and shots at a target through smoke not a spray.
     seen_through: [u32; 2],
     fire_through: [u32; 2],
+    /// [diagnosis] Shots whose line from the game's bodies is clearly behind smoke from every eye, not a spray,
+    /// whatever the shooter's last look: most follow a clear look by a tick or two (continuing fire).
+    fire_through_margin: [u32; 2],
     /// By bot and enemy: the last time a `Seen` track was refreshed; the tick's new sensings to check.
     seen_times: BTreeMap<(Place, Place), u32>,
     /// By bot and enemy: where its last `Seen` track had him (what its shots are aimed from).
@@ -99,6 +105,7 @@ impl SmokeCounts {
             deaths_in_smoke: [0; 2],
             seen_through: [0; 2],
             fire_through: [0; 2],
+            fire_through_margin: [0; 2],
             seen_times: BTreeMap::new(),
             sensed: BTreeMap::new(),
             fresh_seen: Vec::new(),
@@ -202,14 +209,20 @@ impl SmokeCounts {
                 // Where the shooter's eyes have him (its memory's sight), else the game's body.
                 let feet = self.sensed.get(&(fact.shooter, target)).copied().unwrap_or(game.bodies[target].feet);
                 if fact.tick == tick && self.hides_body(tick, eye, feet) && !Self::sprayed(fact.shooter, tick) {
-                    self.fire_through[team] += 1;
+                    self.fire_through_margin[team] += 1;
+                    // Fair: the shooter's last look that found him, replayed with the team's rule, showed him within
+                    // the spray's time (`smoke.spray_ms`, the owner's cap for fire through cover): fire continued.
+                    let look = smoke::tally::seen_look(fact.shooter, target);
+                    let spray_ms = SmokeTuning::default().spray_ms;
+                    let fair = look.is_some_and(|l| tick.saturating_sub(l.time) <= spray_ms && !self.replay_hides(&l));
+                    self.fire_through[team] += u32::from(!fair);
                     if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
                         // The shooter's last sight of him: its age, and whether the clouds hid him then too.
                         let seen = self.seen_times.get(&(fact.shooter, target)).copied();
                         let hidden_then = seen.map(|t| self.hides_body(t, eye, feet));
                         let spray = smoke::tally::last_spray(fact.shooter).map(|t| tick as i64 - t as i64);
                         eprintln!(
-                            "FAIR-SHOT bot {} (team {team}) at {target} tick {tick} seen {:?} (age {:?} ms) hidden-then {:?} spray-ago {:?} ms sensed {} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1})",
+                            "FAIR-SHOT bot {} (team {team}) at {target} tick {tick} seen {:?} (age {:?} ms) hidden-then {:?} spray-ago {:?} ms sensed {} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1}) look-age {:?} look-replay-hidden {:?} counted {}",
                             fact.shooter,
                             seen,
                             seen.map(|t| tick.saturating_sub(t)),
@@ -217,10 +230,15 @@ impl SmokeCounts {
                             spray,
                             self.sensed.contains_key(&(fact.shooter, target)),
                             eye.x, eye.y, eye.z, feet.x, feet.y, feet.z,
+                            look.map(|l| tick.saturating_sub(l.time)),
+                            look.map(|l| self.replay_hides(&l)),
+                            !fair,
                         );
                     }
                     #[cfg(test)]
-                    SEEN_CASES.with(|c| c.borrow_mut().push((fact.shooter, target, tick, eye, feet)));
+                    if !fair {
+                        SEEN_CASES.with(|c| c.borrow_mut().push((fact.shooter, target, tick, eye, feet)));
+                    }
                 }
             }
         }
@@ -360,9 +378,10 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
             "smoke_fair_seen_unlooked": self.seen_unlooked,
             "smoke_fair_seen_through_margin": self.seen_through_margin,
+            "smoke_fair_fire_through_margin": self.fire_through_margin,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -392,6 +411,7 @@ impl SmokeCounts {
             self.seen_unlooked,
             self.fire_through,
             self.seen_through_margin,
+            self.fire_through_margin,
         );
         Part::new(json, text)
     }
@@ -509,13 +529,22 @@ mod tests {
         }];
         counts.through(&game);
         assert_eq!(counts.fire_through, [1, 0]);
+        // A look that showed him 100 ms before (he stood clear of the cloud then): fire continued, not counted.
+        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(30.0, 0.0, 30.0), crouched: false };
+        smoke::tally::looked_seen(0, 1, clear);
+        counts.through(&game);
+        assert_eq!((counts.fire_through, counts.fire_through_margin), ([1, 0], [2, 0]), "a clear look 100 ms before");
+        // The same look 1 s before: past the spray's time, counted.
+        smoke::tally::looked_seen(0, 1, smoke::tally::SeenLook { time: 5_000, ..clear });
+        counts.through(&game);
+        assert_eq!(counts.fire_through, [2, 0], "a look 1 s before");
         smoke::tally::sprayed(0, 6_000);
         counts.through(&game);
-        assert_eq!(counts.fire_through, [1, 0], "a spray's shot");
+        assert_eq!(counts.fire_through, [2, 0], "a spray's shot");
         counts.clouds = vec![cloud(20.0, 40.0)];
         smoke::tally::sprayed(0, 0);
         counts.through(&game);
-        assert_eq!(counts.fire_through, [1, 0], "a clear line");
+        assert_eq!(counts.fire_through, [2, 0], "a clear line");
     }
 
     /// The fairness counts in a real loop (the stand-in game, the bots' poll, the owner tally): 2 against 2 for 60 s on
