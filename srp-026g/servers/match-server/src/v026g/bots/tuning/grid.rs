@@ -39,6 +39,12 @@ pub struct GridTuning {
     /// edge. Off: the walk-offs are no lips (63 of 245 falls off the route began on a floor no guard knew). On by default.
     /// Only where there are walk-offs, so with `gap_links` off it changes nothing. A grid is the map's (see `gap_links`).
     pub walk_off_lips: bool,
+    /// Whether a Jump link of the maps' walk grids is kept only where the top it lands on goes on as far as the jump's clip
+    /// carries the body (`mapdata::Body::landing_carry`; 1.3 m on a walking jump, 3 m on a sprint jump): the clip runs on to its
+    /// end whatever the body has landed on, so on a wall's top or a rail it walks off the far side and comes down (Chemical Plant,
+    /// the spawn exit's wall at (94.9, 67.1): 0 of 74 presses got up). Off: a landing needs the body's width. On by default. A
+    /// grid is the map's (see `gap_links`).
+    pub landing_carry: bool,
     /// The standing jump's cap on the clients' body, metres: a Jump link above it is a sprint jump (a run-up with sprint
     /// held, apex 1.28 m, `mapdata::grid::SPRINT_JUMP_LOW_M`), kept without a run-up as the marginal jump the base made.
     /// The clip's root tops at 0.998 (`mapdata::grid::STANDING_JUMP_M`, PROVEN); whether the body reaches a ledge above it
@@ -56,6 +62,7 @@ impl Default for GridTuning {
             exact_erosion: true,
             honest_drops: true,
             walk_off_lips: true,
+            landing_carry: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
         }
     }
@@ -77,6 +84,7 @@ impl GridTuning {
             drop_flight_mps: if self.honest_drops { WALK_OFF_MPS } else { 0.0 },
             max_jump: if self.client_numbers { self.jump_cap_m.get() } else { body.max_jump },
             walk_off_lips: self.walk_off_lips,
+            landing_carry: self.landing_carry,
             ..body
         }
     }

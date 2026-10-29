@@ -129,6 +129,12 @@ pub struct Body {
     /// ([`WalkGrid::is_lip`]), as a Drop link's is: the guards of the walk read the lip bits. A build input: in the key when
     /// set; a grid read back is given it ([`WalkGrid::read`]).
     pub walk_off_lips: bool,
+    /// Whether a Jump link is kept only where the top it lands on goes on as far as the jump's clip carries the body past the
+    /// ledge's face ([`WalkGrid::drop_overshot_landings`], [`walking_press_lead`], [`SPRINT_TOP_M`]): the clip's root runs
+    /// to its end whatever it has landed on, so a body on a top shorter than that walks off its far side and comes down below
+    /// (a wall's top, a rail, a plank); a walking jump is pressed earlier for a short top ([`WalkGrid::press_lead`]). Off: the landing needs the body's width only ([`WalkGrid::lands`]). A build input: in
+    /// the key when set; a grid read back is given it ([`WalkGrid::read`]).
+    pub landing_carry: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -171,6 +177,7 @@ impl Body {
             drop_flight_mps: 0.0,
             erosion: Erosion::Cells,
             walk_off_lips: false,
+            landing_carry: false,
         }
     }
 }
@@ -217,6 +224,7 @@ impl Default for Body {
             drop_flight_mps: 0.0,
             erosion: Erosion::Cells,
             walk_off_lips: false,
+            landing_carry: false,
         }
     }
 }
@@ -350,6 +358,49 @@ pub const STANDING_JUMP_M: f32 = 0.998;
 /// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
 /// (1.26-1.35, F+J+S at 4.8 m/s) and the 8f rows (+1.36 mounted 4 of 6, at the limit) bound it.
 pub const SPRINT_JUMP_LOW_M: f32 = 1.28;
+/// How far before the take-off floor's centre the bots' motor presses a walking jump up a ledge, metres: `JUMP_LEAD_S` (0.2 s)
+/// at the walk's 3.5 m/s and `PRESS_M` (0.15) of `motor.rs` (the probe's presses read 0.3-0.9 m before it).
+pub const JUMP_PRESS_LEAD_M: f32 = 0.85;
+/// A walking jump's root runs on to its end, [`gap::SHORT_JUMP_AHEAD`]'s last, from the press whatever the body has landed on
+/// (PROVEN: the animation drives the body, the clip's root is not cut by input; a body held by a face catches up once over
+/// it): the farther before the ledge's face it is pressed, the less of that is left on the top beyond. The press is
+/// [`walking_press_lead`].
+pub const WALK_CLIP_END_M: f32 = gap::SHORT_JUMP_AHEAD[12];
+/// The body stops this far short of the top's far edge at the clip's end, metres (the capsule's centre over the top; GUESS).
+pub const TOP_END_MARGIN_M: f32 = 0.2;
+/// The depth of top a sprint jump needs past the ledge's face, metres: its root runs 4.42 m ([`gap::SPRINT_JUMP_AHEAD`], PROVEN)
+/// from a start 0-1.64 m past the press that no bot sees, and the face can be no farther than the root's far reach
+/// (about 3.05 m for a ledge of 1.1-1.3 m, `FINDINGS` §5): 4.42 - 3.05 + 1.64 = 3.0 m in the worst phase. LIKELY: the probe's sprint
+/// presses came down 3.5-4.7 m past the take-off, 0 of 52 got up on a top 0.75 m deep and 18 of 18 on tops of 4 m and more.
+pub const SPRINT_TOP_M: f32 = 3.0;
+
+/// The root of a walking jump is at least `rise` high until this far from the press, metres (the clip's descent crossing
+/// `rise`): the farthest a ledge's face can be and still be cleared. None above the clip's apex ([`STANDING_JUMP_M`]).
+pub fn walking_jump_far(rise: f32) -> Option<f32> {
+    use gap::{SHORT_JUMP_AHEAD as AHEAD, SHORT_JUMP_RISE as RISE};
+    let apex = (0..RISE.len()).max_by(|&i, &j| RISE[i].total_cmp(&RISE[j]))?;
+    if rise > RISE[apex] {
+        return None;
+    }
+    let after = (apex..RISE.len()).find(|&i| RISE[i] < rise)?;
+    let (r0, r1) = (RISE[after - 1], RISE[after]);
+    let t = if r0 > r1 { (r0 - rise) / (r0 - r1) } else { 0.0 };
+    Some(AHEAD[after - 1] + (AHEAD[after] - AHEAD[after - 1]) * t)
+}
+
+/// How far before the take-off floor's centre a walking jump up a ledge of `rise` is pressed so that the clip's root ends on the
+/// top, which goes on `run` metres past the landing floor (`across` m from the take-off floor along the jump): [`JUMP_PRESS_LEAD_M`]
+/// where the top is deep, farther where it is short, None where no press keeps the body on it (the ledge's face would be past the
+/// root's reach, [`walking_jump_far`], less the press's scatter [`gap::GAP_PRESS_SPREAD_M`]).
+pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
+    let face = 0.5 * across;
+    let top = run + face;
+    let needed = WALK_CLIP_END_M - (top - TOP_END_MARGIN_M) - face;
+    let farthest = walking_jump_far(rise)? - gap::GAP_PRESS_SPREAD_M - face;
+    let lead = needed.max(JUMP_PRESS_LEAD_M);
+    (lead <= farthest.max(JUMP_PRESS_LEAD_M)).then_some(lead)
+}
+
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
 /// sprint from rest is at full speed by 2 m, and 1.5 m is the least tried; bot-side the motor wants 2 m).
 pub const SPRINT_RUN_UP_M: f32 = 1.5;
@@ -601,6 +652,10 @@ pub struct BuildStats {
     /// and those of the capped band (`max_jump` to the exe's 1.05 m), kept as the marginal jump the base made.
     pub sprint_cut: usize,
     pub capped_no_run_up: usize,
+    /// The Jump links taken away for a top the jump's clip carries the body off ([`Body::landing_carry`]).
+    pub overshot_cut: usize,
+    /// … and those kept because they are the only way to a floor or back from it.
+    pub overshot_kept: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -767,6 +822,9 @@ impl WalkGrid {
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         drop(solids);
+        if body.landing_carry {
+            (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
+        }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         grid.pieces(&wide);
@@ -875,6 +933,164 @@ impl WalkGrid {
             (next != NONE && wide.kinds[a][d] == LinkKind::Walk).then_some(next as usize)
         };
         walk(b).and_then(walk).is_some()
+    }
+
+    /// How far before `a`'s centre the walking jump up to `b` is pressed so that the clip ends on the top ([`walking_press_lead`]), when
+    /// the grid is built for it ([`Body::landing_carry`]): the floors walked on past `b` along the jump, each a Walk link in its
+    /// direction. None for another link, a sprint jump, or a grid built without the rule.
+    pub fn press_lead(&self, a: NodeId, b: NodeId) -> Option<f32> {
+        if !self.body.landing_carry || !self.links(a).any(|l| l == (b, LinkKind::Jump)) {
+            return None;
+        }
+        let (pa, pb) = (self.position(a), self.position(b));
+        let rise = pb.y - pa.y;
+        let across = pa.distance_xz(pb);
+        if rise > self.body.max_jump || across < 1e-3 {
+            return None;
+        }
+        let (ux, uz) = ((pb.x - pa.x) / across, (pb.z - pa.z) / across);
+        let (mut at, mut run) = (b, 0.0f32);
+        while run < WALK_CLIP_END_M {
+            let here = self.position(at);
+            let next = self.links(at).find(|&(n, kind)| {
+                let p = self.position(n);
+                let len = here.distance_xz(p);
+                kind == LinkKind::Walk && len > 1e-3 && ((p.x - here.x) * ux + (p.z - here.z) * uz) / len > 0.99
+            });
+            let Some((n, _)) = next else { break };
+            run += here.distance_xz(self.position(n));
+            at = n;
+        }
+        walking_press_lead(rise, across, run)
+    }
+
+    /// Takes away the Jump links that land on a top shorter than the jump carries the body ([`Body::landing_carry`]): the floors
+    /// walked on along the jump past the landing, each a Walk link, add up to less than the clip's run past the ledge's face
+    /// ([`walking_press_lead`]; [`SPRINT_TOP_M`] above [`Body::max_jump`], a sprint jump). After
+    /// the erosion and the gap links, so the top is the floor a body stands on and the ways round are all there.
+    ///
+    /// A link that is the only way to a floor from the seeds and spawns, or the only way back from it, is kept (the best top
+    /// first): the cut disconnects nothing, and a body that has only that jump to take takes it. Returns the links taken away
+    /// and those kept for that.
+    fn drop_overshot_landings(&self, wide: &mut Wide, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize) {
+        let mut failing: Vec<(u32, usize, f32)> = Vec::new();
+        for a in 0..self.height.len() {
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                let b = wide.links[a][d];
+                if b == NONE || wide.kinds[a][d] != LinkKind::Jump {
+                    continue;
+                }
+                let rise = self.height[b as usize] - self.height[a];
+                let across = self.position(a as NodeId).distance_xz(self.position(b));
+                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                let sprint = rise > self.body.max_jump;
+                // The floors walked on past the landing, up to the depth the jump needs (a sprint's, or the deepest a walking
+                // jump asks for).
+                let want = if sprint { SPRINT_TOP_M - 0.5 * across } else { WALK_CLIP_END_M };
+                let (mut at, mut run) = (b as usize, 0.0f32);
+                while run + 1e-3 < want {
+                    let next = wide.links[at][d];
+                    if next == NONE || wide.kinds[at][d] != LinkKind::Walk {
+                        break;
+                    }
+                    (at, run) = (next as usize, run + stride);
+                }
+                let fits = if sprint { run + 1e-3 >= want } else { walking_press_lead(rise, across, run).is_some() };
+                if !fits {
+                    failing.push((a as u32, d, run));
+                }
+            }
+        }
+        if failing.is_empty() {
+            return (0, 0);
+        }
+        // What the seeds and the spawns get to, and what gets back to them, before and after the cut.
+        let n = self.height.len();
+        let starts: Vec<u32> = seeds
+            .iter()
+            .filter_map(|&s| self.locate(s, SEED_M))
+            .chain(spawns.iter().filter_map(|&s| self.locate(s, SPAWN_M)))
+            .collect();
+        let (first, to) = wide.adjacency();
+        let mut back_first = vec![0u32; n + 1];
+        for &b in &to {
+            back_first[b as usize + 1] += 1;
+        }
+        for a in 0..n {
+            back_first[a + 1] += back_first[a];
+        }
+        let mut from = vec![NONE; to.len()];
+        let mut filled = back_first.clone();
+        for a in 0..n {
+            for &b in &to[first[a] as usize..first[a + 1] as usize] {
+                from[filled[b as usize] as usize] = a as u32;
+                filled[b as usize] += 1;
+            }
+        }
+        let flood = |reach: &mut Vec<bool>, queue: &mut Vec<u32>, forward: bool, cut: &std::collections::HashSet<(u32, u32)>| {
+            while let Some(x) = queue.pop() {
+                let x = x as usize;
+                let range = if forward { first[x] as usize..first[x + 1] as usize } else { back_first[x] as usize..back_first[x + 1] as usize };
+                for i in range {
+                    let (y, edge) = if forward { (to[i], (x as u32, to[i])) } else { (from[i], (from[i], x as u32)) };
+                    if !reach[y as usize] && !cut.contains(&edge) {
+                        reach[y as usize] = true;
+                        queue.push(y);
+                    }
+                }
+            }
+        };
+        let reach_from = |cut: &std::collections::HashSet<(u32, u32)>, forward: bool| {
+            let mut reach = vec![false; n];
+            let mut queue = Vec::new();
+            for &s in &starts {
+                if !reach[s as usize] {
+                    reach[s as usize] = true;
+                    queue.push(s);
+                }
+            }
+            flood(&mut reach, &mut queue, forward, cut);
+            reach
+        };
+        let mut cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        let (forward0, back0) = (reach_from(&std::collections::HashSet::new(), true), reach_from(&std::collections::HashSet::new(), false));
+        let (mut forward, mut back) = (reach_from(&cut, true), reach_from(&cut, false));
+        failing.sort_by(|p, q| q.2.total_cmp(&p.2).then(p.0.cmp(&q.0)).then(p.1.cmp(&q.1)));
+        let mut kept = 0;
+        for _ in 0..4 {
+            let mut changed = false;
+            for &(a, d, _) in &failing {
+                let b = wide.links[a as usize][d];
+                if !cut.contains(&(a, b)) {
+                    continue;
+                }
+                let needed_in = forward[a as usize] && !forward[b as usize] && forward0[b as usize];
+                let needed_out = back[b as usize] && !back[a as usize] && back0[a as usize];
+                if !(needed_in || needed_out) {
+                    continue;
+                }
+                cut.remove(&(a, b));
+                kept += 1;
+                changed = true;
+                if forward[a as usize] && !forward[b as usize] {
+                    forward[b as usize] = true;
+                    flood(&mut forward, &mut vec![b], true, &cut);
+                }
+                if back[b as usize] && !back[a as usize] {
+                    back[a as usize] = true;
+                    flood(&mut back, &mut vec![a], false, &cut);
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        for &(a, d, _) in &failing {
+            if cut.contains(&(a, wide.links[a as usize][d])) {
+                wide.links[a as usize][d] = NONE;
+            }
+        }
+        (cut.len(), kept)
     }
 
     /// Where a body that walks off the edge of `a` in direction `d` at `speed` m/s comes down, as the fall from `a`'s
@@ -4645,6 +4861,81 @@ pub(crate) mod tests {
         let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
         let b = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.3).unwrap();
         assert!(!grid.distances_from(&[a]).reaches(b));
+    }
+
+    /// A yard (x 0..10, z 0..10) with a ledge 0.9 m high from x 10 on, `depth` m deep and with nothing beyond it, with steps up to
+    /// it from z 8 on when `steps`, `span` m wide (z) about z 5: built with the carried landings when `carry`. A seed on the yard's ground.
+    fn ledge_island(depth: f32, span: f32, steps: bool, carry: bool) -> (WalkGrid, BuildStats) {
+        let rise = 0.9;
+        let mut tris: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        let (z0, z1) = (5.0 - 0.5 * span, 5.0 + 0.5 * span);
+        tris.extend(floor(10.0, z0, 10.0 + depth, z1, rise));
+        tris.extend(wall_x(10.0, z0, z1, rise));
+        if steps {
+            for s in 0..5 {
+                let x0 = 8.0 + 0.4 * s as f32;
+                tris.extend(floor(x0, 8.0, x0 + 0.4, 10.0, rise / 5.0 * (s + 1) as f32));
+            }
+        }
+        let body = Body { landing_carry: carry, ..Body::default() };
+        let seeds = [Vec3::new(2.0, 0.0, 5.0)];
+        WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, body, &seeds, &seeds)
+    }
+
+    /// The Jump links straight up the ledge (along x), not by the steps.
+    fn jumps(grid: &WalkGrid) -> usize {
+        (0..grid.len() as NodeId)
+            .map(|n| {
+                let from = grid.position(n);
+                grid.links(n)
+                    .filter(|&(b, kind)| {
+                        let to = grid.position(b);
+                        kind == LinkKind::Jump && (to.x - from.x).abs() > 0.1 && (to.z - from.z).abs() < 0.1 && to.z < 7.5
+                    })
+                    .count()
+            })
+            .sum()
+    }
+
+    /// A jump's clip carries the body on past the ledge's face whatever it landed on ([`walking_press_lead`]): off the far
+    /// side of a top 0.75 m deep, so with the steps up no jump is made onto it; a top 6 m deep keeps its jumps across.
+    #[test]
+    fn a_jump_onto_a_top_the_clip_carries_the_body_off_is_cut() {
+        let (plain, stats) = ledge_island(0.75, 10.0, true, false);
+        assert!(jumps(&plain) > 0, "{stats:?}");
+        let (grid, shallow) = ledge_island(0.75, 10.0, true, true);
+        assert_eq!(jumps(&grid), 0, "{shallow:?}");
+        assert!(shallow.overshot_cut > 20 && shallow.overshot_kept == 0, "{shallow:?}");
+        // Only the slanting ones at the ledge's ends are short of room.
+        let (deep, stats) = ledge_island(6.0, 10.0, true, true);
+        assert!(jumps(&deep) > 0 && stats.overshot_cut * 5 < shallow.overshot_cut, "{stats:?}");
+    }
+
+    /// A walking jump is pressed farther before a short top (the clip's root ends 2.67 m from the press), up to where the ledge's face is
+    /// past the root's reach; a top 4 m deep is pressed as ever, and a ledge above the clip's apex has none.
+    #[test]
+    fn a_walking_jump_up_a_short_top_is_pressed_earlier() {
+        assert!((walking_jump_far(0.9).unwrap() - 2.05).abs() < 0.02);
+        assert_eq!(walking_jump_far(1.2), None);
+        assert_eq!(walking_press_lead(0.9, 0.5, 4.0), Some(JUMP_PRESS_LEAD_M));
+        let lead = walking_press_lead(0.9, 0.5, 1.0).unwrap();
+        assert!(lead > JUMP_PRESS_LEAD_M && (lead - 1.37).abs() < 0.02, "{lead}");
+        assert_eq!(walking_press_lead(0.9, 0.5, 0.5), None, "a top 0.75 m deep is past what any press holds");
+        // The nearer the ledge's height to the apex, the less room to press early.
+        assert!(walking_press_lead(0.99, 0.5, 1.0).is_none() || walking_press_lead(0.99, 0.5, 1.0) > walking_press_lead(0.9, 0.5, 1.0));
+    }
+
+    /// … but a jump that is the only way onto the ledge is kept: the cut disconnects nothing.
+    #[test]
+    fn a_carried_off_jump_that_is_the_only_way_up_is_kept() {
+        let top = |grid: &WalkGrid| {
+            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.5).unwrap();
+            grid.locate(Vec3::new(10.4, 0.9, 5.0), 0.3).is_some_and(|b| grid.distances_from(&[a]).reaches(b))
+        };
+        let (plain, stats) = ledge_island(0.75, 0.5, false, false);
+        assert!(top(&plain), "up the ledge without the carry: {stats:?}");
+        let (grid, stats) = ledge_island(0.75, 0.5, false, true);
+        assert!(top(&grid) && stats.overshot_kept > 0, "{stats:?}");
     }
 
     /// Ground steeper than 50° is not walked up past a step (the

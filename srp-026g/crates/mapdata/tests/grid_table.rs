@@ -453,7 +453,7 @@ fn the_jump_cap_per_map() {
             .flat_map(|level| [2, 4].map(|mode| format!("level_{level:02}_day_{mode}")))
             .collect(),
     };
-    let header = "project\tcap\tfloors\tjump_standing\tjump_capped\tjump_sprint\tcapped_no_run_up\tsprint_cut\tjump_06_08\treached\tpockets\tobj_unreached\tlips\tlips_without_walk_off_lips";
+    let header = "project\tcap\tfloors\tjump_standing\tjump_capped\tjump_sprint\tcapped_no_run_up\tsprint_cut\tjump_06_08\treached\tpockets\tobj_unreached\tlips\tlips_without_walk_off_lips\tovershot_cut\tovershot_kept";
     eprintln!("{header}");
     let mut lines = vec![header.to_owned()];
     for project in &projects {
@@ -468,6 +468,8 @@ fn the_jump_cap_per_map() {
                 erosion: mapdata::Erosion::Exact,
                 drop_flight_mps: 3.5,
                 walk_off_lips: true,
+                // `SRP_GRID_CARRY=1`: the tops the jumps carry the body off are cut (`Body::landing_carry`).
+                landing_carry: std::env::var_os("SRP_GRID_CARRY").is_some(),
                 ..Body::client()
             };
             let (grid, stats) = WalkGrid::build_kept_with_links(
@@ -524,8 +526,8 @@ fn the_jump_cap_per_map() {
                 String::from("-\t-")
             };
             let line = format!(
-                "{project}\t{cap}\t{}\t{standing}\t{capped}\t{sprint}\t{}\t{}\t{below_step}\t{}\t{}\t{}\t{lips_column}",
-                row.floors, stats.capped_no_run_up, stats.sprint_cut, row.reached, row.pockets, row.objectives_unreached
+                "{project}\t{cap}\t{}\t{standing}\t{capped}\t{sprint}\t{}\t{}\t{below_step}\t{}\t{}\t{}\t{lips_column}\t{}\t{}",
+                row.floors, stats.capped_no_run_up, stats.sprint_cut, row.reached, row.pockets, row.objectives_unreached, stats.overshot_cut, stats.overshot_kept
             );
             eprintln!("{line}");
             lines.push(line);

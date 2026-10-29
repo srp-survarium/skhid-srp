@@ -118,6 +118,9 @@ pub const GAP_LINKS_ALGO: u32 = 3;
 /// The same for the walk-off lips ([`Body::walk_off_lips`]: a walk-off gap drop's take-off is a lip, so its floors and
 /// those near it carry the near-lip flag the file stores), in [`grid_key_with_links`] only for a body that asks for it.
 pub const WALK_OFF_LIPS_ALGO: u32 = 1;
+/// The same for the Jump links kept only where the top they land on goes on as far as the jump carries the body
+/// ([`Body::landing_carry`], `WalkGrid::drop_overshot_landings`), in [`grid_key_with_links`] only for a body that asks for it.
+pub const LANDING_CARRY_ALGO: u32 = 2;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius).
@@ -228,6 +231,10 @@ pub fn grid_key_with_links(
     // The lips at the walk-offs are a switch: the keys of grids without them are the ones there were.
     if body.walk_off_lips {
         digest.u32(WALK_OFF_LIPS_ALGO);
+    }
+    // The carried landings are a switch too.
+    if body.landing_carry {
+        digest.u32(LANDING_CARRY_ALGO);
     }
     // The default body's keys are the ones there were.
     if body.client_slope() {
