@@ -106,6 +106,11 @@ impl Bot {
         if self.route.is_some() {
             self.route_ended(RouteEnd::Replanned, now);
         }
+        // The bench's: a new route is no search's way so far (the drive marks one that is).
+        #[cfg(test)]
+        {
+            self.bench_on_partial = false;
+        }
         #[cfg(any(test, feature = "jump-test"))]
         if route.is_some() {
             self.route_born = now;

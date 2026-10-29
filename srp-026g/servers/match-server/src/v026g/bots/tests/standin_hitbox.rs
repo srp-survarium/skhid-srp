@@ -1199,17 +1199,21 @@ mod game_tests {
     }
 
     /// A deterministic soak with the whole cut (`SRP_BENCH_HIT_MODEL=on`): it repeats itself exactly, and hits fewer of
-    /// the shots fired than the disc does.
+    /// the shots fired than the disc does, over eight soaks (one 60 s soak is a few hundred shots: any change of the
+    /// bots' play, such as the route-search queue's, can turn its sample either way).
     #[test]
     fn a_soak_with_the_whole_cut_repeats_and_hits_less_than_with_the_disc() {
-        let run = |volume| soak_volume(4, 0, 12, None, 60, 3, bench_tuning(), volume);
+        let run = |volume, seed| soak_volume(4, 0, 12, None, 60, seed, bench_tuning(), volume);
         let on = HitVolume::ON;
-        let (a, b) = (run(on), run(on));
+        let (a, b) = (run(on, 3), run(on, 3));
         assert_eq!((a.shots, a.hits, a.kills), (b.shots, b.hits, b.kills));
-        let disc = run(HitVolume::Disc);
-        assert!(a.shots > 50 && disc.shots > 50, "{} {}", a.shots, disc.shots);
-        let rate = |o: &Outcome| o.hits as f32 / o.shots as f32;
-        assert!(rate(&a) < rate(&disc), "boxes {} disc {}", rate(&a), rate(&disc));
+        let summed = |volume| {
+            (3..11).map(|seed| run(volume, seed)).fold((0, 0), |(shots, hits), o| (shots + o.shots, hits + o.hits))
+        };
+        let (boxes, disc) = (summed(on), summed(HitVolume::Disc));
+        assert!(boxes.0 > 200 && disc.0 > 200, "{} {}", boxes.0, disc.0);
+        let rate = |(shots, hits): (u32, u32)| hits as f32 / shots as f32;
+        assert!(rate(boxes) < rate(disc), "boxes {} disc {}", rate(boxes), rate(disc));
     }
 
     /// The setting's values.

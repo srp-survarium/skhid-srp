@@ -30,6 +30,7 @@ switch values kin: jump_snap=by_keys
 switch values kit: smoke=off
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
+switch values think: search_queue=fair
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)

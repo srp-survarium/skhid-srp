@@ -300,6 +300,14 @@ pub struct Bot {
     /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
     #[cfg(test)]
     pub(crate) bench_shut_in: bool,
+    /// The polls in a row it wanted a search and got none (`search::queue`).
+    #[cfg(test)]
+    pub(crate) bench_starved_polls: u32,
+    /// Whether its route is a search's way so far (a partial route), and when it last walked one (`search::queue`).
+    #[cfg(test)]
+    pub(crate) bench_on_partial: bool,
+    #[cfg(test)]
+    pub(crate) bench_partial_at: Option<u32>,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
@@ -459,6 +467,12 @@ impl Bot {
             bench_asked: Default::default(),
             #[cfg(test)]
             bench_shut_in: false,
+            #[cfg(test)]
+            bench_starved_polls: 0,
+            #[cfg(test)]
+            bench_on_partial: false,
+            #[cfg(test)]
+            bench_partial_at: None,
             #[cfg(test)]
             bench_driven: 0,
             control: Driver::Own,
@@ -1407,6 +1421,14 @@ impl Bots {
                     time,
                     format!("unstick_ledge: forward jump up a ledge of {rise:.2} m"),
                 );
+                // The bench's: an unstick jump, and whether its bot walked a search's way so far lately.
+                #[cfg(test)]
+                {
+                    search::queue::add(bot.team, search::queue::UNSTICKS, 1);
+                    if bot.bench_partial_at.is_some_and(|at| time.saturating_sub(at) <= search::queue::PARTIAL_RECENT_MS) {
+                        search::queue::add(bot.team, search::queue::UNSTICKS_PARTIAL, 1);
+                    }
+                }
             }
             let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape, jump);
             match recovery {
@@ -1749,23 +1771,15 @@ impl Bots {
         }
         let mut rays = RayBudget::new(self.tunings.match_wide().think.rays_per_poll);
         rays.thinks_left = self.thinks_due(&view);
-        self.features.searching.left = SEARCHES_PER_POLL;
-        self.features.searching.floors = self.tunings.match_wide().think.search_floors_per_poll as usize;
-        self.go_on_searching();
         let claims_on = [0u8, 1].map(|team| self.tuning_of(team).number(PlayKind::Roam, "fresh_claims") > 0.5);
-        for index in 0..self.bots.len() {
-            if self.bots[index].is_none() {
-                continue;
-            }
-            #[cfg(test)]
-            bench_work::set(bench_work::Who::Team(self.bots[index].as_ref().map_or(0, |bot| bot.team)));
+        self.each_bot(&view, |bots, index| {
             // Before play begins: no plays, no routes, only rest.
             if clock.playing {
-                self.think(index, &view, &mut rays, &mut notes);
+                bots.think(index, &view, &mut rays, &mut notes);
             }
-            self.sync_route_claim(index, now, claims_on);
-            self.ticks(index, &clock, &view, &mut made);
-            if let Some(bot) = self.bots[index].as_mut()
+            bots.sync_route_claim(index, now, claims_on);
+            bots.ticks(index, &clock, &view, &mut made);
+            if let Some(bot) = bots.bots[index].as_mut()
                 && let Some(text) = bot.dropped.take()
             {
                 bot.note(&mut notes, now, text);
@@ -1774,7 +1788,7 @@ impl Bots {
             // it stands at once (the games' patch 31), not at its next
             // life: the bot picks once play has begun, for its next life.
             if clock.playing
-                && let Some(bot) = self.bots[index].as_mut()
+                && let Some(bot) = bots.bots[index].as_mut()
                 && bot.entered.is_some()
                 && let Some((kit, left, other)) = bot.pick_kit()
             {
@@ -1788,15 +1802,52 @@ impl Bots {
                         kit + 1
                     ),
                 );
-                self.features.kit_choices.push((bot.place, kit as u8));
+                bots.features.kit_choices.push((bot.place, kit as u8));
             }
-        }
+        });
         #[cfg(test)]
         bench_work::set(bench_work::Who::Idle);
         self.polls.record(now, &rays);
         #[cfg(any(test, feature = "client-test"))]
         self.client_tests_tick(&clock, &view, &notes);
         (made, notes)
+    }
+
+    /// A poll's bots, each given to `each` in the route-search queue's order
+    /// (`search::Searching`): the poll's searches and floors first, the
+    /// searches under way going on, each team done once its last bot went
+    /// (its rest the other's), and the searches under way going on again at
+    /// the poll's end on what both teams left (`SearchQueue::Fair`). The one
+    /// loop of [`Self::poll`] and of the bench's timed copy of it.
+    pub(super) fn each_bot(&mut self, view: &MatchView, mut each: impl FnMut(&mut Bots, usize)) {
+        let think = &self.tunings.match_wide().think;
+        let (queue, floors) = (think.search_queue, think.search_floors_per_poll as usize);
+        self.features.searching.new_poll(queue, floors, search::living(&self.bots, view));
+        self.go_on_searching();
+        let mut to_go = [0usize; 2];
+        for bot in self.bots.iter().flatten() {
+            to_go[usize::from(bot.team & 1)] += 1;
+        }
+        for index in self.features.searching.order(&self.bots) {
+            let Some(team) = self.bots[index].as_ref().map(|b| b.team) else {
+                continue;
+            };
+            #[cfg(test)]
+            bench_work::set(bench_work::Who::Team(team));
+            each(self, index);
+            let left = &mut to_go[usize::from(team & 1)];
+            *left = left.saturating_sub(1);
+            if *left == 0 {
+                self.features.searching.team_done(team);
+            }
+        }
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Shared);
+        if self.features.searching.goes_on_at_poll_end() {
+            self.go_on_searching();
+        }
+        #[cfg(test)]
+        self.features.searching.count_idle();
     }
 
     /// Whether `team`'s commander runs in this poll: when its time has come and play has begun; and, with `roam.fresh_claims` on, once
