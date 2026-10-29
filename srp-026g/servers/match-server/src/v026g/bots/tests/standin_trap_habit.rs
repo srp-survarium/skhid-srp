@@ -48,6 +48,9 @@ const DEPTH_SHARES: [f32; 3] = [159.0 / 541.0, 228.0 / 541.0, 154.0 / 541.0];
 /// The depth under which a spot is in the own third, and from which it is in the enemy's.
 const OWN_THIRD: f32 = 0.33;
 const ENEMY_THIRD: f32 = 0.66;
+/// The spot is looked for only when the human is within this depth of the third (a metre to the side is far inside it): it saves a
+/// ray on every tick of a due plan and keeps the refused spots to those in or beside the third.
+const NEAR_BAND: f32 = 0.05;
 /// How far from its feet the view meets the floor, metres on the ground (GUESS; `Game::trap_aim_ahead` cuts it to the model's reach).
 const AHEAD_M: (f32, f32) = (0.9, 1.15);
 /// ... and how far from its heading, radians, to the left or the right (GUESS: to the side, 60 to 120 degrees).
@@ -72,6 +75,16 @@ impl Third {
         } else {
             Third::Middle
         }
+    }
+
+    /// How far a depth is from this third's band (0 inside it).
+    fn gap(self, depth: f32) -> f32 {
+        let (low, high) = match self {
+            Third::Own => (0.0, OWN_THIRD),
+            Third::Middle => (OWN_THIRD, ENEMY_THIRD),
+            Third::Enemy => (ENEMY_THIRD, 1.0),
+        };
+        (low - depth).max(depth - high).max(0.0)
     }
 
     fn index(self) -> usize {
@@ -301,6 +314,9 @@ impl TrapHabit {
         if tick < plan.from {
             return;
         }
+        if depth_of(game, team, feet).is_some_and(|d| plan.want.gap(d) > NEAR_BAND) {
+            return;
+        }
         // The third is the spot's, as the census scores a trap by where it lies: tested at the spot, not at his feet (a metre to the side
         // is outside the third half the time he has just walked into it).
         let (eye, dir) = game.trap_aim_ahead(self.place, plan.ahead_m, plan.turn);
@@ -455,6 +471,10 @@ mod tests {
         assert_eq!(Third::of_depth(0.33), Third::Middle);
         assert_eq!(Third::of_depth(0.659), Third::Middle);
         assert_eq!(Third::of_depth(0.66), Third::Enemy);
+        assert_eq!(Third::Middle.gap(0.5), 0.0);
+        assert!((Third::Middle.gap(0.2) - 0.13).abs() < 1e-6);
+        assert!((Third::Enemy.gap(0.5) - 0.16).abs() < 1e-6);
+        assert!((Third::Own.gap(0.4) - 0.07).abs() < 1e-6);
         let game = field(Vec3::new(5.0, 0.0, 12.0));
         // The soak field spawns side 0 at x = 5 and side 1 at x = 75.
         assert!((depth_of(&game, 0, Vec3::new(40.0, 0.0, 12.0)).unwrap() - 0.5).abs() < 0.02);
