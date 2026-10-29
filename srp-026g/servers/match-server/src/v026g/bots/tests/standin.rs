@@ -85,13 +85,27 @@ pub(crate) fn respawn_ms_of(respawn_time_s: u32, radio_modifier: f32) -> u32 {
 /// live game's with `SRP_GAME_DATA`, so the constants above cannot go
 /// stale when a content edit changes the time.
 pub(crate) fn respawn_ms_from_data(level: u8, weather: u8, mode: u8) -> Option<u32> {
+    let (time_s, modifier) = respawn_rule_from_data(level, weather, mode)?;
+    Some(respawn_ms_of(time_s, modifier))
+}
+
+/// The mode's `respawn_time` (s) and the radio's `respawn_time_modifier`, from the game data: a body that carries the radio waits
+/// [`respawn_ms_of`] of both, one that does not waits the time itself (the radio works by being carried, `loadouts::BOT_RADIO`).
+pub(crate) fn respawn_rule_from_data(level: u8, weather: u8, mode: u8) -> Option<(u32, f32)> {
     let row = survarium::v026g::maps::find(level, weather, mode)?;
     let radio = survarium::v026g::dictionary::Dictionary::shared()
         .item_named("respawn_booster")?
         .dict_id;
     let modifier = survarium::v026g::loadouts::default_modifier(radio, "respawn_time_modifier");
-    Some(respawn_ms_of(row.respawn_time, modifier))
+    Some((row.respawn_time, modifier))
 }
+
+/// The radio's modifier when the data is not read: -20 %, which with the modes' 10 s (batteries) and 8 s (Team Deathmatch) is
+/// [`RESPAWN_BATTERIES_MS`] and [`RESPAWN_TDM_MS`].
+pub(crate) const RADIO_MODIFIER: f32 = -0.2;
+/// The modes' respawn times when the data is not read, s.
+pub(crate) const RESPAWN_BATTERIES_S: u32 = 10;
+pub(crate) const RESPAWN_TDM_S: u32 = 8;
 
 /// How long after a carrier lets go of the battery his weapon fires again,
 /// ms, when the stand-in does not read it from the weapon: the weapon's show
@@ -232,6 +246,9 @@ pub(crate) struct Body {
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
+    /// Whether each of its three kits carries the radio (`respawn_booster`): the respawn booster works by being carried, so the delay
+    /// of a death is the mode's time less the radio's only in a kit that has one ([`Game::set_radio_kits`]).
+    pub(crate) radio: [bool; 3],
     pub(crate) carrying: Option<usize>,
     /// No shot before this tick: the weapon coming up after a drop
     /// ([`draw_ms`]).
@@ -454,10 +471,10 @@ pub(crate) struct Game {
     /// ([`BATTERY_M`]; `SRP_BENCH_TAKE_M` in the real-map runs makes takes
     /// fail as some do in the owner's matches, audit #7).
     pub(crate) take_m: f32,
-    /// The respawn delay after a death, ms, when the run is on the live
-    /// game data (`SRP_GAME_DATA`: [`respawn_ms_from_data`]); `None` keeps
-    /// [`RESPAWN_BATTERIES_MS`] and [`RESPAWN_TDM_MS`].
-    pub(crate) respawn_ms: Option<u32>,
+    /// The mode's respawn time (s) and the radio's modifier, when the run is on the live game data (`SRP_GAME_DATA`:
+    /// [`respawn_rule_from_data`]); `None` keeps [`RESPAWN_BATTERIES_S`] / [`RESPAWN_TDM_S`] and [`RADIO_MODIFIER`]. A body's
+    /// delay is [`Game::respawn_ms_of_body`]: with the radio of the kit it died in or without it.
+    pub(crate) respawn_rule: Option<(u32, f32)>,
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     pub(crate) untakeable: usize,
@@ -556,6 +573,30 @@ pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
 }
 
 impl Game {
+    /// The respawn delay after the death of `place`, ms: the mode's time times `1 + the radio's modifier` if the kit it died in carries
+    /// the radio, the time itself if not.
+    pub(crate) fn respawn_ms_of_body(&self, place: Place) -> u32 {
+        let (time_s, modifier) = self.respawn_rule.unwrap_or_else(|| {
+            (if self.tickets.is_some() { RESPAWN_TDM_S } else { RESPAWN_BATTERIES_S }, RADIO_MODIFIER)
+        });
+        let body = &self.bodies[place];
+        let carries = body.radio.get(body.heal.kit()).copied().unwrap_or(true);
+        respawn_ms_of(time_s, if carries { modifier } else { 0.0 })
+    }
+
+    /// Which of each bot's three kits carry the radio, from the profiles (by place): a profile whose kit has no `respawn_booster`
+    /// pocket waits the whole time. A place with no profile keeps the radio in every kit (today's bots', all of which carry one).
+    pub(crate) fn set_radio_kits(&mut self, profiles: &[survarium::v026g::match_msgs::static_info::MatchProfile]) {
+        for (body, profile) in self.bodies.iter_mut().zip(profiles) {
+            let Some(pockets) = crate::v026g::bots::pockets::ProfilePockets::of_profile(profile, true) else {
+                continue;
+            };
+            for (k, kit) in pockets.kits().iter().enumerate().take(3) {
+                body.radio[k] = kit.iter().flatten().any(|pocket| pocket.name == "respawn_booster");
+            }
+        }
+    }
+
     /// The frag grenades each bot's three kits hold, by place ([`standin_grenade::Stock`]): the first life's hand is filled at
     /// once. A match that does not call this carries a grenade for every throw.
     pub(crate) fn set_grenade_kits(&mut self, kits: &[[standin_grenade::KitGrenades; 3]]) {
@@ -617,6 +658,7 @@ impl Game {
             alive: false,
             dead_at: 0,
             spawned: 0,
+            radio: [true; 3],
             carrying: None,
             drawn_at: 0,
             moved: 0.0,
@@ -697,7 +739,7 @@ impl Game {
             taken_killed: 0,
             use_line: false,
             take_m: BATTERY_M,
-            respawn_ms: None,
+            respawn_rule: None,
             untakeable: 0,
             put_ms: bench_settings().number("SRP_BENCH_PUT_MS")
                 .unwrap_or(PUT_MS),
@@ -935,11 +977,7 @@ impl Game {
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
-                let respawn = self.respawn_ms.unwrap_or(if self.tickets.is_some() {
-                    RESPAWN_TDM_MS
-                } else {
-                    RESPAWN_BATTERIES_MS
-                });
+                let respawn = self.respawn_ms_of_body(place);
                 if may && tick >= self.bodies[place].dead_at + respawn {
                     self.spawn(place);
                 }
@@ -2212,4 +2250,36 @@ fn the_bench_guns_follow_the_live_data() {
     assert_eq!(gun("pp2000").rpm, 680);
     assert_eq!(gun("sr3m").rpm, 800);
     assert_eq!(gun("svd").magazine, 5);
+}
+
+/// The delay of a death is by the kit the body died in: the mode's time less the radio's 20 % with the radio, the whole time without
+/// it; every kit the bots carry today has the radio, so a match that sets nothing waits as it did.
+#[test]
+fn a_body_without_the_radio_waits_the_whole_respawn_time() {
+    let mut game = Game::new(soak_world(), &[0, 1], 1, None, None);
+    assert_eq!(game.respawn_ms_of_body(0), RESPAWN_BATTERIES_MS, "radio in every kit, as the bodies start");
+    game.bodies[0].radio = [false; 3];
+    assert_eq!(game.respawn_ms_of_body(0), 10_000, "no radio: the batteries modes' 10 s");
+    assert_eq!(game.respawn_ms_of_body(1), RESPAWN_BATTERIES_MS, "the other body keeps its radio");
+    let mut tdm = Game::new(soak_world(), &[0, 1], 1, Some(60), None);
+    assert_eq!(tdm.respawn_ms_of_body(0), RESPAWN_TDM_MS);
+    tdm.bodies[0].radio = [false; 3];
+    assert_eq!(tdm.respawn_ms_of_body(0), 8_000);
+    // The kit in use decides: radio in kit 0 only.
+    game.bodies[0].radio = [true, false, false];
+    game.bodies[0].heal.kit_next = 1;
+    game.bodies[0].heal.spawn();
+    assert_eq!(game.respawn_ms_of_body(0), 10_000, "died in kit 1, which has none");
+}
+
+/// The bots' profiles all carry the radio in every kit (today's decisions: set_radio_kits changes nothing for them).
+#[test]
+fn the_bots_profiles_carry_the_radio_in_every_kit() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
+    let mut game = Game::new(soak_world(), &[0, 1], 1, None, None);
+    game.bodies[0].radio = [false; 3];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let profiles: Vec<_> = [BotRole::Support, BotRole::Rusher].iter().enumerate().map(|(n, &role)| bot_profile(n + 1, n as u8, role, equipment)).collect();
+    game.set_radio_kits(&profiles);
+    assert_eq!((game.bodies[0].radio, game.bodies[1].radio), ([true; 3], [true; 3]));
 }
