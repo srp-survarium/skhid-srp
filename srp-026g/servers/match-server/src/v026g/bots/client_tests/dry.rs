@@ -11,7 +11,7 @@ use crate::v026g::bots::view::Place;
 
 /// A frame with the owner (place 0, team 0) and no bots, batteries or notes: the starting point of a made-up match.
 pub(super) fn frame_at(clock: u32, owner: Body) -> Frame {
-    Frame { clock: At(clock), playing: true, owner: Some(Owner { body: owner, pools: None }), bots: Vec::new(), batteries: Vec::new(), heard: Vec::new(), sight: None, exits: Default::default() }
+    Frame { clock: At(clock), playing: true, owner: Some(Owner { body: owner, pools: None }), bots: Vec::new(), batteries: Vec::new(), heard: Vec::new(), sight: None, exits: Default::default(), counters: Default::default() }
 }
 
 pub(super) fn body(place: Place, team: u8, at: mapdata::Vec3) -> Body {
