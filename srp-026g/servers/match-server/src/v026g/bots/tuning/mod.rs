@@ -57,7 +57,11 @@ pub struct Tuning {
     pub avoid: AvoidTuning,
     pub perch: PerchTuning,
     pub grid: GridTuning,
+    /// What counts as cover from a bullet (`mapdata`'s materials).
+    pub cover: CoverTuning,
     pub hazard: HazardTuning,
+    /// What smoke hides from the bots (`bots/smoke.rs`).
+    pub smoke: SmokeTuning,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
 }
@@ -67,6 +71,7 @@ pub struct Tuning {
 pub use survarium::v026g::loadouts::BotTier;
 
 mod aim;
+mod cover;
 mod grid;
 mod hazard;
 mod heal;
@@ -76,6 +81,7 @@ mod motion;
 mod play;
 mod report;
 mod sense;
+mod smoke;
 mod team;
 mod teams;
 mod traps;
@@ -84,6 +90,11 @@ mod unstick;
 pub use aim::AimTuning;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
+pub use cover::BulletPierce;
+pub use cover::CoverRule;
+pub use cover::CoverTuning;
+pub use cover::PierceCover;
+pub use cover::Share;
 pub use grid::GridTuning;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
@@ -101,6 +112,7 @@ pub use sense::CheatTuning;
 pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
+pub use smoke::SmokeTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::ModTuning;

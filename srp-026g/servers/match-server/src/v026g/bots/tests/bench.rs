@@ -39,6 +39,17 @@ impl BenchEvents {
         for (tick, shooter, killed) in kills {
             self.line(serde_json::json!({"t": tick, "kill": [shooter, killed]}));
         }
+        // One line for each line of fire the pierce opened where the solid mesh had a wall (`Tactics::shot_reaches`):
+        // who would shoot from where at what, the share of the damage that reaches and the faces it crosses.
+        if let Some(tactics) = bots.tactics.as_ref() {
+            let at = |v: Vec3| [(v.x * 10.0).round() / 10.0, (v.y * 10.0).round() / 10.0, (v.z * 10.0).round() / 10.0];
+            for event in tactics.cover_tally.drain_events() {
+                self.line(serde_json::json!({
+                    "t": clock,
+                    "cover_open": {"from": at(event.from), "to": at(event.to), "share": (event.share * 100.0).round() / 100.0, "crossed": event.crossed},
+                }));
+            }
+        }
         let each: Vec<serde_json::Value> = bots
             .bots
             .iter()
@@ -724,6 +735,9 @@ pub(crate) fn real_bot_cost() {
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             game.volume = HitVolume::bench();
+            // Bullets go through cover by the client's rule when either side's cover tests go by it (the stand-in's physics
+            // is shared by both sides of a head-to-head); with `cover.pierce` off on both, the first surface stops them.
+            game.pierce = [0u8, 1].iter().any(|&team| bots.tuning_of(team).cover.pierce.is_some());
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
             // count is 10), not one at every spawner.
@@ -1560,6 +1574,10 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {}", blocks.reloads.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
+            eprintln!(
+                "  cover: shots walled {:?} (bullet got through {:?}), enemy hits by bullets that crossed cover {:?}, kills {:?}",
+                game.walled_by, game.walled_through_by, game.cover_hits_by, game.cover_kills_by
+            );
             routes.finish(&game);
             eprintln!("  routes: {}", routes.line());
             eprintln!("  {}", standin_fields::cost_line(&bots));

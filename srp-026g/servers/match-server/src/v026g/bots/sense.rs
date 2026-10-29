@@ -17,8 +17,9 @@
 use mapdata::{RayTree, Vec3};
 
 use super::kin::{forward, wrap};
-use super::aimpoint::Part;
+use super::aimpoint::{Part, PartsLook};
 use super::know::{KnownBattery, LookOutcome, Miss, Percept, Source, TeamKnowledge};
+use super::smoke::Veil;
 use super::rng::Rng;
 use super::tuning::{CheatTuning, HearingRanges, SenseTuning, ShotRanges};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
@@ -203,6 +204,7 @@ fn reach(me: &PlaceView, enemy: &PlaceView, tuning: &SenseTuning) -> Result<(), 
 /// [`LookOutcome::Untested`], not a negative. A think's tests of the
 /// enemies in view give it their own [`RayBudget::new`]`(`[`LOOK_RAYS`]`)`
 /// ([`sense_looks`]), so they are never starved.
+#[cfg(test)]
 pub fn look(
     me: &PlaceView,
     enemy: &PlaceView,
@@ -214,26 +216,29 @@ pub fn look(
     if let Err(miss) = gate(me, enemy, since, tuning) {
         return LookOutcome::Failed(miss);
     }
-    ray_test(me, enemy, sight, rays)
+    ray_test(me, enemy, sight, Veil::Clear, rays)
 }
 
-/// [`look`]'s rays.
+/// [`look`]'s rays, through `veil` (`smoke.rs`): a part the smoke hides is not looked at, and a look that found
+/// none showing with one hidden so is lost to smoke ([`Miss::Smoke`]).
 fn ray_test(
     me: &PlaceView,
     enemy: &PlaceView,
     sight: &RayTree,
+    veil: Veil<'_>,
     rays: &mut RayBudget,
 ) -> LookOutcome {
     let mut starved = false;
-    let seen = super::aimpoint::any_part_visible(me.eye(), enemy, sight, || {
+    let looked = super::aimpoint::look_parts(me.eye(), enemy, sight, veil, || {
         let given = rays.take(me.place, me.team);
         starved |= !given;
         given
     });
-    match (seen, starved) {
-        (true, _) => LookOutcome::Seen,
-        (false, true) => LookOutcome::Untested,
-        (false, false) => LookOutcome::Failed(Miss::Blocked),
+    match (looked, starved) {
+        (PartsLook::Shows, _) => LookOutcome::Seen,
+        (_, true) => LookOutcome::Untested,
+        (PartsLook::Smoke, false) => LookOutcome::Failed(Miss::Smoke),
+        (PartsLook::Hidden, false) => LookOutcome::Failed(Miss::Blocked),
     }
 }
 
@@ -266,6 +271,7 @@ pub fn look_order(
 /// The percepts of the bot `me` at `now`, the sounds since `since`.
 /// `order` gives the enemies to look at first ([`look_order`]).
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn sense(
     me: &PlaceView,
     view: &MatchView,
@@ -285,10 +291,29 @@ pub fn sense(
 /// showing). An enemy of the bot's own team is not looked at. The rays are
 /// counted in `rays.exempt`, not taken from it.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn sense_looks(
     me: &PlaceView,
     view: &MatchView,
     sight: &RayTree,
+    tuning: &SenseTuning,
+    cheats: &CheatTuning,
+    since: u32,
+    order: &[Place],
+    rays: &mut RayBudget,
+    rng: &mut Rng,
+) -> (Vec<Percept>, Vec<(Place, LookOutcome)>) {
+    sense_looks_through(me, view, sight, Veil::Clear, tuning, cheats, since, order, rays, rng)
+}
+
+/// [`sense_looks`] through `veil`: an enemy whose parts are behind smoke is not seen (`smoke.rs`), and a look
+/// that found him so is [`Miss::Smoke`]. With [`Veil::Clear`] it is [`sense_looks`], ray for ray.
+#[allow(clippy::too_many_arguments)]
+pub fn sense_looks_through(
+    me: &PlaceView,
+    view: &MatchView,
+    sight: &RayTree,
+    veil: Veil<'_>,
     tuning: &SenseTuning,
     cheats: &CheatTuning,
     since: u32,
@@ -315,7 +340,8 @@ pub fn sense_looks(
                 continue;
             }
             let eye = me.eye();
-            if super::aimpoint::any_part_visible(eye, enemy, sight, || rays.take(me.place, me.team)) {
+            let looked = super::aimpoint::look_parts(eye, enemy, sight, veil, || rays.take(me.place, me.team));
+            if looked == PartsLook::Shows {
                 out.push(seen_percept(enemy, view));
             }
             continue;
@@ -335,7 +361,7 @@ pub fn sense_looks(
         // cannot see what is in front of it, because the others took the
         // rays, is no fair bot.
         let mut own = RayBudget::new(LOOK_RAYS);
-        let outcome = ray_test(me, enemy, sight, &mut own);
+        let outcome = ray_test(me, enemy, sight, veil, &mut own);
         rays.exempt += LOOK_RAYS - own.left;
         looks.push((who, outcome));
         if outcome == LookOutcome::Seen {
@@ -462,6 +488,22 @@ enum BatteryLook {
     Spawner(usize, Vec3),
 }
 
+/// [`sense_batteries`] on the bullet mesh alone (tests).
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub fn sense_batteries_clear(
+    me: &PlaceView,
+    view: &MatchView,
+    sight: &RayTree,
+    spawners: &[mapdata::BatterySpawner],
+    tuning: &SenseTuning,
+    team: &mut TeamKnowledge,
+    worth: impl Fn(usize) -> bool,
+    rays: &mut RayBudget,
+) {
+    sense_batteries(me, view, sight, Veil::Clear, spawners, tuning, team, worth, rays);
+}
+
 /// With the battery cheat off: what the bot `me` sees of the batteries for
 /// its team (`player_bots_behaviour.md` §2: "a battery a bot sees becomes
 /// known to its team"). A battery lying in the view, within
@@ -479,11 +521,14 @@ enum BatteryLook {
 /// spot so seen is checked.
 /// Nearest first, at most `battery_rays` rays from the poll's budget.
 /// `worth(spawner)` says which spawners are worth a look.
+/// Through `veil`: a battery, or a spawner's spot seen empty, behind smoke is not seen (`smoke.rs`, no ray cast for
+/// a line it hides).
 #[allow(clippy::too_many_arguments)]
 pub fn sense_batteries(
     me: &PlaceView,
     view: &MatchView,
     sight: &RayTree,
+    veil: Veil<'_>,
     spawners: &[mapdata::BatterySpawner],
     tuning: &SenseTuning,
     team: &mut TeamKnowledge,
@@ -570,7 +615,8 @@ pub fn sense_batteries(
                 if !rays.take(me.place, me.team) {
                     break 'looks;
                 }
-                if super::aimpoint::sight_line(sight, eye, at + Vec3::new(0.0, up, 0.0)) {
+                let point = at + Vec3::new(0.0, up, 0.0);
+                if !veil.hides(eye, point) && super::aimpoint::sight_line(sight, eye, point) {
                     seen = Some(format!("a clear line at +{up:.2} m, {k} blocked before it"));
                     break;
                 }
@@ -670,6 +716,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 
@@ -1052,7 +1099,7 @@ mod tests {
         let tuning = SenseTuning::default();
         let mut rays = RayBudget::new(100);
         let sight = wall();
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1092,7 +1139,7 @@ mod tests {
         // The next think: battery 1 and spawner 1 lie behind the wall,
         // battery 2 behind the bot. The battery is tried at its three
         // heights, the spot at one.
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1106,7 +1153,7 @@ mod tests {
         assert!(team.battery(1).is_none() && team.battery(2).is_none());
         assert_eq!(team.spawner_seen(1), None);
         // Without the wall both are seen.
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &RayTree::build(&[]),
@@ -1148,7 +1195,7 @@ mod tests {
         ));
         let mut team = TeamKnowledge::default();
         let mut rays = RayBudget::new(100);
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1162,7 +1209,7 @@ mod tests {
         assert_eq!(rays.left, 98, "the top, then the middle");
         // Taken since: the spot, seen empty by its middle, is forgotten.
         view.batteries = vec![BatteryState::Carried(None)];
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1202,13 +1249,13 @@ mod tests {
         let mut rays = RayBudget::new(100);
         let sight = RayTree::build(&[]);
         let tuning = SenseTuning::default();
-        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        sense_batteries_clear(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
         assert_eq!(rays.left, 100);
         assert_eq!(team.battery(0).map(|k| k.at), Some(known));
         // Taken and dropped 0.7 m on: seen there, the team's spot follows.
         let moved = Vec3::new(0.7, 0.1, 10.0);
         view.batteries = vec![BatteryState::Free(moved)];
-        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        sense_batteries_clear(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
         assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
         // From a take's stand a metre off it, no ray is needed.
         let mut team = TeamKnowledge::default();
@@ -1222,7 +1269,7 @@ mod tests {
         );
         let stand = place(0, 0, Vec3::new(0.0, 0.0, 9.0), 0.0);
         let mut none = RayBudget::new(0);
-        sense_batteries(&stand, &view, &sight, &[], &tuning, &mut team, |_| true, &mut none);
+        sense_batteries_clear(&stand, &view, &sight, &[], &tuning, &mut team, |_| true, &mut none);
         assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
     }
 
@@ -1287,6 +1334,64 @@ mod tests {
         };
         assert_eq!(looked(&me, &respawned, 400, &open), LookOutcome::Failed(Miss::Dead));
         assert_eq!(looked(&me, &respawned, 600, &open), LookOutcome::Seen);
+    }
+
+    /// A smoke cloud between hides him from a think's look and a new enemy's sight, both refresh paths, with
+    /// no ray cast for a part it hides; one off to the side, or the switch off, leaves the sight as it was.
+    #[test]
+    fn a_cloud_between_hides_an_enemy_and_one_aside_does_not() {
+        use crate::v026g::bots::smoke::{Cloud, Clouds, MatchMs, SmokeGrenade};
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let enemy = enemy_ahead(30.0);
+        let cloud = |x: f32| Cloud {
+            by: 1,
+            team: 1,
+            placed: crate::v026g::bots::smoke::Placed::Arc,
+            centre: Vec3::new(x, 0.0, 15.0),
+            thrown: MatchMs(0),
+            pours: MatchMs(0),
+            shape: SmokeGrenade::RDG_M.cloud,
+        };
+        let mut view = view(vec![me.clone(), enemy], vec![]);
+        view.clock = 5_000;
+        let open = RayTree::build(&[]);
+        let looks = |view: &MatchView, smoke: &SmokeTuning, tuning: &SenseTuning| {
+            let veil = view.smoke.veil(view.clock, smoke);
+            let mut rays = RayBudget::new(10);
+            let (percepts, looks) = sense_looks_through(
+                &me,
+                view,
+                &open,
+                veil,
+                tuning,
+                &off().cheats,
+                500,
+                &[1],
+                &mut rays,
+                &mut Rng::new(1),
+            );
+            let seen = percepts.iter().any(|p| p.who == 1 && p.source == Source::Seen);
+            (seen, looks.first().map(|l| l.1))
+        };
+        let on = SmokeTuning::default();
+        let off_switch = SmokeTuning {
+            sight: false,
+            ..SmokeTuning::default()
+        };
+        for tuning in [refreshed(), off().sense] {
+            assert!(looks(&view, &on, &tuning).0, "no cloud: seen");
+            view.smoke = Clouds::new(vec![cloud(0.0)]);
+            let (seen, look) = looks(&view, &on, &tuning);
+            assert!(!seen);
+            if tuning.sight_refresh {
+                assert_eq!(look, Some(LookOutcome::Failed(Miss::Smoke)));
+            }
+            assert!(looks(&view, &off_switch, &tuning).0, "the switch off: seen through");
+            view.smoke = Clouds::new(vec![cloud(12.0)]);
+            assert!(looks(&view, &on, &tuning).0, "a cloud 12 m aside: seen");
+            view.smoke = Clouds::default();
+        }
     }
 
     /// A look is the sight's test and nothing else: the same rays as a
@@ -1365,7 +1470,7 @@ mod tests {
             let thinks_left = (due.len() - k) as u32;
             rays.allow(fair.then(|| fair_share(rays.left, thinks_left, think_most(3))).flatten());
             let (me, spawners) = (&places[p], &[]);
-            sense_batteries(me, &view, &sight, spawners, &tuning, &mut team, |_| false, &mut rays);
+            sense_batteries_clear(me, &view, &sight, spawners, &tuning, &mut team, |_| false, &mut rays);
             rays.allow(None);
             used.push(before - rays.left);
         }

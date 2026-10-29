@@ -100,6 +100,8 @@
 //!   players' "servers" (`rooms`, whose module says what each does).
 
 mod away;
+#[cfg(feature = "client-test")]
+pub mod client_test;
 mod clans;
 mod core;
 mod dispatch;

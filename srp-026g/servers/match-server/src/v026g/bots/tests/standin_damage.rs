@@ -29,6 +29,7 @@
 //! killer's spawn protection, skills and modifications (none changes a hit
 //! in 0.26g's data).
 
+use mapdata::{Load, Pierce};
 use survarium::v026g::damage::{self, AmmoParams, ArmourParams, BodyParams};
 use survarium::v026g::loadouts::{BotTier, Mask, RoleGear, RusherKit, TierGear};
 use survarium::v026g::weapons::{self, WeaponParams};
@@ -500,35 +501,54 @@ pub(crate) fn ammo_of(model: &Model, gun: &Gun) -> &'static AmmoParams {
         .unwrap_or(&PLAIN_AMMO)
 }
 
+/// The pierce of a bullet of `gun`'s weapon and ammunition at the muzzle: `bullet_pierce` times the ammunition's
+/// `k_arp` (PROVEN, `damage.rs`). `None` for a gun the data does not know (its bullets meet every surface as
+/// solid, as before the mesh had materials).
+pub(crate) fn pierce_of(model: &Model, gun: &Gun) -> Option<Pierce> {
+    let weapon = weapons::weapon_named(gun.item)?;
+    Pierce::new(weapon.bullet_pierce * ammo_of(model, gun).k_arp)
+}
+
+/// What a bullet of `gun` carries `metres` from the muzzle if nothing took any of it: the damage and the pierce
+/// that fall by one factor with the bullet's speed (`bullet_at`, PROVEN: `update_bullet_position` sets both), for
+/// [`mapdata::RayTree::fly`]. `None` for a gun the data does not know.
+pub(crate) fn flight_of(model: &Model, gun: &Gun) -> Option<impl Fn(f32) -> Load> {
+    let weapon = weapons::weapon_named(gun.item)?;
+    let ammo = ammo_of(model, gun);
+    Some(move |metres: f32| {
+        let bullet = damage::bullet_at(weapon, ammo, metres);
+        Load { damage: bullet.damage, pierce: bullet.arp }
+    })
+}
+
 /// The bullets or pellets of one shot of `shooter_gun` that landed on `target`, each with the hit box the shot
-/// ray met and its distance, metres (the shapes of [`super::standin_hitbox`] say the box; nothing is drawn).
-/// The pools and the death rule are [`hit`]'s.
+/// ray met and what the bullet carried when it got there: its damage and its pierce after the distance and the
+/// surfaces it crossed ([`mapdata::RayTree::fly`]; the shapes of [`super::standin_hitbox`] say the box; nothing is
+/// drawn). The pools and the death rule are [`hit`]'s.
 pub(crate) fn hit_boxes(
     model: &Model,
     target: &mut Body,
     shooter_gun: &Gun,
-    landed: &[(HitParam, f32)],
+    landed: &[(HitParam, Load)],
     now: u32,
 ) {
     if model.flat {
         target.health -= FLAT_HIT;
         return;
     }
-    let Some(weapon) = weapons::weapon_named(shooter_gun.item) else {
+    if weapons::weapon_named(shooter_gun.item).is_none() {
         target.health -= FLAT_HIT;
         return;
-    };
-    let ammo = ammo_of(model, shooter_gun);
+    }
     let worn = kit_of(model.tier, model.rusher, target.gun.item);
     let body = damage::human();
-    for &(param, distance) in landed {
-        let bullet = damage::bullet_at(weapon, ammo, distance);
+    for &(param, load) in landed {
         let hit_box = param.name();
         let [on_body, on_head, on_pain] = pools_taken(
             body,
             hit_box,
-            bullet.damage,
-            bullet.arp,
+            load.damage,
+            load.pierce,
             armour_on_masked(worn, model.mask, hit_box),
         );
         target.health -= on_body;

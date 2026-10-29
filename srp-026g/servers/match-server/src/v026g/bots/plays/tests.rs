@@ -118,6 +118,7 @@ impl Scenario {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         };
         // The bots as they were, an option on where a test says so (the owner's set is the defaults).
         let mut tuning = Tuning::all_off();

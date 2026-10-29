@@ -69,6 +69,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod smoke;
 pub mod stamina;
 pub mod stock;
 pub mod stuck;
@@ -998,6 +999,17 @@ impl Bots {
             ),
             None => summary,
         };
+        // What the bullet mesh is made of: a file before format 5 gives every face as solid (no material), so the cover
+        // tests are the old ones; a v5 file has the armor of the face.
+        let census = tactics.world.sight.armor_census();
+        let summary = format!(
+            "{summary}; bullet mesh {} faces: {} with armor, {} free, {} without a material (solid){}",
+            census.total,
+            census.armored,
+            census.free,
+            census.unknown,
+            if census.armored == 0 && census.total > 0 { " [no materials: cover is solid, load format 5 files]" } else { "" }
+        );
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary
@@ -1483,6 +1495,18 @@ impl Bots {
             tactics.hazards.set_fields(fields, &tactics.world.grid, time);
             tactics.hazards.live.fields().len()
         })
+    }
+
+    /// The launched grenades of a trusted world's objects section (`match_msgs::grenades`): each smoke cloud whose
+    /// grenade it shows is put where the grenade really is ([`view::Tracker::grenade_bodies`]). Returns how many it
+    /// held.
+    pub fn grenades_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        let found = survarium::v026g::match_msgs::grenades::find(objects, time);
+        if !found.is_empty() {
+            let world = self.tactics.as_ref().map(|t| t.world.clone());
+            self.tracker.grenade_bodies(&found, world.as_deref(), time);
+        }
+        found.len()
     }
 
     /// A trusted world's objects section: the bear traps the teams' bots

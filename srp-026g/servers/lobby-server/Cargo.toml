@@ -8,6 +8,9 @@ workspace = true
 
 [features]
 default = []
+# TEST ONLY (`match-server`'s `bots/client_tests`): a hook that lets a client test choose the roles of a Player vs Bots match's server
+# bots (`client_test.rs`). Not compiled without it: the lobby forms a match exactly as before.
+client-test = []
 
 [dependencies]
 bytemuck = { workspace = true }

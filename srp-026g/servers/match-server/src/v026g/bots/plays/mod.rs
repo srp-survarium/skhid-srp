@@ -789,7 +789,9 @@ impl Ctx<'_> {
                         && s.kind == SoundKind::Reload
                         && self.now <= s.time + reload_ms
                 });
-                (at - eye).length() <= exposed_m && !reloading && self.tactics.sees(at, eye)
+                (at - eye).length() <= exposed_m
+                    && !reloading
+                    && self.tactics.shot_reaches(self.tuning.cover.rule(), at, eye)
             })
             .collect();
         if threats.is_empty() {

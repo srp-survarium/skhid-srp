@@ -880,6 +880,52 @@ mod game_tests {
         assert_eq!(game.bodies[1].health, 1.0);
     }
 
+    /// The game's penetration in the stand-in: a bullet goes through a crate of wood (armor 0.1) at full damage and is
+    /// counted as one that crossed cover; a stone wall (0.7) stops it; brick (0.2) lets an SMG's bullet through with less.
+    #[test]
+    fn a_bullet_crosses_cover_by_its_pierce_and_the_materials() {
+        use mapdata::{Armor, FaceArmor, RayTree, World};
+        let wall = |armor: f32| {
+            let (points, triangles) = mapdata::library::PrimitiveShape::Box { half: Vec3::new(5.0, 2.0, 0.2) }.tessellate();
+            let centre = Vec3::new(10.0, 2.0, 20.0);
+            RayTree::from_armored_corners(
+                triangles
+                    .iter()
+                    .map(|t| (t.map(|i| points[i as usize] + centre), FaceArmor::Material(Armor::new(armor).unwrap()))),
+            )
+        };
+        let shot = |armor: Option<f32>, item: &str| {
+            let base = soak_world_with(&[]);
+            let world = match armor {
+                Some(armor) => std::sync::Arc::new(World::assemble(base.map.clone(), base.grid.clone(), wall(armor).into())),
+                None => base,
+            };
+            let mut game = Game::new(world, &[0, 1], 1, None, None);
+            game.volume = HitVolume::BOXES;
+            put(&mut game, 0, 10.0, 10.0, 0);
+            game.bodies[0].target = Some(1);
+            game.bodies[0].gun = gun(item).expect("the gun");
+            put(&mut game, 1, 10.0, 29.0, 0);
+            look_at(&mut game, Vec3::new(10.0, 1.22, 29.0));
+            game.shot(0, 0.0);
+            (game.shot_facts[0].hit.is_some(), 1.0 - game.bodies[1].health, game.cover_hits_by[0])
+        };
+        let (open_hit, open_damage, open_cover) = shot(None, "ak_74u");
+        assert!(open_hit && open_damage > 0.0 && open_cover == 0, "{open_hit} {open_damage} {open_cover}");
+        // Wood: all of the damage (the share is 1, so it is not counted as a hit through cover).
+        let (hit, damage, _) = shot(Some(0.1), "ak_74u");
+        assert!(hit && (damage - open_damage).abs() < 1e-6, "{hit} {damage} {open_damage}");
+        // Stone stops it.
+        let (hit, damage, cover) = shot(Some(0.7), "ak_74u");
+        assert!(!hit && damage == 0.0 && cover == 0, "{hit} {damage} {cover}");
+        // A wall at 0.7 of the gun's own pierce: k = 1 - (1 - 3/7)^2 = 0.67, so less than the open shot reaches the body,
+        // and the hit counts as one through cover.
+        let probe = Game::new(soak_world_with(&[]), &[0, 1], 1, None, None);
+        let pierce = super::super::standin_damage::pierce_of(&probe.damage, gun("ak_74u").unwrap()).expect("its pierce");
+        let (hit, damage, cover) = shot(Some(0.7 * pierce.value()), "ak_74u");
+        assert!(hit && damage > 0.0 && damage < open_damage && cover == 1, "{hit} {damage} {open_damage} {cover}");
+    }
+
     /// A wall across z = 20 from x = 5 to 15, 4 m high.
     fn wall_triangles() -> Vec<mapdata::Triangle> {
         let walker = mapdata::WalkerBehaviour::BySlope;

@@ -37,6 +37,8 @@ use super::kin::Kinematics;
 use super::live_grenades::{
     LiveGrenade, LAUNCH_MS, Phase, Pocketed, Pockets, SAME_THROW_MS, THROW_KEYS, ThrowCounts,
 };
+use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
+use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
 use crate::v026g::drive::key;
 
 /// A body this far over or under another is not beside it, metres.
@@ -343,6 +345,9 @@ pub struct MatchView {
     /// The fragmentation grenades thrown and not yet gone off, from the
     /// throw keys the server saw ([`super::live_grenades`]).
     pub grenades: Vec<LiveGrenade>,
+    /// The smoke clouds thrown and not yet gone, from the same keys ([`super::smoke`]): those still in the air
+    /// have a cloud to come, with no smoke yet.
+    pub smoke: Clouds,
 }
 
 impl MatchView {
@@ -568,6 +573,10 @@ pub struct Tracker {
     next_battery: Option<u32>,
     grenades: Vec<LiveGrenade>,
     throws: ThrowCounts,
+    /// Smoke grenades in the hand, and the clouds they made ([`super::smoke`]): the clouds' one owner.
+    smoke_throws: Vec<SmokeThrow>,
+    clouds: Vec<Cloud>,
+    smoke_counts: SmokeCounts,
     sounds: VecDeque<Sound>,
     /// By place, the reach of a shot of its weapon 1 ([`super::shot_reach`]),
     /// where known.
@@ -630,6 +639,9 @@ impl Tracker {
             next_battery: None,
             grenades: Vec::new(),
             throws: ThrowCounts::default(),
+            smoke_throws: Vec::new(),
+            clouds: Vec::new(),
+            smoke_counts: SmokeCounts::default(),
             sounds: VecDeque::new(),
             shot_reach: Vec::new(),
             deaths: VecDeque::new(),
@@ -773,6 +785,102 @@ impl Tracker {
         self.throws
     }
 
+    /// The smoke clouds in the match now, those still in the air included ([`super::smoke`]).
+    pub fn clouds(&self) -> &[Cloud] {
+        &self.clouds
+    }
+
+    /// What the smoke throw keys came to so far, by the thrower's team.
+    pub fn smoke_counts(&self) -> SmokeCounts {
+        self.smoke_counts
+    }
+
+    /// The launched grenades a trusted world shows (`match_msgs::grenades`): a smoke's cloud is put where its body
+    /// lies (on the floor under it), in place of the arc's prediction, once the body is at rest ([`Motion::Resting`]):
+    /// a body still flying or rolling is not where it stops, and the arc's rest stands. Which throw a body is: one
+    /// already placed by its id, else the throw (smoke cloud or frag) whose blast is its blast within
+    /// [`super::smoke::BLAST_MATCH_MS`], the nearest predicted rest among ties; a frag's body moves no cloud. A later
+    /// resting sighting of the same body wins. One note for the first placing of each cloud, and for any later one
+    /// that moves it [`super::smoke::BODY_NOTE_M`] or more.
+    pub fn grenade_bodies(&mut self, bodies: &[GrenadeBody], world: Option<&World>, time: u32) {
+        use super::smoke::{BLAST_MATCH_MS, BODY_NOTE_M, Placed};
+        for body in bodies {
+            if body.motion != Motion::Resting {
+                continue;
+            }
+            let at = Vec3::from_array(body.place.0);
+            let near = |blast: u32| blast.abs_diff(body.blast.0) <= BLAST_MATCH_MS;
+            let by_id = self
+                .clouds
+                .iter()
+                .position(|c| matches!(c.placed, Placed::Seen { id, .. } if id == body.id));
+            let index = by_id.or_else(|| {
+                // The nearest predicted rest among the throws going off then: a cloud's, or a frag's (none).
+                let cloud = self
+                    .clouds
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.placed == Placed::Arc && near(c.pours.0))
+                    .map(|(i, c)| (Some(i), c.centre.distance_xz(at)))
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                let frag = self
+                    .grenades
+                    .iter()
+                    .filter(|g| near(g.blast_at()))
+                    .filter_map(|g| match g.phase {
+                        Phase::Flying { rest, .. } => Some((None::<usize>, rest.distance_xz(at))),
+                        Phase::Pressed => None,
+                    })
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                match (cloud, frag) {
+                    (Some(c), Some(f)) if f.1 < c.1 => None,
+                    (c, _) => c.and_then(|c| c.0),
+                }
+            });
+            let Some(cloud) = index.and_then(|i| self.clouds.get_mut(i)) else {
+                continue;
+            };
+            let floor = world.and_then(|world| super::smoke::floor_under(&world.sight, at));
+            let centre = floor.map_or(at, |y| Vec3::new(at.x, y, at.z));
+            let moved = cloud.centre.distance_xz(centre);
+            let first = cloud.placed == Placed::Arc;
+            let team = usize::from(cloud.team & 1);
+            if first {
+                // The arc's error, against a resting body only.
+                self.smoke_counts.bodies_seen[team] += 1;
+                self.smoke_counts.moved_dm[team] += (moved * 10.0).round() as u32;
+            }
+            if first || moved >= BODY_NOTE_M {
+                self.notes.push(format!(
+                    "smoke cloud by player {} put on its grenade {} at rest at ({:.1}, {:.1}, {:.1}) in the world at {time} ms: {moved:.1} m from {}",
+                    cloud.by,
+                    body.id.0,
+                    at.x,
+                    at.y,
+                    at.z,
+                    if first { "the arc's rest" } else { "its last sighting" },
+                ));
+            }
+            cloud.centre = centre;
+            cloud.placed = Placed::Seen {
+                world_ms: time,
+                id: body.id,
+            };
+        }
+    }
+
+    /// A cloud put in the match as if thrown (tests: a bench or a probe with no human thrower).
+    #[cfg(test)]
+    pub fn add_cloud(&mut self, cloud: Cloud) {
+        self.clouds.push(cloud);
+    }
+
+    /// The clouds, to change one (tests).
+    #[cfg(test)]
+    pub fn clouds_mut_for_test(&mut self) -> &mut [Cloud] {
+        &mut self.clouds
+    }
+
     /// An input of `place` for the tick `time` (a human's as relayed, a
     /// bot's as made, its pitch turn with the part its kick took and the
     /// kick after it: `body::BodyTrack::decided`): its body moves on, and
@@ -856,6 +964,13 @@ impl Tracker {
                 Some((Pocketed::Smoke, _)) => {
                     self.throws.smoke += 1;
                     state.last_throw = Some(time);
+                    self.smoke_counts.thrown[usize::from(state.team & 1)] += 1;
+                    self.smoke_throws.push(SmokeThrow {
+                        by: place,
+                        team: state.team,
+                        press: MatchMs(time),
+                        grenade: *SmokeGrenade::of_game_data(),
+                    });
                 }
                 Some((Pocketed::Other, _)) | None => {}
             }
@@ -918,7 +1033,7 @@ impl Tracker {
                 && clock >= grenade.press + LAUNCH_MS
                 && let Some(world) = world
             {
-                match self.launch_of(&grenade, world) {
+                match self.launch_of(grenade.by, grenade.grenade, world) {
                     Launch::Dead => {
                         self.throws.died_throwing += 1;
                         continue;
@@ -941,11 +1056,50 @@ impl Tracker {
             kept.push(grenade);
         }
         self.grenades = kept;
+        self.launch_smoke(clock, world);
     }
 
-    /// Where the grenade `grenade` let go lands, from its thrower's body now.
-    fn launch_of(&self, grenade: &LiveGrenade, world: &World) -> Launch {
-        let Some(state) = self.places.get(grenade.by).filter(|state| state.alive) else {
+    /// The smoke grenades due to leave the hand at `clock` become clouds where the arc puts them to rest (as a
+    /// frag's landing, with the smoke's throw speed); clouds past their end go. With no map a smoke stays in
+    /// the hand.
+    fn launch_smoke(&mut self, clock: u32, world: Option<&World>) {
+        let now = MatchMs(clock);
+        self.clouds.retain(|cloud| cloud.live_at(now));
+        let throws = std::mem::take(&mut self.smoke_throws);
+        let mut kept = Vec::with_capacity(throws.len());
+        for throw in throws {
+            let (Some(world), true) = (world, clock >= throw.press.0 + LAUNCH_MS) else {
+                kept.push(throw);
+                continue;
+            };
+            let team = usize::from(throw.team & 1);
+            match self.launch_of(throw.by, throw.grenade.flight, world) {
+                Launch::Lands(landing) => {
+                    // The floor under the rest: straight down the bullet mesh from just over it.
+                    let cloud = throw.cloud_at(landing.rest, |rest| super::smoke::floor_under(&world.sight, rest));
+                    let c = cloud.centre;
+                    self.notes.push(format!(
+                        "smoke cloud by player {} (team {}) at ({:.1}, {:.1}, {:.1}), pours at {} ms, gone at {} ms",
+                        cloud.by,
+                        cloud.team,
+                        c.x,
+                        c.y,
+                        c.z,
+                        cloud.pours.0,
+                        cloud.ends().0
+                    ));
+                    self.clouds.push(cloud);
+                    self.smoke_counts.clouds[team] += 1;
+                }
+                Launch::Dead | Launch::NoLanding => self.smoke_counts.dropped[team] += 1,
+            }
+        }
+        self.smoke_throws = kept;
+    }
+
+    /// Where a grenade `grenade` let go by `by` lands, from its thrower's body now.
+    fn launch_of(&self, by: Place, grenade: Grenade, world: &World) -> Launch {
+        let Some(state) = self.places.get(by).filter(|state| state.alive) else {
             return Launch::Dead;
         };
         let Some(e) = state.body.estimate().copied() else {
@@ -955,7 +1109,7 @@ impl Tracker {
         let speed = e.velocity[0].hypot(e.velocity[1]);
         let up = eye_height(e.keys & key::CROUCH != 0, speed, pitch);
         let eye = e.feet + Vec3::new(0.0, up, 0.0);
-        match Flight::thrown_by(grenade.grenade, eye, e.yaw, pitch).landing(&Mesh(&world.sight)) {
+        match Flight::thrown_by(grenade, eye, e.yaw, pitch).landing(&Mesh(&world.sight)) {
             Some(landing) => Launch::Lands(landing),
             None => Launch::NoLanding,
         }
@@ -1465,6 +1619,7 @@ impl Tracker {
             can_respawn: self.can_respawn,
             next_battery: self.next_battery,
             grenades: self.grenades.clone(),
+            smoke: Clouds::new(self.clouds.clone()),
         }
     }
 }

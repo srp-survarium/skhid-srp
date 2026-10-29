@@ -898,12 +898,14 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
             fighting,
         };
         let rng = &mut bot.rng;
+        let veil = due.view.smoke.veil(due.view.clock, &due.tuning.smoke);
         bot.features.traps.react.roll(
             &look,
             trap,
             t,
             || rng.unit(),
-            |from, to| sight_line(&due.tactics.world.sight, from, to),
+            // Smoke hides a trap as it hides a body (`smoke.rs`).
+            |from, to| !veil.hides(from, to) && sight_line(&due.tactics.world.sight, from, to),
         );
     }
     if t.shot && bot.features.traps.react.reaction == Reaction::Idle && !fighting {
@@ -1126,6 +1128,7 @@ fn start_shot(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) 
         .filter(|p| p.place != me.place)
         .collect();
     if mate_firing(&due.view.sounds, &mates, me.place, at, me.feet, due.now, t)
+        || due.view.smoke.covers(due.view.clock, &due.tuning.smoke, me.eye(), centre)
         || !sight_line(&due.tactics.world.sight, me.eye(), centre)
     {
         return;

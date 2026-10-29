@@ -257,10 +257,13 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         }
         order
     };
-    let (percepts, looks) = sense::sense_looks(
+    // Smoke hides what is behind it, as the team's tuning reads it (`smoke.rs`).
+    let veil = view.smoke.veil(view.clock, &tuning.smoke);
+    let (percepts, looks) = sense::sense_looks_through(
         me,
         view,
         &tactics.world.sight,
+        veil,
         &tuning.sense,
         &tuning.cheats,
         bot.heard_until,
@@ -269,8 +272,22 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         &mut bot.rng,
     );
     bot.heard_until = now;
+    // A sight it had, lost to smoke: one note (the reflex's notes, taken at its think).
     for &(who, outcome) in &looks {
-        if matches!(outcome, LookOutcome::Seen | LookOutcome::Failed(Miss::Blocked)) {
+        if outcome == LookOutcome::Failed(Miss::Smoke) {
+            let had = live.iter().any(|&(live, _)| live == who);
+            if had {
+                bot.reflex.note_smoke(format!("lost player {who} to smoke (a look)"));
+            }
+            #[cfg(test)]
+            super::smoke::tally::add(
+                bot.team,
+                if had { super::smoke::tally::Event::SightLost } else { super::smoke::tally::Event::NotSeen },
+            );
+        }
+    }
+    for &(who, outcome) in &looks {
+        if matches!(outcome, LookOutcome::Seen | LookOutcome::Failed(Miss::Blocked | Miss::Smoke)) {
             if bot.tested.len() <= who {
                 bot.tested.resize(who + 1, 0);
             }
@@ -442,6 +459,7 @@ pub(super) fn sense_batteries(
             me,
             view,
             &tactics.world.sight,
+            view.smoke.veil(view.clock, &tuning.smoke),
             &tactics.world.map.battery_spawners,
             &tuning.sense,
             &mut state.knowledge,
@@ -533,10 +551,14 @@ pub(super) fn react(
             margin_m: tuning.avoid.margin_m,
             told_ms: tuning.avoid.told_ms.1,
         }),
+        cover: tuning.cover.rule(),
     };
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
+        bot.note(notes, now, text);
+    }
+    for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);
     }
     // A grenade decided on: its place is the team's to skip for a while.
@@ -808,6 +830,7 @@ mod phase_tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: vec![],
+            smoke: Default::default(),
         }
     }
 

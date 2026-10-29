@@ -39,6 +39,7 @@ fn body(place: Place, team: u8, at: Vec3) -> Body {
 fn bot_view(place: Place, team: u8, at: Vec3) -> BotView {
     BotView {
         body: body(place, team, at),
+        role: None,
         mind: Mind {
             target: None,
             gates: Gates::default(),
@@ -246,6 +247,27 @@ fn a_step_the_owner_never_starts_is_void_and_used_up() {
     let results = results_of(&link);
     assert!(results.contains("\tVOID(never_started)\tarm_time\t"), "{results}");
     assert_eq!(link.output().used("t-never"), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A seat whose bot has another role than the step asked for voids the try, naming the seat and both roles; one whose bot has the
+/// role runs.
+#[test]
+fn a_bot_with_the_wrong_role_voids_the_try() {
+    use survarium::v026g::loadouts::BotRole::{Camper, Rusher};
+    let step = || Step::new("t-role", group(), "x").seat(Side::Enemies, 0, Camper).end(&[End::OwnerDied]);
+    let (mut link, dir) = link_for("role-wrong", vec![step()], None);
+    let mut sim = Sim::new();
+    sim.bots.iter_mut().for_each(|bot| bot.role = Some(Rusher));
+    sim.tick(&mut link);
+    let results = results_of(&link);
+    assert!(results.contains("VOID(wrong_role(enemy_bot_0_wanted_Camper_has_Some(Rusher)))"), "{results}");
+    let _ = std::fs::remove_dir_all(&dir);
+    let (mut link, dir) = link_for("role-right", vec![step()], None);
+    let mut sim = Sim::new();
+    sim.bots.iter_mut().for_each(|bot| bot.role = Some(Camper));
+    sim.tick(&mut link);
+    assert!(!results_of(&link).contains("wrong_role"), "{}", results_of(&link));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -646,4 +668,29 @@ fn a_grip_leaves_the_reflex_what_the_step_lets_it() {
         .reacts()
     );
     assert!(Driver::Own.reacts() && Driver::BenchCamper.reacts());
+}
+
+/// A step can ask for a role of a bot; two steps of one match that ask for two roles of one seat make the plan refuse; the roles
+/// are put in the lobby's by seat.
+#[test]
+fn a_step_can_ask_for_the_role_of_a_bot() {
+    use survarium::v026g::loadouts::BotRole::{Camper, Flanker, Rusher, Support};
+    let step = |id: &'static str, role| Step::new(id, group(), "x").seat(Side::Enemies, 1, role).end(&[End::OwnerDied]);
+    step("a-1", Camper).check().unwrap();
+    let plan = Plan::parse("all", vec![step("a-1", Camper), Step::new("a-2", group(), "x").end(&[End::OwnerDied])]).unwrap();
+    let roster = plan.roster_for(group_of(2, BATTERIES, &teams(2)));
+    assert_eq!(roster, [Seat { side: Side::Enemies, nth: 1, role: Camper }]);
+    assert!(plan.roster_for(group_of(7, TEAM_DEATHMATCH, &teams(2))).is_empty(), "another match has no seats");
+    let clash = Plan::parse("all", vec![step("a-1", Camper), step("a-2", Rusher)]).unwrap_err();
+    assert!(clash.contains("a-1") && clash.contains("a-2"), "{clash}");
+    // The same role twice is no clash.
+    Plan::parse("all", vec![step("a-1", Camper), step("a-2", Camper)]).unwrap();
+    // The owner and 2 mates on team 0 would be 3 a side: the bots by place are 2 mates and 3 enemies.
+    let bot_teams = [0, 0, 1, 1, 1];
+    let defaults = vec![Flanker, Support, Rusher, Flanker, Support];
+    // The enemy bot 1 is the second bot of team 1: place 3.
+    assert_eq!(roles_for(&roster, &bot_teams, defaults.clone()), vec![Flanker, Support, Rusher, Camper, Support]);
+    let missing = [Seat { side: Side::Enemies, nth: 9, role: Camper }];
+    assert_eq!(roles_for(&missing, &bot_teams, defaults.clone()), defaults, "a seat with no bot changes nothing");
+    assert_eq!(bot_roles(2, BATTERIES, 3, &bot_teams, defaults.clone()), defaults, "no plan set: the lobby's roles");
 }

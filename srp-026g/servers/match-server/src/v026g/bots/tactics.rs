@@ -24,6 +24,7 @@ use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
+use super::tuning::CoverRule;
 use super::view::still_eye;
 
 /// A spawn area: this far round a side's spawn points, metres (GUESS from
@@ -192,6 +193,49 @@ pub struct Tactics {
     /// Whether the fight's side step is refused onto the band of a lip
     /// (`Tuning::aim.combat.clear_step_sees_lip`, [`Self::clear_step_for`]).
     pub clear_step_sees_lip: bool,
+    /// What [`Self::shot_reaches`] answered, and the lines the pierce opened (the logs' counts).
+    pub cover_tally: CoverTally,
+}
+
+/// The verdicts of [`Tactics::shot_reaches`] and the lines it opened where the solid mesh had shut them.
+#[derive(Debug, Default)]
+pub struct CoverTally {
+    /// Asked with the cover tuning off (answered as sight).
+    pub plain: std::sync::atomic::AtomicU64,
+    /// A clear line.
+    pub open_clear: std::sync::atomic::AtomicU64,
+    /// Open through cover the solid mesh counts as a wall (`opened`): over the tuning's share reached.
+    pub open_through: std::sync::atomic::AtomicU64,
+    /// Shut: some of the damage reached, no more than the tuning's share.
+    pub shut_partial: std::sync::atomic::AtomicU64,
+    /// Shut: the bullet stopped.
+    pub shut_stopped: std::sync::atomic::AtomicU64,
+    /// The first [`COVER_EVENTS`] of `open_through`, drained by the bench's event file.
+    events: std::sync::Mutex<Vec<CoverEvent>>,
+    /// All of them, drained or not.
+    pub events_seen: std::sync::atomic::AtomicU64,
+    /// Those kept for the logs, drained or not ([`COVER_EVENTS`] at most).
+    events_kept: std::sync::atomic::AtomicU64,
+}
+
+/// A line the pierce opened: one note per event (`from` shoots at `to`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CoverEvent {
+    pub from: Vec3,
+    pub to: Vec3,
+    /// The share of the damage that reaches, and the front faces it crossed.
+    pub share: f32,
+    pub crossed: u32,
+}
+
+/// Events kept for the logs per match.
+const COVER_EVENTS: usize = 100;
+
+impl CoverTally {
+    /// The events not yet drained.
+    pub fn drain_events(&self) -> Vec<CoverEvent> {
+        std::mem::take(&mut *self.events.lock().unwrap_or_else(|e| e.into_inner()))
+    }
 }
 
 /// [`Tactics::exit_of`]'s field: each marked floor's way out.
@@ -327,8 +371,14 @@ pub struct SpotQuery {
     /// The solid `sight_to` lies in (a container's box): a sight line that
     /// ends on it sees it ([`Tactics::sees_body`]).
     pub sight_body: Option<Shape>,
-    /// The spot must not be seen from this point.
-    pub hidden_from: Option<Vec3>,
+    /// The spot must be out of this point's sight (no clear line on the bullet mesh): will he see me there, so will he
+    /// fire. Ambush spots, the way point of a flank.
+    pub unseen_by: Option<Vec3>,
+    /// The spot must be out of the fire of this point: no line a bullet of [`Self::cover`] reaches the spot by
+    /// (crates, cars and thin walls are no cover). Hide spots, heal cover.
+    pub out_of_fire_of: Option<Vec3>,
+    /// The bullet [`Self::out_of_fire_of`] means (the bot's `Tuning::cover.rule()`); none: every surface is cover.
+    pub cover: Option<CoverRule>,
     /// Prefer spots higher than `around` (by this weight per metre, up to
     /// [`HIGH_CREDIT_M`] of height).
     pub prefer_high: f32,
@@ -351,7 +401,9 @@ impl SpotQuery {
             max_m,
             sight_to: None,
             sight_body: None,
-            hidden_from: None,
+            unseen_by: None,
+            out_of_fire_of: None,
+            cover: None,
             prefer_high: 0.0,
             up_m: 0.0,
             side: None,
@@ -696,6 +748,7 @@ impl Tactics {
             foliage: Default::default(),
             grass: Default::default(),
             clear_step_sees_lip: false,
+            cover_tally: CoverTally::default(),
             base,
         }
     }
@@ -1822,6 +1875,45 @@ impl Tactics {
         self.world.sight.visible(a, b)
     }
 
+    /// Whether a bullet fired at `b` from `a` (points at the eyes) is a threat to `b`: the danger tests' question,
+    /// what [`Self::sees`] is to sight (will he fire at me: ask `sees`; can his bullets reach me: ask this). With a
+    /// `cover` rule a surface that lets the bullet through is not cover (the client's rule,
+    /// `RayTree::damage_share`): the line is open when the share of the damage that reaches `b` is over the rule's.
+    /// Without one, as [`Self::sees`].
+    pub fn shot_reaches(&self, cover: Option<CoverRule>, a: Vec3, b: Vec3) -> bool {
+        use std::sync::atomic::Ordering::Relaxed;
+        let tally = &self.cover_tally;
+        let Some(CoverRule { pierce, max_share }) = cover else {
+            tally.plain.fetch_add(1, Relaxed);
+            return self.sees(a, b);
+        };
+        let line = self.world.sight.follow(a, b, pierce, max_share);
+        let share = line.share.value();
+        if share > max_share {
+            // Open. Through cover where the solid mesh has a wall: the lines the pierce opens.
+            if self.sees(a, b) {
+                tally.open_clear.fetch_add(1, Relaxed);
+            } else {
+                tally.open_through.fetch_add(1, Relaxed);
+                tally.events_seen.fetch_add(1, Relaxed);
+                // The first events of the match only (the count above has them all): a log is read by its notes.
+                if tally.events_kept.load(Relaxed) < COVER_EVENTS as u64 {
+                    tally.events_kept.fetch_add(1, Relaxed);
+                    let mut events = tally.events.lock().unwrap_or_else(|e| e.into_inner());
+                    events.push(CoverEvent { from: a, to: b, share, crossed: line.crossed });
+                }
+            }
+            true
+        } else {
+            if share > 0.0 {
+                tally.shut_partial.fetch_add(1, Relaxed);
+            } else {
+                tally.shut_stopped.fetch_add(1, Relaxed);
+            }
+            false
+        }
+    }
+
     /// Whether `b`, a point inside `body` (a solid of the sight tree, such
     /// as a container's box), shows from `a`: the ray toward it hits
     /// nothing, or first hits `body` itself. [`Self::sees`] never sees a
@@ -1921,8 +2013,13 @@ impl Tactics {
                     continue;
                 }
             }
-            if let Some(from) = query.hidden_from
+            if let Some(from) = query.unseen_by
                 && self.sees(still_eye(from, false), still_eye(spot.at, false))
+            {
+                continue;
+            }
+            if let Some(from) = query.out_of_fire_of
+                && self.shot_reaches(query.cover, still_eye(from, false), still_eye(spot.at, false))
             {
                 continue;
             }
@@ -2762,7 +2859,7 @@ pub(super) mod tests {
         let from = Vec3::new(50.0, 0.0, 10.0);
         let query = SpotQuery {
             sight_to: Some(target),
-            hidden_from: Some(from),
+            unseen_by: Some(from),
             samples: 200,
             ..SpotQuery::ring(target, 10.0, 25.0)
         };

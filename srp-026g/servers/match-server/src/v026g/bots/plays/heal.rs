@@ -332,7 +332,7 @@ pub fn in_known_sight(cx: &Ctx) -> bool {
     cx.memory
         .tracks()
         .iter()
-        .any(|track| cx.tactics.sees(still_eye(track.at, false), me))
+        .any(|track| cx.tactics.shot_reaches(cx.tuning.cover.rule(), still_eye(track.at, false), me))
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -404,14 +404,15 @@ fn cover_spot(cx: &Ctx, rng: &mut Rng) -> Option<Vec3> {
         .tracks()
         .iter()
         .map(|track| track.at)
-        .filter(|&at| cx.tactics.sees(still_eye(at, false), me))
+        .filter(|&at| cx.tactics.shot_reaches(cx.tuning.cover.rule(), still_eye(at, false), me))
         .collect();
     let nearest = seers.iter().copied().min_by(|a, b| {
         a.distance_xz(cx.me.feet)
             .total_cmp(&b.distance_xz(cx.me.feet))
     })?;
     let mut query = SpotQuery::ring(cx.me.feet, 1.0, heal.cover_m);
-    query.hidden_from = Some(nearest);
+    query.out_of_fire_of = Some(nearest);
+    query.cover = cx.tuning.cover.rule();
     query.side = cx.bot.side;
     query.samples = 16;
     cx.tactics
@@ -420,7 +421,7 @@ fn cover_spot(cx: &Ctx, rng: &mut Rng) -> Option<Vec3> {
         .filter(|spot| {
             seers
                 .iter()
-                .all(|&at| !cx.tactics.sees(still_eye(at, false), still_eye(spot.at, false)))
+                .all(|&at| !cx.tactics.shot_reaches(cx.tuning.cover.rule(), still_eye(at, false), still_eye(spot.at, false)))
         })
         .filter(|spot| {
             cx.tactics

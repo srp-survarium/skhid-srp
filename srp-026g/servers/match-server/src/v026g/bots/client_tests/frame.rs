@@ -2,6 +2,7 @@
 //! bots themselves ([`super::hook`]).
 
 use mapdata::Vec3;
+use survarium::v026g::loadouts::BotRole;
 
 use super::step::{Group, Side, Size};
 use super::time::At;
@@ -49,6 +50,8 @@ pub struct Mind {
 pub struct BotView {
     pub body: Body,
     pub mind: Mind,
+    /// The role the server gave the bot (its gear's); none for a bot of no role.
+    pub role: Option<BotRole>,
 }
 
 /// A line of the server's log about a bot (a [`crate::v026g::bots::Note`]).

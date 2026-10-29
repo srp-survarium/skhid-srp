@@ -528,8 +528,8 @@ fn build(
         };
         drop(walker);
         stage::set("the sight tree key");
-        let bullet = map.bullet_triangles();
-        let sight_key = mapdata::sight_key(&bullet);
+        let bullet = map.bullet_mesh();
+        let sight_key = bullet.key();
         stage::set("the sight tree");
         let shared = lock(cache).sights.get(&sight_key).and_then(Weak::upgrade);
         let (sight, sight_source) = match shared {
@@ -539,7 +539,7 @@ fn build(
                     built,
                     mapdata::built::sight_file_name(sight_key),
                     |path| RayTree::read(path, sight_key),
-                    || RayTree::build(&bullet),
+                    || bullet.build_tree(),
                     |sight, path| sight.write(path, sight_key),
                 );
                 let sight = Arc::new(sight);
@@ -588,8 +588,7 @@ pub fn world_bytes(world: &World) -> usize {
         .map(|library| {
             library.name.len()
                 + library.vertices.len() * size_of::<mapdata::Vec3>()
-                + library.triangles.len() * size_of::<[u32; 3]>()
-                + library.walker.len() * size_of::<mapdata::WalkerBehaviour>()
+                + library.faces.len() * size_of::<mapdata::library::Face>()
         })
         .sum();
     world.grid.memory_bytes()
@@ -652,8 +651,10 @@ mod tests {
                 Vec3::new(10.0, 0.0, 10.0),
                 Vec3::new(-10.0, 0.0, 10.0),
             ],
-            triangles: vec![[0, 2, 1], [0, 3, 2]],
-            walker: vec![WalkerBehaviour::Walk; 2],
+            faces: vec![
+                mapdata::library::Face::unknown([0, 2, 1], WalkerBehaviour::Walk),
+                mapdata::library::Face::unknown([0, 3, 2], WalkerBehaviour::Walk),
+            ],
             primitives: 0,
         };
         let spawn = |team: i32, x: f32| Spawn {

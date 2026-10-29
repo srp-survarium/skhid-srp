@@ -468,6 +468,16 @@ impl Stack {
                 inbox.push(account_id, vec![chat_text(sender::ACCOUNT, 0, "", "", channel::SYSTEM, text)]);
             })
         });
+        // TEST ONLY: the client tests choose the roles of a Player vs Bots match's server bots (`lobby_server::v026g::client_test`).
+        #[cfg(feature = "client-test")]
+        if let Err(error) = lobby_server::v026g::client_test::set_roles_hook(Box::new(|roster| {
+            let Some(map) = survarium::v026g::maps::map_mode(roster.map_id) else {
+                return roster.defaults;
+            };
+            matches::bots::client_tests::bot_roles(map.level, map.mode, roster.per_team, roster.bot_teams, roster.defaults)
+        })) {
+            log::error!("CLIENT_TEST: the roles hook is not set: {error:?}");
+        }
         let stop = Arc::new(AtomicBool::new(false));
         // The lobby (who is a bot when a match is made), the rewards and
         // the ranking read it from the accounts.

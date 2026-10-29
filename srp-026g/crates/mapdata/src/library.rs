@@ -13,7 +13,8 @@
 //! The model's `settings` map a shading group to a game material
 //! (`game_material_settings[group].game_material_id`), and
 //! `game_materials/game.materials` gives the material's
-//! `physic.walker_behaviour`. A library name may end in `#[sx][sy][sz]`: the
+//! `physic.walker_behaviour` and `physic.armor` (what a bullet meets,
+//! [`crate::pierce`]). A library name may end in `#[sx][sy][sz]`: the
 //! engine strips it and scales the mesh. A chunk file is a sequence of
 //! `u32 id, u32 size, body`, little endian.
 
@@ -23,6 +24,7 @@ use binary_config_parser::ConfigValue;
 
 use crate::config::{float3, float3_req};
 use crate::math::{Rotation, Vec3};
+use crate::pierce::{Armor, FaceArmor};
 use crate::resources::{Error, Resources};
 
 const CHUNK_VERTICES: u32 = 0x19;
@@ -57,10 +59,33 @@ impl WalkerBehaviour {
     }
 }
 
-/// `game_materials/game.materials`: game material id → walker behaviour.
+/// What a face is made of, as far as the bots need: how the walking body treats it and what a
+/// bullet meets in it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Surface {
+    pub walker: WalkerBehaviour,
+    pub armor: FaceArmor,
+}
+
+/// A triangle of a library: its corners (indices of the library's vertices) and what it is made of.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Face {
+    pub corners: [u32; 3],
+    pub surface: Surface,
+}
+
+impl Face {
+    /// A face of unknown material that the walking body treats as `walker` (a test's floor, a wall).
+    pub fn unknown(corners: [u32; 3], walker: WalkerBehaviour) -> Self {
+        Self { corners, surface: Surface { walker, armor: FaceArmor::Unknown } }
+    }
+}
+
+/// `game_materials/game.materials`: game material id → walker behaviour and armor.
 #[derive(Clone, Debug, Default)]
 pub struct Materials {
     walker: HashMap<u16, WalkerBehaviour>,
+    armor: HashMap<u16, Armor>,
 }
 
 impl Materials {
@@ -72,22 +97,32 @@ impl Materials {
 
     pub fn from_config(config: &ConfigValue) -> Self {
         let mut walker = HashMap::new();
+        let mut armor = HashMap::new();
         if let Some(materials) = config.get("materials") {
             for material in materials.children() {
                 let Some(id) = material.get("id").and_then(ConfigValue::as_i32) else {
                     continue;
                 };
-                let behaviour = material
-                    .get("physic")
+                let physic = material.get("physic");
+                let behaviour = physic
                     .and_then(|physic| physic.get("walker_behaviour"))
                     .and_then(ConfigValue::as_i32)
                     .unwrap_or(0);
+                // A material without `armor`, or with one that is no armor, is left out: its
+                // faces are [`FaceArmor::Unknown`] and stop every bullet, as the whole mesh did before.
+                let resistance = physic
+                    .and_then(|physic| physic.get("armor"))
+                    .and_then(ConfigValue::as_f32)
+                    .and_then(Armor::new);
                 if let Ok(id) = u16::try_from(id) {
                     walker.insert(id, WalkerBehaviour::from_u8(behaviour as u8));
+                    if let Some(resistance) = resistance {
+                        armor.insert(id, resistance);
+                    }
                 }
             }
         }
-        Self { walker }
+        Self { walker, armor }
     }
 
     /// A material the table lacks (or no material) walks by slope.
@@ -95,6 +130,21 @@ impl Materials {
         material
             .and_then(|id| self.walker.get(&id).copied())
             .unwrap_or_default()
+    }
+
+    /// A material the table lacks (or no material) is [`FaceArmor::Unknown`].
+    pub fn armor(&self, material: Option<u16>) -> FaceArmor {
+        material
+            .and_then(|id| self.armor.get(&id).copied())
+            .map_or(FaceArmor::Unknown, FaceArmor::Material)
+    }
+
+    /// Both of a face's material.
+    pub fn surface(&self, material: Option<u16>) -> Surface {
+        Surface {
+            walker: self.walker_behaviour(material),
+            armor: self.armor(material),
+        }
     }
 }
 
@@ -104,11 +154,11 @@ pub struct Library {
     /// The `lib_name` as the project names it (with the scale suffix).
     pub name: String,
     pub vertices: Vec<Vec3>,
-    pub triangles: Vec<[u32; 3]>,
-    /// One per triangle.
-    pub walker: Vec<WalkerBehaviour>,
+    /// The triangles with what each is made of: one list, so a corner list, its walker behaviour and its armor can
+    /// never part.
+    pub faces: Vec<Face>,
     /// Primitives (box, sphere, cylinder, capsule) that were turned into
-    /// triangles; they are part of `triangles`.
+    /// triangles; they are part of `faces`.
     pub primitives: u32,
 }
 
@@ -133,14 +183,14 @@ impl Library {
         } else {
             None
         };
-        let behaviour_of = |shading_group: &str| -> WalkerBehaviour {
+        let surface_of = |shading_group: &str| -> Surface {
             let material = material_settings
                 .as_ref()
                 .and_then(|m| m.get(shading_group))
                 .and_then(|m| m.get("game_material_id"))
                 .and_then(ConfigValue::as_i32)
                 .and_then(|id| u16::try_from(id).ok());
-            materials.walker_behaviour(material)
+            materials.surface(material)
         };
 
         let mut library = Self {
@@ -163,14 +213,14 @@ impl Library {
                 &indices,
                 face_data.as_deref(),
                 scale,
-                &behaviour_of,
+                &surface_of,
             )?;
         }
 
         let primitives_path = format!("{path}/exported_primitives");
         if resources.exists(&primitives_path) {
             let config = resources.config(&primitives_path)?;
-            library.add_primitives(&config, scale, &behaviour_of)?;
+            library.add_primitives(&config, scale, &surface_of)?;
         }
         Ok(library)
     }
@@ -182,7 +232,7 @@ impl Library {
         indices: &[u8],
         face_data: Option<&[u8]>,
         scale: Vec3,
-        behaviour_of: &dyn Fn(&str) -> WalkerBehaviour,
+        surface_of: &dyn Fn(&str) -> Surface,
     ) -> Result<(), Error> {
         let vertices = chunk(vertices, CHUNK_VERTICES)
             .ok_or_else(|| Error(format!("{}: no vertex chunk", self.name)))?;
@@ -197,15 +247,15 @@ impl Library {
                 Vec3::new(f(0), f(4), f(8)).scaled(scale)
             }));
         let faces = face_data
-            .map(|bytes| face_behaviours(bytes, behaviour_of))
+            .map(|bytes| face_surfaces(bytes, surface_of))
             .unwrap_or_default();
         for (n, tri) in indices.as_chunks::<12>().0.iter().enumerate() {
             let t = [0, 4, 8].map(|at| u32::from_le_bytes(word(tri, at)));
             if t.iter().any(|&i| i >= count) {
                 continue;
             }
-            self.triangles.push(t.map(|i| i + base));
-            self.walker.push(faces.get(n).copied().unwrap_or_default());
+            let surface = faces.get(n).copied().unwrap_or_default();
+            self.faces.push(Face { corners: t.map(|i| i + base), surface });
         }
         Ok(())
     }
@@ -215,7 +265,7 @@ impl Library {
         &mut self,
         config: &ConfigValue,
         scale: Vec3,
-        behaviour_of: &dyn Fn(&str) -> WalkerBehaviour,
+        surface_of: &dyn Fn(&str) -> Surface,
     ) -> Result<(), Error> {
         let names: Vec<String> = config
             .get("mtl_list")
@@ -252,7 +302,7 @@ impl Library {
                 .and_then(|i| names.get(i as usize))
                 .map(String::as_str)
                 .unwrap_or("");
-            let behaviour = behaviour_of(shading_group);
+            let surface = surface_of(shading_group);
             let (points, triangles) = shape.tessellate();
             let base = self.vertices.len() as u32;
             self.vertices.extend(
@@ -261,8 +311,7 @@ impl Library {
                     .map(|&p| (rotation.apply(p) + position).scaled(scale)),
             );
             for t in triangles {
-                self.triangles.push(t.map(|i| i + base));
-                self.walker.push(behaviour);
+                self.faces.push(Face { corners: t.map(|i| i + base), surface });
             }
             self.primitives += 1;
         }
@@ -305,11 +354,8 @@ pub fn chunk(bytes: &[u8], id: u32) -> Option<&[u8]> {
     None
 }
 
-/// Per-triangle walker behaviour from `face_data`.
-fn face_behaviours(
-    bytes: &[u8],
-    behaviour_of: &dyn Fn(&str) -> WalkerBehaviour,
-) -> Vec<WalkerBehaviour> {
+/// Per-triangle surface from `face_data`.
+fn face_surfaces(bytes: &[u8], surface_of: &dyn Fn(&str) -> Surface) -> Vec<Surface> {
     let (Some(header), Some(faces)) = (
         chunk(bytes, CHUNK_FACE_DATA_HEADER),
         chunk(bytes, CHUNK_FACE_DATA),
@@ -321,8 +367,8 @@ fn face_behaviours(
     }
     let count = u16::from_le_bytes([header[0], header[1]]) as usize;
     let mut names = header[2..].split(|&b| b == 0);
-    let remap: Vec<WalkerBehaviour> = (0..count)
-        .map(|_| behaviour_of(&String::from_utf8_lossy(names.next().unwrap_or_default())))
+    let remap: Vec<Surface> = (0..count)
+        .map(|_| surface_of(&String::from_utf8_lossy(names.next().unwrap_or_default())))
         .collect();
     faces
         .as_chunks::<2>()
@@ -520,20 +566,27 @@ mod tests {
             ..Library::default()
         };
         let (_, scale) = split_scale(&library.name);
-        let behaviour = |group: &str| match group {
-            "walk" => WalkerBehaviour::Walk,
-            "dont_walk" => WalkerBehaviour::DontWalk,
-            _ => WalkerBehaviour::BySlope,
+        let surface = |group: &str| match group {
+            "walk" => Surface {
+                walker: WalkerBehaviour::Walk,
+                armor: FaceArmor::Material(Armor::new(0.1).unwrap()),
+            },
+            "dont_walk" => Surface {
+                walker: WalkerBehaviour::DontWalk,
+                armor: FaceArmor::FREE,
+            },
+            _ => Surface::default(),
         };
         library
-            .add_mesh(&vertices, &indices, Some(&face_data), scale, &behaviour)
+            .add_mesh(&vertices, &indices, Some(&face_data), scale, &surface)
             .unwrap();
         // The third triangle names a vertex that does not exist.
-        assert_eq!(library.triangles, [[0, 1, 2], [1, 3, 2]]);
-        assert_eq!(
-            library.walker,
-            [WalkerBehaviour::DontWalk, WalkerBehaviour::Walk]
-        );
+        let corners: Vec<[u32; 3]> = library.faces.iter().map(|f| f.corners).collect();
+        assert_eq!(corners, [[0, 1, 2], [1, 3, 2]]);
+        let walker: Vec<WalkerBehaviour> = library.faces.iter().map(|f| f.surface.walker).collect();
+        assert_eq!(walker, [WalkerBehaviour::DontWalk, WalkerBehaviour::Walk]);
+        let armor: Vec<FaceArmor> = library.faces.iter().map(|f| f.surface.armor).collect();
+        assert_eq!(armor, [FaceArmor::FREE, FaceArmor::Material(Armor::new(0.1).unwrap())]);
         assert_eq!(library.vertices[3], Vec3::new(2.0, 1.0, 3.0));
     }
 
@@ -628,20 +681,23 @@ mod tests {
         let config = binary_config_parser::BinaryConfig::parse_json(&json);
         let config = ConfigValue::parse(config.as_bytes()).unwrap();
         let mut library = Library::default();
-        let behaviour = |group: &str| {
-            if group == "walk" {
+        let surface = |group: &str| Surface {
+            walker: if group == "walk" {
                 WalkerBehaviour::Walk
             } else {
                 WalkerBehaviour::BySlope
-            }
+            },
+            armor: if group == "walk" { FaceArmor::FREE } else { FaceArmor::Unknown },
         };
         library
-            .add_primitives(&config, Vec3::new(2.0, 1.0, 1.0), &behaviour)
+            .add_primitives(&config, Vec3::new(2.0, 1.0, 1.0), &surface)
             .unwrap();
         assert_eq!(library.primitives, 2);
-        assert_eq!(library.triangles.len(), 24);
-        assert_eq!(library.walker[0], WalkerBehaviour::Walk);
-        assert_eq!(library.walker[12], WalkerBehaviour::BySlope);
+        assert_eq!(library.faces.len(), 24);
+        assert_eq!(library.faces[0].surface.walker, WalkerBehaviour::Walk);
+        assert_eq!(library.faces[12].surface.walker, WalkerBehaviour::BySlope);
+        assert_eq!(library.faces[0].surface.armor, FaceArmor::FREE);
+        assert_eq!(library.faces[12].surface.armor, FaceArmor::Unknown);
         let max_x = library
             .vertices
             .iter()

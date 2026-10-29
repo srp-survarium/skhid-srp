@@ -41,6 +41,7 @@ impl Bots {
                 let bot = self.bots.get(p.place)?.as_ref()?;
                 Some(BotView {
                     body: body_of(p),
+                    role: bot.role,
                     mind: Mind {
                         target: bot.reflex.target(),
                         gates: bot.reflex.gates(),

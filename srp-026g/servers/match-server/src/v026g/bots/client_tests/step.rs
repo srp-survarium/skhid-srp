@@ -1,6 +1,7 @@
 //! The step: one client test, as data (see the module docs for the API).
 
 use mapdata::Vec3;
+use survarium::v026g::loadouts::BotRole;
 
 use super::frame::Frame;
 pub use super::time::{At, Span};
@@ -227,6 +228,16 @@ impl Grip {
     }
 }
 
+/// A bot's role in the match, asked for by a step: the bot's kits and personality are the role's, from the match's start (a match's
+/// profiles are made once, so the role is the match's, not the step's). The enemy bot `n` of a Player vs Bots match is the n-th bot
+/// of team 1 by place, a mate the n-th of team 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Seat {
+    pub side: Side,
+    pub nth: u8,
+    pub role: BotRole,
+}
+
 /// Setup the server does for a step: `who` follows `script`, with `grip`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Setup {
@@ -414,6 +425,8 @@ pub struct Step {
     /// One line, said to the owner when the step is armed.
     pub instruction: &'static str,
     pub setup: Vec<Setup>,
+    /// Roles the match's bots must have for this step (see [`Seat`]).
+    pub roster: Vec<Seat>,
     pub start: Vec<Cond>,
     pub end: Vec<End>,
     pub measures: Vec<Measure>,
@@ -437,6 +450,7 @@ impl Step {
             group,
             instruction,
             setup: Vec::new(),
+            roster: Vec::new(),
             start: vec![Cond::After(Span(0))],
             end: Vec::new(),
             measures: Vec::new(),
@@ -456,6 +470,14 @@ impl Step {
 
     pub fn setup_with(mut self, who: Who, script: Script, grip: Grip) -> Self {
         self.setup.push(Setup { who, script, grip });
+        self
+    }
+
+    /// The bot `nth` of `side` is a `role` for the whole match (its kits and weapons are the role's): the match is formed with it.
+    /// Two steps of one match may not ask for two roles of one seat (the plan refuses it).
+    pub fn seat(mut self, side: Side, nth: u8, role: BotRole) -> Self {
+        self.roster.retain(|seat| !(seat.side == side && seat.nth == nth));
+        self.roster.push(Seat { side, nth, role });
         self
     }
 
@@ -542,6 +564,9 @@ impl Step {
         }
         if let Some(bar) = self.bars.iter().find(|bar| !names.contains(&bar.measure)) {
             return bad(&format!("a bar names the measure {}, which the step does not declare", bar.measure));
+        }
+        if self.roster.iter().any(|seat| seat.nth >= MAX_NTH) {
+            return bad("a seat number is out of range");
         }
         let nth = |who: &Who| matches!(who, Who::Nth(_, n) if *n >= MAX_NTH);
         if self.setup.iter().any(|s| nth(&s.who)) || self.end.iter().any(|e| matches!(e, End::ScriptedDied(w) if nth(w))) {
