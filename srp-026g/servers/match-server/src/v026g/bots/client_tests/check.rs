@@ -4,42 +4,49 @@
 //! reads the printed card instead.
 
 use super::frame::Frame;
-use super::step::{Cond, Group, Measure, Scratch, Size, Span, Step, Test};
+use super::step::{Cond, CustomMeter, Group, Measure, Size, Span, Step, Test};
 
-/// The step, in the group of the plan's first match (a step of any size).
+/// The step, in the group of the plan's first match (a step of any size). It starts as soon as it is armed, so a quick answer is
+/// counted, and counts the owner's crouch going down and coming up: `C` held is two changes, a toggled `C` pressed twice is two.
 pub fn message_check(group: Group) -> Step {
     let mut step = Step::new(
         "check-message",
         Group { size: Size::Any, ..group },
-        "CHECK: if you can read this line in the game chat, crouch twice (C, C) within 20 seconds.",
+        "CHECK: if you can read this line in the game chat, hold C for a second, twice (within 20 seconds).",
     )
-    .start(&[Cond::After(Span::s(2))])
+    .start(&[Cond::After(Span(0))])
+    .settle(Span(0))
     .measure(Measure::Custom {
-        names: &["crouch_presses"],
-        sample: count_crouches,
-        values: crouch_values,
+        names: &["crouch_changes"],
+        make: |_| Box::new(Crouches::default()),
     })
-    .bar("crouch_presses", Test::AtLeast(2.0))
+    .bar("crouch_changes", Test::AtLeast(2.0))
     .budget_s(20);
     step.package = "check";
     step
 }
 
-/// The owner's crouch presses: `numbers[0]` counts them, `numbers[1]` is 1 while he is down.
-fn count_crouches(frame: &Frame, scratch: &mut Scratch) {
-    if scratch.numbers.is_empty() {
-        scratch.numbers = vec![0.0, 0.0];
-    }
-    let Some(owner) = frame.owner.as_ref() else {
-        return;
-    };
-    let down = owner.body.crouched;
-    if down && scratch.numbers[1] == 0.0 {
-        scratch.numbers[0] += 1.0;
-    }
-    scratch.numbers[1] = f64::from(u8::from(down));
+/// The owner's crouch changes: down and up each count.
+#[derive(Debug, Default)]
+struct Crouches {
+    /// His stance at the last frame, once seen.
+    last: Option<bool>,
+    changes: u32,
 }
 
-fn crouch_values(scratch: &Scratch) -> Vec<Option<f64>> {
-    vec![Some(scratch.numbers.first().copied().unwrap_or(0.0))]
+impl CustomMeter for Crouches {
+    fn sample(&mut self, frame: &Frame) {
+        let Some(owner) = frame.owner.as_ref() else {
+            return;
+        };
+        let down = owner.body.crouched;
+        if self.last.is_some_and(|before| before != down) {
+            self.changes += 1;
+        }
+        self.last = Some(down);
+    }
+
+    fn value(&self, n: usize) -> Option<f64> {
+        (n == 0).then(|| f64::from(self.changes))
+    }
 }

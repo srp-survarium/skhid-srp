@@ -12,7 +12,7 @@ use crate::v026g::drive::key;
 
 /// Who has the body.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Control {
+pub enum Driver {
     /// Its play and its reflex, as ever.
     #[default]
     Own,
@@ -24,7 +24,7 @@ pub enum Control {
     Scripted(Grip),
 }
 
-impl Control {
+impl Driver {
     /// The reflex's wish as this control lets it stand: a script that lets the reflex fight keeps its aim and trigger and
     /// loses its legs (and the side step that goes with them); one that does not has only the reload.
     pub fn filter(self, over: Override) -> Override {
@@ -44,7 +44,7 @@ impl Control {
             #[cfg(test)]
             Self::BenchCamper => true,
             #[cfg(any(test, feature = "client-test"))]
-            Self::Scripted(_) => true,
+            Self::Scripted(grip) => grip.holds_legs(),
         }
     }
 

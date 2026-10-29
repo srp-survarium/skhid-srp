@@ -25,7 +25,7 @@
 //! sides swapped) he is then the same opponent in both runs.
 
 use super::*;
-use crate::v026g::bots::control::Control;
+use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::know::Track;
 use crate::v026g::bots::plays::{Go, Intent, Pace};
 use crate::v026g::bots::tactics::Tactics;
@@ -711,7 +711,7 @@ impl BenchCamper {
         match &mut self.state {
             CamperState::Seeking | CamperState::NoSpot => false,
             CamperState::Still { at, .. } => {
-                bot.control = Control::BenchCamper;
+                bot.control = Driver::BenchCamper;
                 bot.intent = Intent {
                     go: Go::To { at: *at, within_m: CAMPER_WITHIN_M },
                     pace: Pace::Run,
@@ -725,7 +725,7 @@ impl BenchCamper {
                 let Some(side) = bot.side else {
                     return false;
                 };
-                bot.control = Control::BenchCamper;
+                bot.control = Driver::BenchCamper;
                 let enemy = nearest_known(bot.memory.tracks(), me.feet, now);
                 bot.intent = motion.step(&Think { now, me, enemy, tactics, side });
                 true

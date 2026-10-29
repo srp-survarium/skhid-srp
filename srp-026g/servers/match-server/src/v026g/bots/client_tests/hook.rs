@@ -1,11 +1,11 @@
 //! The runner's reach into the bots: the poll hands it the frame, a think asks it what a scripted bot does.
 
-use super::frame::{Body, BotView, Frame, Heard, Mind, Owner};
+use super::frame::{Body, BotView, Frame, Heard, Mind, Owner, Sight};
 use super::run::Act;
 use super::step::{Fight, Gait};
 use super::time::At;
 use super::Link;
-use crate::v026g::bots::control::Control;
+use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::plays::{Go, Intent, Look, Pace};
 use crate::v026g::bots::view::{Clock, MatchView, PlaceView};
 use crate::v026g::bots::{Bot, Bots, Note};
@@ -21,12 +21,17 @@ fn body_of(p: &PlaceView) -> Body {
         kills: p.kills,
         deaths: p.deaths,
         crouched: p.crouched(),
+        keys: p.keys,
+        yaw: p.yaw,
+        pitch: p.pitch,
+        speed: p.speed(),
     }
 }
 
 impl Bots {
     /// The match as the runner sees it: the bodies of the view, each bot's reflex, the batteries, what was said.
     fn client_test_frame(&self, clock: &Clock, view: &MatchView, notes: &[Note], pools: Option<crate::v026g::bots::pools::Pools>) -> Frame {
+        let sight = self.tactics.as_ref().map(|tactics| Sight(tactics.world.sight.clone()));
         let owner = view.places.iter().find(|p| p.present && !p.bot).map(|p| Owner { body: body_of(p), pools });
         let bots = view
             .places
@@ -58,6 +63,7 @@ impl Bots {
                     text: n.text.clone(),
                 })
                 .collect(),
+            sight,
         }
     }
 
@@ -71,10 +77,14 @@ impl Bots {
         link.tick(&frame);
         for bot in self.bots.iter_mut().flatten() {
             bot.control = match (bot.control, link.drive(bot.place)) {
-                (Control::Own | Control::Scripted(_), Some(drive)) => Control::Scripted(drive.grip),
-                (Control::Scripted(_), None) => Control::Own,
+                (Driver::Own | Driver::Scripted(_), Some(drive)) => Driver::Scripted(drive.grip),
+                (Driver::Scripted(_), None) => Driver::Own,
                 (other, _) => other,
             };
+            // The script's intent is the body's from the next tick, not from the bot's next due think (200-400 ms).
+            if let (Driver::Scripted(_), Some(me)) = (bot.control, view.place(bot.place).filter(|p| p.alive)) {
+                script_bot(Some(&link), bot, me);
+            }
         }
         self.client_tests = Some(link);
     }
@@ -91,9 +101,15 @@ pub fn script_bot(link: Option<&Link>, bot: &mut Bot, me: &PlaceView) -> bool {
     let Some(drive) = link.and_then(|link| link.drive(bot.place)) else {
         return false;
     };
-    let fire = drive.grip.fight == Fight::Free;
+    let fire = matches!(drive.grip.fight, Fight::Free | Fight::Full);
     bot.intent = match drive.act {
         Act::Stand { crouch } => Intent {
+            crouch,
+            fire,
+            ..Intent::stay()
+        },
+        Act::Face { look, crouch } => Intent {
+            look: Look::At(look),
             crouch,
             fire,
             ..Intent::stay()

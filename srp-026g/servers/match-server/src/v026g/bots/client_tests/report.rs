@@ -10,7 +10,7 @@ use super::step::{Cond, End, Group, Step};
 
 /// The results file's columns: the match, the commit and the tuning the server ran on, the step and its try, the verdict, the times
 /// on the match clock and the measures.
-pub const HEADER: &str = "match\tsha\ttuning\tstep\tpackage\ttry\ttries\tresult\tended_by\tstart_ms\tend_ms\tvalues";
+pub const HEADER: &str = "match\tsha\ttuning\ttuning_source\tstep\tpackage\ttry\ttries\tresult\tended_by\tstart_ms\tend_ms\tvalues";
 
 /// Where the plan's files are written, and the progress of its steps across matches.
 #[derive(Debug)]
@@ -105,10 +105,11 @@ pub fn line_of(row: &Row) -> String {
         })
         .collect();
     format!(
-        "{:#x}\t{}\t{:08x}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{:#x}\t{}\t{:08x}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
         row.match_id,
-        row.provenance.sha_text(),
+        row.provenance.sha,
         row.provenance.tuning,
+        row.provenance.tuning_source.replace(['\t', '\n'], " "),
         row.step,
         row.package,
         row.try_no,
@@ -129,9 +130,10 @@ fn trim(v: f64) -> String {
 /// The printed card: the steps in the order they run, by match, with what the owner does.
 pub fn card(plan: &str, provenance: &Provenance, matches: &[(Group, Vec<&Step>)]) -> String {
     let mut text = format!(
-        "# Client test card: {plan}\n\nServer build {}, bots' tuning {:08x}. The steps run by themselves, one after another, in the match for their group.\n",
-        provenance.sha_text(),
-        provenance.tuning
+        "# Client test card: {plan}\n\nServer build {}, bots' tuning {:08x} ({}). The steps run by themselves, one after another, in the match for their group.\n",
+        provenance.sha,
+        provenance.tuning,
+        provenance.tuning_source
     );
     for (n, (group, steps)) in matches.iter().enumerate() {
         text.push_str(&format!("\n## Match {}: {}\n\nStart Player vs Bots on this map and mode.\n\n", n + 1, group.describe()));

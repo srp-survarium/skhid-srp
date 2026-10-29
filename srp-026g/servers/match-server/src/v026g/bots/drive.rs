@@ -350,6 +350,9 @@ fn drive_tick_inner(
         &mut bot.rng,
     );
     // Who has the body: a script's keeps the reflex's legs (and, if told, its aim and trigger) from it (`control.rs`).
+    // (What the reflex wished for the legs is recorded as it wished it, for a client test to read.)
+    #[cfg(any(test, feature = "client-test"))]
+    let wished_legs = over.legs;
     let over = bot.control.filter(over);
     if let Some(lapse) = bot.reflex.take_lapse() {
         bot.sight_counts.add(lapse);
@@ -438,7 +441,7 @@ fn drive_tick_inner(
     }
     #[cfg(any(test, feature = "client-test"))]
     {
-        bot.bench_legs_why = over.legs.filter(|_| !using).map(|legs| legs.why);
+        bot.bench_legs_why = wished_legs.filter(|_| !using).map(|legs| legs.why);
     }
     // The bench's stand-in camper and a script keep to their spots.
     let held = bot.control.holds_legs();
@@ -487,7 +490,8 @@ fn drive_tick_inner(
         }
     }
     // A rest point on a lip is moved inward (`ThinkTuning::rest_off_lip`): the walk ends with the centre on the floor.
-    if tuning.think.rest_off_lip
+    if reacts
+        && tuning.think.rest_off_lip
         && let Go::To { at, within_m } = intent.go
         && let Some(shifted) = path::off_lip(&tactics.world.grid, at)
     {
@@ -521,7 +525,8 @@ fn drive_tick_inner(
     // walk runs: it crosses fast and keeps its task (the owner, 2026-10-26:
     // "bots should still continue accomplish their tasks"). Not in a fight
     // (the reflex's legs), not crouched.
-    if tuning.threat.sprint
+    if reacts
+        && tuning.threat.sprint
         && goal.is_some()
         && over.legs.is_none()
         && intent.pace == Pace::Walk
@@ -543,7 +548,7 @@ fn drive_tick_inner(
         .locate(me.feet, 1.5)
         .map_or(ZoneSet::default(), |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
-    let zone_out = if Gates::wants_zone_way_out(&intent, goal) {
+    let zone_out = if reacts && Gates::wants_zone_way_out(&intent, goal) {
         zone_way_out(bot, tactics, me.feet, time, intent.objective)
     } else {
         None
@@ -568,7 +573,7 @@ fn drive_tick_inner(
     // link of the grid leads out of one), its ways out are tried, each a
     // route with a jump onto the rim (`escape.rs`); the try's landing is its
     // goal meanwhile. Cologne CG-3: a bot stood in pit A aiming all match.
-    let goal = if intent.straight {
+    let goal = if intent.straight || !reacts {
         goal
     } else {
         let grid = &tactics.world.grid;
@@ -915,6 +920,7 @@ fn drive_tick_inner(
                 if !escaping
                     && !there
                     && left.is_none()
+                    && bot.control.reacts()
                     && tuning.threat.spots
                     && !bot.threat.is_empty()
                     && let Some(plain) = route.as_ref()
@@ -1315,7 +1321,7 @@ fn drive_tick_inner(
         JumpBy::Hop => "hop",
     });
     // [trap_react] A noticed trap on the route, a little ahead: the same jump.
-    let by = by.or_else(|| trap_react::jump_due(bot, me, time, &tuning.traps.react).then_some("trap"));
+    let by = by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"));
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
 }

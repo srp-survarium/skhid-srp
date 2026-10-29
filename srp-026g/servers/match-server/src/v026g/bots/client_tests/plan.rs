@@ -5,6 +5,9 @@ use super::report::Output;
 use super::run::Todo;
 use super::step::{Group, Size, Step};
 
+/// Packages that only show the API: `all` leaves them out (2 x 90 s of the owner's time), naming one runs it.
+const EXAMPLES: &[&str] = &["sample"];
+
 /// The steps of a plan, grouped.
 #[derive(Clone, Debug)]
 pub struct Plan {
@@ -30,6 +33,7 @@ impl Plan {
             spec.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect()
         };
         let everything = tokens.iter().any(|t| t == "all");
+        // `all` is every step of every package but the ones that are only examples: a package named is run.
         for token in tokens.iter().filter(|t| *t != "all") {
             if !all.iter().any(|s| s.id == token || s.package == token) {
                 let known: Vec<&str> = all.iter().map(|s| s.id).collect();
@@ -38,7 +42,7 @@ impl Plan {
         }
         let mut steps: Vec<Step> = all
             .into_iter()
-            .filter(|s| everything || tokens.iter().any(|t| s.id == t || s.package == t))
+            .filter(|s| (everything && !EXAMPLES.contains(&s.package)) || tokens.iter().any(|t| s.id == t || s.package == t))
             .collect();
         if steps.is_empty() {
             return Err("SRP_CLIENT_TEST: the plan has no step".to_string());

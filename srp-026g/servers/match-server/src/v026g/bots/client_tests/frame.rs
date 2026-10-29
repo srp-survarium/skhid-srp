@@ -21,6 +21,11 @@ pub struct Body {
     pub kills: u32,
     pub deaths: u32,
     pub crouched: bool,
+    /// The keys it last pressed (as the world and its inputs show them), its view and its speed over the ground, m/s.
+    pub keys: u32,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub speed: f32,
 }
 
 /// The human of the match.
@@ -54,6 +59,22 @@ pub struct Heard {
     pub text: String,
 }
 
+/// The map's line of sight, for a step to ask whether a point sees another (the bots' own test, a clear line on the bullet mesh).
+#[derive(Clone)]
+pub struct Sight(pub std::sync::Arc<mapdata::RayTree>);
+
+impl std::fmt::Debug for Sight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Sight")
+    }
+}
+
+impl PartialEq for Sight {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 /// One poll.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Frame {
@@ -68,6 +89,8 @@ pub struct Frame {
     pub batteries: Vec<BatteryState>,
     /// What the bots said in this poll.
     pub heard: Vec<Heard>,
+    /// The map's line of sight, once the map is built.
+    pub sight: Option<Sight>,
 }
 
 impl Frame {
@@ -79,6 +102,11 @@ impl Frame {
             (Side::Mates, Some(team)) => b.body.team == team,
             (Side::Enemies, Some(team)) => b.body.team != team,
         })
+    }
+
+    /// Whether nothing lies between `from` and `to` on the bullet mesh; none until the map is built.
+    pub fn clear_line(&self, from: Vec3, to: Vec3) -> Option<bool> {
+        self.sight.as_ref().map(|sight| sight.0.visible(from, to))
     }
 
     pub fn bot(&self, place: Place) -> Option<&BotView> {

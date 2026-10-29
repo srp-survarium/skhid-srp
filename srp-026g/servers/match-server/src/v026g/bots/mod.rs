@@ -118,7 +118,7 @@ use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
 use commander::*;
-use control::Control;
+use control::Driver;
 use drive::*;
 use encode::Decision;
 use encode::Encoder;
@@ -295,7 +295,7 @@ pub struct Bot {
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// Who has the body: its play, the bench's stand-in camper or a client test's script (`control.rs`).
-    pub(crate) control: Control,
+    pub(crate) control: Driver,
     /// The bench's zone stretches: this tick's motives ([`why`]), what its
     /// route is, and whether the search that went on over polls ended in a
     /// ring's walk out.
@@ -449,7 +449,7 @@ impl Bot {
             bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
-            control: Control::Own,
+            control: Driver::Own,
             #[cfg(test)]
             bench_why: 0,
             #[cfg(test)]
@@ -1257,7 +1257,9 @@ impl Bots {
             #[cfg(test)]
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
-        } else if let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick) {
+        } else if bot.control.reacts()
+            && let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick)
+        {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]
             if after_gap {
@@ -1375,7 +1377,8 @@ impl Bots {
             return notes;
         }
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
-        if let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
+        if bot.control.reacts()
+            && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {
             let length = route.length();

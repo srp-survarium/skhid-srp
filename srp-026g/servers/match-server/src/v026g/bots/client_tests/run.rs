@@ -13,12 +13,10 @@ use std::collections::VecDeque;
 use mapdata::Vec3;
 
 use super::frame::{Body, Frame, Owner};
-use super::step::{Cond, End, Gait, Grip, Group, Measure, Progress, Scratch, Script, Setup, Side, Span, Spot, Step, Who};
+use super::step::{Cond, CustomMeter, End, Gait, Grip, Group, Measure, Progress, Script, Setup, Side, Span, Spot, Step, TryStart, Who};
 use super::time::At;
 use crate::v026g::bots::view::Place;
 
-/// The owner reads the instruction this long before the start can happen.
-const SETTLE: Span = Span::ms(1_500);
 /// A chat line fades after about 7 s (GUESS: not timed on the client's screen): the instruction is told again this often while
 /// the step waits for its start.
 const RETELL: Span = Span::s(6);
@@ -44,18 +42,15 @@ impl Todo {
     }
 }
 
-/// What a row and the card say about the build they were made on: the commit of the source (`SRP_BUILD_SHA`, set by whoever
-/// built the server; none if it was not) and the hash of the tuning the bots ran on (`Tuning::hash`).
+/// What a row and the card say about the build they were made on: the commit of the source (`SRP_BUILD_SHA` at run time, or
+/// baked in at build time; a server without one does not start), the hash of the tuning the bots ran on (`Tuning::hash`) and
+/// where it came from (`LoadedTuning::data_line`: `tuning=defaults`, or the file and the digest of its bytes, which is what a
+/// bench folder records), so a row can be matched to a bench run.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Provenance {
-    pub sha: Option<String>,
+    pub sha: String,
     pub tuning: u32,
-}
-
-impl Provenance {
-    pub fn sha_text(&self) -> &str {
-        self.sha.as_deref().unwrap_or("-")
-    }
+    pub tuning_source: String,
 }
 
 /// Why a try has no verdict.
@@ -140,6 +135,8 @@ pub enum Action {
 pub enum Act {
     /// Stands where it is, crouched or not.
     Stand { crouch: bool },
+    /// Stands where it is looking at `look`.
+    Face { look: Vec3, crouch: bool },
     /// Goes to `at` and stays within `within_m`; crouches there if told.
     Go { at: Vec3, within_m: f32, gait: Gait, crouch: bool },
     /// Looks at `look` with the throw key held or let go.
@@ -166,6 +163,7 @@ enum ThrowPhase {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Motion {
     Stand { crouch: bool },
+    Face { look: Vec3, crouch: bool },
     Hold { at: Vec3, within_m: f32, crouch: bool },
     Walk { lane: &'static [Spot], gait: Gait, looped: bool, leg: usize },
     Follow { within_m: f32, gait: Gait },
@@ -177,6 +175,7 @@ impl Motion {
         match script {
             Script::Idle => Motion::Stand { crouch: false },
             Script::Stand { crouch } => Motion::Stand { crouch },
+            Script::Face { at, crouch } => Motion::Face { look: at.vec(), crouch },
             Script::Hold { at, within_m, crouch } => Motion::Hold { at: at.vec(), within_m, crouch },
             Script::Walk { lane, gait, looped } => Motion::Walk { lane, gait, looped, leg: 0 },
             Script::Follow { within_m, gait } => Motion::Follow { within_m, gait },
@@ -215,6 +214,7 @@ impl Member {
         let feet = me.map(|b| b.feet);
         self.act = match &mut self.motion {
             Motion::Stand { crouch } => Act::Stand { crouch: *crouch },
+            Motion::Face { look, crouch } => Act::Face { look: *look, crouch: *crouch },
             Motion::Hold { at, within_m, crouch } => Act::Go {
                 at: *at,
                 within_m: *within_m,
@@ -327,9 +327,17 @@ impl Crew {
     }
 }
 
-/// One measure under way: a variant for each, with the state it keeps.
-#[derive(Clone, Debug)]
-enum Meter {
+/// One measure under way: its names and the state it keeps.
+#[derive(Debug)]
+struct Meter {
+    /// The names its values go under, the single place they are written (`Measure::all_names`).
+    names: Vec<&'static str>,
+    kind: Kind,
+}
+
+/// What a measure keeps: a variant for each, with the state it keeps.
+#[derive(Debug)]
+enum Kind {
     Elapsed,
     OwnerKills,
     OwnerDeaths,
@@ -339,14 +347,10 @@ enum Meter {
     Travel { total: f64, last: Option<Vec3> },
     SideKills { side: Side, total: u32, seen: Vec<(Place, u32)> },
     Nearest { side: Side, low: Option<f64> },
-    Notes { name: &'static str, contains: &'static str, count: u32 },
-    Seconds { name: &'static str, side: Side, at: Vec3, r_m: f32, total: Span, last: At },
-    Custom {
-        names: &'static [&'static str],
-        sample: fn(&Frame, &mut Scratch),
-        values: fn(&Scratch) -> Vec<Option<f64>>,
-        scratch: Scratch,
-    },
+    Notes { contains: &'static str, count: u32 },
+    Seconds { side: Side, at: Vec3, r_m: f32, total: Span, last: At },
+    /// A package's own measure and how many names it has.
+    Custom { meter: Box<dyn CustomMeter>, count: usize },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -358,34 +362,49 @@ struct Base {
 
 impl Meter {
     fn new(measure: Measure, base: Base) -> Self {
+        Self {
+            names: measure.all_names(),
+            kind: Kind::new(measure, base),
+        }
+    }
+
+    fn sample(&mut self, frame: &Frame, owner: &Owner, base: Base) {
+        self.kind.sample(frame, owner, base);
+    }
+
+    /// The values at the end, each under its name.
+    fn values(&self, base: Base, end: &Frame, owner: &Owner) -> Vec<(&'static str, Option<f64>)> {
+        self.names.iter().copied().zip(self.kind.values(base, end, owner)).collect()
+    }
+}
+
+impl Kind {
+    fn new(measure: Measure, base: Base) -> Self {
         match measure {
-            Measure::ElapsedMs => Meter::Elapsed,
-            Measure::OwnerKills => Meter::OwnerKills,
-            Measure::OwnerDeaths => Meter::OwnerDeaths,
-            Measure::FirstKillMs => Meter::FirstKill(None),
-            Measure::DiedAtMs => Meter::DiedAt(None),
-            Measure::MinHealth => Meter::MinHealth(None),
-            Measure::TravelM => Meter::Travel { total: 0.0, last: None },
-            Measure::SideKills(side) => Meter::SideKills { side, total: 0, seen: Vec::new() },
-            Measure::NearestBotM(side) => Meter::Nearest { side, low: None },
-            Measure::Notes { name, contains } => Meter::Notes { name, contains, count: 0 },
-            Measure::SecondsInArea { name, side, at, r_m } => Meter::Seconds {
-                name,
+            Measure::ElapsedMs => Kind::Elapsed,
+            Measure::OwnerKills => Kind::OwnerKills,
+            Measure::OwnerDeaths => Kind::OwnerDeaths,
+            Measure::FirstKillMs => Kind::FirstKill(None),
+            Measure::DiedAtMs => Kind::DiedAt(None),
+            Measure::MinHealth => Kind::MinHealth(None),
+            Measure::TravelM => Kind::Travel { total: 0.0, last: None },
+            Measure::SideKills(side) => Kind::SideKills { side, total: 0, seen: Vec::new() },
+            Measure::NearestBotM(side) => Kind::Nearest { side, low: None },
+            Measure::Notes { contains, .. } => Kind::Notes { contains, count: 0 },
+            Measure::SecondsInArea { side, at, r_m, .. } => Kind::Seconds {
                 side,
                 at: at.vec(),
                 r_m,
                 total: Span(0),
                 last: base.started,
             },
-            Measure::Custom { names, sample, values } => Meter::Custom {
-                names,
-                sample,
-                values,
-                scratch: Scratch {
-                    numbers: Vec::new(),
+            Measure::Custom { names, make } => Kind::Custom {
+                meter: make(&TryStart {
                     started: base.started,
-                    base: (base.kills, base.deaths),
-                },
+                    kills: base.kills,
+                    deaths: base.deaths,
+                }),
+                count: names.len(),
             },
         }
     }
@@ -394,24 +413,24 @@ impl Meter {
         let body = &owner.body;
         let since = frame.clock - base.started;
         match self {
-            Meter::Elapsed | Meter::OwnerKills | Meter::OwnerDeaths => {}
-            Meter::FirstKill(first) => {
+            Kind::Elapsed | Kind::OwnerKills | Kind::OwnerDeaths => {}
+            Kind::FirstKill(first) => {
                 if first.is_none() && body.kills > base.kills {
                     *first = Some(since);
                 }
             }
-            Meter::DiedAt(first) => {
+            Kind::DiedAt(first) => {
                 if first.is_none() && (body.deaths > base.deaths || !body.alive) {
                     *first = Some(since);
                 }
             }
-            Meter::MinHealth(low) => {
+            Kind::MinHealth(low) => {
                 if body.alive {
                     let h = f64::from(body.health);
                     *low = Some(low.map_or(h, |l| l.min(h)));
                 }
             }
-            Meter::Nearest { side, low } => {
+            Kind::Nearest { side, low } => {
                 if body.alive {
                     for bot in frame.side(*side).filter(|b| b.body.alive) {
                         let d = f64::from(bot.body.feet.distance_xz(body.feet));
@@ -419,7 +438,7 @@ impl Meter {
                     }
                 }
             }
-            Meter::Travel { total, last } => {
+            Kind::Travel { total, last } => {
                 if body.alive {
                     if let Some(prev) = last {
                         let d = prev.distance_xz(body.feet);
@@ -432,7 +451,7 @@ impl Meter {
                     *last = None;
                 }
             }
-            Meter::SideKills { side, total, seen } => {
+            Kind::SideKills { side, total, seen } => {
                 for bot in frame.side(*side) {
                     match seen.iter_mut().find(|(p, _)| *p == bot.body.place) {
                         Some((_, kills)) => {
@@ -443,57 +462,43 @@ impl Meter {
                     }
                 }
             }
-            Meter::Notes { contains, count, .. } => {
+            Kind::Notes { contains, count, .. } => {
                 *count += frame.heard.iter().filter(|h| h.text.contains(*contains)).count() as u32;
             }
-            Meter::Seconds { side, at, r_m, total, last, .. } => {
+            Kind::Seconds { side, at, r_m, total, last, .. } => {
                 if frame.side(*side).any(|b| b.body.alive && b.body.feet.distance_xz(*at) <= *r_m) {
                     *total = *total + (frame.clock - *last);
                 }
                 *last = frame.clock;
             }
-            Meter::Custom { sample, scratch, .. } => sample(frame, scratch),
+            Kind::Custom { meter, .. } => meter.sample(frame),
         }
     }
 
     /// The values at the end, one for each name.
-    fn values(&self, base: Base, end: &Frame, owner: &Owner) -> Vec<(&'static str, Option<f64>)> {
+    /// The values at the end, one for each name of the measure, in order.
+    fn values(&self, base: Base, end: &Frame, owner: &Owner) -> Vec<Option<f64>> {
         let body = &owner.body;
         let ms = |span: Option<Span>| span.map(|s| f64::from(s.as_ms()));
         match self {
-            Meter::Elapsed => vec![("elapsed_ms", Some(f64::from((end.clock - base.started).as_ms())))],
-            Meter::OwnerKills => vec![("owner_kills", Some(f64::from(body.kills.saturating_sub(base.kills))))],
-            Meter::OwnerDeaths => vec![("owner_deaths", Some(f64::from(body.deaths.saturating_sub(base.deaths))))],
-            Meter::FirstKill(first) => vec![("first_kill_ms", ms(*first))],
-            Meter::DiedAt(first) => vec![("died_at_ms", ms(*first))],
-            Meter::MinHealth(low) => vec![("min_health", *low)],
-            Meter::Travel { total, .. } => vec![("travel_m", Some(*total))],
-            Meter::SideKills { side, total, .. } => vec![(
-                match side {
-                    Side::Mates => "mate_kills",
-                    Side::Enemies => "enemy_kills",
-                },
-                Some(f64::from(*total)),
-            )],
-            Meter::Nearest { side, low } => vec![(
-                match side {
-                    Side::Mates => "nearest_mate_m",
-                    Side::Enemies => "nearest_enemy_m",
-                },
-                *low,
-            )],
-            Meter::Notes { name, count, .. } => vec![(name, Some(f64::from(*count)))],
-            Meter::Seconds { name, total, .. } => vec![(name, Some(total.as_s()))],
-            Meter::Custom { names, values, scratch, .. } => {
-                let got = values(scratch);
-                names.iter().copied().zip(got.into_iter().chain(std::iter::repeat(None))).collect()
-            }
+            Kind::Elapsed => vec![Some(f64::from((end.clock - base.started).as_ms()))],
+            Kind::OwnerKills => vec![Some(f64::from(body.kills.saturating_sub(base.kills)))],
+            Kind::OwnerDeaths => vec![Some(f64::from(body.deaths.saturating_sub(base.deaths)))],
+            Kind::FirstKill(first) => vec![ms(*first)],
+            Kind::DiedAt(first) => vec![ms(*first)],
+            Kind::MinHealth(low) => vec![*low],
+            Kind::Travel { total, .. } => vec![Some(*total)],
+            Kind::SideKills { total, .. } => vec![Some(f64::from(*total))],
+            Kind::Nearest { low, .. } => vec![*low],
+            Kind::Notes { count, .. } => vec![Some(f64::from(*count))],
+            Kind::Seconds { total, .. } => vec![Some(total.as_s())],
+            Kind::Custom { meter, count } => (0..*count).map(|n| meter.value(n)).collect(),
         }
     }
 }
 
 /// A try under way.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Running {
     todo: Todo,
     crew: Crew,
@@ -677,7 +682,7 @@ impl Runner {
             return Phase::Rest { until: frame.clock + REST };
         }
         // A step starts with the owner on his feet and after he had time to read it.
-        let begins = owner.body.alive && waited >= SETTLE && armed.todo.step.start.iter().all(|cond| holds(cond, &armed, frame, owner));
+        let begins = owner.body.alive && waited >= armed.todo.step.settle && armed.todo.step.start.iter().all(|cond| holds(cond, &armed, frame, owner));
         if !begins {
             if frame.clock - armed.told >= RETELL {
                 armed.told = frame.clock;

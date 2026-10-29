@@ -11,6 +11,8 @@ use crate::v026g::bots::reflex::Override;
 pub const MAX_BUDGET: Span = Span::s(180);
 /// How long the owner has to start a step (reach its start condition) before the try is void.
 pub const DEFAULT_ARM: Span = Span::s(120);
+/// The owner reads the instruction this long before a start can happen.
+pub const DEFAULT_SETTLE: Span = Span::ms(1_500);
 /// How many bots of a side a script may name at most.
 const MAX_NTH: u8 = 32;
 /// The sizes Player vs Bots offers (`lobby-server/pvb.rs`): bots and the owner a side.
@@ -145,6 +147,8 @@ pub enum Script {
     Idle,
     /// Stands where it is, crouched or not.
     Stand { crouch: bool },
+    /// Stands where it is looking at `at`, crouched or not.
+    Face { at: Spot, crouch: bool },
     /// Goes to `at` and holds it (within `within_m`), crouched once there if told.
     Hold { at: Spot, within_m: f32, crouch: bool },
     /// Walks the points one after another (`looped`: round again, else stops at the last).
@@ -162,6 +166,9 @@ pub enum Script {
 pub enum Fight {
     /// The reflex aims and fires on sight; the script keeps the legs.
     Free,
+    /// The reflex has all it wants: aim, trigger, and its legs and side step too (a holder that is to push, a step back out of range);
+    /// the script's goal is the bot's when the reflex has no wish for the legs.
+    Full,
     /// The script has the look and the keys; the bot fires nothing (the reload only).
     Never,
 }
@@ -186,13 +193,28 @@ impl Grip {
     /// The reflex fights, nothing else moves the bot.
     pub const DEFAULT: Self = Self { fight: Fight::Free, react: React::None };
 
+    /// What a script needs: `Idle` is a dummy that does not fire back and `Throw` owns the look and the keys, so both are
+    /// `Fight::Never`; the others are [`Self::DEFAULT`].
+    pub const fn for_script(script: Script) -> Self {
+        match script {
+            Script::Idle | Script::Throw { .. } => Self { fight: Fight::Never, react: React::None },
+            Script::Stand { .. } | Script::Face { .. } | Script::Hold { .. } | Script::Walk { .. } | Script::Follow { .. } => Self::DEFAULT,
+        }
+    }
+
     pub fn reacts(self) -> bool {
         self.react == React::Normal
+    }
+
+    /// Whether the script keeps the legs: all but a reflex that has them ([`Fight::Full`]).
+    pub fn holds_legs(self) -> bool {
+        self.fight != Fight::Full
     }
 
     /// The reflex's wish as the grip lets it stand.
     pub fn filter(self, over: Override) -> Override {
         match self.fight {
+            Fight::Full => over,
             Fight::Free => Override {
                 legs: None,
                 strafe: 0,
@@ -288,12 +310,12 @@ pub enum Measure {
     Notes { name: &'static str, contains: &'static str },
     /// Seconds with at least one living bot of `side` within `r_m` (flat) of `at`.
     SecondsInArea { name: &'static str, side: Side, at: Spot, r_m: f32 },
-    /// Measures of the package's own: `sample` sees every frame of the try and keeps what it needs in the scratch; `values` gives
-    /// one value for each of `names`, in order, at the end.
+    /// Measures of the package's own, each name with a value: `make` builds the [`CustomMeter`] at the try's start; it sees every
+    /// frame and gives the value of each of `names` by its index at the end (one call a name: a package cannot give too few or too
+    /// many).
     Custom {
         names: &'static [&'static str],
-        sample: fn(&Frame, &mut Scratch),
-        values: fn(&Scratch) -> Vec<Option<f64>>,
+        make: fn(&TryStart) -> Box<dyn CustomMeter>,
     },
 }
 
@@ -326,14 +348,20 @@ impl Measure {
     }
 }
 
-/// What a [`Measure::Custom`] keeps between frames.
-#[derive(Clone, Debug, Default)]
-pub struct Scratch {
-    pub numbers: Vec<f64>,
-    /// The try's start on the match clock.
+/// How a try began: when, and the owner's kills and deaths then.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TryStart {
     pub started: At,
-    /// The owner's kills and deaths at the start.
-    pub base: (u32, u32),
+    pub kills: u32,
+    pub deaths: u32,
+}
+
+/// What a [`Measure::Custom`] keeps between frames, in a type of its own.
+pub trait CustomMeter: std::fmt::Debug {
+    /// One frame of the try (the owner is in it).
+    fn sample(&mut self, frame: &Frame);
+    /// The value of the measure's `n`-th name at the end of the try; none: no value.
+    fn value(&self, n: usize) -> Option<f64>;
 }
 
 /// What a bar asks of a measure's value.
@@ -396,6 +424,8 @@ pub struct Step {
     pub budget: Span,
     /// The longest the owner has to start it.
     pub arm: Span,
+    /// How long the owner has to read the instruction before the step may start (the check of the message starts at once).
+    pub settle: Span,
 }
 
 impl Step {
@@ -414,12 +444,14 @@ impl Step {
             tries: 1,
             budget: Span::s(60),
             arm: DEFAULT_ARM,
+            settle: DEFAULT_SETTLE,
         }
     }
 
-    /// `who` follows `script`; the reflex fights, nothing else moves the bot ([`Grip::DEFAULT`]).
+    /// `who` follows `script` with the grip the script wants ([`Grip::for_script`]): a throwing bot and an idle one fire nothing,
+    /// the others let the reflex aim and fire; nothing else moves the bot.
     pub fn setup(self, who: Who, script: Script) -> Self {
-        self.setup_with(who, script, Grip::DEFAULT)
+        self.setup_with(who, script, Grip::for_script(script))
     }
 
     pub fn setup_with(mut self, who: Who, script: Script, grip: Grip) -> Self {
@@ -455,6 +487,12 @@ impl Step {
 
     pub fn budget_s(mut self, seconds: u32) -> Self {
         self.budget = Span::s(seconds);
+        self
+    }
+
+    /// The step may start as soon as it is armed (`Span(0)`), or after this long (default 1.5 s).
+    pub fn settle(mut self, settle: Span) -> Self {
+        self.settle = settle;
         self
     }
 
@@ -512,8 +550,8 @@ impl Step {
         if self.start.iter().any(|c| matches!(c, Cond::BotsInPlace)) && !self.setup.iter().any(|s| matches!(s.script, Script::Hold { .. })) {
             return bad("`BotsInPlace` needs a bot with a `Hold` script");
         }
-        if self.setup.iter().any(|s| matches!(s.script, Script::Throw { .. }) && s.grip.fight != Fight::Never) {
-            return bad("a `Throw` needs `Fight::Never`: with the reflex free the aim is the reflex's");
+        if self.setup.iter().any(|s| matches!(s.script, Script::Throw { .. } | Script::Idle) && s.grip.fight != Fight::Never) {
+            return bad("a `Throw` needs `Fight::Never` (with the reflex free the aim is the reflex's), and so does an `Idle` dummy (it must not fire back)");
         }
         Ok(())
     }

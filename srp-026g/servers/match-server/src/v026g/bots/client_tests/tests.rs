@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use mapdata::Vec3;
 
 use super::*;
-use crate::v026g::bots::control::Control;
+use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::reflex::{Gates, Legs, LegsWhy, Override};
 use crate::v026g::bots::view::Place;
 use crate::v026g::drive::key;
@@ -29,6 +29,10 @@ fn body(place: Place, team: u8, at: Vec3) -> Body {
         kills: 0,
         deaths: 0,
         crouched: false,
+        keys: 0,
+        yaw: 0.0,
+        pitch: 0.0,
+        speed: 0.0,
     }
 }
 
@@ -95,6 +99,7 @@ impl Sim {
             bots: self.bots.clone(),
             batteries: Vec::new(),
             heard: Vec::new(),
+            sight: None,
         }
     }
 
@@ -110,8 +115,9 @@ fn teams(per_team: usize) -> Vec<u8> {
 
 fn provenance() -> Provenance {
     Provenance {
-        sha: Some("abc1234".into()),
+        sha: "abc1234".into(),
         tuning: 0xDEAD_BEEF,
+        tuning_source: "tuning=defaults".into(),
     }
 }
 
@@ -214,7 +220,7 @@ fn two_steps_run_one_after_another_with_a_made_up_owner() {
     assert!(rows[1].contains("\tt-hold\t") && rows[1].contains("\tPASS\towner_kills\t"), "{}", rows[1]);
     assert!(rows[1].contains("owner_kills=2"), "{}", rows[1]);
     assert!(
-        rows[1].starts_with("0xbeef\tabc1234\tdeadbeef\t"),
+        rows[1].starts_with("0xbeef\tabc1234\tdeadbeef\ttuning=defaults\t"),
         "the commit and the tuning are in every row: {}",
         rows[1]
     );
@@ -311,7 +317,7 @@ fn a_dead_owner_starts_no_step_and_the_next_one_waits_for_his_respawn() {
         "the second ran its 5 s alive: {}",
         rows[1]
     );
-    let start: u32 = rows[1].split('\t').nth(9).unwrap().parse().unwrap();
+    let start: u32 = rows[1].split('\t').nth(10).unwrap().parse().unwrap();
     assert!(start >= respawns, "it started at {start}, after the respawn at {respawns}");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -374,17 +380,27 @@ fn a_package_can_bring_its_own_condition_end_and_measures() {
     fn owner_far(frame: &Frame, progress: &Progress) -> bool {
         progress.since_start >= Span::s(2) && frame.owner.as_ref().is_some_and(|o| o.body.feet.x > 100.0)
     }
-    fn sample(frame: &Frame, scratch: &mut Scratch) {
-        if scratch.numbers.is_empty() {
-            scratch.numbers = vec![0.0, f64::MIN];
-        }
-        scratch.numbers[0] += 1.0;
-        if let Some(o) = frame.owner.as_ref() {
-            scratch.numbers[1] = scratch.numbers[1].max(f64::from(o.body.feet.x));
-        }
+    /// The furthest east the owner got and how many polls it took.
+    #[derive(Debug, Default)]
+    struct East {
+        polls: u32,
+        furthest: Option<f32>,
     }
-    fn values(scratch: &Scratch) -> Vec<Option<f64>> {
-        vec![Some(scratch.numbers[0]), Some(scratch.numbers[1])]
+    impl CustomMeter for East {
+        fn sample(&mut self, frame: &Frame) {
+            self.polls += 1;
+            if let Some(o) = frame.owner.as_ref() {
+                self.furthest = Some(self.furthest.map_or(o.body.feet.x, |f| f.max(o.body.feet.x)));
+            }
+        }
+
+        fn value(&self, n: usize) -> Option<f64> {
+            match n {
+                0 => Some(f64::from(self.polls)),
+                1 => self.furthest.map(f64::from),
+                _ => None,
+            }
+        }
     }
     let step = Step::new("t-own", group(), "Go east.")
         .start(&[Cond::Custom(WaitFor {
@@ -398,8 +414,7 @@ fn a_package_can_bring_its_own_condition_end_and_measures() {
         })])
         .measure(Measure::Custom {
             names: &["polls", "furthest_x"],
-            sample,
-            values,
+            make: |_| Box::new(East::default()),
         })
         .bar("furthest_x", Test::AtLeast(100.0))
         .budget_s(60);
@@ -471,13 +486,13 @@ fn the_message_check_is_a_step_that_passes_on_two_crouches() {
     let (mut link, dir) = link_for("check", vec![step], None);
     let mut sim = Sim::new();
     for _ in 0..800 {
-        // C, C at 5 s and 7 s, each held half a second.
+        // C held half a second at 5 s and at 7 s: four changes.
         sim.owner.crouched = matches!(sim.clock, 5_000..=5_500 | 7_000..=7_500);
         sim.tick(&mut link);
     }
     let results = results_of(&link);
     assert!(
-        results.contains("\tcheck-message\tcheck\t") && results.contains("\tPASS\t") && results.contains("crouch_presses=2"),
+        results.contains("\tcheck-message\tcheck\t") && results.contains("\tPASS\t") && results.contains("crouch_changes=4"),
         "{results}"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -536,12 +551,47 @@ fn a_bad_step_is_caught() {
         at: Spot::at(0.0, 0.0, 0.0),
         wind: Span::ms(500),
     };
-    assert!(ok().setup(Who::All(Side::Enemies), throw).check().is_err(), "a throw needs Fight::Never");
-    let never = Grip {
-        fight: Fight::Never,
-        react: React::None,
-    };
-    assert!(ok().setup_with(Who::All(Side::Enemies), throw, never).check().is_ok());
+    // A throw and an idle dummy fire nothing by default; asking the reflex to fight for them is refused.
+    for script in [throw, Script::Idle] {
+        let step = ok().setup(Who::All(Side::Enemies), script);
+        assert_eq!(step.setup[0].grip.fight, Fight::Never, "{script:?}");
+        step.check().unwrap();
+        assert!(ok().setup_with(Who::All(Side::Enemies), script, Grip::DEFAULT).check().is_err(), "{script:?} with a free fight");
+    }
+    assert_eq!(Grip::for_script(Script::Stand { crouch: false }), Grip::DEFAULT);
+}
+
+/// A bot that is to face a spot stands looking at it, and the custom conditions read keys and view of the bodies.
+#[test]
+fn a_bot_can_be_told_to_face_a_spot() {
+    let at = Spot::at(40.0, 0.0, 10.0);
+    let step = Step::new("t-face", group(), "Look at the dummy.")
+        .setup(Who::Nth(Side::Enemies, 0), Script::Face { at, crouch: true })
+        .end(&[End::OwnerDied])
+        .budget_s(5);
+    step.check().unwrap();
+    let (mut link, dir) = link_for("face", vec![step], None);
+    let mut sim = Sim::new();
+    for _ in 0..80 {
+        sim.tick(&mut link);
+    }
+    assert_eq!(link.drive(2).expect("scripted").act, Act::Face { look: at.vec(), crouch: true });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An idle dummy stands and is handed to the bot with a grip that does not let the reflex fire.
+#[test]
+fn an_idle_dummy_does_not_fire_back() {
+    let step = Step::new("t-idle", group(), "Shoot the dummy.").setup(Who::Nth(Side::Enemies, 0), Script::Idle).end(&[End::OwnerDied]).budget_s(5);
+    let (mut link, dir) = link_for("idle", vec![step], None);
+    let mut sim = Sim::new();
+    for _ in 0..80 {
+        sim.tick(&mut link);
+    }
+    let drive = link.drive(2).expect("scripted");
+    assert_eq!(drive.act, Act::Stand { crouch: false });
+    assert_eq!(drive.grip.fight, Fight::Never);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The grip decides what of the reflex's wish stands: a free fight keeps the aim and the trigger and loses the legs; a never
@@ -562,31 +612,38 @@ fn a_grip_leaves_the_reflex_what_the_step_lets_it() {
         strafe: key::LEFT,
         ..Override::default()
     };
-    let free = Control::Scripted(Grip {
+    let free = Driver::Scripted(Grip {
         fight: Fight::Free,
         react: React::None,
     })
     .filter(wish);
     assert!(free.look_at.is_some() && free.fire && free.keys == wish.keys, "aim, trigger and keys stand");
     assert!(free.legs.is_none() && free.strafe == 0, "the legs are the script's");
-    let never = Control::Scripted(Grip {
+    let never = Driver::Scripted(Grip {
         fight: Fight::Never,
         react: React::Normal,
     })
     .filter(wish);
     assert!(never.look_at.is_none() && !never.fire && never.legs.is_none());
     assert_eq!(never.keys, key::RELOAD, "only the reload is left");
-    assert_eq!(Control::Own.filter(wish), wish);
-    assert_eq!(Control::BenchCamper.filter(wish), wish);
-    assert!(!Control::Own.holds_legs() && Control::BenchCamper.holds_legs());
-    assert!(Control::Scripted(Grip::DEFAULT).holds_legs());
-    assert!(!Control::Scripted(Grip::DEFAULT).reacts(), "a holder holds when a grenade lands by it");
+    // A full fight leaves the reflex its legs and side step too.
+    let full = Driver::Scripted(Grip {
+        fight: Fight::Full,
+        react: React::None,
+    });
+    assert_eq!(full.filter(wish), wish);
+    assert!(!full.holds_legs());
+    assert_eq!(Driver::Own.filter(wish), wish);
+    assert_eq!(Driver::BenchCamper.filter(wish), wish);
+    assert!(!Driver::Own.holds_legs() && Driver::BenchCamper.holds_legs());
+    assert!(Driver::Scripted(Grip::DEFAULT).holds_legs());
+    assert!(!Driver::Scripted(Grip::DEFAULT).reacts(), "a holder holds when a grenade lands by it");
     assert!(
-        Control::Scripted(Grip {
+        Driver::Scripted(Grip {
             fight: Fight::Free,
             react: React::Normal
         })
         .reacts()
     );
-    assert!(Control::Own.reacts() && Control::BenchCamper.reacts());
+    assert!(Driver::Own.reacts() && Driver::BenchCamper.reacts());
 }

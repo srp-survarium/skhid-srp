@@ -119,7 +119,7 @@ pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
     }
     let loaded = LoadedTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
     #[cfg(feature = "client-test")]
-    super::bots::client_tests::init(loaded.tuning().hash()).map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
+    super::bots::client_tests::init(loaded.tuning().hash(), loaded.data_line()).map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
     Ok(loaded)
 }
 

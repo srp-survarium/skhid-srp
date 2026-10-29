@@ -8,7 +8,8 @@
 //! `SRP_CLIENT_TEST` names the plan: `all`, a list of step ids and package names (`a,b`), or `@file` with one per
 //! line. A step runs in a match of its [`Group`] (map, mode and, if the step wants it, size); the runner of a match
 //! runs the steps that fit it, one after another, the ones with the same group together. The plan's first step is
-//! [`check::message_check`]: the owner crouches twice if he can read the line the runner says.
+//! [`check::message_check`]: the owner holds C for a second, twice, if he can read the line the runner says (it counts his crouch
+//! going down and coming up from the moment the line is told).
 //!
 //! 1. **Armed.** With the owner on his feet, the runner picks the bots the step's setup names, scripts them ([`Script`]) and
 //!    tells the owner the step's one-line instruction (again every 6 s while it waits). The bots walk to their places meanwhile.
@@ -26,9 +27,11 @@
 //! # Files
 //!
 //! In `SRP_CLIENT_TEST_DIR` (default `logs/client-test`):
-//! - `client-test-results-<plan>-<time>.tsv`: one row per try: `match sha tuning step package try tries result ended_by
+//! - `client-test-results-<plan>-<time>.tsv`: one row per try: `match sha tuning tuning_source step package try tries result ended_by
 //!   start_ms end_ms values` (`name=value;...`, `-` for no value). `sha` is the commit the server was built from
-//!   (`SRP_BUILD_SHA`, set by whoever builds it; `-` if not) and `tuning` the hash of the bots' tuning;
+//!   (`SRP_BUILD_SHA`, in the environment or baked in at build time; the server does not start without it), `tuning` the hash
+//!   of the bots' tuning and `tuning_source` where it came from (`tuning=defaults`, or the file and its digest, as a bench folder
+//!   records it);
 //! - `client-test-card-<plan>-<time>.md`: the printed test card: matches in order, each step's instruction, start and
 //!   end, with the same sha and tuning. It is written at the start; it is also the way to tell the owner when the game
 //!   cannot (see below).
@@ -59,25 +62,29 @@
 //!   mode)` for any size, `.of_size(n)` for `n` a side (Player vs Bots offers 6, 8 and 10; the owner is team 0, with n-1
 //!   bots, and the other team is n bots). Player vs Bots offers batteries (2) and team deathmatch (4) only.
 //! - `.setup(who, script)`: [`Who`] is `Nth(Side, n)` (the bots of a side numbered by place from 0) or `All(Side)`;
-//!   [`Script`] is `Idle`, `Stand`, `Hold`, `Walk`, `Follow`, `Throw`. **A scripted bot is the script's:** its legs, look and
-//!   keys; nothing else moves it. `.setup_with(who, script, Grip { fight, react })` says what is left to the bot: `Fight::Free`
-//!   (the default) lets the reflex aim and fire on sight (but never take the legs), `Fight::Never` gives the script the look and
-//!   the keys and the bot fires nothing; `React::None` (the default) holds back the dodge of a grenade, the trap habit and its
-//!   reaction to a trap and the step in off a lip, `React::Normal` leaves them. A match that lacks a named bot voids the try
-//!   (`missing_bots`). Bots cannot be placed: they walk, so a start that needs them says `Cond::BotsInPlace`.
+//!   [`Script`] is `Idle`, `Stand`, `Face`, `Hold`, `Walk`, `Follow`, `Throw`. **A scripted bot is the script's:** its legs, look
+//!   and keys; nothing else moves it. `.setup(who, script)` gives it the grip the script wants ([`Grip::for_script`]: `Idle`, a
+//!   dummy, and `Throw` fire nothing; the others let the reflex fight). `.setup_with(who, script, Grip { fight, react })` says what
+//!   is left to the bot: `Fight::Free` lets the reflex aim and fire on sight (but never take the legs), `Fight::Full` leaves it its
+//!   legs and side step too (a holder that is to push), `Fight::Never` gives the script the look and the keys and the bot fires
+//!   nothing; `React::None` (the default) holds back what else moves a body: the dodge of a grenade, the trap habit and its
+//!   reaction to a trap and the jump over one, the step in off a lip, the zone way-out, the pocket escape, the sprint and the
+//!   detour round a held lane, the unstick and the pause after it; `React::Normal` leaves them. A match that lacks a named bot
+//!   voids the try (`missing_bots`). Bots cannot be placed: they walk, so a start that needs them says `Cond::BotsInPlace`.
 //! - `.start(&[..])`: all [`Cond`]s must hold at once, after the owner has had 1.5 s to read, with him alive: `OwnerNear`,
-//!   `BotsInPlace`, `After(Span)`, `Custom(WaitFor)`. The default is at once.
+//!   `BotsInPlace`, `After(Span)`, `Custom(WaitFor)`. The default is at once; `.settle(Span)` changes the 1.5 s to read.
 //! - `.end(&[..])`: the first [`End`] that holds, or the budget (`.budget_s(n)`, default 60, at most 180): `OwnerDied`,
 //!   `OwnerKills`, `OwnerLeft`, `ScriptedDied`, `Custom(EndWhen)`.
 //! - `.measure(..)`, `.bar(name, test)`: every measure is row values; a bar names one by [`Measure::all_names`] and the
-//!   try is PASS when all bars hold, FAIL otherwise, INFO when the step has no bar. `Measure::Custom` gives several names; its
-//!   `sample` sees every [`Frame`] of the try and its `values` gives one value for each name at the end.
+//!   try is PASS when all bars hold, FAIL otherwise, INFO when the step has no bar. `Measure::Custom` gives several names: its
+//!   `make` builds a [`CustomMeter`] (a type of the package's own) that sees every [`Frame`] of the try and gives the value of
+//!   each name by its index at the end.
 //! - `.tries(n)`: runs back to back, a row each. `.arm_s(n)`: the time to reach the start.
 //!
 //! What a step can see is what the server sees ([`Frame`]): the world's positions, health, kills and deaths of every body; the
 //! owner's health pools (body, head, legs, hands, pain, infection) when a world has shown them; each bot's reflex (its target, the
-//! gates that held its fire, why it took its legs); where each battery is; and the bots' notes. Hits and damage are read from
-//! health and the statistics. Ask the owner only for what the server cannot see. Times are [`At`] (a moment on the match clock)
+//! gates that held its fire, why it took its legs, as the reflex wished it); each body's keys, view and speed; where each battery is;
+//! the map's line of sight ([`Frame::clear_line`]); and the bots' notes. Hits and damage are read from health and the statistics. Ask the owner only for what the server cannot see. Times are [`At`] (a moment on the match clock)
 //! and [`Span`] (a length).
 //!
 //! [`Step::check`] checks a step; the registry test checks every registered step and a plan refuses one that fails.
@@ -97,7 +104,7 @@ mod run;
 mod step;
 mod time;
 
-pub use frame::{Body, BotView, Frame, Heard, Mind, Owner, group_of};
+pub use frame::{Body, BotView, Frame, Heard, Mind, Owner, Sight, group_of};
 pub use hook::script_bot;
 pub use report::{Output, card, line_of};
 pub use run::{Act, Action, Drive, Outcome, Provenance, Row, Runner, Todo, VoidWhy};
@@ -144,7 +151,7 @@ static LIVE: OnceLock<Live> = OnceLock::new();
 /// The server's start, once the bots' tuning is parsed (`tuning` is its hash): `SRP_CLIENT_TEST` read once. Unset or empty: no
 /// client test (Ok). Set on a live configuration, or naming a step that does not exist or cannot be run, or with a results
 /// folder that cannot be made: an error that stops the server.
-pub fn init(tuning: u32) -> Result<(), String> {
+pub fn init(tuning: u32, tuning_source: String) -> Result<(), String> {
     let Some(spec) = non_empty("SRP_CLIENT_TEST")? else {
         return Ok(());
     };
@@ -157,13 +164,13 @@ pub fn init(tuning: u32) -> Result<(), String> {
         ));
     }
     let plan = Plan::parse(&spec, registry())?;
-    let provenance = Provenance {
-        sha: non_empty("SRP_BUILD_SHA")?,
-        tuning,
-    };
-    if provenance.sha.is_none() {
-        log::warn!("CLIENT_TEST: SRP_BUILD_SHA is not set: the rows and the card will not say which commit this server was built from");
-    }
+    // The commit the server was built from: set when it is started (`SRP_BUILD_SHA`) or when it was built; a result that cannot say
+    // which commit made it is not made.
+    let sha = non_empty("SRP_BUILD_SHA")?.or_else(|| option_env!("SRP_BUILD_SHA").map(str::to_string)).ok_or_else(|| {
+        "SRP_CLIENT_TEST needs SRP_BUILD_SHA (the commit this server was built from, in the environment now or at build time): every result row says it"
+            .to_string()
+    })?;
+    let provenance = Provenance { sha, tuning, tuning_source };
     let dir = std::env::var_os("SRP_CLIENT_TEST_DIR")
         .filter(|d| !d.is_empty())
         .map_or_else(|| PathBuf::from("logs/client-test"), PathBuf::from);
@@ -172,12 +179,13 @@ pub fn init(tuning: u32) -> Result<(), String> {
         .write_card(&card(&plan.name, &provenance, &plan.matches()))
         .map_err(|e| format!("SRP_CLIENT_TEST: cannot write the card: {e}"))?;
     log::info!(
-        "CLIENT_TEST plan {}: {} steps in {} matches, build {}, tuning {:08x}; results {}, card {}",
+        "CLIENT_TEST plan {}: {} steps in {} matches, build {}, tuning {:08x} ({}); results {}, card {}",
         plan.name,
         plan.steps().len(),
         plan.groups().len(),
-        provenance.sha_text(),
+        provenance.sha,
         provenance.tuning,
+        provenance.tuning_source,
         output.results_path().display(),
         output.card_path().display()
     );
