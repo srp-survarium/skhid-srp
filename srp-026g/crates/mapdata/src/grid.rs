@@ -110,11 +110,11 @@ pub struct Body {
     pub min_ground_normal_y: f32,
     /// The highest drop taken (`fall_params.harmless_height`, 5 m).
     pub max_drop: f32,
-    /// The highest ledge reached by a jump. LIKELY 1.05 m: the client's
-    /// jump follows its animation (not measured); in the live logs of
-    /// 2026-10-17..23 bots stuck at the foot of ledges 1.15-1.3 m high 4-8
-    /// times as often (by the ledges there are) as at those 0.8-1.0 m
-    /// (`player_bots_stuck.md`). Was 1.3.
+    /// The highest ledge reached by a standing jump; a Jump link above it is a sprint jump (a run-up with sprint held,
+    /// [`SPRINT_JUMP_LOW_M`]). The exe's body has 1.05 m (LIKELY: the client's jump follows its animation; in the live
+    /// logs of 2026-10-17..23 bots stuck at the foot of ledges 1.15-1.3 m high 4-8 times as often as at those 0.8-1.0 m,
+    /// `player_bots_stuck.md`; was 1.3). The maps' grids set it from `GridTuning::jump_cap_m` (the clip's root tops at
+    /// [`STANDING_JUMP_M`], PROVEN; whether the body reaches a ledge above it is what the client test G-V4 settles).
     pub max_jump: f32,
     /// How fast a body walks off a ledge, m/s, for the Drop links: 0 (the default) is the cell model (a Drop is the
     /// step down to the floor of the next cell, [`Self::max_drop`] deep); over 0 a Drop is kept only if the body that
@@ -125,6 +125,10 @@ pub struct Body {
     pub drop_flight_mps: f32,
     /// How the floors near walls are eroded ([`Erosion`]). Not in the grid file: a grid read back has the cells'.
     pub erosion: Erosion,
+    /// Whether the take-off floor of a walk-off gap drop (a drop of a lip's height or more, walked off with no key) is a lip
+    /// ([`WalkGrid::is_lip`]), as a Drop link's is: the guards of the walk read the lip bits. A build input: in the key when
+    /// set; a grid read back is given it ([`WalkGrid::read`]).
+    pub walk_off_lips: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -166,6 +170,7 @@ impl Body {
             max_jump: v[6],
             drop_flight_mps: 0.0,
             erosion: Erosion::Cells,
+            walk_off_lips: false,
         }
     }
 }
@@ -211,6 +216,7 @@ impl Default for Body {
             max_jump: 1.05,
             drop_flight_mps: 0.0,
             erosion: Erosion::Cells,
+            walk_off_lips: false,
         }
     }
 }
@@ -591,6 +597,10 @@ pub struct BuildStats {
     /// The Drop links kept that the body that walks off crosses (its flight comes down within a step of the
     /// take-off's height: a trench or a slot the floor goes on past): counted, not taken away.
     pub drops_crossable: usize,
+    /// The sprint jumps (a Jump link above [`Body::max_jump`]) with no run-up: those above the exe body's top, taken away;
+    /// and those of the capped band (`max_jump` to the exe's 1.05 m), kept as the marginal jump the base made.
+    pub sprint_cut: usize,
+    pub capped_no_run_up: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -748,7 +758,7 @@ impl WalkGrid {
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
-        grid.drop_short_run_ups(&mut wide);
+        (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         let walls = (body.erosion == Erosion::Exact).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref());
@@ -938,8 +948,11 @@ impl WalkGrid {
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
     /// [`SPRINT_RUN_UP_M`] behind their take-off: the floors walked back from it in the opposite direction, each a
-    /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e).
-    fn drop_short_run_ups(&self, wide: &mut Wide) {
+    /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e). The links of the capped band
+    /// (rises from `max_jump` up to the exe body's top) are kept without a run-up: a cap does not cut what the base kept
+    /// for an objective only they reach. Returns the links taken away and those of the band kept with none.
+    fn drop_short_run_ups(&self, wide: &mut Wide) -> (usize, usize) {
+        let (mut cut, mut kept) = (0, 0);
         // Erosion takes the floors within the body's radius of the face off the take-off's side: the run is counted from
         // before it.
         let cells = ((SPRINT_RUN_UP_M + self.body.radius) / self.cell).ceil() as usize;
@@ -965,11 +978,18 @@ impl WalkGrid {
                     }
                     at = back as usize;
                 }
-                if !ok {
+                if ok {
+                    continue;
+                }
+                if self.height[b as usize] - self.height[a] <= Body::default().max_jump {
+                    kept += 1;
+                } else {
                     wide.links[a][d] = NONE;
+                    cut += 1;
                 }
             }
         }
+        (cut, kept)
     }
 
     /// Cuts the walks up steep ground past a step: a walk link up is
@@ -1568,9 +1588,11 @@ impl WalkGrid {
         })
     }
 
-    /// Reads the grid of `key` that [`Self::write`] wrote: checked index by
-    /// index, then by its digest, so it answers as the grid written did.
-    pub fn read(path: &std::path::Path, key: u64) -> Result<Self, Error> {
+    /// Reads the grid of `key` that [`Self::write`] wrote, built for `body`: checked index by index, then by its digest, so
+    /// it answers as the grid written did. The build inputs the file does not hold (the erosion, the honest drops, the lips
+    /// at the walk-offs) are the body's: equal keys are equal bodies, and a grid read with another body would disagree
+    /// with its own lip bits.
+    pub fn read(path: &std::path::Path, key: u64, build: Body) -> Result<Self, Error> {
         let float = |bytes: [u8; 4]| f32::from_bits(u32::from_le_bytes(bytes));
         built::read(
             path,
@@ -1628,6 +1650,7 @@ impl WalkGrid {
                 };
                 grid.check()?;
                 let mut grid = grid;
+                grid.body = build;
                 grid.warm();
                 Ok(grid)
             },
@@ -2464,10 +2487,13 @@ impl WalkGrid {
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
-    /// [`LIP_DROP_M`] high (one of its links drops that far). Erosion keeps
+    /// [`LIP_DROP_M`] high (one of its links drops that far: a Drop link, or
+    /// a gap drop the body walks off, [`gap::Takeoff::WalkOff`]). Erosion keeps
     /// a body's width back from walls and jumps, but not from drops, so a
     /// lip's centre is within a cell of the edge, and a body that strays
-    /// 0.3 m from it falls (player_bots_stuck.md §8.5).
+    /// 0.3 m from it falls (player_bots_stuck.md §8.5). A walk-off is the
+    /// same edge as a Drop's, further out: without it the bench's falls off
+    /// rose 56 % with the gap links, 63 of 245 from floors no guard knew.
     pub fn is_lip(&self, node: NodeId) -> bool {
         // While the grid is built the bits are not made yet.
         match self.lip.get(node as usize) {
@@ -2479,12 +2505,17 @@ impl WalkGrid {
     /// [`Self::is_lip`] from the links and heights.
     fn is_lip_by_links(&self, node: NodeId) -> bool {
         let a = node as usize;
+        let y = self.height[a];
+        if self.body.walk_off_lips && self.off_out(node).iter().any(|l| {
+            l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && y - self.height[l.to as usize] >= LIP_DROP_M
+        }) {
+            return true;
+        }
         let how = self.how[a];
         // Any direction whose kind bits (0-1 of its nibble) say drop.
         if how & 0x1111_1111 & !(how >> 1) == 0 {
             return false;
         }
-        let y = self.height[a];
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
         (0..8).any(|d| {
             matches!(self.link_of(a, d, i, k), Some((to, LinkKind::Drop))
@@ -3480,7 +3511,7 @@ pub(crate) mod tests {
         let path = dir.join(crate::built::grid_file_name(9));
         let grid = two_rooms();
         grid.write(&path, 9).unwrap();
-        let read = WalkGrid::read(&path, 9).unwrap();
+        let read = WalkGrid::read(&path, 9, Body::default()).unwrap();
         for grid in [&grid, &read] {
             assert!(grid.len() > 1_000);
             assert_eq!(grid.hot_mismatches(), 0);
@@ -3503,22 +3534,22 @@ pub(crate) mod tests {
         let path = dir.join(crate::built::grid_file_name(7));
         let grid = two_rooms();
         grid.write(&path, 7).unwrap();
-        let read = WalkGrid::read(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
         assert_eq!(read.digest(), grid.digest());
         assert_eq!(read.memory_bytes(), grid.memory_bytes());
         // Another key's file is not this one.
-        assert!(WalkGrid::read(&path, 8).is_err());
+        assert!(WalkGrid::read(&path, 8, Body::default()).is_err());
         // Every byte matters: a flipped one is refused, never a panic.
         let bytes = std::fs::read(&path).unwrap();
         for at in (0..bytes.len()).step_by(97).chain([bytes.len() - 1]) {
             let mut damaged = bytes.clone();
             damaged[at] ^= 0x41;
             std::fs::write(&path, &damaged).unwrap();
-            assert!(WalkGrid::read(&path, 7).is_err(), "byte {at}");
+            assert!(WalkGrid::read(&path, 7, Body::default()).is_err(), "byte {at}");
         }
         // Cut short.
         std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
-        assert!(WalkGrid::read(&path, 7).is_err());
+        assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -3801,7 +3832,7 @@ pub(crate) mod tests {
         // Written and read back, the same marks.
         let path = std::env::temp_dir().join(format!("srp-pit-{}.bin", std::process::id()));
         grid.write(&path, 7).unwrap();
-        let read = WalkGrid::read(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
         std::fs::remove_file(&path).ok();
         assert_eq!(read.digest(), grid.digest());
         assert_eq!(read.pocket_of(bottom), Some(pocket));

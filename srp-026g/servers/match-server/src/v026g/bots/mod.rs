@@ -356,6 +356,10 @@ pub struct Bot {
     paired: bool,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
+    /// Since when (ms) its walk tests its lines over a zone's floors, because it stands on floors the zone refuses
+    /// (`Tactics::zone_exit_reach`); none off them. The note of each change is `zone_note`, said once.
+    zone_walk: Option<u32>,
+    zone_note: Option<String>,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
     /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo
     /// each has left for the match (its storage, `guns::Arms::reserve`):
@@ -503,6 +507,8 @@ impl Bot {
             partner: None,
             paired: false,
             dropped: path::Dropped::default(),
+            zone_walk: None,
+            zone_note: None,
             kits,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
@@ -713,6 +719,9 @@ impl Bot {
         self.stuck.reset();
         self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
+        // A death on zone floors ends the walk over them without a note of a way out.
+        self.zone_walk = None;
+        self.zone_note = None;
         self.jump_hold = 0;
         self.fired_at = None;
         // The kit it spawned in keeps its storage less what it fired; the
@@ -1538,6 +1547,15 @@ impl Bots {
         notes
     }
 
+    /// The note of `index`'s walk over a zone's floors, if its tick began or ended one (said once, at the change).
+    pub(crate) fn zone_walk_note(&mut self, index: usize, now: u32, notes: &mut Vec<Note>) {
+        if let Some(bot) = self.bots[index].as_mut()
+            && let Some(text) = bot.zone_note.take()
+        {
+            bot.note(notes, now, text);
+        }
+    }
+
     /// A trusted world's objects section: the anomalies' states put right.
     /// Returns (cores read, cores missed).
     pub fn anomalies_from_world(&mut self, objects: &[u8], time: u32) -> (usize, usize) {
@@ -1833,6 +1851,7 @@ impl Bots {
             {
                 bot.note(&mut notes, now, text);
             }
+            bots.zone_walk_note(index, now, &mut notes);
             // A kit picked before play begins would respawn the bot where
             // it stands at once (the games' patch 31), not at its next
             // life: the bot picks once play has begun, for its next life.

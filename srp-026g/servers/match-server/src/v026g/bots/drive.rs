@@ -1330,7 +1330,33 @@ fn drive_tick_inner(
                     bot.motor.exact_end = (exact_at == Some(*route_at)).then(|| intent.exact_arrive_m.unwrap_or(bot.motor.feel.arrive_m));
                     let side = bot.side;
                     let objective = intent.objective;
-                    let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
+                    // A body on a zone's floors walks its way out over them: the lines it tests may cross the refused
+                    // floors of their first stretch, within the way out and no further (`Feel::zone_lines`); else no
+                    // point of the route out is one it walks to, and `unclear_aim` stood it there. One test of "on
+                    // refused floors" for the walk: `Hazards::allowed`, the refusal `clear_line_for` goes by.
+                    let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit_reach(me.feet, time)).flatten();
+                    match (bot.zone_walk, leaving) {
+                        (None, Some(reach)) => {
+                            bot.zone_walk = Some(time);
+                            bot.zone_note = Some(format!(
+                                "walks out over the floors of a zone from {:?}: lines tested over them up to {reach:.1} m",
+                                me.feet.to_array()
+                            ));
+                        }
+                        (Some(since), None) => {
+                            bot.zone_walk = None;
+                            bot.zone_note = Some(format!(
+                                "is off the zone floors at {:?} after {} ms",
+                                me.feet.to_array(),
+                                time.wrapping_sub(since)
+                            ));
+                        }
+                        _ => {}
+                    }
+                    let clear = |p: Vec3| match leaving {
+                        Some(reach) => tactics.clear_line_leaving(me.feet, p, time, side, objective, reach),
+                        None => tactics.clear_line_for(me.feet, p, time, side, objective),
+                    };
                     // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {

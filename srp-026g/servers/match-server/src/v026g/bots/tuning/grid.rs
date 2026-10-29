@@ -8,9 +8,9 @@ pub struct GridTuning {
     /// Whether the maps' walk grids have the gap links (a walking jump
     /// across a gap, up or down: `mapdata::grid::gap`), which bots then
     /// route over and jump. A grid is the map's, built once for every
-    /// match on it: the server's grids take this default (`maps.rs`), the
-    /// bench's this run's tuning (`SRP_BENCH_TUNING`); a tuning file of one
-    /// match does not rebuild them.
+    /// match on it: the server's grids take the server's tuning
+    /// (`SRP_BOT_TUNING`, read once at its start: `Maps::configured`), the
+    /// bench's this run's tuning (`SRP_BENCH_TUNING`).
     pub gap_links: bool,
     /// `Ctx::path_dist` is the regions' walk between floors when a target
     /// is a storey off; off, the straight
@@ -22,7 +22,7 @@ pub struct GridTuning {
     /// ([`mapdata::Body::client`]: step 0.8 and ground walked up to 55°, `startup.cfg`), not the exe's
     /// defaults (0.6, 50°): the pile of barrels the owner walks up from one side, and no jump onto ground
     /// steeper than the clients walk. Off: the grids as they were. On by default.
-    /// A grid is the map's (see `gap_links`): the server's take this default, the bench's this run's tuning.
+    /// A grid is the map's (see `gap_links`).
     pub client_numbers: bool,
     /// Whether the maps' walk grids take the floors nearer to a wall than the body's radius, measured exactly,
     /// after the cell rounds ([`mapdata::Erosion::Exact`]): a floor beside a post's corner, in an opening the
@@ -34,11 +34,30 @@ pub struct GridTuning {
     /// a chain of harmless steps below an edge is one fall of 7.5 m (the team 1 spawn deck on Chemical Plant, A95).
     /// Off: the cell model. On by default. A grid is the map's (see `gap_links`).
     pub honest_drops: bool,
+    /// Whether the take-off floor of a walk-off gap drop is a lip, as a Drop link's is (`mapdata::Body::walk_off_lips`): the
+    /// lip penalty, the near-lip band, the pull's corner cut, the lip guard and resting off a lip then keep a body off the
+    /// edge. Off: the walk-offs are no lips (63 of 245 falls off the route began on a floor no guard knew). On by default.
+    /// Only where there are walk-offs, so with `gap_links` off it changes nothing. A grid is the map's (see `gap_links`).
+    pub walk_off_lips: bool,
+    /// The standing jump's cap on the clients' body, metres: a Jump link above it is a sprint jump (a run-up with sprint
+    /// held, apex 1.28 m, `mapdata::grid::SPRINT_JUMP_LOW_M`), kept without a run-up as the marginal jump the base made.
+    /// The clip's root tops at 0.998 (`mapdata::grid::STANDING_JUMP_M`, PROVEN); whether the body reaches a ledge above it
+    /// is not (J0 climbed flat tops of 1.00-1.02 m, the 8f rows mounted +1.08), so the client test G-V4 may move the
+    /// number. 1.05 is the exe's, the base's. With `client_numbers` off the body keeps the exe's. A grid is the map's.
+    pub jump_cap_m: Positive,
 }
 
 impl Default for GridTuning {
     fn default() -> Self {
-        Self { gap_links: true, floor_paths: true, client_numbers: true, exact_erosion: true, honest_drops: true }
+        Self {
+            gap_links: true,
+            floor_paths: true,
+            client_numbers: true,
+            exact_erosion: true,
+            honest_drops: true,
+            walk_off_lips: true,
+            jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
+        }
     }
 }
 
@@ -56,8 +75,22 @@ impl GridTuning {
         mapdata::Body {
             erosion: if self.exact_erosion { mapdata::Erosion::Exact } else { mapdata::Erosion::Cells },
             drop_flight_mps: if self.honest_drops { WALK_OFF_MPS } else { 0.0 },
+            max_jump: if self.client_numbers { self.jump_cap_m.get() } else { body.max_jump },
+            walk_off_lips: self.walk_off_lips,
             ..body
         }
+    }
+
+    /// The cap is a standing jump's: not above the exe's top, not below a step. A cap above the exe's 1.05 m (the client
+    /// test G-V4 may find the body reaches 1.08) needs this bound moved, and the band `WalkGrid::drop_short_run_ups` keeps
+    /// without a run-up (it ends at the exe's top), with a test: it is a code change, not a number.
+    pub(super) fn check(&self) -> Result<(), String> {
+        let cap = self.jump_cap_m.get();
+        let (low, high) = (mapdata::Body::client().step, mapdata::Body::default().max_jump);
+        if !(low..=high).contains(&cap) {
+            return Err("grid.jump_cap_m".to_owned());
+        }
+        Ok(())
     }
 
     /// The off-mesh links of the maps' grids.

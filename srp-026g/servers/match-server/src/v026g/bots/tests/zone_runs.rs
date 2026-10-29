@@ -86,6 +86,7 @@ struct Run {
     /// (`Intent::zone_ok`, a battery's crossing) until this time, ms.
     zone_ok_until: u32,
     until: u32,
+    tuning: Tuning,
 }
 
 fn run(world: Arc<World>, activity: Option<Activity>) -> Run {
@@ -98,6 +99,7 @@ fn run(world: Arc<World>, activity: Option<Activity>) -> Run {
         replan_every: None,
         zone_ok_until: 0,
         until: 60_000,
+        tuning: Tuning::default(),
     }
 }
 
@@ -122,7 +124,7 @@ fn drive(run: Run) -> Seen {
         &teams,
         &[true],
         &[None],
-        Arc::new(zone_tuning()),
+        Arc::new(run.tuning.clone()),
         Trace::none(0),
     );
     bots.map_ready(world.clone());
@@ -332,11 +334,71 @@ fn a_bot_deep_in_a_big_zone_walks_out() {
     assert!(seen.arrived_ms.is_some(), "{seen:?}");
 }
 
-/// The owner's set (the defaults) but for `feel.unclear_aim`: with it on, the four runs that walk a bot out of a zone
-/// (no goal, pushed in, in the gap when the zone comes on, deep in a big one) leave it standing in the zone. Found by
-/// A128 when the defaults went on: each passes with only that one option off (the options were not run together before).
-fn zone_tuning() -> Tuning {
-    let mut tuning = Tuning::default();
-    tuning.feel.unclear_aim = false;
-    tuning
+/// The switch `feel.zone_lines` is A136's fix: off, a bot pushed into a zone with `unclear_aim` on stands there (the walk finds no
+/// clear point in the band and plans again every tick); on, it walks out.
+#[test]
+fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
+    let small = zone("small", Vec3::new(30.0, 1.0, 20.0), Vec3::new(2.0, 1.0, 2.0));
+    let pushed = |zone_lines: bool| {
+        let mut pushed = run(field(&[], vec![small.clone()]), None);
+        pushed.start = Vec3::new(20.0, 0.0, 20.0);
+        pushed.goal = None;
+        pushed.push = Some((3_000, Vec3::new(30.0, 0.0, 20.0)));
+        pushed.until = 30_000;
+        pushed.tuning.feel.zone_lines = zone_lines;
+        drive(pushed)
+    };
+    // Off, the stand ends only when the unstick moves it (8.4 s here); on, it is out at once.
+    assert!(pushed(false).on_ms >= 6_000, "off: the stand of A136");
+    assert!(pushed(true).on_ms <= 3_000, "on: out at once");
+}
+
+/// A line from a body in a zone's band may cross the refused floors of its way out, not the zone's core: from the band, out is
+/// clear, a chord across the core and a line into it are not; from deep inside, either way out is.
+#[test]
+fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
+    let big = zone("big", Vec3::new(30.0, 1.0, 20.0), Vec3::new(4.0, 1.0, 4.0));
+    let world = field(&[], vec![big]);
+    let teams = [0u8];
+    let mut bots = Bots::new(0xA70A, survarium::v026g::maps::mode::BATTERIES, 0, &teams, &[true], &[None], Arc::new(Tuning::default()), Trace::none(0));
+    bots.map_ready(world.clone());
+    let tactics = bots.tactics.as_ref().unwrap();
+    let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
+    // In the band (the zone's box is x 26-34, the margin a metre more).
+    let band = at(25.4, 20.0);
+    let reach = tactics.zone_exit_reach(band, 0).expect("the band is refused");
+    assert!(reach < 3.0, "{reach}");
+    assert!(tactics.clear_line_leaving(band, at(21.0, 20.0), 0, None, false, reach), "out");
+    assert!(!tactics.clear_line_leaving(band, at(38.0, 20.0), 0, None, false, reach), "across the core");
+    assert!(!tactics.clear_line_leaving(band, at(29.0, 20.0), 0, None, false, reach), "into the core");
+    assert!(!tactics.clear_line_for(band, at(21.0, 20.0), 0, None, false), "the plain test refuses every line from the band");
+    // Deep inside: the way out is the reach.
+    let deep = at(30.0, 20.0);
+    let reach = tactics.zone_exit_reach(deep, 0).expect("the core is refused");
+    assert!(reach > 5.0, "{reach}");
+    assert!(tactics.clear_line_leaving(deep, at(22.0, 20.0), 0, None, false, reach), "out from the core");
+    // On allowed floors there is no reach: the plain test goes on.
+    assert_eq!(tactics.zone_exit_reach(at(10.0, 20.0), 0), None);
+}
+
+/// A bot that dies in the middle of a zone walk starts its next life off it: no walk to end with a note of a way out.
+#[test]
+fn a_new_life_ends_the_zone_walk_without_a_note() {
+    let teams = [0u8];
+    let mut bots = Bots::new_with(
+        0x7EA6,
+        Mode::TeamDeathmatch,
+        0,
+        &teams,
+        &[true],
+        &[None],
+        crate::v026g::bots::tuning::TeamTunings::new(Arc::new(Tuning::default())),
+        Trace::none(0),
+    );
+    let bot = bots.bots[0].as_mut().unwrap();
+    bot.zone_walk = Some(5_000);
+    bot.zone_note = Some("walks out over the floors of a zone".to_owned());
+    bot.new_life(1.0, None, Vec3::new(0.0, 0.0, 0.0));
+    assert_eq!(bot.zone_walk, None);
+    assert_eq!(bot.zone_note, None);
 }

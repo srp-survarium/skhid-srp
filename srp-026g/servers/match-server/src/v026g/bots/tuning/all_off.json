@@ -43,14 +43,17 @@
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "sprint_gaps": false,
-    "unclear_aim": false
+    "unclear_aim": false,
+    "zone_lines": false
   },
   "grid": {
     "client_numbers": false,
     "exact_erosion": false,
     "floor_paths": false,
     "gap_links": false,
-    "honest_drops": false
+    "honest_drops": false,
+    "jump_cap_m": 1.05,
+    "walk_off_lips": false
   },
   "hazard": {
     "artefact_know": false,

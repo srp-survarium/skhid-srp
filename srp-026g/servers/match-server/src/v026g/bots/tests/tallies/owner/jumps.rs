@@ -175,6 +175,8 @@ pub(crate) struct Press {
     pub(crate) carrying: bool,
     /// The reflex's hide at the press (`open`, `hiding`, `peeking`).
     pub(crate) cover: &'static str,
+    /// The route's length left past the landing and the goal's distance from it (the FWDREL probe).
+    pub(crate) after_landing: Option<(f32, f32)>,
 }
 
 /// The run-up before a press at record `ri` (§9.2): the forward run's
@@ -633,6 +635,29 @@ impl JumpCounts {
                 let recs = &run.recs[p.place];
                 let play = recs.get(run.index(p.t).min(recs.len().saturating_sub(1))).map_or("none", |r| run.plays[usize::from(r.play)].as_str());
                 *released_by.entry(format!("{play}/{}", p.cover)).or_default() += 1;
+                if std::env::var_os("SRP_BENCH_FWD").is_some() {
+                    let ri = run.index(p.t).min(recs.len().saturating_sub(1));
+                    let name = |k: u32| {
+                        let mut n = String::new();
+                        for (bit, c) in [(key::FORWARD, 'F'), (key::BACK, 'B'), (key::LEFT, 'L'), (key::RIGHT, 'R'), (key::SPRINT, 'S'), (key::JUMP, 'J'), (key::CROUCH, 'C'), (key::FIRE, 'X'), (key::AIM, 'A')] {
+                            if k & bit != 0 {
+                                n.push(c);
+                            }
+                        }
+                        if n.is_empty() { n.push('-') }
+                        n
+                    };
+                    let after: Vec<String> = (ri..(ri + 10).min(recs.len())).map(|k| name(recs[k].keys)).collect();
+                    let end = (ri + 20).min(recs.len().saturating_sub(1));
+                    let moved = recs[ri].feet.distance_xz(recs[end].feet);
+                    let rise = p.route.map_or(f32::NAN, |(a, b)| b.y - a.y);
+                    let travel = recs[ri].travel;
+                    let hold = recs[ri].hold;
+                    eprintln!(
+                        "FWDREL place={} t={} play={play} cover={} rise={rise:.2} speed={:.2} hold={hold} travel={travel} moved1s={moved:.2} landed_dy={:.2} left={:.1} goal_d={:.1} diag={} yaw={} keys={}",
+                        p.place, p.t, p.cover, recs[ri].speed, recs[end].feet.y - recs[ri].feet.y, p.after_landing.map_or(-1.0, |l| l.0), p.after_landing.map_or(-1.0, |l| l.1), (ri..(ri + 10).min(recs.len())).map(|k| format!("{}.{:x}.{}", recs[k].walk, recs[k].why, u8::from(recs[k].has_route))).collect::<Vec<_>>().join(" "), (ri..(ri + 10).min(recs.len())).map(|k| format!("{:.0}", (recs[k].yaw - recs[ri].yaw).rem_euclid(std::f32::consts::TAU).to_degrees().min(360.0 - (recs[k].yaw - recs[ri].yaw).rem_euclid(std::f32::consts::TAU).to_degrees()))).collect::<Vec<_>>().join(","), after.join(" ")
+                    );
+                }
             }
             if flags.contains(&"NOT_FREED") {
                 not_freed_pre.add(run, p.by, p.place, run.index(p.t));

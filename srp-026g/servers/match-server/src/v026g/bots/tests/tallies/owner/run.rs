@@ -15,6 +15,11 @@ pub(super) struct Doing {
     pub(super) jump: Option<(&'static str, Option<(Vec3, Vec3)>)>,
     /// Where the reflex's hide from an outranging enemy is ([`crate::v026g::bots::reflex::Reflex::cover_state`]).
     pub(super) cover: &'static str,
+    /// The route's length left past the jump's landing, and the route goal's distance from that landing (the FWDREL probe).
+    pub(super) after_landing: Option<(f32, f32)>,
+    pub(super) walk: u8,
+    pub(super) why: u16,
+    pub(super) has_route: bool,
 }
 
 impl Doing {
@@ -36,6 +41,16 @@ impl Doing {
             },
             jump: watch.map(|w| (w.by, w.route.map(|r| (r.take_off, r.landing)))),
             cover: bot.reflex.cover_state(),
+            walk: bot.bench_walk,
+            why: bot.bench_why,
+            has_route: bot.route.is_some(),
+            after_landing: watch.and_then(|w| w.route).and_then(|jump| {
+                bot.route.as_ref().map(|(route, goal)| {
+                    let mut r = route.clone();
+                    let (walked, _) = r.progress(jump.landing);
+                    ((r.length() - walked).max(0.0), goal.distance_xz(jump.landing))
+                })
+            }),
         }
     }
 }
@@ -185,6 +200,9 @@ impl Run {
             hold,
             travel,
             past_band: target_past_band(game, place, body),
+            walk: doing.map_or(0, |d| d.walk),
+            why: doing.map_or(0, |d| d.why),
+            has_route: doing.is_some_and(|d| d.has_route),
         };
         self.recs[place].push(rec);
         // A bot's jump pressed: why, from its watch of it.
@@ -201,6 +219,7 @@ impl Run {
                 route: doing.jump.and_then(|(_, route)| route),
                 carrying: rec.carrying,
                 cover: doing.cover,
+                after_landing: doing.after_landing,
             });
         }
         (rec, prev)

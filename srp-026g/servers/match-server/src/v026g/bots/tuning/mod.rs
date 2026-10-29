@@ -258,6 +258,7 @@ impl Tuning {
         self.aim.check()?;
         self.avoid.check()?;
         self.feel.check()?;
+        self.grid.check()?;
         self.heal.check()?;
         self.personalities.check()?;
         self.plays.check()?;

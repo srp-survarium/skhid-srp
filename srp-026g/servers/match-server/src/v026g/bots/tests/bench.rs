@@ -559,6 +559,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         bots.sync_route_claim(index, now, claims_on);
         think += a.elapsed().as_secs_f64();
         bots.ticks(index, &clock, &view, &mut made);
+        bots.zone_walk_note(index, now, &mut notes);
     });
     let ticks = looped.elapsed().as_secs_f64() - think;
     super::bench_work::set(super::bench_work::Who::Idle);
