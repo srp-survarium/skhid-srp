@@ -59,7 +59,6 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
-   import survarium.rooms.RoomsText;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -182,9 +181,6 @@ package survarium.controls
       
       private static const SEARCH_ICON_GAP:int = 4;
       
-      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl, sr)
-      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj", "Pretraga", "Hledat", "Keresés", "Hae", "Пошук"];
-      
       // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
       // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
       // apart); from SEARCH_TYPO on, also with one letter wrong, missing, extra or swapped, and
@@ -207,8 +203,9 @@ package survarium.controls
       private static const MATCH_LEVEL:int = 1000;
       
       // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
-      // the items of that kind above any name: [the words (en, uk, ru), the category, or with group
-      // the super category].
+      // the items of that kind above any name: [the words, the category, or with group the super
+      // category]. The words of every language match, whatever the game's language (search words,
+      // not texts shown: they are not in the dictionaries).
       private static const MATCH_KIND:int = 450;
       
       private static const SEARCH_KIND_LEAST:int = 3;
@@ -2148,7 +2145,7 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
-         this._searchBox.defaultText = SEARCH_WORD[RoomsText.language()];
+         this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,

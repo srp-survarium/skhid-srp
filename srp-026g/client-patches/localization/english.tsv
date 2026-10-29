@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Attachments
+st_srp_exchange_balance	Balance
+st_srp_exchange_button	Exchange
+st_srp_exchange_gold	Gold
+st_srp_exchange_pay	Pay
+st_srp_exchange_receive	Receive
+st_srp_exchange_short_gold	Not enough gold
+st_srp_exchange_short_silver	Not enough silver
+st_srp_exchange_title	Exchange
+st_srp_inventory_search	Search
 st_srp_language_option	Language
 st_srp_language_restart	Applies after restart.
+st_srp_loadout_block_ammo	Too little ammo for a weapon
+st_srp_loadout_block_locked	This profile is locked
+st_srp_loadout_block_maintenance	Server maintenance soon: in %1$s min
+st_srp_loadout_block_pocket_twice	One item type in two pockets
+st_srp_loadout_block_shared_slot	Two items share a slot
+st_srp_loadout_block_weapon	No weapon
+st_srp_loadout_empty	empty
+st_srp_loadout_refused	The loadout could not be chosen.
+st_srp_loadout_sell_and	 and 
+st_srp_loadout_sell_item	Loadout %1$s
+st_srp_loadout_sell_many	Used in %1$s. Sell anyway?
+st_srp_loadout_sell_one	Used in Loadout %1$s. Sell anyway?
+st_srp_loadout_title	Loadout
+st_srp_loadout_unfit	can't play
+st_srp_login_account_hint	Account created on first sign-in
+st_srp_map_chemical_plant	Chemical Plant
+st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
+st_srp_map_cologne	Cologne
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamayev Kurgan
+st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	School
+st_srp_map_tarakanovsky_fort	Tarakanovsky Fort
+st_srp_map_vector	Vector Laboratory
+st_srp_map_vostok	Vostok Radar Station
+st_srp_map_vostok_v011	Vostok Radar Station (v0.11)
+st_srp_map_vostok_v021	Vostok Radar Station (v0.21)
+st_srp_matches_another_joining	Another player is joining
+st_srp_matches_balanced	Match is already balanced
+st_srp_matches_cannot_join	You cannot join now
+st_srp_matches_closed	This match is closed
+st_srp_matches_ends_soon	Match ends soon
+st_srp_matches_full	No free place in this match
+st_srp_matches_in_match	You are already in a match
+st_srp_matches_in_squad	Leave your squad first
+st_srp_matches_joining	joining…
+st_srp_matches_maintenance	Ends after maintenance starts
+st_srp_matches_mode_protective_device	Protective device
+st_srp_matches_no_answer	No answer, try again
+st_srp_matches_no_late_join	Match takes no new players
+st_srp_matches_no_place	No free place in this match
+st_srp_matches_none	No matches right now
+st_srp_matches_not_in_play	Match has not started yet
+st_srp_matches_outdated	Update your game
+st_srp_matches_played_before	You already played in this match
+st_srp_matches_queued	Leave the search first
+st_srp_matches_starting	starting
+st_srp_matches_title	Matches
+st_srp_matches_waiting	waiting
+st_srp_mode_blackout	Protective device: blackout
+st_srp_mode_chargers	Protective device: chargers
+st_srp_mode_protective_device	Protective device
+st_srp_mode_research	Research
+st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_optics	Optics
+st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
+st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
+st_srp_pvb_busy	%1$s (busy)
+st_srp_pvb_checking	Checking…
+st_srp_pvb_clan_match	Switch off "Clan match" first
+st_srp_pvb_demo_start	Demo: the server would start the match now: %1$s
+st_srp_pvb_gear_max	Equipment level must be %1$s or lower
+st_srp_pvb_gear_max_yours	Equipment level must be %1$s or lower (yours: %2$s)
+st_srp_pvb_generic	A bot match cannot start now
+st_srp_pvb_hint	A match against bots, with bots on your team too
+st_srp_pvb_in_match	You are already in a match
+st_srp_pvb_in_squad	Leave your squad first
+st_srp_pvb_maintenance	Maintenance starts soon, no new bot matches
+st_srp_pvb_no_answer	No answer from the server
+st_srp_pvb_off	Matches with bots are switched off now
+st_srp_pvb_outdated	Update your game
+st_srp_pvb_retry	No answer, try again
+st_srp_pvb_searching	Leave the search first
+st_srp_pvb_team_size	%1$s vs %2$s
+st_srp_pvb_title	Player vs Bots
+st_srp_pvb_unknown_choice	This map or team size is not available now
+st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
+st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_close	CLOSE
+st_srp_replay_demo_quest	Victory contribution
+st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
+st_srp_replay_demo_seller	Scavengers
+st_srp_replay_download	DOWNLOAD AND WATCH
+st_srp_replay_failed	The server could not prepare the replay of this match.
+st_srp_replay_gone	The replay of this match is no longer kept on the server.
+st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_made_now	Being made now. Waiting: %1$s s.
+st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
+st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_off	Replays are switched off on this server.
+st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_size	%1$s.%2$s MB
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
+st_srp_replay_title	Watch replay
+st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_reroll_description	You can change any modifier of an item, any number of times. You then choose one of three random modifiers.
+st_srp_rooms_all	All
+st_srp_rooms_all_rooms	All rooms
+st_srp_rooms_any	Any
+st_srp_rooms_back	Back
+st_srp_rooms_code_10	The owner removed you from that room.
+st_srp_rooms_code_11	Leave your clan team first.
+st_srp_rooms_code_12	Your equipment is above the max level.
+st_srp_rooms_code_13	Your kit could not play (no weapon or too little ammo): you were taken out of the room.
+st_srp_rooms_code_14	The loadout could not be chosen.
+st_srp_rooms_code_16	Press Play to enter a public room.
+st_srp_rooms_code_2	That room is gone.
+st_srp_rooms_code_3	Wrong PIN.
+st_srp_rooms_code_4	That room is full.
+st_srp_rooms_code_5	You are in a match.
+st_srp_rooms_code_6	Too many rooms now.
+st_srp_rooms_code_7	Update your game.
+st_srp_rooms_code_8	Pick at least one map.
+st_srp_rooms_code_9	Maintenance soon.
+st_srp_rooms_code_label	code
+st_srp_rooms_countdown	Starts
+st_srp_rooms_create	Create
+st_srp_rooms_enter_anyway	Enter anyway
+st_srp_rooms_exit	Exit
+st_srp_rooms_experimental	exp.
+st_srp_rooms_in_match	Playing
+st_srp_rooms_in_queue	In queue
+st_srp_rooms_join	Join
+st_srp_rooms_join_in	Into the match in %1$s s, or now with Join match
+st_srp_rooms_join_match	Join match
+st_srp_rooms_join_room	Join room
+st_srp_rooms_join_why_1	Another player is joining the match; you go in after.
+st_srp_rooms_join_why_2	A player's game is loading; joining opens in a moment.
+st_srp_rooms_join_why_3	Under 30 s left: you'll play the next match.
+st_srp_rooms_join_why_4	The match is full.
+st_srp_rooms_join_why_5	Server maintenance soon: no new joins.
+st_srp_rooms_join_why_6	The match is ending: you'll play the next one.
+st_srp_rooms_join_why_7	This match has reached its player limit. You'll join the next match.
+st_srp_rooms_joined_room	%1$s joined the room
+st_srp_rooms_late_hint	Who joins now sees the room, then goes into the match.
+st_srp_rooms_leave	Leave
+st_srp_rooms_leave_queue	Leave queue
+st_srp_rooms_leave_room	Leave room
+st_srp_rooms_left_room	%1$s left the room
+st_srp_rooms_level	Level
+st_srp_rooms_map	Map
+st_srp_rooms_max	Max level
+st_srp_rooms_modes	Modes
+st_srp_rooms_my_room	My room
+st_srp_rooms_name	Name
+st_srp_rooms_new	Private room
+st_srp_rooms_next_map	Next
+st_srp_rooms_none	No rooms yet. Make one, or press Play.
+st_srp_rooms_none_no_play	No rooms yet. Make one.
+st_srp_rooms_none_quiet	No rooms yet.
+st_srp_rooms_nothing	None
+st_srp_rooms_offer_fits	Your gear %2$s is over the room's max level %1$s. Loadout %3$s is level %4$s.
+st_srp_rooms_offer_higher	Room max level %1$s, your gear %2$s. Loadout %3$s is level %4$s.
+st_srp_rooms_offer_unfit	Your loadout can't play. Loadout %1$s is level %2$s.
+st_srp_rooms_open	open
+st_srp_rooms_open_slots	%1$s open
+st_srp_rooms_owner_tag	owner
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	The PIN is 4 digits.
+st_srp_rooms_pin_hint	4 digits required
+st_srp_rooms_players	Players
+st_srp_rooms_playing	Match in progress
+st_srp_rooms_pool	Pool
+st_srp_rooms_pool_hint	The vote draws 3 cards from these.
+st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
+st_srp_rooms_queue	Queue
+st_srp_rooms_queue_room	Queue for room
+st_srp_rooms_room	Room
+st_srp_rooms_room_chat	Room Chat
+st_srp_rooms_servers	Rooms
+st_srp_rooms_start_hint	Press Start when everyone is in.
+st_srp_rooms_start_match	Start
+st_srp_rooms_starts	Match starts in
+st_srp_rooms_state	State
+st_srp_rooms_switch_enter	Switch and enter
+st_srp_rooms_switch_to	Switch room
+st_srp_rooms_switch_who	%1$s's room · %2$s players
+st_srp_rooms_switch_why	Fairer match: opponents' gear up to level %1$s
+st_srp_rooms_team_1	Team 1
+st_srp_rooms_team_2	Team 2
+st_srp_rooms_teams	Teams are drawn when the match starts.
+st_srp_rooms_teams_later	The teams can be changed after the match.
+st_srp_rooms_teams_member	The creator arranges the teams.
+st_srp_rooms_teams_owner	Move players between the teams with « and ».
+st_srp_rooms_unfit_gear	Your equipment is above the max level: lower it, or you leave the room at the start.
+st_srp_rooms_unfit_kit	Your kit cannot play (no weapon or too little ammo): fix it, or you leave the room at the start.
+st_srp_rooms_vote	Vote for the next map
+st_srp_rooms_vote_hint	3 cards from the pool. Most votes wins; a tie is drawn at random. Click to change your vote.
+st_srp_rooms_vote_now	Vote for the next map: click a card. The match starts on the winner when the time is up.
+st_srp_rooms_voting	Map vote
+st_srp_rooms_waiting	Waiting for players
+st_srp_rooms_waiting_owner	Waiting for the creator to start.
+st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_weather_before_rain	before rain
+st_srp_weather_day	day
+st_srp_weather_evening	evening
+st_srp_weather_night	night
+st_srp_weather_rain	rain
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
 st_stamina_loss_on_hit_description	Stamina penalty when wounded.

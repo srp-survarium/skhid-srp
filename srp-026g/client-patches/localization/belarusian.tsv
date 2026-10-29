@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	Набор СР-3М "Віхор"
 st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
 st_srp_attachments	Абвес
+st_srp_exchange_balance	Баланс
+st_srp_exchange_button	Абмяняць
+st_srp_exchange_gold	Золата
+st_srp_exchange_pay	Аддаяце
+st_srp_exchange_receive	Атрымліваеце
+st_srp_exchange_short_gold	Недастаткова золата
+st_srp_exchange_short_silver	Недастаткова срэбра
+st_srp_exchange_title	Абмен
+st_srp_inventory_search	Пошук
 st_srp_language_option	Мова
 st_srp_language_restart	Прыменіцца пасля перазапуску.
+st_srp_loadout_block_ammo	Мала патронаў да зброі
+st_srp_loadout_block_locked	Гэты профіль закрыты
+st_srp_loadout_block_maintenance	Хутка тэхнічныя работы: праз %1$s хв
+st_srp_loadout_block_pocket_twice	Адзін тып прадмета ў дзвюх кішэнях
+st_srp_loadout_block_shared_slot	Два прадметы ў адным слоце
+st_srp_loadout_block_weapon	Няма зброі
+st_srp_loadout_empty	пусты
+st_srp_loadout_refused	Не ўдалося выбраць камплект.
+st_srp_loadout_sell_and	 і 
+st_srp_loadout_sell_item	%1$s
+st_srp_loadout_sell_many	Выкарыстоўваецца ў камплектах %1$s. Прадаць?
+st_srp_loadout_sell_one	Выкарыстоўваецца ў камплекце %1$s. Прадаць?
+st_srp_loadout_title	Камплект
+st_srp_loadout_unfit	не для бою
+st_srp_login_account_hint	Акаўнт ствараецца пры першым уваходзе
+st_srp_map_chemical_plant	Хімзавод
+st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
+st_srp_map_cologne	Кёльн
+st_srp_map_london	Лондан
+st_srp_map_mamayev_kurgan	Мамаеў курган
+st_srp_map_mamayev_kurgan_v021	Мамаеў курган (v0.21)
+st_srp_map_rudnya	Рудня
+st_srp_map_school	Школа
+st_srp_map_tarakanovsky_fort	Тараканаўскі форт
+st_srp_map_vector	Лабараторыя "Вектар"
+st_srp_map_vostok	РЛС "Восток"
+st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
+st_srp_map_vostok_v021	РЛС "Восток" (v0.21)
+st_srp_matches_another_joining	Іншы гулец ужо далучаецца
+st_srp_matches_balanced	Матч ужо збалансаваны
+st_srp_matches_cannot_join	Зараз далучыцца нельга
+st_srp_matches_closed	Гэты матч ужо закрыты
+st_srp_matches_ends_soon	Матч хутка скончыцца
+st_srp_matches_full	У матчы няма вольных месцаў
+st_srp_matches_in_match	Вы ўжо ў матчы
+st_srp_matches_in_squad	Спачатку пакіньце атрад
+st_srp_matches_joining	уваход…
+st_srp_matches_maintenance	Скончыцца пасля пачатку абслугоўвання
+st_srp_matches_mode_protective_device	Ахоўная прылада
+st_srp_matches_no_answer	Няма адказу, паспрабуйце яшчэ
+st_srp_matches_no_late_join	Матч не прымае новых гульцоў
+st_srp_matches_no_place	У матчы няма вольных месцаў
+st_srp_matches_none	Зараз матчаў няма
+st_srp_matches_not_in_play	Матч яшчэ не пачаўся
+st_srp_matches_outdated	Абнавіце гульню
+st_srp_matches_played_before	Вы ўжо гулялі ў гэтым матчы
+st_srp_matches_queued	Спачатку скасуйце пошук
+st_srp_matches_starting	старт
+st_srp_matches_title	Матчы
+st_srp_matches_waiting	чаканне
+st_srp_mode_blackout	Ахоўная прылада: блэкаўт
+st_srp_mode_chargers	Ахоўная прылада: зараднікі
+st_srp_mode_protective_device	Ахоўная прылада
+st_srp_mode_research	Даследаванне
+st_srp_mode_team_deathmatch	Камандны бой
 st_srp_optics	Оптыка
+st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
+st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну
+st_srp_pvb_busy	%1$s (занята)
+st_srp_pvb_checking	Праверка…
+st_srp_pvb_clan_match	Спачатку адключыце "Кланавы бой"
+st_srp_pvb_demo_start	Дэма: сервер зараз пачаў бы матч: %1$s
+st_srp_pvb_gear_max	Узровень рыштунку павінен быць %1$s або ніжэй
+st_srp_pvb_gear_max_yours	Узровень рыштунку павінен быць %1$s або ніжэй (у вас: %2$s)
+st_srp_pvb_generic	Матч з ботамі зараз пачаць нельга
+st_srp_pvb_hint	Бой супраць ботаў, у вашай камандзе таксама боты
+st_srp_pvb_in_match	Вы ўжо ў матчы
+st_srp_pvb_in_squad	Спачатку пакіньце атрад
+st_srp_pvb_maintenance	Хутка тэхнічнае абслугоўванне, новыя матчы з ботамі не пачнуцца
+st_srp_pvb_no_answer	Сервер не адказвае
+st_srp_pvb_off	Матчы з ботамі зараз адключаныя
+st_srp_pvb_outdated	Абнавіце гульню
+st_srp_pvb_retry	Няма адказу, паспрабуйце яшчэ
+st_srp_pvb_searching	Спачатку скасуйце пошук
+st_srp_pvb_team_size	%1$s на %2$s
+st_srp_pvb_title	Гулец супраць ботаў
+st_srp_pvb_unknown_choice	Гэтая карта або памер каманд зараз недаступныя
+st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
+st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
+st_srp_replay_busy	Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну.
+st_srp_replay_close	ЗАКРЫЦЬ
+st_srp_replay_demo_quest	Унёсак у перамогу
+st_srp_replay_demo_rank	«%1$s»: дасягнуты ранг 3. У краме з'явіліся новыя прадметы.
+st_srp_replay_demo_seller	Бадзягі
+st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
+st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
+st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
+st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.
+st_srp_replay_made_now	Ствараецца зараз. Чаканне: %1$s с.
+st_srp_replay_no_answer	Сервер не адказаў. Паспрабуйце пазней.
+st_srp_replay_not_recorded	Гэты матч не запісаны: у ім было менш за 6 гульцоў або запіс тады быў выключаны.
+st_srp_replay_not_yours	Глядзець можна толькі паўторы матчаў, у якіх вы гулялі.
+st_srp_replay_off	Паўторы на гэтым серверы адключаныя.
+st_srp_replay_old_game	Ваша версія гульні не прайграе паўторы. Абнавіце гульню: запусціце яе зноў праз лаўнчар.
+st_srp_replay_place_in_line	Месца ў чарзе: %1$s. Чаканне: %2$s с.
+st_srp_replay_ready	Паўтор гэтага матча гатовы.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
+st_srp_replay_ready_size	Паўтор гэтага матча: %1$s.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
+st_srp_replay_size	%1$s,%2$s МБ
+st_srp_replay_starting	Запускаем паўтор: адкрыецца другое акно гульні, лобі застанецца адкрытым. Калі нешта пойдзе не так, праграма абнаўлення пакажа, што здарылася.\n\nУ паўторы націсніце F11 для кіравання.
+st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; адкрыйце «Глядзець паўтор» яшчэ раз праз хвіліну.
+st_srp_replay_title	Глядзець паўтор
+st_srp_replay_waiting	Чаканне: %1$s с.
+st_srp_reroll_description	Можна змяніць любы мадыфікатар прадмета, колькі заўгодна разоў. Потым выберыце адзін з трох выпадковых мадыфікатараў.
+st_srp_rooms_all	Усе
+st_srp_rooms_all_rooms	Усе пакоі
+st_srp_rooms_any	Любы
+st_srp_rooms_back	Назад
+st_srp_rooms_code_10	Уладальнік выдаліў вас з пакоя.
+st_srp_rooms_code_11	Спачатку выйдзіце з кланавай каманды.
+st_srp_rooms_code_12	Ваш рыштунак вышэй за макс. узровень.
+st_srp_rooms_code_13	Ваш камплект не мог гуляць (няма зброі або мала патронаў): вас вывелі з пакоя.
+st_srp_rooms_code_14	Не ўдалося выбраць камплект.
+st_srp_rooms_code_16	Націсніце «Гуляць», каб увайсці ў адкрыты пакой.
+st_srp_rooms_code_2	Гэтага пакоя больш няма.
+st_srp_rooms_code_3	Няправільны PIN.
+st_srp_rooms_code_4	Пакой запоўнены.
+st_srp_rooms_code_5	Вы ў матчы.
+st_srp_rooms_code_6	Занадта шмат пакояў.
+st_srp_rooms_code_7	Абнавіце гульню.
+st_srp_rooms_code_8	Выберыце хаця б адну карту.
+st_srp_rooms_code_9	Хутка тэхнічныя работы.
+st_srp_rooms_code_label	код
+st_srp_rooms_countdown	Старт
+st_srp_rooms_create	Стварыць
+st_srp_rooms_enter_anyway	Увайсці так
+st_srp_rooms_exit	Выйсці
+st_srp_rooms_experimental	досв.
+st_srp_rooms_in_match	Гуляюць
+st_srp_rooms_in_queue	У чарзе
+st_srp_rooms_join	Увайсці
+st_srp_rooms_join_in	У матч праз %1$s с, або зараз: «Увайсці ў матч»
+st_srp_rooms_join_match	Увайсці ў матч
+st_srp_rooms_join_room	Увайсці ў пакой
+st_srp_rooms_join_why_1	Іншы гулец заходзіць у матч; вы — пасля яго.
+st_srp_rooms_join_why_2	Гульня аднаго з гульцоў загружаецца; уваход адкрыецца праз імгненне.
+st_srp_rooms_join_why_3	Засталося менш за 30 с: вы згуляеце наступны матч.
+st_srp_rooms_join_why_4	Матч запоўнены.
+st_srp_rooms_join_why_5	Хутка тэхнічныя работы: новыя ўваходы закрытыя.
+st_srp_rooms_join_why_6	Матч завяршаецца: вы згуляеце наступны.
+st_srp_rooms_join_why_7	Гэты матч дасягнуў ліміту гульцоў. Вы далучыцеся да наступнага матча.
+st_srp_rooms_joined_room	%1$s увайшоў у пакой
+st_srp_rooms_late_hint	Хто зойдзе зараз, убачыць пакой, потым трапіць у матч.
+st_srp_rooms_leave	Выйсці
+st_srp_rooms_leave_queue	Выйсці з чаргі
+st_srp_rooms_leave_room	Выйсці з пакоя
+st_srp_rooms_left_room	%1$s пакінуў пакой
+st_srp_rooms_level	Узровень
+st_srp_rooms_map	Карта
+st_srp_rooms_max	Макс. узровень
+st_srp_rooms_modes	Рэжымы
+st_srp_rooms_my_room	Мой пакой
+st_srp_rooms_name	Назва
+st_srp_rooms_new	Прыватны пакой
+st_srp_rooms_next_map	Далей
+st_srp_rooms_none	Пакояў пакуль няма. Стварыце або націсніце «Гуляць».
+st_srp_rooms_none_no_play	Пакояў пакуль няма. Стварыце.
+st_srp_rooms_none_quiet	Пакояў пакуль няма.
+st_srp_rooms_nothing	Ніводнай
+st_srp_rooms_offer_fits	Ваш рыштунак %2$s вышэй за макс. узровень пакоя %1$s. Камплект %3$s: узровень %4$s.
+st_srp_rooms_offer_higher	Макс. узровень пакоя %1$s, ваш рыштунак %2$s. Камплект %3$s: узровень %4$s.
+st_srp_rooms_offer_unfit	Ваш камплект не для бою. Камплект %1$s: узровень %2$s.
+st_srp_rooms_open	вольна
+st_srp_rooms_open_slots	вольна: %1$s
+st_srp_rooms_owner_tag	уладальнік
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN — гэта 4 лічбы.
+st_srp_rooms_pin_hint	Патрэбныя 4 лічбы
+st_srp_rooms_players	Гульцы
+st_srp_rooms_playing	Ідзе матч
+st_srp_rooms_pool	Пул
+st_srp_rooms_pool_hint	Галасаванне бярэ 3 карткі з іх.
+st_srp_rooms_private_room	Прыватны пакой: да 20 гульцоў; каманды і старт за вамі.
+st_srp_rooms_queue	Чарга
+st_srp_rooms_queue_room	Чарга ў пакой
+st_srp_rooms_room	Пакой
+st_srp_rooms_room_chat	Чат пакоя
+st_srp_rooms_servers	Пакоі
+st_srp_rooms_start_hint	Націсніце «Пачаць», калі ўсе зойдуць.
+st_srp_rooms_start_match	Пачаць
+st_srp_rooms_starts	Матч пачнецца праз
+st_srp_rooms_state	Стан
+st_srp_rooms_switch_enter	Змяніць і ўвайсці
+st_srp_rooms_switch_to	Змяніць пакой
+st_srp_rooms_switch_who	Пакой %1$s · гульцоў: %2$s
+st_srp_rooms_switch_why	Бой чэсней: рыштунак супернікаў да ўзроўню %1$s
+st_srp_rooms_team_1	Каманда 1
+st_srp_rooms_team_2	Каманда 2
+st_srp_rooms_teams	Каманды фармуюцца ў пачатку матча.
+st_srp_rooms_teams_later	Каманды можна змяніць пасля матча.
+st_srp_rooms_teams_member	Каманды расстаўляе стваральнік.
+st_srp_rooms_teams_owner	Перамяшчайце гульцоў паміж камандамі кнопкамі « і ».
+st_srp_rooms_unfit_gear	Ваш рыштунак вышэй за макс. узровень: зніжце, інакш на старце вы выйдзеце з пакоя.
+st_srp_rooms_unfit_kit	Ваш камплект не можа гуляць (няма зброі або мала патронаў): выпраўце, інакш на старце вы выйдзеце з пакоя.
+st_srp_rooms_vote	Галасуйце за наступную карту
+st_srp_rooms_vote_hint	3 карткі з пула. Перамагае большасць; нічыя — выпадкова. Націсніце, каб змяніць голас.
+st_srp_rooms_vote_now	Галасуйце за наступную карту: націсніце картку. Калі час скончыцца, матч пачнецца на пераможцы.
+st_srp_rooms_voting	Галасаванне
+st_srp_rooms_waiting	Чакаем гульцоў
+st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
+st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_weather_before_rain	перад дажджом
+st_srp_weather_day	дзень
+st_srp_weather_evening	вечар
+st_srp_weather_night	ноч
+st_srp_weather_rain	дождж
 st_stamina_boost_name	Другое дыханне
 st_stamina_boost_time_description	Аднаўленне энергіі пры забойстве праціўніка:
 st_stamina_loss_on_hit_description	Страта энергіі пры раненні:

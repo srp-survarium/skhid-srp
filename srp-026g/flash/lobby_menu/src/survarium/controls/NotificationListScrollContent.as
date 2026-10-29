@@ -24,7 +24,6 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.constants.Faction;
    import survarium.constants.ImportantMessageType;
-   import survarium.constants.Language;
    import survarium.constants.MoneyType;
    import survarium.constants.NotificationType;
    import survarium.constants.QuestStatus;
@@ -62,39 +61,40 @@ package survarium.controls
       // the download was started
       private static const RP_STARTED:int = 4;
       
-      // The prompt's texts: an index into rpWords (rpText, rpFill, rpShow); RP_KEY_NONE is no text shown.
-      private static const RP_KEY_NONE:int = -1;
+      // The prompt's texts (dictionary keys; rpShow); RP_KEY_NONE is no text shown.
+      private static const RP_KEY_NONE:String = null;
       
-      private static const RP_KEY_TITLE:int = 0;
+      private static const RP_KEY_TITLE:String = "st_srp_replay_title";
       
-      private static const RP_KEY_DOWNLOAD:int = 1;
+      private static const RP_KEY_DOWNLOAD:String = "st_srp_replay_download";
       
-      private static const RP_KEY_CLOSE:int = 2;
+      private static const RP_KEY_CLOSE:String = "st_srp_replay_close";
       
-      private static const RP_KEY_ASKING:int = 3;
+      private static const RP_KEY_ASKING:String = "st_srp_replay_asking";
       
-      private static const RP_KEY_BEING_MADE:int = 4;
+      private static const RP_KEY_BEING_MADE:String = "st_srp_replay_being_made";
       
-      private static const RP_KEY_READY_SIZE:int = 5;
+      private static const RP_KEY_READY_SIZE:String = "st_srp_replay_ready_size";
       
-      private static const RP_KEY_READY:int = 6;
+      private static const RP_KEY_READY:String = "st_srp_replay_ready";
       
-      // the first of the final answers (rpFinalKey): not_recorded, gone, not_yours, old_game, incompatible, busy, failed, off
-      private static const RP_KEY_FIRST_FINAL:int = 7;
+      // the final answers (rpFinalKey), by the server's status
+      private static const RP_FINALS:Object = {
+         "not_recorded":"st_srp_replay_not_recorded",
+         "gone":"st_srp_replay_gone",
+         "not_yours":"st_srp_replay_not_yours",
+         "old_game":"st_srp_replay_old_game",
+         "incompatible":"st_srp_replay_incompatible",
+         "busy":"st_srp_replay_busy",
+         "failed":"st_srp_replay_failed",
+         "off":"st_srp_replay_off"
+      };
       
-      private static const RP_KEY_NO_ANSWER:int = 15;
+      private static const RP_KEY_NO_ANSWER:String = "st_srp_replay_no_answer";
       
-      private static const RP_KEY_STARTING:int = 16;
+      private static const RP_KEY_STARTING:String = "st_srp_replay_starting";
       
-      private static const RP_KEY_MB:int = 17;
-      
-      private static const RP_KEY_PLACE_IN_LINE:int = 18;
-      
-      private static const RP_KEY_MADE_NOW:int = 19;
-      
-      private static const RP_KEY_WAITING:int = 20;
-      
-      private static const RP_KEY_STILL_PREPARING:int = 21;
+      private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
       
       // The highest place in the replay server's line the prompt shows.
       private static const RP_PLACE_MAX:int = 999;
@@ -146,7 +146,7 @@ package survarium.controls
       
       protected var _rpDialogData:Object;
       
-      protected var _rpShownKey:int;
+      protected var _rpShownKey:String;
       
       protected var _rpDemoStep:int;
       
@@ -923,128 +923,15 @@ package survarium.controls
          }
       }
       
-      protected function rpLang() : int
+      protected function rpText(key:String) : String
       {
-         var word:String = LocalizationData.getName("btn_friends");
-         if(word == "Друзі")
-         {
-            return Language.UK;
-         }
-         if(word == "Друзья")
-         {
-            return Language.RU;
-         }
-         if(word == "Prijatelji")
-         {
-            return Language.SR;
-         }
-         if(word == "Přátelé")
-         {
-            return Language.CS;
-         }
-         if(word == "Barátok")
-         {
-            return Language.HU;
-         }
-         if(word == "Kaverit")
-         {
-            return Language.FI;
-         }
-         if(word == "Сябры")
-         {
-            return Language.BE;
-         }
-         return Language.EN;
+         return LocalizationData.getName(key);
       }
       
-      protected function rpWords() : Array
+      protected function rpFinalKey(status:String) : String
       {
-         var words:Array = [
-            ["Watch replay", "Дивитися повтор", "Смотреть повтор", "Watch replay", "Watch replay", "Gledaj snimak", "Přehrát záznam", "Visszajátszás", "Katso tallenne", "Глядзець паўтор"],
-            ["DOWNLOAD AND WATCH", "ЗАВАНТАЖИТИ Й ДИВИТИСЯ", "СКАЧАТЬ И СМОТРЕТЬ", "DOWNLOAD AND WATCH", "DOWNLOAD AND WATCH", "PREUZMI I GLEDAJ", "STÁHNOUT A PŘEHRÁT", "LETÖLTÉS ÉS LEJÁTSZÁS", "LATAA JA KATSO", "СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ"],
-            ["CLOSE", "ЗАКРИТИ", "ЗАКРЫТЬ", "CLOSE", "CLOSE", "ZATVORI", "ZAVŘÍT", "BEZÁRÁS", "SULJE", "ЗАКРЫЦЬ"],
-            ["Asking the match server for the replay of this match…", "Запитуємо в сервера матчу повтор цього матчу…", "Запрашиваем у сервера матча повтор этого матча…", "Asking the match server for the replay of this match…", "Asking the match server for the replay of this match…", "Traženje snimka ovog meča od servera…", "Žádám server o záznam tohoto zápasu…", "A meccs visszajátszásának lekérése a szerverről…", "Pyydetään ottelun tallennetta palvelimelta…", "Запытваем у сервера матча паўтор гэтага матча…"],
-            [["The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n", ""], ["Повтор створюється із запису матчу. Так буває, коли цей матч дивляться вперше, і це займає трохи часу.\nЦе вікно можна закрити: сервер продовжить його створювати.\n\n", ""], ["Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n", ""], ["The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n", ""], ["The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n", ""], ["Snimak se pravi iz zapisa meča. To se dešava kada neko prvi put gleda ovaj meč i može da potraje.\nMožeš zatvoriti prozor: server će nastaviti izradu.\n\n", ""], ["Záznam se vytváří ze zápisu zápasu. Děje se to při prvním přehrání a chvíli to trvá.\nToto okno můžeš zavřít, server bude pokračovat.\n\n", ""], ["A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n", ""], ["Tallenne luodaan ottelun lokista. Tämä tehdään ensimmäisellä katselukerralla, ja siinä kestää hetki.\nVoit sulkea ikkunan, palvelin jatkaa valmistelua.\n\n", ""], ["Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n", ""]],
-            [["Replay of this match: ", ".\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed."], ["Повтор цього матчу: ", ".\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість."], ["Повтор этого матча: ", ".\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость."], ["Replay of this match: ", ".\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed."], ["Replay of this match: ", ".\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed."], ["Snimak ovog meča: ", ".\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F11 za kontrole: igrači, kamera, premotavanje, brzina."], ["Záznam tohoto zápasu: ", ".\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost."], ["A meccs felvétele: ", ".\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség."], ["Ottelun tallenne: ", ".\n\nSe ladataan ottelupalvelimelta, joka säilyttää ottelun alkuperäisen tallenteen. Tallenne toistetaan toisessa peli-ikkunassa, ja aula jää auki.\n\nAvaa tallenteen ohjaimet F11-näppäimellä: pelaajat, kamera, kelaus ja nopeus."], ["Паўтор гэтага матча: ", ".\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць."]],
-            ["The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.", "Повтор цього матчу готовий.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість.", "Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.", "The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.", "The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.", "Snimak ovog meča je spreman.\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F11 za kontrole: igrači, kamera, premotavanje, brzina.", "Záznam tohoto zápasu je připraven.\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost.", "A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.", "Ottelun tallenne on valmis.\n\nSe ladataan ottelupalvelimelta, joka säilyttää ottelun alkuperäisen tallenteen. Tallenne toistetaan toisessa peli-ikkunassa, ja aula jää auki.\n\nAvaa tallenteen ohjaimet F11-näppäimellä: pelaajat, kamera, kelaus ja nopeus.", "Паўтор гэтага матча гатовы.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць."],
-            ["This match was not recorded: it had fewer than 6 players, or recording was off at the time.", "Цей матч не записано: у ньому було менше 6 гравців або запис тоді був вимкнений.", "Этот матч не записан: в нём было меньше 6 игроков или запись тогда была выключена.", "This match was not recorded: it had fewer than 6 players, or recording was off at the time.", "This match was not recorded: it had fewer than 6 players, or recording was off at the time.", "Ovaj meč nije snimljen: imao je manje od 6 igrača ili je snimanje tada bilo isključeno.", "Tento zápas se nenahrával: měl méně než 6 hráčů nebo bylo nahrávání vypnuté.", "Erről a meccsről nem készült felvétel: 6-nál kevesebb játékos volt, vagy a rögzítés ki volt kapcsolva.", "Ottelua ei tallennettu: pelaajia oli alle 6 tai tallennus oli pois käytöstä.", "Гэты матч не запісаны: у ім было менш за 6 гульцоў або запіс тады быў выключаны."],
-            ["The replay of this match is no longer kept on the server.", "Повтор цього матчу більше не зберігається на сервері.", "Повтор этого матча больше не хранится на сервере.", "The replay of this match is no longer kept on the server.", "The replay of this match is no longer kept on the server.", "Snimak ovog meča više se ne čuva na serveru.", "Záznam tohoto zápasu už na serveru není.", "A szerver már nem tárolja ennek a meccsnek a felvételét.", "Ottelun tallenne ei ole enää palvelimella.", "Паўтор гэтага матча больш не захоўваецца на серверы."],
-            ["You can watch replays only of matches you played in.", "Дивитися можна лише повтори матчів, у яких ви грали.", "Смотреть можно только повторы матчей, в которых вы играли.", "You can watch replays only of matches you played in.", "You can watch replays only of matches you played in.", "Možeš gledati samo snimke mečeva u kojima si učestvovao.", "Přehrávat můžeš jen zápasy, kterých ses zúčastnil.", "Csak olyan meccset nézhetsz vissza, amelyen részt vettél.", "Voit katsoa vain niiden otteluiden tallenteita, joissa itse pelasit.", "Глядзець можна толькі паўторы матчаў, у якіх вы гулялі."],
-            ["Your game version cannot play replays. Update the game: start it again through the launcher.", "Ваша версія гри не відтворює повтори. Оновіть гру: запустіть її знову через лаунчер.", "Ваша версия игры не воспроизводит повторы. Обновите игру: запустите её снова через лаунчер.", "Your game version cannot play replays. Update the game: start it again through the launcher.", "Your game version cannot play replays. Update the game: start it again through the launcher.", "Tvoja verzija igre ne podržava snimke. Ažuriraj igru: ponovo je pokreni preko pokretača.", "Tvoje verze hry neumí přehrávat záznamy. Aktualizuj hru opětovným spuštěním přes launcher.", "Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.", "Peliversiosi ei tue tallenteita. Päivitä peli käynnistämällä se uudelleen käynnistimestä.", "Ваша версія гульні не прайграе паўторы. Абнавіце гульню: запусціце яе зноў праз лаўнчар."],
-            ["This replay was recorded by a game version that yours cannot play.", "Цей повтор записала версія гри, яку ваша гра не може відтворити.", "Этот повтор записан версией игры, которую ваша игра не может воспроизвести.", "This replay was recorded by a game version that yours cannot play.", "This replay was recorded by a game version that yours cannot play.", "Ovaj snimak je napravljen verzijom igre koju tvoja igra ne može da reprodukuje.", "Záznam pochází z verze hry, se kterou tvoje verze není kompatibilní.", "Ez a felvétel a játék egy nem kompatibilis verziójával készült.", "Tallenne tehtiin peliversiolla, jota oma versiosi ei tue.", "Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць."],
-            ["The server is busy with other replays right now. Try again in a minute.", "Сервер зараз зайнятий іншими повторами. Спробуйте ще раз за хвилину.", "Сервер сейчас занят другими повторами. Попробуйте ещё раз через минуту.", "The server is busy with other replays right now. Try again in a minute.", "The server is busy with other replays right now. Try again in a minute.", "Server je trenutno zauzet drugim snimcima. Pokušaj ponovo za minut.", "Server teď zpracovává jiné záznamy. Zkus to za minutu.", "A szerver most más felvételekkel dolgozik. Próbáld újra egy perc múlva.", "Palvelin käsittelee nyt muita tallenteita. Yritä uudelleen minuutin kuluttua.", "Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну."],
-            ["The server could not prepare the replay of this match.", "Серверу не вдалося підготувати повтор цього матчу.", "Серверу не удалось подготовить повтор этого матча.", "The server could not prepare the replay of this match.", "The server could not prepare the replay of this match.", "Server nije uspeo da pripremi snimak ovog meča.", "Server nedokázal připravit záznam tohoto zápasu.", "A szerver nem tudta előkészíteni a meccs felvételét.", "Palvelin ei saanut ottelun tallennetta valmiiksi.", "Серверу не ўдалося падрыхтаваць паўтор гэтага матча."],
-            ["Replays are switched off on this server.", "Повтори на цьому сервері вимкнено.", "Повторы на этом сервере отключены.", "Replays are switched off on this server.", "Replays are switched off on this server.", "Snimci su isključeni na ovom serveru.", "Záznamy jsou na tomto serveru vypnuté.", "A visszajátszás ki van kapcsolva ezen a szerveren.", "Tallenteet ovat pois käytöstä tällä palvelimella.", "Паўторы на гэтым серверы адключаныя."],
-            ["The server did not answer. Try again later.", "Сервер не відповів. Спробуйте пізніше.", "Сервер не ответил. Попробуйте позже.", "The server did not answer. Try again later.", "The server did not answer. Try again later.", "Server nije odgovorio. Pokušaj kasnije.", "Server neodpověděl. Zkus to později.", "A szerver nem válaszolt. Próbáld újra később.", "Palvelin ei vastannut. Yritä myöhemmin uudelleen.", "Сервер не адказаў. Паспрабуйце пазней."],
-            ["Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.", "Запускаємо повтор: відкриється друге вікно гри, лобі залишиться відкритим. Якщо щось піде не так, програма оновлення покаже, що сталося.\n\nУ повторі натисніть F11 для керування.", "Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F11 для управления.", "Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.", "Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.", "Pokretanje snimka: otvoriće se drugi prozor igre; ovaj lobi ostaje otvoren. Ako nešto pođe po zlu, program za ažuriranje će prikazati šta se desilo.\n\nU snimku pritisni F11 za kontrole.", "Spouštím záznam: otevře se druhé okno hry, lobby zůstane otevřené. Pokud se něco pokazí, aktualizační program ukáže příčinu.\n\nV záznamu stiskni F11 pro ovládání.", "A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.", "Tallenne käynnistyy toisessa peli-ikkunassa, ja aula jää auki. Jos jokin menee vikaan, päivitysohjelma kertoo syyn.\n\nAvaa tallenteen ohjaimet F11-näppäimellä.", "Запускаем паўтор: адкрыецца другое акно гульні, лобі застанецца адкрытым. Калі нешта пойдзе не так, праграма абнаўлення пакажа, што здарылася.\n\nУ паўторы націсніце F11 для кіравання."],
-            ["MB", "МБ", "МБ", "MB", "MB", "MB", "MB", "MB", "Mt", "МБ"],
-            [["Place in line: ", ". Waiting: ", " s."], ["Місце в черзі: ", ". Очікування: ", " с."], ["Место в очереди: ", ". Ожидание: ", " с."], ["Place in line: ", ". Waiting: ", " s."], ["Place in line: ", ". Waiting: ", " s."], ["Mesto u redu: ", ". Čekanje: ", " s."], ["Místo ve frontě: ", ". Čekání: ", " s."], ["Helyed a sorban: ", ". Várakozás: ", " mp."], ["Paikka jonossa: ", ". Odotettu: ", " s."], ["Месца ў чарзе: ", ". Чаканне: ", " с."]],
-            [["Being made now. Waiting: ", " s."], ["Створюється зараз. Очікування: ", " с."], ["Создаётся сейчас. Ожидание: ", " с."], ["Being made now. Waiting: ", " s."], ["Being made now. Waiting: ", " s."], ["Izrada je u toku. Čekanje: ", " s."], ["Právě se vytváří. Čekání: ", " s."], ["Most készül. Várakozás: ", " mp."], ["Valmistellaan. Odotettu: ", " s."], ["Ствараецца зараз. Чаканне: ", " с."]],
-            [["Waiting: ", " s."], ["Очікування: ", " с."], ["Ожидание: ", " с."], ["Waiting: ", " s."], ["Waiting: ", " s."], ["Čekanje: ", " s."], ["Čekání: ", " s."], ["Várakozás: ", " mp."], ["Odotettu: ", " s."], ["Чаканне: ", " с."]],
-            ["Still being prepared. It keeps being made on the server; open Watch replay again in a minute.", "Повтор ще готується. Сервер продовжує його створювати; відкрийте «Дивитися повтор» ще раз за хвилину.", "Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.", "Still being prepared. It keeps being made on the server; open Watch replay again in a minute.", "Still being prepared. It keeps being made on the server; open Watch replay again in a minute.", "Snimak se još priprema. Server nastavlja izradu; ponovo otvori Gledaj snimak za minut.", "Záznam se ještě připravuje na serveru. Za minutu znovu otevři Přehrát záznam.", "A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.", "Palvelin valmistelee tallennetta yhä. Avaa Katso tallenne uudelleen minuutin kuluttua.", "Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; адкрыйце «Глядзець паўтор» яшчэ раз праз хвіліну."]
-         ];
-         return words;
-      }
-      
-      protected function rpText(key:int) : String
-      {
-         var words:Array = this.rpWords();
-         var entry:Object = null;
-         if(key < 0 || key >= words.length)
-         {
-            return "";
-         }
-         entry = words[key][this.rpLang()];
-         if(entry is Array)
-         {
-            return this.rpFill(key,[]);
-         }
-         return String(entry);
-      }
-      
-      protected function rpFill(key:int, values:Array) : String
-      {
-         var words:Array = this.rpWords();
-         var pieces:Array = null;
-         var text:String = "";
-         var i:int = 0;
-         if(key < 0 || key >= words.length)
-         {
-            return "";
-         }
-         pieces = words[key][this.rpLang()] as Array;
-         if(!pieces)
-         {
-            return String(words[key][this.rpLang()]);
-         }
-         text = String(pieces[0]);
-         i = 1;
-         while(i < pieces.length)
-         {
-            if(values && i - 1 < values.length)
-            {
-               text += String(values[i - 1]);
-            }
-            text += String(pieces[i]);
-            i++;
-         }
-         return text;
-      }
-      
-      protected function rpFinalKey(status:String) : int
-      {
-         var finals:Array = ["not_recorded","gone","not_yours","old_game","incompatible","busy","failed","off"];
-         var i:int = 0;
-         i = 0;
-         while(i < finals.length)
-         {
-            if(finals[i] == status)
-            {
-               return RP_KEY_FIRST_FINAL + i;
-            }
-            i++;
-         }
-         return RP_KEY_NONE;
+         var key:String = RP_FINALS[status] as String;
+         return key != null ? key : RP_KEY_NONE;
       }
       
       protected function rpHex(value:uint) : String
@@ -1060,7 +947,6 @@ package survarium.controls
       protected function rpSizeText(bytes:Number) : String
       {
          var tenths:Number = 0;
-         var text:String = null;
          if(!(bytes > 0))
          {
             return "";
@@ -1070,8 +956,7 @@ package survarium.controls
          {
             tenths = 1;
          }
-         text = String(Math.floor(tenths / 10)) + (this.rpLang() != Language.EN ? "," : ".") + String(tenths % 10);
-         return text + " " + this.rpText(RP_KEY_MB);
+         return LocalizationData.format("st_srp_replay_size",Math.floor(tenths / 10),tenths % 10);
       }
       
       public function replayBegin(id:uint) : void
@@ -1180,7 +1065,7 @@ package survarium.controls
          var status:String = fields.length > 1 ? String(fields[1]) : "";
          var hex:String = fields.length > 2 ? String(fields[2]).toLowerCase() : "";
          var size:Number = fields.length > 3 ? Number(fields[3]) : 0;
-         var key:int = RP_KEY_NONE;
+         var key:String = RP_KEY_NONE;
          if(this._rpState != RP_ASKING)
          {
             return;
@@ -1211,7 +1096,7 @@ package survarium.controls
             return;
          }
          key = this.rpFinalKey(status);
-         if(key >= 0)
+         if(key != null)
          {
             this.rpStop();
             this._rpState = RP_ENDED;
@@ -1239,17 +1124,17 @@ package survarium.controls
          }
          if(this._rpPlace > 1)
          {
-            line = this.rpFill(RP_KEY_PLACE_IN_LINE,[String(this._rpPlace),String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_place_in_line",this._rpPlace,seconds);
          }
          else if(this._rpPlace == 1)
          {
-            line = this.rpFill(RP_KEY_MADE_NOW,[String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_made_now",seconds);
          }
          else
          {
-            line = this.rpFill(RP_KEY_WAITING,[String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_waiting",seconds);
          }
-         return this.rpFill(RP_KEY_BEING_MADE,[line]);
+         return LocalizationData.format(RP_KEY_BEING_MADE,line);
       }
       
       protected function rpShowPreparing() : void
@@ -1282,7 +1167,7 @@ package survarium.controls
          }
       }
       
-      protected function rpShow(key:int, download:Boolean) : void
+      protected function rpShow(key:String, download:Boolean) : void
       {
          var text:String = this.rpText(key);
          var data:Object = null;
@@ -1290,7 +1175,7 @@ package survarium.controls
          var format:TextFormat = null;
          if(key == RP_KEY_READY_SIZE)
          {
-            text = this.rpFill(RP_KEY_READY_SIZE,[this.rpSizeText(this._rpSize)]);
+            text = LocalizationData.format(RP_KEY_READY_SIZE,this.rpSizeText(this._rpSize));
          }
          if(key == RP_KEY_BEING_MADE)
          {
@@ -1482,13 +1367,11 @@ package survarium.controls
       
       protected function rpDemoOtherRows() : Array
       {
-         var lang:int = this.rpLang();
-         var quest:String = ["Victory contribution","Внесок у перемогу","Вклад в победу", "Victory contribution", "Victory contribution", "Doprinos pobedi", "Přínos k vítězství", "Hozzájárulás a győzelemhez", "Osuus voitosta", "Унёсак у перамогу"][lang];
+         var quest:String = LocalizationData.getName("st_srp_replay_demo_quest");
          var seller:String = GangShop.getSellerName(Faction.SCAVENGERS);
-         var rankText:Array = [": rank 3 reached. New items are available in the shop.",": досягнуто ранг 3. У крамниці з\'явилися нові предмети.",": достигнут ранг 3. В магазине появились новые предметы.", ": rank 3 reached. New items are available in the shop.", ": rank 3 reached. New items are available in the shop.", ": dostignut rang 3. Novi predmeti su dostupni u prodavnici.", ": dosažena 3. hodnost. V obchodě jsou nové předměty.", ": elérted a 3. rangot. Új tárgyak kaphatók a boltban.", ": arvo 3 saavutettu. Kaupassa on uusia esineitä.", ": дасягнуты ранг 3. У краме з'явіліся новыя прадметы."];
          if(!seller || seller == "noSuchSeller")
          {
-            seller = ["Scavengers","Бродяги","Бродяги", "Scavengers", "Scavengers", "Sakupljači", "Mrchožrouti", "Guberálók", "Haaskaajat", "Бадзягі"][lang];
+            seller = LocalizationData.getName("st_srp_replay_demo_seller");
          }
          return [{
             "notificationType":NotificationType.QUEST,
@@ -1534,7 +1417,7 @@ package survarium.controls
             "hideTimer":15000,
             "faction_id":Faction.SCAVENGERS,
             "level":3,
-            "label":"«" + seller + "»" + rankText[lang]
+            "label":LocalizationData.format("st_srp_replay_demo_rank",seller)
          },{
             "notificationType":NotificationType.PLAIN,
             "srpDemo":true,

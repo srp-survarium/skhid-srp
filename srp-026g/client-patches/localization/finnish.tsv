@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Lisävarusteet
+st_srp_exchange_balance	Saldo
+st_srp_exchange_button	Vaihda
+st_srp_exchange_gold	Kulta
+st_srp_exchange_pay	Maksat
+st_srp_exchange_receive	Saat
+st_srp_exchange_short_gold	Ei tarpeeksi kultaa
+st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
+st_srp_exchange_title	Vaihda
+st_srp_inventory_search	Hae
 st_srp_language_option	Kieli
 st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
+st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle
+st_srp_loadout_block_locked	Tämä profiili on lukittu
+st_srp_loadout_block_maintenance	Palvelinhuolto alkaa %1$s min kuluttua
+st_srp_loadout_block_pocket_twice	Sama esinetyyppi kahdessa taskussa
+st_srp_loadout_block_shared_slot	Kaksi esinettä samassa paikassa
+st_srp_loadout_block_weapon	Ei asetta
+st_srp_loadout_empty	tyhjä
+st_srp_loadout_refused	Varustesetin valinta epäonnistui.
+st_srp_loadout_sell_and	 ja 
+st_srp_loadout_sell_item	Varustesetti %1$s
+st_srp_loadout_sell_many	Käytössä: %1$s. Myydäänkö silti?
+st_srp_loadout_sell_one	Käytössä varustesetissä %1$s. Myydäänkö silti?
+st_srp_loadout_title	Varustesetti
+st_srp_loadout_unfit	ei pelikelpoinen
+st_srp_login_account_hint	Tili luodaan ensimmäisellä kirjautumisella
+st_srp_map_chemical_plant	Kemiantehdas
+st_srp_map_chemical_plant_v011	Kemiantehdas (v0.11)
+st_srp_map_cologne	Köln
+st_srp_map_london	Lontoo
+st_srp_map_mamayev_kurgan	Mamajevin kurgaani
+st_srp_map_mamayev_kurgan_v021	Mamajevin kurgaani (v0.21)
+st_srp_map_rudnya	Rudnja
+st_srp_map_school	Koulu
+st_srp_map_tarakanovsky_fort	Tarakanovin linnoitus
+st_srp_map_vector	Vektor-laboratorio
+st_srp_map_vostok	Vostokin tutka-asema
+st_srp_map_vostok_v011	Vostokin tutka-asema (v0.11)
+st_srp_map_vostok_v021	Vostokin tutka-asema (v0.21)
+st_srp_matches_another_joining	Toinen pelaaja liittyy
+st_srp_matches_balanced	Ottelu on jo tasapainossa
+st_srp_matches_cannot_join	Et voi liittyä nyt
+st_srp_matches_closed	Ottelu on suljettu
+st_srp_matches_ends_soon	Ottelu päättyy pian
+st_srp_matches_full	Ottelussa ei ole tilaa
+st_srp_matches_in_match	Olet jo ottelussa
+st_srp_matches_in_squad	Poistu ensin ryhmästä
+st_srp_matches_joining	liitytään…
+st_srp_matches_maintenance	Päättyy huollon alkamisen jälkeen
+st_srp_matches_mode_protective_device	Suojalaite
+st_srp_matches_no_answer	Ei vastausta, yritä uudelleen
+st_srp_matches_no_late_join	Otteluun ei oteta uusia pelaajia
+st_srp_matches_no_place	Ottelussa ei ole tilaa
+st_srp_matches_none	Ei otteluita juuri nyt
+st_srp_matches_not_in_play	Ottelu ei ole vielä alkanut
+st_srp_matches_outdated	Päivitä peli
+st_srp_matches_played_before	Olet jo pelannut tässä ottelussa
+st_srp_matches_queued	Lopeta ensin haku
+st_srp_matches_starting	alkaa
+st_srp_matches_title	Ottelut
+st_srp_matches_waiting	odottaa
+st_srp_mode_blackout	Suojalaite: sähkökatko
+st_srp_mode_chargers	Suojalaite: laturit
+st_srp_mode_protective_device	Suojalaite
+st_srp_mode_research	Tutkimus
+st_srp_mode_team_deathmatch	Joukkuekuolemanottelu
 st_srp_optics	Optiikka
+st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
+st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
+st_srp_pvb_busy	%1$s (varattu)
+st_srp_pvb_checking	Tarkistetaan…
+st_srp_pvb_clan_match	Poista ensin klaaniottelu käytöstä
+st_srp_pvb_demo_start	Demo: palvelin aloittaisi nyt ottelun: %1$s
+st_srp_pvb_gear_max	Varusteiden tason on oltava %1$s tai alempi
+st_srp_pvb_gear_max_yours	Varusteiden tason on oltava %1$s tai alempi (omasi: %2$s)
+st_srp_pvb_generic	Bottiottelua ei voi aloittaa nyt
+st_srp_pvb_hint	Ottelu botteja vastaan, myös omassa joukkueessasi on botteja
+st_srp_pvb_in_match	Olet jo ottelussa
+st_srp_pvb_in_squad	Poistu ensin ryhmästä
+st_srp_pvb_maintenance	Huolto alkaa pian, uusia bottiotteluita ei aloiteta
+st_srp_pvb_no_answer	Palvelin ei vastaa
+st_srp_pvb_off	Bottiottelut ovat nyt pois käytöstä
+st_srp_pvb_outdated	Päivitä peli
+st_srp_pvb_retry	Ei vastausta, yritä uudelleen
+st_srp_pvb_searching	Lopeta ensin haku
+st_srp_pvb_team_size	%1$s vastaan %2$s
+st_srp_pvb_title	Pelaaja vastaan botit
+st_srp_pvb_unknown_choice	Tämä kartta tai joukkuekoko ei ole nyt saatavilla
+st_srp_replay_asking	Pyydetään ottelun tallennetta palvelimelta…
+st_srp_replay_being_made	Tallenne luodaan ottelun lokista. Tämä tehdään ensimmäisellä katselukerralla, ja siinä kestää hetki.\nVoit sulkea ikkunan, palvelin jatkaa valmistelua.\n\n%1$s
+st_srp_replay_busy	Palvelin käsittelee nyt muita tallenteita. Yritä uudelleen minuutin kuluttua.
+st_srp_replay_close	SULJE
+st_srp_replay_demo_quest	Osuus voitosta
+st_srp_replay_demo_rank	«%1$s»: arvo 3 saavutettu. Kaupassa on uusia esineitä.
+st_srp_replay_demo_seller	Haaskaajat
+st_srp_replay_download	LATAA JA KATSO
+st_srp_replay_failed	Palvelin ei saanut ottelun tallennetta valmiiksi.
+st_srp_replay_gone	Ottelun tallenne ei ole enää palvelimella.
+st_srp_replay_incompatible	Tallenne tehtiin peliversiolla, jota oma versiosi ei tue.
+st_srp_replay_made_now	Valmistellaan. Odotettu: %1$s s.
+st_srp_replay_no_answer	Palvelin ei vastannut. Yritä myöhemmin uudelleen.
+st_srp_replay_not_recorded	Ottelua ei tallennettu: pelaajia oli alle 6 tai tallennus oli pois käytöstä.
+st_srp_replay_not_yours	Voit katsoa vain niiden otteluiden tallenteita, joissa itse pelasit.
+st_srp_replay_off	Tallenteet ovat pois käytöstä tällä palvelimella.
+st_srp_replay_old_game	Peliversiosi ei tue tallenteita. Päivitä peli käynnistämällä se uudelleen käynnistimestä.
+st_srp_replay_place_in_line	Paikka jonossa: %1$s. Odotettu: %2$s s.
+st_srp_replay_ready	Ottelun tallenne on valmis.\n\nSe ladataan ottelupalvelimelta, joka säilyttää ottelun alkuperäisen tallenteen. Tallenne toistetaan toisessa peli-ikkunassa, ja aula jää auki.\n\nAvaa tallenteen ohjaimet F11-näppäimellä: pelaajat, kamera, kelaus ja nopeus.
+st_srp_replay_ready_size	Ottelun tallenne: %1$s.\n\nSe ladataan ottelupalvelimelta, joka säilyttää ottelun alkuperäisen tallenteen. Tallenne toistetaan toisessa peli-ikkunassa, ja aula jää auki.\n\nAvaa tallenteen ohjaimet F11-näppäimellä: pelaajat, kamera, kelaus ja nopeus.
+st_srp_replay_size	%1$s,%2$s Mt
+st_srp_replay_starting	Tallenne käynnistyy toisessa peli-ikkunassa, ja aula jää auki. Jos jokin menee vikaan, päivitysohjelma kertoo syyn.\n\nAvaa tallenteen ohjaimet F11-näppäimellä.
+st_srp_replay_still_preparing	Palvelin valmistelee tallennetta yhä. Avaa Katso tallenne uudelleen minuutin kuluttua.
+st_srp_replay_title	Katso tallenne
+st_srp_replay_waiting	Odotettu: %1$s s.
+st_srp_reroll_description	Voit vaihtaa esineen minkä tahansa lisäominaisuuden niin monta kertaa kuin haluat. Valitset sitten yhden kolmesta satunnaisesta lisäominaisuudesta.
+st_srp_rooms_all	Kaikki
+st_srp_rooms_all_rooms	Kaikki huoneet
+st_srp_rooms_any	Mikä tahansa
+st_srp_rooms_back	Takaisin
+st_srp_rooms_code_10	Omistaja poisti sinut huoneesta.
+st_srp_rooms_code_11	Poistu ensin klaanijoukkueesta.
+st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.
+st_srp_rooms_code_13	Varustesettisi ei kelvannut peliin (ase puuttui tai ammuksia oli liian vähän), joten sinut poistettiin huoneesta.
+st_srp_rooms_code_14	Varustesetin valinta epäonnistui.
+st_srp_rooms_code_16	Liity julkiseen huoneeseen painamalla Pelaa.
+st_srp_rooms_code_2	Huonetta ei enää ole.
+st_srp_rooms_code_3	Väärä PIN-koodi.
+st_srp_rooms_code_4	Huone on täynnä.
+st_srp_rooms_code_5	Olet ottelussa.
+st_srp_rooms_code_6	Huoneita on nyt liikaa.
+st_srp_rooms_code_7	Päivitä peli.
+st_srp_rooms_code_8	Valitse vähintään yksi kartta.
+st_srp_rooms_code_9	Huolto alkaa pian.
+st_srp_rooms_code_label	koodi
+st_srp_rooms_countdown	Alkaa
+st_srp_rooms_create	Luo
+st_srp_rooms_enter_anyway	Liity silti
+st_srp_rooms_exit	Poistu
+st_srp_rooms_experimental	kokeil.
+st_srp_rooms_in_match	Pelissä
+st_srp_rooms_in_queue	Jonossa
+st_srp_rooms_join	Liity
+st_srp_rooms_join_in	Otteluun %1$s s kuluttua, tai heti painikkeella Liity otteluun
+st_srp_rooms_join_match	Liity otteluun
+st_srp_rooms_join_room	Liity huoneeseen
+st_srp_rooms_join_why_1	Toinen pelaaja liittyy otteluun. Sinun vuorosi on sen jälkeen.
+st_srp_rooms_join_why_2	Yhden pelaajan peli latautuu. Liittyminen avautuu hetken kuluttua.
+st_srp_rooms_join_why_3	Alle 30 s jäljellä. Pääset seuraavaan otteluun.
+st_srp_rooms_join_why_4	Ottelu on täynnä.
+st_srp_rooms_join_why_5	Palvelinhuolto alkaa pian. Uusia liittyjiä ei oteta.
+st_srp_rooms_join_why_6	Ottelu päättyy. Pääset seuraavaan.
+st_srp_rooms_join_why_7	Ottelun pelaajaraja on täynnä. Liityt seuraavaan otteluun.
+st_srp_rooms_joined_room	%1$s liittyi huoneeseen
+st_srp_rooms_late_hint	Uudet liittyjät näkevät ensin huoneen ja siirtyvät sitten otteluun.
+st_srp_rooms_leave	Poistu
+st_srp_rooms_leave_queue	Poistu jonosta
+st_srp_rooms_leave_room	Poistu huoneesta
+st_srp_rooms_left_room	%1$s poistui huoneesta
+st_srp_rooms_level	Taso
+st_srp_rooms_map	Kartta
+st_srp_rooms_max	Enimmäistaso
+st_srp_rooms_modes	Pelimuodot
+st_srp_rooms_my_room	Oma huone
+st_srp_rooms_name	Nimi
+st_srp_rooms_new	Yksityinen huone
+st_srp_rooms_next_map	Seuraava
+st_srp_rooms_none	Ei vielä huoneita. Luo uusi tai paina Pelaa.
+st_srp_rooms_none_no_play	Ei vielä huoneita. Luo uusi.
+st_srp_rooms_none_quiet	Ei vielä huoneita.
+st_srp_rooms_nothing	Ei mitään
+st_srp_rooms_offer_fits	Varusteesi %2$s ylittävät huoneen enimmäistason %1$s. Varustesetin %3$s taso on %4$s.
+st_srp_rooms_offer_higher	Huoneen enimmäistaso %1$s, varusteesi %2$s. Varustesetin %3$s taso on %4$s.
+st_srp_rooms_offer_unfit	Varustesettisi ei kelpaa peliin. Varustesetin %1$s taso on %2$s.
+st_srp_rooms_open	vapaa
+st_srp_rooms_open_slots	%1$s vapaana
+st_srp_rooms_owner_tag	omistaja
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN-koodissa on 4 numeroa.
+st_srp_rooms_pin_hint	Tarvitaan 4 numeroa
+st_srp_rooms_players	Pelaajat
+st_srp_rooms_playing	Ottelu käynnissä
+st_srp_rooms_pool	Karttavalikoima
+st_srp_rooms_pool_hint	Näistä arvotaan 3 korttia äänestykseen.
+st_srp_rooms_private_room	Yksityinen huone: enintään 20 pelaajaa. Sinä jaat joukkueet ja aloitat ottelun.
+st_srp_rooms_queue	Jono
+st_srp_rooms_queue_room	Jonota huoneeseen
+st_srp_rooms_room	Huone
+st_srp_rooms_room_chat	Huonechat
+st_srp_rooms_servers	Huoneet
+st_srp_rooms_start_hint	Paina Aloita, kun kaikki ovat mukana.
+st_srp_rooms_start_match	Aloita
+st_srp_rooms_starts	Ottelu alkaa
+st_srp_rooms_state	Tila
+st_srp_rooms_switch_enter	Vaihda ja liity
+st_srp_rooms_switch_to	Vaihda huonetta
+st_srp_rooms_switch_who	Pelaajan %1$s huone · %2$s pelaajaa
+st_srp_rooms_switch_why	Tasaisempi ottelu: vastustajien varusteet enintään tasoa %1$s
+st_srp_rooms_team_1	Joukkue 1
+st_srp_rooms_team_2	Joukkue 2
+st_srp_rooms_teams	Joukkueet arvotaan ottelun alkaessa.
+st_srp_rooms_teams_later	Joukkueita voi muuttaa ottelun jälkeen.
+st_srp_rooms_teams_member	Huoneen luoja järjestää joukkueet.
+st_srp_rooms_teams_owner	Siirrä pelaajia joukkueesta toiseen painikkeilla « ja ».
+st_srp_rooms_unfit_gear	Varusteesi ylittävät enimmäistason. Laske tasoa tai poistut huoneesta ottelun alkaessa.
+st_srp_rooms_unfit_kit	Varustesettisi ei kelpaa peliin (ase puuttuu tai ammuksia on liian vähän). Korjaa se tai poistut huoneesta ottelun alkaessa.
+st_srp_rooms_vote	Äänestä seuraavaa karttaa
+st_srp_rooms_vote_hint	3 korttia valikoimasta. Eniten ääniä saanut voittaa, tasatilanne arvotaan. Vaihda ääntäsi klikkaamalla.
+st_srp_rooms_vote_now	Äänestä seuraavaa karttaa klikkaamalla korttia. Ajan loputtua ottelu alkaa voittajakartalla.
+st_srp_rooms_voting	Karttaäänestys
+st_srp_rooms_waiting	Odotetaan pelaajia
+st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
+st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
+st_srp_weather_before_rain	ennen sadetta
+st_srp_weather_day	päivä
+st_srp_weather_evening	ilta
+st_srp_weather_night	yö
+st_srp_weather_rain	sade
 st_stamina_boost_name	Uusi puhti
 st_stamina_boost_time_description	Vihollisen taposta palautuva energia:
 st_stamina_loss_on_hit_description	Kestävyyshaitta haavoittuessa.

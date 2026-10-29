@@ -47,29 +47,12 @@ package survarium.messages
       // The silver of one gold when the exchange rate is not known yet.
       private static const FALLBACK_RATE:int = 100;
 
-      private static const TEXT:Object = {
-         "title":["Exchange","Обмін","Обмен","Tausch","Wymiana", "Razmeni", "Směnit", "Átváltás", "Vaihda", "Абмен"],
-         "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz", "Plati", "Zaplatíš", "Fizetsz", "Maksat", "Аддаяце"],
-         "receive":["Receive","Отримуєте","Получаете","Sie erhalten","Otrzymujesz", "Primi", "Dostaneš", "Kapsz", "Saat", "Атрымліваеце"],
-         "silver":["Silver","Срібло","Серебро","Silber","Srebro", "Srebro", "Stříbro", "Ezüst", "Hopea", "Срэбра"],
-         "gold":["Gold","Золото","Золото","Gold","Złoto", "Zlato", "Zlato", "Arany", "Kulta", "Золата"],
-         "balance":["Balance","Баланс","Баланс","Guthaben","Saldo", "Stanje", "Zůstatek", "Egyenleg", "Saldo", "Баланс"],
-         "short_silver":["Not enough silver","Недостатньо срібла","Недостаточно серебра","Nicht genug Silber","Za mało srebra", "Nema dovoljno srebra", "Nedostatek stříbra", "Nincs elég ezüst", "Ei tarpeeksi hopeaa", "Недастаткова срэбра"],
-         "short_gold":["Not enough gold","Недостатньо золота","Недостаточно золота","Nicht genug Gold","Za mało złota", "Nema dovoljno zlata", "Nedostatek zlata", "Nincs elég arany", "Ei tarpeeksi kultaa", "Недастаткова золата"],
-         "button":["Exchange","Обміняти","Обменять","Tauschen","Wymień", "Razmeni", "Směnit", "Átváltás", "Vaihda", "Абмяняць"]
-      };
-
-      // The client's own "cancel" names its language.
-      private static const CANCEL:Array = ["Cancel","Скасувати","Отмена","Abrechnen","Anuluj", "Otkaži", "Zrušit", "Mégse", "Peruuta", "Скасаваць"];
-
       public var textFieldLabel:TextField;
 
       public var exchangeStepper:NumericStepperExchange;
 
       // The exchange's own parts, over the stock window's.
       private var _board:Sprite;
-
-      private var _lang:int = 0;
 
       // The stock fields' font: bold Calibri from the font library. The
       // movie's own plain "Calibri" is a stub of two glyphs.
@@ -319,14 +302,6 @@ package survarium.messages
       // words, Pay gold (sell) or silver (buy gold).
       private function configureExchange() : void
       {
-         var cancel:String = LocalizationData.getName("cancel");
-         for(var i:int = 0; i < CANCEL.length; i++)
-         {
-            if(cancel == CANCEL[i])
-            {
-               this._lang = i;
-            }
-         }
          if(!this._swap)
          {
             this._swap = true;
@@ -342,29 +317,12 @@ package survarium.messages
             stepper.visible = false;
             stepper.focusable = false;
          }
-         this.textFieldLabel.text = this.say("title");
-         btnAccept.label = this.say("button").toUpperCase();
-         this._payLabel.text = this.say("pay");
-         this._getLabel.text = this.say("receive");
+         this.textFieldLabel.text = LocalizationData.getName("st_srp_exchange_title");
+         btnAccept.label = LocalizationData.getName("st_srp_exchange_button").toUpperCase();
+         this._payLabel.text = LocalizationData.getName("st_srp_exchange_pay");
+         this._getLabel.text = LocalizationData.getName("st_srp_exchange_receive");
          this.snap();
          this.refresh();
-      }
-
-      private function say(key:String) : String
-      {
-         // The game's own word where the movie can read it: "Silver" is
-         // st_regular_money (flash key regular_money). TEXT keeps the
-         // same words, from the game's files, for a client without it.
-         if(key == "silver")
-         {
-            var silver:String = LocalizationData.getName("regular_money");
-            // getName gives "#regular_money" for a key it does not have.
-            if((silver) && silver.charAt(0) != "#")
-            {
-               return silver;
-            }
-         }
-         return TEXT[key][this._lang];
       }
 
       private function rate() : uint
@@ -464,21 +422,22 @@ package survarium.messages
 
       private function refresh() : void
       {
-         var silver:String = this.say("silver");
-         var gold:String = this.say("gold");
+         // Silver: the game's own word (st_regular_money).
+         var silver:String = LocalizationData.getName("regular_money");
+         var gold:String = LocalizationData.getName("st_srp_exchange_gold");
          this._payName.text = this._payGold ? gold : silver;
          this._getName.text = this._payGold ? silver : gold;
          this._payCoin.gotoAndStop(this._payGold ? 2 : 1);
          this._getCoin.gotoAndStop(this._payGold ? 1 : 2);
          var payHas:uint = this._payGold ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney;
          var getHas:uint = this._payGold ? PlayerInfo.genericMoney : PlayerInfo.premiumMoney;
-         this._payBalance.text = this.say("balance") + ": " + money(payHas);
-         this._getBalance.text = this.say("balance") + ": " + money(getHas);
+         this._payBalance.text = LocalizationData.getName("st_srp_exchange_balance") + ": " + money(payHas);
+         this._getBalance.text = LocalizationData.getName("st_srp_exchange_balance") + ": " + money(getHas);
          var each:String = money(this.rate());
          this._rate.text = this._payGold ? "1 " + gold + " = " + each + " " + silver : each + " " + silver + " = 1 " + gold;
          var cost:Number = this._payGold ? this._gold : this._gold * this.rate();
          var short:Boolean = cost > payHas;
-         this._note.text = short ? this.say(this._payGold ? "short_gold" : "short_silver") : "";
+         this._note.text = short ? LocalizationData.getName(this._payGold ? "st_srp_exchange_short_gold" : "st_srp_exchange_short_silver") : "";
          btnAccept.enabled = this._gold > 0 && !short;
       }
    }

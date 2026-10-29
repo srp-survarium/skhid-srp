@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Dodaci
+st_srp_exchange_balance	Stanje
+st_srp_exchange_button	Razmeni
+st_srp_exchange_gold	Zlato
+st_srp_exchange_pay	Plati
+st_srp_exchange_receive	Primi
+st_srp_exchange_short_gold	Nema dovoljno zlata
+st_srp_exchange_short_silver	Nema dovoljno srebra
+st_srp_exchange_title	Razmeni
+st_srp_inventory_search	Pretraga
 st_srp_language_option	Jezik
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
+st_srp_loadout_block_ammo	Premalo municije za oružje
+st_srp_loadout_block_locked	Ovaj profil je zaključan
+st_srp_loadout_block_maintenance	Održavanje servera za %1$s min
+st_srp_loadout_block_pocket_twice	Isti tip predmeta u dva džepa
+st_srp_loadout_block_shared_slot	Dva predmeta zauzimaju isto mesto
+st_srp_loadout_block_weapon	Nema oružja
+st_srp_loadout_empty	prazno
+st_srp_loadout_refused	Nije moguće izabrati komplet.
+st_srp_loadout_sell_and	 i 
+st_srp_loadout_sell_item	Komplet %1$s
+st_srp_loadout_sell_many	Koristi se u: %1$s. Ipak prodati?
+st_srp_loadout_sell_one	Koristi se u kompletu %1$s. Ipak prodati?
+st_srp_loadout_title	Komplet
+st_srp_loadout_unfit	nije spreman
+st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
+st_srp_map_chemical_plant	Hemijska fabrika
+st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
+st_srp_map_cologne	Keln
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamajev kurgan
+st_srp_map_mamayev_kurgan_v021	Mamajev kurgan (v0.21)
+st_srp_map_rudnya	Rudnja
+st_srp_map_school	Škola
+st_srp_map_tarakanovsky_fort	Tarakanovski fort
+st_srp_map_vector	Laboratorija Vektor
+st_srp_map_vostok	Radarska stanica Vostok
+st_srp_map_vostok_v011	Radarska stanica Vostok (v0.11)
+st_srp_map_vostok_v021	Radarska stanica Vostok (v0.21)
+st_srp_matches_another_joining	Drugi igrač se pridružuje
+st_srp_matches_balanced	Meč je već uravnotežen
+st_srp_matches_cannot_join	Trenutno ne možeš da se pridružiš
+st_srp_matches_closed	Ovaj meč je zatvoren
+st_srp_matches_ends_soon	Meč se uskoro završava
+st_srp_matches_full	Nema slobodnog mesta u ovom meču
+st_srp_matches_in_match	Već si u meču
+st_srp_matches_in_squad	Prvo napusti odred
+st_srp_matches_joining	pridruživanje…
+st_srp_matches_maintenance	Završava se nakon početka održavanja
+st_srp_matches_mode_protective_device	Zaštitni uređaj
+st_srp_matches_no_answer	Nema odgovora, pokušaj ponovo
+st_srp_matches_no_late_join	Meč ne prima nove igrače
+st_srp_matches_no_place	Nema slobodnog mesta u ovom meču
+st_srp_matches_none	Trenutno nema mečeva
+st_srp_matches_not_in_play	Meč još nije počeo
+st_srp_matches_outdated	Ažuriraj igru
+st_srp_matches_played_before	Već si igrao u ovom meču
+st_srp_matches_queued	Prvo prekini pretragu
+st_srp_matches_starting	početak
+st_srp_matches_title	Mečevi
+st_srp_matches_waiting	čekanje
+st_srp_mode_blackout	Zaštitni uređaj: zamračenje
+st_srp_mode_chargers	Zaštitni uređaj: punjači
+st_srp_mode_protective_device	Zaštitni uređaj
+st_srp_mode_research	Istraživanje
+st_srp_mode_team_deathmatch	Timska borba
 st_srp_optics	Optika
+st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
+st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
+st_srp_pvb_busy	%1$s (zauzeto)
+st_srp_pvb_checking	Provera…
+st_srp_pvb_clan_match	Prvo isključi "Klanski meč"
+st_srp_pvb_demo_start	Demo: server bi sada pokrenuo meč: %1$s
+st_srp_pvb_gear_max	Nivo opreme mora biti %1$s ili niži
+st_srp_pvb_gear_max_yours	Nivo opreme mora biti %1$s ili niži (tvoj nivo: %2$s)
+st_srp_pvb_generic	Meč protiv botova trenutno ne može da počne
+st_srp_pvb_hint	Meč protiv botova, sa botovima i u tvom timu
+st_srp_pvb_in_match	Već si u meču
+st_srp_pvb_in_squad	Prvo napusti odred
+st_srp_pvb_maintenance	Održavanje uskoro počinje, nema novih mečeva protiv botova
+st_srp_pvb_no_answer	Server ne odgovara
+st_srp_pvb_off	Mečevi protiv botova su trenutno isključeni
+st_srp_pvb_outdated	Ažuriraj igru
+st_srp_pvb_retry	Nema odgovora, pokušaj ponovo
+st_srp_pvb_searching	Prvo prekini pretragu
+st_srp_pvb_team_size	%1$s protiv %2$s
+st_srp_pvb_title	Igrač protiv botova
+st_srp_pvb_unknown_choice	Ova mapa ili veličina tima trenutno nije dostupna
+st_srp_replay_asking	Traženje snimka ovog meča od servera…
+st_srp_replay_being_made	Snimak se pravi iz zapisa meča. To se dešava kada neko prvi put gleda ovaj meč i može da potraje.\nMožeš zatvoriti prozor: server će nastaviti izradu.\n\n%1$s
+st_srp_replay_busy	Server je trenutno zauzet drugim snimcima. Pokušaj ponovo za minut.
+st_srp_replay_close	ZATVORI
+st_srp_replay_demo_quest	Doprinos pobedi
+st_srp_replay_demo_rank	«%1$s»: dostignut rang 3. Novi predmeti su dostupni u prodavnici.
+st_srp_replay_demo_seller	Sakupljači
+st_srp_replay_download	PREUZMI I GLEDAJ
+st_srp_replay_failed	Server nije uspeo da pripremi snimak ovog meča.
+st_srp_replay_gone	Snimak ovog meča više se ne čuva na serveru.
+st_srp_replay_incompatible	Ovaj snimak je napravljen verzijom igre koju tvoja igra ne može da reprodukuje.
+st_srp_replay_made_now	Izrada je u toku. Čekanje: %1$s s.
+st_srp_replay_no_answer	Server nije odgovorio. Pokušaj kasnije.
+st_srp_replay_not_recorded	Ovaj meč nije snimljen: imao je manje od 6 igrača ili je snimanje tada bilo isključeno.
+st_srp_replay_not_yours	Možeš gledati samo snimke mečeva u kojima si učestvovao.
+st_srp_replay_off	Snimci su isključeni na ovom serveru.
+st_srp_replay_old_game	Tvoja verzija igre ne podržava snimke. Ažuriraj igru: ponovo je pokreni preko pokretača.
+st_srp_replay_place_in_line	Mesto u redu: %1$s. Čekanje: %2$s s.
+st_srp_replay_ready	Snimak ovog meča je spreman.\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F11 za kontrole: igrači, kamera, premotavanje, brzina.
+st_srp_replay_ready_size	Snimak ovog meča: %1$s.\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F11 za kontrole: igrači, kamera, premotavanje, brzina.
+st_srp_replay_size	%1$s,%2$s MB
+st_srp_replay_starting	Pokretanje snimka: otvoriće se drugi prozor igre; ovaj lobi ostaje otvoren. Ako nešto pođe po zlu, program za ažuriranje će prikazati šta se desilo.\n\nU snimku pritisni F11 za kontrole.
+st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; ponovo otvori Gledaj snimak za minut.
+st_srp_replay_title	Gledaj snimak
+st_srp_replay_waiting	Čekanje: %1$s s.
+st_srp_reroll_description	Možeš promeniti bilo koji modifikator predmeta neograničen broj puta. Zatim biraš jedan od tri nasumična modifikatora.
+st_srp_rooms_all	Sve
+st_srp_rooms_all_rooms	Sve sobe
+st_srp_rooms_any	Bilo koji
+st_srp_rooms_back	Nazad
+st_srp_rooms_code_10	Vlasnik te je uklonio iz te sobe.
+st_srp_rooms_code_11	Prvo napusti tim klana.
+st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.
+st_srp_rooms_code_13	Komplet nije bio spreman (nema oružja ili dovoljno municije): uklonjen si iz sobe.
+st_srp_rooms_code_14	Nije moguće izabrati komplet.
+st_srp_rooms_code_16	Pritisni Igraj da uđeš u javnu sobu.
+st_srp_rooms_code_2	Ta soba više ne postoji.
+st_srp_rooms_code_3	Pogrešan PIN.
+st_srp_rooms_code_4	Ta soba je puna.
+st_srp_rooms_code_5	U meču si.
+st_srp_rooms_code_6	Trenutno ima previše soba.
+st_srp_rooms_code_7	Ažuriraj igru.
+st_srp_rooms_code_8	Izaberi bar jednu mapu.
+st_srp_rooms_code_9	Održavanje uskoro.
+st_srp_rooms_code_label	kod
+st_srp_rooms_countdown	Početak
+st_srp_rooms_create	Napravi
+st_srp_rooms_enter_anyway	Ipak uđi
+st_srp_rooms_exit	Izađi
+st_srp_rooms_experimental	eksp.
+st_srp_rooms_in_match	U igri
+st_srp_rooms_in_queue	U redu
+st_srp_rooms_join	Pridruži se
+st_srp_rooms_join_in	Ulazak za %1$s s, ili odmah preko Pridruži se meču
+st_srp_rooms_join_match	Pridruži se meču
+st_srp_rooms_join_room	Uđi u sobu
+st_srp_rooms_join_why_1	Drugi igrač se pridružuje meču; ulaziš posle njega.
+st_srp_rooms_join_why_2	Jednom igraču se učitava igra; pridruživanje će uskoro biti dostupno.
+st_srp_rooms_join_why_3	Ostalo je manje od 30 s: igraćeš sledeći meč.
+st_srp_rooms_join_why_4	Meč je pun.
+st_srp_rooms_join_why_5	Održavanje servera uskoro: nema novih ulazaka.
+st_srp_rooms_join_why_6	Meč se završava: igraćeš sledeći.
+st_srp_rooms_join_why_7	Ovaj meč je dostigao ograničenje broja igrača. Pridružićeš se sledećem meču.
+st_srp_rooms_joined_room	%1$s se pridružio sobi
+st_srp_rooms_late_hint	Ko se sada pridruži, prvo vidi sobu, zatim ulazi u meč.
+st_srp_rooms_leave	Napusti
+st_srp_rooms_leave_queue	Napusti red
+st_srp_rooms_leave_room	Napusti sobu
+st_srp_rooms_left_room	%1$s je napustio sobu
+st_srp_rooms_level	Nivo
+st_srp_rooms_map	Mapa
+st_srp_rooms_max	Najviši nivo
+st_srp_rooms_modes	Režimi
+st_srp_rooms_my_room	Moja soba
+st_srp_rooms_name	Naziv
+st_srp_rooms_new	Privatna soba
+st_srp_rooms_next_map	Sledeća
+st_srp_rooms_none	Još nema soba. Napravi je ili pritisni Igraj.
+st_srp_rooms_none_no_play	Još nema soba. Napravi je.
+st_srp_rooms_none_quiet	Još nema soba.
+st_srp_rooms_nothing	Nijedna
+st_srp_rooms_offer_fits	Tvoja oprema %2$s prelazi najviši nivo sobe %1$s. Komplet %3$s je nivoa %4$s.
+st_srp_rooms_offer_higher	Najviši nivo sobe %1$s, tvoja oprema %2$s. Komplet %3$s je nivoa %4$s.
+st_srp_rooms_offer_unfit	Tvoj komplet nije spreman. Komplet %1$s je nivoa %2$s.
+st_srp_rooms_open	slobodno
+st_srp_rooms_open_slots	Slobodno: %1$s
+st_srp_rooms_owner_tag	vlasnik
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN ima 4 cifre.
+st_srp_rooms_pin_hint	Potrebne su 4 cifre
+st_srp_rooms_players	Igrači
+st_srp_rooms_playing	Meč je u toku
+st_srp_rooms_pool	Izbor mapa
+st_srp_rooms_pool_hint	Za glasanje se nasumično biraju 3 od ovih mapa.
+st_srp_rooms_private_room	Privatna soba: do 20 igrača; ti sastavljaš timove i pokrećeš meč.
+st_srp_rooms_queue	Red
+st_srp_rooms_queue_room	Stani u red za sobu
+st_srp_rooms_room	Soba
+st_srp_rooms_room_chat	Čet sobe
+st_srp_rooms_servers	Sobe
+st_srp_rooms_start_hint	Pritisni Pokreni kada svi uđu.
+st_srp_rooms_start_match	Pokreni
+st_srp_rooms_starts	Meč počinje za
+st_srp_rooms_state	Stanje
+st_srp_rooms_switch_enter	Promeni i uđi
+st_srp_rooms_switch_to	Promeni sobu
+st_srp_rooms_switch_who	Soba igrača %1$s · %2$s igrača
+st_srp_rooms_switch_why	Ravnopravniji meč: oprema protivnika do nivoa %1$s
+st_srp_rooms_team_1	Tim 1
+st_srp_rooms_team_2	Tim 2
+st_srp_rooms_teams	Timovi se biraju na početku meča.
+st_srp_rooms_teams_later	Timovi se mogu promeniti posle meča.
+st_srp_rooms_teams_member	Kreator sobe sastavlja timove.
+st_srp_rooms_teams_owner	Premesti igrače između timova pomoću « i ».
+st_srp_rooms_unfit_gear	Tvoja oprema prelazi najviši nivo: smanji ga ili ćeš napustiti sobu na početku meča.
+st_srp_rooms_unfit_kit	Komplet nije spreman (nema oružja ili dovoljno municije): popravi ga ili ćeš napustiti sobu na početku meča.
+st_srp_rooms_vote	Glasaj za sledeću mapu
+st_srp_rooms_vote_hint	3 mape iz izbora. Pobeđuje mapa sa najviše glasova; nerešen ishod se bira nasumično. Klikni da promeniš glas.
+st_srp_rooms_vote_now	Glasaj za sledeću mapu klikom na karticu. Po isteku vremena meč počinje na pobedničkoj mapi.
+st_srp_rooms_voting	Glasanje za mapu
+st_srp_rooms_waiting	Čekanje igrača
+st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
+st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
+st_srp_weather_before_rain	pred kišu
+st_srp_weather_day	dan
+st_srp_weather_evening	veče
+st_srp_weather_night	noć
+st_srp_weather_rain	kiša
 st_stamina_boost_name	Drugi dah
 st_stamina_boost_time_description	Energija obnovljena ubistvom neprijatelja:
 st_stamina_loss_on_hit_description	Gubitak izdržljivosti pri ranjavanju:

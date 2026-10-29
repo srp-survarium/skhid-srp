@@ -2142,10 +2142,223 @@ st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_attachments	Příslušenství
+st_srp_exchange_balance	Zůstatek
+st_srp_exchange_button	Směnit
+st_srp_exchange_gold	Zlato
+st_srp_exchange_pay	Zaplatíš
+st_srp_exchange_receive	Dostaneš
+st_srp_exchange_short_gold	Nedostatek zlata
+st_srp_exchange_short_silver	Nedostatek stříbra
+st_srp_exchange_title	Směnit
+st_srp_inventory_search	Hledat
 st_srp_language_option	Jazyk
 st_srp_language_restart	Projeví se po restartu.
+st_srp_loadout_block_ammo	Málo munice pro jednu ze zbraní
+st_srp_loadout_block_locked	Tento profil je zamčený
+st_srp_loadout_block_maintenance	Údržba serveru za %1$s min
+st_srp_loadout_block_pocket_twice	Stejný typ předmětu ve dvou kapsách
+st_srp_loadout_block_shared_slot	Dva předměty ve stejném slotu
+st_srp_loadout_block_weapon	Chybí zbraň
+st_srp_loadout_empty	prázdná
+st_srp_loadout_refused	Výbavu se nepodařilo vybrat.
+st_srp_loadout_sell_and	 a 
+st_srp_loadout_sell_item	Výbava %1$s
+st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
+st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
+st_srp_loadout_title	Výbava
+st_srp_loadout_unfit	nelze hrát
+st_srp_login_account_hint	Účet se vytvoří při prvním přihlášení
+st_srp_map_chemical_plant	Chemička
+st_srp_map_chemical_plant_v011	Chemička (v0.11)
+st_srp_map_cologne	Kolín nad Rýnem
+st_srp_map_london	Londýn
+st_srp_map_mamayev_kurgan	Mamajova mohyla
+st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
+st_srp_map_rudnya	Rudňa
+st_srp_map_school	Škola
+st_srp_map_tarakanovsky_fort	Tarakanovská pevnost
+st_srp_map_vector	Laboratoř Vektor
+st_srp_map_vostok	Radarová stanice Vostok
+st_srp_map_vostok_v011	Radarová stanice Vostok (v0.11)
+st_srp_map_vostok_v021	Radarová stanice Vostok (v0.21)
+st_srp_matches_another_joining	Připojuje se jiný hráč
+st_srp_matches_balanced	Zápas je už vyvážený
+st_srp_matches_cannot_join	Teď se nemůžeš připojit
+st_srp_matches_closed	Tento zápas je uzavřený
+st_srp_matches_ends_soon	Zápas brzy skončí
+st_srp_matches_full	V tomto zápase není volné místo
+st_srp_matches_in_match	Už jsi v zápase
+st_srp_matches_in_squad	Nejdřív opusť četu
+st_srp_matches_joining	připojování…
+st_srp_matches_maintenance	Skončí až po začátku údržby
+st_srp_matches_mode_protective_device	Ochranné zařízení
+st_srp_matches_no_answer	Žádná odpověď, zkus to znovu
+st_srp_matches_no_late_join	Zápas nepřijímá další hráče
+st_srp_matches_no_place	V tomto zápase není volné místo
+st_srp_matches_none	Teď neběží žádné zápasy
+st_srp_matches_not_in_play	Zápas ještě nezačal
+st_srp_matches_outdated	Aktualizuj hru
+st_srp_matches_played_before	V tomto zápase už jsi hrál
+st_srp_matches_queued	Nejdřív zruš hledání
+st_srp_matches_starting	začíná
+st_srp_matches_title	Zápasy
+st_srp_matches_waiting	čekání
+st_srp_mode_blackout	Ochranné zařízení: výpadek
+st_srp_mode_chargers	Ochranné zařízení: nabíječky
+st_srp_mode_protective_device	Ochranné zařízení
+st_srp_mode_research	Výzkum
+st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_optics	Optika
+st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
+st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu
+st_srp_pvb_busy	%1$s (obsazeno)
+st_srp_pvb_checking	Kontrola…
+st_srp_pvb_clan_match	Nejdřív vypni „Klanový zápas“
+st_srp_pvb_demo_start	Demo: server by teď spustil zápas: %1$s
+st_srp_pvb_gear_max	Úroveň vybavení musí být %1$s nebo nižší
+st_srp_pvb_gear_max_yours	Úroveň vybavení musí být %1$s nebo nižší (tvoje: %2$s)
+st_srp_pvb_generic	Zápas s boty teď nelze spustit
+st_srp_pvb_hint	Zápas proti botům, s boty i ve tvém týmu
+st_srp_pvb_in_match	Už jsi v zápase
+st_srp_pvb_in_squad	Nejdřív opusť četu
+st_srp_pvb_maintenance	Brzy začne údržba, nové zápasy s boty se nespustí
+st_srp_pvb_no_answer	Server neodpovídá
+st_srp_pvb_off	Zápasy s boty jsou teď vypnuté
+st_srp_pvb_outdated	Aktualizuj hru
+st_srp_pvb_retry	Žádná odpověď, zkus to znovu
+st_srp_pvb_searching	Nejdřív zruš hledání
+st_srp_pvb_team_size	%1$s proti %2$s
+st_srp_pvb_title	Hráč proti botům
+st_srp_pvb_unknown_choice	Tato mapa nebo velikost týmu teď není dostupná
+st_srp_replay_asking	Žádám server o záznam tohoto zápasu…
+st_srp_replay_being_made	Záznam se vytváří ze zápisu zápasu. Děje se to při prvním přehrání a chvíli to trvá.\nToto okno můžeš zavřít, server bude pokračovat.\n\n%1$s
+st_srp_replay_busy	Server teď zpracovává jiné záznamy. Zkus to za minutu.
+st_srp_replay_close	ZAVŘÍT
+st_srp_replay_demo_quest	Přínos k vítězství
+st_srp_replay_demo_rank	«%1$s»: dosažena 3. hodnost. V obchodě jsou nové předměty.
+st_srp_replay_demo_seller	Mrchožrouti
+st_srp_replay_download	STÁHNOUT A PŘEHRÁT
+st_srp_replay_failed	Server nedokázal připravit záznam tohoto zápasu.
+st_srp_replay_gone	Záznam tohoto zápasu už na serveru není.
+st_srp_replay_incompatible	Záznam pochází z verze hry, se kterou tvoje verze není kompatibilní.
+st_srp_replay_made_now	Právě se vytváří. Čekání: %1$s s.
+st_srp_replay_no_answer	Server neodpověděl. Zkus to později.
+st_srp_replay_not_recorded	Tento zápas se nenahrával: měl méně než 6 hráčů nebo bylo nahrávání vypnuté.
+st_srp_replay_not_yours	Přehrávat můžeš jen zápasy, kterých ses zúčastnil.
+st_srp_replay_off	Záznamy jsou na tomto serveru vypnuté.
+st_srp_replay_old_game	Tvoje verze hry neumí přehrávat záznamy. Aktualizuj hru opětovným spuštěním přes launcher.
+st_srp_replay_place_in_line	Místo ve frontě: %1$s. Čekání: %2$s s.
+st_srp_replay_ready	Záznam tohoto zápasu je připraven.\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost.
+st_srp_replay_ready_size	Záznam tohoto zápasu: %1$s.\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost.
+st_srp_replay_size	%1$s,%2$s MB
+st_srp_replay_starting	Spouštím záznam: otevře se druhé okno hry, lobby zůstane otevřené. Pokud se něco pokazí, aktualizační program ukáže příčinu.\n\nV záznamu stiskni F11 pro ovládání.
+st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Za minutu znovu otevři Přehrát záznam.
+st_srp_replay_title	Přehrát záznam
+st_srp_replay_waiting	Čekání: %1$s s.
+st_srp_reroll_description	Kterýkoli bonus předmětu můžeš změnit, kolikrát chceš. Potom si vybereš jeden ze tří náhodných bonusů.
+st_srp_rooms_all	Všechny
+st_srp_rooms_all_rooms	Všechny místnosti
+st_srp_rooms_any	Libovolná
+st_srp_rooms_back	Zpět
+st_srp_rooms_code_10	Vlastník tě odebral z místnosti.
+st_srp_rooms_code_11	Nejdřív opusť klanový tým.
+st_srp_rooms_code_12	Vybavení přesahuje maximální úroveň.
+st_srp_rooms_code_13	Výbava nebyla připravená (chyběla zbraň nebo munice), proto jsi byl odebrán z místnosti.
+st_srp_rooms_code_14	Výbavu se nepodařilo vybrat.
+st_srp_rooms_code_16	Do veřejné místnosti vstoupíš tlačítkem Hrát.
+st_srp_rooms_code_2	Tato místnost už neexistuje.
+st_srp_rooms_code_3	Nesprávný PIN.
+st_srp_rooms_code_4	Tato místnost je plná.
+st_srp_rooms_code_5	Jsi v zápase.
+st_srp_rooms_code_6	Teď je příliš mnoho místností.
+st_srp_rooms_code_7	Aktualizuj hru.
+st_srp_rooms_code_8	Vyber aspoň jednu mapu.
+st_srp_rooms_code_9	Brzy začne údržba.
+st_srp_rooms_code_label	kód
+st_srp_rooms_countdown	Start
+st_srp_rooms_create	Vytvořit
+st_srp_rooms_enter_anyway	Přesto vstoupit
+st_srp_rooms_exit	Odejít
+st_srp_rooms_experimental	exp.
+st_srp_rooms_in_match	Ve hře
+st_srp_rooms_in_queue	Ve frontě
+st_srp_rooms_join	Připojit se
+st_srp_rooms_join_in	Do zápasu za %1$s s, nebo hned přes Připojit se k zápasu
+st_srp_rooms_join_match	Připojit se k zápasu
+st_srp_rooms_join_room	Vstoupit do místnosti
+st_srp_rooms_join_why_1	K zápasu se připojuje jiný hráč. Na řadě jsi po něm.
+st_srp_rooms_join_why_2	Jednomu hráči se načítá hra. Připojení bude za chvíli možné.
+st_srp_rooms_join_why_3	Zbývá méně než 30 s. Zahraješ si další zápas.
+st_srp_rooms_join_why_4	Zápas je plný.
+st_srp_rooms_join_why_5	Brzy začne údržba serveru. Už se nelze připojit.
+st_srp_rooms_join_why_6	Zápas končí. Zahraješ si ten další.
+st_srp_rooms_join_why_7	Zápas dosáhl limitu hráčů. Připojíš se k dalšímu.
+st_srp_rooms_joined_room	%1$s se připojuje do místnosti
+st_srp_rooms_late_hint	Noví hráči uvidí místnost a pak vstoupí do zápasu.
+st_srp_rooms_leave	Odejít
+st_srp_rooms_leave_queue	Opustit frontu
+st_srp_rooms_leave_room	Opustit místnost
+st_srp_rooms_left_room	%1$s opouští místnost
+st_srp_rooms_level	Úroveň
+st_srp_rooms_map	Mapa
+st_srp_rooms_max	Max. úroveň
+st_srp_rooms_modes	Režimy
+st_srp_rooms_my_room	Moje místnost
+st_srp_rooms_name	Název
+st_srp_rooms_new	Soukromá místnost
+st_srp_rooms_next_map	Další
+st_srp_rooms_none	Zatím žádné místnosti. Vytvoř nějakou nebo stiskni Hrát.
+st_srp_rooms_none_no_play	Zatím žádné místnosti. Vytvoř nějakou.
+st_srp_rooms_none_quiet	Zatím žádné místnosti.
+st_srp_rooms_nothing	Žádná
+st_srp_rooms_offer_fits	Tvoje vybavení %2$s přesahuje limit místnosti %1$s. Výbava %3$s má úroveň %4$s.
+st_srp_rooms_offer_higher	Max. úroveň místnosti %1$s, tvoje vybavení %2$s. Výbava %3$s má úroveň %4$s.
+st_srp_rooms_offer_unfit	S touto výbavou nelze hrát. Výbava %1$s má úroveň %2$s.
+st_srp_rooms_open	volno
+st_srp_rooms_open_slots	Volno: %1$s
+st_srp_rooms_owner_tag	vlastník
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN má 4 číslice.
+st_srp_rooms_pin_hint	Musí mít 4 číslice
+st_srp_rooms_players	Hráči
+st_srp_rooms_playing	Probíhá zápas
+st_srp_rooms_pool	Výběr map
+st_srp_rooms_pool_hint	Do hlasování se náhodně vyberou 3 z těchto map.
+st_srp_rooms_private_room	Soukromá místnost: až 20 hráčů. Sestavuješ týmy a spouštíš zápas.
+st_srp_rooms_queue	Fronta
+st_srp_rooms_queue_room	Zařadit se do fronty
+st_srp_rooms_room	Místnost
+st_srp_rooms_room_chat	Chat místnosti
+st_srp_rooms_servers	Místnosti
+st_srp_rooms_start_hint	Až budou všichni uvnitř, stiskni Spustit.
+st_srp_rooms_start_match	Spustit
+st_srp_rooms_starts	Zápas začne za
+st_srp_rooms_state	Stav
+st_srp_rooms_switch_enter	Změnit a vstoupit
+st_srp_rooms_switch_to	Změnit místnost
+st_srp_rooms_switch_who	Místnost hráče %1$s · %2$s hráčů
+st_srp_rooms_switch_why	Vyrovnanější zápas: vybavení soupeřů do úrovně %1$s
+st_srp_rooms_team_1	Tým 1
+st_srp_rooms_team_2	Tým 2
+st_srp_rooms_teams	Týmy se náhodně rozdělí na začátku zápasu.
+st_srp_rooms_teams_later	Týmy lze změnit po zápase.
+st_srp_rooms_teams_member	Týmy sestavuje tvůrce místnosti.
+st_srp_rooms_teams_owner	Přesouvej hráče mezi týmy pomocí « a ».
+st_srp_rooms_unfit_gear	Vybavení přesahuje maximální úroveň. Sniž ji, jinak při startu opustíš místnost.
+st_srp_rooms_unfit_kit	Výbava není připravená (chybí zbraň nebo munice). Uprav ji, jinak při startu opustíš místnost.
+st_srp_rooms_vote	Hlasuj pro další mapu
+st_srp_rooms_vote_hint	3 mapy z výběru. Vyhrává nejvíc hlasů, remízu rozhodne náhoda. Kliknutím změníš svůj hlas.
+st_srp_rooms_vote_now	Hlasuj pro další mapu kliknutím na kartu. Po vypršení času začne zápas na vítězné mapě.
+st_srp_rooms_voting	Hlasování o mapě
+st_srp_rooms_waiting	Čekání na hráče
+st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
+st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+st_srp_weather_before_rain	před deštěm
+st_srp_weather_day	den
+st_srp_weather_evening	večer
+st_srp_weather_night	noc
+st_srp_weather_rain	déšť
 st_stamina_boost_name	Druhý dech
 st_stamina_boost_time_description	Výdrž obnovená zabitím nepřítele:
 st_stamina_loss_on_hit_description	Ztráta výdrže při zranění:

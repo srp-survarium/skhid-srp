@@ -3,7 +3,7 @@
 All ten native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
 Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish and Belarusian
 (Cyrillic, standard orthography). Every file
-has the same 2,315 keys, sorted by full key name. These are the build sources,
+has the same 2,528 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.
@@ -32,18 +32,45 @@ Ukrainian letters (и, щ, ъ, ї, є, ґ) in Belarusian, and text exceeding the
 verify it round-trips exactly. Unchanged text is informational: model names and
 keycaps can legitimately match English.
 
-The same command checks the custom Flash language tables, language constants,
-native label detectors, content edit key references, and the final catalog build step.
-Custom menu sentences still live in ActionScript; those are separate from native
-item dictionaries. Their existing column order is English, Ukrainian, Russian,
-German, Polish, Serbian, Czech, Hungarian, Finnish, Belarusian. Extend those tables when
-adding a language. Some menus detect the language from the localized Friends,
-Cancel or registration labels, so changes to those labels must also update the
-Flash detectors. Regression tests for the checker and build integration run with:
+The same command checks the Flash menus' text keys (below), content edit key
+references, and the final catalog build step. Regression tests for the checker and
+build integration run with:
 
 ```sh
 python3 -m unittest discover -s srp-026g/client-patches -p test_localization.py
 ```
+
+## Flash menus' own texts
+
+srp's own menu texts (the rooms, the Matches window, Player vs Bots, the replay
+prompt, the gold exchange, loadouts, the reroll rule, the search box, the login hint)
+are dictionary keys like any other text: `st_srp_<menu>_<name>` (`st_srp_rooms_*`,
+`st_srp_matches_*`, `st_srp_pvb_*`, `st_srp_replay_*`, `st_srp_exchange_*`,
+`st_srp_loadout_*`, `st_srp_login_*`; maps, modes and weathers `st_srp_map_*`,
+`st_srp_mode_*`, `st_srp_weather_*`). No movie holds language text, and adding or
+changing a language never touches an `.as` file.
+
+- **How a movie gets them.** The exe hands the lobby and login movies their texts
+  through `set_localization_data`, by the movie's table of
+  `localization/flash_movies_localizations.options` (UI key to dictionary key). The
+  content compile (`localization-1.json`) adds every `st_srp_` key to the lobby's and
+  the login's tables under its own name (`FLASH_MOVIES`, `flash_rows` in
+  `localization_026g.py`): a new key needs no mapping of its own.
+- **In ActionScript:** `LocalizationData.getName("st_srp_rooms_join")`, or
+  `LocalizationData.format("st_srp_rooms_switch_who", name, players)` for a text
+  with values. Write the key in full in the source: the check finds it there.
+- **Values** are `%1$s`, `%2$s`, ... in the text, in any order a language needs; every
+  language keeps the same ones. Never `{name}`: the game's localizer (0x1FEF90) drops
+  any `{...}` that is not an action's key from the texts it hands a movie.
+- **The check** fails a key a movie names that the dictionaries lack, an `st_srp_` key
+  named by another movie (it is not given srp's texts), and an `st_srp_` text with
+  braces. With a compiled resource tree it also fails an `st_srp_` key that the lobby's
+  or the login's mapping does not map to itself.
+- The main menu's Language choice (`SrpLanguage.as`) gets its two texts from the exe's
+  answer, which reads them from the dictionary (patch 79).
+- The inventory search's item-kind words (`InventoryList.SEARCH_KINDS`) are not shown
+  text: the words of every language match whatever the game's language, so they stay
+  a word list in the code.
 
 ## Content build
 
@@ -98,15 +125,18 @@ launcher UI translations are separate.
 To add a language, register its resource name, Flash constant and own name in
 `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run
 `python3 localization_026g.py --write` (the exe's table, `languages_026g.rs`), add its
-complete TSV here (with the Settings' two texts `st_srp_language_option` and
-`st_srp_language_restart`), and extend custom Flash language tables/detectors and their
-runtime checks. The content compiler
+complete TSV here (with every `st_srp_` text, the Settings' two
+`st_srp_language_option` and `st_srp_language_restart` among them). No Flash source
+changes. The content compiler
 creates its resource directory automatically. Existing languages retain their
 support files; new languages inherit English EULA and profanity data, which
 are support resources, not translated text.
 
-The rebuilt lobby's runtime check exercises language detection, the five added
-languages' room/map/mode labels, chat tab widths and embedded Calibri glyphs:
+The rebuilt lobby's runtime check gives the movie every language's texts as the exe
+does (`../../scripts/localization-check/harness_text.py`, from these TSVs) and checks
+its lookups by number (maps, modes, weathers, room codes), the room's chat lines, every
+text's placeholders, the room chat tab's width and the embedded Calibri's glyphs of
+every srp text (run it under `nix-shell -p python3`):
 
 ```sh
 srp-026g/scripts/localization-check/check.sh /path/to/lobby_menu.swf

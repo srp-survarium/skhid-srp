@@ -32,22 +32,9 @@ package
                     false, false, false, null, null, "center");
                 menu.panelContainer.addChild(hint);
             }
-            // Match the stock localized registration string supplied by the
-            // native client. This covers all ten supported client languages.
-            var translations:Object = {
-                "Create account": "Account created on first sign-in",
-                "Створити новий акаунт": "Акаунт створюється під час першого входу",
-                "Создать учетную запись": "Аккаунт создаётся при первом входе",
-                "Konto registrieren": "Konto wird beim ersten Login erstellt",
-                "Utwórz konto": "Konto powstaje przy pierwszym logowaniu",
-                "Napravi nalog": "Nalog se pravi pri prvoj prijavi",
-                "Vytvořit účet": "Účet se vytvoří při prvním přihlášení",
-                "Fiók létrehozása": "A fiók az első belépéskor jön létre",
-                "Luo tili": "Tili luodaan ensimmäisellä kirjautumisella",
-                "Стварыць акаўнт": "Акаўнт ствараецца пры першым уваходзе"
-            };
-            var text:String = translations[LocalizationData.getName("registration_str")];
-            hint.text = text != null ? text : "Account created on first sign-in";
+            // srp's own text (st_srp_login_account_hint), set when the
+            // exe gives the movie its texts (set_localization_data).
+            LocalizationData.addTextField(hint, "st_srp_login_account_hint");
         }
     }
 }

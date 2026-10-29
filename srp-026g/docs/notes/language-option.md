@@ -62,12 +62,12 @@ The language, once, before the dictionary loads:
 
 ## One list
 
-- The languages, their resource names and their own names are `LANGUAGES` in
+- The languages, their resource names, their own names and their Windows primary language ids are `LANGUAGES` in
   `client-patches/localization_026g.py`. `python3 localization_026g.py --write` generates the exe's
   table (`client-patches/languages_026g.rs`); `check_localization_026g.py` fails when it is stale.
 - The movie lists what the exe answers (`root.srp_language`): label, note, saved, running, then each
   language's name and own name. No list in the movie.
-- A new language: its registry row (with its own name), its complete TSV (the two Settings texts
+- A new language: its registry row (with its own name and primary language id), its complete TSV (the two Settings texts
   `st_srp_language_option`, `st_srp_language_restart` included), `--write`.
 
 ## Known limits

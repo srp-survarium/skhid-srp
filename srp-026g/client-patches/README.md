@@ -552,12 +552,11 @@ gold. The window has:
 
 Typing in either field updates the other. Silver goes by whole gold: a silver
 amount that is not a multiple of the rate is evened out when the field is
-left, and on Exchange. The texts are in all five game languages; the language
-is the one of the client's own "Cancel" (`st_cancel`; in German the game's
-file says "Abrechnen"). "Silver" is the game's own word, read live
-(`regular_money`, `st_regular_money`); "Gold" is the game's `st_premium_money_name`,
-copied, as the movie has no key for it; the rest are the window's own words,
-the game having none for them.
+left, and on Exchange. The texts are dictionary keys (`st_srp_exchange_*`,
+`localization/README.md`, Flash menus' own texts). "Silver" is the game's own word
+(`regular_money`, `st_regular_money`); "Gold" (`st_srp_exchange_gold`) is the game's
+`st_premium_money_name`, copied, as the movie has no key for it; the rest are the
+window's own words, the game having none for them.
 
 It is the stock window (`MessageMoneyExchange`, symbol `SrvMessageExchangeSkinned`)
 with the stock pieces moved: its 9-slice background made 300 x 300, its buttons
