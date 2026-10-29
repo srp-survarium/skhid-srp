@@ -188,6 +188,9 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
         team1.cheats.batteries = false;
         team0.hazard.route_crossing = route0;
         team1.hazard.route_crossing = route1;
+        // Only the routed crossing differs: the way out is not priced (a walk of 26 m through the zone would be).
+        team0.hazard.price_way_out = false;
+        team1.hazard.price_way_out = false;
         let teams = [0u8, 0, 1, 1];
         let mut bots = Bots::new_with(
             0x7EA6,
