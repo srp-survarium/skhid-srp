@@ -99,8 +99,9 @@ impl Ctx<'_> {
     /// `from` moved `m` metres along `dir` (a unit xz direction), pulled in
     /// toward `from` while that is no goal; when `from` itself is none (the
     /// carrier stands on a zone's floors), the dry floor that sees him
-    /// nearest that post, within [`POST_SEARCH_M`] of him (`HazardTuning::escort_dry_post`;
-    /// off: his own feet, which no route leads to). `None`: no dry floor sees him.
+    /// nearest that post ([`ring_post`], kept by the carrier's floor,
+    /// `HazardTuning::escort_dry_post`; off: his own feet, which no route leads
+    /// to). `None`: no dry floor that a walk reaches sees him.
     fn escort_post(&self, from: Vec3, dir: (f32, f32), m: f32) -> Option<Vec3> {
         let wanted = |m: f32| Vec3::new(from.x + dir.0 * m, from.y, from.z + dir.1 * m);
         let mut at = m;
@@ -113,25 +114,36 @@ impl Ctx<'_> {
         if !self.tuning.hazard.escort_dry_post || self.tactics.fine_goal(from, self.now, self.bot.side) {
             return Some(from);
         }
-        let grid = &self.tactics.world.grid;
-        let eye = Vec3::new(0.0, POST_EYE_M, 0.0);
         let target = wanted(m);
-        POST_RINGS_M
-            .iter()
-            .flat_map(|&r| {
-                (0..POST_DIRECTIONS).map(move |k| {
-                    let a = k as f32 * std::f32::consts::TAU / POST_DIRECTIONS as f32;
-                    Vec3::new(from.x + r * a.cos(), from.y, from.z + r * a.sin())
-                })
-            })
-            .filter_map(|p| grid.locate(p, 2.0).map(|node| grid.position(node)))
-            .filter(|&p| {
-                self.tactics.fine_goal(p, self.now, self.bot.side)
-                    && (p.y - from.y).abs() < 3.0
-                    && self.tactics.sees(p + eye, from + eye)
-            })
-            .min_by(|a, b| a.distance_xz(target).total_cmp(&b.distance_xz(target)))
+        self.memo.escort_post(self.tactics, from, target, self.now, self.bot.side, || {
+            ring_post(self.tactics, from, target, self.now, self.bot.side)
+        })
     }
+}
+
+/// The dry floor nearest `target` within [`POST_SEARCH_M`] of `from` that a walk reaches (`walkable`, past the zones on
+/// all match: a dry island in a swamp is none) and from which the carrier at `from` is seen.
+fn ring_post(tactics: &Tactics, from: Vec3, target: Vec3, now: u32, side: Option<i32>) -> Option<Vec3> {
+    let grid = &tactics.world.grid;
+    let eye = Vec3::new(0.0, POST_EYE_M, 0.0);
+    POST_RINGS_M
+        .iter()
+        .flat_map(|&r| {
+            (0..POST_DIRECTIONS).map(move |k| {
+                let a = k as f32 * std::f32::consts::TAU / POST_DIRECTIONS as f32;
+                Vec3::new(from.x + r * a.cos(), from.y, from.z + r * a.sin())
+            })
+        })
+        .filter_map(|p| grid.locate(p, 2.0))
+        .filter(|&node| {
+            let p = grid.position(node);
+            tactics.fine_goal(p, now, side)
+                && tactics.past_fixed_zones(node)
+                && (p.y - from.y).abs() < 3.0
+                && tactics.sees(p + eye, from + eye)
+        })
+        .map(|node| grid.position(node))
+        .min_by(|a, b| a.distance_xz(target).total_cmp(&b.distance_xz(target)))
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -154,17 +166,19 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if cx.teammate_trapped(carrier.place).is_some_and(|t| t.gave_up) {
             continue;
         }
-        // Nor to one on a zone's floors that no dry floor sees: it would end at once, "no way to its goal".
+        // Nor to one on a zone's floors that no dry floor sees: it would end at once, "no way to its goal". Each
+        // candidate asks its own post: ahead of him toward home, behind him away from it.
         let left = carrier.feet.distance_xz(home).max(1.0);
-        let dir = ((home.x - carrier.feet.x) / left, (home.z - carrier.feet.z) / left);
-        if cx.escort_post(carrier.feet, dir, cx.num(PlayKind::Escort, "behind_min_m")).is_none() {
-            continue;
-        }
+        let ahead = ((home.x - carrier.feet.x) / left, (home.z - carrier.feet.z) / left);
+        let post_ok = |dir: (f32, f32), numbers: &str| cx.escort_post(carrier.feet, dir, cx.num(PlayKind::Escort, numbers)).is_some();
         let key = carrier.place as u32 * 2;
-        out.extend(cx.candidate(PlayKind::Escort, TargetRef::Place(carrier.place), Some(key)));
+        if post_ok(ahead, "ahead_min_m") {
+            out.extend(cx.candidate(PlayKind::Escort, TargetRef::Place(carrier.place), Some(key)));
+        }
         // Behind him: above the batteries to collect.
-        if let Some(mut behind) =
-            cx.candidate(PlayKind::Escort, TargetRef::Battery(battery), Some(key + 1))
+        if post_ok((-ahead.0, -ahead.1), "behind_min_m")
+            && let Some(mut behind) =
+                cx.candidate(PlayKind::Escort, TargetRef::Battery(battery), Some(key + 1))
         {
             behind.rank = Rank::Alarm;
             out.push(behind);
@@ -489,20 +503,5 @@ mod tests {
         assert!(escorts(&wide, 0).is_empty());
         let steps = wide.run(0, PlayKind::Escort, TargetRef::Place(1), 1, 300, 3.5);
         assert_eq!(steps[0], Step::Failed("no dry floor sees him"));
-    }
-
-    /// A play the team set aside (a bot's proof of no way to a goal in a zone) is offered to no bot of it until the
-    /// time is up.
-    #[test]
-    fn a_play_the_team_set_aside_is_offered_to_nobody() {
-        let mut s = scene();
-        assert_eq!(escorts(&s, 0).len(), 2);
-        let until = s.view.clock + 20_000;
-        s.team.set_aside(PlayKind::Escort, TargetRef::Place(1), until);
-        let targets: Vec<TargetRef> = escorts(&s, 0).iter().map(|c| c.target).collect();
-        assert_eq!(targets, [TargetRef::Battery(0)]);
-        assert_eq!(escorts(&s, 2).len(), 1);
-        s.team.forget_old(until);
-        assert_eq!(escorts(&s, 0).len(), 2);
     }
 }

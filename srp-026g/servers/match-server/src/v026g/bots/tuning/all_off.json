@@ -47,9 +47,8 @@
     "escort_dry_post": false,
     "hurt_by_shape": false,
     "live_zones": false,
-    "route_crossing": false,
-    "team_zone_aside": false,
-    "total_crossing": false,
+    "price_way_out": false,
+    "route_crossing": "off",
     "zone_pools": "raw"
   },
   "heal": {

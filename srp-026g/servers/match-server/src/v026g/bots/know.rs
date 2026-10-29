@@ -13,7 +13,6 @@
 
 use mapdata::Vec3;
 
-use super::plays::{PlayKind, TargetRef};
 use super::tuning::{CheatTuning, SenseTuning};
 use super::view::{BatteryState, MatchView, Place};
 
@@ -944,9 +943,6 @@ pub struct TeamKnowledge {
     /// take one now (`None`: it may), and since when (match ms), for the
     /// notes (`collect::take_blocks`): a note goes out when it changes.
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
-    /// Plays a bot proved no way to, at a target whose goal lies on a floor of a zone, and until when (match ms) none
-    /// of the team is offered them (`HazardTuning::team_zone_aside`): the proof is the zone's, not the bot's.
-    aside: Vec<(PlayKind, TargetRef, u32)>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
@@ -1300,26 +1296,9 @@ impl TeamKnowledge {
         self.carrier_places
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
         self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
-        self.aside.retain(|&(_, _, until)| until > now);
         self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
         self.route_claims.retain(|c| c.seen + CLAIM_KEEP_MS >= now);
         self.throws.retain(|c| c.time + THROW_CLAIM_KEEP_MS >= now);
-    }
-
-    /// The whole team leaves play `kind` at `target` alone until `until` (match ms): a bot's search proved no way to
-    /// its goal on a floor of a zone.
-    pub fn set_aside(&mut self, kind: PlayKind, target: TargetRef, until: u32) {
-        match self.aside.iter_mut().find(|(k, t, _)| *k == kind && *t == target) {
-            Some(old) => old.2 = old.2.max(until),
-            None => self.aside.push((kind, target, until)),
-        }
-    }
-
-    /// Whether the team leaves play `kind` at `target` alone at `now` ([`Self::set_aside`]).
-    pub fn is_aside(&self, kind: PlayKind, target: TargetRef, now: u32) -> bool {
-        self.aside
-            .iter()
-            .any(|&(k, t, until)| k == kind && t == target && now < until)
     }
 
     /// `who`, going for a battery lying at `at`, fell near it (once in

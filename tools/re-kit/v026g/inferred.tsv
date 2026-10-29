@@ -403,6 +403,7 @@ va	status	ref_021d	name
 0x00083f30	inferred-medium	0x0005a83d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::physics::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::physics::animated_model_instance_cook *>,boost::arg<1> > > >::manager
 0x000869d0	inferred-medium	0x002227e9	vostok::physics::character_up_sweep_test_callback::addSingleResult
 0x000a14c0	inferred-medium	0x00220975	vostok::physics::closest_ray_result_callback::`scalar deleting destructor'
+0x000a3e50	inferred-medium		vostok::physics::bullet_contact_pair_test
 0x000de210	inferred-medium	0x000ac9b4	vostok::command_line::check_keys
 0x000de5f0	inferred-medium	0x000acc4a	vostok::command_line::show_help_and_exit
 0x000deb00	inferred-medium	0x000acfc1	vostok::command_line::key_is_set_impl
@@ -1982,6 +1983,7 @@ va	status	ref_021d	name
 0x002f7c10	inferred-high		survarium::inventory_item_descr::inventory_item_descr
 0x002f7cc0	inferred-medium		survarium::player_profile::serialize_dynamic
 0x002f81d0	inferred-medium	0x001e8994	survarium::collision_geometry_subscriber::`scalar deleting destructor'
+0x002f9860	inferred-medium		survarium::damage_zone_shape::normalised_distance
 0x002fab70	inferred-high	0x001e0752	survarium::weapon_user_animations_selector::weapon_user_animations_selector
 0x002fb8a0	inferred-high	0x001e0aca	survarium::weapon_user_animations_selector::~weapon_user_animations_selector
 0x002fb980	inferred-high	0x001e0b0b	survarium::weapon_user_animations_selector::tick
@@ -2218,7 +2220,9 @@ va	status	ref_021d	name
 0x003187e0	inferred-medium	0x001f5f48	survarium::server_game_project::`scalar deleting destructor'
 0x00318800	inferred-medium		survarium::server_game_project::set_game_world_core
 0x00319a70	inferred-medium	0x001f6856	survarium::damage_zone_core::tick
+0x00319af0	inferred-medium		survarium::damage_zone_core::damage_bodies_inside
 0x00319d30	inferred-medium	0x001f6a3b	survarium::damage_zone_core::deactivate
+0x0031a410	inferred-medium		survarium::damage_zone_core::damage_of_body
 0x0031a620	inferred-medium	0x001f70d8	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::resize
 0x0031ac10	inferred-medium	0x001f7489	survarium::effect_zone_core::load
 0x0031b4b0	inferred-medium	0x001edb0f	survarium::generic_anomaly_core::activate
@@ -2438,6 +2442,7 @@ va	status	ref_021d	name
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
 0x00357ba0	inferred-medium	0x0021bf98	vostok::physics::destroy_ghost_object
+0x00357c20	inferred-medium		vostok::physics::ghost_object_contact_test
 0x00358d90	inferred-medium	0x00225589	vostok::configs::process_string
 0x00359ca0	inferred-medium	0x00225f59	boost::intrusive::detail::tree_algorithms<boost::intrusive::rbtree_node_traits<void *,0> >::dispose_subtree<boost::intrusive::detail::node_disposer<`vostok::configs::create_binary_config_buffer_impl'::`3'::remap_disposer::crc_disposer,boost::intrusive::rbtree_impl<boost::intrusive::setopt<boost::intrusive::detail::member_hook_traits<vostok::configs::pointer_remap_type,boost::intrusive::set_member_hook<boost::intrusive::none,boost::intrusive::none,boost::intrusive::none,boost::intrusive::none>,12>,vostok::configs::pointer_remap_type::comparer,unsigned int,1> > > >
 0x0035a050	inferred-high	0x002260f8	vostok::memory::stream::append
