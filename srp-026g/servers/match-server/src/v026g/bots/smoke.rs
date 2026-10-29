@@ -247,6 +247,14 @@ impl Clouds {
         self.0.is_empty()
     }
 
+    /// Whether smoke covers `point` from `eye` at `clock` for a team whose tuning is `tuning`: the one home of
+    /// "does smoke hide this" for every query that gives a bot knowledge by looking (noticing, the aim, a spot
+    /// or lane checked by looking, a threat spot cleared as seen empty). Planning queries that predict cover from
+    /// the map alone do not call it.
+    pub fn covers(&self, clock: u32, tuning: &super::tuning::SmokeTuning, eye: Vec3, point: Vec3) -> bool {
+        self.veil(clock, tuning).hides(eye, point)
+    }
+
     /// What a team's eyes go by at `clock` (match ms): the clouds if its tuning has `smoke.sight` on and one
     /// has smoke now, else [`Veil::Clear`] (no line is tested).
     pub fn veil(&self, clock: u32, tuning: &super::tuning::SmokeTuning) -> Veil<'_> {
@@ -456,5 +464,189 @@ mod tests {
         assert!(c.seen_forming_by(1, eye, 40.0, open));
         assert!(!c.seen_forming_by(1, eye, 40.0, walled), "behind a wall");
         assert!(!c.seen_forming_by(1, eye, 20.0, open), "too far");
+    }
+}
+
+/// The sight paths through a cloud, as a bot meets one: noticing an enemy (`sense`) and the aim's look at its target
+/// (`aimpoint::Sight`), over the cloud's life, at its edge and over its top; and the cost of the test.
+#[cfg(test)]
+mod scenarios {
+    use std::sync::Arc;
+
+    use mapdata::{RayTree, World};
+
+    use super::*;
+    use crate::v026g::bots::aimpoint::{self, PartsLook, Sight};
+    use crate::v026g::bots::know::{LookOutcome, Miss};
+    use crate::v026g::bots::rng::Rng;
+    use crate::v026g::bots::sense::{self, RayBudget};
+    use crate::v026g::bots::tuning::{SenseTuning, SmokeTuning, Tuning};
+    use crate::v026g::bots::view::{MatchView, Mode, PlaceView};
+
+    fn body(place: Place, team: u8, feet: Vec3) -> PlaceView {
+        PlaceView {
+            place,
+            team,
+            bot: place == 0,
+            present: true,
+            alive: true,
+            feet,
+            yaw: 0.0,
+            pitch: 0.0,
+            velocity: [0.0, 0.0],
+            keys: 0,
+            health: 1.0,
+            spawned: 0,
+            kills: 0,
+            deaths: 0,
+            streak: 0,
+            carrying: None,
+            seen_at: 0,
+            late_ms: 0,
+            known_at: 0,
+        }
+    }
+
+    /// The bot at `me` facing +z, an enemy at `him`, the clouds centred at `clouds` (all poured at 0), at `clock`.
+    fn view(me: Vec3, him: Vec3, clouds: &[Vec3], clock: u32) -> MatchView {
+        MatchView {
+            clock,
+            mode: Mode::TeamDeathmatch,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            points: [0, 0],
+            places: vec![body(0, 0, me), body(1, 1, him)],
+            batteries: vec![],
+            marks: vec![],
+            containers: vec![],
+            sounds: vec![],
+            deaths: vec![],
+            world_time: 0,
+            can_respawn: [true, true],
+            next_battery: None,
+            grenades: Vec::new(),
+            smoke: Clouds::new(
+                clouds
+                    .iter()
+                    .map(|&centre| Cloud {
+                        by: 1,
+                        team: 1,
+                        centre,
+                        thrown: MatchMs(0),
+                        pours: MatchMs(0),
+                        shape: SmokeGrenade::RDG_M.cloud,
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    /// What a think's look at the enemy came to (the sight refresh on), and whether the aim's look found a part.
+    fn looks(view: &MatchView) -> (LookOutcome, bool) {
+        let smoke = SmokeTuning::default();
+        let veil = view.smoke.veil(view.clock, &smoke);
+        let sense = SenseTuning {
+            sight_refresh: true,
+            ..SenseTuning::default()
+        };
+        let me = &view.places[0];
+        let (_, looks) = sense::sense_looks_through(
+            me,
+            view,
+            &RayTree::build(&[]),
+            veil,
+            &sense,
+            &Tuning::all_off().cheats,
+            0,
+            &[1],
+            &mut RayBudget::new(10),
+            &mut Rng::new(1),
+        );
+        let world = Arc::new(World {
+            map: mapdata::MapData::default(),
+            grid: Arc::new(mapdata::WalkGrid::build(&[], [0.0, 0.0, 1.0, 1.0], 0.25, mapdata::Body::default())),
+            sight: Arc::new(RayTree::build(&[])),
+        });
+        let look = Sight::default()
+            .update(me, Some(1), view, &world, veil, smoke.spray_ms, view.clock)
+            .unwrap();
+        assert_eq!(look.smoke, !look.shown, "{look:?}");
+        (looks[0].1, look.shown)
+    }
+
+    const SEEN: (LookOutcome, bool) = (LookOutcome::Seen, true);
+    const SMOKED: (LookOutcome, bool) = (LookOutcome::Failed(Miss::Smoke), false);
+
+    #[test]
+    fn over_its_life_a_cloud_between_hides_him_from_both_looks_and_he_is_seen_again_as_it_thins() {
+        let (me, him) = (Vec3::ZERO, Vec3::new(0.0, 0.0, 30.0));
+        // Across the line, 4 m to its side: the line runs 13.9 m through it at the full 8 m radius.
+        let cloud = [Vec3::new(4.0, 0.0, 15.0)];
+        assert_eq!(looks(&view(me, him, &cloud, 500)), SEEN, "forming: not dense yet");
+        assert_eq!(looks(&view(me, him, &cloud, 700)), SMOKED);
+        assert_eq!(looks(&view(me, him, &cloud, 17_000)), SMOKED);
+        // Thinning: the radius is 5.6 m at 20 s, still over the line; 3.8 m at 22 s, off it.
+        assert_eq!(looks(&view(me, him, &cloud, 20_000)), SMOKED);
+        assert_eq!(looks(&view(me, him, &cloud, 22_000)), SEEN);
+        assert_eq!(looks(&view(me, him, &cloud, 26_000)), SEEN, "gone");
+    }
+
+    #[test]
+    fn its_edge_and_its_top_are_where_the_hiding_ends() {
+        let (me, him) = (Vec3::ZERO, Vec3::new(0.0, 0.0, 30.0));
+        // Every part's line passes within 7.6 m of a cloud 7.5 m aside (2.5 m or more inside it): hidden. One
+        // 8.5 m aside is outside the 8 m radius (its 2.5 m rim is thin and seen through): seen.
+        assert_eq!(looks(&view(me, him, &[Vec3::new(7.5, 0.0, 15.0)], 5_000)), SMOKED);
+        assert_eq!(looks(&view(me, him, &[Vec3::new(8.5, 0.0, 15.0)], 5_000)), SEEN);
+        // From one roof 8 m up to another over a cloud on the ground between: the line is over its 5 m top.
+        let (high_me, high_him) = (Vec3::new(0.0, 8.0, 0.0), Vec3::new(0.0, 8.0, 30.0));
+        assert_eq!(looks(&view(high_me, high_him, &[Vec3::new(0.0, 0.0, 15.0)], 5_000)), SEEN);
+        // A cloud on the same roof between them hides him again.
+        assert_eq!(looks(&view(high_me, high_him, &[Vec3::new(0.0, 8.0, 15.0)], 5_000)), SMOKED);
+        // Two clouds whose rims each hold under 2 m of the line add up past it.
+        let tuning = SmokeTuning::default();
+        let chest = Vec3::new(0.0, 1.4, 30.0);
+        let rims = [Vec3::new(7.95, 0.0, 10.0), Vec3::new(-7.95, 0.0, 20.0)];
+        let one = view(me, him, &rims[..1], 5_000);
+        assert!(!one.smoke.covers(5_000, &tuning, one.places[0].eye(), chest));
+        let both = view(me, him, &rims, 5_000);
+        assert!(both.smoke.covers(5_000, &tuning, both.places[0].eye(), chest));
+    }
+
+    /// The cost of a sight query (`aimpoint::look_parts` through the veil) with 0, 1 and 4 live clouds off the
+    /// line (the usual case: smoke elsewhere on the map), and one across it (no ray cast for a hidden part).
+    /// `cargo test -p match-server --release smoke_sight_cost -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn smoke_sight_cost() {
+        let (me, him) = (Vec3::ZERO, Vec3::new(0.0, 0.0, 30.0));
+        let sight = RayTree::build(&[]);
+        let tuning = SmokeTuning::default();
+        let elsewhere = [
+            Vec3::new(40.0, 0.0, 15.0),
+            Vec3::new(-40.0, 0.0, 15.0),
+            Vec3::new(40.0, 0.0, 60.0),
+            Vec3::new(-40.0, 0.0, -30.0),
+        ];
+        let cases: [(&str, Vec<Vec3>); 4] = [
+            ("0 clouds", vec![]),
+            ("1 cloud off the line", elsewhere[..1].to_vec()),
+            ("4 clouds off the line", elsewhere.to_vec()),
+            ("1 cloud across the line", vec![Vec3::new(0.0, 0.0, 15.0)]),
+        ];
+        const N: u32 = 200_000;
+        for (name, clouds) in cases {
+            let v = view(me, him, &clouds, 5_000);
+            let veil = v.smoke.veil(v.clock, &tuning);
+            let eye = v.places[0].eye();
+            let start = std::time::Instant::now();
+            let mut shown = 0u32;
+            for _ in 0..N {
+                let look = aimpoint::look_parts(eye, &v.places[1], &sight, veil, || true);
+                shown += u32::from(look == PartsLook::Shows);
+            }
+            let ns = start.elapsed().as_nanos() as f64 / f64::from(N);
+            println!("smoke_sight_cost: {name}: {ns:.0} ns a look ({shown} of {N} shown)");
+        }
     }
 }
