@@ -29,6 +29,24 @@
     },
     {
       "file": "models/ported/novice_026/hat.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/black_market/black_market_fighter_05_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/black_market/black_market_raider_09_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_sniper_10_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_scout_07_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_master_08_helmet.skinned_model/render/bind_pose"
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_anomaly_06_helmet.skinned_model/render/bind_pose"
     }
   ],
   "rigid_headwear": [
@@ -67,6 +85,30 @@
     {
       "file": "models/ported/novice_026/hat.skinned_model/render/hat/converted_model",
       "vertices": 241
+    },
+    {
+      "file": "models/character/human/black_market/black_market_fighter_05_helmet.skinned_model/render/black_market_fighter_05_helmet_s/converted_model",
+      "vertices": 883
+    },
+    {
+      "file": "models/character/human/black_market/black_market_raider_09_helmet.skinned_model/render/black_market_raider_09_helmet_s/converted_model",
+      "vertices": 676
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_sniper_10_helmet.skinned_model/render/scavenger_sniper_10_helmet_s/converted_model",
+      "vertices": 789
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_scout_07_helmet.skinned_model/render/scavenger_scout_07_helmet_s/converted_model",
+      "vertices": 1066
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_master_08_helmet.skinned_model/render/scavenger_master_08_helmet_s/converted_model",
+      "vertices": 506
+    },
+    {
+      "file": "models/character/human/scavengers/scavenger_anomaly_06_helmet.skinned_model/render/scavenger_anomaly_06_helmet_s/converted_model",
+      "vertices": 448
     }
   ],
   "set_bool": [
@@ -114,6 +156,42 @@
     },
     {
       "file": "material_instances/ported/novice_026/hat.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/black_market_fighter_05/black_market_fighter_05_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/black_market_raider_09/black_market_raider_09_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/scavenger_sniper_10/scavenger_sniper_10_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/scavenger_scout_07/scavenger_scout_07_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/scavenger_master_08/scavenger_master_08_helmet.material",
+      "path": "material/g_stage/effect/two_sided/value",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "material_instances/characters/human/scavenger_anomaly_06/scavenger_anomaly_06_helmet.material",
       "path": "material/g_stage/effect/two_sided/value",
       "from": false,
       "to": true

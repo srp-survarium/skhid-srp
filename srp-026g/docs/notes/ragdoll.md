@@ -969,15 +969,30 @@ list are not present in the mounted helmet configs and are not ported here.
 Hoods, closed helmets with replacement heads, and the exoskeleton helmets
 retain their existing bindings.
 
+The 0.29 helmets of `equipment-029` (the owner, 2026-10-29: "yes they
+should"): Viper (`black_market_fighter_05_helmet`, 883 vertices), Mercenary
+(`black_market_raider_09_helmet`, 676), Nomad (`scavenger_sniper_10_helmet`,
+789), Pathfinder (`scavenger_scout_07_helmet`, 1066), Combat
+(`scavenger_master_08_helmet`, 506) and Metal (`scavenger_anomaly_06_helmet`,
+448): each a 69-bone render bind with Head at 44 and one surface skinned to
+Head alone. Left out because `headwear.py` refuses their skin: the Omicron
+helmet (`black_market_anom_07_helmet`: bones 20-22 and 45-47, a hood joined
+to the collar) and the Warrior helmet (`edge_defender_helmet`: bones 19-24
+and 44-48, a neck and shoulder guard); the Omicron mask, the Barrier gas mask
+and the Scavenger hood are not helmets. Their six materials become two-sided
+like the stock seven (no underside audit: a two-sided inner shell stays hidden
+under the outer one). The edit list runs after the pack, so it edits the
+pack's files.
+
 `headwear-1.json`, listed in `release/content.tsv`, changes source assets
 through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
 bind index 69, an exact copy of Head (44), to the combined character's bind
-and the nine standalone headwear binds. The combined bind is selected by
+and the nine standalone headwear binds (fifteen with the 0.29 helmets). The combined bind is selected by
 `gameplay/bodyparts/default` → `body_parts/bind_pose`: it is
 `scavengers_01_torso_s1.skinned_model/render/bind_pose`. The build checks
 that this exact referenced asset is extended; extending only
 `base_character_full` leaves the assembled model at 69 bones and makes
-the rebound helmets invisible. The nine surfaces bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
+the rebound helmets invisible. The nine surfaces (fifteen) bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
 The Biker's three vertices with neck influence deliberately become rigid.
 The animation skeleton, animation clips and hit model are unchanged.
 
