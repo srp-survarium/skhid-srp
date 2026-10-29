@@ -4716,3 +4716,7 @@ va	name	location	role	basis
 0x00358010	vostok::configs::apply_multiplicative_modifiers	entry ESP+4	begin iterator	observed
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	entry ESP+4	unused callback argument; ret 4	observed
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	[0x021E75E0]	zero-terminated language name pointer; russian/ukrainian select ru, others en	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+4	the lobby menu	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+8	element: 0 the paper doll (with the slot), 1 the inventory, 2 the shop	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
