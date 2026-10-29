@@ -212,4 +212,30 @@ mod tests {
         assert_eq!(tracker.clouds().len(), 1, "one throw a life");
         assert_eq!(habit.counts.thrown, 1);
     }
+
+    /// Over many throws the placement shares are the live ones: 68.9 % on the line, 6.2 % on him, the rest elsewhere.
+    #[test]
+    fn the_placements_follow_the_live_shares() {
+        let mut game = Game::new(super::super::soak_world(), &[0, 1], 1, None, None);
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        game.bodies[0].feet = Vec3::new(10.0, 0.0, 10.0);
+        game.bodies[1].feet = Vec3::new(40.0, 0.0, 10.0);
+        let mut habit = SmokeHabit {
+            place: 0,
+            rng: Rng::new(99),
+            habit: Habit::Idle,
+            life: Some(0),
+            counts: SmokeHabitCounts::default(),
+        };
+        let throws = 4_000;
+        for _ in 0..throws {
+            habit.habit = Habit::Waiting { from: 0 };
+            habit.tick(&game, &mut tracker, 6_000, |_| true);
+        }
+        let c = &habit.counts;
+        let share = |n: u32| f64::from(n) / f64::from(c.thrown);
+        assert_eq!(c.thrown, throws);
+        assert!((share(c.between) - 0.689).abs() < 0.03, "on the line {}", share(c.between));
+        assert!((share(c.on_him) - 0.062).abs() < 0.02, "on him {}", share(c.on_him));
+    }
 }
