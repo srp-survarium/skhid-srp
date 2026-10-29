@@ -12,7 +12,7 @@
 
 use super::*;
 use crate::v026g::bots::grenade_threat::AvoidStats;
-use crate::v026g::bots::live_grenades::{ThrowCounts, Whose};
+use crate::v026g::bots::live_grenades::{FragLives, ThrowCounts, Whose};
 use survarium::v026g::loadouts::BotRole;
 
 /// The list's and the avoidance's counts as the last tick left them (the tracker and the bots keep them; the topic copies).
@@ -22,6 +22,8 @@ pub(super) struct LiveListCounts {
     throws: ThrowCounts,
     /// Rolls for a grenade refused because the kit held no frag, `[team][role]` by `BotRole::ALL`.
     refused_no_frag: [[u32; BotRole::ALL.len()]; 2],
+    /// The frags the lives carried and threw, `[team][role]` (`Bots::frag_lives`).
+    frag_lives: [[FragLives; BotRole::ALL.len()]; 2],
 }
 
 impl Topic for LiveListCounts {
@@ -33,6 +35,7 @@ impl Topic for LiveListCounts {
         self.by_team = bots.grenade_counts();
         self.throws = bots.tracker.throw_counts();
         self.refused_no_frag = bots.frag_rolls_refused();
+        self.frag_lives = bots.frag_lives();
     }
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -71,7 +74,19 @@ impl LiveListCounts {
             }
             serde_json::Value::Object(map)
         };
+        let lives_json = |by_role: &[FragLives; BotRole::ALL.len()]| {
+            let mut map = serde_json::Map::new();
+            for (role, l) in BotRole::ALL.iter().zip(by_role) {
+                map.insert(
+                    role.name().to_owned(),
+                    serde_json::json!({ "lives": l.lives, "carrying": l.carrying, "units_carried": l.carried, "thrown": l.thrown }),
+                );
+            }
+            serde_json::Value::Object(map)
+        };
         let json = serde_json::json!({
+            "live_list_frag_lives_team0": lives_json(&self.frag_lives[0]),
+            "live_list_frag_lives_team1": lives_json(&self.frag_lives[1]),
             "live_list_team0": team_json(0),
             "live_list_team1": team_json(1),
             "live_list_frags": t.frag,
@@ -86,9 +101,10 @@ impl LiveListCounts {
             "live_list_frag_rolls_refused_team0": refused_json(&self.refused_no_frag[0]),
             "live_list_frag_rolls_refused_team1": refused_json(&self.refused_no_frag[1]),
         });
+        let lives_sum = |team: usize, f: fn(&FragLives) -> u32| self.frag_lives[team].iter().map(f).sum::<u32>();
         let sum = |team: usize, f: fn(&AvoidStats) -> u32| self.by_team[team].iter().map(f).sum::<u32>();
         let text = format!(
-            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key with its pockets read {}, from a bot's key with its pockets unread {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; frag rolls refused, none in the kit: team 0 {}, team 1 {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
+            "owner-test live grenade list: frags from pockets {}, assumed from a bot's key with its pockets read {}, from a bot's key with its pockets unread {}, smokes {}, no pockets known {}, launched {}, unplaced {}, thrower dead {}; frag rolls refused, none in the kit: team 0 {}, team 1 {}; frags carried by lives read: team 0 {}/{}/{} (lives/carrying/units), thrown {}, team 1 {}/{}/{}, thrown {}; team 0 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}; team 1 noticed {} (a mate's {}) stepped {} no way out {} escaped {} caught {} refused {}",
             t.frag,
             t.assumed,
             t.unread,
@@ -99,6 +115,14 @@ impl LiveListCounts {
             t.died_throwing,
             self.refused_no_frag[0].iter().sum::<u32>(),
             self.refused_no_frag[1].iter().sum::<u32>(),
+            lives_sum(0, |l| l.lives),
+            lives_sum(0, |l| l.carrying),
+            lives_sum(0, |l| l.carried),
+            lives_sum(0, |l| l.thrown),
+            lives_sum(1, |l| l.lives),
+            lives_sum(1, |l| l.carrying),
+            lives_sum(1, |l| l.carried),
+            lives_sum(1, |l| l.thrown),
             sum(0, |a| a.noticed.iter().sum()),
             sum(0, |a| a.noticed_mate),
             sum(0, |a| a.stepped.iter().sum()),
