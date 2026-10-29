@@ -622,6 +622,7 @@ impl Tracker {
                     team,
                     bot,
                     health: 1.0,
+                    throws: Throws::unread(bot),
                     ..PlaceState::default()
                 })
                 .collect(),
@@ -973,6 +974,8 @@ impl Tracker {
                         }
                         None => {
                             self.throws.human_empty += 1;
+                            self.notes
+                                .push(format!("throw key found no grenade: place {place} pressed {pressed:#x} at {time}, kit {kit}"));
                             None
                         }
                     }
@@ -997,6 +1000,11 @@ impl Tracker {
                         Basis::AssumedFromBotKey => self.throws.assumed += 1,
                     }
                     state.last_throw = Some(time);
+                    let whose = Whose::of(basis, state.bot);
+                    self.notes.push(format!(
+                        "grenade listed: place {place} team {} pressed {pressed:#x} at {time}, kit {kit}, {basis:?}, {whose:?}",
+                        state.team
+                    ));
                     self.grenades.push(LiveGrenade {
                         by: place,
                         team: state.team,
@@ -1004,7 +1012,7 @@ impl Tracker {
                         phase: Phase::Pressed,
                         grenade,
                         basis,
-                        whose: Whose::of(basis, state.bot),
+                        whose,
                     });
                 }
                 Some((Pocketed::Smoke, _, _)) => {

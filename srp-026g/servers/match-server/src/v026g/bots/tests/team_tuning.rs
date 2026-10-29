@@ -130,6 +130,55 @@ fn the_kits_of_team_1_are_built_with_team_1s_pocket_store() {
     }
 }
 
+/// The avoidance of a grenade the live list holds from a bot's key alone is each team's own switch (`avoid.bot_pockets`):
+/// both teams' first bots press the throw key with their pockets unread (an assumed grenade), a mate of each stands where
+/// it comes to rest; the team whose tuning reads the bots' pockets (team 0) refuses it, the team whose tuning does not
+/// (team 1) knows of it, as its mates are told from the launch.
+#[test]
+fn an_assumed_grenade_is_refused_by_the_team_whose_tuning_reads_the_bots_pockets() {
+    use crate::v026g::bots::live_grenades::{Phase, Whose};
+    use crate::v026g::drive::key;
+    let mut team1 = Tuning::default();
+    team1.avoid.bot_pockets = false;
+    let (mut bots, mut now) = after_one_poll(Tuning::default(), team1);
+    let fix = |time: u32, feet: Vec3, keys: u32| Fix {
+        time,
+        alive: true,
+        inserted: 100,
+        feet: Some(feet),
+        yaw: 0.0,
+        pitch: 0.0,
+        keys,
+        speed: Some(0.0),
+    };
+    let throwers = [(0usize, ()), (2, ())];
+    for (thrower, _) in throwers {
+        bots.tracker.input(thrower, now, key::GRENADE, (0.0, 0.0), 0.0, &crate::v026g::bots::kin::Kinematics::default(), None);
+    }
+    assert_eq!(bots.tracker.live_grenades().len(), 2, "both throw keys are listed (their pockets unread)");
+    let mut placed = [false; 2];
+    while now < 8_000 {
+        now += 100;
+        bots.poll(Clock { clock: now, time_left_s: 600.0, total_s: 900.0, playing: true });
+        for (i, (thrower, mate)) in [(0usize, 1usize), (2, 3)].into_iter().enumerate() {
+            let flying = bots.tracker.live_grenades().iter().find(|g| g.by == thrower).map(|g| g.phase);
+            if let (false, Some(Phase::Flying { rest, .. })) = (placed[i], flying) {
+                bots.fixed(mate, fix(now - 100, rest, 0), Some(1.0));
+                placed[i] = true;
+            }
+        }
+    }
+    assert_eq!(placed, [true, true], "both grenades flew");
+    let assumed = Whose::Assumed.index();
+    let counts = bots.grenade_counts();
+    let noticed = |team: usize| counts[team].iter().map(|a| a.noticed.iter().sum::<u32>()).sum::<u32>();
+    assert_eq!(noticed(0), 0, "team 0 reads the bots' pockets: it knows of none");
+    assert!(counts[0][assumed].refused >= 1, "and it counts what it refused: {counts:?}");
+    assert!(noticed(1) >= 1, "team 1 knows of its own: {counts:?}");
+    assert_eq!(counts[1][assumed].refused, 0);
+    assert!(counts[1][assumed].noticed_mate >= 1, "a teammate's, told from the launch");
+}
+
 /// The facts of a world (`facts.rs`): a team whose battery cheat is on has no HUD of the batteries. Team 1's dropped battery is
 /// on team 1's HUD (as in `a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud`) when team 1's cheat is off, and not
 /// when it is on, whatever team 0's is.

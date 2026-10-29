@@ -8,7 +8,7 @@
 //! slot with `min(units, stored)` and the storage loses it, a death gives back what is left.
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::{POCKET_SLOTS, QUICK_USE_ORDER};
+use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 /// A kit's six pockets, by position in [`POCKET_SLOTS`].
@@ -27,15 +27,20 @@ pub struct ProfilePocket {
     pub stored: Option<u32>,
 }
 
-/// The quick-use key (0 on) of the pocket in `slot` of `kit`: the kit's filled slots are numbered in [`QUICK_USE_ORDER`]
-/// (`stock::readings` goes by the same), so a spent pocket does not move the numbers of the others here: a pocket with
-/// no units is not filled.
+/// The pockets (by position in [`POCKET_SLOTS`]) the quick-use keys number, in order: those `held` says hold something.
+/// The one home of the numbering: [`QUICK_USE_ORDER`] begins with the six pockets in position order (PROVEN, table
+/// 0x925FD8), and the six keys reach the pockets first. **Which pockets count as held is the open question** (LIKELY the
+/// kit's filled slots at the spawn, as the heal count goes; the live grenade list counts the units left now, so a spent
+/// pocket closes the gap): each caller says it in `held`, and the client steps P6-1..P6-3 settle which is the client's.
+pub fn quick_use_order(held: impl Fn(usize) -> bool) -> impl Iterator<Item = usize> {
+    (0..POCKET_SLOTS.len()).filter(move |&i| held(i))
+}
+
+/// The quick-use key (0 on) of the pocket in `slot` of `kit`, numbering the pockets the profile fills ([`quick_use_order`]
+/// with a pocket holding units at the spawn as held).
 pub fn quick_use_of(kit: &KitSlots, slot: u8) -> Option<usize> {
-    QUICK_USE_ORDER
-        .iter()
-        .copied()
-        .filter(|&order| kit.iter().flatten().any(|pocket| pocket.slot == order && pocket.units > 0))
-        .position(|order| order == slot)
+    let at = POCKET_SLOTS.iter().position(|&s| s == slot)?;
+    quick_use_order(|i| kit[i].is_some_and(|pocket| pocket.units > 0)).position(|i| i == at)
 }
 
 /// The pockets of every kit of a profile (the first kit's only, when asked).

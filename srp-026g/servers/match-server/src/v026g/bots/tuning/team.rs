@@ -163,7 +163,11 @@ pub struct AvoidTuning {
     pub bot_pockets: bool,
     /// The server's live list takes a player's pockets from the kit a world says he is in (`players::Supplies::kit`),
     /// not always the profile's first kit: a throw from kit 2 or 3 is then listed. Off: kit 1 whatever a world says,
-    /// as before. Read where the profiles are read (`game/driven.rs`), once a match: the live server's one tuning.
+    /// as before. Read where the profiles are read (`game/driven.rs`), once a match, and **not per team** on purpose: it
+    /// decides what the server's one list of grenades holds for every throw of a player (which kit's pockets a human's
+    /// key acts on), not what a team's bots do with the list, so two teams would see different lists for the same human
+    /// throw, which has no meaning in the game. The match-wide tuning's value is the one used (a one-sided head-to-head
+    /// bench leaves it the same on both sides; `bot_pockets` and `grenade_avoid` are the per-team switches).
     pub kit_in_use: bool,
     /// The thrower's teammates know the landing from the launch (the owner's rule, a justified cheat: a
     /// human team can call it, few do); they step out after this long, ms, drawn.

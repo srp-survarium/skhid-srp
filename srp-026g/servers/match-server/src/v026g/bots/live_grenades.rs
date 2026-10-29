@@ -24,7 +24,7 @@ use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::weapons::is_grenade_item;
 
 use super::arc::{self, Grenade};
-use super::pockets::ProfilePockets;
+use super::pockets::{ProfilePockets, quick_use_order};
 use super::view::Place;
 use crate::v026g::drive::key;
 
@@ -238,13 +238,7 @@ impl Pockets {
                 .position(|slot| held(slot) && slot.is_some_and(|pocket| pocket.item.is_grenade()));
         }
         let n = key::QUICK.iter().position(|&bit| pressed & bit != 0)?;
-        let i = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter(|(_, slot)| held(slot))
-            .map(|(i, _)| i)
-            .nth(n)?;
+        let i = quick_use_order(|i| held(&self.slots[i])).nth(n)?;
         self.slots[i]
             .is_some_and(|pocket| pocket.item.is_grenade())
             .then_some(i)
@@ -371,11 +365,19 @@ impl From<Pockets> for KitPockets {
 pub enum Throws {
     /// The pockets of every kit: a key lists a grenade only if the kit in use holds one.
     Pockets(KitPockets),
-    /// A server bot whose profile has no kit: its throw key is taken for a frag ([`Basis::AssumedFromBotKey`]).
+    /// A server bot whose profile has no kit, or whose pockets were not read (the bench's, until it calls
+    /// `set_throws`): its throw key is taken for a frag ([`Basis::AssumedFromBotKey`]), as before the pockets were read.
     GrenadeKeyIsFrag,
     /// A human whose profile did not read (or a late joiner): nothing is listed, and the throw keys are counted.
     #[default]
     Unknown,
+}
+
+impl Throws {
+    /// What a place's throw keys mean before its profile is read: a bot's throw key a frag, a human's unknown.
+    pub fn unread(bot: bool) -> Self {
+        if bot { Self::GrenadeKeyIsFrag } else { Self::Unknown }
+    }
 }
 
 /// What the tracker made of the throw keys it saw (a counter, for the logs and the benches).
@@ -879,6 +881,27 @@ mod tests {
         let mut tracker = stand_pockets(None, None);
         press(&mut tracker, 0, 1_000, key::GRENADE);
         assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
+    }
+
+    /// A place whose profile was never read (the bench's bots, which never call `set_throws`, a human before the lobby's
+    /// profile): a bot's throw key is the old assumed frag, as at the tip; a human's is unknown and counted.
+    #[test]
+    fn a_place_nothing_was_told_of_has_its_throw_key_by_its_kind() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        for place in 0..2 {
+            tracker.entered(place, true);
+            tracker.fixed(place, fix(500, 10), Some(1.0), &kin, None);
+        }
+        assert_eq!(Throws::unread(true), Throws::GrenadeKeyIsFrag);
+        assert_eq!(Throws::unread(false), Throws::Unknown);
+        press(&mut tracker, 0, 1_000, key::GRENADE);
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        assert_eq!(tracker.live_grenades().len(), 1, "the bot's key lists a grenade, the human's nothing");
+        assert_eq!(tracker.live_grenades()[0].by, 0);
+        assert_eq!(tracker.live_grenades()[0].basis, Basis::AssumedFromBotKey);
+        let counts = tracker.throw_counts();
+        assert_eq!((counts.assumed, counts.no_pockets), (1, 1));
     }
 
     /// The client fills a stack slot from the item's storage at a spawn and takes what is left back at a death
