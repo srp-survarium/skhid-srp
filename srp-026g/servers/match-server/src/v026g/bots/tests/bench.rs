@@ -705,7 +705,7 @@ pub(crate) fn real_bot_cost() {
             let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
-                mode,
+                crate::v026g::bots::objective::Mode::parse(mode).unwrap(),
                 level,
                 &teams,
                 &driven,

@@ -87,7 +87,7 @@ pub fn tuning() -> PlayTuning {
 /// `weight_batteries`, `weight_timed`): the players' research favours the
 /// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = cx.num(kind, cx.view.mode.weight_key());
+    let weight = cx.num(kind, cx.view.objective().weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }

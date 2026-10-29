@@ -403,8 +403,8 @@ impl MatchRegistry {
         let map = maps::map_mode(setup.map_id)
             .filter(|map| map.is_playable())
             .ok_or(CreateError::Map(setup.map_id))?;
-        // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
+        // The server's bots play the modes `Mode::parse` gives: none in Research.
+        if crate::v026g::bots::objective::Mode::parse(map.mode).is_err() && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(setup.map_id));
         }
         if self.bot_pockets != BotPocketKit::default() {

@@ -15,6 +15,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::objective::ObjectiveClock;
 use crate::v026g::bots::tactics::SpotQuery;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -43,10 +44,10 @@ pub fn tuning() -> PlayTuning {
 /// Seconds until the next battery; `None` outside mode 3 or before the
 /// world says.
 fn due_in(cx: &Ctx) -> Option<f32> {
-    let stations = cx.view.mode.has_stations();
-    stations
-        .then_some(cx.view.next_battery?)
-        .map(|at| at as f32 / 1000.0 - cx.now as f32 / 1000.0)
+    match cx.view.objective().clock(cx.view) {
+        ObjectiveClock::Next { at_ms } => Some(at_ms as f32 / 1000.0 - cx.now as f32 / 1000.0),
+        ObjectiveClock::Never | ObjectiveClock::Awaited => None,
+    }
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {

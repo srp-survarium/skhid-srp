@@ -5,6 +5,7 @@
 //! (`Ctx::tuning`, `Reflex::think_with`), so the think and the commander are their inputs here.
 
 use super::*;
+use crate::v026g::bots::objective::Mode;
 
 use crate::v026g::bots::tuning::TeamTunings;
 
@@ -19,7 +20,7 @@ fn after_one_poll(team0: Tuning, team1: Tuning) -> (Bots, u32) {
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         0x7EA3,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],
@@ -92,7 +93,7 @@ fn the_bots_of_team_1_are_made_of_team_1s_tuning() {
     let teams = [0u8, 1];
     let bots = Bots::new_with(
         0x7EA4,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 2],
@@ -261,7 +262,7 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
         team1.cheats.batteries = cheat1;
         let mut bots = Bots::new_with(
             0x7EA5,
-            survarium::v026g::maps::mode::BATTERIES,
+            Mode::Batteries,
             0,
             &[0, 1],
             &[true, true],
@@ -331,7 +332,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         0x7EA6,
-        survarium::v026g::maps::mode::BATTERIES,
+        Mode::Batteries,
         0,
         &teams,
         &[true; 4],
@@ -454,7 +455,7 @@ fn facing_bots(team0: Tuning, team1: Tuning, seed: u32) -> Bots {
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         seed,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        Mode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],
