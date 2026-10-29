@@ -26,8 +26,8 @@ use crate::v026g::bots::smoke::{MatchMs, SmokeGrenade, SmokeThrow, floor_under};
 pub(crate) const THROW_PER_LIFE: f32 = 0.0297;
 /// The share of the lives that draw a throw and make it: the rest end before the nearest enemy is at the drawn distance and fresh at or
 /// after the press time. A life draws at [`THROW_PER_LIFE`] over this so that the throws are the live rate. Measured by the rate batch
-/// (thrown over drawn), re-measured whenever the rule of "when" changes (see the PR body for the batch).
-pub(crate) const COMPLETION: f32 = 0.67;
+/// (thrown over drawn: 40 of 68 in 1,510 lives of 112 matches, 2026-10-29), re-measured whenever the rule of "when" changes.
+pub(crate) const COMPLETION: f32 = 0.59;
 /// The census's shares of the throws by [`Placement::of`]: between him and the thrower, on him; the rest elsewhere. A throw draws its
 /// class from them and then a point that the same test scores as that class, so the scored shares are these.
 pub(crate) const BETWEEN_SHARE: f32 = 0.689;
