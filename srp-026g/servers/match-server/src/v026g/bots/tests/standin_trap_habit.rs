@@ -208,6 +208,8 @@ pub(crate) struct TrapHabitCounts {
     pub(crate) planned: u32,
     /// The traps planned for each third (own, middle, enemy).
     pub(crate) planned_by: [u32; 3],
+    /// The planned lives by the number of traps they plan (1 to 4).
+    pub(crate) planned_n: [u32; 4],
     pub(crate) placements: Vec<Placement>,
     /// Ticks a planned trap was due in its third and the floor in front was no place for one (steep, nothing in reach, on a sensor).
     pub(crate) refused: u32,
@@ -282,6 +284,7 @@ impl TrapHabit {
                 let plans = draw_plans(&mut self.rng, spawned);
                 self.counts.planned_lives += 1;
                 self.counts.planned += plans.len() as u32;
+                self.counts.planned_n[plans.len() - 1] += 1;
                 for plan in &plans {
                     self.counts.planned_by[plan.want.index()] += 1;
                 }
@@ -298,17 +301,18 @@ impl TrapHabit {
         if tick < plan.from {
             return;
         }
-        let depth = depth_of(game, team, feet);
-        if depth.is_some_and(|d| Third::of_depth(d) != plan.want) {
-            return;
-        }
+        // The third is the spot's, as the census scores a trap by where it lies: tested at the spot, not at his feet (a metre to the side
+        // is outside the third half the time he has just walked into it).
         let (eye, dir) = game.trap_aim_ahead(self.place, plan.ahead_m, plan.turn);
         let Some(at) = game.trap_land(eye, dir) else {
             self.counts.refused += 1;
             return;
         };
-        game.trap_lay(self.place, at, (-dir.y).asin(), tick);
         let spot = depth_of(game, team, at);
+        if spot.is_some_and(|d| Third::of_depth(d) != plan.want) {
+            return;
+        }
+        game.trap_lay(self.place, at, (-dir.y).asin(), tick);
         self.put += 1;
         self.counts.placements.push(Placement {
             tick,
@@ -376,12 +380,13 @@ impl TrapHabit {
             }] += 1;
         }
         format!(
-            "trap habit (stand-in human): {} lives, {} carrying, {} planned in {} lives (by third {:?}), {} placed = {per_100:.2} a 100 lives (live 0.78 for carriers 2.6 % x 0.30); lives by traps put down 0/1/2/3/4 {:?} (live of those that placed 59/36/4/1 %); thirds own/middle/enemy % drawn {} scored {} (live 29/42/28); press s from spawn P10/25/50/75/90 {:?} (live 18.2/29.6/44.4/64.8/92.0), {} refused spots; outcomes enemy/mate/own caught, shot off, defused, armed {:?} (live of the fired: enemy 85 %, mate 11 %, own 4 %)",
+            "trap habit (stand-in human): {} lives, {} carrying, {} planned in {} lives (by third {:?}, by count 1/2/3/4 {:?}), {} placed = {per_100:.2} a 100 lives (live 0.78 for carriers 2.6 % x 0.30); lives by traps put down 0/1/2/3/4 {:?} (live of those that placed 59/36/4/1 %); thirds own/middle/enemy % drawn {} scored {} (live 29/42/28); press s from spawn P10/25/50/75/90 {:?} (live 18.2/29.6/44.4/64.8/92.0), {} refused spots; outcomes enemy/mate/own caught, shot off, defused, armed {:?} (live of the fired: enemy 85 %, mate 11 %, own 4 %)",
             c.lives,
             c.carrying,
             c.planned,
             c.planned_lives,
             c.planned_by,
+            c.planned_n,
             placed,
             c.per_life,
             share(wanted),
