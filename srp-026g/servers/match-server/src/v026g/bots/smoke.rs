@@ -1218,7 +1218,7 @@ mod scenarios {
         let t = SmokeTuning::default();
         let who = Watcher {
             me: 5,
-            team: 1,
+            team: 0,
             eye: Vec3::new(0.0, 1.6, 0.0),
         };
         let at = [
