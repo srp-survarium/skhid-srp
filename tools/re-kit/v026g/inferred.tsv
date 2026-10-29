@@ -3150,5 +3150,3 @@ va	status	ref_021d	name
 0x00307870	inferred-medium		survarium::collision_sensor::min_normalised_distance
 0x003576c0	inferred-medium		vostok::physics::rigid_body::set_linear_velocity
 0x00357750	inferred-medium		vostok::physics::rigid_body::set_angular_velocity
-0x002fe7f0	inferred-medium		survarium::inventory::quick_use_slot
-0x002fe8b0	inferred-medium		survarium::inventory::first_grenade_pocket
