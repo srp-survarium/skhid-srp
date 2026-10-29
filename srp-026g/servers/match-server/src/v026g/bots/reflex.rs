@@ -1547,15 +1547,6 @@ struct SmokeThrowing {
     phase: SmokePhase,
 }
 
-/// [smoke use] This life's draw for a lane smoke (`smoke.cross_lane_chance`): not drawn yet, or drawn.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum LaneDraw {
-    #[default]
-    Undrawn,
-    Smokes,
-    Declines,
-}
-
 /// Where a smoke throw is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SmokePhase {
@@ -2462,7 +2453,6 @@ pub struct Reflex {
     /// under way.
     smoke_key: Option<u32>,
     smoke_throw: Option<SmokeThrowing>,
-    lane_draw: LaneDraw,
     /// [smoke] The sniper that outranges its weapon now (play 11's matchup, whatever `outranged_cover`): who, where,
     /// and the match clock it was seen at. Read by `smoke.anti_sniper`; no decision of the reflex reads it.
     outranged_by: Option<(Place, Vec3, u32)>,
@@ -3228,15 +3218,6 @@ impl Reflex {
     /// [smoke] The sniper that outranges it now, seen: who, where, and when (the match clock).
     pub fn outranged_by(&self) -> Option<(Place, Vec3, u32)> {
         self.outranged_by
-    }
-
-    /// [smoke use] Whether this life smokes a lane it crosses: drawn once a life, with `chance`, the first time a lane
-    /// smoke is planned; the same answer for the rest of the life.
-    pub fn lane_smokes(&mut self, chance: f32, rng: &mut Rng) -> bool {
-        if self.lane_draw == LaneDraw::Undrawn {
-            self.lane_draw = if rng.unit() < chance { LaneDraw::Smokes } else { LaneDraw::Declines };
-        }
-        self.lane_draw == LaneDraw::Smokes
     }
 
     /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.

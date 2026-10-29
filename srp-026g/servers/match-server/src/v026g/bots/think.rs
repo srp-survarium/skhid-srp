@@ -605,15 +605,18 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     let fresh = |sensed: u32| view.clock.saturating_sub(sensed) <= FAIR_SENSED_MS;
     let eye_over = Vec3::new(0.0, 1.6, 0.0);
     // Against the sniper it sees outranging it: the line from him to it.
-    let sniper = t
-        .anti_sniper
-        .then(|| bot.reflex.outranged_by())
-        .flatten()
-        .filter(|&(_, _, seen)| fresh(seen))
-        .and_then(|(who, at, _)| {
-            smoke::smoke_between(&reach, at + eye_over, me.feet, thin, SmokeUse::AntiSniper)
-                .map(|plan| (plan, format!("player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach", at.x, at.y, at.z)))
-        });
+    let outranged = t.anti_sniper.then(|| bot.reflex.outranged_by()).flatten().filter(|&(_, _, seen)| fresh(seen));
+    let sniper = outranged.and_then(|(who, at, _)| {
+        smoke::smoke_between(&reach, at + eye_over, me.feet, thin, SmokeUse::AntiSniper)
+            .map(|plan| (plan, format!("player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach", at.x, at.y, at.z)))
+    });
+    #[cfg(test)]
+    if outranged.is_some() {
+        smoke::tally::add(
+            bot.team,
+            if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
+        );
+    }
     // Across the first held lane its route enters ahead, before it steps in.
     let lane = || {
         if !t.cross_lane || bot.threat.is_empty() || bot.lanes.is_empty() {
@@ -632,10 +635,14 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             .take_while(|&s| s <= end)
             .map(|s| route.at(s, heights))
             .find(|&p| bot.threat.exposed_at(grid, p))?;
+        // The shooter known to be there now, with a line onto the crossing.
+        let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+        let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
         let held = bot
             .lanes
             .iter()
-            .filter(|l| l.sensed.is_some_and(fresh) && l.at.distance_xz(crossing) <= l.reach_m)
+            .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
+            .filter(|l| tactics.sees(l.at + eye_over, chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
         smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
             let why = format!(
@@ -648,10 +655,6 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     let Some((plan, why)) = sniper.or_else(lane) else {
         return;
     };
-    // A lane smoke only in a life that drew it (`cross_lane_chance`).
-    if plan.for_use == SmokeUse::CrossLane && !bot.reflex.lane_smokes(t.cross_lane_chance, &mut bot.rng) {
-        return;
-    }
     if bot.reflex.start_smoke(plan, now) {
         #[cfg(test)]
         {

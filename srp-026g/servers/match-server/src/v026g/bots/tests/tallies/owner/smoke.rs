@@ -204,7 +204,9 @@ impl SmokeCounts {
         let eyes: [[u64; smoke::tally::EVENTS]; 2] =
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
-        use smoke::tally::Event::{AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, SightLost, Spray, WatchBusy};
+        use smoke::tally::Event::{
+            AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedNoPlan, SightLost, Spray, WatchBusy,
+        };
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
         // The bots' smoke throws, by team and use: [begun, thrown, given up]; and the thrown by team and role.
@@ -246,6 +248,8 @@ impl SmokeCounts {
             "smoke_learnt_seen": by(LearntSeen),
             "smoke_learnt_heard": by(LearntHeard),
             "smoke_learnt_told": by(LearntTold),
+            "smoke_outranged_planned": by(Outranged),
+            "smoke_outranged_no_plan": by(OutrangedNoPlan),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -255,7 +259,7 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -273,6 +277,8 @@ impl SmokeCounts {
             by(LearntSeen),
             by(LearntHeard),
             by(LearntTold),
+            by(Outranged),
+            by(OutrangedNoPlan),
             self.hits_through,
             self.spray_hits,
             self.kills_through,
