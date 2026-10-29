@@ -48,6 +48,7 @@ mod password_reset;
 mod patches;
 mod stats;
 mod v026g;
+mod wiki;
 
 pub use patches::OfferedPatch;
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
@@ -668,7 +669,8 @@ impl Web {
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)));
+                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
@@ -681,6 +683,9 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some() && matches!(request.path.as_str(), wiki::PATH | wiki::WEAPONS)
+        {
+            damage::POLICY
         } else {
             POLICY
         };
@@ -940,6 +945,9 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
+                    path @ (wiki::PATH | wiki::WEAPONS) => {
+                        return wiki_page(path, request.lang);
+                    }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
                             launcher::language(path, request.lang),
@@ -1589,6 +1597,14 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, maps::PATH))
 }
 
+fn wiki_page(path: &str, lang: Lang) -> Response {
+    let connect = CONNECT.get();
+    let test = connect.is_some_and(|connect| connect.test_server);
+    let other_url = connect.and_then(|connect| connect.other_url.as_deref());
+    let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    wiki::page(path, lang, &format!("{header}{notice}"))
+}
+
 /// The site's header over a page of its own look (the calculator's, the
 /// Maps tab's), `path` the page shown.
 fn tool_header(lang: Lang, path: &str) -> String {
@@ -1647,6 +1663,7 @@ fn site_header(
     let damage_link = if v026g {
         tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
             + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
+            + &tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
@@ -3016,6 +3033,15 @@ mod tests {
         let web = web(None);
         assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
         assert!(!web.route(&get("/"), "t").body.contains("href=\"/maps"));
+    }
+
+    #[test]
+    fn the_wiki_is_only_on_the_026g_site() {
+        let web = web(None);
+        for path in ["/wiki", "/wiki/weapons"] {
+            assert_eq!(web.route(&get(path), "t").status, "404 Not Found");
+        }
+        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
     }
 
     #[test]

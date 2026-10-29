@@ -2366,3 +2366,131 @@ removed when the native effect ends. Waiting maps to the existing gray icon and
 filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
+
+### Lobby weight explanation
+
+`weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
+`weight_ui.state` arena blocks. The jump at 0x22110F saves the machine state,
+reads the current lobby's player stamina config, replays `mov eax,[esi+108h]`,
+then continues at 0x221115. The call at 0x2222EB replaces only the lobby weight
+GFx invocation: the original movie arguments supply current and modified maximum
+weight; `engine_apply_modifier` (0x2D5AE0) on `profile + F4h + kit * 704h`
+supplies modifiers 26, 31 and 32, matching the stamina calculation. The profile
+equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
+switch crashes with equipped gear, now covered by the native regression check.
+The callback gains movement/spending fractions and sprint state
+(0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It retains the original two arguments if the config is unavailable or invalid.
+The shim preserves registers, flags and floating-point state and returns with
+the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
+the original callback and kit evaluator; `data.md` records the formula evidence.
+No gameplay calculation or release revision changes.
+
+### Knowledge database link
+
+The lobby's Knowledge database button keeps its confirmation dialog and native
+`go_to_knowledge_base` callback (0x28CAB0), but opens
+`https://026g.skhid.link/wiki`. `KNOWLEDGE_BASE` replaces the fixed URL prefix at
+0xA0A7A8 and NOPs the two `strcat_s` calls at 0x28CBA3/0x28CBB7 that appended
+the old support site's language and path. Their argument pushes and cdecl stack
+cleanup remain paired. ShellExecuteA, `AL=1`, and `ret 4` stay unchanged. The wiki
+uses browser language selection and its own language switch. No new code arena
+is needed for these constant-data/in-place removals. `check_knowledge_base_026g.py`
+executes the original and patched callback in all six game languages, capturing
+the browser call and checking its URL, arguments, preserved ESI and stack.
+
+### Weapon detail cards
+
+`weapon-details-ui-1.json` copies each weapon's existing configuration values
+into non-comparable UI properties 138–159; it changes no simulation parameters.
+`WeaponDetails.as` reads those values for inventory and shop cards. The compact
+card replaces the ambiguous distance row with the full-damage distance and the
+minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
+draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
+spread/recovery and sway. Wear rates and reliability are deliberately excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded.
+
+Recoil and spread are not labelled degrees: the native recoil loader at
+0x331840 divides horizontal config values by 21.48 and vertical values by
+63.735. The dispersion loader at 0x330EE0 copies growth and recovery rates
+directly, as the breath loader at 0x2DEBC0 does for amplitudes and period.
+The UI reports each weapon's own base recoil/spread/sway values. Initial upward
+kick shows `[min_top, max_top]`; initial sideways kick shows
+`[min_right - max_left, max_right - min_left]`, matching the engine's independent
+right-minus-left draws. Variability is the standard deviation: upward range
+width divided by `sqrt(12)`, sideways `sqrt((right_width² + left_width²) / 12)`.
+These describe the initial shot impulse before accumulation and recovery.
+Signed sideways ranges stay neutral; lower variability compares as better.
+Upward ranges compare as better only when both endpoints are no higher and at
+least one is lower, using displayed precision; crossing ranges stay neutral.
+The values are relative configuration units, not degrees.
+An early AK-74M = 100% benchmark was removed because it looked like a
+weapon parameter and obscured the actual values.
+Missing detail metadata retains the original distance row. Native card layout
+owns resizing, and lobby positioning is refreshed when Shift changes its height.
+
+Focused check: `scripts/weight-ui/check_ui.sh <lobby.swf> <output-dir>
+scripts/weapon-details/WeaponDetailsHarness.as DETAILS` exercises native card
+expansion/collapse, comparison colors, translated heights, base values and old
+content fallback. The existing weight harness also checks the shop constructor.
+
+Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
+`WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,
+transforms and original row spacing from `ItemCompare`.
+An initial dynamic `TextField` copied from the empty description rendered with
+tiny black fallback text in Scaleform despite looking legible in Ruffle.
+An intermediate fix still overrode the original gray/bold labels, gold numbers
+and column geometry. `LabelDiffIndicator.setDetailText` now follows the original
+formatter and only substitutes the read-only value string and hides bars (these
+base fields have no comparison ranges). Native unit spacing is retained; long
+notes wrap at the original columns. The harness compares font, size, boldness,
+alignment, color, global text scale, columns and row spacing against the card's
+original rows, as well as checking value and frame bounds in all six languages.
+
+Headings and the Shift hint are separate caption entries,
+rendered with native embedded-font fields by `WeaponDetailCaption`; headings
+have brighter, larger text on a near-black divider band, while the Shift hint is muted gray.
+Only numeric entries use the stat-row formatter. Comparison cards reserve the
+larger of each pair's wrapped label heights. Missing `from_the_hip_multiplier`
+now displays 1x (including Kiparis), matching the loader's 0x330FE3 branch to the
+1.0 constant at 0xA70884, rather than omitting the row and shifting every later
+stat. The harness verifies matching row positions and caption contrast as well.
+Compared weapon cards also reserve the larger natural header height, including
+wrapped optics descriptions, so their original and added stats align. Returning
+to a single card restores its natural header. The redundant "Weapon modifiers
+only" note is omitted. Early comparison resize events wait for the three bonus
+list containers as well as their data providers before laying out the card.
+
+Each stat has a stable property id and an explicit comparison direction. Higher
+damage/range and recovery rate are better; lower times, recoil, spread and sway
+amplitudes are better. Zoom and sway period are neutral traits. Draw/holster,
+damage-floor distance/amount and horizontal/vertical sway have separate rows so
+one value cannot inherit another value's color. The native row formatter supplies
+red/green; equal displayed values retain the original neutral color (comparison
+scores use display precision, avoiding float-noise differences).
+Holding Ctrl suppresses comparison colors and difference bars in both original
+and added card rows, independently of Shift's expanded view. Releasing Ctrl
+restores comparisons without changing values. The harness covers both key orders
+and restores both original and added colors.
+
+Audit of all 83 weapon configurations: none of these displayed parameters is
+constant across every weapon. The minimum damage fraction is the closest: 60%
+for 82 weapons, 80% for Winchester 1894. No varying stat was removed as a constant.
+
+`WeaponDetails.read` applies only `item.modifiers` (already containing defaults),
+never the profile, gloves or other equipped items. Property 24 scales both
+falloff distances by `max(0, 1 + sum)`; property 114 scales weapon reload time by
+`max(0, 1 - sum)`. The opposite reload sign is explicit in weapon modification
+2040..2044 and defect 3040: the UI calls a reload improvement positive while its
+config change to `parameters/reload_time` is negative. The native type-2 operator
+at 0x358010 sums percentages, clamps `1 + sum` at zero, then multiplies the base.
+Values are copied before modification and comparisons use the resulting values.
+
+Existing data issue, deliberately not masked by UI: recoil modifications
+2080..2084 and defect 3060 target `max_first_shoot_*` / `*_queue_shoot_*` fields,
+absent from current weapons' recoil blocks. `find_modifier_target` 0x2F1430
+returns null for missing paths; the cook skips them at 0x2F1ABF. Current recoil
+loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
+The card therefore does not invent a recoil reduction. Likewise a base-dispersion
+upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+separate view FOV does not change the explicitly labelled base aim-zoom parameter.

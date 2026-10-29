@@ -2000,3 +2000,14 @@ va	name	source	ret_cleanup	result
 0x001e9030	survarium::game::save_user_config	manual	0	void: console_commands::save (0xEBE60) of user.cfg in the user data folder (vtable+50h of the engine world [0x1F1D63C], else "")
 0x000ec860	vostok::console_commands::cc_string::cc_string	manual	16	
 0x001ff5d0	survarium::game_options::scaleform_callback	manual	16	void: an unknown method name returns at 0x1FF96E (pop edi / esi / ebp, ret 10h at 0x1FF971)
+0x00329b20	survarium::player_stamina::update_weight_modifiers	manual	4	updates stamina-spend node +58h (index 19) and movement node +68h (index 4); descriptive RE name; data.md weight section
+0x00329290	survarium::player_stamina::player_stamina	manual	4	EAX: stamina initialized from 40-byte base parameters, modifiers pointer +48h
+0x002dbf40	survarium::base_player::can_sprint	manual	4	EAX: boolean; rejects low stamina, weight >= modified maximum unless modifier 31, and Heavyweight modifier 32
+0x002221e0	survarium::lobby_menu::update_player_items_weight	manual	0	void; root.update_player_items_weight with profile weight and modified capacity; descriptive RE name
+0x002f7660	survarium::player_profile::apply_kit_parameter	manual	0	XMM0: base parameter with selected kit skills then equipped-item modifiers; descriptive RE name
+0x00331840	survarium::weapon_recoil_parameters::load	manual	8	EAX: output block; descriptive name. Horizontal config ranges divided by 21.48, vertical by 63.735; not degrees.
+0x00330ee0	survarium::weapon_dispersion_parameters::load	manual	8	EAX: output block; descriptive name. speed_of_aiming at +0x0c, growth_speed at +0x10, direct scalar copies. Optional from_the_hip_multiplier (+0x18) and aim_multiplier (+0x1c) default to 1.0 at 0x330FE3/0x331034 (constant 0xA70884).
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	manual	4	EAX: output block; descriptive name. Horizontal/vertical amplitudes and base_period copied directly.
+0x002f1430	survarium::item_config_cook::find_modifier_target	manual	0	EAX: matching config node or null; missing path at 0x2F1462 returns null, skipped by cook at 0x2F1ABF.
+0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.

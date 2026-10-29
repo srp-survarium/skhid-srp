@@ -615,3 +615,107 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
 8. Award type 0 / param semantics in `unique_awards` (experience? gold?). **2026-10-12: settled, premium.md §5.**
 9. 28 victory-screen event categories versus 0.21d's 24 `match_stats_events`: which 4 are new
    (likely steal_box, grenade, melee, entrap kills, going by the new quest goals; **GUESS**).
+
+## Carried weight: movement and sprint (2026-10-28)
+
+Checked against the original 0.26g executable and `default.player` from both
+`resources/game-026g/server-game-data.db` and the local October 28 diagnostic
+server-game-data copy. Both have the same stamina parameters. No gameplay change.
+
+Let `W` be inventory weight, `M` be maximum carried weight after modifier 5
+(base 30 kg plus capacity bonuses), and `q = clamp((W - 20) / (M - 20), 0, 1)`.
+The 20 kg threshold is `min_carried_weight`; bonuses to maximum weight do not
+raise it. With no other modifiers:
+
+- Weight contributes `-0.20 * q` to movement-speed modifier 4. It affects the
+  normal movement-speed evaluator, including walking, crouching, aiming and
+  sprinting. Other movement bonuses/penalties add in the same modifier sum;
+  `base_player::movement_speed` also enforces its per-mode minimum speed.
+- Weight contributes `+1.50 * q` to stamina-spend modifier 19. Sprint's base
+  drain is 5 units/s, so it becomes `5 * (1 + 1.50 * q)` before other modifiers.
+  Stamina capacity is 100. At 25 kg: speed -10%, drain 8.75/s (+75%).
+- `is_overburdened` is true at **W >= M**, including equality. The sprint
+  eligibility check rejects it. Modifier 31 (`can_sprint`, skill 213) bypasses
+  this weight gate, but retains both weight penalties and the other sprint gates.
+- Both penalties stop growing at M: extra weight does not slow movement further.
+- Skill 202 (`overweight_penalty`) is -5% per rank, multiplicative on the
+  -0.20 coefficient: at five ranks the maximum speed loss is 15%, not zero.
+  It does not reduce weight's extra stamina spending.
+- Skill 209 is +2 kg capacity per rank. At five ranks M=40: 30 kg has -10%
+  movement and +75% stamina spending, and still permits sprinting.
+- Skill 214 (`max_carried_weight_ultimate`, Heavyweight) makes the movement
+  penalty zero; `base_player::can_sprint` separately forbids sprinting entirely.
+
+| Weight, no bonuses | Weight's speed penalty | Sprint stamina/s | Weight permits sprint |
+| --- | ---: | ---: | --- |
+| <=20 kg | 0% | 5 | yes |
+| 22.5 kg | -5% | 6.875 | yes |
+| 25 kg | -10% | 8.75 | yes |
+| 27.5 kg | -15% | 10.625 | yes |
+| >=30 kg | -20% | 12.5 if the weight gate is bypassed | no |
+
+Native evidence (preferred VAs): `stamina_base_parameters::load` 0x329120
+maps the config fields to +18h/+1Ch/+20h/+24h; constructor 0x329290 makes
+nodes 19 and 4. `player_stamina::update_weight_modifiers` 0x329B20 (descriptive
+RE name) calculates q and updates these nodes, called at 0x2DAAB5 after
+`inventory::update_weight` reports a change. `apply_modifier` 0x2D5AE0 adds
+modifier 5 but multiplies parameters 4, 19 and 26 by max(0, 1 + modifier sum).
+`player_stamina::sprint` 0x329A70 applies 19 then additive 67 to the drain.
+`is_overburdened` 0x329C60 compares W >= M; `base_player::can_sprint` 0x2DBF40
+calls it and checks modifier 32. Movement evaluates modifier 4 at 0x2DBB50.
+
+Verification: executed the original 0x329B20, 0x2D5AE0 and 0x329C60 in Unicorn,
+with real native modifier lists. All 60 combinations passed: 12 weights
+(including exact 20/30/40 and just below the limits) across no skills, +10 kg,
+-25% penalty, Heavyweight and the overweight-sprint skill. Full sprint eligibility
+and its Heavyweight exclusion were inspected in disassembly, not emulated.
+
+The lobby now colors current weight coral (`#F18A78`) while weight reduces
+movement, and retains red at/above maximum. Hovering uses `WeightTipRenderer`:
+the weapon card's native frame, black backing, critical-damage divider and
+`SrvModifierLabeledRenderer` rows. Movement and energy costs use the existing
+modifier atlas icons 11 and 16 (defects 4070 and 4110 in `modifications.options`),
+with the game's localized stat labels and red penalty values. Weight/Heavyweight
+sprint restrictions get a further row. Normal weight keeps the existing highlight
+color. Explanations follow the six lobby languages.
+
+Native Scaleform initializes the card's nested heading and modifier-row fields
+on their first frame after attachment; construction and `ADDED_TO_STAGE` are
+too early, although Ruffle already exposes those fields then. The renderer
+keeps the skin attached and transparent until its heading exists, then lets the
+new rows initialize before filling, sizing and revealing the card. A resize
+event reapplies screen-edge placement. Verified in the real lobby at 21.90/30 kg:
+coral weight, movement -3.8%, sprint stamina use +28.5%, and both native icons.
+
+Weapons also carry their own `parameters/movement_speed_modifier` (e.g. the
+PKP has -0.05 independently of its 7 kg weight). `weapon-movement-ui-1.json`
+copies that parameter into native card property 105 at content-build time.
+`WeaponMovement` moves it from the main stat table to a built-in modifier row,
+using icon 11 and the usual signed percentage/color formatting. Zero has no
+row; penalties stay in built-in bonuses, not critical damage. Shared item
+descriptors remain intact across shop/inventory cards. The edit changes only
+`ui_desc/props_list`, leaving gameplay parameters and modifications untouched.
+All three descriptor consumers (`ItemFactory`, `InventoryList`, and the shop's
+own `GangShop.createItem`) call the same adapter. The UI harness exercises the
+real shop price-list/reconnect path, including zero, negative, positive and
+golden weapons, whose silver bonus is retained.
+This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
+rewrite its card, just as it does not change the weapon's weight.
+
+`weight_ui_026g` caches the same player stamina config at 0x22110F, owned by that
+lobby instance. At 0x2222EB it extends the existing two-number movie callback
+with movement/spending fractions and a sprint state. The selected kit's native
+`player_params_modifiers_container::apply_modifier` at 0x2D5AE0 evaluates
+modifiers 26, 31 and 32, matching the stamina calculation; current/max weight
+remain the native callback's values, including equipment capacity bonuses.
+The profile helper at 0x2F7660 is only for equipment-compatible indices: its
+equipped-item path has an unchecked switch and crashes on 26/31/32. The real
+game exposed this after login; the regression check now includes equipped kits.
+Missing config or an invalid interval keeps the old two-number callback,
+which the movie treats as unknown effects and shows without an explanation.
+`check_weight_ui_026g.py` runs 100 native callback cases, including modified
+config, kit changes, skill combinations, exact limits and compatibility paths.
+`scripts/weight-ui/check_ui.sh` checks rendered colors, native tooltip layout,
+live refresh, removal and localization in Ruffle. Its real hover check also
+caught the shared tooltip timer's missing repeat count: `TIMER_COMPLETE` now
+fires once after the existing 300 ms delay.

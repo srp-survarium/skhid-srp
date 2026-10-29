@@ -39,6 +39,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponMovement;
    import survarium.item.ModificationRolls;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
@@ -731,6 +732,7 @@ package survarium.controls
             item_data.modifiersDefault[i].isDefault = true;
          }
          item_data.properties = descrData.item_properties;
+         WeaponMovement.expose(item_data);
          if((descrData.descr))
          {
             item_data.itemDescription = descrData.descr;
