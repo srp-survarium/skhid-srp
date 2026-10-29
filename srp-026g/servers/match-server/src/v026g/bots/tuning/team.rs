@@ -110,6 +110,28 @@ impl Default for ThreatTuning {
     }
 }
 
+/// How a poll's route searches are shared out among the match's bots
+/// (`search::Searching`): the searches and floors of a poll
+/// (`SEARCHES_PER_POLL`, [`ThinkTuning::search_floors_per_poll`]) and the
+/// searches left under way (the match's one, or one a team).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchQueue {
+    /// The poll's searches stay the match's, the bots going in turn by team
+    /// (the team that did not get the last search first, each team round
+    /// robin from the bot after its last served one); the floors are each
+    /// team's by its living bots, a done team's rest lent to the other; each
+    /// team has its own search under way, which goes on again at the poll's
+    /// end on what both left. One team's long searches cannot starve the
+    /// other's bots, and no place comes first.
+    #[default]
+    Fair,
+    /// As it was: one pool and one search under way for the match, by place
+    /// order (the first places, team 0 on the bench and the first to join
+    /// live, claim first each poll).
+    FirstCome,
+}
+
 /// The humans' perches in the hold plays (V-S2b, `plays::goals::perch_first`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -224,6 +246,9 @@ pub struct ThinkTuning {
     /// Detour's crowd shares its path queue's iterations: a search that
     /// runs past them goes on at the next polls (`Bots::poll`).
     pub search_floors_per_poll: u32,
+    /// How the poll's route searches are shared out ([`SearchQueue`]):
+    /// fairly by team (the default), or first come by place, as it was.
+    pub search_queue: SearchQueue,
     /// A trace line at least this often per bot, ms.
     pub trace_every_ms: u32,
     /// A bot that gave up the tries to leave its pocket (`escape::Trapped::gave_up`)
@@ -256,6 +281,7 @@ impl Default for ThinkTuning {
             commander_ms: 500,
             rays_per_poll: 400,
             search_floors_per_poll: SEARCH_FLOORS_PER_POLL,
+            search_queue: SearchQueue::Fair,
             trace_every_ms: 5_000,
             shut_in_gate: true,
             rest_off_lip: true,

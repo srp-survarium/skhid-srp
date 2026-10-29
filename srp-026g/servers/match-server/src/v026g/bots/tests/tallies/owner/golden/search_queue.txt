@@ -1,0 +1,49 @@
+owner-test search queue: team 0: searches granted 0, starved ticks 0, floors 0 (handed over 0, idle with demand 0), waited 0 times (0 polls), under way dropped (goal moved 0, hazards 0, bot gone 0), partial route ticks 0, unstick jumps 0 (0 on a partial route); goal and no route ticks: no way 0, searching 0, starved 0, searched 0, ended 0, shut in 0; team 1: searches granted 0, starved ticks 0, floors 0 (handed over 0, idle with demand 0), waited 0 times (0 polls), under way dropped (goal moved 0, hazards 0, bot gone 0), partial route ticks 0, unstick jumps 0 (0 on a partial route); goal and no route ticks: no way 0, searching 0, starved 0, searched 0, ended 0, shut in 0
+{
+  "team0": {
+    "dropped_gone": 0,
+    "dropped_hazards": 0,
+    "dropped_moved": 0,
+    "floors": 0,
+    "granted": 0,
+    "handed_over": 0,
+    "idle_with_demand": 0,
+    "no_route": {
+      "ended": 0,
+      "no_way": 0,
+      "searched": 0,
+      "searching": 0,
+      "shut_in": 0,
+      "starved": 0
+    },
+    "partial_ticks": 0,
+    "starved": 0,
+    "unsticks": 0,
+    "unsticks_partial": 0,
+    "waited": 0,
+    "waited_polls": 0
+  },
+  "team1": {
+    "dropped_gone": 0,
+    "dropped_hazards": 0,
+    "dropped_moved": 0,
+    "floors": 0,
+    "granted": 0,
+    "handed_over": 0,
+    "idle_with_demand": 0,
+    "no_route": {
+      "ended": 0,
+      "no_way": 0,
+      "searched": 0,
+      "searching": 0,
+      "shut_in": 0,
+      "starved": 0
+    },
+    "partial_ticks": 0,
+    "starved": 0,
+    "unsticks": 0,
+    "unsticks_partial": 0,
+    "waited": 0,
+    "waited_polls": 0
+  }
+}
