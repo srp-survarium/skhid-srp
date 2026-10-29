@@ -425,32 +425,37 @@ impl super::Bots {
     /// none launched (`unplaced`, `died_throwing`), none noticed, or noticed and no way out.
     pub fn grenade_report(&self) -> String {
         let counts = self.tracker.throw_counts();
-        let mut by_whose = [super::grenade_threat::AvoidStats::default(); 3];
-        for bot in self.bots.iter().flatten() {
-            for (sum, each) in by_whose.iter_mut().zip(&bot.features.avoid.by_whose) {
-                sum.add(each);
-            }
-        }
         let trio = |n: [u32; 3]| format!("{}/{}/{}", n[0], n[1], n[2]);
-        let avoidance = Whose::ALL
+        let by_team = self.grenade_counts();
+        let avoidance = by_team
             .iter()
-            .map(|whose| {
-                let a = &by_whose[whose.index()];
-                format!(
-                    "{whose:?}: noticed {} stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {}",
-                    trio(a.noticed),
-                    trio(a.stepped),
-                    trio(a.held),
-                    trio(a.out_at_act),
-                    trio(a.no_way),
-                    trio(a.escaped),
-                    trio(a.caught),
-                )
+            .enumerate()
+            .map(|(team, by_whose)| {
+                let line = Whose::ALL
+                    .iter()
+                    .map(|whose| {
+                        let a = &by_whose[whose.index()];
+                        format!(
+                            "{whose:?}: noticed {} (a mate's {}) stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {} refused {}",
+                            trio(a.noticed),
+                            a.noticed_mate,
+                            trio(a.stepped),
+                            trio(a.held),
+                            trio(a.out_at_act),
+                            trio(a.no_way),
+                            trio(a.escaped),
+                            trio(a.caught),
+                            a.refused,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                format!("team {team} [{line}]")
             })
             .collect::<Vec<_>>()
-            .join("; ");
+            .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first),              {} assumed from a bot's key with no grenade left, {} smokes, {} throws with no pockets known, {} human              throw keys that found no grenade, {} kits named that the profile lacks, {} launched, {} unplaced, {}              thrower dead; avoidance (told/saw/heard): {avoidance}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with no grenade left, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and the grenade's basis (told/saw/heard): {avoidance}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
@@ -464,6 +469,17 @@ impl super::Bots {
             counts.unplaced,
             counts.died_throwing,
         )
+    }
+
+    /// What the avoidance of the bots of each team counted, by whose grenade it was ([`Whose::index`]).
+    pub fn grenade_counts(&self) -> [[super::grenade_threat::AvoidStats; 3]; 2] {
+        let mut by_team = [[super::grenade_threat::AvoidStats::default(); 3]; 2];
+        for bot in self.bots.iter().flatten() {
+            for (sum, each) in by_team[usize::from(bot.team.min(1))].iter_mut().zip(&bot.features.avoid.by_whose) {
+                sum.add(each);
+            }
+        }
+        by_team
     }
 }
 

@@ -58,6 +58,25 @@ impl GrenadeId {
     fn is(self, g: &LiveGrenade) -> bool {
         g.by == self.by && g.press == self.press
     }
+
+    /// The thrower's place and the match ms of the press, for a trace line.
+    pub fn trace_key(self) -> (Place, u32) {
+        (self.by, self.press)
+    }
+}
+
+/// Whose side the thrower is on, from the bot that knows of the grenade.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Thrower {
+    /// A teammate (the owner's rule: told from the launch).
+    Mate,
+    Enemy,
+}
+
+impl Thrower {
+    fn of(me: &PlaceView, g: &LiveGrenade) -> Self {
+        if g.team == me.team { Self::Mate } else { Self::Enemy }
+    }
 }
 
 /// How a bot knows of a grenade.
@@ -94,13 +113,16 @@ pub struct Known {
     pub first: u32,
     /// Whose grenade it is (the counts are split by it).
     pub whose: Whose,
+    /// On whose side the thrower is.
+    pub thrower: Thrower,
 }
 
 /// One bot's state towards the grenades.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GrenadeThreat {
     /// Knows of none that matters; looks again at `look_at`.
-    Unaware { look_at: u32 },
+    /// `refused` is the last grenade it refused to know of (a bot's key alone, with `bot_pockets` on), so that one is counted once.
+    Unaware { look_at: u32, refused: Option<GrenadeId> },
     /// Knows of `known`, acts at `act_at`.
     Noticed { known: Known, act_at: u32 },
     /// Walking out of `known`'s blast to `to`.
@@ -111,7 +133,7 @@ pub enum GrenadeThreat {
 
 impl Default for GrenadeThreat {
     fn default() -> Self {
-        Self::Unaware { look_at: 0 }
+        Self::Unaware { look_at: 0, refused: None }
     }
 }
 
@@ -172,6 +194,10 @@ pub struct AvoidStats {
     /// At the blast, a bot that was stepping: out of its radius, or not.
     pub escaped: [u32; 3],
     pub caught: [u32; 3],
+    /// Of the grenades noticed, those a teammate threw.
+    pub noticed_mate: u32,
+    /// Grenades listed from a bot's key alone that the bot would have known of and did not (`bot_pockets` on), once each.
+    pub refused: u32,
     /// From the first chance to know to the start of the step: up to 0.5, 1, 1.5, 2 s, more.
     pub react: [[u32; 5]; 3],
 }
@@ -191,6 +217,8 @@ impl AvoidStats {
             retried: minus(&self.retried, &before.retried),
             escaped: minus(&self.escaped, &before.escaped),
             caught: minus(&self.caught, &before.caught),
+            noticed_mate: self.noticed_mate - before.noticed_mate,
+            refused: self.refused - before.refused,
             react: std::array::from_fn(|k| minus(&self.react[k], &before.react[k])),
         }
     }
@@ -209,8 +237,43 @@ impl AvoidStats {
         plus(&mut self.retried, &other.retried);
         plus(&mut self.escaped, &other.escaped);
         plus(&mut self.caught, &other.caught);
+        self.noticed_mate += other.noticed_mate;
+        self.refused += other.refused;
         for (a, b) in self.react.iter_mut().zip(&other.react) {
             plus(a, b);
+        }
+    }
+}
+
+/// What the avoidance decided on a tick, for the bot's trace (one note for each decision: it noticed a grenade, set out
+/// to step out of one, found no way out of one, or refused to know of one a bot's key alone listed).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Decision {
+    Noticed(Known),
+    Stepping(Known),
+    NoWay(Known),
+    Refused(GrenadeId),
+}
+
+impl Decision {
+    /// The trace line's fields: what was decided, about whose grenade (thrower place and press ms), and how it knew.
+    pub fn trace(self) -> serde_json::Value {
+        let known = |what: &str, k: Known| {
+            let (by, press) = k.id.trace_key();
+            serde_json::json!({
+                "decision": what, "grenade_by": by, "press": press, "whose": format!("{:?}", k.whose),
+                "how": format!("{:?}", k.how), "thrower": format!("{:?}", k.thrower),
+                "blast_at": k.blast_at, "rest": k.rest.to_array(),
+            })
+        };
+        match self {
+            Self::Noticed(k) => known("noticed", k),
+            Self::Stepping(k) => known("stepping", k),
+            Self::NoWay(k) => known("no way out", k),
+            Self::Refused(id) => {
+                let (by, press) = id.trace_key();
+                serde_json::json!({ "decision": "refused", "grenade_by": by, "press": press, "whose": "Assumed" })
+            }
         }
     }
 }
@@ -223,6 +286,8 @@ pub struct Avoid {
     /// The same counts split by whose grenade it was ([`Whose::index`]): a human's, a bot's from its pockets, one
     /// listed from a bot's key alone. Sums to [`Self::stats`].
     pub by_whose: [AvoidStats; 3],
+    /// What the last tick decided, if anything; the drive takes it for the trace.
+    pub decided: Option<Decision>,
 }
 
 impl GrenadeThreat {
@@ -253,11 +318,14 @@ impl Avoid {
             around,
             &mut self.stats,
         );
+        let mut delta = self.stats.since(&before);
+        // A refusal is about a grenade the bot did not take up: it belongs to the bot-key basis whatever it is about now.
+        self.by_whose[Whose::Assumed.index()].refused += std::mem::take(&mut delta.refused);
         // What this tick counted belongs to the grenade the bot was about at its end (or, if it dropped it, at its start).
         if let Some(known) = state.known().or_else(|| self.state.known()) {
-            let delta = self.stats.since(&before);
             self.by_whose[known.whose.index()].add(&delta);
         }
+        self.decided = decision(self.state, state, &delta, before.refused != self.stats.refused);
         self.state = state;
         action
     }
@@ -265,6 +333,19 @@ impl Avoid {
     /// A new life.
     pub fn died(&mut self) {
         self.state = GrenadeThreat::default();
+    }
+}
+
+/// What a tick decided: the transition from `was` to `now_state`, with what it counted.
+fn decision(was: GrenadeThreat, now_state: GrenadeThreat, delta: &AvoidStats, refused: bool) -> Option<Decision> {
+    match (was, now_state) {
+        (GrenadeThreat::Unaware { .. }, GrenadeThreat::Noticed { known, .. }) => Some(Decision::Noticed(known)),
+        (GrenadeThreat::Noticed { .. } | GrenadeThreat::Clear { .. }, GrenadeThreat::Stepping { known, .. }) => {
+            Some(Decision::Stepping(known))
+        }
+        (_, GrenadeThreat::Clear { known, .. }) if delta.no_way.iter().any(|&n| n > 0) => Some(Decision::NoWay(known)),
+        (_, GrenadeThreat::Unaware { refused: Some(id), .. }) if refused => Some(Decision::Refused(id)),
+        _ => None,
     }
 }
 
@@ -282,12 +363,13 @@ pub fn step(
     };
     let listed = |known: &Known| grenades.iter().any(|g| known.id.is(g));
     match state {
-        GrenadeThreat::Unaware { look_at } => {
+        GrenadeThreat::Unaware { look_at, refused } => {
             if now < look_at {
                 return (state, Action::None);
             }
             // The nearest blast of those that matter and that it knows of.
             let mut pick: Option<Known> = None;
+            let mut refused_now = refused;
             for g in grenades {
                 let Phase::Flying {
                     launched,
@@ -297,31 +379,40 @@ pub fn step(
                 else {
                     continue;
                 };
-                // A team that reads the bots' pockets (`bot_pockets`) does not dodge a grenade the list holds from a bot's
-                // key alone: the client throws nothing then.
-                if (g.basis == Basis::AssumedFromBotKey && c.bot_pockets)
-                    || now >= g.blast_at()
+                if now >= g.blast_at()
                     || pick.is_some_and(|p| p.blast_at <= g.blast_at())
                     || !relevant(me, rest, g.grenade.splash_m, c)
                 {
                     continue;
                 }
-                if let Some((how, first)) = knows(me, g, launched, lands, rest, now, c, around) {
-                    pick = Some(Known {
-                        id: GrenadeId::of(g),
-                        rest,
-                        radius_m: g.grenade.splash_m,
-                        blast_at: g.blast_at(),
-                        how,
-                        first,
-                        whose: g.whose,
-                    });
+                let Some((how, first)) = knows(me, g, launched, lands, rest, now, c, around) else {
+                    continue;
+                };
+                // A team that reads the bots' pockets (`bot_pockets`) does not dodge a grenade the list holds from a bot's
+                // key alone: the client throws nothing then. Counted once for each such grenade a bot would have known of.
+                if g.basis == Basis::AssumedFromBotKey && c.bot_pockets {
+                    if refused_now != Some(GrenadeId::of(g)) {
+                        stats.refused += 1;
+                        refused_now = Some(GrenadeId::of(g));
+                    }
+                    continue;
                 }
+                pick = Some(Known {
+                    id: GrenadeId::of(g),
+                    rest,
+                    radius_m: g.grenade.splash_m,
+                    blast_at: g.blast_at(),
+                    how,
+                    first,
+                    whose: g.whose,
+                    thrower: Thrower::of(me, g),
+                });
             }
             let Some(known) = pick else {
                 return (
                     GrenadeThreat::Unaware {
                         look_at: now + c.look_ms,
+                        refused: refused_now,
                     },
                     Action::None,
                 );
@@ -331,6 +422,7 @@ pub fn step(
                 Notice::Saw | Notice::Heard => c.notice_ms,
             };
             stats.noticed[known.how.index()] += 1;
+            stats.noticed_mate += u32::from(known.thrower == Thrower::Mate);
             (
                 GrenadeThreat::Noticed {
                     known,
@@ -341,7 +433,7 @@ pub fn step(
         }
         GrenadeThreat::Noticed { known, act_at } => {
             if now >= known.blast_at || !listed(&known) {
-                return (GrenadeThreat::Unaware { look_at: now }, Action::None);
+                return (GrenadeThreat::Unaware { look_at: now, refused: None }, Action::None);
             }
             if now < act_at {
                 return (state, Action::None);
@@ -360,16 +452,16 @@ pub fn step(
                 } else {
                     stats.caught[k] += 1;
                 }
-                return (GrenadeThreat::Unaware { look_at: now }, Action::None);
+                return (GrenadeThreat::Unaware { look_at: now, refused: None }, Action::None);
             }
             if !listed(&known) {
-                return (GrenadeThreat::Unaware { look_at: now }, Action::None);
+                return (GrenadeThreat::Unaware { look_at: now, refused: None }, Action::None);
             }
             (state, Action::Go(to))
         }
         GrenadeThreat::Clear { known, recheck } => {
             if now >= known.blast_at || !listed(&known) {
-                return (GrenadeThreat::Unaware { look_at: now }, Action::None);
+                return (GrenadeThreat::Unaware { look_at: now, refused: None }, Action::None);
             }
             if now < recheck {
                 return (state, Action::None);
@@ -608,14 +700,26 @@ mod tests {
         let off = AvoidTuning { bot_pockets: false, ..tuning() };
         assert!(on.bot_pockets);
         let mut avoid = Avoid::default();
+        let mut decided = Vec::new();
         for now in [2_200, 2_500, 3_000] {
             assert_eq!(tick(&on, &mut avoid, now), Action::None);
+            decided.push(avoid.decided);
         }
         assert_eq!(avoid.stats.noticed, [0, 0, 0], "not noticed with bot_pockets on");
+        // The refusal is counted once for the grenade, under the bot-key basis, and decided once.
+        assert_eq!(avoid.stats.refused, 1);
+        assert_eq!(avoid.by_whose[Whose::Assumed.index()].refused, 1);
+        assert!(matches!(decided[0], Some(Decision::Refused(_))), "{decided:?}");
+        assert_eq!(decided[1..], [None, None]);
         let mut avoid = Avoid::default();
         tick(&off, &mut avoid, 2_200);
+        assert!(matches!(avoid.decided, Some(Decision::Noticed(k)) if k.thrower == Thrower::Mate && k.whose == Whose::Assumed));
         assert_eq!(tick(&off, &mut avoid, 2_500), Action::Go(OUT));
+        assert!(matches!(avoid.decided, Some(Decision::Stepping(_))));
+        assert_eq!(avoid.decided.map(|d| d.trace()["decision"].clone()), Some(serde_json::json!("stepping")));
         assert_eq!(avoid.stats.noticed, [1, 0, 0]);
+        assert_eq!(avoid.stats.noticed_mate, 1, "the thrower's team is the bot's");
+        assert_eq!(avoid.stats.refused, 0);
         // The counts sit under the grenade's owner and sum to the total.
         assert_eq!(avoid.by_whose[Whose::Assumed.index()].noticed, [1, 0, 0]);
         assert_eq!(avoid.by_whose[Whose::Assumed.index()].stepped, [1, 0, 0]);
@@ -640,7 +744,7 @@ mod tests {
         let gs = [grenade()];
         // In the hand: nothing known.
         let (s, a) = run(GrenadeThreat::default(), 2_000, &me, &gs, &around, &mut stats);
-        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 2_200 }, Action::None));
+        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 2_200, refused: None }, Action::None));
         // Let go: told, to act 300 ms on.
         let (s, a) = run(s, 2_200, &me, &gs, &around, &mut stats);
         let GrenadeThreat::Noticed { known, act_at } = s else {
@@ -660,7 +764,7 @@ mod tests {
         assert_eq!(a, Action::Go(OUT));
         // At the blast it is out, or not: here it has not moved (a test), so caught.
         let (s, a) = run(s, 5_000, &me, &gs, &around, &mut stats);
-        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 5_000 }, Action::None));
+        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 5_000, refused: None }, Action::None));
         assert_eq!((stats.escaped, stats.caught), ([0, 0, 0], [1, 0, 0]));
         // The listing runs 300 ms past the blast: not a grenade to act on again.
         let (s, _) = run(s, 5_100, &me, &gs, &around, &mut stats);
@@ -772,7 +876,8 @@ mod tests {
             blast_at: 5_000,
             how: Notice::Told,
             first: 2_100,
-                    whose: Whose::Human,
+            whose: Whose::Human,
+            thrower: Thrower::Mate,
         };
         let stepping = GrenadeThreat::Stepping { known, to: OUT };
         // It got to the floor 14 m from the rest point by the blast.
@@ -782,7 +887,7 @@ mod tests {
         assert_eq!((stats.escaped, stats.caught), ([1, 0, 0], [0, 0, 0]));
         // The grenade is gone from the list before the blast: nothing more to walk to.
         let (s, a) = run(stepping, 3_000, &inside, &[], &around, &mut stats);
-        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 3_000 }, Action::None));
+        assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 3_000, refused: None }, Action::None));
         // Dead: a new life knows nothing.
         let mut rng = Rng::new(1);
         let (s, a) = step(stepping, Event::Died, &tuning(), &mut rng, &around, &mut stats);
