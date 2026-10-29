@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Za mało złota
 st_srp_exchange_short_silver	Za mało srebra
 st_srp_exchange_title	Wymiana
 st_srp_inventory_search	Szukaj
-st_srp_language_option	Język
+st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_loadout_block_ammo	Za mało amunicji do broni
 st_srp_loadout_block_locked	Ten profil jest zablokowany

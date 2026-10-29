@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Недостаточно золота
 st_srp_exchange_short_silver	Недостаточно серебра
 st_srp_exchange_title	Обмен
 st_srp_inventory_search	Поиск
-st_srp_language_option	Язык
+st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_loadout_block_ammo	Мало патронов к оружию
 st_srp_loadout_block_locked	Этот профиль закрыт

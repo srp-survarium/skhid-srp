@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Not enough gold
 st_srp_exchange_short_silver	Not enough silver
 st_srp_exchange_title	Exchange
 st_srp_inventory_search	Search
-st_srp_language_option	Language
+st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon
 st_srp_loadout_block_locked	This profile is locked

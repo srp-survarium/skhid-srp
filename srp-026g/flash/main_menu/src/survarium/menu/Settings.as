@@ -73,6 +73,10 @@ package survarium.menu
       
       protected var _cancelLabel:String = "_cancelLabel";
       
+      // The gameplay tab's Language choice (exe patch 79): a pick is a change
+      // of the tab as its options are, saved by Apply.
+      protected var _language:SrpLanguage;
+      
       public function Settings()
       {
          super();
@@ -198,6 +202,14 @@ package survarium.menu
          {
             this.settings_content.keysGame.invalidateData();
          }
+      }
+      
+      // The exe's answer to the Language choice (root.srp_language): the saved
+      // language is selected, so no pick is pending.
+      public function setLanguage(values:Array) : void
+      {
+         this._language.answer(values);
+         this.languageChanged(null);
       }
       
       public function selectIndex(tabIndex:uint) : void
@@ -374,6 +386,10 @@ package survarium.menu
             if(this._changed[control])
             {
                this._changed[control] = 0;
+               if(control == this._language.menu)
+               {
+                  this._language.save();
+               }
                elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(control.name));
                if(elementIndex != -1)
                {
@@ -417,6 +433,7 @@ package survarium.menu
          {
             this._changed[control] = 0;
          }
+         this._language.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -438,7 +455,7 @@ package survarium.menu
          g.drawRect(0,0,this.bottomContainer.width / this.bottomContainer.scaleX,this.bottomContainer.height / this.bottomContainer.scaleY);
          g.endFill();
          this.bottomContainer.tiledSprite.setTile(new HintLinePattern());
-         this._labels_map[0] = ["s_friends","s_cross","s_chat","s_minimap","s_minimap_position","s_quest_propgress","s_seed_settings"];
+         this._labels_map[0] = ["s_friends","s_cross","s_chat","s_minimap","s_minimap_position","s_quest_propgress"];
          this._labels_map[1] = ["s_lobby","s_chat_keys","s_game","button_default_controls"];
          this._labels_map[2] = ["graphic","button_default_video","button_optimal_video","adjust_gamma"];
          this._labels_map[3] = ["s_sound_volume","s_voice_chat"];
@@ -450,13 +467,16 @@ package survarium.menu
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
+         this._language = new SrpLanguage(this.settings_content);
+         this._changed[this._language.menu] = 0;
+         this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
       protected function create_content(settings:Array) : void
       {
          SrpFovSlider.apply(this);
-         SrpLanguage.apply(this);
+         this._language.place();
          var key:Object;
          var tabIndex:uint;
          var i:int;
@@ -632,6 +652,27 @@ package survarium.menu
          this.checkButtons();
       }
       
+      // A Language pick counts as the change of an option: it is pending while
+      // the selected language is not the saved one.
+      protected function languageChanged(event:Event) : void
+      {
+         var menu:DropdownMenu = this._language.menu;
+         if(this._language.pending)
+         {
+            if(this._changed[menu] != 1)
+            {
+               this._changed[menu] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[menu] == 1)
+         {
+            this._changed[menu] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
+      }
+      
       protected function checkButtons() : void
       {
          if(!this._changes)
@@ -707,6 +748,8 @@ package survarium.menu
       protected function contre_pass() : void
       {
          _changes = 0;
+         this._changed[this._language.menu] = 0;
+         this._language.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

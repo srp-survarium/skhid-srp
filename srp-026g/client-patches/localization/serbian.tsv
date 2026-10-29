@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Nema dovoljno zlata
 st_srp_exchange_short_silver	Nema dovoljno srebra
 st_srp_exchange_title	Razmeni
 st_srp_inventory_search	Pretraga
-st_srp_language_option	Jezik
+st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
 st_srp_loadout_block_ammo	Premalo municije za oružje
 st_srp_loadout_block_locked	Ovaj profil je zaključan

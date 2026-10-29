@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Nicht genug Gold
 st_srp_exchange_short_silver	Nicht genug Silber
 st_srp_exchange_title	Tausch
 st_srp_inventory_search	Suche
-st_srp_language_option	Sprache
+st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
 st_srp_loadout_block_locked	Dieses Profil ist gesperrt

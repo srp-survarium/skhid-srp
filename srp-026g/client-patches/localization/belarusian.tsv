@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Недастаткова золата
 st_srp_exchange_short_silver	Недастаткова срэбра
 st_srp_exchange_title	Абмен
 st_srp_inventory_search	Пошук
-st_srp_language_option	Мова
+st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
 st_srp_loadout_block_ammo	Мала патронаў да зброі
 st_srp_loadout_block_locked	Гэты профіль закрыты

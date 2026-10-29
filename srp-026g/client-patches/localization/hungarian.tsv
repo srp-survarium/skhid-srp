@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Nincs elég arany
 st_srp_exchange_short_silver	Nincs elég ezüst
 st_srp_exchange_title	Átváltás
 st_srp_inventory_search	Keresés
-st_srp_language_option	Nyelv
+st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
 st_srp_loadout_block_locked	Ez a profil zárolva van

@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Nedostatek zlata
 st_srp_exchange_short_silver	Nedostatek stříbra
 st_srp_exchange_title	Směnit
 st_srp_inventory_search	Hledat
-st_srp_language_option	Jazyk
+st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.
 st_srp_loadout_block_ammo	Málo munice pro jednu ze zbraní
 st_srp_loadout_block_locked	Tento profil je zamčený

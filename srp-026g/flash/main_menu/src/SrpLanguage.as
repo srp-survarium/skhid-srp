@@ -4,63 +4,97 @@ package
     import flash.external.ExternalInterface;
     import flash.text.TextField;
     import flash.text.TextFormat;
+    import flash.text.TextFormatAlign;
     import scaleform.clik.data.DataProvider;
-    import scaleform.clik.events.ListEvent;
-    import survarium.menu.Settings;
 
     // The gameplay tab's Language choice (exe patch 79,
-    // docs/notes/language-option.md). The exe keeps the choice in user.cfg
-    // and answers ExternalInterface.call("srp_language"[, name]) with
-    // root.srp_language(label, note, saved, running, name, own name, ...):
-    // every registered language, by its own name. A pick is saved at once;
-    // the note shows while the saved language is not the running one.
-    // create_content calls apply first, on every tab: the controls live on
-    // the gameplay frame only (script-added children survive frame changes).
+    // docs/notes/language-option.md): its label, the list of every registered
+    // language by its own name, and the note. Settings owns it and counts a
+    // pick as a pending change of the tab: Apply saves it (save), Cancel or
+    // leaving without Apply puts the saved one back (revert). The exe keeps
+    // the choice in user.cfg and answers ExternalInterface.call("srp_language"
+    // [, name]) with root.srp_language(label, note, saved, running, name, own
+    // name, ...), which Settings passes to answer. The note shows while the
+    // saved language is not the running one. The controls are script-added
+    // children of the tab content, which survive frame changes: place shows
+    // them on the gameplay frame only.
     public class SrpLanguage
     {
         private static const GAMEPLAY_FRAME:int = 1;
-        // Right of the seed settings, in the bottom panel.
-        private static const X:Number = 420;
-        private static const LABEL_Y:Number = 280;
-        private static const MENU_Y:Number = 306;
-        private static const NOTE_Y:Number = 340;
-        private static const WIDTH:Number = 184;
+        // The bottom panel of the gameplay tab, where the seeding options were
+        // (settingsTabs_15 hides them): centred on the panel, the label over
+        // the list as the "Limit upload speed:" label was over its stepper.
+        private static const CENTER_X:Number = 297;
+        private static const LABEL_Y:Number = 289;
+        private static const MENU_Y:Number = 315;
+        private static const NOTE_Y:Number = 348;
+        private static const MENU_WIDTH:Number = 184;
+        private static const TEXT_WIDTH:Number = 338;
 
-        private static var heading:TextField;
-        private static var menu:DropdownMenuSkinned;
-        private static var note:TextField;
-        // The resource names in the menu's order, the saved and the running one.
-        private static var names:Array = [];
-        private static var saved:String = "";
-        private static var running:String = "";
+        public var menu:DropdownMenuSkinned;
+        private var content:MovieClip;
+        private var label:TextField;
+        private var note:TextField;
+        // The resource names in the menu's order (none until the exe answers),
+        // the saved and the running one.
+        private var names:Array = [];
+        private var saved:String = "";
+        private var running:String = "";
 
-        public static function apply(settings:Settings):void
+        public function SrpLanguage(content:MovieClip)
         {
-            var content:MovieClip = settings.settings_content;
-            if (content == null)
-            {
-                return;
-            }
-            make(content);
-            var shown:Boolean = content.currentFrame == GAMEPLAY_FRAME && names.length > 0;
-            heading.visible = menu.visible = shown;
-            note.visible = shown && saved != running;
+            this.content = content;
+            var format:TextFormat = labelFormat(content);
+            label = text(format, LABEL_Y, 24);
+            content.addChild(label);
+            menu = new DropdownMenuSkinned();
+            menu.name = "_srp_language";
+            menu.autoSize = "none";
+            menu.dropdown = "OptionScrollingList";
+            menu.itemRenderer = "OptionsListRenderer";
+            menu.menuDirection = "up";
+            menu.menuMargin = 0;
+            menu.inspectableMenuOffset = {"top": 0, "right": 0, "bottom": 4, "left": 0};
+            menu.inspectableMenuPadding = {"top": 5, "right": 1, "bottom": 5, "left": 1};
+            menu.menuRowsFixed = false;
+            menu.menuWidth = MENU_WIDTH;
+            menu.menuWrapping = "normal";
+            menu.scrollBar = "";
+            menu.focusable = true;
+            menu.x = CENTER_X - MENU_WIDTH / 2;
+            menu.y = MENU_Y;
+            menu.width = MENU_WIDTH;
+            // Scaleform leaves a script-created control fully transparent.
+            menu.alpha = 1;
+            content.addChild(menu);
+            note = text(format, NOTE_Y, 40);
+            note.wordWrap = true;
+            note.multiline = true;
+            note.alpha = 0.7;
+            content.addChild(note);
+            show();
+        }
+
+        // On every bind of a tab (create_content): shown on the gameplay
+        // frame, where the exe is asked for the list.
+        public function place():void
+        {
+            show();
             if (content.currentFrame == GAMEPLAY_FRAME)
             {
                 ask(null);
             }
         }
 
-        // The exe's answer: label, note, saved, running, then name and own name pairs.
-        public static function answer(settings:Settings, values:Array):void
+        // The exe's answer: label, note, saved, running, then name and own
+        // name pairs. The saved language is selected.
+        public function answer(values:Array):void
         {
-            var content:MovieClip = settings.settings_content;
-            if (content == null || values.length < 6)
+            if (values.length < 6)
             {
                 return;
             }
-            make(content);
-            heading.text = values[0];
+            label.text = values[0];
             note.text = values[1];
             saved = values[2];
             running = values[3];
@@ -73,78 +107,65 @@ package
             }
             menu.dataProvider = new DataProvider(labels);
             menu.menuRowCount = labels.length;
-            menu.selectedIndex = names.indexOf(saved);
-            var shown:Boolean = content.currentFrame == GAMEPLAY_FRAME;
-            heading.visible = menu.visible = shown;
-            note.visible = shown && saved != running;
+            revert();
+            show();
         }
 
-        private static function make(content:MovieClip):void
+        // The selected language is not the saved one: a change for Apply.
+        public function get pending():Boolean
         {
-            if (menu != null && menu.parent == content)
+            return menu.selectedIndex >= 0 && menu.selectedIndex < names.length && names[menu.selectedIndex] != saved;
+        }
+
+        // Apply: the selected language becomes the saved one (the exe writes
+        // it to user.cfg and answers).
+        public function save():void
+        {
+            if (!pending)
             {
                 return;
             }
-            var format:TextFormat = labelFormat(content);
-            heading = text(format, X, LABEL_Y, WIDTH, 22);
-            content.addChild(heading);
-            menu = new DropdownMenuSkinned();
-            menu.name = "_srp_language";
-            menu.autoSize = "none";
-            menu.dropdown = "OptionScrollingList";
-            menu.itemRenderer = "OptionsListRenderer";
-            menu.menuDirection = "up";
-            menu.menuMargin = 0;
-            menu.inspectableMenuOffset = {"top": 0, "right": 0, "bottom": 4, "left": 0};
-            menu.inspectableMenuPadding = {"top": 5, "right": 1, "bottom": 5, "left": 1};
-            menu.menuRowsFixed = false;
-            menu.menuWidth = WIDTH;
-            menu.menuWrapping = "normal";
-            menu.scrollBar = "";
-            menu.focusable = true;
-            menu.x = X;
-            menu.y = MENU_Y;
-            menu.width = WIDTH;
-            // Scaleform leaves a script-created control fully transparent.
-            menu.alpha = 1;
-            menu.addEventListener(ListEvent.INDEX_CHANGE, picked);
-            content.addChild(menu);
-            note = text(format, X, NOTE_Y, WIDTH, 40);
-            note.wordWrap = true;
-            note.multiline = true;
-            note.alpha = 0.7;
-            content.addChild(note);
-            heading.visible = menu.visible = note.visible = false;
+            saved = names[menu.selectedIndex];
+            show();
+            ask(saved);
         }
 
-        // The heading style of the gameplay tab (its "Quest progress").
+        // Cancel: the saved language is selected again.
+        public function revert():void
+        {
+            menu.selectedIndex = names.indexOf(saved);
+        }
+
+        private function show():void
+        {
+            label.visible = menu.visible = content.currentFrame == GAMEPLAY_FRAME && names.length > 0;
+            note.visible = menu.visible && saved != running;
+        }
+
+        // The tab's option label style: the "Limit upload speed:" stepper's
+        // label (the stepper is hidden; this choice took its place).
         private static function labelFormat(content:MovieClip):TextFormat
         {
-            var model:TextField = content.getChildByName("s_quest_propgress") as TextField;
-            return model != null ? model.defaultTextFormat : new TextFormat("$CalibriBold", 14, 0xFFFFFF);
+            var stepper:OptionStepperCyclic2 = content.getChildByName("_upload_speed") as OptionStepperCyclic2;
+            var format:TextFormat = stepper != null && stepper.textField != null
+                ? stepper.textField.defaultTextFormat
+                : new TextFormat("$CalibriBold", 15, 0x9C9E9D);
+            format.align = TextFormatAlign.CENTER;
+            return format;
         }
 
-        private static function text(format:TextFormat, x:Number, y:Number, width:Number, height:Number):TextField
+        private static function text(format:TextFormat, y:Number, height:Number):TextField
         {
             var field:TextField = new TextField();
             field.embedFonts = true;
             field.selectable = false;
             field.mouseEnabled = false;
             field.defaultTextFormat = format;
-            field.x = x;
+            field.x = CENTER_X - TEXT_WIDTH / 2;
             field.y = y;
-            field.width = width;
+            field.width = TEXT_WIDTH;
             field.height = height;
             return field;
-        }
-
-        private static function picked(event:ListEvent):void
-        {
-            var name:String = names[menu.selectedIndex];
-            if (name != null && name != saved)
-            {
-                ask(name);
-            }
         }
 
         // The exe answers at once (root.srp_language). Outside the game (a

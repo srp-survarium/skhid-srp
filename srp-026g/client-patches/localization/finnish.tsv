@@ -2151,7 +2151,7 @@ st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
 st_srp_inventory_search	Hae
-st_srp_language_option	Kieli
+st_srp_language_option	Kieli:
 st_srp_language_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
 st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle
 st_srp_loadout_block_locked	Tämä profiili on lukittu
