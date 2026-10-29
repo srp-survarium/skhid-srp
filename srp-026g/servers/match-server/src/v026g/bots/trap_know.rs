@@ -23,7 +23,12 @@
 //! The team's bots keep off the floors within [`FIELD_M`] of a standing trap
 //! ([`TrapField`]): the route searches shut them (`RouteFilter::with_floors`)
 //! and a route that runs over a disc is dropped to be searched again
-//! (`traps::keep_off`). Sharing the list among the bots is the ledger's C-T1:
+//! (`traps::keep_off`). Round that field a ring (`TrapTuning::ring_m`, 1.3 m) is
+//! kept out as a preference only (`RouteFilter::avoiding_floors`: a way round
+//! where that is not much longer, else through it): the body walks 0.2-0.7 m off
+//! its route and a foot point 0.6 m from the centre sets the trap off, and the hard
+//! field alone left 33 % of the mates who came within 3 m of a route that cleared it by
+//! under 0.8 m caught (A165). Sharing the list among the bots is the ledger's C-T1:
 //! the placer could say it and the trap is a model on the floor.
 
 use mapdata::{NodeId, Vec3, WalkGrid};
@@ -225,6 +230,12 @@ pub struct TrapField {
     discs: Vec<Vec3>,
     /// Sorted.
     shut: Vec<NodeId>,
+    /// The wider ring the searches keep out as a preference (`TrapTuning::ring_m`): the floors within `ring_m` of
+    /// a disc that are not shut. Sorted; empty with the ring off.
+    ring: Vec<NodeId>,
+    ring_m: f32,
+    /// The trap list's version it was built for: a route is looked at against the ring once per version.
+    stamp: u64,
 }
 
 impl TrapField {
@@ -257,7 +268,58 @@ impl TrapField {
             .collect();
         shut.sort_unstable();
         shut.dedup();
-        Self { discs, shut }
+        Self {
+            discs,
+            shut,
+            ring: Vec::new(),
+            ring_m: 0.0,
+            stamp: 0,
+        }
+    }
+
+    /// The field of the standing traps in `list` with the ring of `ring_m` metres (0: none) round them.
+    pub fn of_ringed(list: &TrapList, grid: &WalkGrid, ring_m: f32) -> Self {
+        let mut field = Self::of(list, grid);
+        field.stamp = list.version();
+        if ring_m > FIELD_M {
+            let mut ring: Vec<NodeId> = field
+                .discs
+                .iter()
+                .flat_map(|disc| {
+                    let area = [disc.x - ring_m, disc.z - ring_m, disc.x + ring_m, disc.z + ring_m];
+                    grid.floors_in(area)
+                        .filter(|&node| {
+                            let p = grid.position(node);
+                            p.distance_xz(*disc) <= ring_m && (p.y - disc.y).abs() < 1.0
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .filter(|node| field.shut.binary_search(node).is_err())
+                .collect();
+            ring.sort_unstable();
+            ring.dedup();
+            field.ring = ring;
+            field.ring_m = ring_m;
+        }
+        field
+    }
+
+    /// Whether a search may use `node` without a preference against it: false on the ring.
+    pub fn ring_open(&self, node: NodeId) -> bool {
+        self.ring.binary_search(&node).is_err()
+    }
+
+    /// Whether there is a ring round some trap.
+    pub fn has_ring(&self) -> bool {
+        !self.ring.is_empty()
+    }
+
+    pub fn ring_m(&self) -> f32 {
+        self.ring_m
+    }
+
+    pub fn stamp(&self) -> u64 {
+        self.stamp
     }
 
     pub fn is_empty(&self) -> bool {
@@ -415,6 +477,61 @@ mod tests {
             points(&around)
         );
         assert!(off_route_m(&points(&around), trap) >= FIELD_M - 0.05);
+    }
+
+    #[test]
+    fn the_ring_is_the_floors_between_the_field_and_its_metres_and_is_a_preference_only() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let grid = &s.tactics.world.grid;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(0, trap, 1_000);
+        // Off: the field as it was, no ring.
+        let plain = TrapField::of_ringed(&list, grid, 0.0);
+        assert!(!plain.has_ring() && plain.ring_m() == 0.0);
+        assert_eq!(plain.discs(), TrapField::of(&list, grid).discs());
+        let ringed = TrapField::of_ringed(&list, grid, 1.3);
+        assert!(ringed.has_ring() && (ringed.ring_m() - 1.3).abs() < 1e-6);
+        assert_eq!(ringed.stamp(), list.version());
+        let near = |r0: f32, r1: f32| -> Vec<NodeId> {
+            let area = [trap.x - r1, trap.z - r1, trap.x + r1, trap.z + r1];
+            grid.floors_in(area)
+                .filter(|&n| {
+                    let d = grid.position(n).distance_xz(trap);
+                    d > r0 && d <= r1 && (grid.position(n).y - trap.y).abs() < 1.0
+                })
+                .collect()
+        };
+        let band = near(FIELD_M, 1.3);
+        assert!(!band.is_empty(), "the test ground has floors in the ring");
+        // The ring shuts nothing for the hard search and is closed to the soft one.
+        assert!(band.iter().all(|&n| ringed.open(n) && !ringed.ring_open(n)));
+        // The field's own floors are the hard part's, not the ring's; beyond the ring both are open.
+        assert!(near(0.0, FIELD_M).iter().all(|&n| !ringed.open(n) && ringed.ring_open(n)));
+        assert!(near(1.3, 3.0).iter().all(|&n| ringed.open(n) && ringed.ring_open(n)));
+        // A soft search along the trap's row goes round the ring where there is room; the hard one may go through it.
+        let from = grid.locate(Vec3::new(15.0, 0.0, 10.0), 1.0).unwrap();
+        let to = grid.locate(Vec3::new(35.0, 0.0, 10.0), 1.0).unwrap();
+        let hard = ringed.clone();
+        let soft = ringed.clone();
+        let hard_filter = RouteFilter::open().with_floors(move |node| hard.open(node));
+        let soft_filter = hard_filter
+            .clone()
+            .avoiding_floors(move |node| soft.ring_open(node));
+        let points = |r: &crate::v026g::bots::path::Route| r.points().iter().map(|p| p.at).collect::<Vec<_>>();
+        let through = s
+            .tactics
+            .route_nodes(from, to, 0, Some(0), false, &hard_filter)
+            .expect("a route");
+        let round = s
+            .tactics
+            .route_nodes(from, to, 0, Some(0), false, &soft_filter)
+            .expect("a route");
+        assert!(
+            off_route_m(&points(&round), trap) > off_route_m(&points(&through), trap) - 1e-3,
+            "the soft search keeps further off the trap than the hard one"
+        );
+        assert!(points(&round).iter().all(|p| p.distance_xz(trap) > 1.3 - 0.05));
     }
 
     #[test]

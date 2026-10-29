@@ -123,6 +123,7 @@
     "min_score": 0.2,
     "per_life": 1,
     "press_landing_m": null,
+    "ring_m": 0.0,
     "react": {
       "defuse": false,
       "hear": false,
