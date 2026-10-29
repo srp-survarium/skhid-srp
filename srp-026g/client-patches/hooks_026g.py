@@ -333,9 +333,12 @@ def lohook_hook(patch, row, sites, exe=None):
     if len(span) < 5:
         raise Bad(f"{name}: the lohook span at {site['va']:#x} is {len(span)} bytes; a jump needs 5")
     _branch_free(span, f"{name} lohook at {site['va']:#x}")
+    order = row.get("order")
+    if order is not None and (type(order) is not int or order < 0):
+        raise Bad(f"{name}: a lohook's `order` is a whole number (its place in the site's chain)")
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
-            "exits": site["exits"], "install": ("lohook", 0xE9),
+            "exits": site["exits"], "install": ("lohook", 0xE9), "order": order,
             "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
 
 
@@ -344,7 +347,8 @@ def lohook_entry(h):
     restore, and jump where it says (the replay stub, past the span, or an
     exit). Reached by a jump from the site; leaves esp as it was."""
     e, past = h["entry"], h["site"] + len(h["original"])
-    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:",
+    shims = h.get("chain", [h["shim"]])
+    lines = [f"global {e}", *(f"extern {shim}" for shim in shims), f"{e}:",
              "    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
              "    pushfd", "    pushad", "    cld",
              "    mov ebp, esp",                        # ebp -> Regs; [ebp+36] the slot
@@ -352,7 +356,11 @@ def lohook_entry(h):
              "    sub esp, 8", "    and esp, -16",      # the Context Frame {regs, fxsave}
              "    mov [esp], ebp", "    mov [esp+4], edi",
              "    mov eax, esp", "    sub esp, 12", "    push eax",
-             f"    call {h['shim']}",                   # eax = the Flow code
+             f"    call {shims[0]}"]                    # eax = the Flow code
+    for shim in shims[1:]:                              # a chain: the next while Continue
+        lines += ["    test eax, eax", f"    jnz {e}_flow",
+                  "    lea eax, [esp + 16]", "    mov [esp], eax", f"    call {shim}"]
+    lines += [f"{e}_flow:",
              f"    mov edx, {e}_replay",                # 0: Continue
              "    cmp eax, 0", f"    je {e}_go",
              f"    mov edx, {past:#x}",                 # 1: Skip
@@ -412,14 +420,39 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
+    chain_lohooks(out)
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out)
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out if not h.get("chained"))
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
     return out
+
+
+def chain_lohooks(hs):
+    """Several lohooks of one site (rust_patches.md, "Chains"): each names its
+    `order`, all different; the first in that order is the site's one entry
+    and install, which calls every handler's shim in order with the same
+    Context until one's Flow is not Continue (its `chain`); the others are
+    `chained` (a shim and an Exit enum of their own, no entry, no install).
+    A lone lohook needs no order."""
+    by_site = {}
+    for h in hs:
+        if h["kind"] == "lohook":
+            by_site.setdefault(h["site"], []).append(h)
+    for site, group in by_site.items():
+        if len(group) == 1:
+            continue
+        orders = [h["order"] for h in group]
+        if None in orders or len(set(orders)) != len(orders):
+            raise Bad(f"{', '.join(h['patch'] for h in group)}: lohooks of one site ({site:#x}) each name an "
+                      f"`order`, all different (got {orders})")
+        group.sort(key=lambda h: h["order"])
+        group[0]["chain"] = [h["shim"] for h in group]
+        for h in group[1:]:
+            h["chained"] = True
 
 
 def rs_text(hs):
@@ -547,6 +580,8 @@ def asm_text(hs):
         if h["kind"] == "code":
             continue                                   # its own .asm source, not generated here
         if h["kind"] == "lohook":
+            if h.get("chained"):
+                continue                               # called by its site's chain head's entry
             lines += ["", f"; {h['site']:#x} {h['what']}: lohook -> {h['entry']}"] + lohook_entry(h)
             continue
         macro = h["entry_macro"]
@@ -578,6 +613,8 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     run time, not here; it is refused until patch_026g.py integrates it."""
     out = []
     for h in hooks(tomls, functions, sites, exe):
+        if h.get("chained"):
+            continue                                   # its chain head's entry is the site's install
         how, opcode = h["install"]
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
@@ -603,8 +640,14 @@ def lohook_sites(tomls=None, sites=None):
     (patch_026g.py's INSTALLS declares them JUMP from this)."""
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
-    return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
-            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+    out = {}
+    for patch in tomls:
+        for row in patch.get("hook", ()):
+            if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook":
+                va = sites[row["site"]]["va"]
+                owner = out[va][1] + ", " + patch["name"] if va in out else patch["name"]
+                out[va] = (va, owner, sites[row["site"]]["what"])
+    return list(out.values())
 
 
 def install_sites(tomls=None, sites=None):

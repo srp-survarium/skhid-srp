@@ -61,6 +61,7 @@ global engine_setlocale
 global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
+global engine_lobby_query_resources
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -819,6 +820,21 @@ engine_cc_string:
     push dword [esp + 36]   ; name -> 4
     mov eax, [esp + 36]   ; object
     call 0xec860
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_lobby_query_resources:
+    ; 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; menu
+    call 0x21e450
     pop edi
     pop esi
     pop ebx

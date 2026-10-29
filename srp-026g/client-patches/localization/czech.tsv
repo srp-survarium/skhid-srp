@@ -2326,6 +2326,12 @@ st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
 st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
 st_srp_loadout_title	Výbava
 st_srp_loadout_unfit	nelze hrát
+st_srp_lobby_camp_069	Tábor
+st_srp_lobby_day	Klasická
+st_srp_lobby_hangar_046	Hangár
+st_srp_lobby_scene_option	Lobby:
+st_srp_lobby_scene_restart	Projeví se po restartu.
+st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Účet se vytvoří při prvním přihlášení
 st_srp_map_chemical_plant	Chemička
 st_srp_map_chemical_plant_v011	Chemička (v0.11)

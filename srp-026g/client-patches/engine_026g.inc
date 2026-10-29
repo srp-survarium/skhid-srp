@@ -187,3 +187,6 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
+; void engine_lobby_query_resources(struct lobby_menu *menu)
+; 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+extern engine_lobby_query_resources

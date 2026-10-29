@@ -161,6 +161,76 @@ pub extern "C" fn hook_language_on_options_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_configs_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_configs_start` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_configs_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_scene_request` (0x21e5cc, lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_scene_request(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_scene_request` calls this, from the game's jump at 0x21e5cc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_scene_request(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The named exits of lobby_scene::on_scenes_ready (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySceneOnScenesReadyExit { Done }
+/// The entry `lobby_scene_on_scenes_ready` (0x220b20, lobby_menu::on_render_scenes_ready's start (push ebp / mov ebp,esp / and esp,-8): ECX the lobby menu, the site's ESP+4 the query's results; done is its `ret 4`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_scenes_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_scenes_ready` calls this, from the game's jump at 0x220b20,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_scenes_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The named exits of lobby_scene::on_options_call (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySceneOnOptionsCallExit { Done }
+/// The entry `lobby_scene_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_options_call(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_options_call` calls this, from the game's jump at 0x1ff5d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_options_call(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.

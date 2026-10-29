@@ -1029,6 +1029,7 @@ va	status	ref_021d	name
 0x001ea790	inferred-high	0x001522c8	survarium::game::on_ui_sounds_cfg_loaded
 0x001ea9f0	inferred-medium	0x001524b9	survarium::game::on_base_resources_created
 0x001ebfc0	inferred-medium	0x001531cb	survarium::game::create_network_client
+0x001ec0f0	inferred-high		survarium::game::create_lobby_menu
 0x001ec170	inferred-medium	0x001532bd	survarium::game::query_base_resources
 0x001ec220	inferred-high	0x00153332	survarium::game::enable
 0x001ec380	inferred-high	0x00153409	survarium::game::load_cc_script
@@ -1239,6 +1240,7 @@ va	status	ref_021d	name
 0x0021c5e0	inferred-medium	0x0016e42f	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf4<void,survarium::network_client,enum vostok::connection_error_types_enum,enum vostok::handshaking_error_types_enum,enum vostok::socket_error_types_enum,unsigned int>,boost::_bi::list5<boost::_bi::value<survarium::network_client *>,boost::arg<1>,boost::arg<2>,boost::arg<3>,boost::arg<4> > > >::manage
 0x0021c910	inferred-medium	0x0016e8d5	survarium::base_game_scene::add_decal
 0x0021c980	inferred-medium	0x0016e93d	survarium::lobby_menu::lobby_menu
+0x0021d080	inferred-high		survarium::lobby_menu::clear_resources
 0x0021df00	inferred-high		survarium::lobby_menu::update_player_region
 0x0021e450	inferred-high		survarium::lobby_menu::query_resources
 0x0021e840	inferred-medium	0x0016fe18	vostok::detail::concrete_type_helper<void *>::copy_helper
@@ -1276,6 +1278,7 @@ va	status	ref_021d	name
 0x0022b0f0	inferred-medium	0x00179270	survarium::animated_model_instance_cook::translate_request_path
 0x0022b4e0	inferred-medium	0x0017964c	vostok::detail::concrete_type_helper<vostok::physics::world *>::copy_helper
 0x0022b590	inferred-medium	0x001796a2	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::animated_model_instance_cook *>,boost::arg<1> > > >::manager
+0x0022b790	inferred-medium		survarium::project_cooker_simple::translate_query
 0x0022c010	inferred-medium	0x00179cf0	survarium::project_cooker_simple::create_game_objects
 0x0022f960	inferred-medium	0x0017c62b	vostok::memory::new_array_helper<survarium::static_collision>::call<vostok::memory::doug_lea_allocator>
 0x0022fa00	inferred-medium	0x0017c677	vostok::memory::new_array_helper<survarium::render_visual>::call<vostok::memory::doug_lea_allocator>
@@ -1728,6 +1731,8 @@ va	status	ref_021d	name
 0x00284f20	inferred-medium	0x001a4a3c	survarium::lobby_character::on_player_ready
 0x00285180	inferred-medium	0x001a4bc5	vostok::detail::concrete_type_helper<survarium::player_initial_info>::copy_helper
 0x002852a0	inferred-medium	0x001a4d1e	survarium::simple_game_project::`scalar deleting destructor'
+0x00285540	inferred-medium		survarium::simple_game_project::insert
+0x002855b0	inferred-medium		survarium::simple_game_project::remove
 0x00285750	inferred-medium		survarium::simple_game_project::set_game_world_core
 0x00286410	inferred-medium		survarium::fill_items_dictionary_impl
 0x00287cc0	inferred-medium		survarium::lobby_menu::update_inventory_item

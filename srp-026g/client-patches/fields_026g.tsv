@@ -122,3 +122,15 @@ scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed strin
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
+survarium::lobby_query_frame	scene	-0x68	obj<vostok::resources::request>	lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
+survarium::lobby_query_frame	scene_data	-0x34	obj<vostok::resources::user_data_slot>	its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
+vostok::resources::request	name	0x0	ptr<u8>	a request's resource name (a C string the query reads while it runs)
+vostok::resources::request	class	0x4	u32	its resource class (40h a game project, 1Fh a binary config: lobby_menu::query_resources' list)
+vostok::resources::request	size	0x8	size	{name, class}: the request list's stride
+vostok::resources::user_data_slot	data	0x0	ptr<u8>	a request's user data (a variant), 0 none
+vostok::resources::user_data_slot	size	0x4	size	one pointer of the query's user data array
+survarium::scenes_ready_frame	results	0x4	ptr<survarium::lobby_scene_results>	on_render_scenes_ready's argument, the query's results
+survarium::lobby_scene_results	scene	0x9CC	u32	the fourth result's resource (+12Ch of result 3, 2E0h each; 0x220DA2): 0 when its query failed
+survarium::lobby_scene_results	project	0x9CC	ptr<survarium::game_project_resource>	the same, as the lobby's project (its resource part, project+38h; 0x220DC7)
+survarium::game_project_resource	track	0x1AC	u32	the project's camera track (project+1E4h): on_render_scenes_ready calls its vtable+20h unchecked (0x220E80)
+survarium::lobby_menu	project	0x114	u32	the lobby's project (simple_game_project, the resource less 38h; 0x220E01), 0 before the scene is ready

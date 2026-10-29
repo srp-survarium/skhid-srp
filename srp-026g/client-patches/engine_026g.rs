@@ -97,6 +97,8 @@ unsafe extern "C" {
     pub fn engine_point_to_screen(game: *mut c_void, point: *const f32, out: *mut f32) -> u32;
     /// 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
     pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
+    /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+    pub fn engine_lobby_query_resources(menu: *mut c_void);
 }
 
 #[allow(dead_code)]

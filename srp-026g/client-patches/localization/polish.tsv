@@ -2326,6 +2326,12 @@ st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
 st_srp_loadout_title	Zestaw
 st_srp_loadout_unfit	nie do gry
+st_srp_lobby_camp_069	Obóz
+st_srp_lobby_day	Klasyczne
+st_srp_lobby_hangar_046	Hangar
+st_srp_lobby_scene_option	Lobby:
+st_srp_lobby_scene_restart	Zadziała po ponownym uruchomieniu.
+st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Konto powstaje przy pierwszym logowaniu
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)

@@ -182,15 +182,20 @@ def main():
     expect(stock.language() == "original" and ours.language() == "original",
            "the initializer leaves the language string \"original\"")
     a_regs, a_sp, a_head = stock.start()
-    b_regs, b_sp, b_head = ours.start()
+    b_regs, b_sp, b_top = ours.start()
+    # the site's chain (hooks_026g.chain_lohooks): patch 79's handler, then
+    # patch 81's, which puts its own variable at the head after this one
+    lobby = console_variable(ours, b_top)
+    b_head = ours.read(b_top + 0x0C)
     variable = console_variable(ours, b_head)
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before and b_head != head_before
            and variable[0] == "localization" and variable[2] == 256 and variable[3] == 1
-           and ours.read(b_head + 0x0C) == head_before,
+           and ours.read(b_head + 0x0C) == head_before and lobby[0] == "srp_lobby_scene",
            "configs.start: registers and stack as the original's; `localization`, a saved string of 256 "
-           "bytes, at the head of the console's list before the old head (the original registers nothing)")
+           "bytes, in the console's list before the old head, patch 81's `srp_lobby_scene` registered after "
+           "it (the original registers nothing)")
     _, _, again = ours.start()
-    expect(again == b_head and ours.read(b_head + 0x0C) == head_before, "configs.start again: registered once")
+    expect(again == b_top and ours.read(b_head + 0x0C) == head_before, "configs.start again: registered once")
     buffer = variable[1]
     ours.emu.mem_write(TEXT, b"hungarian\0")
     ours.call_at(EXECUTE, (TEXT,), {UC_X86_REG_ECX: b_head})

@@ -944,9 +944,11 @@ va	name	source	ret_cleanup	result
 0x0021df00	survarium::lobby_menu::update_player_region	manual	4	projects the lobby character's feet and head (character+8, -0.1 and +2 m) and calls the movie's root.set_player_region
 0x0021e170	survarium::lobby_menu::set_mouse_position	manual	12	
 0x0021e260	survarium::lobby_menu::demo_play	manual	4	
+0x0021e450	survarium::lobby_menu::query_resources	manual	0	void; queries game_scene, game_scene_view, sound_scene, the lobby's project (request list [ebp-80h]..[ebp-44h], the project's {name, class 40h} at [ebp-68h]/[ebp-64h], its user data pointer at [ebp-34h]), cursor.swf, lobby_menu.swf, default.player and static_game_parameters.options with on_render_scenes_ready as the callback (query_resources 0xE5B60 at 0x21E5ED, 8 requests); one caller, the lobby menu's ctor (0x21CDBD)
 0x0021f3d0	survarium::login_menu::enable_button	manual	0	
 0x0021f430	survarium::login_menu::update_online_queue	manual	4	
 0x002206d0	survarium::lobby_menu::show_match_making	manual	0	
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	manual	4	void; result i's resource at results+12Ch+2E0h*i; the project (result 3, +9CCh) kept at lobby menu+114h less 38h, inserted (vtable+0Ch, 0x285540), its track (project+1E4h) played at lobby menu+118h; a failed project query is not checked (its ret 4 at 0x221E77)
 0x00225220	survarium::lobby_menu::is_mouse_over_ui	manual	0	AL: Boolean OR of two observed UI result bytes
 0x002252d0	survarium::lobby_menu::set_match_making_status	manual	20	
 0x00225810	survarium::lobby_menu::on_stats_message_arrived	manual	4	

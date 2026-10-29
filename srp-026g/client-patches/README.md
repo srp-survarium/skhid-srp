@@ -128,8 +128,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
-| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench (the spot and the view from the lobby project's `srp_lobby`), turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1200 of `.srpw` (after patch 45's code; 0x1000 until patch 45's round 6), its state at 0xFC0 of `.srpd`; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -2730,6 +2730,26 @@ of the weapon").
   no snap when the weapon gets framed.
 - **Room.** 2 382 bytes. `check_weapon_table_026g.py` 52 checks. Section 3.42, round 5e.
 
+Round 6 (2026-10-29, the lobby scenes: each scene the player picks has its own table;
+`../docs/notes/lobby-scenes.md`).
+- **The spot from the scene.** The weapon's spot and the camera's view of it are no longer in the
+  code. When a weapon's window opens, `camera` reads them from the lobby's project config:
+  `srp_lobby/weapon` (a float3) and `srp_lobby/weapon_view` (radians). The path is the lobby menu, its
+  project (+114h), `[[project+17Ch]+108h]`, as the engine reads `camera/position`. Each key goes
+  through has_key 0xF6C00 before child 0xF6B10, and each type is checked. The classic lobby's values
+  (4.25, 1.30, 3.05) and -pi/2 are data now: the content edit `lobby-scenes-1.json`.
+- **No spot.** Without a full and well-typed `srp_lobby` the window is treated as an armour's: the
+  stock camera, the weapon in the hands.
+- **Any wall.** The bench's transform is turned about the vertical by R = weapon_view + pi/2 (rows
+  rotY(spin) rotZ(tilt) rotY(R)), so the weapon lies across the camera's view. R 0 (the classic)
+  skips the turn: its transform is bit for bit 5e's.
+- **State.** 0xBC bytes: +A0h the spot (x, y, z, 1), +B0h the view, +B4h/+B8h cos R and sin R.
+  They are written before TABLE is set.
+- **Room.** 2 779 bytes, past `.srpw`'s first page. Patch 47's code moves to `.srpw`+1200h and its
+  state to `.srpd`+FC0h.
+- **Checked:** `check_weapon_table_026g.py` 56 checks. Its lobby menu has a project with a real
+  binary config. New cases: four other spots and views, and eight refusals.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
@@ -2838,8 +2858,9 @@ the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals
 weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
 armour's).
 
-`weapon_decals_026g.asm` at `.srpw`+1000h (3145 bytes, the section's second page), its state (12
-bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`, its entries:
+`weapon_decals_026g.asm` at `.srpw`+1200h (3145 bytes, after patch 45's code; +1000h, the section's
+second page, until patch 45's round 6), its state (12 bytes, the left button's press) at `.srpd`+FC0h
+(+FA0h until then); it begins with seven `jmp near`, its entries:
 
 - **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
@@ -3651,6 +3672,26 @@ answers `root.srp_language` with the two texts, the saved and the running
 language and every registered language by its own name. The launcher's PLAY,
 the replay start and the scripts pass no language by default. See
 `check_language_026g.py` and `../scripts/language-option/check.sh`.
+
+## Lobby scene in Settings (patch 81)
+
+Players choose the lobby's scene (`../docs/notes/lobby-scenes.md`): Classic,
+STALKER 2, Hangar or Camp, the projects `lobby_scene/<id>`. The Rust
+`lobby_scene` patch registers the console variable `srp_lobby_scene` (a saved
+string) at game::on_configs_loaded's start, in the site's chain after patch
+79's handler. The lobby menu asks for its scene once, at the game's start: the
+patch puts the chosen lobby in the classic's place in that query
+(0x21E5CC); another lobby than the classic is first asked as its config alone
+(a missing project would crash the project's cook), and when those results
+come (on_render_scenes_ready's start, 0x220B20) the query is asked again with
+the lobby's project, or the classic's when the config is not there or the
+project has no camera track. The choice applies at the next start. The main
+menu's Settings (Gameplay) call `srp_lobby_scene` (a pick, or a query), in the
+options callback's chain after patch 79's: a known id is saved and user.cfg
+written at once; the answer is `root.srp_lobby_scene` with the two texts, the
+saved and the shown lobby and every lobby's id and name. Patch 45 takes the
+weapon's spot from the lobby project's `srp_lobby` table (Round 6). See
+`check_lobby_scene_026g.py` and `../scripts/lobby-scene/check.sh`.
 
 ## Medical consumable countdown (patch 77)
 

@@ -97,6 +97,20 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
 
+    def test_add_value_takes_a_table_of_a_vector_and_a_float(self):
+        """A lobby's srp_lobby (lobby-scenes-1): a named table at the root holding a float3 and a float."""
+        data = fixture()
+        ce.add_value(data, '', 'srp_lobby', {'weapon': [4.25, 1.3, 3], 'weapon_view': -1.5707964})
+        rows = {p: (t, v) for p, t, v in ce.walk(data)}
+        self.assertEqual(rows['/srp_lobby'], (3, 2))
+        self.assertEqual(rows['/srp_lobby/weapon'], (7, struct.pack('<3f', 4.25, 1.3, 3.0)))
+        self.assertEqual(ce.rec(data, ce.find(data, 'srp_lobby/weapon'))[4], 12)
+        self.assertTrue(ce.same(value(data, 'srp_lobby/weapon_view'), -1.5707964))
+        self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
+        for bad in ([1.0], [1, 2, 3, 4, 5], [1, True], ['a', 'b']):
+            with self.assertRaises(ValueError):
+                ce.add_value(fixture(), '', 'v', bad)
+
     def test_modifier_retarget_by_its_path(self):
         """A modification's modifiers differ only in their `path`: `where` takes a path in the entry."""
         def modifier(key):

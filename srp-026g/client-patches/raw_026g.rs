@@ -103,6 +103,8 @@ unsafe extern "C" {
     pub fn engine_point_to_screen(game: *mut c_void, point: *const f32, out: *mut f32) -> u32;
     /// 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
     pub fn engine_cc_string(object: Option<CcString>, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
+    /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+    pub fn engine_lobby_query_resources(menu: Option<LobbyMenu>);
 }
 
 #[allow(dead_code)]
@@ -2232,6 +2234,305 @@ impl CcStringStorage {
     }
 }
 
+/// A survarium::lobby_query_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyQueryFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyQueryFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x68 (obj<vostok::resources::request>): lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Request {
+        Request(unsafe { self.0.byte_sub(0x68) })
+    }
+
+    /// -0x34 (obj<vostok::resources::user_data_slot>): its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene_data(self) -> UserDataSlot {
+        UserDataSlot(unsafe { self.0.byte_sub(0x34) })
+    }
+}
+
+/// A vostok::resources::request (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Request(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Request {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): a request's resource name (a C string the query reads while it runs)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): a request's resource name (a C string the query reads while it runs)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x4 (u32): its resource class (40h a game project, 1Fh a binary config: lobby_menu::query_resources' list)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn class(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x8 bytes: {name, class}: the request list's stride
+    pub const SIZE: usize = 0x8;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::requests (0x8 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RequestStorage([u8; 0x8]);
+
+#[allow(dead_code)]
+impl RequestStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x8])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> Request {
+        Request(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<Request> {
+        (!rooms.is_empty()).then(|| Request(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::user_data_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UserDataSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UserDataSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): a request's user data (a variant), 0 none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): a request's user data (a variant), 0 none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_data(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: one pointer of the query's user data array
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::user_data_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct UserDataSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl UserDataSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> UserDataSlot {
+        UserDataSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<UserDataSlot> {
+        (!rooms.is_empty()).then(|| UserDataSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::scenes_ready_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScenesReadyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ScenesReadyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::lobby_scene_results>): on_render_scenes_ready's argument, the query's results
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> Option<LobbySceneResults> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<LobbySceneResults>>().read_volatile() }
+    }
+}
+
+/// A survarium::lobby_scene_results (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbySceneResults(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbySceneResults {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x9cc (u32): the fourth result's resource (+12Ch of result 3, 2E0h each; 0x220DA2): 0 when its query failed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x9cc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x9cc (ptr<survarium::game_project_resource>): the same, as the lobby's project (its resource part, project+38h; 0x220DC7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn project(self) -> Option<GameProjectResource> {
+        unsafe { self.0.byte_add(0x9cc).cast::<Option<GameProjectResource>>().read_volatile() }
+    }
+}
+
+/// A survarium::game_project_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameProjectResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameProjectResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1ac (u32): the project's camera track (project+1E4h): on_render_scenes_ready calls its vtable+20h unchecked (0x220E80)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn track(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1ac).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::lobby_menu (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyMenu(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyMenu {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x114 (u32): the lobby's project (simple_game_project, the resource less 38h; 0x220E01), 0 before the scene is ready
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn project(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x114).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -2720,6 +3021,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<OptionsCallbackFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(OptionsCallbackFrame)
+        }
+    }
+
+    /// lobby_menu.scene_request (0x21e5cc): lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h
+    pub mod lobby_menu_scene_request {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::lobby_query_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<LobbyQueryFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(LobbyQueryFrame)
+        }
+    }
+
+    /// lobby_menu.scenes_ready (0x220b20): lobby_menu::on_render_scenes_ready's start (push ebp / mov ebp,esp / and esp,-8): ECX the lobby menu, the site's ESP+4 the query's results; done is its `ret 4`
+    pub mod lobby_menu_scenes_ready {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::lobby_menu (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn menu(machine: &impl Machine) -> Option<LobbyMenu> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(LobbyMenu)
+        }
+
+        /// the site's ESP: a survarium::scenes_ready_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ScenesReadyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ScenesReadyFrame)
         }
     }
 }

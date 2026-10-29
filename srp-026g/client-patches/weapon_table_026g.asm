@@ -22,8 +22,9 @@
 ;   +0  camera   patch 32's start_cam and exit_cam jump here instead of the
 ;                setter (eax = the camera, ecx = where it keeps the distance,
 ;                xmm0 the height, xmm1 the distance, [esp+4] the side angle):
-;                patch 32's mode 1 (a weapon shown) turns the table on: the
-;                camera's point is to go to BENCH (the height and the distance
+;                patch 32's mode 1 (a weapon shown) turns the table on when
+;                the lobby gives a spot (below; none: the stock camera, as an
+;                armour's window): the camera's point is to go to SPOT (the height and the distance
 ;                by the setter), its yaw and pitch to the bench's view, the
 ;                weapon's turn to 0, and the camera flies at once (round 5:
 ;                no wait for the weapon); mode 0 with the table on (a close, or an
@@ -44,7 +45,7 @@
 ;   +15 matrix   0x24778F `cmp byte [ebx+0F49Ch],0 / je 2477C2h`: once the
 ;                character makes no player (+D2C4h -1, +D2C8h 0), the table's
 ;                player's held item is drawn with the bench's transform
-;                ([ebp-0E8h], the decal pose's buffer), its middle at BENCH,
+;                ([ebp-0E8h], the decal pose's buffer), its middle at SPOT,
 ;                and the weapon is there (READY); before, the decal pose's
 ;                transform (10 m under the floor, where the stock decal
 ;                editor puts it away): the camera flies meanwhile and the
@@ -75,7 +76,17 @@
 ;   every byte of it inside the character, each index checked. (Round 3 read
 ;   weapon+25Ch, which is not a pointer for a held weapon: 2 for the VSS in
 ;   the owner's crash of 2026-10-21 11:18:24.)
-; The weapon's middle (the point that goes to BENCH): its skeleton model
+; The spot (round 6, 2026-10-29, docs/notes/lobby-scenes.md): each lobby
+; scene says where the weapon floats, in its project's config, read when the
+; table turns on: srp_lobby/weapon (a float3: the weapon's middle there) and
+; srp_lobby/weapon_view (the yaw the camera looks at it from; the classic
+; lobby's -pi/2, along +x at the wall the workbench stands at, by the content
+; edit lobby-scenes-1). The bench's transform is the classic's turned by R =
+; weapon_view + pi/2 about the vertical (rotY(spin) * rotZ(tilt) * rotY(R)), so
+; the weapon lies across the view and tilts about its length in any lobby; R 0
+; (the classic) leaves the classic's transform as it was, bit for bit.
+;
+; The weapon's middle (the point that goes to SPOT): its skeleton model
 ; (weapon+1810h) has the render instance (+108h, skeleton_render_model_instance,
 ; vtable 0x9F0F24), whose model (+62B4h) holds the mesh's box (+108h min, +114h
 ; max, in the exported frame: rotY(pi) of the mesh's, as the instance's own
@@ -166,6 +177,21 @@ ORG CAVE
 %define TURN_YAW        0xCC        ; a drag's moves of the frame
 %define TURN_PITCH      0xD0
 
+; The lobby's project and its config (lobby_menu::on_render_scenes_ready keeps the project at
+; +114h, 0x220E01; the engine reads its camera/position as [[project+17Ch]+108h] -> camera ->
+; position, 0x221975..0x2219E0). A binary config value: +0 its data (a table's children, a
+; vector's floats, a number's bits), +14h its type.
+%define PROJECT         0x114       ; lobby menu: its scene's project (0 none)
+%define PROJECT_CONFIG  0x17C       ; the project: its binary_config
+%define CONFIG_ROOT     0x108       ; binary_config: its root value
+%define HAS_KEY         0x0F6C00    ; eax = table, esi = key: al = it is there
+%define CHILD           0x0F6B10    ; eax = table, edi = key: eax = the child (no end check: has_key first)
+%define VALUE_TYPE      0x14
+%define T_INT           1
+%define T_FLOAT         2
+%define T_NAMED         3
+%define T_FLOAT3        7
+
 ; The state, at STATE
 %define TABLE           0x00        ; 1: the weapon is at the bench
 %define FLY             0x04        ; 1: the camera is the table's (going there, there, or coming back)
@@ -187,6 +213,10 @@ ORG CAVE
 %define TARGET_ZOOM     0x4C        ; the camera's zoom the flight goes to (1 back at the stock camera)
 %define BENCH_MATRIX    0x50        ; float4x4: the bench transform the held item was last drawn with
 %define BIND_MIDDLE     0x90        ; float4: the table's middle (bind space), before bone 1
+%define SPOT            0xA0        ; float4: the lobby's weapon spot (x, y, z, 1): the weapon's middle there
+%define VIEW            0xB0        ; float: the yaw the camera looks at the spot from
+%define TURN_COS        0xB4        ; cos and sin of the bench's turn R = VIEW + pi/2 (0 in the classic
+%define TURN_SIN        0xB8        ;   lobby, whose camera looks along +x); SPOT..TURN_SIN hold while TABLE is 1
 %define CONST(label)    ((label) - STATE)
 %define FC(label)       ((label) - wide)    ; frame_view's constants, from ebx
 
@@ -207,6 +237,9 @@ camera:
     lea ebx, [edi+CONST(wide)]      ; ebx: the constants (FC)
     cmp byte [edi + PREVIEW - STATE + MODE], 0
     je .off
+    call spot                       ; the lobby's weapon spot: none, the stock camera (as an armour's)
+    test eax, eax
+    jz .off
     cmp dword [edi+FLY], 0
     jne .on                         ; on, or still coming back: the yaw and pitch kept are the stock camera's
     mov eax, [esi+YAW]
@@ -237,14 +270,14 @@ camera:
     fadd dword [ebx+FC(zoom_add)]
     fdivrp st1, st0
     fstp dword [edi+TARGET_ZOOM]
-    mov eax, [ebx+FC(bench_x)]
+    mov eax, [edi+SPOT]
     mov [edi+TARGET_X], eax
-    mov eax, [ebx+FC(bench_z)]
+    mov eax, [edi+SPOT+8]
     mov [edi+TARGET_Z], eax
     mov eax, [ebx+FC(view_pitch)]
     mov [edi+TARGET_PITCH], eax
     fld dword [ebx+FC(two_pi)]   ; the bench's yaw, the nearest turn of it to the camera's
-    fld dword [ebx+FC(view_yaw)]
+    fld dword [edi+VIEW]
     fsub dword [esi+YAW]
 .turns:
     fprem1
@@ -257,7 +290,7 @@ camera:
     movss xmm0, [ebx+FC(one)]    ; framed for a 1 m weapon until its own is known
     call frame_view                 ; xmm1 the distance, xmm2 the side angle
     movss [esp+32+4], xmm2          ; the setter's side angle: the weapon's place on the screen
-    movss xmm0, [ebx+FC(bench_y)]
+    movss xmm0, [edi+SPOT+4]
     jmp .set
 .off:
     cmp dword [edi+TABLE], 0
@@ -276,6 +309,107 @@ camera:
 .set:
     popad
     jmp CAMERA_SET
+
+; The lobby's weapon spot (docs/notes/lobby-scenes.md): its project's
+; srp_lobby/weapon (a float3) and srp_lobby/weapon_view (a float or an int,
+; radians). esi = the camera, edi = the state. Found: SPOT, VIEW, TURN_COS and
+; TURN_SIN written, eax 1; else eax 0 and the state as it was. Keeps every
+; other register; the x87 stack as it was.
+spot:
+    push ebx
+    push esi
+    push ebp
+    mov ebp, edi                    ; ebp = the state
+    mov eax, [esi+MENU]
+    test eax, eax
+    jz .none
+    mov eax, [eax+PROJECT]
+    test eax, eax
+    jz .none
+    mov eax, [eax+PROJECT_CONFIG]
+    test eax, eax
+    jz .none
+    mov eax, [eax+CONFIG_ROOT]
+    test eax, eax
+    jz .none
+    lea edi, [ebp+CONST(key_srp_lobby)]
+    call find
+    test eax, eax
+    jz .none
+    cmp word [eax+VALUE_TYPE], T_NAMED
+    jne .none
+    mov ebx, eax                    ; srp_lobby
+    lea edi, [ebp+CONST(key_weapon)]
+    call find
+    test eax, eax
+    jz .none
+    cmp word [eax+VALUE_TYPE], T_FLOAT3
+    jne .none
+    mov esi, [eax]                  ; its three floats
+    test esi, esi
+    jz .none
+    mov eax, ebx
+    lea edi, [ebp+CONST(key_weapon_view)]
+    call find
+    test eax, eax
+    jz .none
+    cmp word [eax+VALUE_TYPE], T_FLOAT
+    je .float
+    cmp word [eax+VALUE_TYPE], T_INT
+    jne .none
+    fild dword [eax]
+    jmp .view
+.float:
+    fld dword [eax]
+.view:
+    fst dword [ebp+VIEW]
+    fadd dword [ebp+CONST(half_pi)] ; R: the classic's -pi/2 gives 0 exactly (both are float32 pi/2)
+    fsincos
+    fstp dword [ebp+TURN_COS]
+    fstp dword [ebp+TURN_SIN]
+    mov eax, [esi]
+    mov [ebp+SPOT], eax
+    mov eax, [esi+4]
+    mov [ebp+SPOT+4], eax
+    mov eax, [esi+8]
+    mov [ebp+SPOT+8], eax
+    mov dword [ebp+SPOT+12], 0x3F800000     ; w 1, for the transform's row 3
+    mov eax, 1
+    jmp .end
+.none:
+    xor eax, eax
+.end:
+    mov edi, ebp
+    pop ebp
+    pop esi
+    pop ebx
+    ret
+
+; eax = a named table, edi = a key (C string): eax = its child, 0 when it
+; has none (has_key first: child has no end check). Keeps every other register.
+find:
+    push ecx
+    push edx
+    push esi
+    push edi
+    push eax
+    mov esi, edi
+    call HAS_KEY
+    mov ecx, eax
+    pop eax
+    mov edi, [esp]
+    test cl, cl
+    jz .no
+    call CHILD
+    jmp .out
+.no:
+    xor eax, eax
+.out:
+    pop edi
+    pop esi
+    pop edx
+    pop ecx
+    ret
 
 ; 0x284020 `movss xmm0,[ebx+0C8h]` -> call tick + 3 nops. ebx = camera+4,
 ; [esp+14h] the frame's time. Keeps every register but xmm0 (the original's
@@ -362,7 +496,7 @@ tick:
 
 ; The bench's view of a weapon of length L = xmm0 (edi = the state, esi =
 ; the camera), at the original's field of view and the screen's aspect a
-; (the viewport's, else 16:9): the camera looks at BENCH (the weapon's
+; (the viewport's, else 16:9): the camera looks at SPOT (the weapon's
 ; middle) and its side angle turns the view so that the middle is at FX of
 ; the width (and about the middle of the height) whatever the distance, so
 ; the wheel zooms into the weapon; and it is as near as keeps the ends at
@@ -586,7 +720,7 @@ matrix:
     call middle
     lea eax, [ebp+MATRIX]
     ; rows (v * M): rotY(spin) * rotZ(tilt), then the middle of the model
-    ; at BENCH
+    ; at SPOT
     fld dword [edi+SPIN]
     fsincos                         ; st0 = cos a, st1 = sin a
     fld dword [edi+TILT]
@@ -621,11 +755,18 @@ matrix:
     movss [eax+1Ch], xmm0
     movss [eax+2Ch], xmm0
     movups [eax+30h], xmm0
-    movups xmm0, [edi+MIDDLE]       ; row 3: BENCH - middle * the rows (w 1)
     push edx
     mov edx, eax
+    cmp dword [edi+TURN_SIN], 0     ; the bench turned (not the classic's): the rows * rotY(R)
+    jne .turn
+    cmp dword [edi+TURN_COS], 0x3F800000
+    je .turned
+.turn:
+    call turn
+.turned:
+    movups xmm0, [edi+MIDDLE]       ; row 3: SPOT - middle * the rows (w 1)
     call transform
-    movups xmm1, [edi+CONST(bench_x)]
+    movups xmm1, [edi+SPOT]
     subps xmm1, xmm0
     movups [eax+30h], xmm1
     lea edx, [edi+BENCH_MATRIX]     ; the interface: the transform drawn with, and a new stamp
@@ -783,6 +924,32 @@ middle:
     popad
     ret
 
+; The rows at edx (0..2, 16 bytes each) times rotY(R), the bench's turn
+; (rows (cos R, 0, sin R), (0, 1, 0), (-sin R, 0, cos R), as the rows above
+; turn by the spin): (x, y, z) -> (x cos R - z sin R, y, x sin R + z cos R).
+; edi = the state. Uses the x87 stack (left as it was).
+turn:
+    push ecx
+    mov ecx, 3
+.row:
+    fld dword [edx]                 ; x
+    fmul dword [edi+TURN_COS]
+    fld dword [edx+8]               ; z
+    fmul dword [edi+TURN_SIN]
+    fsubp st1, st0                  ; x cos R - z sin R
+    fld dword [edx]
+    fmul dword [edi+TURN_SIN]
+    fld dword [edx+8]
+    fmul dword [edi+TURN_COS]
+    faddp st1, st0                  ; x sin R + z cos R
+    fstp dword [edx+8]
+    fstp dword [edx]
+    add edx, 16
+    loop .row
+    sub edx, 48
+    pop ecx
+    ret
+
 ; xmm0 = (x, y, z, w) * the matrix at edx (rows: x * row 0 + y * row 1 + z *
 ; row 2 + row 3; w is not read). Uses xmm1..xmm3.
 transform:
@@ -933,12 +1100,7 @@ fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITC
 steps:            db SIDE, SIDE_TARGET, HEIGHT, HEIGHT_TARGET, DISTANCE, DISTANCE_TARGET, 0
 align 16, db 0
 abs_mask:         dd 0x7FFFFFFF, 0, 0, 0   ; (aligned: an andps operand)
-bench_x:          dd 4.25           ; BENCH: above the workbench (top y 0.91, x 3.75..4.88, z 1.70..4.60)
-bench_y:          dd 1.30           ;   between its drill press (z < 2.40) and its vice (z > 3.50)
-bench_z:          dd 3.05
-                  dd 1.0            ;   (w, for row 3)
 flip_half:        dd -0.5, 0.5, -0.5, 0.0   ; the box's centre, turned as the instance's box (rotY(pi))
-view_yaw:         dd -1.5707964     ; the camera looks along +x, at the wall the bench stands at
 view_pitch:       dd -0.25          ; from a little above
 tan_original:     dd 0.63707026     ; tan(65 / 2 degrees): the original's vertical field of view
 four:             dd 4.0
@@ -967,6 +1129,10 @@ rate:             dd 5.0            ; RATE: the share of the way a second
 one:              dd 1.0
 floor:            dd 0.01           ; FLOOR: the least speed of the point (m/s), the yaw and pitch (rad/s)
 millimetre:       dd 0.001
+half_pi:          dd 1.5707964      ; R = VIEW + pi/2: the bench's turn from the classic's view along +x
+key_srp_lobby:    db "srp_lobby", 0
+key_weapon:       db "weapon", 0
+key_weapon_view:  db "weapon_view", 0
 ; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
 ; default box; the Magnum's spare rounds; a body off the axis, the RPD's):
 ; items_dict id, the middle of the gun (parts parked beside it left out) in

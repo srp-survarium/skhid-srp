@@ -16,6 +16,7 @@ struct engine_cfg;
 struct game_material_manager;
 struct gfx_movie;
 struct gfx_value;
+struct lobby_menu;
 struct match_options;
 struct material_pair;
 struct network_client;
@@ -198,5 +199,8 @@ void __attribute__((thiscall)) engine_translate_text(struct text_translator *tra
 
 /* the IAT slot 0x87027c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lcid)(void);
+
+/* 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0 */
+void engine_lobby_query_resources(struct lobby_menu *menu);
 
 #endif

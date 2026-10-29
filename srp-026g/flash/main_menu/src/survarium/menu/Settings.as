@@ -77,6 +77,10 @@ package survarium.menu
       // of the tab as its options are, saved by Apply.
       protected var _language:SrpLanguage;
       
+      // The gameplay tab's Lobby choice (exe patch 81), a change of the tab as
+      // the Language's.
+      protected var _lobbyScene:SrpLobbyScene;
+      
       public function Settings()
       {
          super();
@@ -210,6 +214,14 @@ package survarium.menu
       {
          this._language.answer(values);
          this.languageChanged(null);
+      }
+      
+      // The exe's answer to the Lobby choice (root.srp_lobby_scene): the saved
+      // lobby is selected, so no pick is pending.
+      public function setLobbyScene(values:Array) : void
+      {
+         this._lobbyScene.answer(values);
+         this.lobbySceneChanged(null);
       }
       
       public function selectIndex(tabIndex:uint) : void
@@ -390,6 +402,10 @@ package survarium.menu
                {
                   this._language.save();
                }
+               if(control == this._lobbyScene.stepper)
+               {
+                  this._lobbyScene.save();
+               }
                elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(control.name));
                if(elementIndex != -1)
                {
@@ -434,6 +450,7 @@ package survarium.menu
             this._changed[control] = 0;
          }
          this._language.revert();
+         this._lobbyScene.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -470,6 +487,9 @@ package survarium.menu
          this._language = new SrpLanguage(this.settings_content);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
+         this._lobbyScene = new SrpLobbyScene(this.settings_content);
+         this._changed[this._lobbyScene.stepper] = 0;
+         this._lobbyScene.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.lobbySceneChanged);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
@@ -477,6 +497,7 @@ package survarium.menu
       {
          SrpFovSlider.apply(this);
          this._language.place();
+         this._lobbyScene.place();
          var key:Object;
          var tabIndex:uint;
          var i:int;
@@ -673,6 +694,26 @@ package survarium.menu
          this.checkButtons();
       }
       
+      // A Lobby pick counts as the change of an option, as a Language pick.
+      protected function lobbySceneChanged(event:Event) : void
+      {
+         var stepper:OptionStepper = this._lobbyScene.stepper;
+         if(this._lobbyScene.pending)
+         {
+            if(this._changed[stepper] != 1)
+            {
+               this._changed[stepper] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[stepper] == 1)
+         {
+            this._changed[stepper] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
+      }
+      
       protected function checkButtons() : void
       {
          if(!this._changes)
@@ -750,6 +791,8 @@ package survarium.menu
          _changes = 0;
          this._changed[this._language.menu] = 0;
          this._language.revert();
+         this._changed[this._lobbyScene.stepper] = 0;
+         this._lobbyScene.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

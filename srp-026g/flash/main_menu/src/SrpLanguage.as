@@ -22,14 +22,15 @@ package
     {
         private static const GAMEPLAY_FRAME:int = 1;
         // The bottom panel of the gameplay tab, where the seeding options were
-        // (settingsTabs_15 hides them): centred on the panel, the label over
-        // the list as the "Limit upload speed:" label was over its stepper.
-        private static const CENTER_X:Number = 297;
+        // (settingsTabs_15 hides them): centred on its left half (the Lobby
+        // choice has the right, SrpLobbyScene), the label over the list as the
+        // "Limit upload speed:" label was over its stepper.
+        private static const CENTER_X:Number = 138;
         private static const LABEL_Y:Number = 289;
         private static const MENU_Y:Number = 315;
         private static const NOTE_Y:Number = 348;
         private static const MENU_WIDTH:Number = 184;
-        private static const TEXT_WIDTH:Number = 338;
+        private static const TEXT_WIDTH:Number = 300;
 
         public var menu:DropdownMenuSkinned;
         private var content:MovieClip;
@@ -44,7 +45,7 @@ package
         public function SrpLanguage(content:MovieClip)
         {
             this.content = content;
-            var format:TextFormat = labelFormat(content);
+            var format:TextFormat = textFormat(content);
             label = text(format, LABEL_Y, 24);
             content.addChild(label);
             menu = new DropdownMenuSkinned();
@@ -142,9 +143,10 @@ package
             note.visible = menu.visible && saved != running;
         }
 
-        // The tab's option label style: the "Limit upload speed:" stepper's
-        // label (the stepper is hidden; this choice took its place).
-        private static function labelFormat(content:MovieClip):TextFormat
+        // The tab's option label style, centred: the "Limit upload speed:"
+        // stepper's label (the stepper is hidden; this choice took its place).
+        // The Lobby choice's note takes it too.
+        public static function textFormat(content:MovieClip):TextFormat
         {
             var stepper:OptionStepperCyclic2 = content.getChildByName("_upload_speed") as OptionStepperCyclic2;
             var format:TextFormat = stepper != null && stepper.textField != null

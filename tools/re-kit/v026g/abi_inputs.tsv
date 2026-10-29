@@ -2271,12 +2271,15 @@ va	name	location	role	basis
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+12	signed mouse wheel delta	inferred
 0x0021e260	survarium::lobby_menu::demo_play	ECX	lobby receiver	inferred
 0x0021e260	survarium::lobby_menu::demo_play	stack+4	requested track name	inferred
+0x0021e450	survarium::lobby_menu::query_resources	EAX	the lobby menu	observed
 0x0021f3d0	survarium::login_menu::enable_button	EDX	login menu receiver	inferred
 0x0021f3d0	survarium::login_menu::enable_button	AL	enabled Boolean	inferred
 0x0021f430	survarium::login_menu::update_online_queue	EAX	current timestamp; zero bypasses interval gate	inferred
 0x0021f430	survarium::login_menu::update_online_queue	stack+4	login menu receiver	inferred
 0x002206d0	survarium::lobby_menu::show_match_making	EDX	menu receiver	inferred
 0x002206d0	survarium::lobby_menu::show_match_making	AL	show Boolean	inferred
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	ECX	the lobby menu	observed
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	entry ESP+4	the queries' results	observed
 0x00225220	survarium::lobby_menu::is_mouse_over_ui	ECX	lobby receiver	inferred
 0x002252d0	survarium::lobby_menu::set_match_making_status	stack+4	menu receiver	inferred
 0x002252d0	survarium::lobby_menu::set_match_making_status	stack+8	queue place	inferred

@@ -2326,6 +2326,12 @@ st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
+st_srp_lobby_camp_069	Lager
+st_srp_lobby_day	Klassisch
+st_srp_lobby_hangar_046	Hangar
+st_srp_lobby_scene_option	Lobby:
+st_srp_lobby_scene_restart	Gilt nach einem Neustart.
+st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)

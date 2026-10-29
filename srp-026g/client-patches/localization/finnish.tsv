@@ -2326,6 +2326,12 @@ st_srp_loadout_sell_many	Käytössä: %1$s. Myydäänkö silti?
 st_srp_loadout_sell_one	Käytössä varustesetissä %1$s. Myydäänkö silti?
 st_srp_loadout_title	Varustesetti
 st_srp_loadout_unfit	ei pelikelpoinen
+st_srp_lobby_camp_069	Leiri
+st_srp_lobby_day	Klassinen
+st_srp_lobby_hangar_046	Halli
+st_srp_lobby_scene_option	Aula:
+st_srp_lobby_scene_restart	Tulee voimaan uudelleenkäynnistyksen jälkeen.
+st_srp_lobby_stk2_blockpost	STALKER 2
 st_srp_login_account_hint	Tili luodaan ensimmäisellä kirjautumisella
 st_srp_map_chemical_plant	Kemiantehdas
 st_srp_map_chemical_plant_v011	Kemiantehdas (v0.11)

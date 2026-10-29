@@ -1830,7 +1830,7 @@ def test_weapon_table(original, image, before):
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
-    check(outside == {0x2845C0, 0x2844D0} and all(t in starts for t in targets - outside)
+    check(outside == {0x2845C0, 0x2844D0, 0xF6C00, 0xF6B10} and all(t in starts for t in targets - outside)
           and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * len(P.WEAPON_TABLE_ENTRIES)
           and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)] == ["call [eax+0x24]"]
           and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
@@ -1839,9 +1839,18 @@ def test_weapon_table(original, image, before):
           == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
           f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with six "
-          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the lobby menu's "
-          "vtable+24h (is_mouse_over_ui), every branch inside it lands on an instruction, and no operand is an "
-          "absolute address")
+          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the "
+          "config's key check and lookup (the lobby's spot) and the lobby menu's vtable+24h (is_mouse_over_ui), "
+          "every branch inside it lands on an instruction, and no operand is an absolute address")
+    scene = [t for _, _, t in ndisasm(source.read(0x221975, 0x2F), 0x221975)]
+    check(rows(source, 0x220E01, 6) == ["mov [ebx+0x114],eax"]
+          and scene[:5] == ["mov eax,[ebx+0x114]", "mov ecx,[eax+0x17c]", "mov eax,[ecx+0x108]", "mov edi,0x9fb600",
+                            "call 0xf6b10"]
+          and scene[7:10] == ["mov eax,[eax]", "movq xmm0,[eax]", "mov edx,[eax+0x8]"]
+          and source.read(0x9FB600, 7) == b"camera\0",
+          "the lobby's spot: on_render_scenes_ready keeps the scene's project at lobby menu+114h (0x220E01) and "
+          "reads its config as [[project+17Ch]+108h] -> camera -> position, a float3 whose value's +0 points to "
+          "its three floats (0x221975..0x2219A1): what patch 45 reads srp_lobby/weapon by")
     mouse = {a: t for a, _, t in ndisasm(source.read(0x283D79, 0x13), 0x283D79)}
     check(mouse.get(0x283D7F) == "call eax" and mouse.get(0x283D88) == "test al,al"
           and mouse.get(0x283D8A) == "jz 0x283dbe"
@@ -2145,10 +2154,13 @@ def instruction(image, va):
         except ValueError:
             return None
         rows = ndisasm(window, va)
+        # an instruction's length is the next one's distance: ndisasm prints
+        # the bytes of a long one (10 or more) on a second, `-` line, which
+        # ndisasm() leaves out
         for (at, code_hex, text), following in zip(rows, rows[1:] + [None]):
-            if following is None or at + len(code_hex) // 2 > va + len(window) - 16:
+            if following is None or following[0] > va + len(window) - 16:
                 break
-            cache.setdefault(at, (len(code_hex) // 2, text))
+            cache.setdefault(at, (following[0] - at, text))
         if va not in cache and rows:
             cache[va] = (len(rows[0][1]) // 2, rows[0][2])
     return cache.get(va)
@@ -4009,6 +4021,59 @@ def test_language(original, image, before):
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
               and block.va <= entry < block.va + block.size and not under and not branches,
               f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
+def test_lobby_scene(original, image, before):
+    """Check 81: players choose the lobby's scene, a setting kept in user.cfg
+    (patch 81, the Rust patch `lobby_scene`, four lohooks of
+    lobby_scene.toml, two of them in a chain after patch 79's;
+    ../docs/notes/lobby-scenes.md). check_lobby_scene_026g.py runs each from
+    the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    text_at = lambda at: bytes(original[stock.offset(at):original.index(b"\0", stock.offset(at))])
+    check(rows(0x21E5A2, 0xE) == ["mov dword [ebp-0x68],0x9ffd98", "mov dword [ebp-0x64],0x40"]
+          and text_at(0x9FFD98) == b"lobby_scene/day"
+          and rows(0x21E569, 3) == ["mov [ebp-0x34],edx"] and rows(0x21E54A, 6) == ["lea edx,[ebp-0xe0]"]
+          and rows(0x21E5CC, 10) == ["movq [eax+0x8],xmm0", "call 0x21e860"]
+          and rows(0x21E5E7, 11) == ["lea ecx,[esi+0x8]", "lea eax,[ebp-0x80]", "call 0xe5b60"]
+          and rows(0x21CDBB, 7) == ["mov eax,ebx", "call 0x21e450"],
+          "lobby_menu::query_resources (0x21E450, its one call in the lobby menu's ctor 0x21CDBD) asks its "
+          "fourth request {\"lobby_scene/day\", 40h} at [ebp-68h] with the lobby menu's variant ([ebp-34h]) "
+          "among eight (0xE5B60 at 0x21E5ED); the list is whole at 0x21E5CC")
+    check(rows(0x220B20, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"]
+          and rows(0x220DA2, 6) == ["mov eax,[edi+0x9cc]"]
+          and rows(0x220E7A, 0xC) == ["mov eax,[ebx+0x114]", "mov ecx,[eax+0x1e4]"]
+          and rows(0x221E77, 3) == ["ret 0x4"],
+          "lobby_menu::on_render_scenes_ready (0x220B20, ECX the menu, [esp+4] the results) reads result 3's "
+          "resource at +9CCh unchecked and its project's track (+1E4h) unchecked; it returns at 0x221E77 (ret 4)")
+    import hooks_026g
+    every = hooks_026g.hooks()
+    hooks = {h["site_name"]: h for h in every if h["patch"] == "lobby_scene"}
+    heads = {h["site_name"]: h for h in every if h.get("chain")}
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted(hooks) == ["configs.start", "lobby_menu.scene_request", "lobby_menu.scenes_ready",
+                            "options.callback"]
+          and all(h["kind"] == "lohook" for h in hooks.values())
+          and all(hooks[site].get("chained") and heads[site]["patch"] == "language"
+                  and heads[site]["chain"][-1] == hooks[site]["shim"]
+                  for site in ("configs.start", "options.callback")),
+          "lobby_scene.toml's four hooks are lohooks; at configs.start and options.callback in the chain after "
+          "patch 79's handler (one entry, language's, calls both shims)")
+    for site in ("lobby_menu.scene_request", "lobby_menu.scenes_ready"):
+        h = hooks[site]
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({site}): {old.hex()} in the original and the build without the late join, "
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
@@ -6553,6 +6618,7 @@ def test_late_join(original, without, server, source):
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_language(original, image, before)
+    test_lobby_scene(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

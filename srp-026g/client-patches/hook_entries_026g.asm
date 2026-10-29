@@ -27,6 +27,7 @@ blackout_on_static_info:
     sub esp, 12
     push eax
     call hook_blackout_on_static_info
+blackout_on_static_info_flow:
     mov edx, blackout_on_static_info_replay
     cmp eax, 0
     je blackout_on_static_info_go
@@ -66,6 +67,7 @@ blackout_on_replay_options:
     sub esp, 12
     push eax
     call hook_blackout_on_replay_options
+blackout_on_replay_options_flow:
     mov edx, blackout_on_replay_options_replay
     cmp eax, 0
     je blackout_on_replay_options_go
@@ -105,6 +107,7 @@ blackout_on_update_icons:
     sub esp, 12
     push eax
     call hook_blackout_on_update_icons
+blackout_on_update_icons_flow:
     mov edx, blackout_on_update_icons_replay
     cmp eax, 0
     je blackout_on_update_icons_go
@@ -144,6 +147,7 @@ blackout_on_tab:
     sub esp, 12
     push eax
     call hook_blackout_on_tab
+blackout_on_tab_flow:
     mov edx, blackout_on_tab_replay
     cmp eax, 0
     je blackout_on_tab_go
@@ -183,6 +187,7 @@ blackout_on_input_end:
     sub esp, 12
     push eax
     call hook_blackout_on_input_end
+blackout_on_input_end_flow:
     mov edx, blackout_on_input_end_replay
     cmp eax, 0
     je blackout_on_input_end_go
@@ -222,6 +227,7 @@ blackout_on_name_visibility:
     sub esp, 12
     push eax
     call hook_blackout_on_name_visibility
+blackout_on_name_visibility_flow:
     mov edx, blackout_on_name_visibility_replay
     cmp eax, 0
     je blackout_on_name_visibility_go
@@ -261,6 +267,7 @@ consumable_activity_on_update:
     sub esp, 12
     push eax
     call hook_consumable_activity_on_update
+consumable_activity_on_update_flow:
     mov edx, consumable_activity_on_update_replay
     cmp eax, 0
     je consumable_activity_on_update_go
@@ -282,6 +289,7 @@ consumable_activity_on_update_replay:
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start
+extern hook_lobby_scene_on_configs_start
 language_on_configs_start:
     lea esp, [esp - 4]
     pushfd
@@ -300,6 +308,12 @@ language_on_configs_start:
     sub esp, 12
     push eax
     call hook_language_on_configs_start
+    test eax, eax
+    jnz language_on_configs_start_flow
+    lea eax, [esp + 16]
+    mov [esp], eax
+    call hook_lobby_scene_on_configs_start
+language_on_configs_start_flow:
     mov edx, language_on_configs_start_replay
     cmp eax, 0
     je language_on_configs_start_go
@@ -339,6 +353,7 @@ language_on_configs_texts:
     sub esp, 12
     push eax
     call hook_language_on_configs_texts
+language_on_configs_texts_flow:
     mov edx, language_on_configs_texts_replay
     cmp eax, 0
     je language_on_configs_texts_go
@@ -360,6 +375,7 @@ language_on_configs_texts_replay:
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
 extern hook_language_on_options_call
+extern hook_lobby_scene_on_options_call
 language_on_options_call:
     lea esp, [esp - 4]
     pushfd
@@ -378,6 +394,12 @@ language_on_options_call:
     sub esp, 12
     push eax
     call hook_language_on_options_call
+    test eax, eax
+    jnz language_on_options_call_flow
+    lea eax, [esp + 16]
+    mov [esp], eax
+    call hook_lobby_scene_on_options_call
+language_on_options_call_flow:
     mov edx, language_on_options_call_replay
     cmp eax, 0
     je language_on_options_call_go
@@ -398,6 +420,89 @@ language_on_options_call_go:
 language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
+
+; 0x21e5cc lobby_menu::query_resources with its request list built, before the query (movq [eax+8],xmm0; the call 0xE5B60 at 0x21E5ED): EBP its frame, the project's request at EBP-68h, its user data pointer at EBP-34h: lohook -> lobby_scene_on_scene_request
+global lobby_scene_on_scene_request
+extern hook_lobby_scene_on_scene_request
+lobby_scene_on_scene_request:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_scene_request
+lobby_scene_on_scene_request_flow:
+    mov edx, lobby_scene_on_scene_request_replay
+    cmp eax, 0
+    je lobby_scene_on_scene_request_go
+    mov edx, 0x21e5d1
+    cmp eax, 1
+    je lobby_scene_on_scene_request_go
+    ud2
+lobby_scene_on_scene_request_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_scene_request_replay:
+    db 0x66, 0x0f, 0xd6, 0x40, 0x08
+    jmp 0x21e5d1
+
+; 0x220b20 lobby_menu::on_render_scenes_ready's start (push ebp / mov ebp,esp / and esp,-8): ECX the lobby menu, the site's ESP+4 the query's results; done is its `ret 4`: lohook -> lobby_scene_on_scenes_ready
+global lobby_scene_on_scenes_ready
+extern hook_lobby_scene_on_scenes_ready
+lobby_scene_on_scenes_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_scenes_ready
+lobby_scene_on_scenes_ready_flow:
+    mov edx, lobby_scene_on_scenes_ready_replay
+    cmp eax, 0
+    je lobby_scene_on_scenes_ready_go
+    mov edx, 0x220b26
+    cmp eax, 1
+    je lobby_scene_on_scenes_ready_go
+    mov edx, 0x221e77
+    cmp eax, 2
+    je lobby_scene_on_scenes_ready_go
+    ud2
+lobby_scene_on_scenes_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_scenes_ready_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x220b26
 
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
@@ -420,6 +525,7 @@ ragdoll_on_step:
     sub esp, 12
     push eax
     call hook_ragdoll_on_step
+ragdoll_on_step_flow:
     mov edx, ragdoll_on_step_replay
     cmp eax, 0
     je ragdoll_on_step_go
@@ -459,6 +565,7 @@ ragdoll_on_cull:
     sub esp, 12
     push eax
     call hook_ragdoll_on_cull
+ragdoll_on_cull_flow:
     mov edx, ragdoll_on_cull_replay
     cmp eax, 0
     je ragdoll_on_cull_go
@@ -498,6 +605,7 @@ ragdoll_on_bones:
     sub esp, 12
     push eax
     call hook_ragdoll_on_bones
+ragdoll_on_bones_flow:
     mov edx, ragdoll_on_bones_replay
     cmp eax, 0
     je ragdoll_on_bones_go
@@ -537,6 +645,7 @@ ragdoll_on_eye:
     sub esp, 12
     push eax
     call hook_ragdoll_on_eye
+ragdoll_on_eye_flow:
     mov edx, ragdoll_on_eye_replay
     cmp eax, 0
     je ragdoll_on_eye_go
@@ -576,6 +685,7 @@ ragdoll_on_ray:
     sub esp, 12
     push eax
     call hook_ragdoll_on_ray
+ragdoll_on_ray_flow:
     mov edx, ragdoll_on_ray_replay
     cmp eax, 0
     je ragdoll_on_ray_go
@@ -615,6 +725,7 @@ ragdoll_on_held_item:
     sub esp, 12
     push eax
     call hook_ragdoll_on_held_item
+ragdoll_on_held_item_flow:
     mov edx, ragdoll_on_held_item_replay
     cmp eax, 0
     je ragdoll_on_held_item_go
@@ -657,6 +768,7 @@ ragdoll_on_post_bones:
     sub esp, 12
     push eax
     call hook_ragdoll_on_post_bones
+ragdoll_on_post_bones_flow:
     mov edx, ragdoll_on_post_bones_replay
     cmp eax, 0
     je ragdoll_on_post_bones_go
@@ -699,6 +811,7 @@ ragdoll_on_render_bones:
     sub esp, 12
     push eax
     call hook_ragdoll_on_render_bones
+ragdoll_on_render_bones_flow:
     mov edx, ragdoll_on_render_bones_replay
     cmp eax, 0
     je ragdoll_on_render_bones_go
@@ -738,6 +851,7 @@ ragdoll_on_killed:
     sub esp, 12
     push eax
     call hook_ragdoll_on_killed
+ragdoll_on_killed_flow:
     mov edx, ragdoll_on_killed_replay
     cmp eax, 0
     je ragdoll_on_killed_go
@@ -782,6 +896,7 @@ text_input_on_char:
     sub esp, 12
     push eax
     call hook_text_input_on_char
+text_input_on_char_flow:
     mov edx, text_input_on_char_replay
     cmp eax, 0
     je text_input_on_char_go

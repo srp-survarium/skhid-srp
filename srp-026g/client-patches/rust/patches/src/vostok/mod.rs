@@ -33,6 +33,7 @@ mod hook;
 mod input;
 mod keyboard;
 pub mod language;
+pub mod lobby;
 pub mod log;
 mod options;
 pub mod parse;
