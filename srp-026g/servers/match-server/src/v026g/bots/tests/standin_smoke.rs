@@ -34,6 +34,9 @@ const SINCE_SPAWN_S: [(f32, f32); 7] = [(0.0, 1.0), (0.10, 7.2), (0.25, 12.8), (
 const REST_M: [(f32, f32); 7] = [(0.0, 0.5), (0.10, 1.8), (0.25, 4.2), (0.5, 10.4), (0.75, 18.7), (0.9, 24.4), (1.0, 30.0)];
 /// The nearest enemy is within this of the thrower for the throw, m (the live P90).
 const NEAREST_MAX_M: f32 = 60.0;
+/// ... and at least this far, m: the live P10 is 14 m, a smoke is thrown at range and not in a close fight (the nearest enemy was
+/// firing at the press in 0.2 % of the live throws). Without it a near enemy caps the rest distance below the live one.
+const NEAREST_MIN_M: f32 = 14.0;
 /// A throw "on him" rests within this of the enemy, m.
 const ON_HIM_M: f32 = 8.0;
 
@@ -64,6 +67,8 @@ pub(crate) struct SmokeHabitCounts {
     /// Seconds from the spawn to each press, and metres from the thrower to each rest point.
     pub(crate) press_s: Vec<f32>,
     pub(crate) rest_m: Vec<f32>,
+    /// Metres from the thrower to the nearest enemy at each press.
+    pub(crate) enemy_m: Vec<f32>,
 }
 
 pub(crate) struct SmokeHabit {
@@ -118,7 +123,7 @@ impl SmokeHabit {
             .filter(|(_, b)| b.alive && b.team != body.team)
             .map(|(place, b)| (place, b.feet, (b.feet - body.feet).length()))
             .min_by(|a, b| a.2.total_cmp(&b.2));
-        let Some((_, enemy, to_enemy)) = nearest.filter(|(place, _, d)| *d <= NEAREST_MAX_M && fresh(*place)) else {
+        let Some((_, enemy, to_enemy)) = nearest.filter(|(place, _, d)| (NEAREST_MIN_M..=NEAREST_MAX_M).contains(d) && fresh(*place)) else {
             return;
         };
         let draw = self.rng.unit();
@@ -143,6 +148,7 @@ impl SmokeHabit {
         self.counts.on_him += u32::from(on_him);
         self.counts.press_s.push(tick.saturating_sub(body.spawned) as f32 / 1000.0);
         self.counts.rest_m.push((rest - body.feet).length());
+        self.counts.enemy_m.push(to_enemy);
         self.habit = Habit::Idle;
     }
 
@@ -162,7 +168,7 @@ impl SmokeHabit {
             format!("{:?}", [0.1, 0.5, 0.9].map(|p| at(p).map(|v| (v * 10.0).round() / 10.0)))
         };
         format!(
-            "smoke habit (stand-in human): {} lives, {} drawn, {} thrown = {per_100:.2} a 100 lives (live 2.97), {} on the line to the nearest enemy (live 68.9 %), {} on him (live 6.2 %); press s from spawn P10/median/P90 {} (live 7.2/26.8/96.5); rest m from the thrower {} (live 1.8/10.4/24.4); press {:?}; rest {:?}",
+            "smoke habit (stand-in human): {} lives, {} drawn, {} thrown = {per_100:.2} a 100 lives (live 2.97), {} on the line to the nearest enemy (live 68.9 %), {} on him (live 6.2 %); press s from spawn P10/median/P90 {} (live 7.2/26.8/96.5); rest m from the thrower {} (live 1.8/10.4/24.4); nearest enemy m {} (live 14/32/60); press {:?}; rest {:?}; enemy {:?}",
             c.lives,
             c.planned,
             c.thrown,
@@ -170,8 +176,10 @@ impl SmokeHabit {
             c.on_him,
             quantiles(&c.press_s),
             quantiles(&c.rest_m),
+            quantiles(&c.enemy_m),
             c.press_s.iter().map(|v| (v * 10.0).round() / 10.0).collect::<Vec<_>>(),
             c.rest_m.iter().map(|v| (v * 10.0).round() / 10.0).collect::<Vec<_>>(),
+            c.enemy_m.iter().map(|v| (v * 10.0).round() / 10.0).collect::<Vec<_>>(),
         )
     }
 }
@@ -237,5 +245,29 @@ mod tests {
         assert_eq!(c.thrown, throws);
         assert!((share(c.between) - 0.689).abs() < 0.03, "on the line {}", share(c.between));
         assert!((share(c.on_him) - 0.062).abs() < 0.02, "on him {}", share(c.on_him));
+        // With the enemy far (30 m) the rest distances are the live ones (P10 1.8, median 10.4, P90 24.4 m), not capped by him.
+        let mut rest = c.rest_m.clone();
+        rest.sort_by(f32::total_cmp);
+        let at = |p: f32| rest[((rest.len() - 1) as f32 * p) as usize];
+        assert!(at(0.5) > 8.0 && at(0.5) < 20.0, "median {}", at(0.5));
+        assert!(at(0.1) < 4.0, "P10 {}", at(0.1));
+    }
+
+    /// A nearest enemy closer than the live range or farther than 60 m is no reason to throw.
+    #[test]
+    fn an_enemy_inside_the_live_range_only_is_a_reason() {
+        let mut game = Game::new(super::super::soak_world(), &[0, 1], 1, None, None);
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        game.bodies[0].feet = Vec3::new(10.0, 0.0, 10.0);
+        let mut habit = SmokeHabit { place: 0, rng: Rng::new(5), habit: Habit::Idle, life: Some(0), counts: SmokeHabitCounts::default() };
+        for x in [20.0, 80.0] {
+            game.bodies[1].feet = Vec3::new(x, 0.0, 10.0);
+            habit.habit = Habit::Waiting { from: 0 };
+            habit.tick(&game, &mut tracker, 6_000, |_| true);
+            assert_eq!(habit.counts.thrown, 0, "an enemy {} m off", x - 10.0);
+        }
+        game.bodies[1].feet = Vec3::new(40.0, 0.0, 10.0);
+        habit.tick(&game, &mut tracker, 6_050, |_| true);
+        assert_eq!(habit.counts.thrown, 1);
     }
 }
