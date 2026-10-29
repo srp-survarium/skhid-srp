@@ -200,24 +200,27 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
         );
         bots.map_ready(world);
         let spots = [(10.0, 10.0), (10.0, 14.0), (10.0, 26.0), (10.0, 30.0)];
-        for (place, (x, z)) in spots.into_iter().enumerate() {
+        for place in 0..4 {
             bots.entered(place, true, 0);
-            let fix = Fix {
-                time: 1_000,
-                alive: true,
-                inserted: 100,
-                feet: Some(Vec3::new(x, 0.0, z)),
-                yaw: 0.0,
-                pitch: 0.0,
-                keys: 0,
-                speed: Some(0.0),
-            };
-            bots.fixed(place, fix, Some(1.0));
         }
-        let facts = WorldFacts { time: 1_000, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() };
-        bots.facts(facts);
         let mut count = [0usize; 2];
-        for clock in (1_100..=20_000).step_by(100) {
+        for clock in (100..=20_000u32).step_by(100) {
+            if clock % 1_000 == 0 {
+                for (place, (x, z)) in spots.into_iter().enumerate() {
+                    let fix = Fix {
+                        time: clock,
+                        alive: true,
+                        inserted: 100,
+                        feet: Some(Vec3::new(x, 0.0, z)),
+                        yaw: 0.0,
+                        pitch: 0.0,
+                        keys: 0,
+                        speed: Some(0.0),
+                    };
+                    bots.fixed(place, fix, Some(1.0));
+                }
+                bots.facts(WorldFacts { time: clock, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() });
+            }
             bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
         }
         for (place, team) in teams.iter().enumerate() {
