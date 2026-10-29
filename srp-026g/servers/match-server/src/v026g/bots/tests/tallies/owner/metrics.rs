@@ -102,6 +102,8 @@ pub(super) struct Metrics {
     died: [u32; 2],
     /// By place: the health at the last tick while it lived.
     health: Vec<Option<f32>>,
+    /// By team: bodies' ticks spent dead, waiting to respawn (or out of tickets).
+    dead_ticks: [u64; 2],
     /// By team: damage dealt, taken and other (in lives).
     dealt: [f64; 2],
     taken: [f64; 2],
@@ -190,6 +192,7 @@ impl Topic for Metrics {
                 }
             }
             self.health[place] = body.alive.then_some(body.health);
+            self.dead_ticks[team] += u64::from(!body.alive);
         }
     }
 
@@ -201,6 +204,7 @@ impl Topic for Metrics {
             ("trades", self.trades_part(run, game)),
             ("damage", self.damage_part()),
             ("work", self.work_part(seconds)),
+            ("respawn", self.respawn_part(game)),
         ]
     }
 }
@@ -307,6 +311,19 @@ impl Metrics {
             serde_json::json!({ "damage": { "dealt": lives(self.dealt), "taken": lives(self.taken), "other": lives(self.other) } }),
             text,
         )
+    }
+
+    /// Seconds the team's bodies spent dead, and per death (their wait for the respawn: the radio's -20 % is in it for a kit that carries
+    /// one, `Game::respawn_ms_of_body`).
+    fn respawn_part(&self, game: &Game) -> Part {
+        let dead_s = self.dead_ticks.map(|ticks| round1(ticks as f64 * f64::from(TICK_MS) / 1000.0));
+        let mut deaths = [0u32; 2];
+        for (place, body) in game.bodies.iter().enumerate() {
+            deaths[usize::from(body.team & 1)] += game.stats.get(place).map_or(0, |s| s.1);
+        }
+        let per_death: Vec<f64> = (0..2).map(|t| if deaths[t] > 0 { round1(dead_s[t] / f64::from(deaths[t])) } else { 0.0 }).collect();
+        let text = format!("owner-test respawn (by team): seconds dead {dead_s:?}, deaths {deaths:?}, seconds dead a death {per_death:?}");
+        Part::new(serde_json::json!({ "respawn": { "dead_s": dead_s, "deaths": deaths, "dead_s_per_death": per_death } }), text)
     }
 
     fn work_part(&self, seconds: f64) -> Part {

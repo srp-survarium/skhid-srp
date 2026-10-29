@@ -304,6 +304,13 @@ pub(crate) struct Heal {
     pub(crate) kit_next: usize,
 }
 
+impl Heal {
+    /// The kit in use (the one the last spawn chose).
+    pub(crate) fn kit(&self) -> usize {
+        self.kit
+    }
+}
+
 /// The drugs of every bot kit ([`BOT_POCKETS`]), the game's: all in store.
 fn standard_kit() -> Vec<Slot> {
     crate::v026g::bots::stock::standard_pockets()

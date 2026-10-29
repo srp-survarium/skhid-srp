@@ -1,0 +1,17 @@
+owner-test respawn (by team): seconds dead [7.6, 3.8], deaths [0, 0], seconds dead a death [0.0, 0.0]
+{
+  "respawn": {
+    "dead_s": [
+      7.6,
+      3.8
+    ],
+    "dead_s_per_death": [
+      0.0,
+      0.0
+    ],
+    "deaths": [
+      0,
+      0
+    ]
+  }
+}

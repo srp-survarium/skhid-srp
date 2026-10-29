@@ -827,9 +827,11 @@ pub(crate) fn real_bot_cost() {
             game.use_line = bench_settings().flag("SRP_BENCH_USE_LINE");
             // The respawn delay from the live data's mode config and the radio.
             if live_data {
-                game.respawn_ms =
-                    respawn_ms_from_data(level, survarium::v026g::maps::weather::DAY, mode);
-                eprintln!("  respawn from the game data: {:?} ms", game.respawn_ms);
+                game.respawn_rule = respawn_rule_from_data(level, survarium::v026g::maps::weather::DAY, mode);
+                eprintln!(
+                    "  respawn from the game data: {:?} ms with the radio",
+                    game.respawn_rule.map(|(time_s, modifier)| respawn_ms_of(time_s, modifier))
+                );
             }
             if let Some(m) = bench_settings().number("SRP_BENCH_TAKE_M")
             {
@@ -1000,6 +1002,7 @@ pub(crate) fn real_bot_cost() {
             owner.set_pings(ping_ms);
             game.set_grenade_kits(&roster.grenades);
             game.set_heal_kits(&roster.profiles);
+            game.set_radio_kits(&roster.profiles);
             // The stand-in camper plays by the build's defaults whatever his team's tuning is, so that the two runs of a head-to-head
             // bench face the same opponent.
             let camper_options = camper::CamperOptions::from_env();
