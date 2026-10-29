@@ -118,11 +118,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     // camper stands and peeks, RC1). The gate below stays a second trigger.
     if cx.tuning.threat.job
         && let Some((job, Role::Flanker, line)) = cx.team.threat.job_of(cx.me.place)
-        && (matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
-            || !job_flank_spots(cx, line).is_empty())
-        && let Some(c) = cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH)
     {
-        out.push(c);
+        let has_spot = matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || !job_flank_spots(cx, line).is_empty();
+        #[cfg(test)]
+        if !has_spot {
+            let why = JOB_SPOTS_WHY.with(|m| m.borrow().get(&(cx.bot.side, line.id)).copied()).unwrap_or("unknown");
+            crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Flanker, why);
+        }
+        out.extend(cx.job_offer(Role::Flanker, PlayKind::Flank, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }
     for track in cx.memory.tracks() {
         let target = TargetRef::Place(track.who);
@@ -271,9 +275,78 @@ fn job_flank_spots(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> std
         // Never in a held line, his own lanes too (as the pinner's,
         // `crossfire.rs`): with victims far apart a flank spot can sit in one.
         let mut spots = flank_spots(cx, line.at, facing, kin::yaw_of(facing), &mut rng);
+        #[cfg(test)]
+        let found = spots.len();
         spots.retain(|&at| cx.team.threat.line_at(at).is_none());
+        #[cfg(test)]
+        if spots.is_empty() {
+            // The bench's class of a spot with no flank spot: why flank_spots found none (its tests), or all in a
+            // held line. A fresh sample of the query with its own rng: the play's spots are not touched.
+            let why = if found > 0 { "in_held_line" } else { why_no_flank_spot(cx, line, key) };
+            JOB_SPOTS_WHY.with(|m| m.borrow_mut().insert((cx.bot.side, line.id), why));
+        }
         spots
     })
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Why a job's held spot had no flank spot at its last look: (side, spot id) -> why.
+    static JOB_SPOTS_WHY: std::cell::RefCell<std::collections::HashMap<(Option<i32>, u32), &'static str>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Why [`flank_spots`] found none round `line` (the bench's class): the test that left the most of the query's
+/// samples out, in its order, or none sampled. Its own rng (the play's draws are not touched).
+#[cfg(test)]
+fn why_no_flank_spot(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine, key: u64) -> &'static str {
+    let num = |name| cx.num(PlayKind::Flank, name);
+    let (him, facing) = (line.at, line.facing_dir());
+    let yaw = kin::yaw_of(facing);
+    let (lo, hi) = (num("spot_min_m"), num("spot_max_m"));
+    let bearing = (num("off_facing_deg") + num("flank_extra_deg")).min(170.0);
+    let mut rng = Rng::new(key ^ 0x5eed);
+    let mut fails: Vec<&'static str> = Vec::new();
+    let mut queries = Vec::new();
+    for sign in [1.0_f32, -1.0] {
+        let dir = kin::forward(yaw + sign * bearing.to_radians());
+        let mid = (lo + hi) * 0.5;
+        let centre = Vec3::new(him.x + dir[0] * mid, him.y, him.z + dir[1] * mid);
+        let query = SpotQuery {
+            sight_to: Some(him),
+            side: cx.bot.side,
+            samples: num("samples") as usize / 2,
+            ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
+        };
+        queries.push(query);
+        for s in cx.tactics.spots(&query, cx.now, 6, &mut rng) {
+            let at = s.at;
+            let d = at.distance_xz(him);
+            fails.push(if !(lo..=hi).contains(&d) {
+                "out_of_band"
+            } else if degrees_between(facing, [at.x - him.x, at.z - him.z]) < num("off_facing_deg") {
+                "in_his_facing"
+            } else if !cx.tactics.fine_goal(at, cx.now, cx.bot.side) {
+                "not_fine_goal"
+            } else {
+                "in_spawn_area"
+            });
+        }
+    }
+    if fails.is_empty() {
+        // None sampled: which stage of the spot query lost them.
+        let whys: Vec<&'static str> = queries.iter().map(|q| cx.tactics.spots_why(q, cx.now, &mut rng)).collect();
+        return match crate::v026g::bots::threat::most_failed(&whys) {
+            "no_floor" => "none_sampled_no_floor",
+            "floor_off_height" => "none_sampled_floor_off_height",
+            "off_ring" => "none_sampled_off_ring",
+            "not_walkable" => "none_sampled_not_walkable",
+            "not_allowed" => "none_sampled_not_allowed",
+            "storey_no_walk" => "none_sampled_storey_no_walk",
+            "no_sight" => "none_sampled_no_sight",
+            _ => "none_sampled_other",
+        };
+    }
+    crate::v026g::bots::threat::most_failed(&fails)
 }
 
 /// How long a job's flank spots are kept, ms (as Crossfire's `spots_keep_s`).

@@ -2054,6 +2054,52 @@ impl Tactics {
             .and_then(|c| c.use_shapes.first().copied())
     }
 
+    /// Why [`Self::spots`] gives nothing for `query` (the bench's class; its own `rng`): the stage that lost the most
+    /// of its samples. A probe with no floor near the anchor's height is split by whether a floor lies under or over
+    /// it within 30 m (`floor_off_height`) or none at all (`no_floor`).
+    #[cfg(test)]
+    pub fn spots_why(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> &'static str {
+        let grid = &self.world.grid;
+        let mut fails: Vec<&'static str> = Vec::new();
+        let mut by_walk: Option<Arc<WalkUp>> = None;
+        for _ in 0..query.samples {
+            let angle = rng.range(0.0, std::f32::consts::TAU);
+            let r = rng.range(query.min_m, query.max_m);
+            let probe = Vec3::new(query.around.x + r * angle.cos(), query.around.y, query.around.z + r * angle.sin());
+            let mut nodes: Vec<NodeId> = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 2.0).into_iter().collect();
+            if query.up_m > 0.0 && query.sight_to.is_some() {
+                self.storeys_over(probe, query.up_m, &mut nodes);
+            }
+            if nodes.is_empty() {
+                let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
+                fails.push(if off { "floor_off_height" } else { "no_floor" });
+                continue;
+            }
+            for node in nodes {
+                let at = grid.position(node);
+                let d = at.distance_xz(query.around);
+                fails.push(if d < query.min_m || d > query.max_m {
+                    "off_ring"
+                } else if !self.walkable(node) {
+                    "not_walkable"
+                } else if !self.allowed(node, time, query.side, false) {
+                    "not_allowed"
+                } else if at.y > query.around.y + STOREY_FROM_M
+                    && !by_walk
+                        .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                        .contains(node)
+                {
+                    "storey_no_walk"
+                } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, 1.0, 0.0))) {
+                    "no_sight"
+                } else {
+                    "other_filter"
+                });
+            }
+        }
+        super::threat::most_failed(&fails)
+    }
+
     /// The best spots for `query`, best first, at most `n`.
     pub fn spots(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
         #[cfg(test)]

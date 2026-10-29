@@ -122,11 +122,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     // (taking it to find none fails at once, then the cooldown).
     if cx.tuning.threat.job
         && let Some((job, Role::Pinner, line)) = cx.team.threat.job_of(cx.me.place)
-        && (matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
-            || has_fine_spot(cx, &Choke { at: line.at, job: job_at(cx, TargetRef::ThreatSpot(line.id), line.at) }))
-        && let Some(c) = cx.job_candidate(PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH)
     {
-        out.push(c);
+        let choke = Choke { at: line.at, job: job_at(cx, TargetRef::ThreatSpot(line.id), line.at) };
+        let has_spot = matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || has_fine_spot(cx, &choke);
+        #[cfg(test)]
+        if !has_spot {
+            crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Pinner, why_no_fine_spot(cx, &choke));
+        }
+        out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }
     // A crossfire needs two: some teammate alive.
     if cx.view.team(cx.me.team).all(|p| p.place == cx.me.place) {
@@ -242,18 +246,7 @@ fn spots_by(cx: &Ctx, choke: &Choke) -> std::sync::Arc<Vec<Vec3>> {
     let key = Tactics::spot_key(kind, cx.bot.side, choke);
     let keep = (num("spots_keep_s") * 1000.0) as u32;
     cx.tactics.spots_kept(key, cx.now, keep, || {
-        let (min_m, max_m) = match job {
-            Some(line) => pin_ring(cx, line),
-            None => (num("spot_min_m"), num("spot_max_m")),
-        };
-        let query = SpotQuery {
-            sight_to: Some(choke),
-            prefer_high: num("prefer_high"),
-            up_m: num("up_m"),
-            side: cx.bot.side,
-            samples: num("samples") as usize,
-            ..SpotQuery::ring(choke, min_m, max_m)
-        };
+        let query = choke_query(cx, job, choke);
         let mut rng = Rng::new(key ^ u64::from(cx.now));
         cx.tactics
             .spots(&query, cx.now, query.samples, &mut rng)
@@ -262,6 +255,23 @@ fn spots_by(cx: &Ctx, choke: &Choke) -> std::sync::Arc<Vec<Vec3>> {
             .filter(|at| !cx.tactics.in_spawn_area(*at, None))
             .collect()
     })
+}
+
+/// The spot query of [`spots_by`] round `choke` (a job's pin ring with `job`).
+fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
+    let num = |name| cx.num(PlayKind::Crossfire, name);
+    let (min_m, max_m) = match job {
+        Some(line) => pin_ring(cx, line),
+        None => (num("spot_min_m"), num("spot_max_m")),
+    };
+    SpotQuery {
+        sight_to: Some(choke),
+        prefer_high: num("prefer_high"),
+        up_m: num("up_m"),
+        side: cx.bot.side,
+        samples: num("samples") as usize,
+        ..SpotQuery::ring(choke, min_m, max_m)
+    }
 }
 
 /// What a crossfire covers: the choke's point, and the held line when it is
@@ -338,6 +348,47 @@ fn has_fine_spot(cx: &Ctx, choke: &Choke) -> bool {
     spots_by(cx, choke)
         .iter()
         .any(|at| is_fine(cx, choke, apart, &others, *at))
+}
+
+/// Why [`has_fine_spot`] found none (the bench's class): the test that left the most of the choke's spots out
+/// ([`is_fine`]'s tests, in its order), or none sampled.
+#[cfg(test)]
+fn why_no_fine_spot(cx: &Ctx, choke: &Choke) -> &'static str {
+    let apart = cx.num(PlayKind::Crossfire, "apart_deg");
+    let others = halves(cx, choke.at);
+    let fails: Vec<&'static str> = spots_by(cx, choke)
+        .iter()
+        .map(|&at| {
+            if !cx.tactics.fine_goal(at, cx.now, cx.bot.side) {
+                "not_fine_goal"
+            } else if out_of_lines(cx, choke) && cx.team.threat.line_at(at).is_some() {
+                "in_held_line"
+            } else if !others.iter().all(|(_, o)| round(choke.at, at, *o) >= apart) {
+                "near_a_mate_round"
+            } else if cx.spot_taken(at, super::goals::APART_M) {
+                "taken"
+            } else if !cx.can_go(at) {
+                "no_way"
+            } else {
+                "exposed_climb"
+            }
+        })
+        .collect();
+    if fails.is_empty() {
+        // None sampled: which stage of the spot query lost them (its own rng).
+        let mut rng = Rng::new(u64::from(cx.now) ^ 0x5eed);
+        return match cx.tactics.spots_why(&choke_query(cx, choke.job, choke.at), cx.now, &mut rng) {
+            "no_floor" => "none_sampled_no_floor",
+            "floor_off_height" => "none_sampled_floor_off_height",
+            "off_ring" => "none_sampled_off_ring",
+            "not_walkable" => "none_sampled_not_walkable",
+            "not_allowed" => "none_sampled_not_allowed",
+            "storey_no_walk" => "none_sampled_storey_no_walk",
+            "no_sight" => "none_sampled_no_sight",
+            _ => "none_sampled_other",
+        };
+    }
+    crate::v026g::bots::threat::most_failed(&fails)
 }
 
 /// Whether the bot may take `at` now: a fine goal it has a way to, `apart`

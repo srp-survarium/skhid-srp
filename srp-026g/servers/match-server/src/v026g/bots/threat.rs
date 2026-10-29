@@ -508,6 +508,125 @@ pub fn counted() -> [u64; 23] {
     COUNTED.with(|cell| cell.get())
 }
 
+/// How a job role's play was offered to its bot at a poll (the bench's count; nothing live): the class of a role
+/// let go unplayed (`PassedWhy::NoPlay`), design-p1c §1's opening of a Breach.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Offer {
+    /// The held spot has no spot for the role (no flank spot round it; no pin spot fine for the bot).
+    NoSpot,
+    /// The play on the spot is set aside for the bot (it failed lately).
+    SetAside,
+    /// The bot runs dry (a fight play is not offered).
+    Dry,
+    /// Under the play's health gate.
+    LowHealth,
+    /// Offered.
+    Offered,
+}
+
+impl Offer {
+    pub fn name(self) -> &'static str {
+        match self {
+            Offer::NoSpot => "no_spot",
+            Offer::SetAside => "set_aside",
+            Offer::Dry => "dry",
+            Offer::LowHealth => "low_health",
+            Offer::Offered => "offered",
+        }
+    }
+}
+
+#[cfg(test)]
+fn role_name(role: Role) -> &'static str {
+    match role {
+        Role::Flanker => "flanker",
+        Role::Pinner => "pinner",
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The last offer to each role's bot since the role was given: (place, role) -> offer.
+    static OFFERS: std::cell::RefCell<std::collections::HashMap<(Place, bool), Offer>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// Why the last no-spot offer had none: (place, role) -> why.
+    static NO_SPOT_WHY: std::cell::RefCell<std::collections::HashMap<(Place, bool), &'static str>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// By class name: the polls of each offer (`polls_<role>_<offer>`) and the roles let go unplayed by their last
+    /// offer (`noplay_<role>_<class>`).
+    static OFFER_COUNTS: std::cell::RefCell<std::collections::BTreeMap<String, u64>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+}
+
+#[cfg(test)]
+fn offer_count(key: String) {
+    OFFER_COUNTS.with(|m| *m.borrow_mut().entry(key).or_default() += 1);
+}
+
+/// A poll of `place`'s play for its job `role`, and how it was offered.
+#[cfg(test)]
+pub fn offered(place: Place, role: Role, offer: Offer) {
+    offer_count(format!("polls_{}_{}", role_name(role), offer.name()));
+    OFFERS.with(|m| m.borrow_mut().insert((place, role == Role::Flanker), offer));
+}
+
+/// Why the last no-spot offer to `place`'s `role` had no spot (`why`: the test that left the most spots out, or
+/// "none_sampled"), counted by poll (`nospot_<role>_<why>`) and kept for the role's class if it is let go.
+#[cfg(test)]
+pub fn no_spot_why(place: Place, role: Role, why: &'static str) {
+    offer_count(format!("nospot_{}_{why}", role_name(role)));
+    NO_SPOT_WHY.with(|m| m.borrow_mut().insert((place, role == Role::Flanker), why));
+}
+
+#[cfg(not(test))]
+pub fn no_spot_why(_: Place, _: Role, _: &'static str) {}
+
+/// The tally of the first test each spot failed, as [`no_spot_why`] names it: the test that left the most out.
+pub fn most_failed(fails: &[&'static str]) -> &'static str {
+    let mut by: Vec<(&'static str, usize)> = Vec::new();
+    for &f in fails {
+        match by.iter_mut().find(|(n, _)| *n == f) {
+            Some((_, c)) => *c += 1,
+            None => by.push((f, 1)),
+        }
+    }
+    by.into_iter().max_by_key(|&(_, c)| c).map_or("none_sampled", |(n, _)| n)
+}
+
+#[cfg(not(test))]
+pub fn offered(_: Place, _: Role, _: Offer) {}
+
+/// `place` was given `role`: its offers start again.
+#[cfg(test)]
+pub fn offers_reset(place: Place, role: Role) {
+    OFFERS.with(|m| m.borrow_mut().remove(&(place, role == Role::Flanker)));
+    NO_SPOT_WHY.with(|m| m.borrow_mut().remove(&(place, role == Role::Flanker)));
+}
+
+#[cfg(not(test))]
+pub fn offers_reset(_: Place, _: Role) {}
+
+/// `place` let `role` go without taking its play: counted by the role's last offer since it was given (none: its
+/// play was never polled), and when it was offered, by the play the bot runs instead (`running`, "none").
+#[cfg(test)]
+pub fn passed_unplayed(place: Place, role: Role, running: Option<&str>) {
+    let last = OFFERS.with(|m| m.borrow_mut().remove(&(place, role == Role::Flanker)));
+    let why = NO_SPOT_WHY.with(|m| m.borrow_mut().remove(&(place, role == Role::Flanker)));
+    let class = match last {
+        None => "not_polled".to_string(),
+        Some(Offer::Offered) => format!("outscored_by_{}", running.unwrap_or("none")),
+        Some(Offer::NoSpot) => format!("no_spot_{}", why.unwrap_or("unknown")),
+        Some(offer) => offer.name().to_string(),
+    };
+    offer_count(format!("noplay_{}_{class}", role_name(role)));
+}
+
+#[cfg(not(test))]
+pub fn passed_unplayed(_: Place, _: Role, _: Option<&str>) {}
+
+/// The offer counts so far, by name.
+#[cfg(test)]
+pub fn offer_counts() -> std::collections::BTreeMap<String, u64> {
+    OFFER_COUNTS.with(|m| m.borrow().clone())
+}
+
 /// An A3 replan asked for (the bench's judgment of it): the way ahead it
 /// replaced, exposed and left (m), that route's birth, and when.
 #[derive(Clone, Copy, Debug)]

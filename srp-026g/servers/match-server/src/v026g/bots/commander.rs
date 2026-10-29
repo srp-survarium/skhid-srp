@@ -121,7 +121,8 @@ fn threat_tick(
                         text.push_str(&format!(", killed by {said}"));
                     }
                 }
-                threat::JobEvent::Given { spot, .. } => {
+                threat::JobEvent::Given { spot, role, place } => {
+                    threat::offers_reset(place, role);
                     // Fairness: a role on a spot whose shooter the team has
                     // not sensed for `SEEN_MS`.
                     let stale = held
@@ -131,6 +132,11 @@ fn threat_tick(
                     if stale {
                         threat::job_tally(team, threat::JobTally::GivenUnsensed);
                     }
+                }
+                threat::JobEvent::Passed { role, place, why: threat::PassedWhy::NoPlay, .. } => {
+                    // The bench's class of a role let go unplayed: its last offer, and the play its bot runs.
+                    let running = bots.iter().flatten().find(|b| b.place == place).and_then(|b| b.assignment.as_ref()).map(|a| format!("{:?}", a.kind));
+                    threat::passed_unplayed(place, role, running.as_deref());
                 }
                 threat::JobEvent::Passed { .. } => {}
             }
