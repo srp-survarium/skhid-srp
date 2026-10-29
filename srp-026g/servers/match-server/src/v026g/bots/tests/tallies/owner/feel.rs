@@ -8,15 +8,23 @@
 //! - **deaths a minute alive** as top and not (live 1.19 and 0.81).
 //! - **gang-up share:** deaths with 3 or more distinct enemies within 30 m of the dead at some tick of the 10 s before (live tops 41 to
 //!   45 %, non-tops 27 to 29 %), and the mean number of enemies within 30 m at the death, and distinct in the 10 s (live 1.1 for a
-//!   top's whole life). Distance is the straight line.
+//!   top's whole life).
 //! - **spawn to first contact:** seconds from a life's start to the first tick an enemy is within 30 m, by the group the life began
 //!   in (live median 14 to 15 s for a top's lives, 17 to 18 s for the others); lives that ended with no contact are counted apart.
-//! - **a note per crowded death** of a top or of the human: who was within 30 m, the play each ran, and how each one's track of the
-//!   dead came to it (Seen, Heard, Told, Hud, Cheat(Radar), Cheat(Thief), none), from the bot's own memory at the tick.
+//! - **the gang-up counters** (`an-gang-up.md` §5), for the stand-in (human or camper), the tops and, for deaths, the others: for a
+//!   subject, the plays aimed at him (enemy bots whose assignment targets him) a tick on average, and the share of his alive time with
+//!   3 or more enemies within 30 m; for each **arrival** (an enemy bot's first tick within 30 m of him) the arriving bot's assignment
+//!   kind and what it is aimed at (him, an exit, an objective, another place, none), the source of its track of him (Seen, Heard,
+//!   Told, Hud, Radar, Thief, none) and, exactly (the last tick each source was the track's, kept per bot and victim), which sources
+//!   it had of him in the 10 s before; the PairUp arrivals aimed at a top per top death.
+//! - **density:** mates and enemies within 30 m of a living bot, the mean over its alive ticks, by team (live 1.65 and 0.65).
+//! - **shooters per victim:** distinct enemies who hit the dead in the 5 s before the death, mean and the share of 3 or more (does
+//!   the reflex's target choice need a dog-pile term?).
+//! - Distances are on the ground (XZ), as the gang-up analysis's bench numbers are.
 
 use super::*;
 use crate::v026g::bots::know::{CheatKind, Source};
-use crate::v026g::bots::plays::pair_up;
+use crate::v026g::bots::plays::{PlayKind, TargetRef, pair_up};
 
 /// Within this of the dead, m, an enemy is near.
 const NEAR_M: f32 = 30.0;
@@ -24,6 +32,14 @@ const NEAR_M: f32 = 30.0;
 const WINDOW_TICKS: usize = (10_000 / TICK_MS) as usize;
 /// Enemies near in the window that make a death crowded.
 const CROWD: u32 = 3;
+/// The shooters of a death are those who hit in this window, ms.
+const SHOOTERS_MS: u32 = 5_000;
+/// A source used by the track this recently before an arrival counts as held at it, ms.
+const RECENT_MS: u32 = 10_000;
+/// The sources a track can come from, in the order of the counts.
+const SOURCES: [&str; 6] = ["Seen", "Heard", "Told", "Hud", "Radar", "Thief"];
+/// What an arrival's assignment is aimed at.
+const AIMS: [&str; 5] = ["him", "exit", "objective", "another place", "none"];
 
 /// What a player is for these counters.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,16 +50,19 @@ enum Cat {
     Rest(u8),
     /// The stand-in human.
     Human,
+    /// The stand-in camper.
+    Camper,
 }
 
 impl Cat {
-    const ALL: [Cat; 5] = [Cat::Top(0), Cat::Top(1), Cat::Rest(0), Cat::Rest(1), Cat::Human];
+    const ALL: [Cat; 6] = [Cat::Top(0), Cat::Top(1), Cat::Rest(0), Cat::Rest(1), Cat::Human, Cat::Camper];
 
     fn index(self) -> usize {
         match self {
             Cat::Top(team) => usize::from(team & 1),
             Cat::Rest(team) => 2 + usize::from(team & 1),
             Cat::Human => 4,
+            Cat::Camper => 5,
         }
     }
 
@@ -52,6 +71,7 @@ impl Cat {
             Cat::Top(team) => format!("top of team {team}"),
             Cat::Rest(team) => format!("other bots of team {team}"),
             Cat::Human => "the stand-in human".to_owned(),
+            Cat::Camper => "the stand-in camper".to_owned(),
         }
     }
 }
@@ -78,68 +98,107 @@ struct Group {
     /// Lives that began in this group: ms to the first contact, and lives that ended with none.
     contact_ms: Vec<u32>,
     no_contact: u32,
+    /// Subjects only: plays aimed at him, summed over his alive ticks; ticks with 3 or more enemies near.
+    aimed_sum: u64,
+    crowd_ticks: u64,
+    /// Distinct enemies who hit the dead in the 5 s before the death, summed; deaths with 3 or more.
+    shooters_sum: u64,
+    shooters_3: u32,
+    arrivals: Arrivals,
 }
 
-/// A crowded death, for its note: when, who, what he was, the enemies near him at it (a set of places) and distinct in 10 s.
-#[derive(Clone, Copy)]
-struct Death {
-    t: u32,
-    victim: Place,
-    cat: Cat,
-    near: u64,
-    window: u32,
+/// The arrivals of enemy bots within 30 m of a subject.
+#[derive(Default)]
+struct Arrivals {
+    total: u32,
+    /// By the play kind of the arriving bot's assignment.
+    by_kind: BTreeMap<String, u32>,
+    /// By [`AIMS`].
+    by_aim: [u32; 5],
+    /// By the source of its track of him at the entry: [`SOURCES`], then none.
+    by_source: [u32; 7],
+    /// By [`SOURCES`]: arrivals that had the source as the track's within [`RECENT_MS`] before the entry.
+    held_10s: [u32; 6],
+    /// PairUp arrivals aimed at him.
+    pair_up: u32,
 }
 
-/// Where a bot's track of each enemy came from, by place of the enemy.
-type Sources = Vec<(Place, &'static str)>;
+/// What the tally knows of a bot, read each tick (a bot's own memory and assignment).
+#[derive(Default, Clone)]
+struct Mind {
+    /// Its assignment's play and target.
+    aim: Option<(PlayKind, TargetRef)>,
+    /// Its tracks: who, source, and when sensed.
+    tracks: Vec<(Place, Source, u32)>,
+    /// By enemy: the last tick each of [`SOURCES`] was the track's source.
+    last: Vec<(Place, [Option<u32>; 6])>,
+}
 
 #[derive(Default)]
 pub(super) struct Feel {
     context: String,
     human: Option<Place>,
-    groups: [Group; 5],
+    camper: Option<Place>,
+    groups: [Group; 6],
     life: Vec<Life>,
     /// The top of each team at the last tick.
     tops: [Option<Place>; 2],
     kills_seen: usize,
-    /// By place: the sources of the bot's tracks, as of its last read.
-    sources: Vec<Sources>,
-    /// The notes of crowded deaths.
-    notes: Vec<String>,
+    /// By place: what the bot knows (none: not a bot).
+    minds: Vec<Mind>,
+    /// By place: the enemies within 30 m of a subject at the last tick (a set of places).
+    inside: Vec<u64>,
+    /// By team: mates and enemies within 30 m of a living bot, summed over its alive ticks, and the ticks.
+    density: [(u64, u64, u64); 2],
 }
 
 fn number(name: &str) -> f32 {
     pair_up::NUMBERS.iter().find(|(n, _)| *n == name).map_or(0.0, |(_, v)| *v)
 }
 
-/// A source as the note names it.
-fn source_name(source: Source) -> &'static str {
+/// A source's place in [`SOURCES`].
+fn source_index(source: Source) -> usize {
     match source {
-        Source::Seen => "Seen",
-        Source::Heard => "Heard",
-        Source::Told { .. } => "Told",
-        Source::Hud => "Hud",
-        Source::Cheat(CheatKind::Radar) => "Cheat(Radar)",
-        Source::Cheat(CheatKind::Thief) => "Cheat(Thief)",
+        Source::Seen => 0,
+        Source::Heard => 1,
+        Source::Told { .. } => 2,
+        Source::Hud => 3,
+        Source::Cheat(CheatKind::Radar) => 4,
+        Source::Cheat(CheatKind::Thief) => 5,
+    }
+}
+
+/// What an assignment's target is, for a subject at `him`.
+fn aim_of(target: Option<TargetRef>, him: Place) -> usize {
+    match target {
+        Some(TargetRef::Place(place)) if place == him => 0,
+        Some(TargetRef::Exit(_)) => 1,
+        Some(TargetRef::Battery(_) | TargetRef::Container(_) | TargetRef::Spawner(_)) => 2,
+        Some(TargetRef::Place(_) | TargetRef::Point(_)) => 3,
+        Some(TargetRef::None) | None => 4,
     }
 }
 
 impl Feel {
-    pub(super) fn set_human(&mut self, context: String, human: Option<Place>) {
+    pub(super) fn set_human(&mut self, context: String, human: Option<Place>, camper: Option<Place>) {
         self.context = context;
         self.human = human;
+        self.camper = camper;
     }
 
     fn grow(&mut self, places: usize) {
         if self.life.len() < places {
             self.life.resize(places, Life::Dead);
-            self.sources.resize(places, Vec::new());
+            self.minds.resize(places, Mind::default());
+            self.inside.resize(places, 0);
         }
     }
 
     fn cat(&self, place: Place, team: u8) -> Cat {
         if self.human == Some(place) {
             Cat::Human
+        } else if self.camper == Some(place) {
+            Cat::Camper
         } else if self.tops[usize::from(team & 1)] == Some(place) {
             Cat::Top(team)
         } else {
@@ -157,7 +216,7 @@ impl Feel {
             .bodies
             .iter()
             .enumerate()
-            .filter(|(place, body)| body.team == team && self.human != Some(*place))
+            .filter(|(place, body)| body.team == team && self.human != Some(*place) && self.camper != Some(*place))
             .map(|(place, _)| (place, worth(place)))
             .collect();
         mates.sort_by(|a, b| b.1.total_cmp(&a.1));
@@ -175,7 +234,7 @@ impl Feel {
             }
             if let Some(rec) = run.recs.get(place).and_then(|recs| recs.get(idx))
                 && rec.alive
-                && (rec.feet - at).length() <= NEAR_M
+                && rec.feet.distance_xz(at) <= NEAR_M
             {
                 set |= 1 << place;
             }
@@ -211,31 +270,16 @@ impl Feel {
             group.crowded += u32::from(crowded);
             group.near_at_death += u64::from(now.count_ones());
             group.near_in_window += u64::from(window.count_ones());
-            if crowded && cat != Cat::Rest(team) {
-                self.notes.push(self.crowd_line(run, game, &Death { t, victim, cat, near: now, window: window.count_ones() }));
+            let mut shooters = 0u64;
+            for &(hit_t, shooter, target) in run.hits.iter().rev().take_while(|&&(hit_t, ..)| t.saturating_sub(hit_t) <= SHOOTERS_MS) {
+                if target == victim && hit_t <= t && game.bodies.get(shooter).is_some_and(|b| b.team != team) {
+                    shooters |= 1 << shooter.min(63);
+                }
             }
+            let group = &mut self.groups[cat.index()];
+            group.shooters_sum += u64::from(shooters.count_ones());
+            group.shooters_3 += u32::from(shooters.count_ones() >= CROWD);
         }
-    }
-
-    /// One note for a crowded death.
-    fn crowd_line(&self, run: &Run, game: &Game, death: &Death) -> String {
-        let Death { t, victim, cat, near, window } = *death;
-        let mut who = Vec::new();
-        for place in (0..game.bodies.len().min(64)).filter(|p| near & (1 << p) != 0) {
-            let play = run.recs[place].last().and_then(|rec| run.plays.get(usize::from(rec.play))).map_or("-", String::as_str);
-            let knew = self
-                .sources
-                .get(place)
-                .and_then(|list| list.iter().find(|(who, _)| *who == victim))
-                .map_or("none", |(_, name)| name);
-            who.push(format!("{place} {play} {knew}"));
-        }
-        format!(
-            "crowded death: {} | tick {t} place {victim} {} | enemies within {NEAR_M:.0} m in 10 s {window}; at the death [{}]",
-            self.context,
-            cat.name(),
-            who.join(", ")
-        )
     }
 
     /// Each body's life: its first contact, once.
@@ -272,17 +316,125 @@ impl Feel {
     }
 }
 
+impl Mind {
+    /// The bot's assignment and tracks now, and the tick each track's source was last seen at.
+    fn read(&mut self, bot: Option<&Bot>, tick: u32) {
+        let Some(bot) = bot else {
+            *self = Mind::default();
+            return;
+        };
+        self.aim = bot.assignment.as_ref().map(|a| (a.kind, a.target));
+        self.tracks.clear();
+        self.tracks.extend(bot.memory.tracks().iter().map(|track| (track.who, track.source, track.time)));
+        for i in 0..self.tracks.len() {
+            let (who, source, _) = self.tracks[i];
+            self.stamp(who, source, tick);
+        }
+    }
+
+    /// `source` was `who`'s track's source at `tick`.
+    fn stamp(&mut self, who: Place, source: Source, tick: u32) {
+        let at = match self.last.iter().position(|(w, _)| *w == who) {
+            Some(at) => at,
+            None => {
+                self.last.push((who, [None; 6]));
+                self.last.len() - 1
+            }
+        };
+        self.last[at].1[source_index(source)] = Some(tick);
+    }
+}
+
+impl Feel {
+    /// Each tick: the subjects' aimed plays and crowded time, the arrivals within 30 m, and every living bot's density.
+    fn subjects_tick(&mut self, run: &Run, game: &Game, tick: u32) {
+        let alive: Vec<(Place, u8, Vec3)> = (0..game.bodies.len())
+            .filter_map(|place| {
+                let rec = run.recs.get(place).and_then(|recs| recs.last())?;
+                rec.alive.then_some((place, game.bodies[place].team, rec.feet))
+            })
+            .collect();
+        for &(place, team, feet) in &alive {
+            let (mates, enemies) = alive.iter().filter(|o| o.0 != place && o.2.distance_xz(feet) <= NEAR_M).fold((0, 0), |(m, e), o| {
+                if o.1 == team { (m + 1, e) } else { (m, e + 1) }
+            });
+            let density = &mut self.density[usize::from(team & 1)];
+            *density = (density.0 + mates, density.1 + enemies, density.2 + 1);
+        }
+        for place in 0..game.bodies.len() {
+            let Some(&(_, team, feet)) = alive.iter().find(|o| o.0 == place) else {
+                self.inside[place] = 0;
+                continue;
+            };
+            let cat = self.cat(place, team);
+            if matches!(cat, Cat::Rest(_)) {
+                continue;
+            }
+            let idx = run.recs[place].len() - 1;
+            let near = Self::near(run, game, team, feet, idx);
+            let aimed = alive
+                .iter()
+                .filter(|o| o.1 != team && self.minds[o.0].aim.is_some_and(|(_, t)| t == TargetRef::Place(place)))
+                .count();
+            let group = &mut self.groups[cat.index()];
+            group.aimed_sum += aimed as u64;
+            group.crowd_ticks += u64::from(near.count_ones() >= CROWD);
+            let before = self.inside[place];
+            for enemy in (0..game.bodies.len().min(64)).filter(|e| near & (1 << e) != 0 && before & (1 << e) == 0) {
+                self.arrive(cat, place, enemy, tick);
+            }
+            self.inside[place] = near;
+        }
+    }
+
+    /// `enemy` came within 30 m of the subject `him` at `tick`.
+    fn arrive(&mut self, cat: Cat, him: Place, enemy: Place, tick: u32) {
+        let mind = &self.minds[enemy];
+        let aim = aim_of(mind.aim.map(|(_, target)| target), him);
+        let kind = mind.aim.map_or_else(|| "none".to_owned(), |(kind, _)| format!("{kind:?}"));
+        let source = mind.tracks.iter().find(|t| t.0 == him).map_or(6, |t| source_index(t.1));
+        let held: Vec<usize> = mind
+            .last
+            .iter()
+            .find(|(who, _)| *who == him)
+            .map(|(_, ticks)| (0..6).filter(|&i| ticks[i].is_some_and(|at| tick.saturating_sub(at) <= RECENT_MS)).collect())
+            .unwrap_or_default();
+        let pair_up = matches!(mind.aim, Some((PlayKind::PairUp, _))) && aim == 0;
+        let arrivals = &mut self.groups[cat.index()].arrivals;
+        arrivals.total += 1;
+        *arrivals.by_kind.entry(kind).or_default() += 1;
+        arrivals.by_aim[aim] += 1;
+        arrivals.by_source[source] += 1;
+        for i in held {
+            arrivals.held_10s[i] += 1;
+        }
+        arrivals.pair_up += u32::from(pair_up);
+    }
+}
+
 impl Topic for Feel {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
         self.grow(place + 1);
-        let list = &mut self.sources[place];
-        list.clear();
-        if let Some(bot) = bot {
-            list.extend(bot.memory.tracks().iter().map(|track| (track.who, source_name(track.source))));
+        self.minds[place].read(bot, tick);
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.grow(place + 1);
+        let mind = &mut self.minds[place];
+        match now {
+            Some(now) => {
+                mind.aim = now.aim;
+                mind.tracks = now.tracks.clone();
+                for &(who, source, time) in &now.tracks {
+                    mind.stamp(who, source, time);
+                }
+            }
+            None => *mind = Mind::default(),
         }
     }
 
@@ -290,6 +442,7 @@ impl Topic for Feel {
         self.grow(game.bodies.len());
         // The categories of this tick are those of the last: a death keeps the standing he had.
         self.lives_tick(run, game, game.tick);
+        self.subjects_tick(run, game, game.tick);
         self.deaths_tick(run, game);
         for team in 0..2u8 {
             self.tops[usize::from(team)] = self.top_of(game, team);
@@ -301,22 +454,42 @@ impl Topic for Feel {
         let mut lines = vec!["owner-test feel (the live census's definitions; live in brackets)".to_owned()];
         for cat in Cat::ALL {
             let g = &self.groups[cat.index()];
+            let subject = !matches!(cat, Cat::Rest(_));
             let minutes = g.alive_ticks as f64 * f64::from(TICK_MS) / 60_000.0;
             let per_min = if minutes > 0.0 { round3(f64::from(g.deaths) / minutes) } else { 0.0 };
             let share = if g.deaths > 0 { round1(100.0 * f64::from(g.crowded) / f64::from(g.deaths)) } else { 0.0 };
             let mean = |sum: u64| if g.deaths > 0 { round3(sum as f64 / f64::from(g.deaths)) } else { 0.0 };
+            let ticks = g.alive_ticks as f64;
+            let aimed_mean = if subject && ticks > 0.0 { round3(g.aimed_sum as f64 / ticks) } else { 0.0 };
+            let alive_3plus = if subject && ticks > 0.0 { round1(100.0 * g.crowd_ticks as f64 / ticks) } else { 0.0 };
+            let shooters_3 = if g.deaths > 0 { round1(100.0 * f64::from(g.shooters_3) / f64::from(g.deaths)) } else { 0.0 };
             let contact: Vec<Option<f64>> =
                 [0.25, 0.5, 0.75].map(|p| quantile(&g.contact_ms, p).map(|ms| round1(f64::from(ms) / 1000.0))).to_vec();
+            let a = &g.arrivals;
+            let pair_up_per_death = if g.deaths > 0 { round3(f64::from(a.pair_up) / f64::from(g.deaths)) } else { 0.0 };
+            let by_aim: BTreeMap<&str, u32> = AIMS.iter().copied().zip(a.by_aim).collect();
+            let by_source: BTreeMap<&str, u32> = SOURCES.iter().copied().chain(["none"]).zip(a.by_source).collect();
+            let held: BTreeMap<&str, u32> = SOURCES.iter().copied().zip(a.held_10s).collect();
             lines.push(format!(
-                "{}: alive {minutes:.1} min, deaths {} = {per_min} a minute (live 1.19 top, 0.81 not), crowded {} = {share} % (live top 41-45, not 27-29), enemies within 30 m at death {} / distinct in 10 s {} (live 1.1), spawn to first contact p25/median/p75 s {contact:?} over {} lives, {} lives with none (live 14-15 top, 17-18 not)",
+                "{}: alive {minutes:.1} min, deaths {} = {per_min} a minute (live 1.19 top, 0.81 not), crowded {} = {share} % (live top 41-45, not 27-29), enemies within 30 m at death {} / distinct in 10 s {} (live 1.1), shooters in 5 s {} (3+ {shooters_3} %), spawn to first contact p25/median/p75 s {contact:?} over {} lives, {} lives with none (live 14-15 top, 17-18 not)",
                 cat.name(),
                 g.deaths,
                 g.crowded,
                 mean(g.near_at_death),
                 mean(g.near_in_window),
+                mean(g.shooters_sum),
                 g.contact_ms.len(),
                 g.no_contact,
             ));
+            if subject {
+                lines.push(format!(
+                    "  gangup {}: plays aimed at him {aimed_mean} a tick, 3+ enemies near {alive_3plus} % of his alive time; {} arrivals: aimed at {by_aim:?}, track of him {by_source:?}, source held in the 10 s before {held:?}, by play {:?}; PairUp aimed at him {} = {pair_up_per_death} a death (guard <= 1)",
+                    cat.name(),
+                    a.total,
+                    a.by_kind,
+                    a.pair_up,
+                ));
+            }
             json.insert(
                 cat.name(),
                 serde_json::json!({
@@ -327,13 +500,24 @@ impl Topic for Feel {
                     "crowded_pct": share,
                     "enemies_30m_at_death": mean(g.near_at_death),
                     "enemies_30m_in_10s": mean(g.near_in_window),
+                    "shooters_5s_mean": mean(g.shooters_sum),
+                    "shooters_5s_3plus_pct": shooters_3,
                     "contact_s_p25_median_p75": contact,
                     "contact_lives": g.contact_ms.len(),
                     "no_contact_lives": g.no_contact,
+                    "aimed_plays_mean": aimed_mean,
+                    "alive_3plus_near_pct": alive_3plus,
+                    "arrivals": { "total": a.total, "aimed_at": by_aim, "track_source": by_source, "held_10s": held, "by_play": a.by_kind, "pair_up_on_him": a.pair_up, "pair_up_per_death": pair_up_per_death },
                 }),
             );
         }
-        lines.extend(self.notes.iter().cloned());
+        let density = |team: usize, mates: bool| {
+            let (m, e, n) = self.density[team];
+            if n > 0 { round3((if mates { m } else { e }) as f64 / n as f64) } else { 0.0 }
+        };
+        let (mates, enemies) = ([density(0, true), density(1, true)], [density(0, false), density(1, false)]);
+        lines.push(format!("density within 30 m of a living bot, by team: mates {mates:?} (live 1.65), enemies {enemies:?} (live 0.65)"));
+        json.insert("density".to_owned(), serde_json::json!({ "mates_30m": mates, "enemies_30m": enemies }));
         vec![("feel", Part::new(serde_json::json!({ "feel": json }), lines.join("\n  ")))]
     }
 }
@@ -383,5 +567,33 @@ mod tests {
         // Body 0 met an enemy 2 s after it spawned (the tick of the first record).
         let contact = rest["contact_s_p25_median_p75"][1].as_f64().unwrap_or(f64::NAN);
         assert!((contact - 2.0).abs() < 0.2, "{contact}");
+    }
+
+    /// An enemy bot's first tick within 30 m of the stand-in is an arrival, with its play, what it was aimed at and the sources its
+    /// track of him had; plays aimed at him are counted every tick.
+    #[test]
+    fn an_arrival_is_counted_with_its_aim_and_the_sources_it_held() {
+        let (mut game, mut tally) = made_up(&[0, 1, 1]);
+        tally.topic::<Feel>().set_human("test".to_owned(), Some(0), None);
+        for k in 0..40u32 {
+            game.tick = (k + 1) * TICK_MS;
+            put(&mut game, 0, 10.0, 10.0, 0);
+            put(&mut game, 1, if k >= 20 { 20.0 } else { 70.0 }, 10.0, 0);
+            put(&mut game, 2, 75.0, 30.0, 0);
+            let bot = BotNow {
+                aim: Some((PlayKind::PairUp, TargetRef::Place(0))),
+                tracks: vec![(0, Source::Told { by: 2 }, game.tick)],
+                ..BotNow::default()
+            };
+            tally.step_with(&mut game, &[None, Some(bot), None]);
+        }
+        let (_, json) = tally.finish(&game);
+        let human = &json["feel"]["the stand-in human"];
+        let arrivals = &human["arrivals"];
+        assert_eq!(arrivals["total"], 1, "{human}");
+        assert_eq!((arrivals["aimed_at"]["him"].as_u64(), arrivals["track_source"]["Told"].as_u64()), (Some(1), Some(1)));
+        assert_eq!((arrivals["held_10s"]["Told"].as_u64(), arrivals["held_10s"]["Radar"].as_u64()), (Some(1), Some(0)));
+        assert_eq!((arrivals["by_play"]["PairUp"].as_u64(), arrivals["pair_up_on_him"].as_u64()), (Some(1), Some(1)));
+        assert_eq!(human["aimed_plays_mean"], 1.0);
     }
 }

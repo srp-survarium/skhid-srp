@@ -129,6 +129,9 @@ pub(super) struct BotNow {
     pub(super) gates: crate::v026g::bots::reflex::Gates,
     /// It has a live sight of an enemy.
     pub(super) sighted: bool,
+    /// Its assignment, and its tracks (who, source, time).
+    pub(super) aim: Option<(crate::v026g::bots::plays::PlayKind, crate::v026g::bots::plays::TargetRef)>,
+    pub(super) tracks: Vec<(Place, crate::v026g::bots::know::Source, u32)>,
 }
 
 #[cfg(test)]

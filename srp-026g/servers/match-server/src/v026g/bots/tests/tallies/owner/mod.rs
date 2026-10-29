@@ -138,7 +138,7 @@ impl OwnerTally {
 
     /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
     pub(crate) fn set_scoreboard(&mut self, context: String, human: Option<Place>, camper: Option<Place>) {
-        self.topic::<Feel>().set_human(context.clone(), human);
+        self.topic::<Feel>().set_human(context.clone(), human, camper);
         self.topic::<Scoreboard>().set_context(context, human, camper);
     }
 
