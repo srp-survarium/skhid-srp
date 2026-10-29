@@ -1819,3 +1819,14 @@ va	status	ref_021d	name
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
 0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent
+0x00329b20	verified		survarium::player_stamina::update_weight_modifiers
+0x00329290	verified		survarium::player_stamina::player_stamina
+0x002dbf40	verified	0x001d6747	survarium::base_player::can_sprint
+0x002221e0	verified		survarium::lobby_menu::update_player_items_weight
+0x002f7660	verified		survarium::player_profile::apply_kit_parameter
+0x00331840	observed		survarium::weapon_recoil_parameters::load
+0x00330ee0	observed		survarium::weapon_dispersion_parameters::load
+0x002debc0	observed		survarium::weapon_breath_vibration_parameters::load
+0x002f1430	observed		survarium::item_config_cook::find_modifier_target
+0x00358010	observed		vostok::configs::apply_multiplicative_modifiers
+0x0028cab0	verified		survarium::lobby_menu::go_to_knowledge_base

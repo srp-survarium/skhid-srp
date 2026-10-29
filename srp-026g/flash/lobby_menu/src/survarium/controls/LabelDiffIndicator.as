@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.utils.Constraints;
@@ -22,6 +23,17 @@ package survarium.controls
       protected var _postfix:String = "";
       
       protected var _label:String = "";
+
+      // Text-only weapon details still use the native row's embedded fonts.
+      // Null keeps the ordinary numeric comparison behaviour.
+      private var _detailValue:String = null;
+
+      public function setDetailText(label:String, value:String) : void
+      {
+         _label = label;
+         _detailValue = value;
+         invalidateData();
+      }
       
       public function LabelDiffIndicator()
       {
@@ -88,6 +100,7 @@ package survarium.controls
                constraints.update(_width,_height);
             }
          }
+         if(_detailValue != null) updatePosition();
       }
       
       override protected function updatePosition() : void
@@ -146,6 +159,26 @@ package survarium.controls
          else
          {
             this.textFieldValue.x = this.textFieldDiff.x + 4;
+         }
+         // Ctrl keeps the values but removes comparison highlighting.
+         var neutralComparison:Boolean = MainScene.isCtrl;
+         if(neutralComparison) this.textFieldValue.textColor = 15911311;
+         mc_diff_positive.visible = mc_diff_negative.visible = !neutralComparison;
+         if(mc_diff_positive_ghost) mc_diff_positive_ghost.visible = !neutralComparison;
+         if(mc_diff_negative_ghost) mc_diff_negative_ghost.visible = !neutralComparison;
+         if(_detailValue != null)
+         {
+            // Keep the original row's typography, colors and value alignment.
+            // Only replace its numeric string; these base details have no bars.
+            textFieldValue.text = _detailValue;
+            textFieldDiff.visible = false;
+            mc_value.visible = mc_diff_positive.visible = mc_diff_negative.visible = false;
+            if(mc_diff_positive_ghost) mc_diff_positive_ghost.visible = false;
+            if(mc_diff_negative_ghost) mc_diff_negative_ghost.visible = false;
+            if(!_detailValue.length)
+               textFieldLabel.width = textFieldValue.x + textFieldValue.width - textFieldLabel.x;
+            textFieldLabel.multiline = textFieldLabel.wordWrap = true;
+            textFieldLabel.autoSize = TextFieldAutoSize.LEFT;
          }
       }
    }

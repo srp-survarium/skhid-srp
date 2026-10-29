@@ -3646,3 +3646,22 @@ and HUD cleanup clear the presentation; artefacts retain their existing display.
 This is presentation only. See `docs/notes/client_patch.md` and
 `check_consumable_activity_026g.py`; the Flash lifecycle check is
 `scripts/consumable-activity/check.sh`.
+
+## Weight slowdown indicator (unreleased)
+
+The lobby weight number turns coral when carried weight slows movement and
+stays red at the carry limit. Its native warning tooltip shows the weight's
+movement and sprint-stamina penalties, including the selected kit's skills,
+and explains when weight or Heavyweight prevents sprinting. This is UI only.
+`weight_ui_026g.c`/`.asm` extend the existing weight callback from the same
+player config and native profile evaluator. See the carried-weight section of
+`docs/notes/data.md`, `check_weight_ui_026g.py`, and
+`scripts/weight-ui/check_ui.sh` for evidence and targeted checks.
+
+## Knowledge database link (unreleased)
+
+The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`
+after the existing confirmation. `KNOWLEDGE_BASE` changes the fixed URL and
+skips the old support-site path appends; the native browser call is preserved.
+The wiki uses browser language selection. `check_knowledge_base_026g.py`
+executes the original and redirected callbacks for all six game languages.
