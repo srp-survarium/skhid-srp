@@ -44,6 +44,7 @@ mod damage;
 mod launcher;
 mod maps;
 mod moderation;
+mod modifiers;
 mod password_reset;
 mod patches;
 mod stats;
@@ -699,7 +700,11 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
-        } else if self.game.is_some() && matches!(request.path.as_str(), wiki::PATH | wiki::WEAPONS)
+        } else if self.game.is_some()
+            && matches!(
+                request.path.as_str(),
+                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS
+            )
         {
             damage::POLICY
         } else {
@@ -961,7 +966,7 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH | wiki::WEAPONS) => {
+                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS) => {
                         return wiki_page(path, request.lang);
                     }
                     path if path.starts_with(launcher::FRESH) => {

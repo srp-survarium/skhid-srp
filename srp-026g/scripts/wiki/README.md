@@ -1,9 +1,18 @@
 # Wiki: weapons
 
-The wiki is `/wiki` (its index) and three sections: `/wiki/weapons`, built here,
-and the damage calculator (`/wiki/calculator`, `scripts/damage-calc/`) and the
-maps (`/wiki/maps`, `scripts/maps-tab/`), each a page of its own look under a
-"Wiki / <page>" line. Their old addresses `/damage` and `/maps` send to them.
+The wiki is `/wiki` (its index) and four sections: `/wiki/weapons`, built here;
+`/wiki/modifiers`; and the damage calculator (`/wiki/calculator`,
+`scripts/damage-calc/`) and the maps (`/wiki/maps`, `scripts/maps-tab/`), each a
+page of its own look under a "Wiki / <page>" line. Their old addresses `/damage`
+and `/maps` send to them.
+
+The modifiers page has no build step: the web server makes it from the server's
+own game data (`servers/web-server/src/modifiers.rs`), with the tables and the
+roll rule the lobby gives modifications by (`Modification::rolls`). Each kind
+lists its strengths, commonest first, and the item groups that roll it (or, for
+the kinds that never roll, the items that come with it); a group only some of
+whose items take it lists those items. Reliability is left out: items wear
+nothing.
 
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats, in EN/UK.

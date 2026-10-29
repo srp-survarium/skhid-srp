@@ -751,7 +751,11 @@ mod tests {
             let clip = super::super::item_params::shop_unit(item.dict_id);
             let sold = sell_price(dictionary, item.dict_id, clip, 100);
             assert!(sold <= u64::from(cost), "{name}: {sold} for {cost}");
-            assert_eq!(buy_cost(item.dict_id, 3), Some(u64::from(cost) * 3), "{name}");
+            assert_eq!(
+                buy_cost(item.dict_id, 3),
+                Some(u64::from(cost) * 3),
+                "{name}"
+            );
         }
         // The 5.45x39 7N6M: 30 a clip, where the game says 60.
         let rounds = dictionary.item_named("ammo_5.45x39_7n6m").unwrap();

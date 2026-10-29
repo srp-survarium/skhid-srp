@@ -1034,7 +1034,13 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
 #[test]
 fn wiki_routes_use_the_sites_navigation_and_language() {
     let world = world();
-    for path in ["/wiki", "/wiki/weapons", "/wiki/calculator", "/wiki/maps"] {
+    for path in [
+        "/wiki",
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/calculator",
+        "/wiki/maps",
+    ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
             request.lang = lang;
@@ -1053,7 +1059,12 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
     }
     // The index leads to every section.
     let index = world.web.route(&get("/wiki"), "t").body;
-    for section in ["/wiki/weapons", "/wiki/calculator", "/wiki/maps"] {
+    for section in [
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/calculator",
+        "/wiki/maps",
+    ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
             "{section}"

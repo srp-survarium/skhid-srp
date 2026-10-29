@@ -1,12 +1,14 @@
 //! The wiki: its index and a weapons catalogue generated from the same released
 //! dataset and images as the damage calculator. No separately maintained stats.
+//! The modifiers ([`crate::modifiers`]) come from the server's game data.
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
 //! sections too, each a page of its own look.
 
-use crate::{ContentType, Lang, Response, damage, escape, maps};
+use crate::{ContentType, Lang, Response, damage, escape, maps, modifiers};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
+pub(crate) const MODIFIERS: &str = "/wiki/modifiers";
 const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
 const STYLE: &str = include_str!("../wiki/style.css");
 
@@ -40,11 +42,13 @@ pub(crate) fn page(path: &str, lang: Lang, header: &str) -> Response {
             Lang::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
+    } else if path == MODIFIERS {
+        (lang.tr("Modifiers", "Модифікатори"), modifiers::body(lang))
     } else {
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -52,6 +56,13 @@ pub(crate) fn page(path: &str, lang: Lang, header: &str) -> Response {
                     &lang.tr("Weapons", "Зброя"),
                     &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
                         "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                ),
+                section(
+                    lang,
+                    MODIFIERS,
+                    &lang.tr("Modifiers", "Модифікатори"),
+                    &lang.tr("Every modifier, its strengths and the items that can get it.",
+                        "Усі модифікатори, їхня сила та предмети, на які вони випадають."),
                 ),
                 section(
                     lang,
