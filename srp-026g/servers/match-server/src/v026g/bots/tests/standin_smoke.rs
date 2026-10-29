@@ -50,12 +50,16 @@ enum Habit {
 }
 
 /// What the habit counted.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct SmokeHabitCounts {
     pub(crate) lives: u32,
     pub(crate) planned: u32,
     pub(crate) thrown: u32,
     pub(crate) between: u32,
+    pub(crate) on_him: u32,
+    /// Seconds from the spawn to each press, and metres from the thrower to each rest point.
+    pub(crate) press_s: Vec<f32>,
+    pub(crate) rest_m: Vec<f32>,
 }
 
 pub(crate) struct SmokeHabit {
@@ -115,16 +119,16 @@ impl SmokeHabit {
         };
         let draw = self.rng.unit();
         let reach = at_fraction(&REST_M, self.rng.unit());
-        let (rest, between) = if draw < BETWEEN_SHARE {
+        let (rest, between, on_him) = if draw < BETWEEN_SHARE {
             // On the line to him and closer than he is.
-            (body.feet + (enemy - body.feet) * (reach.min(0.9 * to_enemy) / to_enemy.max(0.1)), true)
+            (body.feet + (enemy - body.feet) * (reach.min(0.9 * to_enemy) / to_enemy.max(0.1)), true, false)
         } else if draw < BETWEEN_SHARE + ON_HIM_SHARE {
             let angle = self.rng.range(0.0, std::f32::consts::TAU);
             let r = self.rng.range(0.0, ON_HIM_M);
-            (enemy + Vec3::new(r * angle.cos(), 0.0, r * angle.sin()), false)
+            (enemy + Vec3::new(r * angle.cos(), 0.0, r * angle.sin()), false, true)
         } else {
             let angle = self.rng.range(0.0, std::f32::consts::TAU);
-            (body.feet + Vec3::new(reach * angle.cos(), 0.0, reach * angle.sin()), false)
+            (body.feet + Vec3::new(reach * angle.cos(), 0.0, reach * angle.sin()), false, false)
         };
         let throw =
             SmokeThrow { by: self.place, team: body.team, press: MatchMs(tick), grenade: *SmokeGrenade::of_game_data() };
@@ -132,6 +136,9 @@ impl SmokeHabit {
         tracker.add_cloud(cloud);
         self.counts.thrown += 1;
         self.counts.between += u32::from(between);
+        self.counts.on_him += u32::from(on_him);
+        self.counts.press_s.push(tick.saturating_sub(body.spawned) as f32 / 1000.0);
+        self.counts.rest_m.push((rest - body.feet).length());
         self.habit = Habit::Idle;
     }
 
@@ -142,11 +149,25 @@ impl SmokeHabit {
 
     /// The bench's line.
     pub(crate) fn line(&self) -> String {
-        let c = self.counts;
+        let c = &self.counts;
         let per_100 = if c.lives > 0 { 100.0 * f64::from(c.thrown) / f64::from(c.lives) } else { 0.0 };
+        let quantiles = |values: &[f32]| -> String {
+            let mut sorted = values.to_vec();
+            sorted.sort_by(f32::total_cmp);
+            let at = |p: f32| sorted.get(((sorted.len().saturating_sub(1)) as f32 * p).round() as usize).copied();
+            format!("{:?}", [0.1, 0.5, 0.9].map(|p| at(p).map(|v| (v * 10.0).round() / 10.0)))
+        };
         format!(
-            "smoke habit (stand-in human): {} lives, {} drawn, {} thrown = {per_100:.2} a 100 lives (live 2.97), {} on the line to the nearest enemy (live 69 %)",
-            c.lives, c.planned, c.thrown, c.between
+            "smoke habit (stand-in human): {} lives, {} drawn, {} thrown = {per_100:.2} a 100 lives (live 2.97), {} on the line to the nearest enemy (live 68.9 %), {} on him (live 6.2 %); press s from spawn P10/median/P90 {} (live 7.2/26.8/96.5); rest m from the thrower {} (live 1.8/10.4/24.4); press {:?}; rest {:?}",
+            c.lives,
+            c.planned,
+            c.thrown,
+            c.between,
+            c.on_him,
+            quantiles(&c.press_s),
+            quantiles(&c.rest_m),
+            c.press_s.iter().map(|v| (v * 10.0).round() / 10.0).collect::<Vec<_>>(),
+            c.rest_m.iter().map(|v| (v * 10.0).round() / 10.0).collect::<Vec<_>>(),
         )
     }
 }
