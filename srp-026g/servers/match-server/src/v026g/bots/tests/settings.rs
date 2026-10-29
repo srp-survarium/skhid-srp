@@ -131,6 +131,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_HUMAN_SMOKE", "on", "off: the stand-in human throws no smoke (otherwise at the live rate, standin_smoke.rs)"),
+    s("SRP_BENCH_SMOKE_FAIR_DUMP", "unset", "set: each sighting the smoke fairness counter counts is printed (`FAIR-SEEN`, tallies/owner/smoke.rs), with the clouds near it at the counter's tick and at the sensing's time"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
     s("SRP_BENCH_ENEMY_HUMAN_LANES", "off", "**model** `on` (or `1`, `both`): every body of the other team counts as a human in the team's lanes of enemy humans (`know::HumanLanes`), for both teams; `team1` (or `team0`): for that team's bots only. Player vs Bots has its one human on team 0, so `team1` is that match (both teams placing traps counted them twice, an-gear-moves 3.3); only the lanes read it (the bear-trap habit's score needs them: a bench of bots alone has no human)"),
     s("SRP_BENCH_CAMPER_SPOT", "most", "**model** `hidden`: the camper's spot is one that sees many route points of the other side and is seen from under half of them (else the one that sees the most)"),

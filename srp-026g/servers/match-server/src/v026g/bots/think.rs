@@ -593,6 +593,16 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         tuning,
     } = *due;
     let t = &tuning.smoke;
+    // [diagnosis] Outranged by a sniper it saw within 15 s, whatever the kit and the hands.
+    #[cfg(test)]
+    if t.anti_sniper
+        && bot
+            .reflex
+            .outranged_by()
+            .is_some_and(|(_, _, seen)| view.clock.saturating_sub(seen) <= FAIR_SENSED_MS)
+    {
+        smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
+    }
     if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() {
         return;
     }
@@ -644,6 +654,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
             .filter(|l| tactics.sees(l.at + eye_over, chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
+        // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.
+        if view.smoke.covers(view.clock, t, held.at + eye_over, chest) {
+            return None;
+        }
         smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
             let why = format!(
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",

@@ -744,6 +744,8 @@ pub mod tally {
         /// free: a plan made, or none (no point of the line both in the throw's reach and covering it).
         Outranged,
         OutrangedNoPlan,
+        /// [smoke.anti_sniper] A think outranged by a sniper it saw within 15 s, whatever its kit or hands.
+        OutrangedAny,
     }
 
     impl Event {
@@ -756,7 +758,7 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 11;
+    pub const EVENTS: usize = 12;
 
     /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
     /// died (the life ended with it under way). Every throw begun ends in one of the last three.

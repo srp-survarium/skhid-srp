@@ -68,7 +68,9 @@ pub(super) struct SmokeCounts {
     seen_times: BTreeMap<(Place, Place), u32>,
     /// By bot and enemy: where its last `Seen` track had him (what its shots are aimed from).
     sensed: BTreeMap<(Place, Place), Vec3>,
-    fresh_seen: Vec<(Place, Place, Vec3)>,
+    fresh_seen: Vec<(Place, crate::v026g::bots::know::Track)>,
+    /// [diagnosis] The seen-through counts as the first definition had them: with the clouds of the counter's tick.
+    seen_through_at_tick: [u32; 2],
 }
 
 impl SmokeCounts {
@@ -89,6 +91,7 @@ impl SmokeCounts {
             seen_times: BTreeMap::new(),
             sensed: BTreeMap::new(),
             fresh_seen: Vec::new(),
+            seen_through_at_tick: [0; 2],
         }
     }
 
@@ -177,7 +180,7 @@ impl SmokeCounts {
             let last = self.seen_times.insert((place, track.who), track.time);
             self.sensed.insert((place, track.who), track.at);
             if last != Some(track.time) {
-                self.fresh_seen.push((place, track.who, track.at));
+                self.fresh_seen.push((place, *track));
             }
         }
     }
@@ -185,14 +188,45 @@ impl SmokeCounts {
     /// The tick's fresh `Seen` sensings of the bot at `place` whose every part the clouds hide: from its eye to where
     /// it sensed him (the track's place, the view's: the game's body is later than what the bot saw).
     fn check_seen(&mut self, game: &Game, place: Place, tick: u32) {
-        let mine: Vec<(Place, Vec3)> =
-            self.fresh_seen.iter().filter(|(p, _, _)| *p == place).map(|&(_, who, at)| (who, at)).collect();
-        self.fresh_seen.retain(|(p, _, _)| *p != place);
+        let mine: Vec<crate::v026g::bots::know::Track> =
+            self.fresh_seen.iter().filter(|(p, _)| *p == place).map(|(_, track)| *track).collect();
+        self.fresh_seen.retain(|(p, _)| *p != place);
         let me = &game.bodies[place];
-        for (who, at) in mine {
+        for track in mine {
+            let (who, at, time) = (track.who, track.at, track.time);
             let (eye, team) = (Game::eye(me), usize::from(me.team & 1));
-            if game.bodies[who].alive && self.hides_body(tick, eye, at) {
+            let at_tick = self.hides_body(tick, eye, at);
+            self.seen_through_at_tick[team] += u32::from(game.bodies[who].alive && at_tick);
+            // Judged with the clouds at the sensing's own time: a cloud hides nothing while it forms and then its whole
+            // radius at once, so a sensing 50 ms before that edge is not a sight through it (fair-dump-20261029T1154).
+            let at_sense = self.hides_body(time, eye, at);
+            if game.bodies[who].alive && at_sense {
                 self.seen_through[team] += 1;
+                if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
+                    let near: Vec<String> = self
+                        .clouds
+                        .iter()
+                        .filter(|c| c.centre.distance_xz(at) < 40.0 || c.centre.distance_xz(eye) < 40.0)
+                        .map(|c| {
+                            format!(
+                                "cloud by {} team {} centre ({:.1},{:.1},{:.1}) pours {} r(tick) {:?} r(sense) {:?}",
+                                c.by, c.team, c.centre.x, c.centre.y, c.centre.z, c.pours.0,
+                                c.radius_at(smoke::MatchMs(tick)), c.radius_at(smoke::MatchMs(time))
+                            )
+                        })
+                        .collect();
+                    eprintln!(
+                        "FAIR-SEEN bot {place} (team {team}) saw {who} tick {tick} sensed {time} (lag {} ms) sight_since {:?} held_until {} missed {:?} own {:?} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1}) body ({:.1},{:.1},{:.1}) at-tick hidden {at_tick}; {}",
+                        tick.saturating_sub(time),
+                        track.sight_since,
+                        track.held_until,
+                        track.missed,
+                        track.own.map(|(p, t)| (t, (p.x * 10.0).round() / 10.0, (p.z * 10.0).round() / 10.0)),
+                        eye.x, eye.y, eye.z, at.x, at.y, at.z,
+                        game.bodies[who].feet.x, game.bodies[who].feet.y, game.bodies[who].feet.z,
+                        near.join(" | ")
+                    );
+                }
                 #[cfg(test)]
                 SEEN_CASES.with(|c| c.borrow_mut().push((place, who, tick, eye, at)));
             }
@@ -205,7 +239,7 @@ impl SmokeCounts {
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
         use smoke::tally::Event::{
-            AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedNoPlan, SightLost, Spray, WatchBusy,
+            AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, Outranged, OutrangedAny, OutrangedNoPlan, SightLost, Spray, WatchBusy,
         };
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
@@ -250,6 +284,7 @@ impl SmokeCounts {
             "smoke_learnt_told": by(LearntTold),
             "smoke_outranged_planned": by(Outranged),
             "smoke_outranged_no_plan": by(OutrangedNoPlan),
+            "smoke_outranged_any": by(OutrangedAny),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -257,9 +292,10 @@ impl SmokeCounts {
             "smoke_deaths_in": self.deaths_in_smoke,
             "smoke_fair_seen_through": self.seen_through,
             "smoke_fair_fire_through": self.fire_through,
+            "smoke_fair_seen_through_at_tick": self.seen_through_at_tick,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,
@@ -279,6 +315,7 @@ impl SmokeCounts {
             by(LearntTold),
             by(Outranged),
             by(OutrangedNoPlan),
+            by(OutrangedAny),
             self.hits_through,
             self.spray_hits,
             self.kills_through,
@@ -314,7 +351,7 @@ impl Topic for SmokeCounts {
 
     fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
         if self.clouds.is_empty() {
-            self.fresh_seen.retain(|(p, _, _)| *p != at.place);
+            self.fresh_seen.retain(|(p, _)| *p != at.place);
             return;
         }
         self.check_seen(at.game, at.place, at.tick);
