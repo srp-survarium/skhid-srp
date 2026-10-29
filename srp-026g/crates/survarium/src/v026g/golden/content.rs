@@ -16,7 +16,7 @@ pub(super) fn shared() -> &'static BTreeMap<String, PremiumArmour> {
     static CONTENT: OnceLock<BTreeMap<String, PremiumArmour>> = OnceLock::new();
     CONTENT.get_or_init(|| {
         load(game_data::shared(), Dictionary::shared())
-            .expect("premium equipment metadata was checked when loading game data")
+            .expect("srp checks the premium equipment metadata at start (golden::check_content)")
     })
 }
 

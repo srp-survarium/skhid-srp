@@ -145,6 +145,13 @@ pub fn is_golden_weapon_name(name: &str) -> bool {
     GOLDEN_WEAPONS.iter().any(|&(golden, ..)| golden == name)
 }
 
+/// The premium equipment its content pack declares (`srp_premium`), or why
+/// `data` is refused: [`super::tables::check`] asks this before any table
+/// reads it, so bad metadata stops srp with its error, not a panic.
+pub fn check_content(data: &GameData, dictionary: &Dictionary) -> Result<(), GameDataError> {
+    content::load(data, dictionary).map(|_| ())
+}
+
 /// The premium bonuses of the premium armour piece `name` (a dictionary
 /// name); `None` for anything else.
 pub fn armour_bonuses(name: &str) -> Option<&'static [u32]> {
