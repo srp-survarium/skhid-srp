@@ -19,7 +19,17 @@
 #      (release/build-patch), then builds the server game data of the stock
 #      db, the list's patches and it (srp-game-data build, the new patch at
 #      $SKHID_PATCHES_URL/<its name>, where release/upload-patch puts it),
-#      and checks that players' files with it over them are the manifest's.
+#      and checks that players' files with it over them are the manifest's;
+#   5. everything else the game data makes, from the same patches, in
+#      --tree: the site's pages (release/build-site --with the new patch:
+#      the calculator, the maps, the wiki's icons; its built-from.tsv must
+#      name exactly the list's patches and the new one) and the item tables
+#      (srp-item-tables on the new server data, srp-026g/docs/data/: written
+#      only where an item changed, each change said). So one run gives the
+#      patch, the server data, the site and the tables of one release: a
+#      preview runs with SRP_GAME_DATA=<--out>/server-game-data.db in --tree.
+#      With nothing to ship, the site is built of the list alone and the
+#      tables are left as they are (no new server data).
 #
 #   <revision>          the release's revision (the live exe's + 1), above
 #                       every listed patch
@@ -37,11 +47,13 @@
 # (default private/actionscript/tools.json of the main checkout); with packs
 # to compose, SKHID_VOSTOK_PORT (resource-porter's vostok-port) and
 # SKHID_PACKS_DIR (the packs' folders, <id>-<version>).
-# Writes only --out (and the cache). Next: release/release.sh --resources
+# Writes --out (and the cache), and in --tree the site's pages and the item
+# tables (git shows what changed). Next: release/release.sh --resources
 # <folder>/resources.db.patch_<revision>.
 . "$(dirname "$0")/lib.sh"
 here=$(cd "$(dirname "$0")" && pwd)
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
 revision='' out='' tree=$ROOT manifest=''
 while (($#)); do
@@ -91,8 +103,21 @@ if ! python -I "$here/build_content.py" "${args[@]}"; then
     die "no patch made"
 fi
 cp "$work/build/files.tsv" "$out/files.tsv"
+
+# 5. The site's pages of the list's patches and <with> (if any), in --tree.
+site() { # [<with>]
+    local log=$out/build-site.log args=(--tree "$tree")
+    [[ -z ${1:-} ]] || args+=(--with "$1")
+    say "the site's pages in $tree (release/build-site; its log: $log) ..."
+    "$BUILD_SITE" "${args[@]}" </dev/null >"$log" 2>&1 ||
+        die "the site's build failed (its log: $log): $(tail -n 3 "$log" | tr '\n' ' ')"
+    say "the site's pages: built from the list's patches${1:+ and ${1##*/}} (built-from.tsv)"
+}
 if [[ ! -d $work/build/patch ]]; then
     say "files.tsv: $out/files.tsv; no patch, no server game data (release/build-server-db makes the list's)"
+    say
+    site
+    say "the item tables ($ITEM_TABLES_DIR): as they are (no new server data)"
     exit 0
 fi
 
@@ -119,4 +144,12 @@ others=$(grep -v '^same ' <<<"$compared" || true)
 say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
 say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
 say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
+say
+site "$out/$name"
+# The item tables of the new server data: only where an item changed.
+tables=$("$(item_tables_bin)" "$out/$DATA_NAME" --dir "$tree/$ITEM_TABLES_DIR" 2>&1) ||
+    die "the item tables: $tables"
+say "the item tables ($tree/$ITEM_TABLES_DIR):"
+say "  ${tables//$'\n'/$'\n'  }"
+say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"
 say "next: release/release.sh --resources $out/$name"

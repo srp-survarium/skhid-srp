@@ -69,10 +69,11 @@ cargo test -p web-server serve_wiki_preview -- --ignored --nocapture
 Open `http://127.0.0.1:24583/wiki`. This uses isolated in-memory accounts and
 does not start or connect to the game servers. Stop the command to close it.
 The modifiers and equipment pages come from the tests' game data (an old fixed
-copy) unless `SRP_GAME_DATA` names a server data file, e.g. the one
-`release/build-content <revision>` makes: then they show that release's items.
-Item icons are the site build's (`release/build-site --tree . --with <patch>`
-for a patch not released yet).
+copy) unless `SRP_GAME_DATA` names a server data file. To preview a release,
+run `release/build-content <revision> --out <folder>` in this checkout: one
+run makes the patch, `<folder>/server-game-data.db`, and, in the checkout, the
+site's pages with their icons and the item tables, all from the same patches;
+then start the preview here with `SRP_GAME_DATA=<folder>/server-game-data.db`.
 
 `check_browser.mjs` exercises the real HTTP preview in an isolated Firefox
 WebDriver BiDi session (port 9457 by default), including filtering, sorting,

@@ -697,6 +697,12 @@ record_files() { # <wt> <shipped>
         cp "$PATCH_LIST" "$wt/release/patches.tsv"
         LIST_RECORDED=1
     fi
+    # The item tables of the server data the release ships: only where an
+    # item changed (the record carries no table otherwise).
+    if ! ITEM_TABLES_REPORT=$("$ITEM_TABLES" "$data" --dir "$wt/$ITEM_TABLES_DIR" 2>&1); then
+        record_problem "the item tables: $(tail -n 3 <<<"$ITEM_TABLES_REPORT" | tr '\n' ' ')"
+        return 1
+    fi
     # The site's pages the preflight rebuilt, as the server has them now.
     if [[ -n $site_tree ]]; then
         for page in "${SITE_PAGES[@]}"; do
@@ -759,6 +765,11 @@ record_release() {
             say "The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and"
             say "damage/) rebuilt from the offered patches by release/build-site, as the"
             say "server has them now."
+        fi
+        if grep -q ' change(s)$' <<<"$ITEM_TABLES_REPORT"; then
+            say
+            say "The item tables ($ITEM_TABLES_DIR/) of the server data it ships:"
+            say "$ITEM_TABLES_REPORT"
         fi
         if [[ -n $SIM_NEXT ]]; then
             say
@@ -1224,6 +1235,13 @@ if ((site_stale)); then
             fi
         fi
     fi
+fi
+
+# The item tables' tool: the record writes the tables of the server data
+# this release ships (srp-026g/docs/data/, only where an item changed).
+ITEM_TABLES='' ITEM_TABLES_REPORT=''
+if ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
+    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
 fi
 
 # The server code: main's srp-026g build inputs against the live tree.

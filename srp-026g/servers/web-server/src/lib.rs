@@ -42,6 +42,7 @@
 
 mod damage;
 mod icons;
+pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;

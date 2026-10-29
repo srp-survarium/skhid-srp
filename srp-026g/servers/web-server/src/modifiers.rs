@@ -309,7 +309,7 @@ pub(crate) fn text(lang: Lang, key: &str) -> String {
 
 /// A number as the lobby would print it: at most two decimals, no trailing
 /// zeros.
-fn number(value: f32) -> String {
+pub(crate) fn number(value: f32) -> String {
     let text = format!("{value:.2}");
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
@@ -528,16 +528,47 @@ fn item_html(lang: Lang, item: Option<u16>) -> String {
     )
 }
 
+/// The kinds `dict_id` can roll (the server's candidates), in the game's
+/// order.
+fn rolled_kinds(dict_id: u16) -> impl Iterator<Item = &'static Kind> {
+    kinds()
+        .iter()
+        .filter(move |kind| kind.source == Source::Rolled && kind.takes(dict_id))
+}
+
+/// The names of the kinds `dict_id` can roll, as the lobby prints them.
+pub(crate) fn can_roll(lang: Lang, dict_id: u16) -> Vec<String> {
+    rolled_kinds(dict_id)
+        .map(|kind| property_name(lang, kind.property))
+        .collect()
+}
+
+/// What `dict_id` comes with (its `default_modifications`, but those that
+/// only change wear): each one with the property the lobby prints for it.
+pub(crate) fn built_in(dict_id: u16) -> Vec<(&'static Modification, &'static UiProperty)> {
+    let Some(params) = item_params::item_params(dict_id) else {
+        return Vec::new();
+    };
+    let properties = UiProperties::shared();
+    params
+        .default_modifications
+        .iter()
+        .filter_map(|&id| Modifications::shared().modification(id))
+        .filter(|modification| !modification.only_changes_wear())
+        .filter_map(|modification| {
+            Some((modification, properties.get(modification.shown.property)?))
+        })
+        .collect()
+}
+
 /// What `dict_id` can roll (each kind linked to its row of this page,
 /// `page` before the `#`: "" here, the page's address elsewhere) and what
 /// it comes with: the "By item" view's lists, also the equipment's cards'.
 pub(crate) fn item_lists(lang: Lang, dict_id: u16, page: &str) -> String {
-    let Some(params) = item_params::item_params(dict_id) else {
+    if item_params::item_params(dict_id).is_none() {
         return String::new();
-    };
-    let rolls: Vec<String> = kinds()
-        .iter()
-        .filter(|kind| kind.source == Source::Rolled && kind.takes(dict_id))
+    }
+    let rolls: Vec<String> = rolled_kinds(dict_id)
         .map(|kind| {
             format!(
                 "<li><a class=kind href=\"{page}#kind-{}\">{}</a>{}</li>",
@@ -547,20 +578,15 @@ pub(crate) fn item_lists(lang: Lang, dict_id: u16, page: &str) -> String {
             )
         })
         .collect();
-    let properties = UiProperties::shared();
-    let built_in: Vec<String> = params
-        .default_modifications
-        .iter()
-        .filter_map(|&id| Modifications::shared().modification(id))
-        .filter(|modification| !modification.only_changes_wear())
-        .filter_map(|modification| {
-            let property = properties.get(modification.shown.property)?;
-            Some(format!(
+    let built_in: Vec<String> = built_in(dict_id)
+        .into_iter()
+        .map(|(modification, property)| {
+            format!(
                 "<li><span class=kind>{}<span>{}</span></span><ol class=strengths><li>{}</li></ol></li>",
                 glyph(IconSet::Modifier, &modification.shown.icon.to_string()),
                 escape(&property_name(lang, property)),
                 escape(&strength(lang, property, modification.shown.value)),
-            ))
+            )
         })
         .collect();
     let list = |title: String, rows: Vec<String>| {

@@ -67,6 +67,28 @@ echo "$1: srp starts on it"
 EOF
 chmod +x "$T/bin/srp-check-game-data"
 export SRP_CHECK_GAME_DATA_BIN=$T/bin/srp-check-game-data
+# srp-item-tables <data> --dir <dir>: the tables are $TEST_DIR/item-tables/*
+# (a file there that differs from <dir>'s is written and its change said),
+# none there: every table unchanged; its arguments a line of
+# $TEST_DIR/item-tables.args.
+cat >"$T/bin/srp-item-tables" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/item-tables.args"
+dir=$3
+mkdir -p "$dir"
+for f in equipment.tsv weapons.tsv; do
+    new=$TEST_DIR/item-tables/$f
+    if [[ ! -f $new ]] || cmp -s "$new" "$dir/$f"; then
+        echo "$f: unchanged"
+    else
+        echo "$f: 1 change(s)"
+        echo "  item_a: weight_kg 3 -> 2.5"
+        cp "$new" "$dir/$f"
+    fi
+done
+EOF
+chmod +x "$T/bin/srp-item-tables"
+export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
 cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh [-o <option>]... <host> <command>: runs the command here.
@@ -1223,6 +1245,8 @@ check "release: ... release/patches.tsv as the server offers it" cmp -s <(on_mai
 check "release: ... the record's branch pushed, its PR opened and merged" bash -c \
     "grep -q '^gh pr create --base main --head release/record-rev12 --title Release revision 12 ' $T/gh.log && grep -q '^gh pr merge https://github.com/srp/skhid-srp/pull/[0-9]* --merge$' $T/gh.log && test -n \"\$(git -C $T/origin.git rev-parse -q --verify refs/heads/release/record-rev12)\""
 check "release: ... no worktree of the record left" bash -c "! git -C $T/repo worktree list | grep -q /record"
+check "release: ... the item tables of the server data it ships, into the record (unchanged: no table in it)" \
+    grep -qE 'server-game-data\.db --dir .*/record/srp-026g/docs/data$' "$T/item-tables.args"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1255,6 +1279,8 @@ pages_commit=$(git -C "$T/repo" rev-parse HEAD)
 running_before=$(cat "$T/docker/running")
 # --resources relative (of the folder it is run in): build-site, in a
 # worktree, has it absolute.
+mkdir -p "$T/item-tables"
+printf 'item\tweight_kg\nitem_a\t2.5\n' >"$T/item-tables/equipment.tsv"
 cd "$T"
 run yes --resources r13/resources.db.patch_13 --minutes 2 --label b || fail "release.sh --resources: $out"
 cd - >/dev/null
@@ -1267,7 +1293,10 @@ check "release --resources: ... the server's source carries them" bash -c \
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
     "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+check "release --resources: ... the changed item table in the record, its change said" bash -c \
+    "git -C $T/origin.git show 'main:srp-026g/docs/data/equipment.tsv' | grep -qx \$'item_a\t2.5' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The item tables (srp-026g/docs/data/) of the server data it ships:' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q 'item_a: weight_kg 3 -> 2.5'"
+rm -rf "$T/item-tables"
 check "release --resources: ... no worktree of the rebuild left" bash -c "! git -C $T/repo worktree list | grep -q '/site\$'"
 check "release --resources: publishes the patch" cmp -s "$T/r13/resources.db.patch_13" "$T/patches/resources.db.patch_13"
 check "release --resources: adds its row to the list" test "$(rows "$T/patches.tsv")" = "resources.db.patch_3 resources.db.patch_12 resources.db.patch_13"
@@ -2237,7 +2266,7 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
 cat >"$T/bc" <<EOF
 #!/usr/bin/env bash
-SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
+SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
 chmod +x "$T/bc"
 bc=$T/bc
@@ -2251,6 +2280,10 @@ check "build-content: ... the movie over the base's original" grep -qx "built m 
 check "build-content: ... the server data offers the list's patches and the new one at the patches server" \
     has "$("$bin" info "$T/work/content-rev41/server-game-data.db")" "resources.db.patch_41 .* urls $P/resources.db.patch_41"
 check "build-content: ... players' files with it are the manifest's" has "$out" "all 2 files the manifest makes are as it makes them"
+check "build-content: ... the site's pages in its tree, of the list and the new patch" bash -c \
+    "grep -q 'the site.s pages: built from the list.s patches and resources.db.patch_41' <<<\"\$1\" && tail -n 1 $T/build-site.args | grep -qx -- '--tree $C --with $T/work/content-rev41/resources.db.patch_41' && grep -q 'resources.db.patch_41' $C/srp-026g/servers/web-server/maps/built-from.tsv" _ "$out"
+check "build-content: ... the item tables of its server data, in its tree; unchanged: said, nothing written" bash -c \
+    "tail -n 1 $T/item-tables.args | grep -qx -- '$T/work/content-rev41/server-game-data.db --dir $C/srp-026g/docs/data' && grep -q '  equipment.tsv: unchanged' <<<\"\$1\" && test ! -e $C/srp-026g/docs/data/equipment.tsv" _ "$out"
 check "build-content: ... says what is next" has "$out" "next: release/release.sh --resources $T/work/content-rev41/resources.db.patch_41"
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 
@@ -2259,6 +2292,8 @@ cp "$T/work/content-rev41/resources.db.patch_41" "$T/patches/"
 list_row_of "$T/patches/resources.db.patch_41" >>"$T/content-list.tsv"
 out=$("$bc" 42 --out "$T/work/c42" 2>&1) || fail "build-content after the release: $out"
 check "build-content: nothing to ship once it is live" has "$out" "nothing to ship: players have every file as the manifest makes it"
+check "build-content: ... the site's pages of the list alone; the item tables as they are" bash -c \
+    "tail -n 1 $T/build-site.args | grep -qx -- '--tree $C' && grep -q 'the item tables (srp-026g/docs/data): as they are' <<<\"\$1\"" _ "$out"
 check "build-content: ... every file unchanged, live in the patch that shipped it" \
     bash -c "grep -q 'unchanged gameplay/items/a.txt: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && test ! -e $T/work/c42/resources.db.patch_42" _ "$out"
 expect_refused "build-content: a revision not above the list's" "the list has patches up to 41" "$bc" 41 --out "$T/work/c41b"
@@ -2266,7 +2301,12 @@ expect_refused "build-content: a revision not above the list's" "the list has pa
 # A retune of an edit list: its file only; a movie's source: the movie only.
 edit_list e1.json a.txt "old item" "newer item"
 echo 2 >"$C/srp-026g/flash/m/src/version"
+mkdir -p "$T/item-tables"
+printf 'item\tdamage\nitem_a\t55\n' >"$T/item-tables/weapons.tsv"
 out=$("$bc" 42 --out "$T/work/c42b" 2>&1) || fail "build-content after a retune: $out"
+rm -rf "$T/item-tables"
+check "build-content: a changed item table: written in its tree, its change said" bash -c \
+    "grep -q '  weapons.tsv: 1 change(s)' <<<\"\$1\" && grep -q '    item_a: weight_kg 3 -> 2.5' <<<\"\$1\" && grep -qx \$'item_a\t55' $C/srp-026g/docs/data/weapons.tsv" _ "$out"
 check "build-content: a retune and a movie change: both files, nothing else" \
     bash -c "grep -q 'CHANGED   gameplay/items/a.txt: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf' <<<\"\$1\" && grep -q 'the next patch: 2 file(s)' <<<\"\$1\"" _ "$out"
 edit_list e1.json a.txt "old item" "new item"

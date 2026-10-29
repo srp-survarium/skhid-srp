@@ -41,8 +41,16 @@ Ask, in this order:
    every listed patch, and prints each file, why it is made (which row) and
    whether players have it so already. Only the files that differ go into
    `<out>/resources.db.patch_<revision>`, with `server-game-data.db` built of
-   the list and it and checked. A live file the manifest does not make stops
-   it (what made it?), nothing is written. "nothing to ship" means no
+   the list and it and checked. Then, from the same patches, everything else
+   the game data makes, in its tree (`--tree`, default this checkout): the
+   site's pages (`release/build-site --with` the new patch: the calculator,
+   the maps, the wiki's icons; `built-from.tsv` must name the list and it)
+   and the item tables (`srp-item-tables` on the new server data,
+   `srp-026g/docs/data/equipment.tsv` and `weapons.tsv`, written only where
+   an item changed, each change printed `item: column old -> new`). One run,
+   one release's data: preview it with `SRP_GAME_DATA=<out>/server-game-data.db`
+   in that tree (`scripts/wiki/README.md`). A live file the manifest does not
+   make stops it (what made it?), nothing is written. "nothing to ship" means no
    `--resources`. **Show the owner the file list** (and the lobby build's
    line: whether it is `RESULT_SHA256`, the movie last checked in the game);
    ship only movies the owner checked. Never put a patch folder together by
@@ -378,7 +386,9 @@ The order, as it runs:
      `release/patches.tsv` as the server offers it (the row
      `upload-patch` added), the Maps tab and the calculator when
      step 1 rebuilt them (so main's pages match its list, as the web-server
-     test wants), and `<n>` in place of a `next` row of
+     test wants), the item tables (`srp-026g/docs/data/`) of the server data
+     it shipped where an item changed (each change in the commit's message;
+     none: no table in the record), and `<n>` in place of a `next` row of
      `simulation_changes.tsv` (said in the commit); pushed as
      `release/record-rev<n>`, a PR opened
      (`gh pr create`) and merged as a merge commit (`gh pr merge --merge`).
@@ -544,7 +554,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> [--out <folder>] [--tree] [--manifest]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it | a local folder, the patch cache |
+| `release/build-content <rev> [--out <folder>] [--tree] [--manifest]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the site's pages (build-site) and the item tables (srp-item-tables; only changes, each said) in `--tree` | a local folder, the patch cache; `--tree`'s site pages and `srp-026g/docs/data/` |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
