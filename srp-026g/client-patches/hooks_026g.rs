@@ -266,23 +266,26 @@ impl OrigActionPresent {
     pub fn call(&self, handler: &mut InputHandler, action: Action, state: &mut Out<u32>) -> bool {
         // SAFETY: engine_action_present at its own site; the arguments are the hook's,
         // typed by the row (engine_026g.tsv).
-        unsafe { raw::engine_action_present(handler.ptr(), action.0, state.at()) != 0 }
+        unsafe { raw::engine_action_present(Some(handler.raw()), action.0, state.at()) != 0 }
     }
 }
 
 /// The entry `suicide_key_on_spot` (0x242196, the input builder's last action query (spot)) calls this with
-/// engine_action_present's 3 arguments.
+/// engine_action_present's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `suicide_key_on_spot`.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
+pub unsafe extern "C" fn hook_suicide_key_on_spot(a0: Option<raw::PlayerInputHandler>, a1: u32, a2: *mut u32) -> u32 {
     // SAFETY: only the entry `suicide_key_on_spot` calls this, from the game's call at
     // 0x242196, on the game's thread; a0.. are engine_action_present's arguments.
     let thread = unsafe { Thread::new() };
     let Some(mut handler) = (unsafe { InputHandler::from_raw(&thread, a0) }) else {
         // a null InputHandler never happens at this site; take the unpatched path.
-        return u32::from(unsafe { raw::engine_action_present(a0 as usize as *mut _, a1, a2 as usize as *mut _) } != 0);
+        return u32::from(unsafe { raw::engine_action_present(a0, a1, a2) } != 0);
     };
     let action = Action(a1);
-    let mut state = unsafe { Out::<u32>::new(&thread, a2 as usize as *mut u32) };
+    let mut state = unsafe { Out::<u32>::new(&thread, a2) };
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
 }

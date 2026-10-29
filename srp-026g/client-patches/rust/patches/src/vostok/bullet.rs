@@ -1,15 +1,13 @@
 //! bullet::check_collision 0x32D4E0 at `bullet.ray_traced` (sites_026g.tsv):
-//! EDI the bullet, EAX its ray's result; the ray itself in the function's
-//! frame (check_collision_frame, by the site's ESP). The bullet manager's
+//! the bullet, its ray's result, and the ray itself in the function's frame
+//! (sites_026g.tsv's `holds`). The bullet manager's
 //! effect queues, for a body hit the game did not see.
 //!
 //! Read only: the bullet goes on exactly as before (the hook replays the
 //! two moves of the result it sits on).
 
-use core::ffi::c_void;
-
-use super::context::{Context, Reg};
-use super::world::{BodyId, Object, floats, pointer, read};
+use super::context::Context;
+use super::world::{BodyId, floats, read};
 use crate::raw;
 
 /// The material a living player's hit model is to bullets: every hit body's
@@ -21,104 +19,94 @@ const MATERIALS: u32 = 128;
 
 /// A bullet's ray just traced, its result not yet read.
 pub struct BulletRay<'t> {
-    bullet: Object,
-    result: Object,
-    /// check_collision's frame: the site's ESP.
-    frame: *mut c_void,
+    bullet: raw::Bullet,
+    result: raw::RayResult,
+    /// check_collision's frame.
+    frame: raw::CheckCollisionFrame,
     _thread: &'t super::Thread,
 }
 
 impl<'t> BulletRay<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<BulletRay<'t>> {
-        let bullet = Object::at(ctx.reg(Reg::Edi))?;
-        let result = Object::at(ctx.reg(Reg::Eax))?;
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
+        use raw::site::bullet_ray_traced as site;
+        // SAFETY: the context is this site's: the bullet, its ray's result and
+        // check_collision's frame, alive while it runs, on its thread.
+        let (bullet, result, frame) = unsafe { (site::bullet(ctx)?, site::result(ctx)?, site::frame(ctx)?) };
         Some(BulletRay { bullet, result, frame, _thread: ctx.thread() })
     }
 
     /// The bullet's id.
     pub fn id(&self) -> u32 {
-        // SAFETY: the bullet's field.
-        unsafe { read(raw::bullet::id(self.bullet.ptr())) }
+        // SAFETY: the bullet is alive for the hook.
+        unsafe { read(self.bullet.id()) }
     }
 
     /// The shooter's place; None without a shooter (the game then plays no
     /// hit effects).
     pub fn shooter_place(&self) -> Option<u8> {
-        // SAFETY: the bullet's shooter, its place.
-        unsafe {
-            let shooter = pointer(raw::bullet::shooter(self.bullet.ptr()).cast())?;
-            Some(read(raw::bullet_owner::place(shooter.ptr())))
-        }
+        // SAFETY: the bullet's shooter, alive for the hook.
+        unsafe { Some(read(self.bullet.shooter()?.place())) }
     }
 
     /// Its segments past the first (pierces and ricochets).
     pub fn segment(&self) -> u32 {
-        // SAFETY: the bullet's field.
-        unsafe { read(raw::bullet::segment(self.bullet.ptr())) }
+        // SAFETY: as id.
+        unsafe { read(self.bullet.segment()) }
     }
 
     /// The ammo config's `mass` (NaN without ammo data).
     pub fn ammo_mass(&self) -> f32 {
-        // SAFETY: the bullet's ammo data, its mass.
-        unsafe {
-            pointer(raw::bullet::ammo(self.bullet.ptr()).cast()).map_or(f32::NAN, |a| read(raw::ammo_data::mass(a.ptr())))
-        }
+        // SAFETY: the bullet's ammo data, alive for the hook.
+        unsafe { self.bullet.ammo().map_or(f32::NAN, |ammo| read(ammo.mass())) }
     }
 
     /// The ammo config's `muzzle_speed`, m/s (NaN without ammo data): with
     /// the mass, which ammo it is (one or two configs a pair).
     pub fn muzzle_speed(&self) -> f32 {
-        // SAFETY: the bullet's ammo data, its muzzle speed.
-        unsafe {
-            pointer(raw::bullet::ammo(self.bullet.ptr()).cast())
-                .map_or(f32::NAN, |a| read(raw::ammo_data::muzzle_speed(a.ptr())))
-        }
+        // SAFETY: as ammo_mass.
+        unsafe { self.bullet.ammo().map_or(f32::NAN, |ammo| read(ammo.muzzle_speed())) }
     }
 
     /// Its velocity now, its segment's (m/s).
     pub fn velocity(&self) -> [f32; 3] {
-        // SAFETY: the bullet's float3.
-        unsafe { floats(raw::bullet::velocity(self.bullet.ptr())) }
+        // SAFETY: as id.
+        unsafe { floats(self.bullet.velocity()) }
     }
 
     /// The ray's origin.
     pub fn origin(&self) -> [f32; 3] {
-        // SAFETY: check_collision's frame at the site, its local.
-        unsafe { floats(raw::check_collision_frame::origin(self.frame)) }
+        // SAFETY: check_collision's frame, alive while it runs.
+        unsafe { floats(self.frame.origin()) }
     }
 
     /// The ray's unit direction.
     pub fn direction(&self) -> [f32; 3] {
         // SAFETY: as origin.
-        unsafe { floats(raw::check_collision_frame::direction(self.frame)) }
+        unsafe { floats(self.frame.direction()) }
     }
 
     /// The ray's length.
     pub fn length(&self) -> f32 {
         // SAFETY: as origin.
-        unsafe { read(raw::check_collision_frame::length(self.frame)) }
+        unsafe { read(self.frame.length()) }
     }
 
     /// Where the ray hit something (the level, a living player), if it did.
     pub fn struck(&self) -> Option<[f32; 3]> {
-        // SAFETY: the result's fields.
-        unsafe {
-            (read(raw::ray_result::object(self.result.ptr())) != 0).then(|| floats(raw::ray_result::point(self.result.ptr())))
-        }
+        // SAFETY: the result, check_collision's local, alive while it runs.
+        unsafe { self.result.object().map(|_| floats(self.result.point())) }
     }
 
     /// The living player's hit model the ray hit, if that is what it hit (a
     /// bt_animated_rigid_body of material actor).
     pub fn struck_body(&self) -> Option<BodyId> {
-        // SAFETY: the result's object, its vtable and material.
+        // SAFETY: the result's object, alive while check_collision runs; its
+        // material read only once its vtable says it is a bt_animated_rigid_body.
         unsafe {
-            let object = pointer(raw::ray_result::object(self.result.ptr()))?;
-            let body = read(raw::bt_animated_rigid_body::vtable(object.ptr())) == raw::image::ANIMATED_BODY_VTABLE
-                && u32::from(read(raw::bt_animated_rigid_body::material(object.ptr()))) == ACTOR;
-            body.then_some(BodyId(object.id()))
+            let object = self.result.object()?;
+            let body = read(object.vtable()) == raw::image::ANIMATED_BODY_VTABLE
+                && u32::from(read(object.body().material())) == ACTOR;
+            body.then_some(BodyId(object.address()))
         }
     }
 
@@ -130,35 +118,30 @@ impl<'t> BulletRay<'t> {
     /// tick). No wound decal: the game's own goes nowhere on a body (a
     /// player's hittable gives add_decal no model, 0x1F1780).
     pub fn play_body_hit(&self, point: [f32; 3], direction: [f32; 3], normal: [f32; 3]) {
-        // SAFETY: the bullet's manager and material, the manager's renderer
-        // and materials, the pair the game's own material_pair gives, its
-        // fields; the manager's own effect queues, our float3s.
+        // SAFETY: the bullet's manager and material, the manager's materials,
+        // the pair the game's own material_pair gives: alive for the hook; the
+        // manager's own effect queues, our float3s.
         unsafe {
-            let bullet = self.bullet.ptr();
-            let Some(manager) = pointer(raw::bullet::manager(bullet).cast()) else { return };
-            let (Some(materials), Some(material)) =
-                (pointer(raw::bullet_manager::materials(manager.ptr()).cast()), pointer(raw::bullet::material(bullet).cast()))
-            else {
+            let bullet = self.bullet;
+            let Some(manager) = bullet.manager() else { return };
+            let (Some(materials), Some(material)) = (manager.materials(), bullet.material()) else {
                 return;
             };
-            if read(raw::bullet_manager::renderer(manager.ptr())) == 0 {
+            if read(manager.renderer()) == 0 {
                 return;
             }
-            let first = u32::from(read(raw::game_material::id(material.ptr())));
+            let first = u32::from(read(material.id()));
             if first >= MATERIALS {
                 return;
             }
-            let pair = raw::engine_material_pair(materials.ptr(), first, ACTOR).cast_mut();
-            if pair.is_null() {
-                return;
+            let Some(pair) = raw::engine_material_pair(Some(materials), first, ACTOR) else { return };
+            let particles = pair.particles();
+            if particles.is_some() && particles != pair.particles_end() {
+                raw::engine_play_particle(point.as_ptr(), Some(manager), particles, direction.as_ptr(),
+                                          normal.as_ptr(), read(pair.parameter()));
             }
-            let particles = read(raw::material_pair::particles(pair));
-            if particles != 0 && particles != read(raw::material_pair::particles_end(pair)) {
-                raw::engine_play_particle(point.as_ptr(), manager.ptr(), particles as usize as *const c_void,
-                                          direction.as_ptr(), normal.as_ptr(), read(raw::material_pair::parameter(pair)));
-            }
-            if read(raw::material_pair::sound(pair)) != 0 && read(raw::bullet::quiet(bullet)) == 0 && self.segment() <= 1 {
-                raw::engine_play_sound(manager.ptr(), raw::material_pair::sound(pair).cast(), point.as_ptr());
+            if read(pair.sound()) != 0 && read(bullet.quiet()) == 0 && self.segment() <= 1 {
+                raw::engine_play_sound(Some(manager), pair.sound(), point.as_ptr());
             }
         }
     }

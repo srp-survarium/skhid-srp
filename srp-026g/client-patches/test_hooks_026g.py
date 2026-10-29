@@ -95,10 +95,13 @@ extern "cdecl" fn fixture_splice_a_tramp() -> u32 { 200 }
 extern "cdecl" fn fixture_splice_b_tramp() -> u32 { 300 }
 #[test]
 fn dispatches_to_each_original() {
-    assert_eq!(generated::hook_fixture_first(), 101);
-    assert_eq!(generated::hook_fixture_second(), 102);
-    assert_eq!(generated::hook_fixture_splice_a(), 203);
-    assert_eq!(generated::hook_fixture_splice_b(), 304);
+    // SAFETY: the test stands in for each shim's entry.
+    unsafe {
+        assert_eq!(generated::hook_fixture_first(), 101);
+        assert_eq!(generated::hook_fixture_second(), 102);
+        assert_eq!(generated::hook_fixture_splice_a(), 203);
+        assert_eq!(generated::hook_fixture_splice_b(), 304);
+    }
 }
 """.replace("HANDLERS", "\n".join(handlers))
         with tempfile.TemporaryDirectory() as directory:
