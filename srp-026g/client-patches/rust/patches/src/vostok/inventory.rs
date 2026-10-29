@@ -10,6 +10,9 @@ use super::hook::Thread;
 use super::world::{Object, pointer, read};
 use crate::raw;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContainerSpace { Missing, Full, Available }
+
 /// A player's inventory on the simulation thread. These views are not
 /// stored between hooks; a later interaction resolves the player again.
 pub struct Inventory<'t> {
@@ -51,6 +54,17 @@ impl<'t> Inventory<'t> {
         Some(Containers { first, count })
     }
 
+    pub fn container_space(&self) -> ContainerSpace {
+        let Some(containers) = self.containers() else { return ContainerSpace::Missing };
+        if (0..containers.count).any(|n| self.item_in(ContainerIndex::parse(n).unwrap()).is_none()) {
+            ContainerSpace::Available
+        } else { ContainerSpace::Full }
+    }
+
+    pub fn presentation(&self, expected: Artefact) -> Option<super::carry_runtime::ArtefactDraw> {
+        super::carry_runtime::ArtefactDraw::of_item(self.passive_item(expected)?)
+    }
+
     fn item_in(&self, index: ContainerIndex) -> Option<Object> {
         let entry = self.containers()?.entry(index)?;
         // SAFETY: entry belongs to this live inventory's container array.
@@ -77,6 +91,15 @@ impl<'t> Inventory<'t> {
                 && read(raw::artefact::state(item.ptr())) == 3
         };
         matches.then_some(item)
+    }
+
+    pub fn owns_passive(&self, expected: Artefact) -> bool {
+        self.passive_item(expected).is_some()
+    }
+
+    /// Identity for presentation only, never dereferenced by a patch.
+    pub fn presentation_id(&self, expected: Artefact) -> Option<u32> {
+        self.passive_item(expected).map(Object::id)
     }
 
     /// Resolve a quick-use ordinal with the native ordering, then require a
@@ -107,6 +130,29 @@ impl<'t> Inventory<'t> {
         self.passive_item(artefact).map(|_| artefact)
     }
 
+    pub(super) fn drop_carried(&mut self, expected: Artefact, drop: artefact_carry::ground::Drop) -> bool {
+        let Some(item) = self.passive_item(expected) else { return false };
+        let Some(ground) = super::carry_ground::GroundItem::of_item(item, self.thread) else { return false };
+        let Some(slot) = self.native_slot(expected.slot) else { return false };
+        let _held = RetainedItem::new(item, self.thread);
+        // SAFETY: validated occupied slot; remove unlinks all passive effects
+        // and clears ownership. RetainedItem bridges that mutation.
+        unsafe { raw::engine_inventory_remove(self.this.ptr(), slot); }
+        ground.release_from(drop);
+        true
+    }
+
+    pub(super) fn take_ground(&mut self, ground: &super::carry_ground::GroundItem<'t>) -> Result<(), Refused> {
+        if !self.alive() || !ground.detached() { return Err(Refused::OwnershipChanged); }
+        if self.container_space() != ContainerSpace::Available { return Err(Refused::NoFreeContainer); }
+        let held = RetainedItem::new(ground.item, self.thread);
+        let incoming = held.this.id();
+        // SAFETY: detached registered artefact, retained through take; a free
+        // recipient container prevents native eviction.
+        unsafe { raw::engine_inventory_take_artefact(self.this.ptr(), &incoming); }
+        Ok(())
+    }
+
     /// Transfer one still-owned passive artefact into a free recipient
     /// container. The interaction owner separately checks reach and line
     /// of sight immediately before calling this low-level transaction.
@@ -130,12 +176,7 @@ impl<'t> Inventory<'t> {
         let item = self
             .passive_item(expected)
             .ok_or(Refused::OwnershipChanged)?;
-        let containers = recipient.containers().ok_or(Refused::NoFreeContainer)?;
-        if !(0..containers.count).any(|index| {
-            recipient
-                .item_in(ContainerIndex::parse(index).unwrap())
-                .is_none()
-        }) {
+        if recipient.container_space() != ContainerSpace::Available {
             return Err(Refused::NoFreeContainer);
         }
         let native_slot = self

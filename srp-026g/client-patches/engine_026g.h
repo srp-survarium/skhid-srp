@@ -175,4 +175,34 @@ void engine_inventory_take_artefact(void *inventory, const unsigned int *incomin
 /* 0x2fe7f0 survarium::inventory::quick_slot_to_inventory_slot: inventory ESP+4, ordinal ESP+8; pops 8; EAX */
 unsigned int engine_quick_inventory_slot(void *inventory, unsigned int ordinal);
 
+/* 0x2febc0 survarium::portable_interactive_object_core::portable_interactive_object_core: storage ESP+4, seed EAX; pops 4; EAX */
+void *engine_portable_construct(void *storage, unsigned int seed);
+
+/* 0x2df050 survarium::portable_interactive_object_core::set_user_animation_resource: core EAX, resource EDI; pops 0 */
+void engine_portable_bind_resource(void *core, const unsigned int *resource);
+
+/* 0x2fb8a0 survarium::weapon_user_animations_selector::~weapon_user_animations_selector: selector ESP+4; pops 4 */
+void engine_selector_destroy(void *selector);
+
+/* 0x231bc0 survarium::hit_animations_selector::~hit_animations_selector: selector ESI; pops 0 */
+void engine_hit_selector_destroy(void *selector);
+
+/* 0x2d0ab0 survarium::game_world_core::active_player_ptr: world ESI, place ECX, out EDI; pops 0; EAX */
+void *engine_core_active_player(void *world, unsigned int place, unsigned int *out);
+
+/* 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_add_model(void *renderer, void *model, void *scene, const float *first, const float *second);
+
+/* 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8 */
+void engine_remove_model(void *renderer, void *model, void *scene);
+
+/* 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_update_model(void *renderer, void *model, void *scene, const float *first, const float *second);
+
+/* 0x16e420 vostok::render::static_render_model_instance::get_aabb: instance ECX, bounds ESP+4; pops 4 */
+void engine_static_model_bounds(void *instance, float *bounds);
+
+/* 0x241200 survarium::player_input_handler::alt_is_held: handler EAX; pops 0; EAX */
+unsigned int engine_input_alt_held(void *handler);
+
 #endif

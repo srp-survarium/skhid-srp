@@ -121,6 +121,35 @@ package
       // Whether the player is typing in the chat: focus_chat(true) to focus_chat(false). Not the
       // input's `visible`, which the chat's timeline starts true until the chat is first closed.
       private var _chatTyping:Boolean = false;
+
+      private var _artefactOfferKey:String = "";
+      private var _nativeContext:Object = {text:"",value:0,visible:true};
+
+      // One owner for the existing collection widget. Native context updates
+      // may arrive after the carry hint; retain them without erasing its text.
+      public function show_artefact_offer(key:String) : void
+      {
+         this._artefactOfferKey = key == null ? "" : key;
+         this.refresh_context();
+      }
+
+      private function refresh_context() : void
+      {
+         if(!this.contextInfo) return;
+         var offer:Boolean = this._artefactOfferKey.length != 0;
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible : this._nativeContext.visible;
+         if(!this.contextInfo.visible) return;
+         var value:int = offer ? 0 : this._nativeContext.value;
+         var frame:int = value == 0 ? 1 : 2;
+         if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
+         if(offer) this.contextInfo.contextText.text = LocalizationData.getName(this._artefactOfferKey);
+         else this.contextInfo.contextText.text = this._nativeContext.text;
+         if(value != 0)
+         {
+            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
+            this.contextInfo.progress_indicator.set_progress(value);
+         }
+      }
       
       private var _itemFactory:IItemFactory = new ItemFactory();
       
@@ -1989,6 +2018,8 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
+         this._artefactOfferKey = "";
+         this._nativeContext = {text:"",value:0,visible:true};
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state
@@ -2130,7 +2161,8 @@ package
       
       public function show_context(bool:Boolean) : void
       {
-         this.contextInfo.visible = bool;
+         this._nativeContext.visible = bool;
+         this.refresh_context();
       }
       
       public function show_context_message(bool:Boolean) : void
@@ -2243,7 +2275,7 @@ package
       
       public function add_points(text:String, value:int) : void
       {
-         this.contextInfo.visible = true;
+         this.show_context(true);
          this._pointsTimer.reset();
          this._pointsTimer.start();
          var textField:TextField = this.contextInfo.textPoints;
@@ -2282,30 +2314,14 @@ package
       
       public function set_context(text:String, value:int = 0, time:int = 1000) : void
       {
-         this.contextInfo.visible = true;
-         this.contextInfo.contextText.text = text;
-         if(value != 0)
-         {
-            if(this.contextInfo.currentFrame != 2)
-            {
-               this.contextInfo.gotoAndStop(2);
-            }
-            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
-            this.contextInfo.progress_indicator.set_progress(value);
-         }
-         else if(this.contextInfo.currentFrame != 1)
-         {
-            this.contextInfo.gotoAndStop(1);
-         }
-         if(this._contextTimeout2)
-         {
-            clearTimeout(this._contextTimeout2);
-         }
+         this._nativeContext = {text:text,value:value,visible:true};
+         if(this._contextTimeout2) clearTimeout(this._contextTimeout2);
+         this.refresh_context();
       }
       
       public function hide_context() : void
       {
-         this.contextInfo.visible = false;
+         this.show_context(false);
       }
       
       public function set_tickets_required(value:uint) : void

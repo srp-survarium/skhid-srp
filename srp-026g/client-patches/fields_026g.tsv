@@ -24,6 +24,7 @@ vostok::animation::skeleton	bone_count	0x108	u32	the bones' count, object_moveme
 vostok::animation::skeleton	bones	0x110	u32	the bones' array, 1Ch a bone (add_bone 0x3ACDA0)
 vostok::animation::skeleton_bone	name	0x0	u32	the bone's name (a C string)
 vostok::animation::skeleton_bone	parent	0x4	u32	the parent bone's record (the array's first for the root's children)
+vostok::animation::skeleton_bone	computed_layers	0x18	u8	computed matrix selection: render bit 1, damage bit 2; 0x3B2AF0 and 0x3B2C90
 vostok::animation::skeleton_bone	next_bone	0x1C	u32	the next bone's record: a bone is 1Ch bytes (add_bone 0x3ACDA0)
 survarium::hit_model	body	0x12C	u32	the hit model's body in the physics world (a bt_animated_rigid_body; activate_physics 0x2D9930)
 vostok::physics::bt_animated_rigid_body	vtable	0x0	u32	its vtable (ANIMATED_BODY_VTABLE, the ctor 0x70E70)
@@ -88,3 +89,49 @@ survarium::item	inventory	0x250	u32	owning inventory; item virtual +28h changes 
 survarium::item	inventory_slot	0x254	u32	slot in owning inventory; 23 when absent
 survarium::artefact	id	0x27E	u8	anomaly registry ID serialized by inventory; 255 absent
 survarium::artefact	state	0x280	u32	native artefact state; 3 passive, 4 active
+survarium::image	allocator	0x1F1D9C4	u32	global game allocator pointer used by the native portable factory
+survarium::image	weapon_vtable	0xA04174	u32	client weapon active interface; constructor 0x243640
+survarium::image	weapon_core_vtable	0xA11094	u32	weapon_core active interface; constructor 0x2DF116
+survarium::active_item	vtable	0x0	u32	registered active-object vtable
+survarium::weapon_core	portable	0x278	u32	independent portable animation core
+survarium::portable_core	user_animations	0x48	u32	retained immutable user-animation resource, shared with hit selector
+survarium::portable_core	selector	0x8	u8	selector subobject destroyed by 0x2FB8A0
+survarium::portable_core	hit_selector	0x60	u8	hit selector subobject destroyed by 0x231BC0
+survarium::player	kit	0x115	u8	kit ordinal, base_player deserialize 0x2DB955
+survarium::player	world_core	0x120	u32	world core, generate_killed_event 0x2DA170
+survarium::player	time	0x324	u32	simulation milliseconds, tick 0x2DAA7F
+survarium::player	actions	0x330	u32	current input action mask, set_input 0x2D876C
+survarium::player	modified	0x33E	u8	state changed, set_input 0x2D899D
+survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
+survarium::input_entry_frame	input	0x8	u32	set_input entry second stack argument, immutable eight-byte input
+survarium::native_player_input	actions	0x4	u32	input angles followed by action mask
+survarium::base_player_ctor_frame	player	0x4	u32	base_player constructor first argument; destination
+survarium::game_world	scene	0x4	u32	retained render scene, artefact client update 0x25FDA6
+survarium::weapon	model	0x1810	u32	client weapon render model holder, mt_draw 0x244EDB
+survarium::weapon	world	0x180C	u32	client world, on_hide 0x243FB6
+survarium::weapon	transform	0x660	f32	world model matrix, scope scene add 0x244BA9
+survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; false performs no scene operation
+survarium::weapon	optics	0x1808	u32	optional optics object, mt_draw 0x244F66
+survarium::weapon_optics	model	0x108	u32	normal optics model holder, 0x244FF7
+survarium::weapon_optics	aim_model	0x10C	u32	aimed optics model holder, 0x244FE1
+vostok::render_model_instance	in_scene	0x10D	u8	renderer add/remove bookkeeping, 0x244EE7
+survarium::artefact_client	world	0xC	u32	client game world, common callback prefix
+survarium::artefact_client	cached_state	0x10	u32	presentation owner state, common callback prefix
+survarium::artefact_client	model	0x14	u32	model holder, common callback prefix
+survarium::artefact_spring_client	base	-0x398	u8	callback to inventory artefact base
+survarium::artefact_lifebone_client	base	-0x498	u8	callback to inventory artefact base
+survarium::artefact_onyx_client	base	-0xF20	u8	callback to inventory artefact base
+survarium::artefact_rattle_client	base	-0x340	u8	callback to inventory artefact base
+survarium::game_world_ui	world	0x18	u32	client game world, constructor 0x233810
+survarium::player	core_skeleton	0x408	u32	simulation skeleton read by recompute_damage_collision_bones at 0x2DA60D
+vostok::carry_queries	count	0x38	u32	queries_result m_size, set by constructor 0xE70B0 and bounded before appended resource read
+vostok::carry_queries	flower	0x9CC	u32	fourth unmanaged model result; 0x12C + 3*0x2E0, native artefact cook
+survarium::carry_lifebone	callback	0x498	u32	client callback subobject (not a pointer); destructor 0x25EFE0
+survarium::image	spring_vtable	0xA05F44	u32	client artefact vtable, constructor write at 0x25EA5F; callback layout verified
+survarium::image	lifebone_vtable	0xA05FE4	u32	client artefact vtable, constructor write at 0x25EFA3; callback layout verified
+survarium::image	onyx_vtable	0xA06084	u32	client artefact vtable, constructor write at 0x25F4F2; callback layout verified
+survarium::image	rattle_vtable	0xA06124	u32	client artefact vtable, constructor write at 0x25FA32; callback layout verified
+survarium::item	world	0x248	u32	registered core world, inventory_item::register_in_game_world 0x2FFFD0
+survarium::core_world	artefacts_begin	0x18940	u32	registered artefact reference vector, inventory::deserialize 0x2FE655
+survarium::core_world	artefacts_end	0x18944	u32	registered artefact vector end, registration 0x31B935
+survarium::core_world	time	0x18FC0	u32	completed simulation time, tick writes EDI at 0x2D1E84; serialized 0x2D2583

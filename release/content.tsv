@@ -90,3 +90,6 @@ edit	network-texts-1.json	-	the login screen's "Connection error." (st_login_men
 edit	svd-level-1.json	-	the SVD at equipment level 15 (the owner, 2026-10-25): item_level and match_making_level 12 -> 15, so its Renaissance shop rank 7 -> 10 (docs/notes/socom_nerf.md; after socom-nerf-1)
 edit	kill-feed-weapons-1.json	-	the kill feed shows the ported weapons' own icons: ui_desc/combat_log_icon of the 21 configs of base patch 19's weapons back to their builds' icons (53 to 68, which the hud movie now has; the M4A1 21), from stand-ins of stock weapons (docs/notes/kill-feed-icons.md)
 edit	london-1.json	-	London without anomalies: all seven anomalies and their artefacts, damage zones and collision removed from day_2 to day_5; battery modes lose the old spawn-protection zones. The owner's map-editor placement supplies ten points per team in every mode: team1 on building_06_1's first floor and team2 on building_10's first floor, preserving point order and non-placement properties.
+edit	artefact-carry-pose-1.json	-	Left-hand artefact raise/hold/lower on the shared player rig; source of the native carry arm layer.
+edit	artefact-carry-hint-1.json	-	Teammate artefact take-button hint in all six localizations.
+edit	artefact-carry-flower-1.json	-	held-only Larkspur flower head; original ground model retains its stem

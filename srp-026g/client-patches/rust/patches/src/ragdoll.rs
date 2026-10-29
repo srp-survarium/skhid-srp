@@ -70,7 +70,7 @@ const SPIKE_SPEED: f32 = 7.0;
 /// A row-vector affine matrix (vostok's float4x4: rows i, j, k the axes,
 /// row c the place) as a rigid pose; `None` when it is not one (a scale, a
 /// mirror, NaN): such a skeleton is left as the game draws it.
-fn pose_of(m: &[f32; 16]) -> Option<Pose> {
+pub(crate) fn pose_of(m: &[f32; 16]) -> Option<Pose> {
     let i = Vec3::new(m[0], m[1], m[2]);
     let j = Vec3::new(m[4], m[5], m[6]);
     let k = Vec3::new(m[8], m[9], m[10]);
@@ -82,7 +82,7 @@ fn pose_of(m: &[f32; 16]) -> Option<Pose> {
 }
 
 /// The pose as a row-vector affine matrix.
-fn matrix_of(p: Pose) -> [f32; 16] {
+pub(crate) fn matrix_of(p: Pose) -> [f32; 16] {
     let i = p.rotation.rotate(Vec3::X);
     let j = p.rotation.rotate(Vec3::Y);
     let k = p.rotation.rotate(Vec3::Z);
@@ -748,6 +748,7 @@ fn draw_of(state: &State, player: &Player<'_>) -> Option<(DeathKey, SlotId, Bone
 /// mt_draw's cull: a corpse of ours is drawn even when its model was not
 /// seen the last frame (its bones move).
 pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Flow::Skip = crate::artefact_carry::on_cull(ctx) { return Flow::Skip; }
     let ours = match draw::culled_player(ctx) {
         Some(player) => STATE.with(ctx.thread(), |state| draw_of(state, &player).is_some()),
         None => false,
@@ -758,6 +759,7 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// mt_draw's bones: the model-space matrices of the skeleton. The clip is
 /// captured; a ragdoll's bones are written over it.
 pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::artefact_carry::on_bones(ctx);
     if let Some(bones) = DrawnBones::at(ctx) {
         STATE.with(ctx.thread(), |state| apply(state, &bones));
     }

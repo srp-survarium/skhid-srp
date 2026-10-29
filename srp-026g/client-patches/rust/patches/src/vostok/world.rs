@@ -157,11 +157,17 @@ pub struct BodyId(pub(in crate::vostok) u32);
 /// A player of the match.
 #[derive(Clone, Copy)]
 pub struct Player<'t> {
-    this: Object,
-    thread: &'t Thread,
+    pub(in crate::vostok) this: Object,
+    pub(in crate::vostok) thread: &'t Thread,
 }
 
 impl<'t> Player<'t> {
+    /// Prepare independent, unbound carry animations from this weapon's
+    /// immutable animation resource. This does not change the active item.
+    pub fn prepare_carry_animations(&self, seed: u32) -> Option<super::carry_animation::Prepared<'t>> {
+        super::carry_animation::Prepared::for_player(self.this, seed, self.thread)
+    }
+
     pub fn inventory(&self) -> Option<super::inventory::Inventory<'t>> {
         super::inventory::Inventory::of_player(self.this, self.thread)
     }
@@ -227,6 +233,12 @@ impl<'t> Player<'t> {
         unsafe { floats(raw::player::transform(self.this.ptr())) }
     }
 
+    /// The simulation eye used by the first-person camera and aiming.
+    pub fn eye_transform(&self) -> [f32; 16] {
+        // SAFETY: computed_head_transform writes all sixteen elements.
+        unsafe { floats(raw::player::eye(self.this.ptr())) }
+    }
+
     /// The camera's transform's address (what update_camera gives the view
     /// in the first person): compared with what the site was given.
     pub(in crate::vostok) fn eye_address(&self) -> u32 {
@@ -239,6 +251,13 @@ impl<'t> Player<'t> {
         // SAFETY: as inserted.
         let world = unsafe { pointer(raw::player::physics_world(self.this.ptr()).cast())? };
         Some(PhysicsWorld { this: world, thread: self.thread })
+    }
+
+    /// Simulation skeleton, retained by base_player independently of rendering.
+    pub fn core_skeleton(&self) -> Option<Skeleton<'t>> {
+        // SAFETY: base_player::recompute_damage_collision_bones reads +408h.
+        let this = unsafe { pointer(raw::player::core_skeleton(self.this.ptr()))? };
+        Some(Skeleton { this, thread: PhantomData })
     }
 
     /// Its model's skeleton.
@@ -346,6 +365,13 @@ impl Skeleton<'_> {
             }
             text.add(name.len()).read_volatile() == 0
         }
+    }
+
+    /// Native matrix passes only initialize bones selected by this byte.
+    pub fn bone_computed(&self, index: u32, layer: u8) -> bool {
+        let Some(bone) = self.bone(index) else { return false };
+        // SAFETY: byte checked by convert_to_object_matrices at 0x3B2AF0.
+        unsafe { read(raw::skeleton_bone::computed_layers(bone)) & layer != 0 }
     }
 
     /// Whether the `index`th bone has a name at all.

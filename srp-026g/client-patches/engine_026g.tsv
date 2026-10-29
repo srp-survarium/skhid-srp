@@ -54,3 +54,13 @@ engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int e
 engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(void *inventory, unsigned int slot)	thunk
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(void *inventory, const unsigned int *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(void *inventory, unsigned int ordinal)	thunk
+engine_portable_construct	0x2febc0	ESP+4:storage EAX:seed	void *engine_portable_construct(void *storage, unsigned int seed)	thunk
+engine_portable_bind_resource	0x2df050	EAX:core EDI:resource	void engine_portable_bind_resource(void *core, const unsigned int *resource)	thunk
+engine_selector_destroy	0x2fb8a0	ESP+4:selector	void engine_selector_destroy(void *selector)	thunk
+engine_hit_selector_destroy	0x231bc0	ESI:selector	void engine_hit_selector_destroy(void *selector)	thunk
+engine_core_active_player	0x2d0ab0	ESI:world CL:place EDI:out	void *engine_core_active_player(void *world, unsigned int place, unsigned int *out)	thunk
+engine_add_model	0x21cd0	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_add_model(void *renderer, void *model, void *scene, const float *first, const float *second)	thunk
+engine_remove_model	0x21f40	ESP+4:renderer EAX:model ESP+8:scene	void engine_remove_model(void *renderer, void *model, void *scene)	thunk
+engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_update_model(void *renderer, void *model, void *scene, const float *first, const float *second)	thunk
+engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(void *instance, float *bounds)	thunk
+engine_input_alt_held	0x241200	EAX:handler	unsigned int engine_input_alt_held(void *handler)	thunk

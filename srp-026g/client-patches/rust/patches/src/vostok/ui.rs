@@ -131,6 +131,14 @@ impl Movie<'_> {
         self.this.as_ptr() as usize
     }
 
+    /// Borrowed UTF-8 GFx string (type 6); Invoke consumes it synchronously.
+    pub fn invoke_text(&self, method: &CStr, value: &CStr) -> bool {
+        let argument = GfxValue { object: 0, kind: 6, value: value.as_ptr() as u32, rest: [0; 3] };
+        // SAFETY: the movie is live and both strings outlive the synchronous call.
+        unsafe { raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
+            (&raw const argument).cast(), 1) & 0xFF != 0 }
+    }
+
     /// Invokes the movie's `method` with one bool (Movie::Invoke 0x511600, no
     /// result); whether the movie took it (it has that method: its root is
     /// made).

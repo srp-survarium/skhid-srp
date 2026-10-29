@@ -5,7 +5,7 @@
 use core::ffi::c_void;
 
 use super::context::{Context, Flag, Flow, NoExit, Reg};
-use super::world::{Player, floats};
+use super::world::{Player, Skeleton, floats};
 use crate::raw;
 
 /// The player at `player_draw.held_item` (EBX), when it holds nothing:
@@ -55,9 +55,18 @@ pub fn draw_anyway(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// mt_draw's bones at `player_draw.bones` (EBX the player, EBP its frame):
 /// the skeleton's model-space matrices, the game's order (the root,
 /// object_movement, has none: matrix `i` is bone `i + 1`'s). Only the draw
-/// reads them (its stack array); writing one changes what is drawn alone.
+/// reads those (its stack array); at_damage wraps the independent simulation
+/// array immediately before it updates collision shapes.
+#[derive(Clone, Copy)]
+enum BonePass { Render, Damage }
+impl BonePass {
+    fn layer(self) -> u8 { match self { Self::Render => 1, Self::Damage => 2 } }
+}
+
 pub struct DrawnBones<'t> {
+    pass: BonePass,
     player: Player<'t>,
+    skeleton: Skeleton<'t>,
     bones: *mut [f32; 16],
     count: u32,
 }
@@ -70,8 +79,24 @@ impl<'t> DrawnBones<'t> {
         // array and its count.
         let (bones, count) =
             unsafe { (super::world::read(raw::mt_draw_frame::bones(frame)), super::world::read(raw::mt_draw_frame::bone_count(frame))) };
-        (bones != 0).then_some(DrawnBones { player, bones: bones as usize as *mut [f32; 16], count })
+        (bones != 0).then_some(DrawnBones { pass: BonePass::Render, player, skeleton: player.skeleton()?, bones: bones as usize as *mut [f32; 16], count })
     }
+
+    /// Damage recomputation at 0x2DA769, immediately before hit_model::update:
+    /// EDI player, ESI model-space matrices, EBX non-root count. Uses the
+    /// core skeleton, also present in headless simulation and replay.
+    pub fn at_damage(ctx: &'t Context<'_>) -> Option<Self> {
+        let player = Player::at(ctx, Reg::Edi)?;
+        let bones = ctx.reg(Reg::Esi);
+        (bones != 0).then_some(Self { pass: BonePass::Damage, player, skeleton: player.core_skeleton()?,
+            bones: bones as usize as *mut [f32; 16], count: ctx.reg(Reg::Ebx) })
+    }
+
+    pub fn computed(&self, index: u32) -> bool {
+        self.skeleton.bone_computed(index + 1, self.pass.layer())
+    }
+
+    pub fn skeleton(&self) -> &Skeleton<'t> { &self.skeleton }
 
     pub fn player(&self) -> Player<'t> {
         self.player

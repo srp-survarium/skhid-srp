@@ -36,8 +36,8 @@ address, for the `vostok` layer (rust_patches.md). An offset may be
 negative (a function's frame local, by its frame pointer) and up to 4 MiB
 (an object's far member: the renderer's scene renderer is at +200064h). A kind ending in `::image` is the exe image
 itself: its rows are VAs of the game's data (a vtable), generated as
-constants `raw::image::<FIELD>`, the address only (vostok compares it, never
-reads through it).
+constants `raw::image::<FIELD>`, the address only (vostok compares vtables
+or reads a global with its declared type).
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
@@ -62,6 +62,7 @@ thunk against the rows and the original exe (the self-test runs it).
 """
 import argparse
 import csv
+import json
 from pathlib import Path
 import re
 import sys
@@ -290,8 +291,15 @@ def functions(spec=None, abi=None, inputs=None):
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
-# An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0x1000000
+# Include zero-filled globals, not just the first 16 MiB of the image.
+# The game allocator is in .data's large virtual (BSS) tail.
+IMAGE_SECTIONS = json.loads((REKIT / "identity.json").read_text())["target"]["sections"]
+
+
+def image_field(va, size):
+    return any(int(section["va"], 16) <= va
+               and va + size <= int(section["va"], 16) + section["virtual_size"]
+               for section in IMAGE_SECTIONS)
 
 
 def fields(path=None):
@@ -302,9 +310,10 @@ def fields(path=None):
         module = kind.rpartition("::")[2]
         offset = number(row["offset"])
         image = module == "image"
-        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
+        in_range = (image_field(offset, FIELD_TYPES.get(kind_type, 0)) if image
+                    else -0x1000 <= offset < 0x400000)
         if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
-                or kind_type not in FIELD_TYPES or not low <= offset < high or offset % FIELD_TYPES[kind_type] \
+                or kind_type not in FIELD_TYPES or not in_range or offset % FIELD_TYPES[kind_type] \
                 or (module, field) in seen:
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
                           f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "

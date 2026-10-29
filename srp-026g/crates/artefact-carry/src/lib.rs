@@ -9,6 +9,9 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+pub mod carry;
+pub mod ground;
+
 /// A registered active-object ID. Native 255 means absent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ActiveObjectId(u8);

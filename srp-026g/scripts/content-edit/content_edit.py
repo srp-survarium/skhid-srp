@@ -62,6 +62,7 @@ Edits (edits.json):
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
                     a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
                     may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
+  "append_item":    [{"file", "path", "value"}]        append one scalar or string row to an indexed table
   "add_item":       [{"file", "list", "where", "key", "value"}]
                     the one entry of the indexed table `list` whose keys match `where`: its indexed
                     table `key` (a path in the entry) of strings or numbers gets `value` after its
@@ -76,6 +77,15 @@ Edits (edits.json):
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
                                                        tracks stay byte for byte (see clip_parse)
+  "make_held_flower": [{"files": ["four model resources"], "sha256": {"path": "hash"},
+                        "source": "models/...model/", "output": "models/...held.model/", "minimum_y": 0.425}],
+  "make_pose_clip": [{"files": ["clip.b-spline", "clip.bones_names"], "source_sha256", "names_sha256",
+                       "output", "frames", "start", "end"}]
+                    new full-pose animation pair, from a hash-pinned stock rig. `output` is a new
+                    animations/ path without an extension; start/end map bone names to local XYZ
+                    rotations in radians on the shortest continuous branch. Other channels keep
+                    the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
+                    velocity; no events, no edits to stock clips. See artefact-carry-pose-1.json.
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -87,6 +97,8 @@ may differ from the live file (the check prints each difference).
 """
 import fnmatch
 import json
+import hashlib
+import math
 import os
 import struct
 import sys
@@ -564,12 +576,24 @@ def add_item(buf, path, where, key, value):
     if len(hit) != 1:
         raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
     table = find(buf, key, children(buf, lst)[hit[0]])
+    return hit[0], append_item(buf, table, value)
+
+
+def append_item(buf, table, value):
     d, i, crc, t, cnt = rec(buf, table)
     items = children(buf, table)
     if t != T_INDEXED or not items:
-        raise ValueError('%s[%d]/%s is not an indexed table with items' % (path, hit[0], key))
+        raise ValueError('not an indexed table with items')
     _, ii, icrc, it, icnt = rec(buf, items[0])
-    if it == T_STR and isinstance(value, str):
+    if it == T_INDEXED and isinstance(value, list) and len(value) == icnt and all(isinstance(v, str) for v in value):
+        row = []
+        for child, text in zip(children(buf, items[0]), value):
+            _, ni, nc, nt, _ = rec(buf, child)
+            if nt != T_STR: raise ValueError('append_item: expected a row of strings')
+            encoded = text.encode()
+            row.append(REC.pack(append(buf, encoded + b'\0'), ni, nc, nt, len(encoded) + 1))
+        new = REC.pack(append_array(buf, row), ii, icrc, it, icnt)
+    elif it == T_STR and isinstance(value, str):
         text = value.encode()
         new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
     elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
@@ -577,10 +601,10 @@ def add_item(buf, path, where, key, value):
     elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
         new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
     else:
-        raise ValueError('%s[%d]/%s holds items of type %d, not %r' % (path, hit[0], key, it, value))
+        raise ValueError('array holds items of type %d, not %r' % (it, value))
     old = [bytes(buf[c:c + 24]) for c in items]
     REC.pack_into(buf, table, append_array(buf, old + [new]), i, crc, t, cnt + 1)
-    return hit[0], cnt
+    return cnt
 
 
 def unshifted(path, lst, at):
@@ -681,6 +705,126 @@ def add_event_channel(buf, frm, add):
 
 def game_path(name):
     return name.replace('__', '/')
+
+
+def make_pose_clip(source, bone_names, spec):
+    """Author a full pose clip from a pinned stock rig, with cubic ease in/out.
+
+    Zero-time full-pose channels supply translations, scales and unedited
+    bones. Four clamped controls (a,a,b,b), then the final unused control,
+    give a + (b-a)*(3*t*t-2*t*t*t) in Vostok's cubic spline basis. Rotations
+    are local XYZ radians, deliberately authored on one continuous branch.
+    This emits animation assets only; it never edits a stock weapon clip.
+    """
+    if hashlib.sha256(source).hexdigest() != spec['source_sha256'] \
+            or hashlib.sha256(bone_names).hexdigest() != spec['names_sha256']:
+        raise ValueError('make_pose_clip: source animation/rig differs from the authored version')
+    if source[3] != 0:
+        raise ValueError('make_pose_clip: a full pose is required, not an additive clip')
+    frames = spec['frames']
+    if not isinstance(frames, (int, float)) or not math.isfinite(frames) or not 0 < frames <= 3600:
+        raise ValueError('make_pose_clip: frames must be finite and in (0, 3600]')
+    names = []
+    for at in children(bone_names, find(bone_names, 'bones_names')):
+        data, _, _, kind, count = rec(bone_names, at)
+        if kind != T_STR:
+            raise ValueError('make_pose_clip: bone name is not a string')
+        names.append(bytes(bone_names[data:data + count - 1]).decode())
+    if len(set(names)) != len(names) or len(names) != CLIP_HEAD.unpack_from(source)[0]:
+        raise ValueError('make_pose_clip: bone names do not match the clip')
+    for pose in (spec['start'], spec['end']):
+        for name, angles in pose.items():
+            if name not in names or len(angles) != 3 \
+                    or any(not isinstance(a, (int, float)) or not math.isfinite(a) for a in angles):
+                raise ValueError('make_pose_clip: unknown bone or invalid XYZ rotation: ' + name)
+    tracks = clip_parse(source)[2]
+    out = bytearray(CLIP_HEAD.pack(len(names), 0, 0) + bytes(len(names) * CLIP_BONE))
+    offset = 0
+    for name in names:
+        for axis in range(9):
+            count = struct.unpack_from('<I', tracks, offset)[0]
+            pairs = [struct.unpack_from('<ff', tracks, offset + 4 + i * 8) for i in range(count)]
+            offset += 4 + count * 8
+            if count < 5 or any(k != 0 for k, _ in pairs[:4]) or pairs[4][0] <= 0:
+                raise ValueError('make_pose_clip: source must have a clamped zero-time pose')
+            start = end = pairs[0][1]
+            if axis in (3, 4, 5):
+                start = spec['start'].get(name, [start] * 3)[axis - 3]
+                end = spec['end'].get(name, [end] * 3)[axis - 3]
+                if abs(end - start) > math.pi:
+                    raise ValueError('make_pose_clip: author rotations on the shortest branch: ' + name)
+            if not math.isfinite(start) or not math.isfinite(end):
+                raise ValueError('make_pose_clip: nonfinite source channel')
+            out += struct.pack('<I10f', 5, 0, start, 0, start, 0, end, 0, end, frames, -1e9)
+    clip_parse(out)
+    return out
+
+
+def make_held_flower(sources, spec):
+    """A separate, pinned static model: discard the stem and centre the flower.
+
+    0.26g static meshes have chunks 3 (u32 count, 32-byte vertices) and
+    4 (u32 count, u16 indices). Packed bases, UVs and colours stay byte exact.
+    The source model is never overwritten; only the held renderer uses this.
+    """
+    prefix, output = spec['source'], spec['output']
+    if (not output.startswith('models/') or not output.endswith('.model/')
+            or '..' in output.split('/') or output == prefix):
+        raise ValueError('held flower: expected a distinct model resource path')
+    if set(sources) != set(spec['sha256']):
+        raise ValueError('held flower: source file set changed')
+    for path, data in sources.items():
+        if hashlib.sha256(data).hexdigest() != spec['sha256'][path]:
+            raise ValueError('held flower: source changed: ' + path)
+    mesh_path = next(p for p in sources if p.endswith('/converted_model'))
+    mesh = sources[mesh_path]
+    kind, size, count = struct.unpack_from('<III', mesh)
+    end = 8 + size
+    ikind, isize, icount = struct.unpack_from('<III', mesh, end)
+    if (kind != 3 or size != 4 + count * 32 or ikind != 4
+            or isize != 4 + icount * 2 or end + 8 + isize != len(mesh) or icount % 3):
+        raise ValueError('held flower: unexpected static mesh layout')
+    positions = [struct.unpack_from('<3f', mesh, 12 + i * 32) for i in range(count)]
+    indices = struct.unpack_from('<%dH' % icount, mesh, end + 12)
+    if any(i >= count for i in indices) or any(not math.isfinite(x) for p in positions for x in p):
+        raise ValueError('held flower: invalid geometry')
+    floor = spec['minimum_y']
+    kept = [indices[i:i+3] for i in range(0, icount, 3)
+            if all(positions[j][1] >= floor for j in indices[i:i+3])]
+    used = sorted({j for tri in kept for j in tri})
+    if not used or len(used) == count:
+        raise ValueError('held flower: crop must remove stem and retain flower')
+    lo = [min(positions[j][i] for j in used) for i in range(3)]
+    hi = [max(positions[j][i] for j in used) for i in range(3)]
+    centre = [(a+b)/2 for a,b in zip(lo,hi)]
+    vertices = bytearray()
+    for j in used:
+        v = bytearray(mesh[12+j*32:12+(j+1)*32])
+        struct.pack_into('<3f', v, 0, *(x-c for x,c in zip(positions[j],centre)))
+        vertices.extend(v)
+    mapping = {old:new for new,old in enumerate(used)}
+    ix = [mapping[j] for tri in kept for j in tri]
+    result = {output + p[len(prefix):]: bytearray(data) for p,data in sources.items()}
+    result[output + mesh_path[len(prefix):]] = (struct.pack('<III',3,4+len(vertices),len(used)) + vertices
+        + struct.pack('<III',4,4+len(ix)*2,len(ix)) + struct.pack('<%dH'%len(ix),*ix))
+    # Update both aggregate and surface bounds, and the surface mesh counts.
+    for path, data in result.items():
+        if not path.endswith('/export_properties'): continue
+        for name, values in [('bounding_box/min',[a-c for a,c in zip(lo,centre)]),
+                             ('bounding_box/max',[a-c for a,c in zip(hi,centre)])]:
+            at,_,_,kind,_ = rec(data,find(data,name))
+            if kind != 7: raise ValueError('held flower: expected float3 bounds')
+            struct.pack_into('<3f',data,at,*values)
+        if '/render/export_properties' in path: continue
+        at,_,_,kind,_ = rec(data,find(data,'bounding_sphere/center'))
+        if kind != 7: raise ValueError('held flower: expected float3 centre')
+        struct.pack_into('<3f',data,at,0,0,0)
+        radius = max(math.sqrt(sum((x-c)**2 for x,c in zip(positions[j],centre))) for j in used)
+        for name, value in [('bounding_sphere/radius',radius),('source/vertices',len(used)),
+                            ('source/indices',len(ix)),('source/primitives',len(kept))]:
+            raw,_,_,kind,_=rec(data,find(data,name))
+            set_number(data,name,as_number(kind,raw & 0xffffffff),value)
+    return result
 
 
 def main():
@@ -805,6 +949,13 @@ def main():
             grown.setdefault(p, {}).setdefault(table, 0)
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
+    for e in edits.get('append_item', []):
+        b = buf(e['file'])
+        k = append_item(b, find(b, e['path']), e['value'])
+        table = '/' + e['path']
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
     for e in edits.get('add_item', []):
         at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
         table = '/%s[%d]/%s' % (e['list'], at, e['key'])
@@ -833,6 +984,26 @@ def main():
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
+    for e in edits.get('make_held_flower', []):
+        made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
+        for p, data in made.items():
+            if p in files or p in bufs or p in clips:
+                raise ValueError('held flower: destination exists: ' + p)
+            clips[p] = data
+        print('held flower: %d separate model resources' % len(made))
+    for e in edits.get('make_pose_clip', []):
+        source, names = e['files']
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('make_pose_clip: output must be a new animations/ resource path')
+        for suffix in ('.b-spline', '.bones_names'):
+            if stem + suffix in files or stem + suffix in bufs or stem + suffix in clips:
+                raise ValueError('make_pose_clip: output already exists: ' + stem + suffix)
+        source_bytes = open(files[source], 'rb').read()
+        names_bytes = open(files[names], 'rb').read()
+        clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
+        clips[stem + '.bones_names'] = names_bytes
+        print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
@@ -891,7 +1062,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
-                (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
+                (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

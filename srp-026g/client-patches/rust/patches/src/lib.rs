@@ -36,3 +36,4 @@ pub mod blackout;
 pub mod suicide_key;
 
 pub mod text_input;
+pub mod artefact_carry;

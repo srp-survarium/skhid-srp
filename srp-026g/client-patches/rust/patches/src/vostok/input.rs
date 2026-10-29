@@ -134,6 +134,14 @@ impl InputHandler<'_> {
         ActionState::parse(state).ok()
     }
 
+    /// Either Alt key, read through the native focused input world. This is
+    /// independent of the configurable sprint action and its toggle state.
+    pub fn alt_held(&self) -> bool {
+        // SAFETY: process_first_person_mode owns a live handler and world;
+        // 0x241200 traverses its keyboard interfaces and reads DIK_L/RMENU.
+        unsafe { raw::engine_input_alt_held(self.ptr()) != 0 }
+    }
+
     /// Adds `actions` to the mask of the input being built.
     /// The action mask of the input being built.
     pub fn actions(&self) -> ActionMask {

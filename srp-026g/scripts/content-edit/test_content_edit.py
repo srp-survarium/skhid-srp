@@ -62,6 +62,15 @@ def value(data, path):
 
 
 class MapEditorEdits(unittest.TestCase):
+    def test_hud_string_rows_append_without_changing_neighbors(self):
+        data = config({'hud_strings': [['existing', 'st_existing']], 'other': ['unchanged']})
+        at = ce.find(data, 'hud_strings')
+        self.assertEqual(ce.append_item(data, at, ['carry', 'st_carry']), 1)
+        self.assertEqual(value(data, 'hud_strings[0][0]'), 'existing')
+        self.assertEqual(value(data, 'hud_strings[1][0]'), 'carry')
+        self.assertEqual(value(data, 'hud_strings[1][1]'), 'st_carry')
+        self.assertEqual(value(data, 'other[0]'), 'unchanged')
+
     def test_vectors_and_nested_keys_keep_other_values(self):
         data = fixture()
         before = dict((p, (t, v)) for p, t, v in ce.walk(data))

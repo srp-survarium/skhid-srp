@@ -300,6 +300,15 @@ def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=
             f"each of the library's {len(fs)} functions is a symbol of its code")]
     if not out[0][0]:
         return out
+    sections = base.Headers(original).sections(original)
+    for address, width in [(0x1F1D9C4, 4), (0xFFFF, 4), (0x10000, 4), (0xFFFFFFFF, 4)] + [
+            (base.IMAGE_BASE + rva + vsize - delta, 4)
+            for _, rva, vsize, _, _, _ in sections for delta in (4, 0, 1)]:
+        expected = any(base.IMAGE_BASE + rva <= address
+                       and address + width <= base.IMAGE_BASE + rva + vsize
+                       for _, rva, vsize, _, _, _ in sections)
+        out.append((engine.image_field(address, width) == expected,
+                    f"image field {address:#x}+{width}: catalog bounds agree with original PE sections"))
     run = Run(original, library)
     for f in fs:
         pops = exe_pops(original, f["va"])

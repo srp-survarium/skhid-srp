@@ -54,19 +54,19 @@ va	name	location	role	basis
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+4	scene renderer receiver	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+8	scene-view handle reference	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+12	projection matrix reference	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+4	scene_renderer receiver; world+0, channel+4, allocator+8	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+8	scene resource reference captured for queued command	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+12	first64-byte matrix source	inferred
-0x00021cd0	vostok::render::scene_renderer::add_model	stack+16	second64-byte matrix source	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	stack+4	scene_renderer receiver; world/channel/allocator fields	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	inferred
-0x00021f40	vostok::render::scene_renderer::remove_model	stack+8	scene resource reference captured for queued command	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+4	scene_renderer receiver; world/channel/allocator fields	inferred
-0x00022280	vostok::render::scene_renderer::update_model	EAX	render-model resource reference checked for in-scene state	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+8	scene resource reference captured for queued command	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+12	first64-byte matrix source	inferred
-0x00022280	vostok::render::scene_renderer::update_model	stack+16	second64-byte matrix source	inferred
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+4	renderer receiver; world+0, channel+4, allocator+8	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+8	scene resource reference captured for queued command	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+12	first 64-byte matrix source	observed
+0x00021cd0	vostok::render::scene_renderer::add_model	stack+16	second 64-byte matrix source	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	stack+4	renderer receiver; world/channel/allocator fields	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	EAX	render-model resource reference; pointee m_in_scene byte+0x10D	observed
+0x00021f40	vostok::render::scene_renderer::remove_model	stack+8	scene resource reference captured for queued command	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+4	renderer receiver; world/channel/allocator fields	observed
+0x00022280	vostok::render::scene_renderer::update_model	EAX	render-model resource reference checked for in-scene state	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+8	scene resource reference captured for queued command	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+12	first 64-byte matrix source	observed
+0x00022280	vostok::render::scene_renderer::update_model	stack+16	second 64-byte matrix source	observed
 0x00022490	vostok::render::scene_renderer::update_skeleton	EDI	scene_renderer receiver	inferred
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+4	the render instance's pointer (&[[player+F290h]+108h])	observed
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+8	the bones' matrices (model space, rows, v * M), copied to the command's +58h	observed
@@ -2169,7 +2169,7 @@ va	name	location	role	basis
 0x001f17c0	survarium::player::collision_transform	ECX	the player's collision_user subobject (player+118h)	observed
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
-0x001f28e0	survarium::player::on_player_death	ECX	the player	observed
+0x001f28e0	survarium::player::on_player_death	ECX	client player; inlines remove_alive and inventory death, never calls base_player::on_player_death	observed
 0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
 0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
 0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
@@ -2347,7 +2347,7 @@ va	name	location	role	basis
 0x00240200	survarium::player_input_handler::on_mouse_move	stack+16	mouse_z	inferred
 0x00241090	survarium::player_input_handler::on_before_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
 0x00241170	survarium::player_input_handler::on_after_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
-0x00241200	survarium::player_input_handler::alt_is_held	EAX	the player input handler	observed
+0x00241200	survarium::player_input_handler::alt_is_held	EAX	player input handler; +334h world, +9Ch engine, vtable+38h input world, vtable+24h keyboard, vtable+0 key-down for DIK_RMENU B8h then DIK_LMENU 38h	verified
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+4	handler	inferred
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+8	process_keyboard_look	inferred
 0x002421c0	survarium::player_input_handler::process_third_person_mode	EAX	player input-handler receiver used for the observed dispatch/input fields	observed
@@ -2391,8 +2391,8 @@ va	name	location	role	basis
 0x00243d40	survarium::weapon::set_foreground	DL	foreground_flag	inferred
 0x00243dd0		ECX		auto
 0x00243dd0		entry ESP+4		auto
-0x00243fa0		ECX		auto
-0x00243fa0		entry ESP+4		auto
+0x00243fa0	survarium::weapon::on_hide	ECX	weapon; live even after its player changes held item	observed
+0x00243fa0	survarium::weapon::on_hide	entry ESP+4	was_visible; false skips all model removals	observed
 0x00244570		ESI		auto
 0x002445e0		ECX		auto
 0x002445e0		entry ESP+4		auto
@@ -4688,4 +4688,25 @@ va	name	location	role	basis
 0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EAX	portable core	observed
 0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	EDI	reference to user-animation resource pointer	observed
 0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	entry ESP+4	destination storage, 0x200 bytes	observed
-0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	EAX	initial selector value; meaning not yet established	observed
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	EAX	initial RNG seed; selector serialization 0x2FBBB0 labels this m_random.seed()	observed
+0x002fb8a0	survarium::weapon_user_animations_selector::~weapon_user_animations_selector	entry ESP+4	selector subobject; portable core +8	observed
+0x00231bc0	survarium::hit_animations_selector::~hit_animations_selector	ESI	hit selector subobject; portable core +0x60	observed
+0x002d86e0	survarium::base_player::apply_new_input	ECX	live player; incoming input is copied at 0x2D875F/0x2D876C before quick-slot processing	observed
+0x002d86e0	survarium::base_player::apply_new_input	entry ESP+4	simulation time	observed
+0x002d86e0	survarium::base_player::apply_new_input	entry ESP+8	immutable eight-byte input, angle pair then u32 actions; bits through 28 native	observed
+0x002daa60	survarium::base_player::tick	ECX	live player; copied to EBX, clock written at 0x2DAA7F before held tick	observed
+0x002daa60	survarium::base_player::tick	entry ESP+4	simulation time	observed
+0x002d6990	survarium::base_player::base_player	entry ESP+4	destination storage, copied to EBP at 0x2D6995	observed
+0x002daf60	survarium::base_player::serialize	at 0x2DB47E: EBX, EDI	live player and buffer writer at epilogue, after last native field	observed
+0x002db490	survarium::base_player::deserialize	at 0x2DBAB5: EBX, ESI	live player and reader after final native field; before physics post-restore	observed
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	EDI	live Lifebone object; assigns queries 0/1/2 at +4ACh/+4B0h/+4B4h	observed
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	entry ESP+4	queries_result; size +38h, first resource +12Ch, each query stride 2E0h	observed
+0x0025efe0	survarium::artefact<survarium::artefact_lifebone_core>::~artefact<survarium::artefact_lifebone_core>	ECX	live Lifebone; client callback +498h, world +4A4h, model +4ACh	observed
+0x003b2aa0	vostok::animation::bone_matrices_computer::convert_skeleton_branch	entry ESP+16	computed layer bits; child bone +18h must intersect this byte (3B2AF0), otherwise its matrix is uninitialized; render 1, damage 2	verified
+0x002d77c0	survarium::base_player::on_player_death	ECX	live player before remove_alive(1) and inventory death callback; ret 4	observed
+0x002fffd0	survarium::inventory_item::register_in_game_world	stack+4	core world stored at item+248h; ECX item, ret 4	observed
+0x00313200	survarium::artefact_base::tick	ECX	artefact; stack+4 delta ms, stack+8 now; death retires owned passive into state 5, unowned states only cool down	observed
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	ECX	callback base+0x398; client full-base vtable 0xA05F44, verified constructor writes	observed
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	ECX	callback base+0x498; client full-base vtable 0xA05FE4, verified constructor writes	observed
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	ECX	callback base+0xF20; client full-base vtable 0xA06084, verified constructor writes	observed
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	ECX	callback base+0x340; client full-base vtable 0xA06124, verified constructor writes	observed

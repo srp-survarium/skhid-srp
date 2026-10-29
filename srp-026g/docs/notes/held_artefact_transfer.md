@@ -1,8 +1,286 @@
-# Held artefact transfer: engine investigation
+# Held artefact transfer
 
-Status: the deterministic Rust adapter state/snapshot core is implemented
-in `crates/artefact-carry`; native binding and input integration are pending.
-No executable hook or gameplay feature is installed by this branch yet.
+## Death, switching and collection UI corrections (2026-10-29)
+
+The live client dispatches `survarium::player::on_player_death` at 0x1F28E0.
+It inlines remove_alive/inventory teardown and never calls the base handler
+at 0x2D77C0. Patch 78 now hooks both entries before ownership is cleared.
+The native integration test executes each installed entry, saves/loads the
+dropped resource and takes it into another player's container.
+
+A different quick slot queues the next owned artefact while the old item
+lowers for 500 ms, then raises the new one for 600 ms. The weapon stays hidden
+between them. There is no offer during either motion. Re-selecting the queued
+slot cancels the switch; losing the queued item lowers the old one normally;
+losing the old item lowers an empty hand before raising the queued item.
+A late tick can cross both boundaries. The version-2, 32-byte canonical carry
+snapshot contains the current and queued tokens, so rollback reproduces the
+same transition. All clients in a test must be updated together.
+
+Held meshes use their resource's bottom-centre as the attachment origin,
+with a 12 cm palm-normal clearance and 1.2 cm bob. The largest held dimension
+is capped at 14 cm (scale at most 0.65). This clears Onyx's lower edge from the
+fingertips without moving the damage bones. Offline previews execute both the
+native pose and model-bound attachment code on the real stock meshes; they
+no longer duplicate the attachment formula in Python.
+
+The hint uses the existing `SrvContextInfo` collection widget, including its
+font, placement and instant-action frame. Its owner retains the native text,
+progress and visibility while an artefact hint is shown. Native hide/show or
+progress updates cannot erase an active take hint, and leaving the target
+restores native context. Missing/full messages still use the recipient's
+containers. The Ruffle harness checks the actual exported widget, not a
+replacement TextField.
+
+### Alignment with dropped weapon pickup
+
+Inspected the in-progress `feat/dropped-weapon-pickup` worktree (no PR was
+listed for that branch at inspection). Its `weapon-pickup` crate owns typed
+player-life/drop identities and canonical snapshots; `vostok/pickup_input`
+keeps local rendered targets separate from deterministic input. Both death
+entries are covered there too. Artefact ground ownership follows the same
+separation: the pure `ground::Drop` contains release time/position/floor,
+while `vostok/carry_ground` resolves a stable world-registry ID and performs
+native inventory removal/take. Renderer handles and matrices are not part
+of artefact simulation snapshots.
+
+Integration seams for shared code, without copying unfinished weapon logic:
+
+- A common Use arbiter should choose one typed target (weapon drop or
+  artefact ID) and consume the whole press. Compose the shared death/input
+  hooks once; two independently installed detours at these addresses conflict.
+- The weapon branch's bounded snapshot codec and input/journal target relay
+  can serve a shared target enum. Keep native weapon templates/reserves and
+  artefact state/cooldown extensions in their owning adapters.
+- Weapon targeting currently intersects published drawn boxes and sends a
+  stable life/drop ID. Artefacts currently target their deterministic falling
+  position, reach cone and static LOS from existing input; they do not need
+  a second target packet today. If exact mesh targeting is adopted, reuse the
+  weapon `Segment`/`WeaponBox` geometry and frame publication owner, while
+  carrying only stable IDs through the simulation and replay stream.
+
+## Movement, recipient prompts and death drops (2026-10-29)
+
+The carry modifier is either Alt key plus the artefact quick key. Shift
+continues to mean sprint; a plain quick key retains native activation.
+
+Held models are now submitted from the same `on_bones` pass that poses the
+right hand. The native artefact callback keeps that presentation without
+reapplying a cached matrix. Restoring the same carry snapshot preserves its
+presentation identity. This removes the previous callback-order/frame lag
+and restore-driven removal/re-addition during movement.
+
+The HUD chooses its message using the receiving player's inventory:
+`{USE}: Take artefact`, `No artefact container`, or `No free artefact
+container`. All three keys are registered as HUD-name/localization-key pairs
+in `localization/flash_movies_localizations.options/hud_strings`, as well
+as translated into all six language tables. Previously only the language
+tables contained the key, so the HUD could not resolve it.
+
+Death drops the currently carried passive artefact, including a raise or
+lower in progress. Stowed inventory artefacts keep their native behaviour.
+Hooks at the client override (0x1F28E0) and base handler (0x2D77C0) run
+before native inventory death handling. A retained reference bridges native remove,
+which unlinks passive effects and clears ownership. The world/anomaly
+registry continues owning the exact resource; cooldown and ID are retained.
+
+Native state 6 tags a dropped item (native states are 0..5). The anomaly's
+spawn selection at 0x31B815 accepts only state 0, so it cannot reuse this
+item. Its release point, static-collision floor and release time form an
+immutable 20-byte extension, inserted into `artefact_base::serialize` at
+0x313735 and read at 0x3137EC, before the native active-start time in both
+streams. Falling position is an analytical vertical gravity step clamped
+to that floor, independent of frame rate and reproducible after rollback.
+The core world registry is +18940h/+18944h, item world +248h, completed
+simulation clock +18FC0h (0x2D1E84). All are catalogued in fields_026g.tsv.
+
+Ground presentation uses the original full-size model, including Larkspur's
+stem. A dropped item is targeted within 2.2 m, the same gaze cone and static
+line-of-sight rule as teammate transfer, without a team restriction. Use
+calls native take only after confirming a free container; the consumed press
+cannot fall through to a second pickup. Native take re-enables passive
+behaviour. The dropped-state cache is keyed by live world, item and registry
+ID; every interaction resolves the resource again from the native registry.
+
+Validation: 19 pure carry/drop tests; 19 native Rust tests; strict clippy on
+the changed crates; carry, Blackout and ragdoll Unicorn checks; 10 content
+editor tests; the built HUD in headless Ruffle; full manifest build (2,580
+files). Native checks include the real artefact save/load stream around the
+extension, both native on_removed/on_taken, missing/full containers, enemy
+ground pickup, Larkspur returning to the complete ground model, real HUD
+argument keys, and callback-before-bones with moving/restored player state.
+These checks do not replace the owner's in-game visual test.
+
+## Animation resumption (2026-10-28)
+
+The owner's current scope: the weapon goes away and a hand comes up with
+the artefact, similar to S.T.A.L.K.E.R. 2; both the carrier and teammates
+see it. Taking the artefact uses a button, without a taking animation.
+
+`scripts/content-edit/artefact-carry-pose-1.json`, listed in
+`release/content.tsv`, authors three new full-pose clips on the stock
+70-channel player rig:
+
+| Resource under `animations/single/artefact_carry/` | Motion |
+| --- | --- |
+| `raise` | Open right palm rises from waist to chest level in 18 frames (0.6 s at native 30 fps); left arm stays lowered. |
+| `hold` | The same final pose, 36 frames, suitable for looping. |
+| `lower` | Exact return to the starting pose in 15 frames (0.5 s). |
+
+Each has `.b-spline` and `.bones_names` resources. `make_pose_clip` in
+`content_edit.py` is their reproducible source builder: hash-pinned stock
+battery idle plus authored local arm/wrist XYZ rotations, constant
+translations/scales and other bones. Clamped cubic controls `(a,a,b,b)`
+give smoothstep motion and zero velocity at each end. All three clip seams
+match exactly. No stock clip is replaced. These are full poses for the
+hand layer, **not additive offsets and not a replacement for locomotion**.
+The stock grenade idle is type 1 (additive), while battery idle and these
+clips are type 0; directly substituting the grenade clip would be wrong.
+
+The authored right wrist moves from model-space (0.28, 0.83, -0.18) to
+(0.20, 1.28, 0.24) metres. Upper/lower arm lengths remain the stock rig's.
+Right fingers open during the raise; local hand +Y points upwards and -X
+runs towards the fingers. The artefact centre is at local (-0.07, 0.11, 0)
+with a 12 mm sinusoidal hover over four seconds. Its model stays upright
+in player space. Weapon, parented to Root, follows the right-hand delta
+while the weapon lowers/restores. Both views still need visual playtesting.
+
+`scripts/artefact-carry/preview.py` evaluates the generated native cubic
+tracks, checks all three seams and draws front/side rig projections. Run
+it with `--clip` and `--names` pointing to the stock battery
+`key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/idle`
+resources, `--skeleton` to stock `animations/skeletons/scavengers_01.skeleton`,
+and `--out preview.svg`. The green marker shows the proposed attachment,
+not the actual mesh. This checks joint motion, not skinning, first-person
+camera placement or rendered multiplayer behavior.
+
+The resumed native preparation owner (`vostok/carry_animation.rs`) now
+compiles, is bounded by the hook's `Thread` lifetime, recognizes the two
+verified weapon vtables before reading weapon fields and owns independent
+portable selectors. Its three Rust tests cover allocation failure, native
+destruction order/reference balance and refusing non-weapon interfaces.
+The constructor RNG seed and both destructor ABIs are now in the re-kit;
+the four generated engine thunks pass the original-executable ABI gate.
+The generator's image-field check now uses the exact executable's virtual
+sections: the allocator at `0x1F1D9C4` lives in `.data`'s zero-filled tail,
+beyond the old arbitrary 16 MiB bound.
+
+`check_portable_carry.py` additionally executes the real resource binder
+with eight managed hit-animation duration fixtures. Two independent cores
+retain the immutable source twice each, and destroying them in either
+order returns every reference/pin to its original count. This extends the
+original graph-ownership and idle snapshot checks; it does not claim real
+clip playback or bound-player callback teardown.
+
+## Runtime integration (patch 78)
+
+The feature is installed by the normal executable build. Hold either Alt key and press the artefact's quick-slot key to offer
+it. The weapon lowers for 200 ms, leaves the scene, and the open right hand rises
+with the actual artefact over 600 ms. Both views use the same native player
+skeleton. A teammate looking at the carrier within 2.2 m, with an unobstructed
+level ray and a free container, presses Use to take it. There is no recipient
+pickup animation. The donor lowers the empty hand and restores the weapon.
+The same chord again, or a weapon action, cancels the offer smoothly. Normal
+quick-slot presses keep their activation behavior; a chord remains consumed
+until the quick key is released, even if Alt was released first.
+
+`artefact_carry.rs` owns the runtime integration. `carry.rs` is its total,
+wrapping-time state machine. Unlike the earlier active-adapter proposal,
+the existing weapon remains the native held/serialized object. Its actions
+are filtered during carry; its render models have one visibility owner.
+Before native `weapon::on_hide` runs, that owner returns the exact
+removed model set to the live weapon callback, which immediately removes
+it normally. This avoids a duplicate native remove assertion on death or
+a held-item change; no cached weapon address is dereferenced.
+No artefact pointer is put into an active-item slot. Shared render/collision arm and finger
+rotations come from `compile_pose.py`, using the same authored clip source;
+the layer preserves locomotion and native camera bones. The root-parented
+Weapon bone follows the right-hand delta while lowering/restoring.
+
+The same arm layer runs at 0x2DA769, before the native damage model
+consumes the skeleton matrices. It reads the core skeleton at player +408h,
+so collision poses do not depend on a preceding render frame. The visual
+hover moves only the artefact, never damage bones. Matrix passes are sparse:
+`bone+18h & 1` selects render bones, `& 2` selects damage bones. Unselected
+matrices are not read or written. Requiring every matrix to be rigid used
+to reject the whole collision layer when unused finger/Weapon matrices were
+uncomputed. Native regression now poisons those entries and compares all
+computed damage bones with the rendered pose.
+
+The raised right wrist targets `(0.10, -0.14, 0.34)` metres relative to the
+simulation eye. A two-bone solve keeps original limb lengths and limits reach
+to 96 percent extension. The same eye and solver run in both bone passes;
+no first-person-only arm displacement can detach bullet collision. Authored
+curves still own lowering, raising and relaxed finger curls. The artefact
+inherits the cupped palm's orientation, including camera pitch, and floats
+above it. Native static-model bounds anchor its mesh at the bottom and cap its largest
+held dimension at 14 cm, with a maximum scale of 0.65. This affects neither
+ground geometry nor damage shapes.
+
+Selecting a different passive artefact during weapon lowering replaces the
+pending selection before the hand appears. During hand raising or offering,
+it lowers the current item before raising the new one with a fresh generation. Repeating the selected artefact's chord cancels it; an
+empty/invalid quick slot leaves the current offer alone.
+
+artefact-carry-flower-1.json creates a held-only Larkspur model, cropping
+triangles below Y=0.425 m from the hash-pinned stock mesh, compacting vertices
+and recomputing bounds. Materials and packed vertex attributes are preserved.
+The native cook queries a fourth resource for Lifebone only. carry_flower
+retains it until that exact item's destructor, removes it on lower/take/death,
+and releases its reference even if the scene is already gone. Native ground
+rendering keeps the original model and stem. Query layout: result count +38h,
+resource 0 +12Ch, stride 2E0h; resource 3 +9CCh. Hook sites are 25E91Ah,
+260278h and 25EFE0h; no relative call instruction is replayed by a lohook.
+
+A render attachment contains comparison identities and a copied matrix,
+not a retained native pointer. Each of the four artefact callbacks resolves
+its live model and scene. Client-only cache state 5 means the hand model is
+present; native artefact state 3 remains passive. Cancellation, transfer and
+death remove that model through the same callback. Full recipient containers
+are checked before the native remove/take transaction, which retains the
+same resource and preserves cooldown and passive-modifier bookkeeping.
+
+Input bits 29..31 encode a bounded quick-slot command. The input-builder
+hook runs after Blackout filtering; the shared packet is never modified.
+Native apply_input tracks command/Use edges before its early-out and filters
+only the player's copied action mask before native quick-slot handling.
+A consumed Use press stays consumed until release. Native tick advances the
+carry machine; save/load append/read its canonical version-2 32-byte snapshot inside
+the existing length-prefixed player state. Thus the server's player-block
+walker remains compatible. The `next` simulation-change row gates older
+replays when released. Both clients must use this build; it is not wire
+compatible with unpatched player-state readers.
+
+The existing Blackout and ragdoll handlers compose the shared sites explicitly;
+there is one detour per address. The independent portable-selector owner from
+the earlier investigation remains tested groundwork, not the runtime renderer.
+
+Validation: 16 pure carry tests, 19 native Rust tests, strict native clippy,
+engine ABI checks, the carry/Blackout/ragdoll Unicorn checks, nine targeted content
+editor tests, and the real HUD prompt in headless Ruffle pass. The carry
+integration check executes the linked machine, hand layer, snapshot reader,
+all four model callbacks and original inventory/world lookup functions. It
+covers full containers, team/LOS refusal, repeated Use, cooldown/reference
+preservation, restoration, death cleanup and the actual native `on_hide`
+callback after the player has already changed its held-item pointer. The content manifest build
+reproduces all 2,579 files including the six clips, localized prompt and held flower model.
+
+The isolated test installation is `/tmp/artefact-carry-local`, with this
+branch's server and final content. No live installation or release was
+changed. The owner approved testing and both clients (CamoBob/CamoAlice) and this
+branch's server are now running at 127.0.0.1:2334 for that test. The local
+exe uses --revision=36 to match the local content candidate; source REVISION
+is unchanged. Actual first/third-person camera framing, mesh fit, networking
+and interactive gameplay remain subject to the owner's playtest feedback.
+The full executable self-test passed every build variant and all 126
+installed sites; the Windows certificate/checksum API checks passed for
+all ten produced binaries under headless Wine. Workspace clippy is clean.
+Automated checks are not evidence of an in-game visual pass.
+
+## Earlier investigation
+
+Historical investigation below predates patch 78; the runtime integration
+above supersedes its pending active-adapter roadmap.
 The requested interaction is another character pressing the normal Use key;
 the recipient must have a free container. Full inventories must refuse the
 transfer without replacing an artefact. The game must not run a local-only
@@ -184,7 +462,7 @@ model without an attachment transform.
    model and first-/third-person hand attachment through existing resource
    and animation systems. The native inventory artefact wrapper alone is
    not an active item.
-2. Encode Shift + quick slot in deterministic input without also activating
+2. Encode Alt + quick slot in deterministic input without also activating
    the artefact or changing equipment presets. Chain `input_builder.end`
    with Blackout filtering; do not read keyboard state from simulation.
 3. Persist an explicit offering state and the previous active selection.
@@ -251,7 +529,7 @@ keeps the same anomaly-owned resource alive across native removal and pickup.
 Three 32-bit Rust tests exercise this boundary, alongside the original-code
 Unicorn test. This remains unhooked: interaction reach/LOS, the registered
 active adapter, animation loading and world snapshot integration are still
-required before exposing Shift+number.
+required before exposing Alt+number.
 
 ## Portable animation construction findings
 

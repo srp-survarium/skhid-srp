@@ -577,7 +577,7 @@ va	name	source	ret_cleanup	result
 0x0016c1a0	vostok::render::effect_block_compression::compile	manual	12	
 0x0016c520	vostok::render::model_factory::create_render_surface	manual	0	EAX: constructed surface pointer or null on allocation failure; invalid target dispatch does not reach a normal result
 0x0016c8b0	vostok::render::model_factory::create_render_model	manual	0	EAX: model pointer or zero on observed allocation-null branches
-0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX (32bits): destination24-byte bounds pointer
+0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
 0x0016e460	vostok::render::static_render_model_instance::get_surfaces_count	manual	0	EAX (32bits): zero-extended byte surface count; EAX range0..255
 0x0016e500	vostok::render::static_render_surface::fill_lpv_vertex_color	manual	8	
 0x0016e550	vostok::render::static_render_surface::add_shadow_vertices	manual	8	
@@ -996,7 +996,7 @@ va	name	source	ret_cleanup	result
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
 0x00243dd0		auto	4	
-0x00243fa0		auto	4	
+0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
 0x00244570		auto	0	
 0x002445e0		auto	4	
 0x00244610		auto	4	
@@ -1146,7 +1146,7 @@ va	name	source	ret_cleanup	result
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
-0x002d77c0	survarium::base_player::on_player_death	manual		none; the same opening as 0x1F28E0: remove_alive(this, 1) at 0x2D77C6
+0x002d77c0	survarium::base_player::on_player_death	manual	4	ECX live player; remove_alive(this, 1) at 0x2D77C6, inventory death at 0x2D77D1; ret 4
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
@@ -2002,3 +2002,10 @@ va	name	source	ret_cleanup	result
 0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	manual	4	EAX: output expression pair address
 0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	manual	0	no result used
 0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	manual	4	EAX: destination
+0x002fb8a0	survarium::weapon_user_animations_selector::~weapon_user_animations_selector	manual	4	no result used
+0x00231bc0	survarium::hit_animations_selector::~hit_animations_selector	manual	0	no result used
+0x002d86e0	survarium::base_player::apply_new_input	manual	8	no result
+0x002daa60	survarium::base_player::tick	manual	4	no result
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	manual	4	none; retains queries_result resources 0/1/2 at Lifebone +4ACh/+4B0h/+4B4h; EDI this, entry ESP+4 result
+0x002fffd0	survarium::inventory_item::register_in_game_world	manual	4	ECX item; stack+4 core world written to +248h
+0x00313200	survarium::artefact_base::tick	manual	8	ECX item; stack delta_ms, now_ms; unowned states only cool down
