@@ -46,9 +46,11 @@ pub struct SmokeTuning {
     /// Until then a mate's cloud seen or heard is of unknown side and watched as a possible enemy's.
     pub told_ms: u32,
     /// [smoke use] A bot whose route crosses a held lane ahead (K1, `threat.rs`) within `lane_ahead_m`, before it
-    /// steps in, smokes the lane: a cloud between the spot and the crossing (`smoke::smoke_between`), if the team
+    /// steps in and while it is not sprinting (a sprint is across before the cloud forms), smokes the lane: a cloud between the spot and the crossing (`smoke::smoke_between`), if the team
     /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none.
     pub cross_lane: bool,
+    /// The crossing is this near ahead on the route, metres: a smoke for the gap the bot is about to step into, not
+    /// one it may reach later (20 m threw 8.9 per 100 lives, `h2h-radio-vs-off-20261029T1211`; live 2.97).
     pub lane_ahead_m: Metres,
     /// A lane is smoked only while its shooter is known to be there now: the team sensed him at the spot within this,
     /// ms (its own sight or hearing, or the kill feed of a death to him), and the spot has a clear line onto the
@@ -82,7 +84,7 @@ impl Default for SmokeTuning {
             heard_ms: 2_000,
             told_ms: 400,
             cross_lane: false,
-            lane_ahead_m: Metres::of(20.0),
+            lane_ahead_m: Metres::of(10.0),
             lane_sensed_ms: 5_000,
             anti_sniper: false,
         }

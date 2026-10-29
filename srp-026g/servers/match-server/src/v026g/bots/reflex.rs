@@ -3333,7 +3333,11 @@ impl Reflex {
                 Err(miss) => LookOutcome::Failed(miss),
                 Ok(()) => match looked {
                     Some(look) if look.fresh => match look.look {
-                        PartsLook::Shows => LookOutcome::Seen,
+                        PartsLook::Shows => {
+                            #[cfg(test)]
+                            super::smoke::tally::record_seen(me, enemy, view.clock);
+                            LookOutcome::Seen
+                        }
                         PartsLook::Smoke => LookOutcome::Failed(Miss::Smoke),
                         PartsLook::Hidden => LookOutcome::Failed(Miss::Blocked),
                     },

@@ -633,7 +633,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
             return None;
         }
         let grid = &tactics.world.grid;
-        if bot.threat.exposed_at(grid, me.feet) {
+        // Not in the lane already, and not running it already: a bot holding a sprint is across before the cloud
+        // forms (0.7 s), as a player sprinting a gap does not stop to smoke it.
+        let sprinting = bot.sent_keys & (key::FORWARD | key::SPRINT) == key::FORWARD | key::SPRINT;
+        if sprinting || bot.threat.exposed_at(grid, me.feet) {
             return None;
         }
         let (route, _) = bot.route.as_ref()?;

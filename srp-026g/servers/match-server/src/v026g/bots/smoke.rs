@@ -840,6 +840,40 @@ pub mod tally {
     pub fn last_spray(place: usize) -> Option<u32> {
         SPRAYED.with(|s| s.borrow().iter().find(|&&(p, _)| p == place).map(|&(_, t)| t))
     }
+
+    /// A look that found an enemy (`aimpoint::look_parts` showed him) as the bot made it: the view's clock, the
+    /// bot's eye as its view had it, his feet and crouch as its view had them. The fairness count replays it.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct SeenLook {
+        pub time: u32,
+        pub eye: super::Vec3,
+        pub feet: super::Vec3,
+        pub crouched: bool,
+    }
+
+    thread_local! {
+        static SEEN_LOOKS: std::cell::RefCell<std::collections::BTreeMap<(usize, usize), SeenLook>> =
+            const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    }
+
+    /// The bot at `place` saw `who` with `look` (the think's look or the aim's).
+    pub fn looked_seen(place: usize, who: usize, look: SeenLook) {
+        SEEN_LOOKS.with(|s| s.borrow_mut().insert((place, who), look));
+    }
+
+    /// The last look of the bot at `place` that found `who`.
+    pub fn seen_look(place: usize, who: usize) -> Option<SeenLook> {
+        SEEN_LOOKS.with(|s| s.borrow().get(&(place, who)).copied())
+    }
+
+    /// The look of `me` that found `enemy` at `clock`.
+    pub fn record_seen(me: &crate::v026g::bots::view::PlaceView, enemy: &crate::v026g::bots::view::PlaceView, clock: u32) {
+        looked_seen(
+            me.place,
+            enemy.place,
+            SeenLook { time: clock, eye: me.eye(), feet: enemy.feet, crouched: enemy.crouched() },
+        );
+    }
 }
 
 #[cfg(test)]
