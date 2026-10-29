@@ -120,21 +120,19 @@
     const find = selector => root.querySelector(selector);
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
     let simulation = {kind: 'empty'}, sides = [], playing = null;
-    function nextShot() {
-      if (simulation.kind !== 'ready') return undefined;
-      return simulation.series.flatMap(series => series.events).map(event => event.time)
-        .sort((a, b) => a - b).find(time => time > simulation.time + .001);
+    function lastShot() {
+      return Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
     }
     function draw() {
       if (simulation.kind !== 'ready') return;
       const time = simulation.time;
-      find('.sim-step').disabled = find('.sim-last').disabled = nextShot() === undefined;
+      find('.sim-last').disabled = time >= lastShot() - .001;
       timeInput.value = time;
       find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
+        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -210,15 +208,18 @@
             transform:`translate(${(150 - (dollBox.x + dollBox.width / 2) * size).toFixed(2)} ${(oy - body * CHEST * scale - dollBox.y * size).toFixed(2)}) scale(${size.toFixed(5)})`}));
         }
         svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
-        const past = series.frames.filter(frame => frame.time <= time);
+        // Each weapon's view holds at its own last shot: with two, the faster
+        // finishes first, and its settling is the plots' only (as for one).
+        const last = Math.max(...series.events.map(event => event.time)), held = Math.min(time, last);
+        const past = series.frames.filter(frame => frame.time <= held);
         svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(aim(frame).side).toFixed(2)},${y(aim(frame).up).toFixed(2)}`).join(' '),
           class:`sim-trail series-${series.side}`}));
-        for (const event of series.events.filter(event => event.time <= time)) {
+        for (const event of series.events.filter(event => event.time <= held)) {
           const point = aim(sample(series, event.time)), [hx, hy] = hitAt(series, event);
           svg.append(svgNode('circle', {cx:x(point.side), cy:y(point.up), r:2, class:`sim-shot series-${series.side}`}));
           svg.append(svgNode('circle', {cx:hx, cy:hy, r:2.6, class:`sim-hit series-${series.side}`}));
         }
-        const frame = sample(series, time), point = aim(frame), cx = x(point.side), cy = y(point.up);
+        const frame = sample(series, held), point = aim(frame), cx = x(point.side), cy = y(point.up);
         // The spread: the cone's half angle around the aim.
         const radius = frame.spread / 2;
         if (radius > 0) svg.append(svgNode('circle', {cx, cy, r:radius * scale, class:`sim-spread series-${series.side}`}));
@@ -287,14 +288,9 @@
     // Last shot: the whole pattern at once.
     find('.sim-last').addEventListener('click', () => {
       if (simulation.kind !== 'ready') return;
-      seek(Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time)));
+      seek(lastShot());
     });
     find('.sim-target').addEventListener('change', draw);
-    // Next shot stops at the last one: the settling after it is the timeline's.
-    find('.sim-step').addEventListener('click', () => {
-      const next = nextShot();
-      if (next !== undefined) seek(next);
-    });
     timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
     return {show(chosen) { sides = chosen; rebuild(); }};
   }

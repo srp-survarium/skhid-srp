@@ -123,14 +123,22 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
   await evaluate("document.querySelector('#compare-colors').click();document.querySelector('#only-differences').click()");
   assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
-  await evaluate("document.querySelector('#recoil-sim .sim-step').click()");
+  assert.equal(await evaluate("document.querySelectorAll('.sim-step').length"), 0, 'no step-by-step mode');
+  await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
   assert.equal(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)"), .05);
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).match(/shots 1\/\d+/));
   assert.equal(await evaluate("document.querySelectorAll('#sim-single,.sim-single').length"), 0, 'no single-shot mode');
   assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-sight .sim-cross').length"), 2, 'a crosshair per weapon');
   assert.equal(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-view')].map(view => view.querySelectorAll('.sim-cross').length).join()"), '1,1', 'a view per weapon');
-  await evaluate("document.querySelector('#recoil-sim .sim-step').click()");
-  assert.ok(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)") > .05, 'next shot advances timeline');
+  // The faster weapon's view holds at its last shot while the other still fires.
+  {
+    const held = await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');document.querySelector('#recoil-sim .sim-last').click();[...document.querySelectorAll('#recoil-sim .sim-view .sim-cross circle')].map(c=>c.getAttribute('cy')).join()}");
+    await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))}");
+    assert.equal(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-view .sim-cross circle')].map(c=>c.getAttribute('cy')).join()"), held, 'the views hold at their last shots');
+    // Back to the first shot, where the checks below go on from.
+    await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
+  }
+  await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.3';t.dispatchEvent(new Event('input'))}");
   const position = await evaluate("document.querySelector('#recoil-sim .sim-time').value");
   await evaluate('new Promise(r=>setTimeout(r,150))');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), position, 'manual position stays fixed');
@@ -147,8 +155,8 @@ try {
   await screenshot('comparison-crosshair');
   // Next shot and Play stop at the last shot: the settling is the plots' only.
   assert.equal(await evaluate("document.querySelectorAll('#sim-shots,.sim-shots').length"), 0, 'the burst is the smaller magazine, not a setting');
-  await evaluate("for (let i = 0; i < 400 && !document.querySelector('#recoil-sim .sim-step').disabled; i++) document.querySelector('#recoil-sim .sim-step').click()");
-  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-step').disabled"), true, 'no step past the last shot');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-last').disabled"), true, 'at the last shot');
   const lastShot = await evaluate("document.querySelector('#recoil-sim .sim-time').value");
   assert.ok(Number(lastShot) < Number(await evaluate("document.querySelector('#recoil-sim .sim-time').max")), 'the settling stays on the timeline');
   await evaluate("document.querySelector('#recoil-sim .sim-reset').click();document.querySelector('#recoil-sim .sim-play').click()");
