@@ -61,6 +61,7 @@ pack	artefact-glow@4	fd19ff46351d8853e2fd4bd83e67d553770603a2c41d6e612607d3d910f
 pack	serbia-flag@1	80d3b4ab9bf0811fa319fa799857c6a0cf620673becb403c44a317903cd3e470	the Flag of Serbia decal (char_decal_4_34) as 0.69d fixed it: Serbia's state flag, red over blue over white with the coat of arms (stock: blue over white over red, the flag of Yugoslavia); 0.69d's textures and lobby icon (scripts/serbia-flag/make_pack.py; docs/notes/serbia-flag.md)
 pack	equipment-029@3	0b40ea6ba1ac54f107f03043b62e11f38904c0f2a9940f3199f04a44ea28eb6b	84 equipment pieces through 0.29, including 22 premium/special pieces; protection, weights and bonuses benchmarked against native equipment including Zubr (scripts/equipment-029)
 pack	breakable-lamps@1	e5189dcab11d84698d1c5ac22db349eee34acf4b47bbecaf8db2dd25eecedf9d	Broken bulb sockets and ceiling lamp caps, without glass or emission (scripts/breakable-lamps/make_pack.py)
+pack	exo-gear@1	4340858156cc21a34b7810c6dedbc63b206cd2b404048b2f7aee543f4097cd90	the Duty and Freedom exoskeleton boots and gloves without their black areas (the boots' upper shafts and side patch, the gloves' palms and wrists, painted over with the fabric beside them in both sets' textures) and their lobby icons rendered again
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
