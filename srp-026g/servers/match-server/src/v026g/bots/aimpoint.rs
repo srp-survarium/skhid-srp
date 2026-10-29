@@ -51,7 +51,7 @@ use mapdata::{RayTree, Vec3, World};
 
 use super::kin::{forward, yaw_of};
 use super::smoke::Veil;
-use super::tuning::SmokeTuning;
+use super::tuning::{CoverRule, SmokeTuning};
 use super::view::{MatchView, Place, PlaceView, live_eye};
 
 /// A target's parts are looked at again after this, ms.
@@ -396,6 +396,8 @@ pub struct Sight {
     reach: f32,
     /// The last part seen of a target, where it was, and when.
     last_seen: Option<(Place, Vec3, u32)>,
+    /// Where the feet of that last target were then (fire through cover aims low at the place he went down).
+    last_feet: Vec3,
     /// The target just went into smoke: the spray at the last part seen of him is open (`SmokeTuning::
     /// spray_ms` from that sight), for this target.
     spray: Option<Place>,
@@ -481,6 +483,7 @@ impl Sight {
         };
         let point = part.point(body, eye);
         self.last_seen = Some((who, point, now));
+        self.last_feet = body.feet;
         self.reach = (point - eye)
             .length()
             .min((part.point_of(then, body.crouched(), eye) - eye).length())
@@ -573,6 +576,21 @@ impl Sight {
         self.last_seen
             .filter(|(_, _, at)| now <= at + PRE_AIM_MS)
             .map(|(_, at, _)| at)
+    }
+
+    /// Who was last seen, where his feet were, and when, if it is within `within_ms` of `now` (fire through cover goes at the
+    /// place he was: the shot is aimed low there, at a belly standing, where a body that ducked or stepped behind a crate is).
+    pub fn last_place(&self, now: u32, within_ms: u32) -> Option<(Place, Vec3, u32)> {
+        self.last_seen
+            .filter(|(_, _, at)| now <= at + within_ms)
+            .map(|(who, _, at)| (who, self.last_feet, at))
+    }
+
+    /// The share of a bullet's damage that reaches `to` from the bot's eye (`from`), by the game's rule `rule`: the line followed
+    /// through what a bullet pierces, giving up under `floor`; so a share under `floor` is only an upper bound. None: no map.
+    pub fn damage_share(&self, from: Vec3, to: Vec3, rule: CoverRule, floor: f32) -> Option<f32> {
+        let world = self.world.as_ref()?;
+        Some(super::rays::follow(&world.sight, from, to, rule.pierce, floor).share.value())
     }
 }
 
@@ -957,6 +975,89 @@ mod tests {
         let (fired, sprayed) = smoke_duel(&SmokeTuning::default(), 2_500, true);
         assert!(!sprayed.is_empty(), "no spray: {fired:?}");
         assert!(sprayed.iter().all(|p| (*p - sprayed[0]).length() < 1e-4), "{sprayed:?}");
+    }
+
+    /// A duel at 20 m in the open that a crate (armor `armor`, 2 m high) comes between from `shut_at`, the enemy no longer sensed
+    /// (he went behind it): the ticks the bot fired from then on, the reflex's through-fire counts and the share at the crate.
+    fn through_duel(armor: f32, tuning: &AimTuning, shut_at: u32) -> (Vec<(u32, Vec3)>, crate::v026g::bots::reflex::ThroughStats, f32) {
+        use crate::v026g::bots::know::SightWindow;
+        use crate::v026g::bots::tuning::{CoverRule, SmokeTuning, Tuning};
+        use mapdata::{Armor, FaceArmor};
+        let open = world_of(&[]);
+        // Wound to face the bot: the pierce meets front faces.
+        let crate_tris = wall(10.0, -3.0, 3.0, 0.0, 2.0);
+        let shut = Arc::new(World {
+            map: mapdata::MapData::default(),
+            grid: open.grid.clone(),
+            sight: Arc::new(RayTree::from_armored_corners(
+                crate_tris.iter().flatten().copied().collect::<Vec<_>>().chunks(3).map(|t| ([t[0], t[2], t[1]], FaceArmor::Material(Armor::new(armor).unwrap()))),
+            )),
+        });
+        let rule = CoverRule { pierce: mapdata::Pierce::new(0.3125).unwrap(), max_share: 0.5, spot_cost: None };
+        let eye = body(0, 0, Vec3::ZERO, false).eye();
+        let share = shut.sight.follow(eye, Vec3::new(0.0, 1.02, 20.0), rule.pierce, 0.0).share.value();
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let mut me = body(0, 0, Vec3::ZERO, false);
+        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let full = Tuning::default();
+        let sense = full.sense.clone();
+        let mut memory = Memory::default();
+        memory.set_sight_window(SightWindow::of(&sense, &full.cheats));
+        let mut reflex = Reflex::default();
+        reflex.set_cover_rule(Some(rule));
+        let mut rng = Rng::new(5);
+        let seen = |time| Percept { who: 1, at: enemy.feet, error_m: 0.0, time, source: Source::Seen, busy: false };
+        memory.update(&[seen(1_000)], 1_000, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(1_300)], 1_300, |_| 300, 3_000, 20_000);
+        reflex.think(&me, &memory, 1_300, tuning, 1.0, &mut rng);
+        let mut fired = Vec::new();
+        let smoke = SmokeTuning::default();
+        for k in 0..60 {
+            let now = 1_300 + k * 50;
+            let shut_now = now >= shut_at;
+            let mut view = view.clone();
+            view.clock = now;
+            if !shut_now {
+                memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
+            } else {
+                memory.update(&[], now, |_| 300, 3_000, 20_000);
+            }
+            reflex.look_through(&me, &view, if shut_now { &shut } else { &open }, &mut memory, &sense, &smoke, now);
+            let o = reflex.tick(&me, &view, &memory, now, true, tuning, 1.0, &mut rng);
+            if let Some(look_at) = o.look_at {
+                facing(&mut me, look_at);
+            }
+            if o.fire && shut_now {
+                fired.push((now, o.look_at.unwrap_or(Vec3::ZERO)));
+            }
+        }
+        (fired, reflex.through_stats(), share)
+    }
+
+    #[test]
+    fn a_bot_goes_on_firing_a_moment_through_cover_that_lets_its_bullets_pass() {
+        use crate::v026g::bots::reflex::CombatTuning;
+        let on = AimTuning::default();
+        let off = AimTuning { combat: CombatTuning { fire_through_ms: 0, ..CombatTuning::default() }, ..AimTuning::default() };
+        let shut_at = 2_500;
+        // A thin crate: most of the damage reaches him. It fires on after the sight is lost, no longer than the window.
+        let (fired, stats, share) = through_duel(0.05, &on, shut_at);
+        assert!(share >= 0.8, "the premise: share {share}");
+        assert!(!fired.is_empty() && stats.ticks as usize == fired.len(), "{fired:?} {stats:?}");
+        assert!(stats.bursts >= 1 && stats.refused_share == 0, "{stats:?}");
+        let last = fired.last().unwrap().0;
+        assert!(last <= shut_at + on.combat.fire_through_ms, "fired to {last}: {fired:?}");
+        // Aimed low at the place he went down (his belly standing), not at the chest it last saw over the crate.
+        assert!(fired.iter().all(|(_, at)| (at.y - 1.02).abs() < 0.01 && at.z > 19.9), "{fired:?}");
+        // One burst a gap: the bursts begun are no closer than the gap.
+        assert!(stats.bursts <= 1 + on.combat.fire_through_ms / on.combat.fire_through_gap_ms, "{stats:?}");
+        // Switched off: it does not fire at what it does not see.
+        let (blind, none, _) = through_duel(0.05, &off, shut_at);
+        assert!(blind.is_empty() && none.total() == 0, "{blind:?} {none:?}");
+        // A wall that stops the bullet: nothing goes, and the refusal is counted.
+        let (stopped, refused, share) = through_duel(50.0, &on, shut_at);
+        assert!(share < 0.8, "the premise: share {share}");
+        assert!(stopped.is_empty() && refused.refused_share > 0 && refused.ticks == 0, "{stopped:?} {refused:?}");
     }
 
     #[test]

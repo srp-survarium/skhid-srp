@@ -1,15 +1,18 @@
 {
   "aim": {
     "combat": {
+      "band_carrier_seen_ms": 0,
       "fire": {
         "weapon_class_by_data": false
       },
+      "fire_through_ms": 0,
       "grenade_claim": false,
       "grenade_kit_cap": false,
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_search": false,
       "grenade_tracks": false,
+      "hit_cover_reach": false,
       "worth": {
         "hurt_from": "body"
       }
