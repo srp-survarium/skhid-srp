@@ -165,8 +165,8 @@
     }
     // The crosshair as the kick moves it: the kick climbing from the origin,
     // the path so far and each shot's mark. The side kick is far smaller than
-    // the climb (and not a confirmed screen angle): it fills the width, its
-    // magnification (at most ×100) written in the corner. Each weapon has
+    // the climb: it fills the width, and the corner says how much the climb
+    // is squeezed against it (at most ÷100). Each weapon has
     // its own view, all on one scale so they compare.
     function drawSight(time) {
       const frames = simulation.series.flatMap(series => series.frames);
@@ -193,7 +193,7 @@
       });
       find('.sim-sight-views').replaceChildren(...views.map(({view}) => view));
       for (const {series, svg} of views) {
-        if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
+        if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`vertical ÷${magnified}`, `вертикаль ÷${magnified}`)));
         svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
         svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
         if (distance) {
