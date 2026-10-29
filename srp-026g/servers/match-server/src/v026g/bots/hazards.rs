@@ -856,6 +856,19 @@ pub mod damage_zone_fixes {
         }
     }
 
+    /// Whether the escort refusal was counted for this carrier of `team` in `[from_ms, to_ms]` (the bench's trace of a zone take).
+    pub fn refused_for(team: u8, carrier: u32, from_ms: u32, to_ms: u32) -> bool {
+        ONCE.with_borrow(|seen| {
+            seen.iter().any(|&(t, ev, subject, bucket)| {
+                t == team.min(1)
+                    && ev == Ev::EscortUnreachable as usize
+                    && subject / 64 == carrier
+                    && bucket >= from_ms / 2_000
+                    && bucket <= to_ms / 2_000
+            })
+        })
+    }
+
     pub fn count(ev: Ev) {
         let team = usize::from(TEAM.get());
         COUNTS.with_borrow_mut(|counts| counts[team][ev as usize] += 1);

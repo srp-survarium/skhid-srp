@@ -255,13 +255,24 @@ pub(super) struct OutcomeCounts {
     hurt: Vec<HurtSpell>,
     /// By battery.
     batteries: Vec<BatteryNow>,
-    zone_pickups: Vec<(Place, u32)>,
+    zone_pickups: Vec<ZonePick>,
     traps_seen: usize,
     /// By place: the stance at the last placement.
     stance: BTreeMap<Place, Stance>,
     estimates: Vec<Option<Vec3>>,
     /// By place: the tick its running Escort play began.
     escort_started: BTreeMap<Place, u32>,
+}
+
+/// A pickup from a zone floor, followed until the carrier dies or [`ZONE_DEATH_MS`] pass: where, and what escorts ran on him.
+#[derive(Clone, Copy)]
+struct ZonePick {
+    place: Place,
+    t: u32,
+    at: Vec3,
+    /// The most bots escorting him at once, and the age of the pickup when the first began.
+    escorts_max: u32,
+    first_escort_ms: Option<u32>,
 }
 
 impl OutcomeCounts {
@@ -416,7 +427,7 @@ impl OutcomeCounts {
                             && in_zone(body.feet)
                         {
                             self.by[side(body.team)].zone_takes += 1;
-                            self.zone_pickups.push((by, game.tick));
+                            self.zone_pickups.push(ZonePick { place: by, t: game.tick, at: body.feet, escorts_max: 0, first_escort_ms: None });
                         }
                     }
                     BatteryNow::Carried(by)
@@ -427,14 +438,64 @@ impl OutcomeCounts {
         }
     }
 
+    /// The bots escorting each carrier that took a battery from a zone, now.
+    fn escorts_on_zone_takes(&mut self, bots: &Bots, game: &Game) {
+        use crate::v026g::bots::plays::{PlayKind, TargetRef};
+        if self.zone_pickups.is_empty() {
+            return;
+        }
+        let mut count: BTreeMap<Place, u32> = BTreeMap::new();
+        for bot in bots.bots.iter().flatten() {
+            let Some(a) = bot.assignment.as_ref().filter(|a| a.kind == PlayKind::Escort) else {
+                continue;
+            };
+            let carrier = match a.target {
+                TargetRef::Place(p) => Some(p),
+                TargetRef::Battery(b) => match game.batteries.get(b) {
+                    Some(Lying::Carried(by)) => Some(*by),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(c) = carrier {
+                *count.entry(c).or_default() += 1;
+            }
+        }
+        for pick in &mut self.zone_pickups {
+            if let Some(&n) = count.get(&pick.place) {
+                pick.escorts_max = pick.escorts_max.max(n);
+                pick.first_escort_ms.get_or_insert(game.tick - pick.t);
+            }
+        }
+    }
+
     /// Carriers that took a battery from a zone and died soon after.
     fn zone_deaths(&mut self, game: &Game) {
         let tick = game.tick;
         let by = &mut self.by;
-        self.zone_pickups.retain(|&(place, t)| {
+        self.zone_pickups.retain(|pick| {
+            let (place, t) = (pick.place, pick.t);
             let died = game.bodies.get(place).is_some_and(|b| !b.alive);
             if died {
                 by[side(game.bodies[place].team)].zone_take_died += 1;
+                // The bench's trace of a take that died (A157): who he was, what escorted him, who killed him from where.
+                let team = game.bodies[place].team;
+                let killer = game.kill_log.iter().rev().find(|k| k.2 == place && k.0 + 1_000 >= t).map(|k| k.1);
+                eprintln!(
+                    "ZTAKE team={team} place={place} age_ms={} at=({:.1},{:.1}) died_at=({:.1},{:.1}) escorts_max={} first_escort_ms={:?} refused={} killer={} killer_team={} killer_at={} killer_dist={}",
+                    tick - t,
+                    pick.at.x,
+                    pick.at.z,
+                    game.bodies[place].feet.x,
+                    game.bodies[place].feet.z,
+                    pick.escorts_max,
+                    pick.first_escort_ms,
+                    crate::v026g::bots::hazards::damage_zone_fixes::refused_for(team, place as u32, t, tick),
+                    killer.map_or("none".to_owned(), |k| k.to_string()),
+                    killer.map_or(-1, |k| i32::from(game.bodies[k].team)),
+                    killer.map_or("-".to_owned(), |k| format!("({:.1},{:.1})", game.bodies[k].feet.x, game.bodies[k].feet.z)),
+                    killer.map_or(-1.0, |k| game.bodies[k].feet.distance_xz(game.bodies[place].feet)),
+                );
             }
             !died && tick < t + ZONE_DEATH_MS
         });
@@ -528,6 +589,7 @@ impl Topic for OutcomeCounts {
                 game.world.grid.locate(feet, 1.0).is_some_and(|node| t.hazards.zones_at(node).next().is_some())
             })
         });
+        self.escorts_on_zone_takes(bots, game);
         self.zone_deaths(game);
         if (game.tick / TICK_MS).is_multiple_of(1000 / TICK_MS) {
             self.flip_sample(game);
