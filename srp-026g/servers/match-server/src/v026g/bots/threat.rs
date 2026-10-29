@@ -1344,7 +1344,7 @@ pub const JOBS_MAX: usize = 2;
 pub const JOB_SHARE: usize = 3;
 
 /// A teammate as the job's choice reads it: its place, feet, whether it
-/// may take a role (alive, not an objective actor ([`objective_actor`]),
+/// may take a role (alive, not an objective actor ([`super::objective::ObjectiveMap::is_actor`]),
 /// something to fire), and the job play it runs now (the role and the
 /// spot), if any.
 #[derive(Clone, Copy, Debug)]
@@ -1357,30 +1357,12 @@ pub struct Mate {
 
 /// The team as the jobs read it: its living bots that may take a role, its
 /// players (bots and humans, the [`JOB_SHARE`] cap's count), and the
-/// objective areas ([`objective_areas`]): a job on a spot whose lanes
+/// objective areas ([`super::objective::ObjectiveMap::home_spots`]): a job on a spot whose lanes
 /// cover one is objective work, outside the cap.
 pub struct JobTeam<'a> {
     pub mates: &'a [Mate],
     pub size: usize,
     pub objective_areas: &'a [Vec3],
-}
-
-/// Where the mode's objective is (`MODES-READY.md` rule 1): the battery
-/// spawners and the home containers in the battery modes; none in TDM.
-/// (Research's capture zones go here with that update.)
-pub fn objective_areas(map: &mapdata::MapData, mode: super::view::Mode) -> Vec<Vec3> {
-    if mode.has_batteries() {
-        map.battery_spawners.iter().map(|s| s.position).chain(map.containers.iter().map(|c| c.position)).collect()
-    } else {
-        Vec::new()
-    }
-}
-
-/// Whether a player is doing the mode's scoring action now (rule 2): the
-/// carrier in the battery modes; nobody in TDM. A threat job never takes
-/// one. (Research: a body in a capture zone, with that update.)
-pub fn objective_actor(mode: super::view::Mode, carrying: Option<usize>) -> bool {
-    mode.has_batteries() && carrying.is_some()
 }
 
 /// Why a role went ([`JobEvent`]).

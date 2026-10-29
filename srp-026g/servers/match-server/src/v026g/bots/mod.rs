@@ -56,6 +56,7 @@ pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
 pub mod motor;
+pub mod objective;
 pub mod path;
 pub mod plays;
 pub mod pockets;
@@ -147,6 +148,7 @@ use motor::Motor;
 use motor::Pose;
 use motor::RoutePress;
 use motor::Walked;
+use objective::Mode;
 use path::Route;
 use plays::BotFacts;
 use plays::Ctx;
@@ -745,8 +747,7 @@ thread_local! {
 /// A match's bots.
 pub struct Bots {
     level: u8,
-    /// The mode's id (2 batteries, 3 timed batteries, 4 TDM).
-    mode: u8,
+    mode: Mode,
     /// Whose the battery containers are, by id, as the server's game
     /// data has the map (`MapMode::container_teams`); without it, as the
     /// built map has them ([`Self::with_container_teams`]).
@@ -799,7 +800,8 @@ pub struct Bots {
 
 impl Bots {
     /// `teams[place]`, `driven[place]` (a bot's place), `roles[place]` (a
-    /// bot's role by its gear); `mode` and `level` the map's.
+    /// bot's role by its gear); `mode` and `level` the map's. For tests that name the mode by its id.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
@@ -811,6 +813,7 @@ impl Bots {
         tuning: Arc<Tuning>,
         trace: Trace,
     ) -> Self {
+        let mode = Mode::parse(mode).expect("a test names a mode the bots play");
         Self::new_with(match_id, mode, level, teams, driven, roles, tuning::TeamTunings::new(tuning), trace)
     }
 
@@ -818,7 +821,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with(
         match_id: u32,
-        mode: u8,
+        mode: Mode,
         level: u8,
         teams: &[u8],
         driven: &[bool],
@@ -853,7 +856,7 @@ impl Bots {
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
             #[cfg(feature = "client-test")]
-            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode, teams)),
+            client_tests: client_tests::for_match(match_id, client_tests::group_of(level, mode.id(), teams)),
             #[cfg(all(test, not(feature = "client-test")))]
             client_tests: None,
             polls: Default::default(),
@@ -1071,9 +1074,9 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.layers.routes = table.for_map(self.level, self.mode);
+        self.layers.routes = table.for_map(self.level, self.mode.id());
         self.layers.perches = table.perches_for(self.level);
-        self.layers.perch_share = table.perch_share(self.level, self.mode);
+        self.layers.perch_share = table.perch_share(self.level, self.mode.id());
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].

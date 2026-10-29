@@ -27,7 +27,7 @@ fn threat_tick(
     view: &MatchView,
     now: u32,
     tuning: &Tuning,
-    mode: view::Mode,
+    objective: objective::ObjectiveMap,
     camper: Option<Place>,
     notes: &mut Vec<Note>,
 ) {
@@ -89,11 +89,11 @@ fn threat_tick(
                     (plays::PlayKind::Crossfire, plays::TargetRef::ThreatSpot(id)) => Some((threat::Role::Pinner, id)),
                     _ => None,
                 });
-                Some(threat::Mate { place: b.place, feet: p.feet, free: !threat::objective_actor(mode, p.carrying) && !b.reflex.dry(), playing })
+                Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
             })
             .collect();
         let holds = threat::holds(&held, tuning.threat.job_kills);
-        let areas = threat::objective_areas(&tactics.world.map, mode);
+        let areas = objective.home_spots(&tactics.world.map);
         let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
         let spots = &threat.spots;
         let unheld = |id| spots.unheld_why(id, now);
@@ -317,13 +317,12 @@ impl Bots {
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {
-            let mode = view::Mode::from_id(self.mode);
             // The bench's stand-in camper's place (`SRP_BENCH_CAMPER`); none live.
             #[cfg(test)]
             let camper = self.bench_camper.as_ref().map(|c| c.place());
             #[cfg(not(test))]
             let camper = None;
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, mode, camper, notes);
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes);
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
@@ -406,7 +405,7 @@ impl Bots {
                 _ => None,
             };
             let target = bot.assignment.as_ref().and_then(|a| cx.point_of(a.target));
-            if me.carrying.is_some()
+            if cx.view.objective().is_actor(me)
                 || goal_shut(&bot.intent, me, &bot.no_way_to, now)
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {

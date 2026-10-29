@@ -100,7 +100,7 @@ pub fn tuning() -> PlayTuning {
 /// `weight_batteries`, `weight_timed`): the players' research favours the
 /// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = cx.num(kind, cx.view.mode.weight_key());
+    let weight = cx.num(kind, cx.view.objective().weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
@@ -395,11 +395,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             let spot = *spot;
             let d = cx.me.feet.distance_xz(spot);
             if d <= reach {
-                let s = if cx.view.mode.is_deathmatch() {
-                    rng.range(num("hold_tdm_min_s"), num("hold_tdm_max_s"))
-                } else {
-                    rng.range(num("hold_batteries_min_s"), num("hold_batteries_max_s"))
-                };
+                let (lo, hi) = cx.view.objective().by_mode(
+                    (num("hold_tdm_min_s"), num("hold_tdm_max_s")),
+                    (num("hold_batteries_min_s"), num("hold_batteries_max_s")),
+                    (num("hold_batteries_min_s"), num("hold_batteries_max_s")),
+                );
+                let s = rng.range(lo, hi);
                 *state = State::Hold {
                     spot,
                     until: cx.now + (s * 1000.0) as u32,

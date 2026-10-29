@@ -26,7 +26,7 @@ pub fn tuning() -> PlayTuning {
 /// Whether the enemies of `cx`'s bot can no longer respawn in a Team
 /// Deathmatch.
 fn endgame(cx: &Ctx) -> bool {
-    cx.view.mode.is_deathmatch() && !cx.view.can_respawn[usize::from(!cx.me.team & 1)]
+    cx.view.objective().enemy_spent(cx.view, cx.me.team)
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {

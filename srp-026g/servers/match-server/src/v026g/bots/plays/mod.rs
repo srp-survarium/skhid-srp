@@ -810,7 +810,7 @@ impl Ctx<'_> {
         let mates: Vec<&PlaceView> = self
             .view
             .team(self.me.team)
-            .filter(|mate| mate.place != self.me.place && mate.carrying.is_none())
+            .filter(|mate| mate.place != self.me.place && !self.view.objective().is_actor(mate))
             .collect();
         let sees: Vec<Vec<bool>> = threats
             .iter()
@@ -1070,7 +1070,7 @@ pub fn spawner_worth_checking(
     };
     let fresh = match known.spawner_seen(index) {
         None => true,
-        Some(seen) if view.mode.rechecks_spawners() => {
+        Some(seen) if view.objective().refills_on_a_clock() => {
             view.clock >= seen + tuning.sense.spawner_recheck_ms
         }
         Some(_) => false,

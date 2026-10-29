@@ -1178,7 +1178,7 @@ pub struct TakeBlocks {
 /// asked). Empty while it carries one.
 pub fn take_blocks(cx: &Ctx, offered: &[Candidate]) -> TakeBlocks {
     let mut list = Vec::new();
-    if cx.view.mode.has_batteries() && cx.me.carrying.is_none() {
+    if cx.view.objective().has_homes() && !cx.view.objective().is_actor(cx.me) {
         for battery in 0..cx.view.batteries.len() {
             let Some(at) = cx.battery_lying(battery) else {
                 continue;
@@ -1282,7 +1282,7 @@ pub fn note_take_blocks(
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() {
+    if !cx.view.objective().has_homes() {
         return;
     }
     // Carrying already: bring it home, at the top of the objective band.
@@ -3639,7 +3639,7 @@ mod tests {
         let defaults = crate::v026g::bots::tuning::Tuning::default();
         let (mut needs, mut open) = (0, 0);
         for level in 1..=8u8 {
-            for mode in [2u8, 3, 4] {
+            for mode in Mode::ALL.map(Mode::id) {
                 let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
                 let Ok(map) = mapdata::MapData::read(&path) else {
                     continue;

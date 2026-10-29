@@ -228,7 +228,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    let weight = cx.num(PlayKind::Cut, cx.view.mode.weight_key());
+    let weight = cx.num(PlayKind::Cut, cx.view.objective().weight_key());
     let running = match cx.bot.current {
         Some((PlayKind::Cut, TargetRef::Point(p), _)) => Some(p),
         _ => None,
@@ -381,11 +381,11 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let d = cx.me.feet.distance_xz(spot);
             if d <= num("reach_m") {
-                let (lo, hi) = if cx.view.mode.is_deathmatch() {
-                    (num("hold_tdm_min_s"), num("hold_tdm_max_s"))
-                } else {
-                    (num("hold_batteries_min_s"), num("hold_batteries_max_s"))
-                };
+                let (lo, hi) = cx.view.objective().by_mode(
+                    (num("hold_tdm_min_s"), num("hold_tdm_max_s")),
+                    (num("hold_batteries_min_s"), num("hold_batteries_max_s")),
+                    (num("hold_batteries_min_s"), num("hold_batteries_max_s")),
+                );
                 let kills = rng
                     .range(num("kills_min"), num("kills_max") + 1.0)
                     .floor()

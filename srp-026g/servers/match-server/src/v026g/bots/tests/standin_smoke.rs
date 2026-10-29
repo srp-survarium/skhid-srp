@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn a_planned_life_puts_one_cloud_when_the_nearest_enemy_is_at_the_drawn_range_and_fresh() {
         let mut game = Game::new(super::super::soak_world(), &[0, 1], 1, None, None);
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, true], vec![]);
         let mut habit = habit_with(7, Habit::Waiting { from: 5_000, want_m: 30.0 });
         game.bodies[0].feet = Vec3::new(10.0, 0.0, 10.0);
         game.bodies[1].feet = Vec3::new(40.0, 0.0, 10.0);
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn the_placements_follow_the_live_shares() {
         let mut game = Game::new(super::super::soak_world(), &[0, 1], 1, None, None);
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, true], vec![]);
         game.bodies[0].feet = Vec3::new(10.0, 0.0, 10.0);
         let mut habit = habit_with(99, Habit::Idle);
         let mut distances = Rng::new(5);
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn a_cloud_on_a_far_enemy_is_cut_to_the_throws_reach() {
         let mut game = Game::new(super::super::soak_world(), &[0, 1], 1, None, None);
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, true], vec![]);
         game.bodies[0].feet = Vec3::new(10.0, 0.0, 10.0);
         game.bodies[1].feet = Vec3::new(70.0, 0.0, 10.0);
         let mut habit = habit_with(3, Habit::Idle);
