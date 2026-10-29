@@ -989,6 +989,30 @@ impl Ctx<'_> {
         (!c.score.is_zero()).then_some(c)
     }
 
+    /// [`Self::job_candidate`] for a job role whose spot has a spot for it (`has_spot`; none: no candidate), the
+    /// offer counted for the bench (`super::threat::offered`, the classes of a role let go unplayed).
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub fn job_offer(&self, role: super::threat::Role, kind: PlayKind, target: TargetRef, slot: u32, health: f32, has_spot: bool) -> Option<Candidate> {
+        let c = if has_spot { self.job_candidate(kind, target, slot, health) } else { None };
+        #[cfg(test)]
+        {
+            use super::threat::{self, Offer};
+            let offer = if !has_spot {
+                Offer::NoSpot
+            } else if c.is_some() {
+                Offer::Offered
+            } else if self.bot.set_aside.iter().any(|&(k, t, until)| k == kind && t == target && self.now < until) {
+                Offer::SetAside
+            } else if self.bot.dry && kind.seeks_fight() {
+                Offer::Dry
+            } else {
+                Offer::LowHealth
+            };
+            threat::offered(self.me.place, role, offer);
+        }
+        c
+    }
+
     /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
     /// graded rule has its curve in `HealTuning`).
     pub fn candidate_with(

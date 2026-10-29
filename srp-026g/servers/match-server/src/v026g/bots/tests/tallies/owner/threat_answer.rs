@@ -28,6 +28,7 @@ pub(super) struct ThreatAnswerCounts {
     jobs: [[u64; 11]; 2],
     lives_from: usize,
     by_tag: [[u64; 3]; 4],
+    offers: std::collections::BTreeMap<String, u64>,
 }
 
 impl Default for ThreatAnswerCounts {
@@ -40,6 +41,7 @@ impl Default for ThreatAnswerCounts {
             jobs: threat::job_tallied(),
             lives_from: threat::job_lives(0).len(),
             by_tag: crate::v026g::bots::path::tag::counted(),
+            offers: threat::offer_counts(),
         }
     }
 }
@@ -108,6 +110,17 @@ impl ThreatAnswerCounts {
             ));
             json.insert(format!("jobs_team{team}"), serde_json::Value::Object(team_json));
         }
+        // The job roles' offers by poll, and the roles let go unplayed by class (their last offer; the play run instead).
+        let mut offers = serde_json::Map::new();
+        let mut offer_text = Vec::new();
+        for (name, n) in threat::offer_counts() {
+            let n = n - self.offers.get(&name).copied().unwrap_or(0);
+            if n > 0 {
+                offer_text.push(format!("{name} {n}"));
+                offers.insert(name, n.into());
+            }
+        }
+        json.insert("job_offers".into(), serde_json::Value::Object(offers));
         // The grid searches by why they ran: count, failed, floors.
         let by_tag = crate::v026g::bots::path::tag::counted();
         let mut work = Vec::new();
@@ -118,7 +131,7 @@ impl ThreatAnswerCounts {
         }
         let n = |key: &str| json.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
         let text = format!(
-            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}, holds left without a job for no free bot {} spot-ticks; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}, chokes on a held spot not theirs {}; grid searches by why: {}",
+            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}, holds left without a job for no free bot {} spot-ticks; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}, chokes on a held spot not theirs {}; grid searches by why: {}; K2 role offers: {}",
             n("k1_checked"),
             n("k1_exposed"),
             runs,
@@ -154,6 +167,7 @@ impl ThreatAnswerCounts {
             n("crossfire_spot_refused"),
             n("crossfire_choke_on_spot"),
             work.join(", "),
+            offer_text.join(", "),
         );
         Part::new(serde_json::Value::Object(json), text)
     }
