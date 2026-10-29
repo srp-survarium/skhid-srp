@@ -50,6 +50,13 @@ Edits (edits.json):
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
                                                        later items move down in place, the count drops by 1
+  "promote_rolled_defaults": [{"categories", "from_top"}]
+                    every item of those `items_dict` categories: each of its `default_modifications`
+                    of a kind that rolls (a row of the kind with a drop weight that changes more than
+                    wear, as the server's Modification::rolls) becomes that kind's `from_top`-th
+                    strongest row (1 the rarest: the rows by drop weight, commonest first, as the
+                    server and the wiki order them); kinds that never roll stay; applied as `set`
+                    edits, before them
   "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table of
                                                        numbers or strings `path` (an item's
                                                        `default_modifications`), made like its first item;
@@ -513,6 +520,58 @@ def append_item(buf, path, value):
     REC.pack_into(buf, off, append_array(buf, old + [new]), i, crc, t, cnt + 1)
 
 
+DICTIONARY = 'gameplay/db_static_dictionaries'
+MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
+# What a "reliability" modification changes, and nothing else (the server's WEAR_PARAMETERS).
+WEAR = {'parameters/degrade_per_match', 'parameters/degrade_per_use', 'parameters/degrade_per_death'}
+
+
+def rolled_strengths(mods):
+    """For each kind (type_mask's set character) that rolls, its rolling rows' ids by drop weight,
+    commonest first (then by id), as the server's Modification::rolls and its order have them."""
+    rows = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        paths = ['/'.join(items_of(mods, '%s/modifiers[%d]/path' % (at, j)))
+                 for j in range(len(children(mods, find(mods, at + '/modifiers'))))]
+        weight = value_of(mods, find(mods, at + '/drop_weight'))
+        if weight > 0 and not (paths and all(p in WEAR for p in paths)):
+            kind = value_of(mods, find(mods, at + '/type_mask')).index('1')
+            rows.setdefault(kind, []).append((-weight, value_of(mods, find(mods, at + '/id'))))
+    return {kind: [i for _, i in sorted(r)] for kind, r in rows.items()}
+
+
+def promoted_defaults(read, categories, from_top):
+    """The `set` edits of promote_rolled_defaults: (file, path, from, to) for each default of a
+    rolling kind of an item of `categories` that is not that kind's `from_top`-th strongest row."""
+    mods = read(MODIFICATIONS)
+    kinds = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        kinds[value_of(mods, find(mods, at + '/id'))] = value_of(mods, find(mods, at + '/type_mask')).index('1')
+    strengths = rolled_strengths(mods)
+    dictionary = read(DICTIONARY)
+    edits = []
+    for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
+        at = 'items_dict[%d]' % i
+        if value_of(dictionary, find(dictionary, at + '/item_category')) not in categories:
+            continue
+        cfg = value_of(dictionary, find(dictionary, at + '/cfg_name'))
+        item = read(cfg)
+        try:
+            defaults = items_of(item, 'default_modifications')
+        except KeyError:
+            continue
+        for j, mid in enumerate(defaults):
+            ranked = strengths.get(kinds.get(mid))
+            if not ranked:
+                continue
+            want = ranked[max(0, len(ranked) - from_top)]
+            if mid != want:
+                edits.append((cfg, 'default_modifications[%d]' % j, mid, want))
+    return edits
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -878,6 +937,13 @@ def main():
                 prefixed.setdefault(p, []).append((e['key'].encode(), e['prefix'].encode()))
                 n += k
         print('prefix %s with %s: %d values' % (e['key'], e['prefix'], n))
+    for e in edits.get('promote_rolled_defaults', []):
+        changed = promoted_defaults(buf, set(e['categories']), e['from_top'])
+        for cfg, path, frm, to in changed:
+            set_number(buf(cfg), path, frm, to)
+            allowed.setdefault(cfg, set()).add('/' + path)
+            print('built-in %s %s: %s -> %s' % (cfg, path, frm, to))
+        print('promote_rolled_defaults: %d defaults' % len(changed))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
