@@ -963,28 +963,48 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
 
 The owner's candidate list, with Pilgrim explicitly excluded: the currently
 available Biker's helmet, Explorer's hat, Keeper, Paratrooper's helmet,
-Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet, plus the level-2
-ported beanie (`novice_026_helmet`, 241 vertices). Other names in the
-list are not present in the mounted helmet configs and are not ported here.
+Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet. The level-2 ported
+beanie (`novice_026_helmet`) keeps its binding (the owner, 2026-10-29: the
+Novice's knit cap shouldn't fly off). Other names in the list are not present
+in the mounted helmet configs and are not ported here.
 Hoods, closed helmets with replacement heads, and the exoskeleton helmets
 retain their existing bindings.
+
+The 0.29 helmets of `equipment-029` (the owner, 2026-10-29: "yes they
+should"): Viper (`black_market_fighter_05_helmet`, 883 vertices), Mercenary
+(`black_market_raider_09_helmet`, 676), Nomad (`scavenger_sniper_10_helmet`,
+789), Pathfinder (`scavenger_scout_07_helmet`, 1066), Combat
+(`scavenger_master_08_helmet`, 506) and Metal (`scavenger_anomaly_06_helmet`,
+448): each a 69-bone render bind with Head at 44 and one surface skinned to
+Head alone. The Omicron helmet (`black_market_anom_07_helmet`, 670: a hood
+joined to its collar, also on RightClavicle, LeftClavicle, LeftEye, Jaw and
+RightEye for 36 vertices) and the Warrior helmet (`edge_defender_helmet`,
+1122: a neck and shoulder guard, 129 vertices led by Neck, also on Chest, the
+clavicles, the shoulders, the eyes and Jaw) fly off whole, the collar or guard
+with them, as the Biker's does (the owner, 2026-10-29). `headwear.py` refuses
+any bone beyond Neck and Head unless the surface's edit names it
+(`allow_bones`, with a `why`): theirs do. While worn, their collar and guard
+then follow the head rigidly instead of the shoulders. The Omicron mask, the
+Barrier gas mask and the Scavenger hood are not helmets. Their eight materials become two-sided
+like the stock seven (no underside audit: a two-sided inner shell stays hidden
+under the outer one). The edit list runs after the pack, so it edits the
+pack's files.
 
 `headwear-1.json`, listed in `release/content.tsv`, changes source assets
 through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
 bind index 69, an exact copy of Head (44), to the combined character's bind
-and the nine standalone headwear binds. The combined bind is selected by
+and the eight stock and eight 0.29 standalone headwear binds. The combined bind is selected by
 `gameplay/bodyparts/default` → `body_parts/bind_pose`: it is
 `scavengers_01_torso_s1.skinned_model/render/bind_pose`. The build checks
 that this exact referenced asset is extended; extending only
 `base_character_full` leaves the assembled model at 69 bones and makes
-the rebound helmets invisible. The nine surfaces bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
+the rebound helmets invisible. The sixteen surfaces bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
 The Biker's three vertices with neck influence deliberately become rigid.
 The animation skeleton, animation clips and hit model are unchanged.
 
 The underside audit found no inner crown faces on Biker, Explorer,
 Paratrooper, Vityaz-S, Scout, OZK-18KB and Mounting. The same edit list sets
-those seven materials plus the beanie’s
-`material/g_stage/effect/two_sided/value`
+those seven materials' `material/g_stage/effect/two_sided/value`
 from false to true so their backfaces render.
 Their original texture maps also cover the reverse side. Keeper already
 has a textured inner surface and keeps its one-sided material. No new

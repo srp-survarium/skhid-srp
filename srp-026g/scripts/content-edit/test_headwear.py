@@ -38,6 +38,15 @@ class HeadwearEdits(unittest.TestCase):
                 bad[24] = 19  # Chest: a hood or torso cannot silently become a hat.
                 with self.assertRaises(ValueError):
                     rigid_headwear(bad, 1)
+                # A piece with a collar or guard flies off whole only when its
+                # edit names those bones; any other bone is still refused.
+                self.assertEqual(rigid_headwear(bad, 1, [19])[24:28], bytes([69] * 4))
+                with self.assertRaises(ValueError):
+                    rigid_headwear(bad, 1, [20])
+                with self.assertRaises(ValueError):
+                    rigid_headwear(source, 1, [69])  # the headwear bone itself
+                with self.assertRaises(ValueError):
+                    rigid_headwear(source, 1, [44])  # Head is always allowed
 
 
 class CharacterBindReference(unittest.TestCase):

@@ -89,8 +89,10 @@ Edits (edits.json):
   "require_headwear_bind": [{"file"}]                 verify the character config’s body_parts/bind_pose
                                                        names one of this list’s append_headwear_bind files
   "append_headwear_bind": [{"file"}]                   append the render-only Head copy to a native bind
-  "rigid_headwear": [{"file", "vertices"}]             bind a checked Head/Neck surface to that render bone;
-                                                       geometry, UVs and indices stay byte for byte
+  "rigid_headwear": [{"file", "vertices"[,            bind a checked Head/Neck surface to that render bone;
+                       "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
+                                                       allow_bones: this surface's other native bones
+                                                       (indices), which then follow the head too
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -1036,7 +1038,7 @@ def main():
         spec.loader.exec_module(headwear)
         for operation, transform in (
             ('append_headwear_bind', lambda b, e: headwear.append_headwear_bind(b)),
-            ('rigid_headwear', lambda b, e: headwear.rigid_headwear(b, e['vertices'])),
+            ('rigid_headwear', lambda b, e: headwear.rigid_headwear(b, e['vertices'], e.get('allow_bones', ()))),
         ):
             for e in edits.get(operation, []):
                 p = e['file']
