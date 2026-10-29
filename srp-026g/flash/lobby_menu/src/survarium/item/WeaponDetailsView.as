@@ -27,9 +27,9 @@ package survarium.item
          scaleY = original.scaleY;
          var stride:Number = original.diff_2.y - original.diff_1.y;
          var nextY:Number = 0;
-         var entries:Array = details.rows(expanded);
          var secondary:WeaponDetails = WeaponDetails.read(original.getSecondaryData());
-         var peer:Array = secondary == null ? [] : secondary.rows(expanded);
+         var entries:Array = details.rows(expanded,secondary);
+         var peer:Array = secondary == null ? [] : secondary.rows(expanded,details);
          var peerStats:Object = {};
          for each(var other:Object in peer) if(other.kind == "stat") peerStats[other.id] = other;
          for(var index:int = 0; index < entries.length; index++)
@@ -71,7 +71,8 @@ package survarium.item
             {
                row.direction = entry.comparison.kind == "higher";
                row.value = entry.comparison.value;
-               row.compare = compared == null ? entry.comparison.value : compared.comparison.value;
+               // A dash (no such stat) compares with nothing.
+               row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
             }
             else row.value = row.compare = 0;
             row.setDetailText(entry.label,entry.value);

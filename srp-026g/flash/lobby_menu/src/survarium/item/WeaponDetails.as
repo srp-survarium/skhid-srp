@@ -6,7 +6,13 @@ package survarium.item
    // modifications and must never be added to an item's bonus/modifier sums.
    public final class WeaponDetails
    {
+      // The detail properties weapon-details-ui-1 gives a weapon's card.
+      private static const FIRST:int = 138, LAST:int = 160;
+      // Chambering time, on bolt and pump weapons only (parameters/chamber_a_round_time).
+      private static const CHAMBER:int = 160;
       private var values:Object;
+      // The weapon's own chambering time before its rolls: the card shows both.
+      private var chamberBase:Number = NaN;
       public function WeaponDetails(data:Object) { values = data; }
       public static function read(item:Object) : WeaponDetails
       {
@@ -20,7 +26,7 @@ package survarium.item
          var data:Object = {};
          for each(var prop:Object in properties)
          {
-            if(prop.prop_id < 138 || prop.prop_id > 159) continue;
+            if(prop.prop_id < FIRST || prop.prop_id > LAST) continue;
             var n:Number = ModificationRolls.value(prop);
             if(isFinite(n) && n >= 0) data[prop.prop_id] = n;
          }
@@ -35,28 +41,32 @@ package survarium.item
       {
          // Only this weapon's list, which already includes its defaults. Never
          // read the profile's equipment/skills or add modifiersDefault twice.
-         var distance:Number = 0, reload:Number = 0;
+         // By property: 24 damage distance, 114 reload, 115 recoil, 119 chambering.
+         var sums:Object = {24:0,114:0,115:0,119:0};
          for each(var modifier:Object in modifiers)
          {
             if(modifier == null || !(modifier.props is Array)) continue;
             for each(var prop:Object in modifier.props)
             {
-               if(prop.prop_id != 24 && prop.prop_id != 114) continue;
+               if(sums[prop.prop_id] === undefined) continue;
                var amount:Number = ModificationRolls.value(prop);
-               if(!isFinite(amount)) continue;
-               if(prop.prop_id == 24) distance += amount;
-               else reload += amount;
+               if(isFinite(amount)) sums[prop.prop_id] += amount;
             }
          }
          // item_config_cook's type-2 operator sums modifiers before applying
          // base * max(0, 1 + sum). Weapon reload UI uses the opposite sign.
-         values[139] *= Math.max(0,1 + distance);
-         values[140] *= Math.max(0,1 + distance);
-         values[138] *= Math.max(0,1 - reload);
-         // The current recoil upgrades target obsolete first/queue-shoot
-         // fields, not the min/max fields loaded by 0x331840. Do not invent
-         // an effect for those, or apply dispersion bonuses to unrelated
+         values[139] *= Math.max(0,1 + sums[24]);
+         values[140] *= Math.max(0,1 + sums[24]);
+         values[138] *= Math.max(0,1 - sums[114]);
+         // Recoil rolls scale the six kick bounds the loader 0x331840 reads
+         // (weapon-rolls-1). Dispersion bonuses stay off the unrelated
          // spread-growth/recovery parameters.
+         for(var id:int = 146; id <= 151; id++) if(has(id)) values[id] *= Math.max(0,1 + sums[115]);
+         if(has(CHAMBER))
+         {
+            chamberBase = values[CHAMBER];
+            values[CHAMBER] *= Math.max(0,1 + sums[119]);
+         }
       }
       private function has(id:int) : Boolean { return values[id] !== undefined; }
       private static function number(n:Number) : String
@@ -72,6 +82,21 @@ package survarium.item
          result.push({kind:"stat",id:id,label:LocalizationData.getName(key),
             value:unit == null ? number(n) : LocalizationData.format(unit,number(n)),
             comparison:direction == "neutral" ? {kind:"neutral"} : {kind:direction,value:Number(number(n))}});
+      }
+      // Chambering time: the weapon's own, then with its rolls when they change it. A weapon
+      // without one shows a dash beside a compared one that has it, so the rows stay aligned.
+      private function chamber(result:Array, other:WeaponDetails) : void
+      {
+         var label:String = LocalizationData.getName("st_srp_weapon_chamber");
+         if(!has(CHAMBER))
+         {
+            if(other != null && other.has(CHAMBER)) result.push({kind:"stat",id:CHAMBER,label:label,value:"\u2013",comparison:{kind:"neutral"}});
+            return;
+         }
+         var base:String = number(chamberBase), modified:String = number(values[CHAMBER]);
+         var value:String = LocalizationData.format("st_srp_unit_seconds",modified);
+         if(base != modified) value = LocalizationData.format("st_srp_unit_seconds",base) + " \u00BB " + value;
+         result.push({kind:"stat",id:CHAMBER,label:label,value:value,comparison:{kind:"lower",value:Number(modified)}});
       }
       private static function recoilNumber(n:Number) : String
       {
@@ -104,10 +129,12 @@ package survarium.item
             variability(result,149,"st_srp_weapon_kick_side_variability",(Math.pow(values[149] - values[148],2) + Math.pow(values[151] - values[150],2)) / 12);
          }
       }
-      public function rows(expanded:Boolean) : Array
+      // `other`: the compared weapon's details, for the rows only one of the two has.
+      public function rows(expanded:Boolean, other:WeaponDetails = null) : Array
       {
          var result:Array = [{kind:"heading",text:LocalizationData.getName("st_srp_weapon_stats")}];
          scalar(result,138,"st_srp_weapon_reload","lower","st_srp_unit_seconds");
+         chamber(result,other);
          scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);

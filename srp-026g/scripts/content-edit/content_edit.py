@@ -84,6 +84,7 @@ Edits (edits.json):
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
+A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -285,8 +286,12 @@ def same(got, want):
 
 
 def matches(buf, entry, want):
+    """Whether each key of `want`, a path in the entry (`id`, `path[1]`), holds its value."""
     for k, v in want.items():
-        c = child(buf, entry, k)
+        try:
+            c = find(buf, k, entry)
+        except (KeyError, AssertionError):
+            c = None
         if c is None or not same(value_of(buf, c), v):
             return False
     return True

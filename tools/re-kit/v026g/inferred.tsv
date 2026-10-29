@@ -964,6 +964,7 @@ va	status	ref_021d	name
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_shotgun_reload_base_substate::execute
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_throw_grenade_base_substate::execute
 0x001af330	inferred-medium	0x0020960a	survarium::weapon_core_melee_state::execute
+0x001af330	inferred-medium		survarium::weapon::add_modifiers
 0x001af3b0	inferred-medium	0x00125574	vostok::render::create_color_grading_base_lut
 0x001af450	inferred-medium	0x00125607	vostok::render::bloom_shader_constants::bloom_shader_constants
 0x001af500	inferred-medium	0x00125682	vostok::render::bloom_shader_constants::set
