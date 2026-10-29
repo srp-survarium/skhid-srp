@@ -24,3 +24,16 @@ should be (the Firefighter boots show them); the gloves a bit of the same.
   meshes, the first-person hands' mesh (it uses the same painted texture).
 - Check in the game: Duty and Freedom boots with short trousers (the shaft
   tops, the side patch), the gloves' wrists in third person and first person.
+
+## Version 2: the boots' icons posed as the stock boots'
+
+The owner (2026-10-29): the boots need a different angle, as the Zubr boots'
+lobby icon (Zubr UM-4, `ren_boots_6`).
+
+- `exo-gear@2` renders the two boot icons as the stock boots are shown: the
+  pair seen nearly level from the side and front (yaw 75, pitch 6), toes to
+  the left, one boot ahead of the other, fitted to the cell's height (77 px)
+  around x 85, with a soft dark shadow to the left (`BOOTS_VIEW`,
+  `stock_framed`). The exo boots are squat, so the pair is wider than the
+  Zubr's.
+- The textures and the glove icons are the same as in `@1`.

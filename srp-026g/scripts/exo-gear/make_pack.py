@@ -19,6 +19,11 @@ the soles' undersides stay black. The textures keep their format (DXT1, 2048x204
 4x4 blocks with painted pixels are encoded again, each mip from the painted top level. The lobby icons
 of the four pieces are rendered again from the painted textures, over their own cells
 (`replaces_sha256`: the porter checks the cell holds the icon it replaces).
+
+Version 2 (the owner: "a different rendering angle"): the boots' icons are posed and framed as the
+stock boots' are (Zubr UM-4's): from the side and front, the camera almost level, fitted to the cell's
+height, with the stock icons' soft shadow (BOOTS_VIEW). The textures and the gloves' icons are
+version 1's.
 """
 import argparse
 import hashlib
@@ -34,7 +39,7 @@ from PIL import Image
 from scipy import ndimage
 
 PACK_ID = 'exo-gear'
-VERSION = '1'
+VERSION = '2'
 MODELS = 'models/ported/duty_026'
 BOOT = MODELS + '/duty_03_boot.skinned_model/render/legs_s/converted_model'
 HAND = MODELS + '/duty_03_hand.skinned_model/render/torso_s/converted_model'
@@ -63,6 +68,11 @@ GRAIN = 0.01           # with no grain: the local deviation (9x9) under this,
 AREA = 400             # in areas of at least this many pixels
 CELL = (171, 83)       # the equipment atlas's cells; rows 91 pixels apart
 ROW_PITCH = 91
+# The boots' icon, as the stock boots' are posed and framed (matched to Zubr UM-4's,
+# ren_boots_6: its pair is 77 pixels high, centred at x 85): yaw and pitch in degrees, the pair
+# brought `together` by that much (model units) so one boot stands behind the other.
+BOOTS_VIEW = {'yaw': 75, 'pitch': 6, 'together': .065, 'height': 77, 'centre_x': 85,
+              'shadow_offset': (-7, 1), 'shadow_blur': 4, 'shadow_strength': .45, 'shadow_colour': (20, 16, 12)}
 
 
 def sha256(data):
@@ -292,17 +302,44 @@ def render(points, uv, normals, faces, texture, yaw, pitch, roll, size=(684, 332
     return Image.fromarray(out)
 
 
+def stock_framed(picture):
+    """`picture` framed as the stock boots' icons (Zubr UM-4's, ren_boots_6): fitted to the
+    cell's height, not its width, centred where Zubr's pair is, with the soft shadow the
+    stock icons trail to the left."""
+    from PIL import ImageFilter
+    alpha = np.asarray(picture)[:, :, 3]
+    ys, xs = np.nonzero(alpha)
+    crop = picture.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    height = BOOTS_VIEW['height']
+    width = max(1, round(crop.width * height / crop.height))
+    body = Image.new('RGBA', CELL, (0, 0, 0, 0))
+    centre_x, top = BOOTS_VIEW['centre_x'], (CELL[1] - height) // 2
+    body.alpha_composite(crop.resize((width, height), Image.Resampling.LANCZOS), (centre_x - width // 2, top))
+    shade = Image.new('L', CELL, 0)
+    shade.paste(body.getchannel('A'), BOOTS_VIEW['shadow_offset'])
+    shade = shade.filter(ImageFilter.GaussianBlur(BOOTS_VIEW['shadow_blur']))
+    shade = shade.point(lambda value: int(value * BOOTS_VIEW['shadow_strength']))
+    shadow = Image.new('RGBA', CELL, BOOTS_VIEW['shadow_colour'] + (0,))
+    shadow.putalpha(shade)
+    out = Image.new('RGBA', CELL, (0, 0, 0, 0))
+    out.alpha_composite(shadow)
+    out.alpha_composite(body)
+    return out
+
+
 def icon(piece, points, uv, normals, faces, texture):
-    """The piece's icon (171x83 RGBA), posed as the icons it replaces: the boots as a pair
-    brought together, seen from the front right and a little above; one glove (the left of the
-    mesh) from its back, the fingers down to the left."""
+    """The piece's icon (171x83 RGBA). The boots: the pair brought together, from the side
+    and front, the camera almost level as the stock boots' icons have it (BOOTS_VIEW), so the
+    shafts' tops are not seen from above. One glove (the left of the mesh) from its back, the
+    fingers down to the left, as the icon it replaces."""
     points = points.copy()
     if piece == 'boots':
-        points[:, 0] -= np.sign(points[:, 0]) * .065
-        picture = render(points, uv, normals, faces, texture, 45, 15, 0)
-    else:
-        one = faces[points[faces][:, :, 0].mean(1) < 0]
-        picture = render(points, uv, normals, one, texture, -90, 6, 45)
+        points[:, 0] -= np.sign(points[:, 0]) * BOOTS_VIEW['together']
+        picture = render(points, uv, normals, faces, texture, BOOTS_VIEW['yaw'], BOOTS_VIEW['pitch'], 0,
+                         size=(CELL[0] * 8, CELL[1] * 8))
+        return stock_framed(picture)
+    one = faces[points[faces][:, :, 0].mean(1) < 0]
+    picture = render(points, uv, normals, one, texture, -90, 6, 45)
     return picture.resize(CELL, Image.Resampling.LANCZOS)
 
 
@@ -403,7 +440,8 @@ def main():
         'target_build': '0.26g',
         'description': 'the Duty and Freedom exoskeleton boots and gloves without their black areas (the boots\' '
                        'upper shafts and side patch, the gloves\' palms and wrists, painted over with the fabric '
-                       'beside them in both sets\' textures) and their lobby icons rendered again',
+                       'beside them in both sets\' textures) and their lobby icons rendered again; the boots\' '
+                       'posed and framed as the stock boots\' (Zubr UM-4\'s)',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/exo-gear/make_pack.py from the released files'],
     }
