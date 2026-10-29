@@ -1,0 +1,2562 @@
+key	text
+bm_back_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+bm_back_1_name	Контейнер "Мародер"
+k0	0
+k1	1
+k2	2
+k3	3
+k4	4
+k5	5
+k6	6
+k7	7
+k8	8
+k9	9
+kA	A
+kADD	+
+kAPOSTROPHE	'
+kB	B
+kBACK	Backspace
+kBACKSLASH	\\
+kC	C
+kCOMMA	,
+kD	D
+kDECIMAL	.
+kDELETE	Delete
+kDOWN	Down
+kE	E
+kEND	End
+kEQUALS	=
+kESCAPE	Esc
+kF	F
+kF1	F1
+kF10	F10
+kF11	F11
+kF12	F12
+kF13	F13
+kF14	F14
+kF15	F15
+kF2	F2
+kF3	F3
+kF4	F4
+kF5	F5
+kF6	F6
+kF7	F7
+kF8	F8
+kF9	F9
+kG	G
+kGRAVE	~
+kH	H
+kHOME	Home
+kI	I
+kINSERT	Insert
+kJ	J
+kK	K
+kL	L
+kLBRACKET	<
+kLCONTROL	LCtrl
+kLEFT	Left
+kLSHIFT	LShift
+kM	M
+kMINUS	-
+kN	N
+kNUMLOCK	NumLock
+kNUMPAD0	Num0
+kNUMPAD1	Num1
+kNUMPAD2	Num2
+kNUMPAD3	Num3
+kNUMPAD4	Num4
+kNUMPAD5	Num5
+kNUMPAD6	Num6
+kNUMPAD7	Num7
+kNUMPAD8	Num8
+kNUMPAD9	Num9
+kNUMPADCOMMA	NumComma
+kNUMPADENTER	NumEnter
+kNUMPADEQUALS	=
+kO	O
+kP	P
+kPAUSE	Pause
+kPERIOD	.
+kQ	Q
+kR	R
+kRBRACKET	>
+kRCONTROL	RControl
+kRETURN	Enter
+kRIGHT	Right
+kRSHIFT	RShift
+kS	S
+kSCROLL	ScrollLock
+kSEMICOLON	,
+kSLASH	/
+kSPACE	Space
+kSUBTRACT	-
+kT	T
+kTAB	Tab
+kU	U
+kUP	Up
+kV	V
+kW	W
+kX	X
+kY	Y
+kZ	Z
+mouse1	LMB
+mouse2	RMB
+mouse3	MMB
+mouse4	X1MB
+mouse5	X2MB
+mouse6	X3MB
+mouse7	X4MB
+mouse8	X5MB
+mouse_wheel_down	Коліщатко Вниз
+mouse_wheel_up	Коліщатко Вгору
+st_a545_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_a545_name	А-545
+st_a9_91_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_a9_91_name	9А-91
+st_abilities	Уміння
+st_accept	Прийняти
+st_accept_changes	Застосувати
+st_account	акаунт
+st_account_trading_claim	Торгівля обліковим записом
+st_achieved	досягнуто!
+st_achievements_label	Досягнення гравця
+st_action_premium_activated	Преміум активовано! Ваша винагорода:
+st_activate_premium	Активувати преміум
+st_add	Додати
+st_add_profile_button_blocked_hint_text	Досягнуто максимальної кількості персонажів!
+st_add_profile_button_hint_text	Додати нового персонажа
+st_add_to_clan_request	запрошує вас у клан
+st_add_to_clan_team_request	запрошує вас в кланову команду.
+st_add_to_friends	Долучити до друзів
+st_add_to_friends_request	Заявка в друзі
+st_add_to_ignore	До чорного списку
+st_add_to_squad_request	Долучитися до загону
+st_additional_max_weight_name	Переносима вага
+st_additive_quick_slot_size_modifier	Місткість кишень
+st_aek919k_description	Російський компактний пістолет-кулемет під боєприпас 9х18 ПМ. Розроблений на Ковровському механічному заводі в 90-х роках для МВС та інших силових структур. Обладнаний магазином на 20 набоїв. Підтримує одиничний і автоматичний режими стрільби.
+st_aek919k_name	АЕК-919К "Каштан"
+st_aim_time_description	Швидкість прицілювання
+st_aim_time_name	Швидка реакція
+st_aim_toggle_action	Прицілювання
+st_aiming_booster_description	Прострочені таблетки, відпускалися строго за рецептом. За багато років втратили частину властивостей, однак седативний ефект все ще в силі.
+st_aiming_booster_name	Екстракт кропиви собачої
+st_aiming_speed_correction_perc_name	Час прицілювання
+st_ak12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ak12_name	АК-12
+st_ak12_premium_description	Російський автомат нового покоління Калашникова. Створений на «Іжмаші» на початку 2010-х; планки для прицілів, новий приклад і керування. Магазин на 30 набоїв. Вогонь: одиничний, з відсіканням і автоматичний. Преміум-версія в особливому камуфляжі.
+st_ak12_premium_name	АК-12М1
+st_ak74m_description	Модернізований варіант автомата Калашникова під боєприпас 5.45х39. Був прийнятий на озброєння і заробив собі визнання у збройних силах. Підтримує одиничний і автоматичний режими стрільби.
+st_ak74m_name	АК-74М
+st_ak74n_bundle_descr	<white>Містить наступні предмети:\n- Покращений "АК-74Н".\n- 2000 патронів 5.45x39 7Н6М.</white>
+st_ak74n_bundle_name	Набір "АК-74Н"
+st_ak74n_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ak74n_name	АК-74Н
+st_ak74u_description	Укорочена модифікація автомата АК74 під набій 5.45х39. Завдяки своїм розмірам широко використовувався десантниками, МВС й охоронними структурами. Підтримує одиничний і автоматичний режими стрільби.
+st_ak74u_name	АКC-74У
+st_ak74u_premium_description	Укорочена модифікація автомата АК74 під набій 5.45х39. Завдяки своїм розмірам широко використовувався десантниками, МВС й охоронними структурами. Підтримує одиничний і автоматичний режими стрільби. Преміум-версія в особливому камуфляжі.
+st_ak74u_premium_name	АКС-74У "Корсар"
+st_akmn_description	Автомат Калашникова, модернізований під патрон 7.62 мм. Завдяки потужному набою не втрачає актуальності й у наш час. Підтримує одиничний і автоматичний режими стрільби.
+st_akmn_name	АКМ
+st_akmn_premium_2_description	Автомат Калашникова, модернізований під патрон 7.62 мм. Завдяки потужному набою не втрачає актуальності й у наш час. Підтримує одиничний і автоматичний режими стрільби. Преміум-версія в особливому камуфляжі.
+st_akmn_premium_2_name	АКМ "Месник"
+st_akmn_premium_description	Автомат Калашникова, модернізований під патрон 7.62 мм. Завдяки потужному набою не втрачає актуальності й у наш час. Підтримує одиничний і автоматичний режими стрільби. Преміум-версія в особливому камуфляжі.
+st_akmn_premium_name	АКМ зраз. 65р.
+st_all_factions	Усі торговці
+st_all_quests	Показати всі завдання
+st_already_as_reserve_in_team	Гравець вже перебуває в резерві.
+st_already_as_soldier_in_team	Гравець вже перебуває в команді.
+st_already_exist_clan_string	Таке ім'я вже зарезервовано.
+st_already_has_status_clan_team	Гравець вже запрошений, або є членом кланової команди.
+st_already_in_clan_team	Гравець вже перебуває в команді.
+st_already_in_inventory	Цей предмет вами вже куплено. Все одно бажаєте здійснити купівлю?
+st_ambient_occlusion_options	Якість затінення (АО)
+st_ammo	Боєприпас
+st_ammo_127x54_pt_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x54_pt_name	12.7x54 ПТ
+st_ammo_127x54_vps_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x54_vps_name	12.7x54 ВПС
+st_ammo_127x55_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x55_name	12.7x55
+st_ammo_12mm_buck2_desc	Посилена версія мисливського патрона 12 калібру. За рахунок більшого розміру дробу підвищується проникна дія і дистанція ефективного вогню.
+st_ammo_12mm_buck2_name	12х70, картеч
+st_ammo_12mm_buck_desc	Стандартний мисливський набій, споряджений дробом. Завдає високе пошкодження неброньованим цілям.
+st_ammo_12mm_buck_name	12x70, дріб
+st_ammo_12mm_slug_desc	Цільнооболонкова версія мисливського набою 12 калібру. Має високу зупинну і проникну дію.
+st_ammo_12mm_slug_name	12х70, жакан
+st_ammo_30_description	Набій для гвинтівки американського виробництва, ефективний на відстанях до 150 метрів. Перший набій для цивільної зброї на бездимному пороху.
+st_ammo_30_name	.30-30 Вінчестер
+st_ammo_357m_description	Американський револьверний патрон великої потужності. Створювався в часи сухого закону на заміну стандартному поліцейському патрону.
+st_ammo_357m_name	.357 Magnum
+st_ammo_45acp_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_45acp_name	.45 ACP
+st_ammo_46x30_description	Патрон, розроблений компанією Heckler & Koch для MP7. Його невелика тверда куля створена для пробиття бронежилетів на малих і середніх дистанціях.
+st_ammo_46x30_name	4.6x30
+st_ammo_545x39_7n10_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_545x39_7n10_name	5.45x39 7Н10
+st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_545x39_7n22_name	5.45x39 7Н22
+st_ammo_545x39_7n6m_description	Радянський малоімпульсний проміжний набій, обладнаний кулею зі сталевим сердечником. Малокаліберна куля з високою початковою швидкістю запезпечує високу прямизну траєкторії.
+st_ammo_545x39_7n6m_name	5.45x39 7Н6М
+st_ammo_556x45_description	Проміжний гвинтівковий патрон НАТО, створений на основі американського .223 Remington і стандартизований НАТО в 1980 році. Легка швидка куля з настильною траєкторією і невеликою віддачею.
+st_ammo_556x45_name	5.56x45
+st_ammo_57x28_description	Патрон, розроблений компанією FN Herstal близько 1990 року для P90, а згодом і для пістолета Five-seveN. Легка швидка куля, створена для пробиття бронежилетів.
+st_ammo_57x28_name	5.7х28
+st_ammo_65x39_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_65x39_name	6.5x39 Grendel
+st_ammo_762x25_description	Перший радянський унітарний пістолетний патрон. Розроблявся для використання як у пістолетах, так і в пістолетах-кулеметах.
+st_ammo_762x25_name	7.62x25
+st_ammo_762x39_7n23_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_762x39_7n23_name	7.62х39 7H23
+st_ammo_762x39_description	7.62мм набій зразка 1943 року, вважається третім за потужністю автоматним набоєм у світі.
+st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_762x39_m_name	7.62х39 РПД
+st_ammo_762x39_name	7.62х39
+st_ammo_762x51_M59_description	Бронебійна модифікація військового гвинтівкового набою калібру 7.62. Куля обладнана сталевим сердечником.
+st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_description	Популярний армійський патрон із цільнометалевою оболонкою кулі, призначений для використання у снайперській і цивільній зброї.
+st_ammo_762x51_name	7.62x51
+st_ammo_762x54R_old_description	Знайдений на складі, цей набій є одним із найстаріших набоїв сучасності. Час і умови зберігання зробили його менш ефективним.
+st_ammo_762x54R_old_name	7.62x54R
+st_ammo_9x18_description	Радянський унітарний патрон, створений на заміну застарілому 7.62мм патрону. Стандартна куля з хорошим проникним ефектом проти неметалевих перешкод.
+st_ammo_9x18_name	9x18
+st_ammo_9x18_pbm_description	Бронебійний патрон 9×18 мм ПБМ 7Н25. Порівняно з 9х18 ПМ має півторакратний приріст у кінетичній енергії та збільшену вражаючу здатність.
+st_ammo_9x18_pbm_name	9x18 ПБМ
+st_ammo_9x19p_7n21_description	Патрон із кулею зі сталевим сердечником. За потужністю перевершує комерційні набої 9×19 Парабелум
+st_ammo_9x19p_7n21_name	9x19 7H21
+st_ammo_9x19p_7n31_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_9x19p_7n31_name	9x19 7H31
+st_ammo_9x19p_para_description	Пістолетний унітарний цільний патрон калібру 9мм. Після Другої світової війни був прийнятий на озброєння як стандартний набій НАТО.
+st_ammo_9x19p_para_name	9х19 Парабеллум
+st_ammo_9x21_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_9x21_name	9x21 СП-10
+st_ammo_ammo_762x54_7n13_description	Російський гвинтівковий патрон 7.62х54R з кулею з термозміцненим сталевим осердям для кращого пробиття. Використовується в кулеметах і снайперських гвинтівках; постачається в стрічках.
+st_ammo_ammo_762x54_7n13_name	7.62x54 7Н13
+st_ammo_ammo_762x54_7n1_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_ammo_762x54_7n1_name	7.62х54 7Н1
+st_ammo_bags_description	Ви отримуєте додатковий підсумок для патронів.
+st_ammo_bags_name	Боєкомплект
+st_ammo_equipped_label	Рюкзак
+st_ammo_label	Набої
+st_ammo_pab9_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_pab9_name	9x39 ПАБ-9
+st_ammo_sp5_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_sp5_name	9x39 СП-5
+st_ammo_sp6_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_sp6_name	9x39 СП-6
+st_ammo_storage_label	Склад
+st_aniso_filtering_option	Анізотропна фільтрація
+st_anomaly_damage_corr_perc_name	Ушкодження від аномалій
+st_anomaly_skills_label	Знання світу
+st_antialiasing_option	Згладжування
+st_antitoxin_description	Комплексний препарат, створений для нейтралізації токсинів й отрут в організмі людини. Для максимального ефекту слід приймати перед потраплянням до шкідливого середовища.
+st_antitoxin_name	Антитоксин
+st_apply_changes_msg	Ви бажаєте застосувати зміни?
+st_aps_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_aps_name	АПС
+st_army_026_mask_desc	Балаклава з одним широким вирізом для очей зі скасованого S.T.A.L.K.E.R. 2.
+st_army_026_mask_name	Армійська балаклава
+st_artcontainer_time_corr_perc_name	Час пошуку
+st_artefact_activated_message	Артефакт активовано
+st_artefact_booster_description	Друга версія приладу, винайденого умільцями, для вилучення артефактів. Завдяки вбудованому гаснику аномальної активності артефакту дозволяє прискорити процес екстракції.
+st_artefact_booster_name	Артефакт-майстер
+st_artefact_no_free_slots	Немає вільних слотів для артефакта!
+st_artefact_search_failed	Артефакт не знайдено
+st_artefact_search_success	Ви дістали артефакт!
+st_ash12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ash12_name	АШ-12
+st_attention	Сталася помилка при запуску завантажувача Survarium. Будь ласка, повторіть спробу запуску пізніше.
+st_auto	Авто
+st_auto_button_hint	Автопоповнення витраченого спорядження
+st_auto_repair_button_label	Авторемонт
+st_auto_repair_hint	Авторемонт дрібних поломок спорядження
+st_autobuy_button_label	Автопоповнення
+st_autobuy_money	Поповнення амуніції
+st_autobuy_money_ammo	Боєприпаси
+st_autobuy_money_consulabels	Спецзасоби
+st_autorepair_money	Витрати на ремонт
+st_back_use_action	Кисневий балон
+st_backpack	Рюкзак
+st_ban_reason_account_trading	Продаж або спроба продажу облікового запису.
+st_ban_reason_administrator	Рішення адміністрації.
+st_ban_reason_advertising	Розповсюдження рекламної інформації.
+st_ban_reason_bad_language	Нецензурна мова
+st_ban_reason_cheating	Розповсюдження, реклама або обговорення стороннього ПЗ.
+st_ban_reason_discuss_admins	Обговорення дій адміністрації.
+st_ban_reason_faschism	Прояв расизму, нацизму чи націоналізму.
+st_ban_reason_flood	Спам, флуд, неінформативні повідомлення.
+st_ban_reason_incorrect_info	Розповсюдження завідомо неправдивої інформації.
+st_ban_reason_insult	Образа, провокація.
+st_ban_reason_nickname	Неприпустиме ім'я персонажа
+st_ban_reason_politics	Обговорення політики.
+st_ban_reason_reallife_treating	Загроза в реальному житті.
+st_ban_reason_teamkilling	Вбивство союзників.
+st_bandit_026_mask_desc	Бандитська балаклава зі скасованого S.T.A.L.K.E.R. 2.
+st_bandit_026_mask_name	Бандитська балаклава
+st_base_bandages_description	Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю.
+st_base_bandages_name	Перев'язувальний пакет
+st_base_medkit_description	Базова аптечка першої допомоги. Дозволяє не лише нейтралізувати ефект критичного поранення, але й покращити самопочуття постраждалого.
+st_base_medkit_name	Аптечка
+st_base_painkiller_description	Сильне знеболювальне. Тимчасово підвищує больовий поріг, дозволяючи бійцю не зомліти від больового шоку після отримання нелетальних поранень.
+st_base_painkiller_name	Знеболювальне
+st_base_trap_description	Звичайний мисливський капкан із потужною пружиною. Здатний зламати ногу великій тварині або людині.
+st_base_trap_name	Пастка
+st_benelli_description	Італійська самозарядна рушниця 12 калібру. Розроблена компанією Benelli наприкінці 90-х років з газовідвідною автоматикою і прийнята на озброєння Корпусу морської піхоти США під назвою M1014. Заряджається в трубчастий магазин під стволом. Лише одиничний вогонь.
+st_benelli_name	Benelli M4 Super 90
+st_best	Кращий
+st_best_explorer	ДОСЛІДНИК
+st_best_explorer_artefacts	Артефактів:
+st_best_explorer_items	Предметів:
+st_best_player	ГРАВЕЦЬ
+st_best_player_score	Рахунок:
+st_best_sniper	СТРІЛЕЦЬ
+st_best_sniper_accuracy	Точність:
+st_best_sniper_shots	Пострілів:
+st_best_support	НАПАРНИК
+st_best_support_healed	Вилікувано:
+st_best_support_saved	Врятовано:
+st_bind_text	Натисніть кнопку
+st_black_market_faction	Чорний Ринок
+st_blackmarket_bring_x_items_descr	Шторм не шкодує ні наших ворогів, ані нас. Аби вижити, треба під'єднати якомога більше батарей до захисного пристрою. Їх можна знайти на локації. Поцупити просто з бази ворога – теж непогана ідея.
+st_blackmarket_bring_x_items_name	Спільна справа
+st_blackmarket_bring_x_items_obj	Знайти і принести батарей:
+st_blackmarket_entrap_enemies_descr	Ким ти був до епідемії? Може, ставив капкани на тварин у лісах? Настав час згадати свої навички, тільки на цей раз твоя здобич - людина!
+st_blackmarket_entrap_enemies_name	Браконьєр
+st_blackmarket_entrap_enemies_obj	Зловити противників в капкан:
+st_blackmarket_grenade_enemies_descr	Повір мені, немає кращого подарунка, ніж хороша граната. Особливо без чеки! А якщо зумієш, то можна подарувати один подарунок відразу декільком ворогам! Головне, дивись, своїм не подаруй.
+st_blackmarket_grenade_enemies_name	Подаруночок!
+st_blackmarket_grenade_enemies_obj	Убити супротивників гранатою за бій:
+st_blackmarket_headshots_descr	Бронежилет може врятувати від смерті, та він не захистить, якщо цілити в голову. Навіть каска не гарантує абсолютного захисту. Постріл у голову зекономить час, набої та нерви.
+st_blackmarket_headshots_name	Контрольний постріл
+st_blackmarket_headshots_obj	Убити ворогів пострілом у голову:
+st_blackmarket_kd_ratio_descr	Хай інші бояться нас! Ми – Чорний ринок, ми не боїмося смерті і з задоволенням заберемо з собою кількох своїх ворогів!
+st_blackmarket_kd_ratio_name	Завдай їм жаху!
+st_blackmarket_kd_ratio_obj	Виграти бій, маючи співвідношення убивств до смертей не менш як
+st_blackmarket_kill_enemies_descr	Коли бій завершений, ворог знищений, а хабар поділений, приємно розповісти приятелям про свої заслуги. Головне, аби було, про що розповідати.
+st_blackmarket_kill_enemies_name	Особистий рахунок
+st_blackmarket_kill_enemies_obj	Убити ворогів за бій:
+st_blackmarket_kill_enemy_x_descr	Не можна сказати, що бродяги – наші закляті вороги. Але час від часу варто ставити їх на місце, і найкраще робити це з наочними прикладами.
+st_blackmarket_kill_enemy_x_name	Полювання за головами
+st_blackmarket_kill_enemy_x_obj	Убити за бій представників бродяг:
+st_blackmarket_killstreak_descr	Іноді ворогів більше, ніж наших хлопців. Дехто вважає це проблемою. Та ми вважаємо, чим більше ворогів, тим більше слави ми дістанемо, коли їх буде подолано.
+st_blackmarket_killstreak_name	Машина смерті
+st_blackmarket_killstreak_obj	Здійснити серію вбивств:
+st_blackmarket_level_0	Невідомий
+st_blackmarket_level_1	Рекрут
+st_blackmarket_level_2	Боєць
+st_blackmarket_level_3	Десятник
+st_blackmarket_level_4	Сотник
+st_blackmarket_level_5	Еліта
+st_blackmarket_level_unlock_0	Вітаємо! Вам доступні завдання від Чорного ринку!
+st_blackmarket_level_unlock_1	Вітаємо! Ви тепер рекрут Чорного ринку!
+st_blackmarket_level_unlock_2	Вітаємо! Ви тепер боєць Чорного ринку!
+st_blackmarket_level_unlock_3	Вітаємо! Ви тепер десятник Чорного ринку!
+st_blackmarket_level_unlock_4	Вітаємо! Ви тепер сотник Чорного ринку!
+st_blackmarket_level_unlock_5	Вітаємо! Ви тепер еліта Чорного ринку!
+st_blackmarket_meele_kill_descr	Ми готові забруднити руки, якщо цього вимагає завдання, і саме цим ми відрізняємося від інших. Доведи, що ти один із нас – попрацюй руками.
+st_blackmarket_meele_kill_name	Брудна робота
+st_blackmarket_meele_kill_obj	Убити суперників у ближньому бою:
+st_blackmarket_represent	Ви повинні бути вдягнуті в екіпірування Чорного ринку.
+st_blackmarket_starter_bundle_descr	<white>Містить наступні предмети:\n- "Куртка грабіжника".\n- "Штани грабіжника".\n- Покращений Узі.\n- 2000 патронів 9х19 Парабелум.</white>
+st_blackmarket_starter_bundle_name	Набір "Грабіжника"
+st_blackmarket_steal_box_descr	Убий двох зайців одним пострілом! Крадіжка батареї з ворожої бази не лише послабить захист противників, а й допоможе союзникам!
+st_blackmarket_steal_box_name	Пограбування
+st_blackmarket_steal_box_obj	Вкрадіть батарею з бази противника і принесіть її на свою базу.
+st_blackmarket_win_score_descr	Що може бути кращим за перемогу? Лиш абсолютна перемога, коли вороги, не маючи жодного шансу, сидять по закутках і моляться, аби це жахіття скінчилося якомога швидше.
+st_blackmarket_win_score_name	Домінування
+st_blackmarket_win_score_obj	Виграти бій із рахунком принесених батарей:
+st_blackmarket_win_x_games_descr	Нема нічого солодшого від перемоги! Хабар, слава та пошана – переможець одержує все. Не кажучи вже про репутацію серед братчиків Чорного ринку!
+st_blackmarket_win_x_games_name	В ім'я Чорного ринку!
+st_blackmarket_win_x_games_obj	Виграти боїв:
+st_bm_boots_1_desc	Круті ковбойські черевики. До катастрофи — неодмінний атрибут рокерів і байкерів.
+st_bm_boots_1_name	Козаки
+st_bm_boots_2_desc	Низькі шкіряні чоботи, добре захищають ноги. На базі Чорного ринку їх шиє майстер на прізвисько Павук і під час виготовлення на кожен ставить свій значок. Завдяки зручності зменшують втому від бігу.
+st_bm_boots_2_name	Ропери
+st_bm_boots_3_desc	Міцні ковбойські черевики з залізними вставками й ремінцями. Показник статусу серед усіх банд Чорного Ринку.
+st_bm_boots_3_name	Чопери
+st_bm_gloves_1_desc	Шкіряні рукавички з обрізаними пальцями. Зручно битися, користуватись вогнепальною зброєю, набивати трубку в далеку дорогу. Збільшують швидкість перезарядки на 2%.
+st_bm_gloves_1_name	Байкерські рукавички
+st_bm_gloves_2_desc	Важкі міцні рукавички, посилені металевими шипами. Стають у нагоді, коли закінчуються набої і результат сутички вирішується у бійці на кулаках.
+st_bm_gloves_2_name	Шиповані рукавички
+st_bm_helmet_1_desc	Шкіряна байкерська каска. Захищає голову від ударів важкими предметами. Така каска є життєво необхідною під час сутичок бойовиків Чорного Ринку.
+st_bm_helmet_1_name	Каска байкера
+st_bm_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_helmet_5_name	Шолом "Мародер"
+st_bm_legs_1_desc	Класичні стійкі до ушкоджень штани з джинсової тканини. Захищають ноги від холоду. Здобуті копіткою мародерською працею у розграбованій крамниці. Кишені дозволяють взяти з собою декілька капканів або гранат.
+st_bm_legs_1_name	Джинси
+st_bm_legs_2_desc	Модифіковані шкіряні штани з захисними пластинами на колінах. Захищають ноги від холоду і поранень.
+st_bm_legs_2_name	Шкіряні штани
+st_bm_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_legs_4_name	Штани грабіжника
+st_bm_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_legs_5_name	Штани "Мародер"
+st_bm_mask_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_mask_1_name	Маска "Корсар"
+st_bm_rep_modifier	Репутація "Чорний Ринок"
+st_bm_torso_1_desc	Байкерська куртка без рукавів. Одяг рядових бойовиків Чорного Ринку. Захищає від холодної зброї та суворої погоди. У куртку вшиті спеціальні кишені для додаткових набоїв, капканів і гранат.
+st_bm_torso_1_name	Шкіряна безрукавка
+st_bm_torso_2_desc	Важка клепана куртка з товстої шкіри зі вшитими захисними пластинами. Від початку використовувалась найкремезнішими бойовиками Чорного Ринку, звідки й пішла така назва. На руці — стилізований череп, що символізує безстрашність володаря перед обличчям смерті.
+st_bm_torso_2_name	Куртка "Громило"
+st_bm_torso_3_desc	Важка шкіряна куртка штурмовика Чорного Ринку, підсилена товстими металевими пластинами. Вигляд бойовика в «Корсарі» в момент штурму здатен викликати шок і трепет навіть у досвідченого вцілілого. Містить спеціальні кишені для додаткової амуніції, капканів і гранат.
+st_bm_torso_3_name	Куртка "Корсар"
+st_bm_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_torso_4_name	Куртка грабіжника
+st_bm_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_torso_5_name	Куртка "Мародер"
+st_bonus_day	День
+st_bonus_victory	Бонус за перемогу
+st_border_faction	Поселення "Край"
+st_born_leader_compliment	Природжений командир
+st_bot_or_cheater_claim	Бот або Чітер
+st_breath_holding_time_description	Час затамування подиху:
+st_breath_holding_time_name	Залізні легені
+st_bring_item_to_base	Принесіть батарею на базу!
+st_btn_add_premium_label	Поповнити рахунок
+st_btn_add_premium_message	Поповнити рахунок
+st_btn_add_rank_label	Додати ранг
+st_btn_become_commander	Стати командиром
+st_btn_cancel_decal	Скасувати
+st_btn_change_name_label	Змінити ім'я
+st_btn_chat	Чат
+st_btn_clan_team_invite_memeber	Запросити
+st_btn_close_upgrades_label	Завершити зміну зовнішнього вигляду предмета
+st_btn_craft_accept	Готово
+st_btn_craft_label	Покращення
+st_btn_create_clan_team	Створити команду
+st_btn_disband_clan_label	Розпустити
+st_btn_disband_clan_team	Розпустити команду
+st_btn_end_tutorial_label	Завершити
+st_btn_equipment	Спорядження
+st_btn_exchange_premium_money	Обмін золота на рублі
+st_btn_exit_label	Вихід
+st_btn_find_player	Знайти гравця
+st_btn_friends	Друзі
+st_btn_friends_online_filter	Друзі в мережі
+st_btn_go_to_online_store	Продовжити
+st_btn_invite_clan_memeber_label	Запросити
+st_btn_item_craft	Покращити
+st_btn_join_team	Приєднатися
+st_btn_kick_clan_memeber_label	Вигнати
+st_btn_knowledge_base	База знань
+st_btn_leave_clan_label	Покинути
+st_btn_leave_clan_team	Покинути команду
+st_btn_no	Ні
+st_btn_not_ready	Не готовий
+st_btn_paperdoll	Екіпіровка
+st_btn_premium_hint	Активувати премiум-акаунт
+st_btn_rank_down_clan_memeber_label	Знизити
+st_btn_rank_up_clan_memeber_label	Підвищити
+st_btn_ready	Готов
+st_btn_remove_rank_label	Прибрати ранг
+st_btn_reroll_change_label	Змінити
+st_btn_reroll_choose_label	Вибрати
+st_btn_reroll_label	Модифікація
+st_btn_settings_label	Опції
+st_btn_show_log_list	Історія
+st_btn_show_log_list_hint	Показати історію подій поточної сесії
+st_btn_upgrade_hint	Змінити зовнішній вигляд предмета
+st_btn_upgrade_label	Вигляд
+st_btn_use_item	Використати
+st_btn_yes	Так
+st_bundle_clik_hint	Натисніть на набір для отримання додаткової інформації
+st_button_buy_profile_text	Створити персонажа
+st_button_exit	Закрити
+st_button_skip_tutorial_label	Пропустити навчання
+st_buy	Придбати
+st_buy_post_premium	Отримати винагороди
+st_buy_premium_with_discount	Придбайте зараз зі знижкою!
+st_buy_profile_confirmation_text	Створити нового персонажа?
+st_buy_profile_price_text	Вартість створення:
+st_buy_treasure_maps	Придбати мапу
+st_camo_black_leather_01_name	Ворон
+st_camo_black_leather_name	Чорна смерть
+st_camo_blue_leather_name	Бриз
+st_camo_brown_leather_01_name	Шкіра 2
+st_camo_brown_leather_02_name	Шкіра 3
+st_camo_brown_leather_03_name	Шкіра 4
+st_camo_brown_leather_04_name	Шкіра 5
+st_camo_brown_leather_05_name	Іфрит
+st_camo_brown_leather_name	Шкіра
+st_camo_camouflage_green_01_name	Єгер
+st_camo_camouflage_green_name	Дубок
+st_camo_chemical_fabric_01_name	Зелений ЗЗК
+st_camo_chemical_fabric_02_name	Зелене листя
+st_camo_chemical_fabric_03_name	Блакитне небо
+st_camo_city_camo_name	Барс
+st_camo_cyfra_01_camo_name	Цифра-Н
+st_camo_cyfra_02_camo_name	Цифра
+st_camo_cyfra_03_camo_name	Ратник
+st_camo_denim_01_name	Темний Джинс
+st_camo_denim_name	Джинс
+st_camo_desert_camo_name	Пустеля
+st_camo_fabric_brown_01_name	Суха земля
+st_camo_fabric_brown_02_name	Піщана буря
+st_camo_fabric_brown_03_name	Скорпіон
+st_camo_fabric_brown_name	Коричнева тканина
+st_camo_fabric_camouflage_name	Уцілілий
+st_camo_fabric_green_01_name	Зелена тканина
+st_camo_fabric_green_name	Біла тканина
+st_camo_fabric_grey_name	Привид
+st_camo_flecktarn_01_camo_name	Флектарн
+st_camo_flecktarn_02_camo_name	Ліс
+st_camo_generic_desc	Використовуйте камуфляж у вікні зовнішнього вигляду бронежилетів і штанів, щоб змінити їх вигляд.
+st_camo_green_leather_name	Зелена шкіра
+st_camo_izlom_name	Злам
+st_camo_khaki_fabric_01_name	Гарячий пісок
+st_camo_khaki_fabric_02_name	Палюче сонце
+st_camo_khaki_fabric_03_name	Пил
+st_camo_multicam_name	Міраж
+st_camo_new_year	Новий рік 2015
+st_camo_quilted_fabric_name	Стьобана тканина
+st_camo_red_leather_name	Легіонер
+st_camo_rubber_green_01_name	Шукач
+st_camo_rubber_green_02_name	Жовта гума
+st_camo_rubber_green_name	Зелена гума
+st_camo_slot	Камуфляж
+st_camo_spekrt_01_name	Спектр-осінь
+st_camo_spekrt_02_name	Спектр-весна
+st_camo_spekrt_03_name	Спектр-літо
+st_camo_steam	"Steam"-камуфляж
+st_camo_suede_leather_name	Замша
+st_camo_ucp_name	UCP
+st_camo_vsr_name	МНС
+st_camo_yellow_leather_name	Жовта шкіра
+st_can_be_installed_on	Встановлюється на
+st_can_sprint_description	Ривок залишається доступним навіть при перевантаженні.
+st_can_sprint_name	Ривок
+st_cancel	Скасувати
+st_cannot_buy_item	Неможливо придбати предмет
+st_cannot_craft_item	Не можна покращити даний предмет.
+st_cannot_pickup_item	Ви вже несете контейнер!
+st_cannot_pickup_item_broken_hand	Поранення рук! Неможливо підняти контейнер
+st_cannot_relocate_item	Неможливо перемістити предмет.
+st_cannot_repair_item	відремонтувати неможливо
+st_cannot_reroll_skills	Помилка при скиданні навичок.
+st_cannot_select_rerolled_modification	Помилка зміни модифікації.
+st_cannot_upgrade_item	Сталася помилка при модифікації предмета. Спробуйте ще раз.
+st_cannot_use_drop_card	Неможливо використати мапу схрону.
+st_cant_add_clan_member	Помилка додавання гравця в клан.
+st_cant_add_clan_team_member	Помилка додавання гравця в команду.
+st_cant_buy_clan_registration	Помилка оплати реєстрації клану.
+st_cant_buy_premium_message	Недостатньо золотих рублів для здійснення покупки.
+st_cant_cancel_clan_registration	Помилка скасування реєстрації клану.
+st_cant_change_clan_team_battle_status	Помилка зміни статусу положення в команді.
+st_cant_change_commander_team_role	Неможливо змінити роль командира.
+st_cant_change_permission	Помилка зміни прав доступу.
+st_cant_change_rank_clan_member	Помилка зміни рангу гравця.
+st_cant_change_ready_state	Помилка зміни статусу готовності.
+st_cant_change_role_himself	Неможливо змінити свій ранг.
+st_cant_change_status_clan_team_member	Помилка зміни статусу гравця.
+st_cant_clan_match_closed	Помилка виходу з кланової команди.
+st_cant_create_clan	Помилка створення клану.
+st_cant_create_clan_rank	Помилка створення кланового рангу.
+st_cant_create_clan_team	Помилка створення команди.
+st_cant_delete_default_rank	Неможливо видалити стандартний ранг.
+st_cant_disband_clan_team	Помилка розпуску команди.
+st_cant_find_player	Гравець з таким ім'ям не знайдений.
+st_cant_invite_player_to_clan	Помилка запрошення гравця в клан.
+st_cant_invite_player_to_clan_team	Помилка запрошення гравця в команду.
+st_cant_kick_himself	Неможливо вигнати себе з клану.
+st_cant_kick_member	Помилка вигнання гравця з клану.
+st_cant_leave_clan_team	Помилка покидання команди.
+st_cant_oust_commander	Помилка зміни командира
+st_cant_oust_yourself	Неможливо вигнати себе з команди.
+st_cant_rank_up_clan_member	Помилка підвищення рангу гравця.
+st_cant_remove_clan_rank	Помилка видалення кланового рангу.
+st_cant_remove_clan_team_member	Помилка вилучення гравця з команди.
+st_cant_remove_yourself	Не можна виключити себе з команди.
+st_cant_request_to_join_clan_team	Помилка запиту вступу в кланову команду.
+st_cant_reserve_clan	Помилка резервування імені.
+st_cant_set_clan_team_commander	Помилка встановлення командира кланової команди.
+st_cant_set_daily_message	Помилка встановлення повідомлення дня.
+st_cant_set_yourself	Не можна призначити себе командиром команди.
+st_cant_upgrade_while_repair_hint	Неможливо покращити предмет під час ремонту.
+st_capture_info	Захоплення установки...
+st_chamber_a_round_description	Швидкість пересмикування затвору:
+st_chamber_a_round_name	Зведений курок
+st_change	Перейменувати
+st_change_name_error	Помилка при зміні імені.
+st_change_name_label	Зміна імені
+st_change_order	Змінити порядок
+st_change_profile	Змінити профіль
+st_change_quest	Змінити завдання
+st_change_quest_label	Змінити завдання
+st_change_weapon_speed_description	Швидкість зміни зброї:
+st_change_weapon_speed_name	Спритні руки
+st_character	Вміння
+st_character_decals_1_12_name	Ярило
+st_character_decals_1_1_name	Літератор
+st_character_decals_1_2_name	Загін "Альфа"
+st_character_decals_1_3_name	Вцілілий
+st_character_decals_1_4_name	Дослідник
+st_character_decals_1_5_name	Ветеран
+st_character_decals_1_6_name	Майстер
+st_character_decals_1_7_name	Легенда
+st_character_decals_1_8_name	Летючі гусари
+st_character_decals_2_1_name	Новачок бродяг
+st_character_decals_2_2_name	Ветеран бродяг
+st_character_decals_2_3_name	Рекрут Чорного Ринку
+st_character_decals_2_4_name	Еліта Чорного Ринку
+st_character_decals_2_5_name	Солдат Армії Відродження
+st_character_decals_2_6_name	Полковник Армії Відродження
+st_character_decals_2_7_name	Мисливець поселення "Край"
+st_character_decals_2_8_name	Магістр поселення "Край"
+st_character_decals_3_10_name	Смертельно небезпечно
+st_character_decals_3_11_name	Череп тварини
+st_character_decals_3_12_name	Куля
+st_character_decals_3_13_name	Граната
+st_character_decals_3_14_name	Перша допомога
+st_character_decals_3_15_name	Приціл
+st_character_decals_3_16_name	Спецназ
+st_character_decals_3_17_name	ВДВ
+st_character_decals_3_18_name	Сотня
+st_character_decals_3_19_name	Кортик
+st_character_decals_3_1_name	Біологічна загроза
+st_character_decals_3_20_name	Знак атома
+st_character_decals_3_21_name	Спіраль ДНК
+st_character_decals_3_2_name	Заборона зброї
+st_character_decals_3_3_name	Анархія
+st_character_decals_3_4_name	Пірат
+st_character_decals_3_5_name	Радіоактивність
+st_character_decals_3_6_name	Вибухонебезпечно
+st_character_decals_3_7_name	Заборона лісу
+st_character_decals_3_8_name	Дерево життя
+st_character_decals_3_9_name	Пісочний годинник
+st_character_decals_4_10_name	Прапор Грузії
+st_character_decals_4_11_name	Прапор Узбекистану
+st_character_decals_4_12_name	Прапор Таджикистану
+st_character_decals_4_13_name	Прапор Киргизстану
+st_character_decals_4_14_name	Прапор Туркменістану
+st_character_decals_4_15_name	Прапор Азербайджану
+st_character_decals_4_16_name	Прапор Вірменії
+st_character_decals_4_17_name	Прапор Німеччини
+st_character_decals_4_18_name	Прапор Великобританії
+st_character_decals_4_19_name	Прапор Франції
+st_character_decals_4_1_name	Прапор СРСР
+st_character_decals_4_20_name	Прапор Італії
+st_character_decals_4_21_name	Прапор Іспанії
+st_character_decals_4_22_name	Прапор Польщі
+st_character_decals_4_23_name	Прапор Румунії
+st_character_decals_4_24_name	Прапор Нідерландів
+st_character_decals_4_25_name	Прапор Греції
+st_character_decals_4_26_name	Прапор Португалії
+st_character_decals_4_27_name	Прапор Чехії
+st_character_decals_4_28_name	Прапор Бельгії
+st_character_decals_4_29_name	Прапор Угорщини
+st_character_decals_4_2_name	Прапор Росії
+st_character_decals_4_30_name	Прапор Швеції
+st_character_decals_4_31_name	Прапор Австрії
+st_character_decals_4_32_name	Прапор Швейцарії
+st_character_decals_4_33_name	Прапор Болгарії
+st_character_decals_4_34_name	Прапор Сербії
+st_character_decals_4_35_name	Прапор Данії
+st_character_decals_4_36_name	Прапор Словаччини
+st_character_decals_4_37_name	Прапор Норвегії
+st_character_decals_4_38_name	Прапор Ірландії
+st_character_decals_4_39_name	Прапор Хорватії
+st_character_decals_4_3_name	Прапор України
+st_character_decals_4_40_name	Прапор Боснії і Герцеговини
+st_character_decals_4_41_name	Прапор Туреччини
+st_character_decals_4_42_name	Прапор США
+st_character_decals_4_43_name	Прапор Канади
+st_character_decals_4_44_name	Прапор Бразилії
+st_character_decals_4_45_name	Прапор Аргентини
+st_character_decals_4_46_name	Прапор Австралії
+st_character_decals_4_47_name	Прапор Фінляндії
+st_character_decals_4_48_name	Прапор Нової Зеландії
+st_character_decals_4_49_name	Прапор Ірландії
+st_character_decals_4_4_name	Прапор Білорусі
+st_character_decals_4_50_name	Прапор Шотландії
+st_character_decals_4_51_name	Прапор Англії
+st_character_decals_4_52_name	Прапор Південної Кореї
+st_character_decals_4_53_name	Прапор Японії
+st_character_decals_4_54_name	Прапор Китаю
+st_character_decals_4_55_name	Прапор Індії
+st_character_decals_4_56_name	Прапор Індонезії
+st_character_decals_4_57_name	Прапор Малайзії
+st_character_decals_4_58_name	Прапор Філіппін
+st_character_decals_4_59_name	Прапор Таїланду
+st_character_decals_4_5_name	Прапор Казахстану
+st_character_decals_4_60_name	Прапор В'єтнаму
+st_character_decals_4_61_name	Прапор Болівії
+st_character_decals_4_62_name	Прапор Чилі
+st_character_decals_4_63_name	Прапор Колумбії
+st_character_decals_4_64_name	Прапор Еквадору
+st_character_decals_4_65_name	Прапор Парагваю
+st_character_decals_4_66_name	Прапор Перу
+st_character_decals_4_67_name	Прапор Уругваю
+st_character_decals_4_68_name	Прапор Венесуели
+st_character_decals_4_69_name	Прапор Албанії
+st_character_decals_4_6_name	Прапор Латвії
+st_character_decals_4_70_name	Прапор Куби
+st_character_decals_4_71_name	Прапор Словенії
+st_character_decals_4_72_name	Прапор Анголи
+st_character_decals_4_73_name	Прапор Нігерії
+st_character_decals_4_74_name	Прапор ПАР
+st_character_decals_4_75_name	Прапор Уельсу
+st_character_decals_4_7_name	Прапор Литви
+st_character_decals_4_8_name	Прапор Естонії
+st_character_decals_4_9_name	Прапор Молдови
+st_character_decals_5_10_name	Герб Грузії
+st_character_decals_5_11_name	Герб Узбекистану
+st_character_decals_5_12_name	Герб Таджикистану
+st_character_decals_5_13_name	Герб Киргизстану
+st_character_decals_5_14_name	Герб Туркменістану
+st_character_decals_5_15_name	Герб Азербайджану
+st_character_decals_5_16_name	Герб Вірменії
+st_character_decals_5_17_name	Знак НАТО
+st_character_decals_5_18_name	Знак ООН
+st_character_decals_5_19_name	Герб Німеччини
+st_character_decals_5_1_name	Червона зірка
+st_character_decals_5_20_name	Герб Великобританії
+st_character_decals_5_21_name	Герб Франції
+st_character_decals_5_22_name	Герб Італії
+st_character_decals_5_23_name	Герб Іспанії
+st_character_decals_5_24_name	Герб Польщі
+st_character_decals_5_25_name	Герб Румунії
+st_character_decals_5_26_name	Герб Нідерландів
+st_character_decals_5_27_name	Герб Греції
+st_character_decals_5_28_name	Герб Португалії
+st_character_decals_5_29_name	Герб Чехії
+st_character_decals_5_2_name	Герб Росії
+st_character_decals_5_30_name	Герб Бельгії
+st_character_decals_5_31_name	Герб Угорщини
+st_character_decals_5_32_name	Герб Швеції
+st_character_decals_5_33_name	Герб Австрії
+st_character_decals_5_34_name	Герб Швейцарії
+st_character_decals_5_35_name	Герб Болгарії
+st_character_decals_5_36_name	Герб Сербії
+st_character_decals_5_37_name	Герб Данії
+st_character_decals_5_38_name	Герб Словаччини
+st_character_decals_5_39_name	Герб Норвегії
+st_character_decals_5_3_name	Герб України
+st_character_decals_5_40_name	Герб Ірландії
+st_character_decals_5_41_name	Герб Хорватії
+st_character_decals_5_42_name	Герб Боснії і Герцеговини
+st_character_decals_5_4_name	Герб Білорусі
+st_character_decals_5_5_name	Герб Казахстану
+st_character_decals_5_6_name	Герб Латвії
+st_character_decals_5_7_name	Герб Литви
+st_character_decals_5_8_name	Герб Естонії
+st_character_decals_5_9_name	Герб Молдови
+st_character_decals_7_27_name	Орнамент конюшини
+st_character_decals_7_28_name	Підкова
+st_character_decals_7_9_name	Трави
+st_character_decals_generic_desc	Використовуйте нашивки у вікні зовнішнього вигляду бронежилетів і штанів, щоб змінити їх вигляд.
+st_characteristics_label	Характеристики гравця
+st_chat_channel_clan	Чат клану
+st_chat_channel_clan_team	Кланова команда
+st_chat_channel_general	Загальний чат
+st_chat_channel_match	Усім
+st_chat_channel_private	Приватні
+st_chat_channel_squad	Загін
+st_chat_channel_system	Система
+st_chat_channel_team	Команді
+st_checkbox_battle_commander_permission	Польовий командир
+st_checkbox_clan_change_rank_permission	Зміна рангу гравців
+st_checkbox_clan_daily_message_permission	Зміна повідомлення дня
+st_checkbox_clan_invite_permission	Запрошення
+st_checkbox_clan_member_kick_permission	Вигнання
+st_checkbox_compare_items	Порівняння предметів
+st_checkbox_compare_items_hint	Відображати опис одягненого вами предмета
+st_checkbox_players_live_search	Шукати під час введення
+st_checkbox_show_locked_items	Недоступне
+st_checkbox_show_locked_items_hint	Показувати недоступні предмети
+st_checkbox_show_offline_players	Показувати гравців поза мережею
+st_checkbox_show_player_groups	Показувати групи гравців
+st_checkbox_show_shop_items	Магазин
+st_checkbox_show_shop_items_hint	Показувати предмети з магазину
+st_choose	Обрати
+st_choose_faction_button_hint	Вибрати угруповання
+st_choose_faction_description	Угруповання є основними постачальниками екіпірування й амуніції. Виконуючи завдання від угруповання, ви покращуєте свою репутацію. Натомість вам надають доступ до кращих товарів. Одночасно можна співпрацювати лише з одним угрупованням.
+st_choose_faction_label	Оберіть угруповання
+st_choose_modifier	Виберіть модифікатор:
+st_choose_premium_subscription	Виберіть тривалість:
+st_claim_player	Поскаржитися
+st_claims_count_per_day_owerflow	Використано максимальну кількість скарг за день.
+st_claims_count_per_user_owerflow	Ви не можете поскаржитися на одну людину двічі за день.
+st_clan	Клан
+st_clan_abbr_is_not_valid	Така абревіатура вже використовується
+st_clan_abbreviation	Абревіатура клану
+st_clan_abbreviation_default_text	Введіть абревіатуру
+st_clan_abbreviation_info	(від 3 до 6 символів)
+st_clan_accept_button_label	Зареєструвати
+st_clan_buy_registration_button_label	Сплатити
+st_clan_cancel_button_label	Скасувати реєстрацію
+st_clan_control_tab	Управління кланом
+st_clan_creation_info_description	Щоб зареєструвати клан, Вам необхідно заручитися підтримкою не менше 5 гравців. Після реєстрації клану, вони автоматично приєднаються до нього.
+st_clan_creation_info_label	Заручіться підтримкою гравців
+st_clan_daily_message	Повідомлення дня
+st_clan_invite_1	Гравець
+st_clan_invite_2	успішно запрошений в клан.
+st_clan_invite_accepted	Підтверджено
+st_clan_invite_pending	Очікування відповіді
+st_clan_invite_player_button_label	Запросити
+st_clan_invite_rejected	Відмовлено
+st_clan_kick_1	Ви дійсно хочете вигнати гравця?
+st_clan_kick_2	з клану?
+st_clan_leave_button_label	Покинути клан
+st_clan_level_label	Рівень клану
+st_clan_level_up_1	Наш клан досяг
+st_clan_level_up_2	рівня.
+st_clan_manage_window_label	Клан
+st_clan_max_members_count_error	Досягнуто максимальну кількість членів клану.
+st_clan_member_joined	приєднався до клану.
+st_clan_member_kicked	вигнав з клану
+st_clan_member_left	покинув клан.
+st_clan_name	Ім'я клану
+st_clan_name_and_abbr_are_not_valid	Такі ім'я і абревіатура вже використовуються
+st_clan_name_default_text	Введіть ім'я клану
+st_clan_name_is_not_valid	Таке ім'я вже використовується
+st_clan_options_tab	Налаштування
+st_clan_players_level_label	Рів.
+st_clan_players_list_availabe_postfix	можливих
+st_clan_players_list_availabe_prefix	Список гравців
+st_clan_players_name_label	Ім'я
+st_clan_players_rank_label	Ранг
+st_clan_players_ready	Готово
+st_clan_players_status_label	Статус
+st_clan_rank	Рейтинг клану
+st_clan_rank_assistant	Заступник командира
+st_clan_rank_commander	Командир
+st_clan_rank_soldier	Солдат
+st_clan_rank_warlord	Сержант
+st_clan_registration_cost	Вартість\nреєстрації
+st_clan_registration_paid	Оплачено
+st_clan_reserve_name_button_label	Відкрити рахунок
+st_clan_system_message_sender	Кланове системне повідомлення
+st_clan_team_commander	Польовий командир
+st_clan_team_invite_2	успішно запрошений в кланову команду.
+st_clan_team_invites	Заявки
+st_clan_team_is_full	Досягнуто максимальну кількість гравців для участі в клановому бою.
+st_clan_team_reserve	Резерв
+st_clan_team_soldier	Склад команди
+st_clan_team_window_label	Склад команди
+st_clan_was_disbanded	Ваш клан був розформований командиром клану.
+st_clan_window_close_message	Ви впевнені, що хочете покинути команду?
+st_clan_window_close_message_commander	Ви впевнені, що хочете покинути команду?
+st_clan_window_label	Реєстрація клану
+st_clear	Очистити
+st_close	Закрити
+st_collect_statistics_option	Дозволити збирати статистику
+st_compliment_count_per_day_owerflow	Ви не можете поскаржитися на одну людину двічі за день!
+st_compliment_count_per_user_owerflow	Ви не можете похвалити одну людину двічі за день!
+st_compliment_player	Похвалити
+st_confirm	Підтвердити
+st_conflict_message	Це призначення змінить таке:
+st_convert_weapon_slot_to_pocket_description	Ви отримуєте додатковий слот для спецзасобів замість додаткової зброї.
+st_convert_weapon_slot_to_pocket_name	Хабарщик
+st_cost	Вартість
+st_count	Кількість
+st_craft	Покращення
+st_craft_message_broken_item	Неможливо покращити пошкоджений предмет.
+st_craft_message_equipped_item	Неможливо покращити екіпірований предмет під час пошуку матчу.
+st_craft_message_modifers_count	Подальше покращення предмета неможливо. Досягнуто максимальну кількість модифікаторів.
+st_craft_message_modifiers_difference	Ви не можете використовувати предмет з великою кількістю модифікаторів у якості донора. Поміняти предмети місцями?
+st_craft_result_fail_label	На жаль, ваші невмілі дії призвели до погіршення предмета.
+st_craft_result_neutral_label	На жаль, вам не вдалося покращити предмет.
+st_craft_result_success_label	Вам вдалося покращити предмет!
+st_critical_damages	Критичні поломки
+st_crosshair_static_option	Статичний приціл
+st_crosshair_type_option	Вибір прицілу
+st_crouch_action	Присісти (утрим.)
+st_crouch_toggle_action	Присісти
+st_ct_max_members_count_error	Помилка додавання. У клановій команді вже знаходиться максимальна кількість гравців.
+st_current_value	\nПоточне значення:
+st_daily_bonus_description	Заходь щодня і отримуй <highlight>x2</highlight> досвіду і репутації за <highlight>перші три</highlight> перемоги.
+st_daily_bonus_hint	Показати вікно привітання
+st_daily_bonus_label	Ласкаво просимо назад
+st_daily_bonus_progress	Ваш прогрес за поточний день
+st_daily_bonus_reward_complete	<gold>Виконано</gold>
+st_daily_bonus_reward_description	На <gold>7 день</gold> ви отримаєте
+st_daily_bonus_victories	перемог
+st_daily_message_label	Повідомлення дня:
+st_day_short	д.
+st_dealy_breath_action	Затамувати подих
+st_decal_editor_description	ЛКМ - повісити нашивку \nALT - обертати нашивку \nСTRL - змінювати розмір
+st_decal_editor_label	Режим редагування
+st_decal_slot	Нашивка
+st_decorations_options	Якість декорацій
+st_default_profile_name1	Профіль 1
+st_default_profile_name2	Профіль 2
+st_default_profile_name3	Профіль 3
+st_default_scope_name	Стандарт. приціл
+st_defeat	Поразка
+st_defuse_trap	Знешкодити ({USE})
+st_disband_clan_message	Ви впевнені, що хочете розформувати клан?
+st_disband_clan_money_message	Ви впевнені, що хочете розпустити клан? Срібло, внесене на рахунок реєстрації, буде втрачено.
+st_disband_squad	Розпустити загін
+st_disconnected_from_lobby	Від'єднано від лобі-сервера!
+st_dispersion_correction_perc_name	Розкид від стегна
+st_dispersion_from_hip_description	Влучність при стрільбі від стегна:
+st_dispersion_from_hip_name	Точність
+st_dispersion_movement_influence_description	Точність при пересуванні:
+st_dispersion_movement_influence_name	Тверда рука
+st_dont_have_permission	Недостатньо прав для виконання дії.
+st_drop	Зняти
+st_drop_action	Викинути
+st_drop_card_descr	Використовуйте мапу схрону після бою, щоб знайти більше предметів.
+st_drop_card_name	Мапа схрону
+st_duty_026_boots_desc	Важкі броньовані черевики, які бійці "Долгу" носять із важкою бронею.
+st_duty_026_boots_name	Черевики "Долгу"
+st_duty_026_gloves_desc	Посилені рукавиці без пальців, які бійці "Долгу" носять із важкою бронею.
+st_duty_026_gloves_name	Рукавиці "Долгу"
+st_duty_026_head_desc	Герметичний шолом експериментального екзоскелета "Долгу" з вбудованим респіратором. Закриває всю голову та обличчя.
+st_duty_026_helmet_name	Шолом екзоскелета "Долгу"
+st_duty_026_suit_desc	Експериментальний зразок військового екзоскелета. У серійне виробництво так і не пішов через величезну вартість і конструктивні недоліки. Невеликі партії досі збирають у підпіллі за межами України. Оснащений вбудованим контейнером для артефактів.
+st_duty_026_suit_name	Екзоскелет "Долгу"
+st_edge_accuracy_descr	Один влучний постріл кращий від півсотні намарно випущених набоїв. Особливо зараз, коли кожен патрон – на вагу золота. Доведи своє право зватися мисливцем!
+st_edge_accuracy_name	Вправний стрілець
+st_edge_accuracy_obj	Виграти бій, показавши точність стрільби вище
+st_edge_back_1_desc	Використання артефактів — родзинка поселення Край. Якщо ви вмієте знаходити артефакти і знаєте, що з ними робити, великий контейнер на два артефакти — ваш вибір.
+st_edge_back_1_name	Контейнер "Дар 2М"
+st_edge_back_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_2_name	Рюкзак сталкера
+st_edge_back_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_3_name	Дихальна система "Бриз"
+st_edge_back_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_5_name	Контейнер "Блукач"
+st_edge_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_6_name	Контейнер "Пілігрим"
+st_edge_boots_1_desc	Високі легкі чоботи з м'якою підошвою. Ідеальні для підкрадання до здобичі. Дозволяють менше втомлюватись під час далеких переходів.
+st_edge_boots_1_name	Чоботи мисливця
+st_edge_boots_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_2_name	Чоботи сталкера
+st_edge_boots_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_3_name	Чоботи дослідника
+st_edge_boots_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_4_name	Чоботи майстра
+st_edge_boots_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_5_name	Чоботи хранителя
+st_edge_boots_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_6_name	Чоботи "Пілігрим"
+st_edge_bring_x_items_descr	Земля не терпить насилля. Кожен спалах агресії викликає відповідь з боку природи. Ми звикли називати це Штормом. Ми навчилися виживати й оборонятися від Шторму, та для захисної установки треба знайти батареї живлення.
+st_edge_bring_x_items_name	Шукач
+st_edge_bring_x_items_obj	Знайти і принести батарей:
+st_edge_defend_items_descr	Боронити свою територію – святий обов'язок кожного поселенця Краю. Коли ти не можеш захистити свою базу від розграбування, як ти зможеш захистити людство від загибелі?
+st_edge_defend_items_name	Хранитель
+st_edge_defend_items_obj	Виграти бій, не допустивши крадіжки батареї з бази
+st_edge_find_artifacts_descr	Наша сила - в єднанні з природою. Артефакти - це дар, що був даний нам силами, значно мудрішими за нас. І якщо артефакти допоможуть нам вижити - буде нерозумно їх не використовувати.
+st_edge_find_artifacts_name	Дари природи
+st_edge_find_artifacts_obj	Знайти артефактів за бій:
+st_edge_gloves_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_2_name	Рукавички сталкера
+st_edge_gloves_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_3_name	Рукавички дослідника
+st_edge_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_4_name	Рукавички майстра
+st_edge_gloves_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_5_name	Рукавички хранителя
+st_edge_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_6_name	Рукавички "Пілігрим"
+st_edge_grenade_enemies_descr	Там де зброя не може пробити бронежилет, завжди прийде на допомогу граната. Один влучний кидок - і ваш супротивник відправиться на зустріч з предками.
+st_edge_grenade_enemies_name	Метальник
+st_edge_grenade_enemies_obj	Убити супротивників гранатою за бій:
+st_edge_headshots_descr	На жаль, у реальному світі насилля рідко вдається уникнути. І коли  ми вже вимушені вбити нашого ворога, то треба зробити це миттєво, пострілом у голову.
+st_edge_headshots_name	Милосердя
+st_edge_headshots_obj	Убити ворогів пострілом у голову:
+st_edge_helmet_1_desc	Капюшон із міцної шкури захистить не лише від дощу, але й від дрібних уламків і слабких куль.
+st_edge_helmet_1_name	Капюшон мисливця
+st_edge_helmet_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_3_name	Шапка дослідника
+st_edge_helmet_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_4_name	Капюшон майстра
+st_edge_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_5_name	Шолом "Хранитель"
+st_edge_helmet_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_6_name	Шолом "Пілігрим"
+st_edge_kd_ratio_descr	Хто ти: жертва чи хижак? Мисливець чи його здобич? У світі постапокаліпсису кожен сам за себе. Лише сильніший має право на виживання.
+st_edge_kd_ratio_name	Природний відбір
+st_edge_kd_ratio_obj	Виграти бій, маючи співвідношення убивств до смертей не менше як
+st_edge_legs_1_desc	Штани з товстої шкури мутованих тварин забезпечують гарний захист як від аномалій, так і від пістолетних куль. Підвищують швидкість пересування на 3%.
+st_edge_legs_1_name	Штани мисливця
+st_edge_legs_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_2_name	Штани сталкера
+st_edge_legs_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_3_name	Штани дослідника
+st_edge_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_4_name	Штани "Лісовик"
+st_edge_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_5_name	Штани Хранителя
+st_edge_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_6_name	Штани "Пілігрим"
+st_edge_level_0	Невідомий
+st_edge_level_1	Мисливець
+st_edge_level_10	Магістр
+st_edge_level_2	Єгер
+st_edge_level_3	Блукач
+st_edge_level_4	Стежкар
+st_edge_level_5	Посвячений
+st_edge_level_6	Старійшина
+st_edge_level_7	Майстер
+st_edge_level_8	Волхв
+st_edge_level_9	Хранитель
+st_edge_level_unlock_0	Вітаємо! Вам доступні завдання від поселення Край!
+st_edge_level_unlock_1	Вітаємо! Ви тепер мисливець поселення Край!
+st_edge_level_unlock_10	Вітаємо! Ви тепер магістр поселення Край!
+st_edge_level_unlock_2	Вітаємо! Ви тепер єгер поселення Край!
+st_edge_level_unlock_3	Вітаємо! Ви тепер блукач поселення Край!
+st_edge_level_unlock_4	Вітаємо! Ви тепер стежкар поселення Край!
+st_edge_level_unlock_5	Вітаємо! Ви тепер посвячений поселення Край!
+st_edge_level_unlock_6	Вітаємо! Ви тепер старійшина поселення Край!
+st_edge_level_unlock_7	Вітаємо! Ви тепер майстер поселення Край!
+st_edge_level_unlock_8	Вітаємо! Ви тепер волхв поселення Край!
+st_edge_level_unlock_9	Вітаємо! Ви тепер хранитель поселення Край!
+st_edge_mask_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_mask_2_name	ПНБ
+st_edge_mask_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_mask_5_name	Маска "Хранитель"
+st_edge_meele_kill_descr	Природа зробила людину сильною і мужньою, зброя ж робить її слабкою та боягузливою. Запам’ятай це і уникай стрілянини тоді, коли це можливо.
+st_edge_meele_kill_name	Закони природи
+st_edge_meele_kill_obj	Убити суперників у ближньому бою:
+st_edge_rep_modifier	Репутація "Поселення Край"
+st_edge_represent	Ви повинні бути вдягнуті в екіпірування поселення Край.
+st_edge_reps_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_resp_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_resp_1_name	Респіратор "Малахіт"
+st_edge_resp_3_name	Протигаз "Смарагд"
+st_edge_steal_box_descr	Не обов'язково знищувати противника своїми руками. Можна просто послабити їх захист від шторму, і тоді природа все зробить сама.
+st_edge_steal_box_name	Таємний рейд
+st_edge_steal_box_obj	Вкрадіть батарею з бази противника і принесіть її на свою базу.
+st_edge_torso_1_desc	Пошита зі шкур куртка мисливця з захисними амулетами проти гніву природи. Прикрашена вовчою шкурою, щоб відлякувати хижаків і вселяти страх у ворогів. Зручний підсумок дозволяє взяти з собою спецзасоби.
+st_edge_torso_1_name	Куртка мисливця
+st_edge_torso_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_2_name	Куртка сталкера
+st_edge_torso_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_3_name	Куртка дослідника
+st_edge_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_4_name	Бронежилет "Лісовик"
+st_edge_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_5_name	Бронежилет "Хранитель"
+st_edge_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_6_name	Бронежилет "Пілігрим"
+st_edge_win_score_descr	Надійніший захист від Шторму - простіше розправитися з нашими противниками. Що більше батарей живлення знайдемо, то менше їх отримають вороги. А Шторм довершить розпочату нами справу.
+st_edge_win_score_name	Мистецтво війни
+st_edge_win_score_obj	Виграти бій із рахунком принесених батарей:
+st_edge_win_x_games_descr	Ми мусимо вміти боронити себе і свою землю. Лише перемігши ворога, можна завоювати право на життя. Лише здобувши перемогу в сутичці, можна захистити свою територію від вторгнення.
+st_edge_win_x_games_name	На сторожі
+st_edge_win_x_games_obj	Виграти боїв:
+st_elo_after	Поточний рейтинг
+st_elo_before	Рейтинг перед боєм
+st_empty_ammo_message	Недостатньо набоїв!
+st_empty_clan_string	Введіть ім'я клану
+st_empty_name_string	Введіть ім'я
+st_enable_seeding_in_lobby_option	Дозволити вiдвантаження
+st_eng_active_time_desc	Час дії активованих пристроїв підвищується.
+st_eng_active_time_name	Тривалість дії
+st_eng_electronic_desc	Навчає користування новітніми електронними пристроями і прототипами.
+st_eng_electronic_name	Електронщик
+st_eng_encrypting_desc	Захищає ваші електронні пристрої від злому суперником.
+st_eng_encrypting_name	Шифрування
+st_eng_explosive_master_desc	Підвищує ушкодження від ваших гранат та інших вибухових пристроїв.
+st_eng_explosive_master_name	Руйнівник
+st_eng_fast_recoil_desc	Скорочує час підготовки пристроїв до повторного використання.
+st_eng_fast_recoil_name	Швидке відновлення
+st_eng_hacker_desc	Дозволяє вам перепрограмовувати ворожі електронні пристрої собі на користь.
+st_eng_hacker_name	Хакер
+st_eng_sapper_desc	Дозволяє вам непомітно розміновувати встановлені ворогами пастки.
+st_eng_sapper_name	Сапер
+st_engineer_succ_chance_corr_perc_name	Багатозарядний нарізний карабін під набій 7.62х51. Створений спеціально для аматорського і професійного полювання. Обладнаний магазином на 5 патронів.
+st_engineer_use_time_corr_perc_name	Швидкість застосування
+st_engineering_skills_descr	Навчає навичкам поводження з пристроями та приладами.
+st_engineering_skills_label	Технічні навички
+st_engineering_skills_name	Інженерна підготовка
+st_enter_char_name	Введіть ім'я
+st_enter_chat_message	Уведіть повідомлення
+st_enter_name_warning	Заборонені символи
+st_enter_profile_name	Уведіть ім’я профілю
+st_enter_rank_name	Введіть назву рангу
+st_enter_search_player_name	Введіть ім'я для пошуку
+st_eotech_552_collimator_desc	Американський голографічний приціл виробництва EOTech. Замість світної точки показує голографічну прицільну марку і працює від звичайних батарейок AA. Широко використовується військовими і поліцією.
+st_eotech_552_collimator_name	Коліматор EOTech 552
+st_equipment_cost	Загальна вартість:
+st_equipment_level	Рівень спорядження
+st_equipment_weight	Вага
+st_equipped	Використовується
+st_error_during_storing_user_comment	Помилка бази даних. Спробуйте ще раз.
+st_error_while_using_premium_access_voucher	Помилка активації преміум-акаунта. Спробуйте ще раз.
+st_event_capture_the_point_description	Захоплення установки
+st_event_kill_invader_description	Убийство займача
+st_exchange_button	Обмін
+st_exchange_window_label	Обмін золота на рублі
+st_exitLabel	test
+st_exit_from_login	Вийти
+st_exit_game_confirm_accept	Вийти
+st_exit_game_confirm_cancel	Скасувати
+st_exit_game_confirm_text	Ви дійсно хочете вийти з гри?
+st_exit_match_confirm_accept	Покинути
+st_exit_match_confirm_cancel	Скасувати
+st_exit_match_confirm_text	Ви дійсно хочете покинути матч?
+st_exp_reward_match	Отримано досвіду за матч
+st_exp_reward_premium	Бонус за преміум
+st_experience	Досвід
+st_experience_modifier	Одержуваний досвід
+st_face_069d_balaclava_3_hole_desc	В'язана балаклава з прорізами для очей і рота. Тепла й приховує обличчя.
+st_face_069d_balaclava_3_hole_name	Трьохдіркова балаклава
+st_face_069d_balaclava_desc	Облягаюча армійська балаклава з одним прорізом для очей, зроблена для носіння під шоломом.
+st_face_069d_balaclava_name	Балаклава
+st_face_069d_buff_desc	Шарф-труба з принтом черепа, натягнутий на рот і ніс. Приховує обличчя й не пускає пил.
+st_face_069d_buff_name	Баф
+st_face_069d_keffiyeh_desc	Бавовняна куфія, намотана на голову й обличчя. Захищає від пилу та вітру й трохи пом'якшує ковзний удар.
+st_face_069d_keffiyeh_name	Куфія
+st_face_069d_protective_mask_desc	Брезентовий каптур зі зварювальними окулярами й фільтром біля рота. Закриває всю голову; від уламків захищає краще, ніж від випарів.
+st_face_069d_protective_mask_name	Захисна маска
+st_faction_1_description	Екіпірування Бродяг розраховане для сутичок на середніх і дальніх дистанціях, а також для виживання в аномальних місцях. Ветерани бродяг можуть озброїтися снайперською гвинтівкою.
+st_faction_2_description	Шкіряний одяг Чорного ринку слабко пристосований до виживання в аномальних місцях, але відмінно захищає бійця. Зброя призначена для використання на близькій дистанції, а елітні бійці можуть озброїтися АК74у.
+st_faction_3_description	Бійці Армії Відродження отримують доступ до найширшого набору екіпірування й озброєння. Вони можуть вести бій на будь-якій дистанції, навіть у забруднених районах. Найкращі бійці одержують доступ до надважких бронежилетів і ручних кулеметів.
+st_faction_4_description	Екіпірування поселення "Край" надає найкращий захист від аномалій і відмінно пристосоване для пошуку й використання артефактів. Зброя більше підходить для засідок, аніж для відкритих сутичок.
+st_faction_blackmarket_blocked_text	Чорний Ринок відмовляється давати вам завдання
+st_faction_edge_blocked_text	Необхідна максимальна репутація з Бродягами або Чорним ринком
+st_faction_info	Інформація
+st_faction_join	Приєднатися
+st_faction_mercenaries_blocked_text	"Омега" відмовляється видавати вам завдання.
+st_faction_renaissance_blocked_text	Необхідна максимальна репутація з Бродягами або Чорним Ринком
+st_faction_reputation_label	Репутація угруповань
+st_faction_scavengers_blocked_text	Бродяги відмовляються давати вам завдання
+st_faction_scientists_blocked_text	Вчені відмовляються давати вам завдання
+st_fall_damage_description	Пошкодження при падінні:
+st_fall_damage_name	Десантник
+st_few_alpha_clan_string	Некоректне ім'я
+st_filter_all	Усі
+st_filter_ammo	Патрони
+st_filter_ammo_assault_rifle	Штурм. гвинтівки
+st_filter_ammo_machine_gun	Кулемети
+st_filter_ammo_pistol	Пістолети
+st_filter_ammo_shotgun	Дробовики
+st_filter_ammo_sniper_rifle	Снайп. гвинтівки
+st_filter_ammo_submachine_gun	Пістолети-кулемети
+st_filter_assault_rifle	Штурм. гвинтівки
+st_filter_body_armor	Бронежилет
+st_filter_boots	Черевики
+st_filter_camo	Камуфляж
+st_filter_decal	Нашивки
+st_filter_device	Прилади
+st_filter_equipment	Екіпіровка
+st_filter_gloves	Рукавички
+st_filter_grenade	Гранати
+st_filter_helmet	Шолом
+st_filter_inventory	Інвентар
+st_filter_items	Спецзасоби
+st_filter_machine_gun	Кулемети
+st_filter_mask	Маска
+st_filter_medkit	Медикаменти
+st_filter_mine	Міни
+st_filter_pants	Штани
+st_filter_pistol	Пістолети
+st_filter_rig	Спорядження
+st_filter_scaner	Сканери
+st_filter_shop	Магазин
+st_filter_shop_and_inventory	Інвентар та магазин
+st_filter_shotgun	Дробовики
+st_filter_sniper_rifle	Снайп. гвинтівки
+st_filter_stimulator	Стимулятори
+st_filter_submachine_gun	Пістолети-кулемети
+st_filter_upgrades	Покращення
+st_filter_vouchers	Витратники
+st_filter_weapons	Зброя
+st_final_countdown	Очікування початку матчу:
+st_find_player	Знайти гравця
+st_finish_match_mode_02_loser_message	Поразка. Супротивники зібрали всі елементи живлення.
+st_finish_match_mode_02_winner_message	Перемога! Ваша команда зібрала всі елементи живлення.
+st_finish_match_mode_03_loser_message	Поразка. Супротивники зібрали всі елементи живлення.
+st_finish_match_mode_03_winner_message	Перемога! Ваша команда зібрала всі елементи живлення.
+st_finish_match_mode_04_loser_message	Поразка. Вашу команду знищено.
+st_finish_match_mode_04_winner_message	Перемога! Усіх супротивників знищено.
+st_finish_match_mode_05_draw_message	Нічия. Команди дослідили порівну
+st_finish_match_mode_05_loser_message	Поразка. Команда супротивників завершила дослідження аномальної активності
+st_finish_match_mode_05_winner_message	Перемога! Ваша команда завершила дослідження аномальної активності
+st_first_weapon_action	Зброя 1
+st_fix	Полагодити
+st_fn_fnc_description	Бельгійська штурмова гвинтівка під боєприпас 5.56х45. Розроблена FN Herstal у 70-х роках для бельгійської армії; ліцензійні версії служать у Швеції та Індонезії. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний.
+st_fn_fnc_name	FN FNC
+st_fn_p90_description	Бельгійська зброя самооборони під боєприпас 5.7х28. Створена FN Herstal близько 1990 року разом із власним патроном; «булпап» з магазином на 50 набоїв уздовж верху зброї. Служить у спецназі й поліції багатьох країн. Вогонь: одиничний і автоматичний.
+st_fn_p90_name	FN P90
+st_fort_17_description	Український самозарядний пістолет під калібр 9х18. В серійне виробництво запущений у 2004 році. Використовувався внутрішніми військами і деякими спецпідрозілами. Обладнаний магазином на 12 набоїв.
+st_fort_17_name	Форт 17
+st_fov_option	Поле зору
+st_freedom_026_boots_desc	Важкі броньовані черевики в кольорах "Свободи", їх носять із важкою бронею.
+st_freedom_026_boots_name	Черевики "Свободи"
+st_freedom_026_gloves_desc	Посилені рукавиці без пальців у кольорах "Свободи", їх носять із важкою бронею.
+st_freedom_026_gloves_name	Рукавиці "Свободи"
+st_freedom_026_head_desc	Герметичний шолом екзоскелета "Свободи" з вбудованим респіратором. Закриває всю голову та обличчя.
+st_freedom_026_helmet_name	Шолом екзоскелета "Свободи"
+st_freedom_026_suit_desc	Експериментальний військовий екзоскелет, перефарбований у кольори "Свободи". У серію не пішов через вартість і конструктивні недоліки; невеликі партії досі виходять із підпільних майстерень. Оснащений вбудованим контейнером для артефактів.
+st_freedom_026_suit_name	Екзоскелет "Свободи"
+st_friend_options_label	Дії з другом
+st_friend_search_hint	Натисніть Enter для пошуку
+st_friend_state_away	Відійшов
+st_friend_state_game	У грі
+st_friend_state_lobby	Лобі
+st_friend_state_offline	Не в мережі
+st_friendly_user_compliment	Доброзичливий
+st_friends_online	Друзі в мережі
+st_friends_signin_notification_option	Повідомляти про появу друзів у мережі
+st_fullscreen_option	Повноекранний режим
+st_general_volume_option	Загальний
+st_generic_money_name	Рублі
+st_geometry_quality_option	Якість геометрії
+st_go_to_knowledge_base_message	База знань буде відкрита у вікні браузера
+st_go_to_online_store_message	Онлайн-магазин буде відкритий у вікні браузера. Продовжити?
+st_go_to_video_tutorial_message	Навчальне відео буде відкрито у вікні браузера. Продовжити?
+st_gold_2	золота
+st_good_player_compliment	Відмінний гравець
+st_goto_shop	У магазин
+st_graphics_quality_option	Якість графіки
+st_grenade_throw_power_description	Дальність кидка:
+st_grenade_throw_power_name	Гренадер
+st_health_regen_correction_perc_name	Регенерація
+st_hide_ammo	Приховати амуніцію
+st_hide_interface_action	Сховати інтерфейс
+st_hide_quest_list	Приховати вікно завдань
+st_hide_spam_option	Приховувати спам
+st_hide_squad_list	Приховати вікно загону
+st_hk416_description	Німецька штурмова гвинтівка під боєприпас 5.56х45. Розвиток AR-15 від Heckler & Koch з газовим поршнем короткого ходу, з'явилася в середині 2000-х; служить у спецназі й арміях НАТО. Приціл EOTech 552. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний.
+st_hk416_name	H&K 416А5
+st_hk_mp7_description	Німецька зброя самооборони під боєприпас 4.6х30. Створена Heckler & Koch разом із власним патроном для пробиття бронежилетів; з 2001 року служить у бундесвері та спецназі поліції. Магазин на 20 набоїв. Вогонь: одиничний і автоматичний.
+st_hk_mp7_name	H&K MP7
+st_hk_mp7_silencer_description	Німецька зброя самооборони під боєприпас 4.6х30, версія MP7A1 з глушником. Розробка Heckler & Koch під власний бронебійний патрон; служить у бундесвері й поліції. Магазин на 20 набоїв. Вогонь: одиничний і автоматичний.
+st_hk_mp7_silencer_name	H&K MP7A1
+st_hk_mp7_silencer_special_description	Німецька зброя самооборони під боєприпас 4.6х30, версія MP7A1 з глушником. Розробка Heckler & Koch під власний бронебійний патрон; служить у бундесвері й поліції. Магазин на 20 набоїв. Вогонь: одиничний і автоматичний. Преміум-версія в особливому камуфляжі.
+st_hk_mp7_silencer_special_name	H&K MP7A1 "Легенда"
+st_hour_short	год.
+st_hud_tutorial_frame_0_text_1	Керування камерою
+st_hud_tutorial_frame_0_text_2	Використовуйте мишку, щоб озирнутися
+st_hud_tutorial_frame_1_text_1	Пересування
+st_hud_tutorial_frame_1_text_2	Використовуйте кнопки W, A, S, D для пересування
+st_hud_tutorial_frame_2_text_1	Режим прицілювання
+st_hud_tutorial_frame_2_text_2	Для того, щоб прицілитися,\nутримуйте праву кнопку миші\nабо натисніть середню кнопку миші
+st_hud_tutorial_frame_3_text_1	Ривок
+st_hud_tutorial_frame_3_text_2	Щоб розігнатися, утримуйте\nSHIFT, або натисніть Х
+st_hud_tutorial_frame_4_text_1	Стрибок
+st_hud_tutorial_frame_4_text_2	Натисніть SPACE, щоб підстрибнути
+st_hud_tutorial_frame_5_text_1	Присісти
+st_hud_tutorial_frame_5_text_2	Утримуйте кнопку CTRL або\nнатисніть C, щоб присісти
+st_hud_tutorial_frame_6_text_1	До бою!
+st_hud_tutorial_frame_6_text_2	Ви закінчили базовий курс\nбойової підготовки. Удачі!
+st_hud_tutorial_frame_6_text_3	Ваша винагорода:
+st_ignored	Чорний список
+st_in_develepoment_hint	У процесі розробки
+st_ingame_volume_option	Гра
+st_injury_penalty_description	Збільшення дисперсії при пораненні рук:
+st_injury_penalty_name	Незворушність
+st_inv_activation_time_sec	Застосування
+st_inv_activity_time_sec	Тривалість дії
+st_inv_additional_ammo_bags	Підсумки для набоїв
+st_inv_ano_armor	Ізоляція
+st_inv_armor	Броня
+st_inv_arp	Бронебійність
+st_inv_artefact_slots	Контейнер для артефактів
+st_inv_buckshot	Дріб
+st_inv_clip_size	Набоїв в упаковці
+st_inv_clip_weight	Вага упаковки
+st_inv_damage	Ушкодження
+st_inv_damage_protection_infection	Захист від інфекції
+st_inv_damage_protection_pain	Больовий поріг
+st_inv_device_slots	Слотів для спецзасобів
+st_inv_dispersion	Дисперсія
+st_inv_heal_amount	Лікування
+st_inv_heal_amount_infection	Дезінфекція
+st_inv_heal_amount_pain	Знеболювання
+st_inv_heal_broken_parts	Радянський унітарний набій, створений на заміну застарілому 7.62мм патрону. Стандартна куля з хорошою проникною дією проти неметалевих перешкод.
+st_inv_healing_body_head	Лікування: тіло / голова
+st_inv_healing_limbs	Лікування: руки / ноги
+st_inv_item_weight	Вага
+st_inv_magazine	Боєзапас
+st_inv_magazine_size	Магазин
+st_inv_max_damage_distance	Дистанція
+st_inv_move_speed_modifier	Швидкість пересування
+st_inv_oxygen_amount	Запас кисню
+st_inv_pain_relief	Зняття болю
+st_inv_reload	Швидкість перезарядки
+st_inv_rpm	Швидкострільність
+st_inv_splash_radius	Радіус вибуху
+st_inv_stamina_regen	Відновлення енергії
+st_inv_stopingpower	Зупинна сила
+st_inventory_label	Інвентар
+st_inventrory	Екіпіровка
+st_invite_from_friends_option	Запрошення лише від друзів
+st_invite_to_clan	Запросити у клан
+st_invite_to_squad	Запросити в загін
+st_item_bought	Купівлю здійснено
+st_item_craft_description	Підготовка завершена, ви можете почати покращення.
+st_item_craft_description_choose_donor	Виберіть предмет-донор.
+st_item_craft_description_choose_item	Виберіть предмет для покращення.
+st_item_craft_description_no_items	Виберіть предмет для покращення.
+st_item_craft_donor_slot	Предмет донор
+st_item_craft_fail_label	Ймовірність невдачі (-1 мод.)
+st_item_craft_label	Покращення
+st_item_craft_main_slot	Покращуваний предмет
+st_item_craft_success_label	Ймовірність успіху (+1 мод.)
+st_item_damage_state	Стан
+st_item_drop_chance_base	Базовий шанс випадання предмету:
+st_item_drop_chance_by_premium	Преміум-акаунт
+st_item_drop_chance_label	Шанс випадання предметів
+st_item_drop_chance_match_result	Перевага в бою:
+st_item_drop_chance_penalty	Штраф за неактивність:
+st_item_drop_chance_team_premium	У матчі гравці з преміум-акаунтом:
+st_item_hint_label	Інвентар
+st_item_hint_label_shop	Магазин
+st_item_level	Рівень предмета
+st_item_modification	Зміна модифікацій
+st_item_piece_postfix	шт.
+st_item_props_kg	кг
+st_item_props_meters	м
+st_item_props_percent	%
+st_item_props_sec	с
+st_item_sell_precondition_faction_1	Необхідна репутація з Бродягами
+st_item_sell_precondition_faction_2	Необхідна репутація з Чорним Ринком
+st_item_sell_precondition_faction_3	Необхідна репутація з Армією Відродження
+st_item_sell_precondition_faction_4	Необхідна репутація з Поселенням Край
+st_item_sold	Продаж здійснено
+st_items_notes	Спецзасоби
+st_items_notes_frame_1_text_1	Ви можете брати в бій спецзасоби,\nщоб підвищити свої шанси на виживання
+st_items_notes_frame_1_text_2	До спецзасобів відносяться гранати,\nмедикаменти, пастки, міни та інші пристрої
+st_items_notes_frame_2_text_1	Спецзасоби кладуться у кишені
+st_items_notes_frame_3_text_1	Ви можете збільшити кількість кишень,\nвикористовуючи спорядження із відповідною характеристикою.
+st_items_notes_frame_4_text_1	В один слот ви можете покласти\nобмежену кількість предметів одного типу
+st_items_notes_frame_5_text_1	Ви можете збільшити місткість кишень,\nвикористовуючи спорядження із відповідною характеристикою.
+st_izh27_bundle_descr	<white>Містить наступні предмети:\n- Покращений МР-27М "Ланкастер".\n- 1000 патронів 12x70, дріб.</white>
+st_izh27_bundle_name	Набір МР-27М "Ланкастер"
+st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_izh27_name	MP-27M "Ланкастер"
+st_izh27_premium_2_description	Російська рушниця 12 калібру з вертикальними стволами. Виготовляється в Іжевську під маркою «Байкал»; одна з найпоширеніших мисливських і спортивних двостволок. Стріляє з одного ствола або з обох одразу. Преміум-версія в особливому камуфляжі.
+st_izh27_premium_2_name	МР-27М "Громобій"
+st_jump_action	Стрибок
+st_kedr_description	Радянський пістолет-кулемет під боєприпас 9х18 ПМ. Розроблений Євгеном Драгуновим на початку 70-х років, серійно випускається лише з 90-х для МВС Росії та поліції. Обладнаний магазином на 30 набоїв. Підтримує одиничний і автоматичний режими стрільби.
+st_kedr_name	ПП-91 "Кедр"
+st_kg_postfix	кг
+st_kick_clan_message	Ви впевнені, що хочете вигнати цього гравця з клану?
+st_kiparis_description	Пістолет-кулемет під боєприпас 9х18 ПМ. Був розроблений ще в 70-х  роках, однак не потрапив до серійного виробництва. Про нього згадали в 90-х, коли виникла потреба в ПК для сил МВС Росії. Обладнаний магазином на 30 набоїв.
+st_kiparis_name	ОЦ-02 Кипарис
+st_knowledge_skills_descr	Пізнаючи новий світ, ви навчитеся краще поводитись із артефактами й аномаліями.
+st_knowledge_skills_name	Знання світу
+st_knw_advanced_art_desc	Тривалість дії активованих артефактів зростає.
+st_knw_advanced_art_name	Знавець артефактів
+st_knw_artefact_hunter_desc	Навчає використовувати найновіші детектори артефактів і пристрої на базі артефактів.
+st_knw_artefact_hunter_name	Мисливець за артефактами
+st_knw_artefacts_desc	Надає можливість вивільнити внутрішню енергію артефакта, активувавши його.
+st_knw_artefacts_name	Активація артефактів
+st_knw_covering_desc	Рюкзак штурмовика
+st_knw_covering_name	Під покривом
+st_knw_empathy_desc	Дивним чином ви дізнаєтеся, коли поруч зароджується новий артефакт.
+st_knw_empathy_name	Відчуття природи
+st_knw_protecting_desc	Перебуваючи в аномалії, ви отримуєте додатковий захист від вогнепальної зброї та вибухів.
+st_knw_protecting_name	Аномальний захист
+st_knw_synergy_desc	Сила артефактів зростає пропорційно їх кількості.
+st_knw_synergy_name	Синергія
+st_kriss_vector_description	Американський пістолет-кулемет під боєприпас .45 ACP. Представлений KRISS у 2000-х; затвор при віддачі йде вниз, що зменшує підкидання ствола. Коліматор Walther Competition II. Магазин на 30 набоїв. Вогонь: одиничний, з відсіканням черги й автоматичний.
+st_kriss_vector_name	KRISS Vector
+st_label_invites	Запрошення
+st_label_leave_queue_btn	Залишити чергу
+st_label_quenue	Місце в черзі:
+st_label_reports	Звіти
+st_label_status	Статус
+st_label_support	Системні повідомлення
+st_label_teamA	Союзники
+st_label_teamB	Суперники
+st_label_time_average	Час очікування:
+st_leave_button	Покинути
+st_leave_clan_message	Ви впевнені, що хочете покинути клан?
+st_leave_clan_money_message	Ви впевнені, що хочете розпустити клан? Срібло, внесене на рахунок реєстрації, буде втрачено.
+st_leave_squad	Залишити загін
+st_left_strafe_action	Крок ліворуч
+st_less_then_hour	менше години
+st_level_01_name	Рудня
+st_level_02_name	Школа
+st_level_03_name	РЛС "Восток"
+st_level_04_name	Хімзавод
+st_level_05_name	Тараканівський форт
+st_level_06_name	Мамаїв курган
+st_level_07_name	Лабораторія "Вектор"
+st_level_08_name	Кельн
+st_level_09_name	Лондон
+st_level_10_name	РЛС "Восток" (v0.21)
+st_level_11_name	Мамаїв курган (v0.21)
+st_level_12_name	Хімзавод (v0.11)
+st_level_13_name	РЛС "Восток" (v0.11)
+st_lifebone_activation_hint	Живокіст активовано! Всі критичні ушкодження вилікувано! Здоров'я відновлено!
+st_lifebone_pickup_hint	Артефакт Живокіст. Прискорює регенерацію здоров'я.
+st_lightning_quality_option	Якість освітлення
+st_login_button_label	Увійти
+st_login_default_text	E-mail
+st_login_eula_label	Ліцензійна угода з кінцевим користувачем гри «Survarium»
+st_login_menu_accept	Прийняти
+st_login_menu_cancel	Скасувати
+st_login_menu_status_access_level_restriction	Недостатній рівень доступу для входу.
+st_login_menu_status_connecting	Авторизація...
+st_login_menu_status_error_connection	Немає зв'язку з сервером Skhid. Дозвольте гру в брандмауері (Skhid-network-setup.cmd). У Росії увімкніть VPN і додайте до нього .exe-файли гри (VPN.txt).
+st_login_menu_status_invalid_user_or_password	Неправильний email або пароль
+st_login_menu_status_invalid_version	Ви використовуєте застарілу версію гри.
+st_login_menu_status_sign_in_already_online	Користувач вже в грі
+st_login_menu_status_sign_in_attempt_interval_violated	Перевищена допустима кількість спроб входу. Спробуйте ще раз через 10 секунд.
+st_login_menu_status_user_banned	Ви забанені. 
+st_login_menu_status_user_not_confirmed	Ваш обліковий запис не підтверджений. Використовуйте посилання для підтвердження акаунта, яке було вислано Вам на e-mail при реєстрації облікового запису.
+st_login_str	E-mail
+st_lost_modifier	Втрачений модифікатор:
+st_loyalty_bonus_rep	Бонус за лояльність
+st_m4a1_description	Американський карабін під боєприпас 5.56х45. Укорочена й полегшена версія гвинтівки M16, прийнята армією США в 90-х роках; варіант M4A1 стріляє чергами і служить у силах спеціальних операцій. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний.
+st_m4a1_name	М4А1
+st_magnum_description	Шестизарядний револьвер калібру .357 Магнум. Уперше був представлений у 1955 році. Дехто вважає його одним із найкращих представників свого класу. Вирізняється м'яким спуском та високою точністю.
+st_magnum_name	Кольт Пітон
+st_maintenance	Почалося технічне обслуговування серверів. Програму буде закрито.
+st_map	Мапа
+st_match_items_found	Знайдено
+st_match_making_level	Рівень матчу
+st_match_rewards	Нагорода за бій
+st_match_settings_checkbox_PVE	Вільна гра
+st_match_settings_checkbox_PVE_hint	Режим самітнього виживання серед інших гравців в суворих умовах, диктованих нещадним Лісом
+st_match_settings_checkbox_PVP	Гравець проти гравця
+st_match_settings_checkbox_PVP_hint	Режим протистояння гравців, підібраних за рівнем спорядження і сформованих у команди за особистим рейтингом
+st_match_settings_checkbox_battery_charge	Зарядка пристрою
+st_match_settings_checkbox_battery_charge_hint	Режим протистояння команд зі збиранням батарей для зарядного пристрою
+st_match_settings_checkbox_capture_points	Дослідження
+st_match_settings_checkbox_capture_points_hint	Режим командного протистояння із захопленням ключових позицій
+st_match_settings_checkbox_clan_match_hint	Режими протистояння кланових команд
+st_match_settings_checkbox_rank_match	Рейтинговий бій
+st_match_settings_checkbox_rank_match_hint	Режим протистояння випадково підібраних кланових команд в рейтинговій таблиці кланів
+st_match_settings_checkbox_team_match	Командний бій
+st_match_settings_checkbox_team_match_hint	Режим протистояння команд до повного знищення супротивника
+st_match_settings_checkbox_tournament_match	Турнірний бій
+st_match_settings_checkbox_tournament_match_hint	Режим протиборства кланових команд в рамках проведеного турніру
+st_match_settings_checkbox_training_match	Тренувальний бій
+st_match_settings_checkbox_training_match_hint	Режим тренувальної кімнати
+st_match_settings_clan_match	Клановий бій
+st_match_time_is_up	Час матчу вичерпано!
+st_max_carried_weight_description	Переносима вага:
+st_max_carried_weight_name	Силач
+st_max_carried_weight_ultimate_description	Вага спорядження більше не впливає на швидкість пересування, проте про ривок доведеться забути.
+st_max_carried_weight_ultimate_name	Важковаговик
+st_med_combat_shock_desc	Штрафи від критичного пошкодження кінцівок застосовуються на кілька секунд пізніше.
+st_med_combat_shock_name	У розпалі бою
+st_med_farmacial_desc	Підвищує тривалість дії медикаментів.
+st_med_farmacial_name	Фармацевтика
+st_med_fast_use_desc	Час підготовки медикаментів до застосування істотно скорочується.
+st_med_fast_use_name	Швидке використання
+st_med_medical_desc	Навчає користуванню новітніми медикаментами і медичними пристроями.
+st_med_medical_name	Медик
+st_med_reanimation_desc	Істотно покращує стан реанімованих союзників.
+st_med_reanimation_name	Реанімація
+st_med_refining_desc	Підвищує ефективність медикаментів
+st_med_refining_name	Очищення медикаментів
+st_med_revive_desc	Дозволяє вам воскресити самого себе за наявності відповідного пристрою.
+st_med_revive_name	З останніх сил
+st_medicial_skills_descr	Підвищує ваші шанси на виживання, навчає навичкам поводження з медикаментами і медичними пристроями
+st_medicial_skills_name	Виживання і перша допомога
+st_meele_hit_range_description	Недоступно до найближчого оновлення.
+st_meele_hit_range_name	Стрибок з ножем
+st_meele_hit_ultimate_description	Недоступно до найближчого оновлення.
+st_meele_hit_ultimate_name	Кувалда
+st_melee_action	Ближній бій
+st_member_dont_have_battle_permission	У вас недостатньо прав для статусу польового командира.
+st_mercenaries_faction	Найманці
+st_message_reroll_text	Скинути навички?
+st_messages_censor_option	Цензура повідомлень
+st_messages_only_from_friends_option	Отримувати приватні повідомлення лише від друзів
+st_microphone_sensitivity_option	Чутливість мікрофона
+st_minimap	Мінімапа
+st_minimap_bottom	Нижній лівий кут
+st_minimap_off	Мінімапа вимкнена
+st_minimap_position	Розташування мінімапи
+st_minimap_rotable_option	Фіксувати мінімапу
+st_minimap_top	Верхній лівий кут
+st_missile_weapon_action	Граната
+st_missions	Завдання
+st_mm_button_back	Назад
+st_mm_button_exit_to_os	Вийти до Windows
+st_mm_button_leave_match	Покинути матч
+st_mm_button_settings	Опції
+st_mm_match_found	Добір гравців завершено! \nОчікування сервера.
+st_mode_02_description	Насувається Шторм, і єдина можливість вижити – знайти елементи живлення і відновити захисний пристрій. Тільки він здатний нейтралізувати дію Шторму. Переможе та команда, яка знайде найбільше батарей.
+st_mode_02_name	Захисний пристрій
+st_mode_03_description	Насувається Шторм, і єдина можливість вижити – знайти елементи живлення і відновити захисний пристрій. Тільки він здатний нейтралізувати дію Шторму. Переможе та команда, яка знайде найбільше батарей.
+st_mode_03_name	Захисний пристрій
+st_mode_04_description	Закріпіть позиції вашої групи в даному районі, знищивши якомога більше супротивників. Кожна смерть бійця забиратиме одне очко з рахунку його команди. Переможе та команда, на рахунку якої в кінці матчу буде більше очок.
+st_mode_04_name	Командний бій
+st_mode_05_description	Ваша задача - захопити контроль над мобільними дослідницькими установками. Кожна захоплена командою установка виробляє очки дослідження аномальної активності. Перемагає команда, яка в кінці матчу має найбільше очок.
+st_mode_05_name	Дослідження
+st_modification_screen_edit_decal_hint	Щоб змінити розмір і положення нашивки, натисніть на її слот
+st_modification_screen_hint	Перетягніть камуфляж або нашивку з вашого інвентарю у відповідний слот модифікації предмета
+st_modified	Модифіковано
+st_modifier_reroll_description	Ви можете змінювати тільки один модифікатор на предметі, але необмежену кількість разів. При зміні модифікатора вам буде запропоновано вибрати один з трьох випадкових модифікаторів.
+st_modifier_reroll_timer_description	За срібло доступна тільки одна спроба в 6 годин.
+st_module_is_installed_on	Модуль встановлений на
+st_money	Гроші
+st_money_modifier	Одержуване срібло
+st_money_reward_match	Прибуток за бій
+st_money_reward_premium	Бонус за преміум
+st_money_reward_quest	Прибуток за завдання
+st_monitor_ajust	Налаштунки монітора
+st_monitor_count_option	Активний монітор
+st_mosin_description	Магазинна рушниця під боєприпас 7.62х54мм. Була прийнята на озброєння Російською Імператорською армією. Добре зарекомендувала себе в першій і другій світових війнах. Оснащена незйомним магазином на 5 патронів.
+st_mosin_name	Карабін Мосіна
+st_motion_blur_amount_options	Розмиття в русі
+st_mouse_invertion_option	Інвертувати мишу
+st_mouse_sensitivity_option	Чутливість миші
+st_move_backward_action	Назад
+st_move_forward_action	Вперед
+st_move_speed_weapon_penalty_description	Габаритна зброя не впливає на швидкість пересування.
+st_move_speed_weapon_penalty_name	Носіння зброї
+st_move_to_reserve	В резерв
+st_move_to_team	Перенести в команду
+st_movement_speed_correction_perc_name	Швидкість пересування
+st_movement_speed_description	Швидкість пересування:
+st_movement_speed_name	Стрімголовий
+st_movement_speed_when_aiming_description	Швидкість пересування при прицілюванні:
+st_movement_speed_when_aiming_name	Бойова стійка
+st_mp153_description	Російська гладкоствольна напівавтоматична рушниця під набій 12х70. Завдяки помірній ціні та високій надійності, широко розповсюжена як мисливська і спортивна зброя. Обладнана трубчастим магазином на 4 патрони.
+st_mp153_name	MP-153 "Байкал"
+st_msbs_carbine_description	Польський модульний карабін під боєприпас 5.56х45. Створений у 2010-х Військово-технічною академією та заводом Fabryka Broni; на озброєнні польської армії як Grot. Приціл EOTech 552. Магазин на 30 набоїв. Вогонь: одиничний, з відсіканням черги й автоматичний.
+st_msbs_carbine_name	MSBS Radon
+st_multiplicative_breath_vibration_modifier	Розгойдування прицілу
+st_multiplicative_chamber_a_round_time_modifier	Час досилання набою
+st_multiplicative_device_damage_modifier	Пошкодження від пристроїв
+st_multiplicative_recoil_modifier	Віддача зброї
+st_multiplicative_reliability_modifier	Надійність
+st_multiplicative_reload_time_modifier	Швидкість перезарядки
+st_multiplicative_respawn_time_modifier	Час відродження
+st_multiplicative_splash_radius_modifier	Радіус вибуху
+st_multiplicative_stamina_spending_modifier	Витрати енергії
+st_munition	Спорядження
+st_music_volume_option	Музика
+st_must_be_in_clan_team	Ви повинні бути активним членом кланової команди.
+st_my_place	Мій рейтинг
+st_neostead_description	Південноафриканська помпова рушниця 12 калібру. Створена в 90-х Тоні Неофіту за схемою «булпап»; два трубчасті магазини над стволом, для перезаряджання цівку подають уперед. 12 набоїв. Лише одиничний вогонь.
+st_neostead_name	NeoStead 2000
+st_neostead_premium_description	Південноафриканська помпова рушниця 12 калібру. Створена в 90-х Тоні Неофіту за схемою «булпап»; два трубчасті магазини над стволом, для перезаряджання цівку подають уперед. 12 набоїв. Лише одиничний вогонь. Преміум-версія в особливому камуфляжі.
+st_neostead_premium_name	NeoStead 2000 М2
+st_new_items_unlocked	нових предметів у магазині:
+st_new_level_reached	Ви досягли нового рівня!
+st_new_modifier	Новий модифікатор:
+st_next_ammo_action	Змінити тип набоїв
+st_next_fire_queue_action	Змінити режим стрільби
+st_next_weapon	Наступна зброя
+st_nickname	Ім'я
+st_no_available_resolution	Не підтримується
+st_no_faction_button_label	Вибір
+st_no_faction_message_label	Співпраця з угрупованнями
+st_no_faction_message_text	Угруповання є основними постачальниками екіпірування й амуніції. Виконуючи завдання від угруповання, ви покращуєте свою репутацію. Натомість вам надають доступ до кращих товарів. Одночасно можна співпрацювати лише з одним угрупованням.
+st_non_faction_items	Незалежні торговці
+st_non_sport_behavior_claim	Вбивство союзників
+st_not_all_team_members_ready	Не всі гравці команди підтвердили свою готовність.
+st_not_enough_money	Недостатньо грошей для здійснення операції.
+st_not_enought_money_for_repair	Недостатньо грошей для ремонту
+st_not_enougth_money	Недостатньо грошей
+st_not_enougth_money_for_reroll	Недостатньо грошей, щоб скинути уміння
+st_not_logged_id	Помилка ідентифікації гравця. Будь ласка, перезайдіть в гру.
+st_not_ready	Не готовий
+st_notes_if_you_read	Прочитавши
+st_notes_reward	ви отримаєте:
+st_novice_026_helmet_desc	В'язана шапка сталкера-новачка зі скасованого S.T.A.L.K.E.R. 2.
+st_novice_026_helmet_name	В'язана шапка новачка
+st_of	із
+st_ok	ОК
+st_on_enemy_theft_item	Ворог викрав батарею з вашої бази, зупиніть його!
+st_on_spawn_victory_item	Батарея заряджена! Принесіть її на базу.
+st_one_handed	Допоміжна
+st_online_store	Купити золото
+st_onyx_activation_hint	Онікс активовано! Пошкодження і бронебійність спрямованих у гравця куль зменшено на 75% на %s с.
+st_onyx_pickup_hint	Артефакт Онікс. Зменшує пошкодження і бронебійність спрямованих у гравця куль на 5%.
+st_open	Відкрити
+st_options_2taa	2xTAA
+st_options_adjust_gamma	Гама:
+st_options_apply	Застосувати
+st_options_cancel	Скасувати
+st_options_chat	Чат:
+st_options_chat_keys	Чат:
+st_options_controller	Керування
+st_options_cross_type	Приціл:
+st_options_custom	Корист.
+st_options_default_controls	Базові налаштунки
+st_options_default_video	Базові налаштунки
+st_options_friends	Друзі:
+st_options_fxaa	FXAA
+st_options_game	Гра:
+st_options_gameplay	Гра
+st_options_hbao	HDAO
+st_options_high	Високо
+st_options_lobby	Лобі:
+st_options_low	Низько
+st_options_medium	Середньо
+st_options_minimum	Мінімум
+st_options_off	Вимк
+st_options_ok	ОК
+st_options_on	Увімк
+st_options_optimal_video	Оптимальні налаштунки
+st_options_sound	Звук
+st_options_ssao	SSAO
+st_options_ssdo	SSDO
+st_options_ultra	Ультра
+st_options_video	Графіка
+st_options_voice	Голос:
+st_options_volume	Гучність:
+st_other	Інше
+st_oust_commander	Змінити командира
+st_overweight_penalty_description	Вплив ваги на швидкість пересування:
+st_overweight_penalty_name	Паківник
+st_oxygen_tank_description	Саморобний кисневий балон, зібраний умільцями з табору Бродяг. Дихальна суміш зберігається у стисненому, незрідженому стані.
+st_oxygen_tank_name	Кисневий балон
+st_pain_healt_correction_perc_name	Больовий поріг
+st_paperdoll_btn_ammo	Набої
+st_paperdoll_btn_fix	Полагодити
+st_paperdoll_btn_weight	Вага
+st_paperdoll_label	Персонаж
+st_particles_quality_options	Якість часток
+st_password_default_text	Пароль
+st_password_str	Пароль
+st_pause_game_action	Пауза
+st_pd_artefact	Артефакт
+st_pd_back	рюкзак
+st_pd_foot	черевики
+st_pd_hands	рукавички
+st_pd_head	шолом
+st_pd_legs	штани
+st_pd_mask	маска
+st_pd_torso	куртка
+st_pd_weapon	Зброя
+st_percent_postfix	%
+st_personal_statistics	Особисті досягнення
+st_phy_adrenalin_desc	Кожне влучення по вам несуттєво підвищує швидкість пересування і відновлює частину енергії.
+st_phy_adrenalin_name	Викид адреналіну
+st_phy_athlet_desc	Зменшує вплив стерпної ваги, на швидкість пересування.
+st_phy_athlet_name	Атлет
+st_phy_ignor_pain_desc	Під час прискорення ваша чутливість до болю сильно зменшується.
+st_phy_ignor_pain_name	Ігнорування болю
+st_phy_melee_rush_desc	Відстань, з якої ви можете вбити ворога в ближньому бою, зростає.
+st_phy_melee_rush_name	Стрибок із ножем
+st_phy_second_breath_desc	У разі виснаження ви повністю відновите запас сил. Спрацьовує не частіше як раз на хвилину.
+st_phy_second_breath_name	Друге дихання
+st_phy_sprinter_desc	Підвищує швидкість пересування під час ривка.
+st_phy_sprinter_name	Спринтер
+st_phy_war_rage_desc	Убиваючи ворога у ближньому бою, ви повністю відновлюєте запас енергії й більше не відчуваєте болю від отриманих поранень.
+st_phy_war_rage_name	Бойова лють
+st_physical_skills_descr	Підвищує швидкість пересування, стерпну вагу, а також швидкість відновлення енергії.
+st_physical_skills_label	Фізична підготовка
+st_physical_skills_name	Фізична підготовка
+st_picatinny_scope_medium_name	Оптика / коліматори
+st_pickup_item	Підняти ({USE})
+st_ping_postfix	мс.
+st_pkp_pecheneg_description	Російський єдиний кулемет під боєприпас 7.62х54R. Створений у ЦНДІТочМаш на основі ПКМ, на озброєнні з 2001 року; важкий ствол із примусовим охолодженням дозволяє вести довгі черги без заміни. Стрічка на 100 набоїв. Вогонь: одиничний і автоматичний.
+st_pkp_pecheneg_name	ПКП "Печеніг"
+st_place	Місце
+st_play_button	Грати
+st_player_equipment_level	Рівень спорядження
+st_player_info_label	Інформація про гравця:
+st_player_is_already_in_clan	Гравець вже перебуває в клані.
+st_player_level	РІВЕНЬ
+st_player_not_found	Гравця не знайдено.
+st_player_skills_check_failed	Не вдалося підтвердити вивчення навичок.
+st_players_list_filter_text	Фільтр за ім'ям
+st_pm_description	Пістолет Макарова під боєприпас 9х18 ПМ розроблений 1948 року для заміни ТТ. Як особиста зброя використовувався армією та правоохоронними органами. Магазин вміщує 8 набоїв.
+st_pm_name	ПМ
+st_pockets	Кишені
+st_point	бал
+st_points_aviable	Балів доступно
+st_points_earned	Ваш рівень
+st_post_process_options	Якість постобробки
+st_pp2000_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_pp2000_name	ПП-2000
+st_ppsh_description	Легендарна зброя, пістолет-кулемет Шпагіна. В окремих державах використовувався до кінця 80-х років. Обладнаний секторним магазином на 35 набоїв.
+st_ppsh_name	ПКШ-41
+st_premium	Преміум
+st_premium_3_day	3 дні
+st_premium_3_day_descr	(72 години)
+st_premium_3_month	3 місяці
+st_premium_3_month_descr	(90 днів)
+st_premium_6_month	6 місяців
+st_premium_6_month_descr	(180 днів)
+st_premium_access_1d_voucher_descr	Даний квиток дає вам можливість активувати преміум-акаунт на одну добу.
+st_premium_access_1d_voucher_name	Преміум-акаунт
+st_premium_action	Акція!
+st_premium_advert	Ви отримаєте всі бонуси за цю гру,\nякщо активуєте преміум зараз
+st_premium_ally_members	Завдяки гравцям із преміум-акаунтом
+st_premium_bonus	Досвід\nДохід\nРепутація
+st_premium_bonus_experience	ДОСВІДУ ЗА БІЙ!
+st_premium_bonus_item_search	БОНУС ДО ПОШУКУ ПРЕДМЕТІВ!
+st_premium_bonus_money	ПРИБУТОК ЗА БІЙ!
+st_premium_bonus_profile	Профіль екіпіровки
+st_premium_bonus_reputation	РЕПУТАЦІЇ З УГРУПОВАННЯМИ!
+st_premium_button_advert	Купити ПРЕМІУМ
+st_premium_day	Доба
+st_premium_day_descr	(24 години)
+st_premium_discount	Знижка
+st_premium_left	Залишилось:
+st_premium_money	Золото
+st_premium_money_name	Золото
+st_premium_month	Місяць
+st_premium_month_descr	(30 днів)
+st_premium_post_reward_descr	Активуйте преміум-акаунт зараз\nі отримайте всі бонуси за\nпопередній тиждень у подарунок!
+st_premium_post_reward_label	Отримуйте більше з преміум-акаунтом!
+st_premium_profile_hint	Доступний тільки для гравців з преміум-акаунтом
+st_premium_profile_unlock_description	Третій профіль доступний тільки з преміум-акаунтом
+st_premium_reward_part_1	За результатами бою ви знайдете на
+st_premium_reward_part_2	більше предметів
+st_premium_week	Тиждень
+st_premium_week_descr	(7 днів)
+st_premium_year	Рік
+st_premium_year_descr	(365 днів)
+st_prepare_to_battle_notes	Підготовка до бою
+st_prepare_to_battle_notes_frame_1_text_1	У бою беруть участь дві команди
+st_prepare_to_battle_notes_frame_2_text_1	Ваші союзники позначені\nсимволом над головою
+st_prepare_to_battle_notes_frame_2_text_2	 - відобразити імена союзників
+st_prepare_to_battle_notes_frame_3_text_1	Будьте пильні, ворог\nможе бути майже непомітним
+st_prepare_to_battle_notes_frame_3_text_2	Пересувайтеся обережно
+st_prepare_to_battle_notes_frame_4_text_1	Індикатор поранень відображає\nпоточний стан тіла
+st_prepare_to_battle_notes_frame_4_text_2	Використовуйте медикаменти, вони допоможуть\nпослабити біль та загоїти рани
+st_prepare_to_battle_notes_frame_5_text_1	Ви можете отримати критичне\nпоранення руки чи ноги
+st_prepare_to_battle_notes_frame_5_text_2	Це накладає штраф на влучність стрільби\nта швидкість пересування
+st_prepare_to_battle_notes_frame_6_text_1	Ви не зможете користуватися\nдворучною зброєю, якщо\nзламаєте обидві руки
+st_prepare_to_battle_notes_frame_7_text_1	Якщо ж у вас зламані обидві ноги,\nви не зможете пересуватися
+st_prev_weapon	Попередня зброя
+st_private_messages_in_game_option	Приховати чат під час бою
+st_profile	Профіль
+st_profile_check_failed	Не можна ввійти до бою без зброї!
+st_profile_check_failed_weapon	Не можна ввійти до бою без зброї!
+st_profile_check_failed_weapon_ammo	Неможливо ввійти в бій: недостатньо набоїв у рюкзаку!
+st_profile_check_failed_weapon_ammo_in_inv	Неможливо ввійти до бою: недостатньо набоїв у сховищі!
+st_profile_play_time	Час гри
+st_profile_rename	Перейменувати профіль
+st_profile_rename_label	Перейменування профілю
+st_profile_selection_warning	+20 секунд до часу відродження при зміні профілю
+st_profile_warning_weapon	Профіль неактивний: немає зброї
+st_profile_warning_weapon_ammo	Профіль не активний: недостатньо набоїв у рюкзаку
+st_profile_warning_weapon_ammo_in_inv	Профіль не активний: недостатньо набоїв у сховищі
+st_ptt_action	PTT
+st_ptt_button_option	PTT
+st_put_item	Покласти ({USE})
+st_quest_change_warning	Увага! При зміні завдання лояльність угруповання до вас знизиться!
+st_quest_completed	Завдання виконано!
+st_quest_failed	Завдання провалено!
+st_quest_progress	Прогрес виконання завдань
+st_quest_reward_info	Фінальна нагорода залежить від рівня бою
+st_quests	Завдання
+st_quests_label	Завдання
+st_quests_progress_text_alpha_option	Прозорість
+st_quick_fix	Швидкий ремонт
+st_quick_use_action_1	Предмет 1
+st_quick_use_action_2	Предмет 2
+st_quick_use_action_3	Предмет 3
+st_quick_use_action_4	Предмет 4
+st_quick_use_action_5	Предмет 5
+st_quick_use_action_6	Предмет 6
+st_rank_up_to_commander_message	Ви впевнені, що хочете, щоб гравець став командиром клану замість вас?
+st_ranking	Рейтинг
+st_ranking_diff	Різниця
+st_rattle_activation_hint	Брязкальце активовано! Вороги не почують ваших кроків!
+st_rattle_pickup_hint	Артефакт Брязкальце. Стишує звуки кроків на 50%.
+st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_name	Димова граната РДГ-М
+st_reach_level	досяг <green>Рівня</green>
+st_ready	Готовий
+st_refill_ammo_btn	Підтвердити
+st_refill_ammo_label	Боєзапас
+st_regen_booster_description	Старий армійський сухпайок. Успішно застосовувався арміями країн СНД в докризовий період. Підвищує метаболізм, при цьому досить смачний.
+st_regen_booster_name	Сухпайок
+st_registration_str	Створити новий акаунт
+st_regular_fix	Ремонт
+st_regular_money	Срібло
+st_reload_speed_description	Швидкість перезарядки:
+st_reload_speed_name	Перезарядка
+st_relocate	Перемістити
+st_rem700_description	Американська магазинна гвинтівка під боєприпас 7.62х51. Одержала визнання як спортивна, мисливська і снайперська зброя. Обладнана магазином на 5 патронів.
+st_rem700_name	Remington 700
+st_rem700_premium_description	Американська магазинна гвинтівка під боєприпас 7.62х51. Одержала визнання як спортивна, мисливська і снайперська зброя. Обладнана магазином на 5 патронів. Преміум-версія в особливому камуфляжі.
+st_rem700_premium_name	Remington 700 "Кат"
+st_rem870_description	Американський помповий дробовик під боєприпас 12х70. Широко використовувався як поліцейська й мисливська зброя. У мисливській модифікації обладнаний підствольним трубчастим магазином на 4 набої.
+st_rem870_name	Remington 870
+st_remove	Прибрати
+st_remove_from_friends	Видалити з друзів
+st_remove_from_ignore	Видалити з чорного списку
+st_remove_from_squad	Вигнати з загону
+st_remove_from_team	Вигнати з команди
+st_ren_back_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_1_name	Рюкзак штурмовика
+st_ren_back_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_3_name	Балон "Зоря 3Н"
+st_ren_back_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_5_name	Балон "УКВ-1"
+st_ren_boots_1_desc	Надійні військові чоботи для захисту ніг бійця від механічних ушкоджень і слабких пасток.
+st_ren_boots_1_name	Армійські чоботи
+st_ren_boots_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_3_name	Чоботи розвідника
+st_ren_boots_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_4_name	Чоботи "Молот УМ-2"
+st_ren_boots_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_5_name	Чоботи "ОЗК-18КБ"
+st_ren_boots_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_6_name	Чоботи "Зубр УМ-4"
+st_ren_gloves_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_1_name	Штурмові рукавички
+st_ren_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_4_name	Рукавички "Молот УМ-2"
+st_ren_gloves_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_5_name	Рукавички "ОЗК-18КБ"
+st_ren_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_6_name	Рукавички "Зубр УМ-4"
+st_ren_helmet_1_desc	Десантний шолом ПДВ СРСР. Складно переоцінити його символічну роль для Армії Відродження. Надійно вберігає голову від дії вибухової хвилі, а вшиті сталеві пластини здатні затримати пістолетну кулю.
+st_ren_helmet_1_name	Десантний шолом
+st_ren_helmet_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_2_name	Шолом "Витязь-С"
+st_ren_helmet_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_3_name	Шолом розвідника
+st_ren_helmet_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_4_name	Шолом "Молот УМ-2"
+st_ren_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_5_name	Шолом "ОЗК-18КБ"
+st_ren_helmet_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_6_name	Шолом "Зубр УМ-4"
+st_ren_legs_1_desc	Камуфляжні штани з саморобним посиленим захистом колінного суглоба. Завдяки якості виконання і зручному пошиву, не лише не обмежують руху, а й полегшують пересування солдата при максимальному навантажені. Містять додаткову кишеню для спецзасобів.
+st_ren_legs_1_name	Армійські штани
+st_ren_legs_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_2_name	Штани "Штурм"
+st_ren_legs_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_3_name	Штани розвідника
+st_ren_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_4_name	Штани "Молот УМ-2"
+st_ren_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_5_name	Штани "ОЗК-18КБ"
+st_ren_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_6_name	Штани "Зубр УМ-4"
+st_ren_mask_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_2_name	Маска штурмовика
+st_ren_mask_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_3_name	Респіратор "Завіса"
+st_ren_mask_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_5_name	Протигаз "ПМК-7С"
+st_ren_rep_modifier	Репутація "Армія Відродження"
+st_ren_torso_1_desc	Звичайний армійський бронежилет II класу, пристосований до використання в постапокаліптичному світі. Велика кількість підсумок дозволяє максимально екіпіруватися боєприпасами та спецзасобами.
+st_ren_torso_1_name	Армійський бронежилет
+st_ren_torso_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_2_name	Бронежилет "Штурм"
+st_ren_torso_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_3_name	Бронежилет "Сокіл"
+st_ren_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_4_name	Бронежилет "Молот УМ-2"
+st_ren_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_5_name	Бронежилет "ОЗК-18КБ"
+st_ren_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_6_name	Бронежилет "Зубр УМ-4"
+st_renaissance_bring_x_items_descr	Новий світ підготував для нас свої випробування. Аби вижити, недостатньо просто знищити ворога, необхідно активувати спеціальний контур для захисту від Шторму.
+st_renaissance_bring_x_items_name	Захист від шторму
+st_renaissance_bring_x_items_obj	Знайти і принести батарей:
+st_renaissance_defend_items_descr	На війні немає дрібниць. Хороша оборона не менш важлива, аніж атака. Обороняйте вашу базу від атак ворога, не допустіть втрати того, що здобуте кров'ю ваших союзників.
+st_renaissance_defend_items_name	Надійна оборона
+st_renaissance_defend_items_obj	Виграти бій, не допустивши крадіжки батареї з бази
+st_renaissance_faction	Армія Відродження
+st_renaissance_grenade_enemies_descr	Гранати давно довели свою ефективність при використанні в наступальних і оборонних цілях. Повинен оволодіти цим видом зброї і ти.
+st_renaissance_grenade_enemies_name	Гренадер
+st_renaissance_grenade_enemies_obj	Убити противників гранатою за бій:
+st_renaissance_headshots_descr	Покажи своє досконале володіння зброєю. Доведи, що норми ГПО для тебе – не порожній звук. І не має значення, що в тебе за зброя – автомат чи снайперська гвинтівка. Хороший солдат завжди точно влучає у ціль.
+st_renaissance_headshots_name	Ворошилівський стрілець
+st_renaissance_headshots_obj	Убити ворогів пострілом у голову:
+st_renaissance_kd_ratio_descr	Хороший солдат – це не фанатичний шибеник. Самоконтроль й вишкіл – от що відрізняє нас від іншої наволочі й робить нас сильнішими! Доведи це ділом!
+st_renaissance_kd_ratio_name	Домінування!
+st_renaissance_kd_ratio_obj	Виграти бій, маючи співвідношення убивств до смертей не менше як
+st_renaissance_kill_enemies_descr	На війні, як на війні. Не завжди вдається перемогти малим кровопролиттям, а тому з ворогом не варто церемонитись. Пам'ятай: кожен убитий ворог наближає нас до перемоги!
+st_renaissance_kill_enemies_name	Вогонь на ураження
+st_renaissance_kill_enemies_obj	Убити ворогів за бій:
+st_renaissance_killstreak_descr	Воїнська слава чекає тебе на полі бою. Та лише справжній герой здатен її заслужити! Доведи, що ти вартий високого звання Героя Армії Відродження!
+st_renaissance_killstreak_name	Герой!
+st_renaissance_killstreak_obj	Здійснити серію вбивств:
+st_renaissance_level_0	Невідомий
+st_renaissance_level_1	Солдат
+st_renaissance_level_10	Полковник
+st_renaissance_level_2	Єфрейтор
+st_renaissance_level_3	Сержант
+st_renaissance_level_4	Старшина
+st_renaissance_level_5	Прапорщик
+st_renaissance_level_6	Лейтенант
+st_renaissance_level_7	Капітан
+st_renaissance_level_8	Майор
+st_renaissance_level_9	Підполковник
+st_renaissance_level_unlock_0	Вітаємо! Вам доступні завдання від Армії Відродження!
+st_renaissance_level_unlock_1	Вітаємо! Ви тепер солдат Армії Відродження!
+st_renaissance_level_unlock_10	Вітаємо! Ви тепер полковник Армії Відродження!
+st_renaissance_level_unlock_2	Вітаємо! Ви тепер єфрейтор Армії Відродження!
+st_renaissance_level_unlock_3	Вітаємо! Ви тепер сержант Армії Відродження!
+st_renaissance_level_unlock_4	Вітаємо! Ви тепер старшина Армії Відродження!
+st_renaissance_level_unlock_5	Вітаємо! Ви тепер прапорщик Армії Відроження!
+st_renaissance_level_unlock_6	Вітаємо! Ви тепер лейтенант Армії Відродження!
+st_renaissance_level_unlock_7	Вітаємо! Ви тепер капітан Армії Відродження!
+st_renaissance_level_unlock_8	Вітаємо! Ви тепер майор Армії Відродження!
+st_renaissance_level_unlock_9	Вітаємо! Ви тепер підполковник Армії Відродження!
+st_renaissance_meele_kill_descr	Солдати Армії Відродження сильні не тільки духовно, а й фізично. Витривалість і відвага – ось секрет нашої перемоги. Зумій постояти за себе у ближньому бою з супротивником.
+st_renaissance_meele_kill_name	Шлях до перемоги
+st_renaissance_meele_kill_obj	Убити суперників у ближньому бою:
+st_renaissance_represent	Ви повинні бути вдягнуті в екіпірування Армії Відродження.
+st_renaissance_steal_box_descr	Битися з ворогом лицем до лиця - гідно. Але не завжди ефективно. Вміла диверсія в тилу може переламати хід бою і принести перемогу!
+st_renaissance_steal_box_name	Диверсант
+st_renaissance_steal_box_obj	Вкрадіть батарею з бази противника і принесіть її на свою базу.
+st_renaissance_win_score_descr	Ніколи не зупиняйся на досягнутому – ось девіз Армії Відродження. Що більше під'єднаних до контуру батарей, то менше ми постраждаємо від Шторму.
+st_renaissance_win_score_name	Славна перемога!
+st_renaissance_win_score_obj	Виграти бій із рахунком принесених батарей:
+st_renaissance_win_x_games_descr	Крок за кроком, бій за боєм, перемога за перемогою – ось наш шлях до відродження колишньої могутності! Ми не маємо куди відступати і мусимо здобути перемогу будь-якою ціною!
+st_renaissance_win_x_games_name	За Батьківщину!
+st_renaissance_win_x_games_obj	Виграти боїв:
+st_rename_account_voucher_descr	Цей бланк дає право на безкоштовне змінення імені персонажа.
+st_rename_account_voucher_name	Бланк для зміни імені
+st_rep_reward_match	Репутація за бій
+st_rep_reward_premium	Бонус за преміум
+st_rep_reward_quest	Репутація за завдання
+st_repair_time	В ремонті
+st_repair_time_label	час
+st_repair_voucher_descr	За допомогою ремонтного набору можна миттєво полагодити будь-яку критичну несправність екіпірування.
+st_repair_voucher_name	Ремонтний набір
+st_repair_window_label	Ремонт
+st_reputation	Репутація
+st_reroll	Скинути
+st_reroll_message_broken_item	Неможливо модифікувати пошкоджений предмет.
+st_reroll_modifier_lock_hint	Ви можете змінити тільки цей модифікатор.
+st_reroll_timer_hint	Буде доступно через
+st_research_unit_a_captured	Установку A захоплено
+st_research_unit_a_lost	Установку A втрачено
+st_research_unit_b_captured	Установку B захоплено
+st_research_unit_b_lost	Установку B втрачено
+st_research_unit_c_captured	Установку C захоплено
+st_research_unit_c_lost	Установку C втрачено
+st_resolution_option	Роздільна здатність
+st_respawn_booster_description	Цивільна рація "FD3". Вкрай корисна в умовах бойових дій для організації підрозділів і кооперації бійців.
+st_respawn_booster_name	Рація
+st_respawn_time_pref	Відродження через
+st_resupply_check_empty_inventory	На складі недостатньо амуніції
+st_resupply_check_full_ammo	Ви вже повністю споряджені
+st_resupply_finished	Боєприпаси та спецзасоби поповнено!
+st_revenue	Дохід
+st_reward	Винагорода
+st_rgd5_descr	Ручна протипіхотна граната наступального типу. Під час вибуху забезпечує ураження живої сили ворога уламками розірваного корпусу.
+st_rgd5_name	Граната РГД-5
+st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rgo_name	РГО
+st_right_strafe_action	Крок праворуч
+st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rpd_name	РПД
+st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rpk_name	РПК-74М
+st_saiga_12_description	Російська самозарядна рушниця 12 калібру. Створена на «Іжмаші» на основі системи Калашникова в 90-х роках для полювання і служб охорони; версія K має короткий ствол і складаний приклад. Обладнана коробчастим магазином на 5 набоїв. Лише одиничний вогонь.
+st_saiga_12_name	Сайга-12К
+st_saiga_12_premium_description	Російська самозарядна рушниця 12 калібру. Створена на «Іжмаші» на основі системи Калашникова в 90-х роках для полювання і служб охорони; версія С має складаний приклад. Обладнана коробчастим магазином на 5 набоїв. Лише одиничний вогонь.
+st_saiga_12_premium_name	Сайга-12С
+st_save_password_str	Запам'ятати пароль
+st_scav_back_1_desc	Саморобний контейнер для зберігання артефактів, обладнаний під рюкзак. Корисна річ, якщо збираєшся на полювання за артефактами.
+st_scav_back_1_name	Рюкзак із контейнером
+st_scav_boots_1_desc	Прості черевики, знайдені на звалищі чи зняті з трупа. Захищають ноги від ран і пошкоджень, не раз стануть у нагоді під час важких переходів.
+st_scav_boots_1_name	Шкіряні чоботи
+st_scav_boots_2_desc	Герметичний захист ніг при переміщенні по токсичним поверхням. З такими чоботами можна діставатися до важкодоступних місць, куди більшість потрапити не в змозі.
+st_scav_boots_2_name	Чоботи хімзахисту
+st_scav_boots_3_desc	Міцні водонепроникні черевики зі сталевим підноском й утепленням. Таке взуття — безцінна знахідка для бродяги. За суворих погодних умов істотно підвищує шанси на виживання. Збільшує швидкість пересування на 2%.
+st_scav_boots_3_name	Військові черевики
+st_scav_gloves_1_desc	Прості рукавички з обрізаними пальцями. Зігрівають і захищають зап'ястя рук у походах. Зручні у використанні: не треба знімати, аби щось дістати чи зробити. Підвищують швидкість прицілювання на 2%.
+st_scav_gloves_1_name	Обрізані рукавички
+st_scav_gloves_2_desc	Прогумовані ізоляційні рукавички для роботи з забрудненими й аномальними матеріалами. Неодмінний елемент спорядження для мисливця за артефактами.
+st_scav_gloves_2_name	Рукавички хімзахисту
+st_scav_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_gloves_4_name	Грубі рукавиці
+st_scav_helmet_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_helmet_1_name	Монтажний шолом
+st_scav_legs_1_desc	Грубо пошиті штани. Гріють ноги і витримують навантаження під час мандрів руїнами.
+st_scav_legs_1_name	Полотняні штани
+st_scav_legs_2_desc	Власноруч виготовлені бродягами ізоляційні штани. Захищають ноги від потрапляння токсичних речовин.  Зручна кишеня дозволяє взяти з собою пару аптечок або гранат.
+st_scav_legs_2_name	Штани хімзахисту
+st_scav_legs_3_desc	Добре пошиті штани зі стійкого матеріалу з захищеними колінами і кріпленнями для додаткового спорядження. Надійний захист ніг від суворих умов у холодні часи. Зручна кишеня дозволяє взяти з собою декілька аптечок або гранат.
+st_scav_legs_3_name	Похідні штани
+st_scav_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_legs_4_name	Штани вцілілого
+st_scav_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_legs_5_name	Укріплені штани
+st_scav_rep_modifier	Репутація "Бродяги"
+st_scav_resp_1_desc	Модифікований бродягами респіратор для захисту органів дихання. Захищає від токсичних випарів і радіоактивного пилу.
+st_scav_resp_1_name	Респіратор "Янтар"
+st_scav_torso_1_desc	Легка і проста у виробництві стьобана куртка. Перша одежа бродяги, допомагає виживати за суворих погодних умов. Просторі кишені дозволяють брати з собою декілька аптечок або гранат, а також додаткові коробки з набоями.
+st_scav_torso_1_name	Тілогрійка
+st_scav_torso_2_desc	Незамінна річ під час дослідження забруднених територій. Захищає тулуб і руки від контакту з токсичними й отруйними речовинами. Містить вбудований контейнер для артефактів.
+st_scav_torso_2_name	Куртка хімзахисту
+st_scav_torso_3_desc	Полегшений бродягами армійський тактичний бронежилет. Знятий із загиблого солдата чи здобутий на розграбованому армійському складі. Численні підсумки дозволяють взяти з собою пару аптечок або гранат, а також додаткові коробки з набоями.
+st_scav_torso_3_name	Легкий бронежилет
+st_scav_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_torso_4_name	Куртка уцілілого
+st_scav_torso_5_desc	Стьобана ватяна куртка. Всередині укріплена вигнутими металевими пластинами, зовні - шкіряними латками. Гарний одяг для досвідченого бродяги.
+st_scav_torso_5_name	Укріплений ватник
+st_scavenger_starter_bundle_descr	<white>Містить наступні предмети:\n- "Куртка вцілілого".\n- "Штани вцілілого".\n- Покращений ОЦ-02 "Кипарис".\n- 1000 патронів 9x18 ПМ.</white>
+st_scavenger_starter_bundle_name	Набір "Уцілілого"
+st_scavengers_accuracy_descr	Який сенс розкидати патрони навсібіч, та ще й намарно? Хорошому стрільцеві вистачить однієї кулі, щоб відібрати життя. Навчися економити набої.
+st_scavengers_accuracy_name	Навички стрільби
+st_scavengers_accuracy_obj	Виграти бій, показавши точність стрільби вище
+st_scavengers_bring_x_items_descr	Не завжди битви виграються за допомогою зброї. Пам'ятай про основну мету – зібрати якомога більше батарей для захисної установки.
+st_scavengers_bring_x_items_name	Внесок у перемогу
+st_scavengers_bring_x_items_obj	Знайти і принести батарей:
+st_scavengers_defend_items_descr	Пам'ятай, що ворог не завжди грає за правилами. Не забувай про оборону своєї бази та придушуй будь-які спроби противника викрасти звідти батареї.
+st_scavengers_defend_items_name	Оборона власності
+st_scavengers_defend_items_obj	Виграти бій, не допустивши крадіжки батареї з бази
+st_scavengers_faction	Бродяги
+st_scavengers_find_artifacts_descr	Досліджуй аномалії в пошуках артефактів. У напруженій боротьбі не буде зайвим посилити себе, повісивши артефакт на пояс. Захист від аномалій істотно спростить пошук артефактів.
+st_scavengers_find_artifacts_name	Пошук артефактів
+st_scavengers_find_artifacts_obj	Знайти артефактів за бій:
+st_scavengers_grenade_enemies_descr	Вміти використовувати гранати так само важливо, як і влучно стріляти. В бою часто бувають ситуації, що крім гранати немає іншого способу дістати супротивника.
+st_scavengers_grenade_enemies_name	Влучний кидок
+st_scavengers_grenade_enemies_obj	Убити противників гранатою за бій:
+st_scavengers_kd_ratio_descr	Бути героєм нескладно. Складно залишитися при цьому живим. Що довше ти живеш, то більше від тебе користі команді. Та не варто бути боягузом і ховатися по закутках. Навчися виживати!
+st_scavengers_kd_ratio_name	Виживання
+st_scavengers_kd_ratio_obj	Виграти бій, маючи співвідношення убивств до смертей не менше як
+st_scavengers_kill_enemies_descr	Коли ти опиняєшся віч-на-віч із ворогом, нема часу на сентименти. Переможець із вашого двобою вийде лише один. І краще, якщо це будеш ти!
+st_scavengers_kill_enemies_name	Самооборона
+st_scavengers_kill_enemies_obj	Убити ворогів за бій:
+st_scavengers_level_0	Невідомий
+st_scavengers_level_1	Новачок
+st_scavengers_level_2	Випробуваний
+st_scavengers_level_3	Досвідчений
+st_scavengers_level_4	Бувалий
+st_scavengers_level_5	Ветеран
+st_scavengers_level_unlock_0	Вітаємо! Вам доступні завдання від Бродяг!
+st_scavengers_level_unlock_1	Вітаємо! Ви тепер новачок Бродяг!
+st_scavengers_level_unlock_2	Вітаємо! Ви тепер випробуваний Бродяга!
+st_scavengers_level_unlock_3	Вітаємо! Ви тепер досвідчений Бродяга!
+st_scavengers_level_unlock_4	Вітаємо! Ви тепер бувалий Бродяга!
+st_scavengers_level_unlock_5	Вітаємо! Ви тепер ветеран Бродяг!
+st_scavengers_meele_kill_descr	Якщо без конфлікту не обійтися, спробуй розв’язати його якомога швидше і тихше. Непомітно підкрастися до супротивника і вирубити його значно краще, ніж починати стрілянину і привертати зайву увагу.
+st_scavengers_meele_kill_name	Без зайвого шуму
+st_scavengers_meele_kill_obj	Убити суперників у ближньому бою:
+st_scavengers_represent	Ви маєте бути вдягнені в екіпірування Бродяг.
+st_scavengers_steal_box_descr	Відібрати батарею у ворога - це двічі приємно. І нехай деякі назвуть це крадіжкою, але якщо ворог не захищає своє майно, то значить воно йому не потрiбне.
+st_scavengers_steal_box_name	Дрібна крадіжка
+st_scavengers_steal_box_obj	Вкрадіть батарею з бази противника і принесіть її на свою базу.
+st_scavengers_win_score_descr	Що більше батарей активовано в захисному пристрої, то вищою буде ваша нагорода за перемогу.
+st_scavengers_win_score_name	Упевнена перемога
+st_scavengers_win_score_obj	Виграти бій із рахунком принесених батарей:
+st_scavengers_win_x_games_descr	Ми живемо в жорстокому світі. Переможець отримує все, а переможений вимушений удовольнятися крихтами. Запам'ятай: переможна команда одержує більшу винагороду.
+st_scavengers_win_x_games_name	Смак перемоги
+st_scavengers_win_x_games_obj	Виграти боїв:
+st_scientists_faction	Інститут
+st_search_label	Пошук
+st_search_range	Рівень матчу
+st_second_weapon_action	Зброя 2
+st_seconds_short	с.
+st_seed_settings	Вiдвантаження клiента гри у лоббi
+st_seeding_max_upload_in_kb_option	Максимальна швидкiсть вiдвантаження:
+st_select_send_to_action	Обрати одержувача
+st_sell	Продати
+st_send	Надіслати
+st_send_message	Надіслати повідомлення
+st_send_message_action	Надіслати повідомлення
+st_server_maintenance	До планового обслуговування серверів залишилось
+st_settings	Налаштування
+st_settings_label	Налаштунки
+st_shading_quality_option	Якість шейдерів
+st_shadow_quality_option	Якість тіней
+st_shooting_skills_label	Стрілецька підготовка
+st_shop	Магазин
+st_shop_label	Магазин
+st_shop_scope_1p69_hyperon_description	Чотирикратний оптичний приціл
+st_shop_scope_1p69_hyperon_name	Оптичний приціл Зеніт "Гіперон", x4
+st_shop_scope_acog_ta31_description	Чотирикратний оптичний приціл
+st_shop_scope_acog_ta31_name	Оптичний приціл TA31, x4
+st_shop_scope_aimpoint_compm4_description	Шведський колліматорний приціл з точкою 2 MOA і батареєю, якої вистачає до восьми років безперервної роботи. Прийнятий на озброєння армії США як M68 CCO; кріпиться на планку Пікатінні.
+st_shop_scope_aimpoint_compm4_name	Коліматор CompM4
+st_shop_scope_cobra_ekp_8_description	Російський колліматорний приціл із чотирма змінними червоними прицільними марками. Дозволяє швидко цілитися з обома відкритими очима; кріпиться на бічну планку зброї родини Калашникова.
+st_shop_scope_cobra_ekp_8_name	Коліматор Кобра ЕКП-8
+st_shop_scope_docter_description	Компактний німецький відкритий колліматорний приціл з червоною точкою. Легкий і швидкий у прицілюванні; створений для гладкоствольної зброї, пістолетів і компактної зброї.
+st_shop_scope_docter_name	Коліматор Docter
+st_shop_scope_elcan_specterdr_description	Чотирикратний оптичний приціл
+st_shop_scope_elcan_specterdr_name	Оптичний приціл SpecterDR, x4
+st_shop_scope_eotech_552_description	Американський голографічний приціл: кільце 65 MOA з точкою 1 MOA в центрі, живлення від батарей AA. Швидкий на близькій і середній дистанції; кріпиться на планку Пікатінні.
+st_shop_scope_eotech_552_name	Коліматор EOTech 552
+st_shop_scope_leupold_deltapoint_description	Компактний американський колліматорний приціл з червоною трикутною прицільною маркою. Створений для пістолетів і легкої зброї; настільки малий, що не заважає.
+st_shop_scope_leupold_deltapoint_name	Коліматор Leupold DeltaPoint
+st_shop_scope_leupold_mk4_description	Чотирикратний оптичний приціл
+st_shop_scope_leupold_mk4_name	Оптичний приціл Leupold MK4, x4
+st_shop_scope_pso_1_description	Чотирикратний оптичний приціл
+st_shop_scope_pso_1_name	Оптичний приціл ПСО-1, x4
+st_shop_scope_pso_1_old_description	Чотирикратний оптичний приціл
+st_shop_scope_pso_1_old_name	Оптичний приціл ПСО-1 О, x4
+st_shop_scope_pu_3_5x_description	Оптичний приціл х3.5
+st_shop_scope_pu_3_5x_name	Оптичний приціл ПУ, x3.5
+st_shop_showcase	Головна
+st_short_clan_string	Занадто коротке ім'я
+st_show_ammo	Показати амуніцію
+st_show_character_action	Вікно персонажа
+st_show_enemy_killed_marker	Показувати iндикатор вбивства
+st_show_friends_action	Друзі
+st_show_inventory_action	Сховище
+st_show_options_action	Опції
+st_show_player_info_button_hint	Показати інформацію про гравця
+st_show_player_info_hint	Клацніть двічі для показу інформації
+st_show_quest_list	Показати вікно завдань
+st_show_quests_progress_option	Показувати прогрес завдань під час бою
+st_show_shop_action	Крамниця
+st_show_squad_list	Показати вікно загону
+st_skills_already_rerolled	Уміння вже скинуто
+st_sks_description	Самозарядний карабін Симонова під патрон 7.62×39мм. Надійшов на озброєння радянської армії в 1949 році, але був витіснений автоматичною зброєю. Обладнаний незнімним магазином на 10 набоїв.
+st_sks_name	СКС
+st_sks_premium_2_description	Самозарядний карабін Симонова під патрон 7.62×39мм. Надійшов на озброєння радянської армії в 1949 році, але був витіснений автоматичною зброєю. Обладнаний незнімним магазином на 10 набоїв. Преміум-версія в особливому камуфляжі.
+st_sks_premium_2_name	СКС "Стріла"
+st_sks_premium_description	Самозарядний карабін Симонова під патрон 7.62×39мм. Надійшов на озброєння радянської армії в 1949 році, але був витіснений автоматичною зброєю. Обладнаний незнімним магазином на 10 набоїв. Преміум-версія в особливому камуфляжі.
+st_sks_premium_name	СКС-МФ
+st_slide1_button_accept_label	Далі
+st_slide1_text	Вітаємо, уцілілий. Вам поталанило пережити кінець світу. Після тижнів блукань ви нарешті зуміли дістатися місць, які Ліс іще не встиг захопити.
+st_slide1_text_enter_name	Яке ім’я ви виберете собі в цьому новому світі?
+st_slide1_tutorial_reward	Після закінчення навчання ви отримаєте винагороду:
+st_slot_control_label	Вибір кількості
+st_slots	Слоти
+st_sniper_skills_descr	Покращує навички поводження зі зброєю. Підвищує точність стрільби і швидкість прицілювання.
+st_sniper_skills_name	Стрілецька підготовка
+st_snp_fast_draw_desc	Ваші навички дозволяють вам змінювати зброю швидше.
+st_snp_fast_draw_name	Швидка зміна зброї
+st_snp_fast_reload_desc	Ви навчилися швидко перезаряджати зброю.
+st_snp_fast_reload_name	Швидке перезарядження
+st_snp_fast_shot_desc	Підвищує швидкість пересмикування затвору в напівавтоматичній зброї.
+st_snp_fast_shot_name	Швидке зведення
+st_snp_iron_breath_desc	Дозволяє довше затамовувати подих під час прицілювання.
+st_snp_iron_breath_name	Залізні легені
+st_snp_sniper_desc	Істотно підвищує точність пострілу з використанням снайперських, тактичних і коліматорних прицілів.
+st_snp_sniper_name	Снайпер
+st_snp_steady_breath_desc	Ви швидше відновлюєтеся після затамування подиху.
+st_snp_steady_breath_name	Рівний видих
+st_snp_steady_grip_desc	Підвищує точність стрільби під час руху.
+st_snp_steady_grip_name	Міцна хватка
+st_soc_vepr_description	Російський самозарядний карабін сімейства «Вепр» під боєприпас 7.62х39. Виготовляється заводом «Молот» у Вятських Полянах на посиленій ствольній коробці кулемета РПК як мисливська і спортивна зброя. Обладнаний магазином на 10 набоїв. Лише одиничний вогонь.
+st_soc_vepr_name	СОК-94
+st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_socom16_name	SOCOM 16
+st_sort	Сортувати
+st_sort_cost	За вартістю
+st_sort_label	Фільтр
+st_sort_level	За рівнем
+st_sort_reset	Скинути
+st_space_symbol_clan_string	Неприпустиме розташування роздільників
+st_spam_filter_block_notification	Спам-фільтр заблокував ваше повідомлення. Зачекайте
+st_spam_filter_block_notification_fin	сек.
+st_spas12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_spas12_name	Franchi SPAS-12
+st_special_offer	Спеціальна пропозиція
+st_speed_booster_description	Енергетичний напій з високим вмістом кофеїну і таурину. Стимулює центральну нервову систему і надає заряд бадьорості.
+st_speed_booster_name	Енергетик "Торнадо"
+st_spot_action	Позначення ворога
+st_spring_activation_hint	Пружину активовано! Швидкість руху і прицілювання +10%! Прискорено регенерацію енергії! Кулі не сповільнюють!
+st_spring_pickup_hint	Артефакт Пружина. Підвищує швидкість пересування і прицілювання на 5%.
+st_sprint_action	Ривок (утрим.)
+st_sprint_toggle_action	Ривок
+st_squad	Загін
+st_squad_list_locked_hint	Неможливо створити загін, перебуваючи в клановій команді
+st_squad_not_ready	Загін не готовий
+st_sr2m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sr2m_name	СР-2М "Верес"
+st_sr3m_bundle_descr	<white>Містить наступні предмети:\n- Покращений СР-3М "Вихор".\n- 2000 патронів 9x39 СП-6.</white>
+st_sr3m_bundle_name	Набір СР-3М "Вихор"
+st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sr3m_name	СР-3М "Вихор"
+st_srp_attachments	Обвіс
+st_srp_exchange_balance	Баланс
+st_srp_exchange_button	Обміняти
+st_srp_exchange_gold	Золото
+st_srp_exchange_pay	Віддаєте
+st_srp_exchange_receive	Отримуєте
+st_srp_exchange_short_gold	Недостатньо золота
+st_srp_exchange_short_silver	Недостатньо срібла
+st_srp_exchange_title	Обмін
+st_srp_inventory_search	Пошук
+st_srp_language_option	Мова:
+st_srp_language_restart	Застосується після перезапуску.
+st_srp_loadout_block_ammo	Замало набоїв до зброї
+st_srp_loadout_block_locked	Цей профіль закритий
+st_srp_loadout_block_maintenance	Скоро технічні роботи: за %1$s хв
+st_srp_loadout_block_pocket_twice	Один тип предмета у двох кишенях
+st_srp_loadout_block_shared_slot	Два предмети в одному слоті
+st_srp_loadout_block_weapon	Немає зброї
+st_srp_loadout_empty	порожній
+st_srp_loadout_refused	Не вдалося обрати комплект.
+st_srp_loadout_sell_and	 і 
+st_srp_loadout_sell_item	%1$s
+st_srp_loadout_sell_many	Використовується в комплектах %1$s. Продати?
+st_srp_loadout_sell_one	Використовується в комплекті %1$s. Продати?
+st_srp_loadout_title	Комплект
+st_srp_loadout_unfit	не для бою
+st_srp_login_account_hint	Акаунт створюється під час першого входу
+st_srp_map_chemical_plant	Хімзавод
+st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
+st_srp_map_cologne	Кельн
+st_srp_map_london	Лондон
+st_srp_map_mamayev_kurgan	Мамаїв курган
+st_srp_map_mamayev_kurgan_v021	Мамаїв курган (v0.21)
+st_srp_map_rudnya	Рудня
+st_srp_map_school	Школа
+st_srp_map_tarakanovsky_fort	Тараканівський форт
+st_srp_map_vector	Лабораторія "Вектор"
+st_srp_map_vostok	РЛС "Восток"
+st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
+st_srp_map_vostok_v021	РЛС "Восток" (v0.21)
+st_srp_matches_another_joining	Інший гравець уже приєднується
+st_srp_matches_balanced	Матч уже збалансований
+st_srp_matches_cannot_join	Зараз приєднатися не можна
+st_srp_matches_closed	Цей матч уже закритий
+st_srp_matches_ends_soon	Матч скоро завершиться
+st_srp_matches_full	У матчі немає вільних місць
+st_srp_matches_in_match	Ви вже в матчі
+st_srp_matches_in_squad	Спершу залиште загін
+st_srp_matches_joining	приєднання…
+st_srp_matches_maintenance	Завершиться після початку обслуговування
+st_srp_matches_mode_protective_device	Захисний пристрій
+st_srp_matches_no_answer	Немає відповіді, спробуйте ще
+st_srp_matches_no_late_join	Матч не приймає нових гравців
+st_srp_matches_no_place	У матчі немає вільних місць
+st_srp_matches_none	Зараз матчів немає
+st_srp_matches_not_in_play	Матч ще не почався
+st_srp_matches_outdated	Оновіть гру
+st_srp_matches_played_before	Ви вже грали в цьому матчі
+st_srp_matches_queued	Спершу скасуйте пошук
+st_srp_matches_starting	старт
+st_srp_matches_title	Матчі
+st_srp_matches_waiting	очікування
+st_srp_mode_blackout	Захисний пристрій: блекаут
+st_srp_mode_chargers	Захисний пристрій: зарядники
+st_srp_mode_protective_device	Захисний пристрій
+st_srp_mode_research	Дослідження
+st_srp_mode_team_deathmatch	Командний бій
+st_srp_optics	Оптика
+st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
+st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину
+st_srp_pvb_busy	%1$s (зайнято)
+st_srp_pvb_checking	Перевірка…
+st_srp_pvb_clan_match	Спершу вимкніть "Клановий бій"
+st_srp_pvb_demo_start	Демо: сервер зараз почав би матч: %1$s
+st_srp_pvb_gear_max	Рівень спорядження має бути %1$s або нижче
+st_srp_pvb_gear_max_yours	Рівень спорядження має бути %1$s або нижче (у вас: %2$s)
+st_srp_pvb_generic	Матч з ботами зараз почати не можна
+st_srp_pvb_hint	Бій проти ботів, у вашій команді теж боти
+st_srp_pvb_in_match	Ви вже в матчі
+st_srp_pvb_in_squad	Спершу залиште загін
+st_srp_pvb_maintenance	Скоро технічне обслуговування, нові матчі з ботами не почнуться
+st_srp_pvb_no_answer	Сервер не відповідає
+st_srp_pvb_off	Матчі з ботами зараз вимкнені
+st_srp_pvb_outdated	Оновіть гру
+st_srp_pvb_retry	Немає відповіді, спробуйте ще
+st_srp_pvb_searching	Спершу скасуйте пошук
+st_srp_pvb_team_size	%1$s на %2$s
+st_srp_pvb_title	Гравець проти ботів
+st_srp_pvb_unknown_choice	Ця карта чи розмір команд зараз недоступні
+st_srp_replay_asking	Запитуємо в сервера матчу повтор цього матчу…
+st_srp_replay_being_made	Повтор створюється із запису матчу. Так буває, коли цей матч дивляться вперше, і це займає трохи часу.\nЦе вікно можна закрити: сервер продовжить його створювати.\n\n%1$s
+st_srp_replay_busy	Сервер зараз зайнятий іншими повторами. Спробуйте ще раз за хвилину.
+st_srp_replay_close	ЗАКРИТИ
+st_srp_replay_demo_quest	Внесок у перемогу
+st_srp_replay_demo_rank	«%1$s»: досягнуто ранг 3. У крамниці з'явилися нові предмети.
+st_srp_replay_demo_seller	Бродяги
+st_srp_replay_download	ЗАВАНТАЖИТИ Й ДИВИТИСЯ
+st_srp_replay_failed	Серверу не вдалося підготувати повтор цього матчу.
+st_srp_replay_gone	Повтор цього матчу більше не зберігається на сервері.
+st_srp_replay_incompatible	Цей повтор записала версія гри, яку ваша гра не може відтворити.
+st_srp_replay_made_now	Створюється зараз. Очікування: %1$s с.
+st_srp_replay_no_answer	Сервер не відповів. Спробуйте пізніше.
+st_srp_replay_not_recorded	Цей матч не записано: у ньому було менше 6 гравців або запис тоді був вимкнений.
+st_srp_replay_not_yours	Дивитися можна лише повтори матчів, у яких ви грали.
+st_srp_replay_off	Повтори на цьому сервері вимкнено.
+st_srp_replay_old_game	Ваша версія гри не відтворює повтори. Оновіть гру: запустіть її знову через лаунчер.
+st_srp_replay_place_in_line	Місце в черзі: %1$s. Очікування: %2$s с.
+st_srp_replay_ready	Повтор цього матчу готовий.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість.
+st_srp_replay_ready_size	Повтор цього матчу: %1$s.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість.
+st_srp_replay_size	%1$s,%2$s МБ
+st_srp_replay_starting	Запускаємо повтор: відкриється друге вікно гри, лобі залишиться відкритим. Якщо щось піде не так, програма оновлення покаже, що сталося.\n\nУ повторі натисніть F11 для керування.
+st_srp_replay_still_preparing	Повтор ще готується. Сервер продовжує його створювати; відкрийте «Дивитися повтор» ще раз за хвилину.
+st_srp_replay_title	Дивитися повтор
+st_srp_replay_waiting	Очікування: %1$s с.
+st_srp_reroll_description	Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.
+st_srp_rooms_all	Усі
+st_srp_rooms_all_rooms	Усі кімнати
+st_srp_rooms_any	Будь-який
+st_srp_rooms_back	Назад
+st_srp_rooms_code_10	Власник прибрав вас із кімнати.
+st_srp_rooms_code_11	Спершу вийдіть із кланової команди.
+st_srp_rooms_code_12	Ваше спорядження вище макс. рівня.
+st_srp_rooms_code_13	Ваш комплект не міг грати (немає зброї або мало набоїв): вас вивели з кімнати.
+st_srp_rooms_code_14	Не вдалося обрати комплект.
+st_srp_rooms_code_16	Натисніть «Грати», щоб увійти у відкриту кімнату.
+st_srp_rooms_code_2	Цієї кімнати вже немає.
+st_srp_rooms_code_3	Невірний PIN.
+st_srp_rooms_code_4	Кімната заповнена.
+st_srp_rooms_code_5	Ви в матчі.
+st_srp_rooms_code_6	Забагато кімнат.
+st_srp_rooms_code_7	Оновіть гру.
+st_srp_rooms_code_8	Виберіть хоча б одну карту.
+st_srp_rooms_code_9	Скоро технічні роботи.
+st_srp_rooms_code_label	код
+st_srp_rooms_countdown	Старт
+st_srp_rooms_create	Створити
+st_srp_rooms_enter_anyway	Увійти так
+st_srp_rooms_exit	Вийти
+st_srp_rooms_experimental	експ.
+st_srp_rooms_in_match	Грають
+st_srp_rooms_in_queue	У черзі
+st_srp_rooms_join	Увійти
+st_srp_rooms_join_in	У матч за %1$s с, або зараз: «Увійти в матч»
+st_srp_rooms_join_match	Увійти в матч
+st_srp_rooms_join_room	Увійти в кімнату
+st_srp_rooms_join_why_1	Інший гравець заходить у матч; ви — після нього.
+st_srp_rooms_join_why_2	Гра одного з гравців завантажується; вхід відкриється за мить.
+st_srp_rooms_join_why_3	Лишилося менше 30 с: ви зіграєте наступний матч.
+st_srp_rooms_join_why_4	Матч заповнений.
+st_srp_rooms_join_why_5	Скоро технічні роботи: нові входи закрито.
+st_srp_rooms_join_why_6	Матч завершується: ви зіграєте наступний.
+st_srp_rooms_join_why_7	Цей матч досяг ліміту гравців. Ви приєднаєтеся до наступного матчу.
+st_srp_rooms_joined_room	%1$s приєднався до кімнати
+st_srp_rooms_late_hint	Хто зайде зараз, побачить кімнату, потім потрапить у матч.
+st_srp_rooms_leave	Вийти
+st_srp_rooms_leave_queue	Вийти з черги
+st_srp_rooms_leave_room	Вийти з кімнати
+st_srp_rooms_left_room	%1$s вийшов з кімнати
+st_srp_rooms_level	Рівень
+st_srp_rooms_map	Карта
+st_srp_rooms_max	Макс. рівень
+st_srp_rooms_modes	Режими
+st_srp_rooms_my_room	Моя кімната
+st_srp_rooms_name	Назва
+st_srp_rooms_new	Приватна кімната
+st_srp_rooms_next_map	Далі
+st_srp_rooms_none	Кімнат ще немає. Створіть або натисніть «Грати».
+st_srp_rooms_none_no_play	Кімнат ще немає. Створіть.
+st_srp_rooms_none_quiet	Кімнат ще немає.
+st_srp_rooms_nothing	Жодної
+st_srp_rooms_offer_fits	Ваше спорядження %2$s вище макс. рівня кімнати %1$s. Комплект %3$s: рівень %4$s.
+st_srp_rooms_offer_higher	Макс. рівень кімнати %1$s, ваше спорядження %2$s. Комплект %3$s: рівень %4$s.
+st_srp_rooms_offer_unfit	Ваш комплект не для бою. Комплект %1$s: рівень %2$s.
+st_srp_rooms_open	вільно
+st_srp_rooms_open_slots	вільно: %1$s
+st_srp_rooms_owner_tag	власник
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN — це 4 цифри.
+st_srp_rooms_pin_hint	Потрібні 4 цифри
+st_srp_rooms_players	Гравці
+st_srp_rooms_playing	Триває матч
+st_srp_rooms_pool	Пул
+st_srp_rooms_pool_hint	Голосування бере 3 картки з них.
+st_srp_rooms_private_room	Приватна кімната: до 20 гравців; команди й старт за вами.
+st_srp_rooms_queue	Черга
+st_srp_rooms_queue_room	Черга в кімнату
+st_srp_rooms_room	Кімната
+st_srp_rooms_room_chat	Чат кімнати
+st_srp_rooms_servers	Кімнати
+st_srp_rooms_start_hint	Натисніть «Почати», коли всі зайдуть.
+st_srp_rooms_start_match	Почати
+st_srp_rooms_starts	Матч почнеться через
+st_srp_rooms_state	Стан
+st_srp_rooms_switch_enter	Змінити й увійти
+st_srp_rooms_switch_to	Змінити кімнату
+st_srp_rooms_switch_who	Кімната %1$s · гравців: %2$s
+st_srp_rooms_switch_why	Чесніший бій: спорядження суперників до рівня %1$s
+st_srp_rooms_team_1	Команда 1
+st_srp_rooms_team_2	Команда 2
+st_srp_rooms_teams	Команди формуються на початку матчу.
+st_srp_rooms_teams_later	Команди можна змінити після матчу.
+st_srp_rooms_teams_member	Команди розставляє творець.
+st_srp_rooms_teams_owner	Переміщуйте гравців між командами кнопками « і ».
+st_srp_rooms_unfit_gear	Ваше спорядження вище макс. рівня: знизьте, інакше на старті ви вийдете з кімнати.
+st_srp_rooms_unfit_kit	Ваш комплект не може грати (немає зброї або мало набоїв): виправте, інакше на старті ви вийдете з кімнати.
+st_srp_rooms_vote	Голосуйте за наступну карту
+st_srp_rooms_vote_hint	3 картки з пулу. Перемагає більшість голосів; нічия — випадково. Клацніть, щоб змінити голос.
+st_srp_rooms_vote_now	Голосуйте за наступну карту: клацніть картку. Коли час вийде, матч почнеться на переможниці.
+st_srp_rooms_voting	Голосування
+st_srp_rooms_waiting	Чекаємо гравців
+st_srp_rooms_waiting_owner	Чекаємо, поки творець почне.
+st_srp_rooms_waiting_short	Очікування
+st_srp_scope_screen_hint	Перетягніть приціл з вашого інвентарю у слот модифікації зброї
+st_srp_unit_meters	%1$sм
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$sс
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Базове збільшення
+st_srp_weapon_chamber	Досилання набою
+st_srp_weapon_draw_time	Час діставання
+st_srp_weapon_full_damage	Повна шкода до
+st_srp_weapon_hip_spread	Розкид від стегна
+st_srp_weapon_holster_time	Час прибирання
+st_srp_weapon_kick_side	Віддача вбік
+st_srp_weapon_kick_side_variability	Коливання віддачі вбік
+st_srp_weapon_kick_up	Віддача вгору
+st_srp_weapon_kick_up_variability	Коливання віддачі вгору
+st_srp_weapon_minimum_damage	Мінімальна шкода
+st_srp_weapon_minimum_damage_from	Мінімальна шкода від
+st_srp_weapon_recoil_heading	Віддача, розкид, гойдання
+st_srp_weapon_reload	Перезарядка
+st_srp_weapon_shift_hint	Утримуйте Shift: подробиці
+st_srp_weapon_spread_growth	Темп зростання розкиду
+st_srp_weapon_spread_max	Межа зростання розкиду
+st_srp_weapon_spread_per_shot	Розкид від пострілу
+st_srp_weapon_spread_recovery	Швидкість зведення
+st_srp_weapon_stamina_damage	Шкода енергії
+st_srp_weapon_stats	Характеристики зброї
+st_srp_weapon_sway_cycle	Період розгойдування
+st_srp_weapon_sway_horizontal	Розгойдування в сторони
+st_srp_weapon_sway_vertical	Розгойдування вгору-вниз
+st_srp_weather_before_rain	перед дощем
+st_srp_weather_day	день
+st_srp_weather_evening	вечір
+st_srp_weather_night	ніч
+st_srp_weather_rain	дощ
+st_srp_weight_no_sprint_heavyweight	Спринт недоступний: навичка «Важковаговик».
+st_srp_weight_no_sprint_limit	Спринт недоступний: перевантаження.
+st_srp_weight_speed	Швидкість пересування: %1$s
+st_srp_weight_sprint_stamina	Витрати енергії на спринт: %1$s
+st_srp_weight_title	Вплив ваги
+st_stamina_boost_name	Друге дихання
+st_stamina_boost_time_description	Відновлення енергії при вбивстві супротивника:
+st_stamina_loss_on_hit_description	Втрата енергії при пораненні:
+st_stamina_loss_on_hit_name	Нестримний
+st_stamina_regen_correction_perc_name	Відновлення енергії
+st_stamina_regeneration_speed_description	Швидкість відновлення енергії:
+st_stamina_regeneration_speed_name	Дихання
+st_stamina_spending_speed_description	Використання енергії:
+st_stamina_spending_speed_name	Витривалість
+st_start_chat_action	Чат
+st_start_match_welcome_message	Знайдіть батареї і доставте їх на базу!
+st_start_match_welcome_message_2	Знайдіть і захистіть місця зарядки батарей!
+st_start_match_welcome_message_3	Знищіть якомога більше супротивників!
+st_start_match_welcome_message_5	Знайдіть і захопіть дослідницькі установки!
+st_statistic_sync_text	Отримання статистики матчу
+st_statistics_daily_bonus	Щоденний бонус
+st_statistics_equipment_bonus	Бонус екіпіровки
+st_statistics_exp	Досвіду отримано:
+st_statistics_money	Грошей одержано:
+st_statistics_rating_delta	Зміна рейтингу
+st_statistics_score	Очків зароблено:
+st_statistics_score_game_events	За дії в бою
+st_statistics_score_help	Допомога союзнику
+st_statistics_score_kills	Знищено супротивників
+st_statistics_score_match	За результат матчу
+st_statistics_score_premium	Преміум-акаунт
+st_statistics_score_quests	За виконані завдання
+st_stats_accuracy	Точність:
+st_stats_artefacts_gathered	Артефактів зібрано:
+st_stats_assists	Допомога союзнику:
+st_stats_deaths	Смертей:
+st_stats_headshots	Влучень у голову:
+st_stats_healed	Вилікувано:
+st_stats_items_defended	Захищено батарей:
+st_stats_items_gathered	Знайдено батарей:
+st_stats_kills	Вбивств:
+st_stats_max_killstreak	Серія вбивств:
+st_stats_melee_kills	Ближній бій:
+st_stats_saved	Врятовано:
+st_stats_silent_kills	Непомітних убивств:
+st_stats_stolen_victory_items	Викрадено батарей:
+st_status_str	Статус:
+st_storage	Сховище
+st_string_pattern_error	Ім'я містить некоректні символи або довжину
+st_support	Підтримка
+st_survival_notes	Записки Вцілілого
+st_survival_notes_complete	Ви закінчили
+st_survival_skills_label	Навички виживання
+st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sv_98_name	СВ-98
+st_svd_description	Самозарядна снайперська гвинтівка Драгунова під патрон 7.62х54. Довгі роки залишалася основною снайперською зброєю армії СРСР. Обладнана магазином на 5 набоїв.
+st_svd_name	СВД
+st_swear_clan_string	Рядок містить нецензурну лексику
+st_swearing_claim	Нецензурна лексика
+st_team_already_has_commander	У кланової команди вже є командир.
+st_team_member_is_not_commander	Член команди не є командиром.
+st_texture_quality_option	Якість текстур
+st_there_is_no_item_in_inventory	Предмет не знайдено у сховищі
+st_thief_item	Забрати контейнер
+st_throw_grenade_action	Кидок гранати
+st_time_current	Добір гравців:
+st_time_was_resynchronized	Відновлення зв’язку...
+st_to_all	Усім
+st_top100	Кращі 100
+st_total	Усього
+st_tournaments	Турніри
+st_toz122_description	Багатозарядний нарізний карабін під набій 7.62х51. Створений спеціально для любительського й професйного полювання. Обладнаний магазином на 5 набоїв
+st_toz122_name	ТОЗ-122
+st_toz34_description	Мисливська рушниця з вертикальним розташуванням стволів під боєприпас 12х70. Одна з перших, запущених у серійне виробництво. Вирізняється невеликою вагою і високою кучністю стрільби.
+st_toz34_name	ТОЗ-34
+st_toz66_description	Обріз мисливської двостволки під боєприпас 12х70. Завдяки можливості практично одночасного виконання двох пострілів особливо ефективний на коротких дистанціях.
+st_toz66_name	ТОЗ-66
+st_trap_damage	Ушкодження від пастки
+st_treasure_map_advert	Використовуйте мапу схрону після бою, щоб знайти більше предметів.
+st_tt_description	Тульський Токарева зразка 1933 року під боєприпас 7.62х25 мм. Розроблений у 30-х роках двадцятого століття. Перший самозарядний пістолет на озброєнні армії СРСР. Магазин уміщує 8 набоїв.
+st_tt_name	TT-33
+st_turn_down_action	
+st_turn_left_action	
+st_turn_right_action	
+st_turn_up_action	
+st_tutorial_apply_ammo_message_1	Підтвердіть ваші дії натиснувши кнопку <tutorial_highlight>«Підтвердити»</tutorial_highlight> або <tutorial_highlight>«Приховати амуніцію»</tutorial_highlight>.
+st_tutorial_choose_ammo_message_1	Кількість патронів указується в коробках. Врахуйте, що кількість патронів у коробці різна для кожного типу набоїв.
+st_tutorial_choose_ammo_message_2	Візьміть максимально можливу кількість патронів.
+st_tutorial_choose_faction_message_1	Одночасно ви можете співпрацювати тільки з одним угрупованням. Покращити репутацію можна двома шляхами — виконуючи завдання  угруповання або здійснюючи успішні дії в бою.
+st_tutorial_choose_faction_message_2	Приєднатися до одного з угруповань.
+st_tutorial_choose_wpn_message_1	Одночасно ви можете взяти тільки дві зброї. Ретельно вибирайте, з чим ви вступите в бій.
+st_tutorial_choose_wpn_message_2	Перетягніть карабін Мосіна або\nППШ-41 у пустий слот для зброї.
+st_tutorial_click_ammo_message_1	Пам’ятайте, що ви можете нести обмежену кількість патронів. <tutorial_highlight>Натисніть кнопку «Показати амуніцію»,</tutorial_highlight> щоб вручну вибрати, скільки і яких патронів брати в бій.
+st_tutorial_click_inventory_message_1	На жаль, Ліс — не єдина небезпека в новому світі. Держави пали, і тепер кожен сам за себе. Вам доведеться боротися за все: за їжу, за медикаменти, за право вижити. Зброя, знайдена в старій криївці — можливо, не найкращий вибір, але точно краще, ніж нічого.
+st_tutorial_click_inventory_message_2	Відкрийте вкладку «Екіпіровка» щоб спорядити свого персонажа.
+st_tutorial_complete_label	Вітаємо!\nВи закінчили навчання.
+st_tutorial_complete_reward_label	Ваша винагорода за проходження:
+st_tutorial_equip_drop_message_1	У вас є декілька способів отримання нової зброї та спорядження. Після кожного бою ви маєте шанс знайти предмет на полі битви. Також ви можете покращувати стосунки з угруповуваннями для того, щоб отримати доступ до їхніх унікальних товарів.
+st_tutorial_equip_drop_message_2	Відкрийте вікно вибору угруповання.
+st_tutorial_exit_warning	Ви не зможете повернутися пізніше та отримати винагороду, якщо припините навчання зараз. Ви впевнені?
+st_tutorial_press_play_message_1	Натисніть кнопку <tutorial_highlight>«Грати»</tutorial_highlight>, щоб розпочати свій перший бій. Рекомендуємо ознайомитися із <tutorial_highlight>«Записками Вцілілого»</tutorial_highlight> для того, щоб отримати додаткову інформацію. Ви можете переглянути їх і після бою.
+st_two_handed	Основна
+st_ump45_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ump45_name	H&K UMP45
+st_unknown_faction	Нейтрал
+st_unlimited_upload	без обмежень
+st_use_action	Використати
+st_use_artefact_container	Дістати артефакт ({USE})
+st_use_fix_voucher	Ремнабір
+st_use_item_message	Ви дійсно хочете використати предмет?
+st_use_ladder	Драбина
+st_use_microphone_option	Використовувати мікрофон
+st_use_resupply_zone	Поповнити амуніцію ({USE})
+st_use_two_double_handed_weapons_description	Ваша додаткова зброя також може бути дворучною.
+st_use_two_double_handed_weapons_name	Термінатор
+st_using_progress_message	Прогрес:
+st_uzi_description	Пістолет-кулемет під боєприпас 9х19. Розроблений у 1954 році для потреб ізраїльської армії. Один із наймасовіших видів зброї у світі. Підтримує одиничний і автоматичний режими стрільби.
+st_uzi_name	Узі
+st_uzi_premium_2_description	Пістолет-кулемет під боєприпас 9х19. Розроблений у 1954 році для потреб ізраїльської армії. Один із наймасовіших видів зброї у світі. Підтримує одиничний і автоматичний режими стрільби. Преміум-версія в особливому камуфляжі.
+st_uzi_premium_2_name	УЗІ "Тінь"
+st_val_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_val_name	АС "Вал"
+st_valmet_description	Фінська штурмова гвинтівка під боєприпас 7.62х39. Створена фірмами Valmet і Sako на основі АК, прийнята армією Фінляндії в 1962 році (звідси назва). Точна й надійна в арктичних умовах. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний.
+st_valmet_name	Valmet Rk.62
+st_vepr_12_description	Російська самозарядна рушниця 12 калібру. Виготовляється заводом «Молот» на посиленій коробці кулемета РПК; створена в 2000-х для спорту, полювання й охорони. Магазин на 8 набоїв. Лише одиничний вогонь.
+st_vepr_12_name	Вепр-12
+st_vepr_12_premium_description	Російська самозарядна рушниця 12 калібру. Виготовляється заводом «Молот» на посиленій коробці кулемета РПК; створена в 2000-х для спорту, полювання й охорони. Магазин на 8 набоїв. Лише одиничний вогонь. Преміум-версія в особливому камуфляжі.
+st_vepr_12_premium_name	Вепр-12 "Молот"
+st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vepr_name	Вепр
+st_vepr_premium_description	Російський карабін сімейства «Вепр» під боєприпас 5.45х39. Виготовляється заводом «Молот» на посиленій коробці кулемета РПК-74. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний. Преміум-версія в особливому камуфляжі.
+st_vepr_premium_name	Вепр "Блукач"
+st_victory	Перемога
+st_victory_screen_no_dropped_item	Ви нічого не знайшли на полі бою.
+st_vityaz_bundle_descr	<white>Містить наступні предмети:\n- Покращений ПП-19-01 "Витязь".\n- 2000 патронів 9х19 Парабелум.</white>
+st_vityaz_bundle_name	Набір ПП-19-01 "Витязь"
+st_vityaz_description	Пістолет-кулемет під боєприпас 9х19. Розроблений у 2004 році спеціально для вимог загонів спецпризначення Росії. Підтримує одиничний і автоматичний режими стрільби.
+st_vityaz_name	ПП-19-01 "Витязь"
+st_voice_chat_volume_option	Голосовий чат
+st_vsk94_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vsk94_name	ТСК-94
+st_vsk94_premium_description	Російська снайперська гвинтівка під боєприпас 9х39. Створена тульським КБП у 90-х на основі 9А-91, з глушником і снайперським прикладом для тихої стрільби. Магазин на 20 набоїв. Вогонь: одиничний і автоматичний. Преміум-версія в особливому камуфляжі.
+st_vsk94_premium_name	ВСК-94 "Хранитель"
+st_vss_bundle_descr	<white>Містить наступні предмети:\n- Покращений ВСС "Гвинторіз".\n- 1000 патронів 9x39 СП-5.</white>
+st_vss_bundle_name	Набір ВСС "Гвинторіз"
+st_vss_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vss_name	ВСС "Гвинторіз"
+st_vssk_camo_description	Російська магазинна снайперська гвинтівка під боєприпас 12.7х55. Створена тульським ЦКИБ СОО в 2000-х з великим глушником: тихий постріл по цілі за укриттям або в бронежилеті. Магазин на 5 набоїв. Лише одиничний вогонь. Версія в особливому камуфляжі.
+st_vssk_camo_name	СВ-1367 "Захід"
+st_vssk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vssk_name	ВССК Вихлоп
+st_vsync_option	Вертикальна синхронізація
+st_vz58_description	Чехословацький автомат під боєприпас 7.62х39. Створений Їржі Чермаком, на озброєнні з 1958 року; схожий на АК, але з коротким ходом поршня і власним запиранням. Версія P має дерев'яний приклад. Магазин на 30 набоїв. Вогонь: одиничний і автоматичний.
+st_vz58_name	vz. 58 P
+st_waiting_for_players	Очікування інших гравців
+st_walther_competition2_collimator_desc	Німецький коліматорний приціл із червоною точкою виробництва Walther, спочатку створений для спортивної стрільби. Його трубчастий корпус вміщує світну прицільну точку.
+st_walther_competition2_collimator_name	Коліматор Competition II
+st_wasted	Витрати
+st_weapon_aim_action	Прицілювання (утрим.)
+st_weapon_could_not_be_used	Поранення рук! Неможливо використовувати зброю
+st_weapon_fire_action	Вогонь
+st_weapon_reload_action	Перезарядка
+st_wear	Одягти
+st_weight_booster_description	Потеїн, що містить необхідні речовини для росту м'язів і збільшення сили. Однак без фізичного навантаження вживати безглуздо.
+st_weight_booster_name	Протеїн "Аномальна сила"
+st_winchester1894_description	Розроблена американським конструктором в далекому 1894 році, ця гвинтівка випускалася до 2006, що зробило її однією з найпопулярніших і найвідоміших мисливських гвинтівок. Обладнана трубчастим магазином на 6 набоїв.
+st_winchester1894_name	Winchester 1894
+st_wrong_skill_points_count	Неправильна кількість умінь
+st_wrong_symbol_clan_string	Рядок містить недрукований символ
+st_you_have_no_voucher_for_premium	У вас немає квитка активації преміум-акаунта.
+st_you_have_no_voucher_for_rename	У вас немає бланка для зміни імені.
+st_you_have_no_voucher_for_repair	У вас немає ремнабору.
+st_youtube_video_tutorial_button	Ознайомтеся з навчальним відео!

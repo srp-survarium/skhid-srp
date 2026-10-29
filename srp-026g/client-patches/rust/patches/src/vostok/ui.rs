@@ -1,11 +1,10 @@
 //! The match's interface: survarium::game_world_ui (the hud) and the
 //! Scaleform movies it holds, the hud's and the player icons', at the site
 //! `player_icons.update_start` (update_player_icons' start, 0x23AA10: the ui
-//! its argument, by the site's ESP).
+//! its argument).
 
-use core::ffi::{CStr, c_void};
+use core::ffi::CStr;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
@@ -19,13 +18,14 @@ pub struct DetachedTextInput<'c, 'm> {
 
 impl<'c, 'm> DetachedTextInput<'c, 'm> {
     pub fn at_char_event(ctx: &'c mut Context<'m>) -> Option<Self> {
-        // EDI is the live AvmTextField interface.
-        let avm = ctx.reg(Reg::Edi) as usize as *mut c_void;
-        // SAFETY: this site's native code reads these exact two fields next.
-        // The collectible low bit is the GC mark, not part of its pointer.
+        // SAFETY: the context is text_input.char_target's: the live
+        // AvmTextField interface, on the game's thread, whose two AS3 pointers
+        // this site's native code reads next. The collectible low bit is the
+        // GC mark, not part of its pointer.
         let target = unsafe {
-            let raw = *raw::avm_text_field::as3_raw(avm);
-            if raw != 0 { raw } else { *raw::avm_text_field::as3_collectible(avm) }
+            let field = raw::site::text_input_char_target::field(&*ctx)?;
+            let raw = *field.as3_raw();
+            if raw != 0 { raw } else { *field.as3_collectible() }
         } & !1;
         if target != 0 { return None; }
         Some(Self { ctx })
@@ -46,14 +46,13 @@ pub struct NameVisibility<'c, 'm> {
 
 impl<'c, 'm> NameVisibility<'c, 'm> {
     pub fn for_teammate(ctx: &'c mut Context<'m>) -> Option<Self> {
-        let player = NonNull::new(ctx.reg(Reg::Esi) as usize as *mut c_void)?;
-        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
-        // SAFETY: at this site ESI is render_name's live player, and ESP+14h
-        // holds its local-team snapshot. The profile is the same one the
+        use raw::site::player_names_visibility as site;
+        // SAFETY: the context is this site's: render_name's live player and
+        // its frame, on the game's thread. The profile is the same one the
         // original code reads at 0x1F2F33, before any call can change it.
         let (local, team) = unsafe {
-            let profile = NonNull::new(*raw::player::profile(player.as_ptr()) as usize as *mut c_void)?;
-            (*raw::render_name_frame::local_team(frame), *raw::player_profile::team(profile.as_ptr()))
+            let (player, frame) = (site::player(&*ctx)?, site::frame(&*ctx)?);
+            (*frame.local_team(), *player.profile()?.team())
         };
         if local > 1 || local != team {
             return None;
@@ -69,89 +68,119 @@ impl<'c, 'm> NameVisibility<'c, 'm> {
 
 /// The hud, survarium::game_world_ui, as a hook's site has it.
 pub struct GameWorldUi<'t> {
-    this: NonNull<c_void>,
+    this: raw::GameWorldUi,
     thread: PhantomData<&'t Thread>,
 }
 
 impl<'t> GameWorldUi<'t> {
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
-        // the site's ESP: the entry pushed its dispatch slot and the flags
-        // before `pushad` saved ESP (hooks_026g.lohook_entry)
-        let frame = ctx.reg(Reg::Esp).wrapping_add(8) as usize as *mut c_void;
-        // SAFETY: the function's argument at its start (update_player_icons_frame).
-        let ui = unsafe { *raw::update_player_icons_frame::ui(frame) };
-        NonNull::new(ui as usize as *mut c_void).map(|this| GameWorldUi { this, thread: PhantomData })
+        // SAFETY: the context is this site's: update_player_icons' frame, its
+        // argument the ui, alive while it runs on the game's thread.
+        let this = unsafe { raw::site::player_icons_update_start::frame(ctx)?.ui() }?;
+        Some(GameWorldUi { this, thread: PhantomData })
     }
 
     /// The hud movie (hud.swf), when the hud has it.
     pub fn hud_movie(&self) -> Option<Movie<'t>> {
-        // SAFETY: the handle is a live game_world_ui; its holder is a movie holder or 0.
-        unsafe { movie_of(*raw::game_world_ui::hud_movie(self.this.as_ptr())) }
+        // SAFETY: the ui is alive for the hook, on its thread.
+        unsafe { movie_of(self.this.hud_movie()) }
     }
 
     /// The player icons movie (player_icons.swf, the game world's own), when the hud has it.
     pub fn icons_movie(&self) -> Option<Movie<'t>> {
         // SAFETY: as hud_movie.
-        unsafe { movie_of(*raw::game_world_ui::icons_movie(self.this.as_ptr())) }
+        unsafe { movie_of(self.this.icons_movie()) }
     }
 }
 
+/// The movie a holder shows (its view's, as the game reads it, 0x2384EE).
+///
 /// # Safety
-/// `holder` is a movie holder or 0, alive on the hook's thread.
-pub(super) unsafe fn movie_of<'t>(holder: u32) -> Option<Movie<'t>> {
-    let holder = NonNull::new(holder as usize as *mut c_void)?;
-    // SAFETY: a holder's view is a movie view or 0, and a view's movie a GFx movie or 0.
-    let view = NonNull::new(unsafe { *raw::movie_holder::view(holder.as_ptr()) } as usize as *mut c_void)?;
-    let movie = NonNull::new(unsafe { *raw::movie_view::movie(view.as_ptr()) } as usize as *mut c_void)?;
-    Some(Movie { this: movie, thread: PhantomData })
+/// `holder` is alive on the hook's thread.
+pub(super) unsafe fn movie_of<'t>(holder: Option<raw::MovieHolder>) -> Option<Movie<'t>> {
+    // SAFETY: the caller's: a live holder; its view and the view's movie live as long.
+    let this = unsafe { holder?.view()?.movie() }?;
+    Some(Movie { this, thread: PhantomData })
 }
 
 /// A Scaleform movie the hud holds.
 pub struct Movie<'t> {
-    this: NonNull<c_void>,
+    this: raw::GfxMovie,
     thread: PhantomData<&'t Thread>,
 }
 
-/// A GFx value (Scaleform::GFx::Value, 24 bytes): its type at +4, a bool's
-/// value at +8 (0x2384E2).
-#[repr(C)]
-struct GfxValue {
-    object: u32,
-    kind: u32,
-    value: u32,
-    rest: [u32; 3],
-}
-
+/// A GFx value's type (Scaleform::GFx::Value's, 0x2384E2): a bool, an
+/// unsigned int, a string; with the managed bit, a string its node holds.
 const GFX_BOOL: u32 = 2;
+const GFX_UINT: u32 = 4;
+pub(super) const GFX_STRING: u32 = 6;
+pub(super) const GFX_MANAGED: u32 = 0x40;
+
+/// Up to this many strings in one Invoke.
+pub const MAX_STRINGS: usize = 64;
 
 impl Movie<'_> {
     /// Which movie this is (a new game world's is another), to tell it once.
     pub fn id(&self) -> usize {
-        self.this.as_ptr() as usize
+        self.this.address() as usize
     }
 
-    /// Invokes the movie's `method` with one bool (Movie::Invoke 0x511600, no
-    /// result); whether the movie took it (it has that method: its root is
-    /// made).
-    pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
-        let argument = GfxValue { object: 0, kind: GFX_BOOL, value: u32::from(value), rest: [0; 3] };
-        // SAFETY: a live movie on the hook's thread; the name is a C string and
-        // the one argument a GFx bool, as the game's own Invokes pass them.
+    /// Invokes the movie's `method` with our `values` (Movie::Invoke
+    /// 0x511600, no result); whether the movie took it.
+    fn invoke(&self, method: &CStr, values: &mut [raw::GfxValueStorage]) -> bool {
+        let count = values.len() as u32;
+        // SAFETY: a live movie on the hook's thread; the name a C string and
+        // the arguments our GFx values, whose texts outlive the call, as the
+        // game's own Invokes pass them.
         let taken = unsafe {
-            raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(), core::ptr::null_mut(),
-                                     (&raw const argument).cast(), 1)
+            raw::engine_movie_invoke(Some(self.this), method.as_ptr().cast(), None,
+                                     raw::GfxValueStorage::first(values), count)
         };
         taken & 0xFF != 0
     }
-}
 
-impl Movie<'_> {
-    /// Plain unsigned GFx values; the caller owns this synchronous argument array.
+    /// Invokes the movie's `method` with one bool; whether the movie took it
+    /// (it has that method: its root is made).
+    pub fn invoke_bool(&self, method: &CStr, value: bool) -> bool {
+        let mut argument = [raw::GfxValueStorage::zeroed()];
+        let gfx = argument[0].handle();
+        // SAFETY: our own value.
+        unsafe {
+            *gfx.kind() = GFX_BOOL;
+            *gfx.value() = u32::from(value);
+        }
+        self.invoke(method, &mut argument)
+    }
+
+    /// Invokes the movie's `method` with these strings (UTF-8, as the
+    /// dictionaries are), at most [`MAX_STRINGS`]; whether the movie took it.
+    pub(super) fn invoke_strings(&self, method: &CStr, values: &[&CStr]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_STRINGS];
+        let count = values.len().min(MAX_STRINGS);
+        for (room, text) in arguments.iter_mut().zip(&values[..count]) {
+            let gfx = room.handle();
+            // SAFETY: our own value; unmanaged, its text the caller's, alive
+            // for the call.
+            unsafe {
+                *gfx.kind() = GFX_STRING;
+                gfx.set_text(text.as_ptr().cast::<u8>().cast_mut());
+            }
+        }
+        self.invoke(method, &mut arguments[..count])
+    }
+
+    /// Plain unsigned GFx values.
     pub(super) fn invoke_uints(&self, method: &CStr, values: &[u32; 4]) {
-        let arguments = values.map(|value| GfxValue { object: 0, kind: 4, value, rest: [0; 3] });
-        // SAFETY: live movie, NUL-terminated method and four POD GFx UInt values.
-        unsafe { raw::engine_movie_invoke(self.this.as_ptr(), method.as_ptr().cast(),
-            core::ptr::null_mut(), arguments.as_ptr().cast(), 4); }
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; 4];
+        for (room, &value) in arguments.iter_mut().zip(values) {
+            let gfx = room.handle();
+            // SAFETY: our own value.
+            unsafe {
+                *gfx.kind() = GFX_UINT;
+                *gfx.value() = value;
+            }
+        }
+        self.invoke(method, &mut arguments);
     }
 }

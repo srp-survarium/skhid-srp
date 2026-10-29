@@ -1,0 +1,2562 @@
+key	text
+bm_back_1_desc	OPIS NIE JEST GOTOWY!!!
+bm_back_1_name	Pojemnik "Maruder"
+k0	0
+k1	1
+k2	2
+k3	3
+k4	4
+k5	5
+k6	6
+k7	7
+k8	8
+k9	9
+kA	A
+kADD	+
+kAPOSTROPHE	'
+kB	B
+kBACK	Backspace
+kBACKSLASH	\\
+kC	C
+kCOMMA	,
+kD	D
+kDECIMAL	.
+kDELETE	Delete
+kDOWN	W dół
+kE	E
+kEND	End
+kEQUALS	=
+kESCAPE	Esc
+kF	F
+kF1	F1
+kF10	F10
+kF11	F11
+kF12	F12
+kF13	F13
+kF14	F14
+kF15	F15
+kF2	F2
+kF3	F3
+kF4	F4
+kF5	F5
+kF6	F6
+kF7	F7
+kF8	F8
+kF9	F9
+kG	G
+kGRAVE	~
+kH	H
+kHOME	Home
+kI	I
+kINSERT	Insert
+kJ	J
+kK	K
+kL	L
+kLBRACKET	<
+kLCONTROL	LCtrl
+kLEFT	W lewo
+kLSHIFT	LShift
+kM	M
+kMINUS	-
+kN	N
+kNUMLOCK	NumLock
+kNUMPAD0	Num0
+kNUMPAD1	Num1
+kNUMPAD2	Num2
+kNUMPAD3	Num3
+kNUMPAD4	Num4
+kNUMPAD5	Num5
+kNUMPAD6	Num6
+kNUMPAD7	Num7
+kNUMPAD8	Num8
+kNUMPAD9	Num9
+kNUMPADCOMMA	NumKropka
+kNUMPADENTER	NumEnter
+kNUMPADEQUALS	=
+kO	O
+kP	P
+kPAUSE	Pauza
+kPERIOD	.
+kQ	Q
+kR	R
+kRBRACKET	>
+kRCONTROL	PCtrl
+kRETURN	Enter
+kRIGHT	W prawo
+kRSHIFT	PShift
+kS	S
+kSCROLL	ScrollLock
+kSEMICOLON	,
+kSLASH	/
+kSPACE	Spacja
+kSUBTRACT	-
+kT	T
+kTAB	Tab
+kU	U
+kUP	W górę
+kV	V
+kW	W
+kX	X
+kY	Y
+kZ	Z
+mouse1	LPM
+mouse2	PPM
+mouse3	ŚPM
+mouse4	X1PM
+mouse5	X2PM
+mouse6	X3PM
+mouse7	X4PM
+mouse8	X5PM
+mouse_wheel_down	Kółko myszki w dół
+mouse_wheel_up	Kółko myszki w górę
+st_a545_description	OPIS NIE JEST GOTOWY
+st_a545_name	A-545
+st_a9_91_description	OPIS NIE JEST GOTOWY
+st_a9_91_name	9A-91
+st_abilities	Umiejętności
+st_accept	Akceptuj
+st_accept_changes	Zastosuj
+st_account	konto
+st_account_trading_claim	Handel kontami
+st_achieved	osiągnięty!
+st_achievements_label	Osiągnięcia gracza
+st_action_premium_activated	Konto premium aktywowane! Twoja nagroda:
+st_activate_premium	Aktywuj premium
+st_add	Dodaj
+st_add_profile_button_blocked_hint_text	Osiągnięto maksymalną ilość profili!
+st_add_profile_button_hint_text	Dodaj nowy profil bohatera
+st_add_to_clan_request	zaprasza Ciebie do klanu
+st_add_to_clan_team_request	zaprasza cię do drużyny w klanie.
+st_add_to_friends	Dodaj do znajomych
+st_add_to_friends_request	Zaproszenia do znajomych
+st_add_to_ignore	Dodaj do ignorowanych
+st_add_to_squad_request	Dołącz do brygady
+st_additional_max_weight_name	Udźwig
+st_additive_quick_slot_size_modifier	Pojemność kieszeni
+st_aek919k_description	Rosyjski kompaktowy pistolet maszynowy, amunicja: 9x18 PM. Opracowany w Kowrowskich Zakładach Mechanicznych w latach 90. dla MSW i innych służb mundurowych. Wyposażony w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_aek919k_name	AEK-919K Kasztan
+st_aim_time_description	Prędkość celowania:
+st_aim_time_name	Szybka reakcja
+st_aim_toggle_action	Celowanie
+st_aiming_booster_description	Przeterminowane tabletki sprzedawane wyłącznie na receptę. Przez lata straciły część swoich właściwości, ale składnik znieczulający nadal działa.
+st_aiming_booster_name	Ekstrakt z serdecznika
+st_aiming_speed_correction_perc_name	Szybkość celowania
+st_ak12_description	OPIS NIE JEST GOTOWY!!!
+st_ak12_name	AK-12
+st_ak12_premium_description	Rosyjski karabinek automatyczny nowej generacji Kałasznikowa. Opracowany w zakładach Iżmasz na początku lat 2010., z szynami na celowniki i akcesoria oraz przerobioną kolbą i elementami obsługi. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego, seriami i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_ak12_premium_name	AK-12M1
+st_ak74m_description	Zmodernizowana wersja karabinku Kałasznikowa, amunicja: 5,45x39. Wykorzystywany w siłach zbrojnych, gdzie zdobył dobrą reputację. Posiada tryb ognia pojedynczego i ciągłego.
+st_ak74m_name	AK-74M
+st_ak74n_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony "AK-74N".\n-2000 nabojów 5.45x39 7N6M.</white>
+st_ak74n_bundle_name	Zestaw "AK-74N"
+st_ak74n_description	OPIS NIE JEST GOTOWY
+st_ak74n_name	AK-74N
+st_ak74u_description	Skrócona wersja karabinku AK-74, amunicja: 5.45х39. Dzięki jego niewielkim rozmiarom wykorzystywany był przez piechotę morską, MSW i funkcjonariuszy ochrony. Posiada tryb ognia pojedynczego i ciągłego.
+st_ak74u_name	AKS-74U
+st_ak74u_premium_description	Skrócona wersja karabinku AK-74, amunicja: 5.45x39. Dzięki jego niewielkim rozmiarom wykorzystywany był przez piechotę morską, MSW i funkcjonariuszy ochrony. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_ak74u_premium_name	AKS-74U Korsar
+st_akmn_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego.
+st_akmn_name	AKM
+st_akmn_premium_2_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_akmn_premium_2_name	AKM "Mściciel"
+st_akmn_premium_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_akmn_premium_name	AKM '65
+st_all_factions	Wszyscy handlarze
+st_all_quests	Pokaż wszystkie zadania
+st_already_as_reserve_in_team	Gracz jest już w rezerwie.
+st_already_as_soldier_in_team	Gracz jest już w drużynie.
+st_already_exist_clan_string	Ta nazwa jest już zarezerwowane.
+st_already_has_status_clan_team	Gracz został już zaproszony lub jest już członkiem drużyny klanu.
+st_already_in_clan_team	Gracz jest już w drużynie.
+st_already_in_inventory	Ten przedmiot został już przez ciebie kupiony. Czy chcesz kupić go ponowie?
+st_ambient_occlusion_options	Jakość cieniowania
+st_ammo	Amunicja
+st_ammo_127x54_pt_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_127x54_pt_name	12.7x54 PT
+st_ammo_127x54_vps_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_127x54_vps_name	12.7x54 WPS
+st_ammo_127x55_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_127x55_name	12.7x55
+st_ammo_12mm_buck2_desc	Wzmocniona wersja pocisku myśliwskiego kalibru 12. Dzięki zastosowaniu większego śrutu, zwiększono penetrację i efektywny zasięg.
+st_ammo_12mm_buck2_name	12x70, Śrutowa
+st_ammo_12mm_buck_desc	Standardowy nabój myśliwski nabity śrutem. Zadaje poważne obrażenia nieopancerzonym celom.
+st_ammo_12mm_buck_name	12x70, Śrutowa
+st_ammo_12mm_slug_desc	Pełnopłaszczowa wersja naboju myśliwskiego kalibru 12. Zapewnia wysoką moc rażącą i penetrację.
+st_ammo_12mm_slug_name	12x70, breneka
+st_ammo_30_description	Amunicja karabinowa produkcji amerykańskiej, skuteczna na dystansie do 150 metrów. Pierwsza amunicja do broni cywilnej wyprodukowana z użyciem prochu bezdymnego.
+st_ammo_30_name	30-30 Winchester
+st_ammo_357m_description	Amerykańska amunicja rewolwerowa o dużej mocy. Wprowadzona do użytku w czasach prohibicji jako mocniejszy zamiennik standardowej amunicji policyjnej.
+st_ammo_357m_name	.357 Magnum
+st_ammo_45acp_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_45acp_name	.45 ACP
+st_ammo_46x30_description	Nabój opracowany przez Heckler & Koch dla MP7. Jego mały, twardy pocisk zaprojektowano do przebijania kamizelek kuloodpornych na krótkich i średnich dystansach.
+st_ammo_46x30_name	4.6x30
+st_ammo_545x39_7n10_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_545x39_7n10_name	5.45x39 7N10
+st_ammo_545x39_7n22_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_545x39_7n22_name	5.45x39 7N22
+st_ammo_545x39_7n6m_description	Radzieckiej konstrukcji nabój pośredni, z małokalibrowym pociskiem o stalowym rdzeniu. Duża prędkość wylotowa zapewnia niemalże płaską trajektorię lotu tego stosunkowo lekkiego pocisku.
+st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_description	Pośredni nabój karabinowy NATO, opracowany na bazie amerykańskiego .223 Remington i znormalizowany przez NATO w 1980 r. Lekki, szybki pocisk o płaskim torze lotu i niewielkim odrzucie.
+st_ammo_556x45_name	5.56x45
+st_ammo_57x28_description	Nabój opracowany przez FN Herstal około 1990 r. dla P90, a później pistoletu Five-seveN. Lekki, szybki pocisk zaprojektowany do przebijania kamizelek kuloodpornych.
+st_ammo_57x28_name	5.7x28
+st_ammo_65x39_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_65x39_name	6.5x39 Grendel
+st_ammo_762x25_description	Pierwszy zunifikowany nabój pistoletowy radzieckiej konstrukcji. Wykorzystywany w pistoletach zwykłych i maszynowych.
+st_ammo_762x25_name	7.62x25
+st_ammo_762x39_7n23_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_762x39_7n23_name	7.62x39 7N23
+st_ammo_762x39_description	Nabój kalibru 7.62x39 zaprojektowany w 1943 r. Uważany za jeden z trzech najmocniejszych typów amunicji pośredniej na świecie.
+st_ammo_762x39_m_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_762x39_m_name	7.62х39 RPD
+st_ammo_762x39_name	7.62x39
+st_ammo_762x51_M59_description	Przeciwpancerna modyfikacja pocisku 7.62. Kula ma stalowy rdzeń.
+st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_description	Popularny nabój wojskowy z pełnopłaszczowym pociskiem. Stworzony z myślą o broni snajperskiej i cywilnej.
+st_ammo_762x51_name	7.62x51
+st_ammo_762x54R_old_description	Ten znaleziony w magazynie pocisk to jeden z najstarszych nabojów karabinowych naszych czasów. Wiek i warunki przechowywania wpłynęły negatywnie na jego efektywność.
+st_ammo_762x54R_old_name	7.62x54R
+st_ammo_9x18_description	Zespolona amunicja radziecka, która zastąpiła przestarzałe naboje kalibru 7.62 mm. Standardowe naboje z przyzwoitą penetracją niemetalowych powierzchni.
+st_ammo_9x18_name	9x18 PM
+st_ammo_9x18_pbm_description	Przeciwpancerny nabój 9x18 mm PBM 7H25. W porównaniu z amunicją 9x18 PM ma o 1,5 raza większą energię kinetyczną i zwiększoną moc rażącą.
+st_ammo_9x18_pbm_name	9x18 PBM 
+st_ammo_9x19p_7n21_description	Pocisk z kulą o stalowym rdzeniu. Pod względem mocy przewyższa komercyjną amunicję 9x19 Parabellum.
+st_ammo_9x19p_7n21_name	9x19 7N21
+st_ammo_9x19p_7n31_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_9x19p_7n31_name	9x19 7H31
+st_ammo_9x19p_para_description	Zespolona amunicja pełnopłaszczowa kalibru 9 mm. Po II wojnie światowej przyjęta jako standardowa amunicja NATO.
+st_ammo_9x19p_para_name	9x19 Parabellum
+st_ammo_9x21_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_9x21_name	9x21 SP-10
+st_ammo_ammo_762x54_7n13_description	Rosyjski nabój karabinowy 7,62x54R z pociskiem o hartowanym stalowym rdzeniu dla lepszej przebijalności. Używany w karabinach maszynowych i wyborowych; dostarczany w taśmach.
+st_ammo_ammo_762x54_7n13_name	7.62x54 7N13
+st_ammo_ammo_762x54_7n1_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_ammo_762x54_7n1_name	7.62х54 7N1
+st_ammo_bags_description	Otrzymujesz dodatkowe miejsce na naboje.
+st_ammo_bags_name	Zestaw bojowy
+st_ammo_equipped_label	Plecak
+st_ammo_label	Amunicja
+st_ammo_pab9_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_pab9_name	9x39 PAB-9
+st_ammo_sp5_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_sp5_name	9x39 SP-5
+st_ammo_sp6_description	OPIS NIE JEST GOTOWY!!!
+st_ammo_sp6_name	9x39 SP-6
+st_ammo_storage_label	Magazyn
+st_aniso_filtering_option	Filtrowanie anizotropowe
+st_anomaly_damage_corr_perc_name	Obrażenia od anomalii
+st_anomaly_skills_label	Wiedza o świecie
+st_antialiasing_option	Antyaliasing
+st_antitoxin_description	Zaawansowany lek, stworzony do neutralizacji trucizn i toksyn w ludzkim organizmie. Aby zmaksymalizowac efekt, zazyj go przed wystawieniem sie na dzialanie szkodliwych czynnikow.
+st_antitoxin_name	Antytoksyny
+st_apply_changes_msg	Zastosować wybrane ustawienia?
+st_aps_description	OPIS NIE JEST GOTOWY!!!
+st_aps_name	APS
+st_army_026_mask_desc	Kominiarka z jednym szerokim otworem na oczy z anulowanego S.T.A.L.K.E.R. 2.
+st_army_026_mask_name	Kominiarka wojskowa
+st_artcontainer_time_corr_perc_name	Czas zbierania artefaktów
+st_artefact_activated_message	Artefakt aktywowany
+st_artefact_booster_description	Druga wersja skonstruowanego przez wykwalifikowanych rzemieślników urządzenia do zbierania artefaktów. Wbudowany tłumik anormalnej aktywności artefaktów pozwala na skrócenie czasu ekstrakcji.
+st_artefact_booster_name	Władca artefaktów
+st_artefact_no_free_slots	Brak wolnego miejsca na zabranie artefaktu!
+st_artefact_search_failed	Nie znaleziono artefaktu
+st_artefact_search_success	Znaleziono artefakt!
+st_ash12_description	OPIS NIE JEST GOTOWY!!!
+st_ash12_name	ASh-12
+st_attention	Błąd uruchomienia instalatora Survarium. Spróbuj ponownie za chwilę.
+st_auto	Auto
+st_auto_button_hint	Automatyczne uzupełnianie amunicji
+st_auto_repair_button_label	Automatyczna naprawa
+st_auto_repair_hint	Automatyczna naprawa niewielkich uszkodzeń ekwipunku
+st_autobuy_button_label	Autouzupełnianie
+st_autobuy_money	Dodaj amunicję
+st_autobuy_money_ammo	Amunicja
+st_autobuy_money_consulabels	Przedmioty
+st_autorepair_money	Koszt naprawy
+st_back_use_action	Butla tlenowa
+st_backpack	Plecak
+st_ban_reason_account_trading	Sprzedaż lub usiłowanie sprzedaży konta.
+st_ban_reason_administrator	Decyzja administracji.
+st_ban_reason_advertising	Rozpowszechnianie informacji reklamowych.
+st_ban_reason_bad_language	Wulgarne słownictwo
+st_ban_reason_cheating	Dystrybucja, reklamowanie lub dyskusja o oprogramowaniu firm zewnętrznych
+st_ban_reason_discuss_admins	Kwestionowanie decyzji administratorów.
+st_ban_reason_faschism	Głoszenie rasizmu, nazizmu i nacjonalizmu.
+st_ban_reason_flood	Spam, niechciane wiadomości.
+st_ban_reason_incorrect_info	Rozpowszechnianie fałszywych informacji.
+st_ban_reason_insult	Obelga, prowokacja.
+st_ban_reason_nickname	Nieprawidłowe imię bohatera.
+st_ban_reason_politics	Dyskusje o podłożu politycznym.
+st_ban_reason_reallife_treating	Groźby karalne.
+st_ban_reason_teamkilling	Zabijanie współtowarzyszy.
+st_bandit_026_mask_desc	Kominiarka bandyty z anulowanego S.T.A.L.K.E.R. 2.
+st_bandit_026_mask_name	Kominiarka bandyty
+st_base_bandages_description	W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu.
+st_base_bandages_name	Opakowanie bandaży
+st_base_medkit_description	Standardowa apteczka. Pozwala nie tylko opatrzyć krytyczne rany, ale i poprawić samopoczucie rannego.
+st_base_medkit_name	Apteczka
+st_base_painkiller_description	Silny środek przeciwbólowy czasowo zwiększający próg bólu, aby walczący nie utracił przytomności z powodu szoku pourazowego wywołanego poważnymi obrażeniami.
+st_base_painkiller_name	Środki przeciwbólowe
+st_base_trap_description	Standardowa myśliwska pułapka z mocną sprężyną. Jest w stanie złamać nogę człowieka lub dużego zwierzęcia.
+st_base_trap_name	Pułapka
+st_benelli_description	Włoska strzelba samopowtarzalna kalibru 12. Opracowana przez firmę Benelli pod koniec lat 90., z automatyką gazową, przyjęta przez Korpus Piechoty Morskiej USA jako M1014. Ładowana do magazynka rurowego pod lufą. Tylko ogień pojedynczy.
+st_benelli_name	Benelli M4 Super 90
+st_best	Najlepszy
+st_best_explorer	ODKRYWCA
+st_best_explorer_artefacts	Artefakty:
+st_best_explorer_items	Przedmioty:
+st_best_player	GRACZ
+st_best_player_score	Wynik:
+st_best_sniper	STRZELEC
+st_best_sniper_accuracy	Celność:
+st_best_sniper_shots	Strzały:
+st_best_support	WSPARCIE
+st_best_support_healed	Uleczono:
+st_best_support_saved	Uratowano:
+st_bind_text	Wciśnij przycisk
+st_black_market_faction	Czarny Rynek
+st_blackmarket_bring_x_items_descr	Burza nie ma litości ani dla nas, ani dla naszych wrogów. Aby przeżyć, musimy podłączyć do urządzenia ochronnego jak największą ilość baterii. Można je znaleźć w różnych miejscach. Wykradanie ich wprost z bazy wroga też jest niezłym pomysłem.
+st_blackmarket_bring_x_items_name	Wspólna sprawa
+st_blackmarket_bring_x_items_obj	Odnajdź i dostarcz baterie:
+st_blackmarket_entrap_enemies_descr	Kim byłeś przed epidemią? Może rozstawiałeś w lesie sidła na zwierzęta? Czas przypomnieć sobie tę umiejętność. Tym razem twoją zdobyczą będzie człowiek!
+st_blackmarket_entrap_enemies_name	Kłusownik
+st_blackmarket_entrap_enemies_obj	Złap przeciwników w pułapkę:
+st_blackmarket_grenade_enemies_descr	Wierz mi na słowo, nie ma lepszego prezentu niż dobry granat. Szczególnie taki bez zawleczki! A jeżeli potrafisz, możesz obdarować jednym prezentem kilku przeciwników! Postaraj się tylko nie być takim łaskawym dla własnej drużyny.
+st_blackmarket_grenade_enemies_name	Prezencik!
+st_blackmarket_grenade_enemies_obj	Przeciwnicy do zabicia granatem podczas bitwy:
+st_blackmarket_headshots_descr	Kamizelka kuloodporna może uchronić przed śmiercią, ale nie przed strzałem w głowę. Nawet hełm nie daje doskonałej ochrony. Strzelanie w głowę oszczędza czas, amunicję i nerwy.
+st_blackmarket_headshots_name	Strzały w głowę
+st_blackmarket_headshots_obj	Przeciwnicy do zabicia strzałem w głowę:
+st_blackmarket_kd_ratio_descr	Niech inni się nas boją! My – Czarny Rynek – nie boimy się śmierci. Chętnie weźmiemy ze sobą kilku wrogów!
+st_blackmarket_kd_ratio_name	Panuj i zastraszaj!
+st_blackmarket_kd_ratio_obj	Wygraj rozgrywkę ze stosunkiem zabitych/śmierci co najmniej
+st_blackmarket_kill_enemies_descr	Kiedy walka dobiega końca, wróg ucieka, a łupy zostały już podzielone – miło jest opowiedzieć przyjaciołom o swoich sukcesach na polu bitwy. Najważniejsze mieć o czym opowiadać.
+st_blackmarket_kill_enemies_name	Wynik osobisty
+st_blackmarket_kill_enemies_obj	Przeciwnicy do zabicia w jednej rozgrywce:
+st_blackmarket_kill_enemy_x_descr	Nie można powiedzieć, że włóczędzy są naszym najgroźniejszym wrogiem. Ale od czasu do czasu trzeba im przypomnieć, gdzie jest ich miejsce. Najlepiej jest zrobić to na jasnym przykładzie.
+st_blackmarket_kill_enemy_x_name	Łowca głów
+st_blackmarket_kill_enemy_x_obj	Zabij przedstawicieli włóczęgów w jednej rozgrywce:
+st_blackmarket_killstreak_descr	Czasem wrogów jest więcej niż naszych ludzi. Niektórzy sądzą, że to problem. My jednak uważamy, że im więcej wrogów – tym większą chwałę zdobędziemy, kiedy ich pokonamy.
+st_blackmarket_killstreak_name	Maszyna śmierci
+st_blackmarket_killstreak_obj	Przeciwnicy do zabicia w serii:
+st_blackmarket_level_0	Nieznany
+st_blackmarket_level_1	Rekrut
+st_blackmarket_level_2	Bojownik
+st_blackmarket_level_3	Brygadzista
+st_blackmarket_level_4	Centurion
+st_blackmarket_level_5	Elita
+st_blackmarket_level_unlock_0	Gratulacje! Odblokowano zadania Czarnego Rynku!
+st_blackmarket_level_unlock_1	Gratulacje! Jesteś teraz rekrutem Czarnego Rynku!
+st_blackmarket_level_unlock_2	Gratulacje! Jesteś teraz bojownikiem Czarnego Rynku!
+st_blackmarket_level_unlock_3	Gratulacje! Jesteś teraz desantowcem Czarnego Rynku!
+st_blackmarket_level_unlock_4	Gratulacje! Jesteś teraz centurionem Czarnego Rynku!
+st_blackmarket_level_unlock_5	Gratulacje! Jesteś teraz elitarnym bojownikiem Czarnego Rynku!
+st_blackmarket_meele_kill_descr	Jeśli nie możesz wykonać zadania czysto, bądź gotów do ubrudzenia sobie rąk. Właśnie tym różnimy się od pozostałych. Udowodnij, że jesteś jednym z nas - zrób uczynek ze swoich dłoni.
+st_blackmarket_meele_kill_name	Brudna robota
+st_blackmarket_meele_kill_obj	Zabij przeciwników w walce wręcz.
+st_blackmarket_represent	Musisz włożyć barwy Czarnego Rynku.
+st_blackmarket_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka bandyty".\n- "Spodnie bandyty".\n- Ulepszony UZI.\n- 2000 nabojów 9x19 Parabellum.</white>
+st_blackmarket_starter_bundle_name	Zestaw "Bandyta"
+st_blackmarket_steal_box_descr	Panuj i zastraszaj! Pamiętaj o tej zasadzie! Skradnij baterię z obcej bazy. Tym samym zostawisz wroga bez obrony, a jednocześnie pomożesz swoim!
+st_blackmarket_steal_box_name	Rabunek
+st_blackmarket_steal_box_obj	Wykradnij baterię z obozu przeciwnika i dostarcz ją do swojej bazy.
+st_blackmarket_win_score_descr	Cóż może być lepszego od zwycięstwa? Zwycięstwo absolutne! To, że wrogowie nie mają żadnych szans, gdy skuleni ze strachu modlą się, aby ten koszmar jak najszybciej się skończył.
+st_blackmarket_win_score_name	Dominacja
+st_blackmarket_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
+st_blackmarket_win_x_games_descr	Nic tak nie smakuje, jak zwycięstwo! Łupy, chwała i szacunek – wygrany zgarnia wszystko. Nie wspominając o zdobytej reputacji wśród braci z Czarnego Rynku!
+st_blackmarket_win_x_games_name	Niech żyje Czarny Rynek!
+st_blackmarket_win_x_games_obj	Rozgrywki do wygrania:
+st_bm_boots_1_desc	Szpanerskie buty kowbojskie. Przed katastrofą nosił takie każdy rockowiec i harlejowiec.
+st_bm_boots_1_name	Kozaki
+st_bm_boots_2_desc	Niskie skórzane buty zapewniające dobrą ochronę nóg. Produkowane w bazie Czarnego Rynku przez majstra o ksywie Pająk. Każdą parę w czasie produkcji opatruje swoim znakiem. Dzięki temu, że są bardzo wygodne, zmniejszają zmęczenie podczas biegu.
+st_bm_boots_2_name	Kowbojki
+st_bm_boots_3_desc	Mocne buty kowbojskie z żelaznymi wstawkami i pasami. Stanowią wyznacznik statusu we wszystkich gangach Czarnego Rynku.
+st_bm_boots_3_name	Śmigłowce
+st_bm_gloves_1_desc	Skórzane rękawice bez palców. Przydatne podczas walki, używaniu broni albo po prostu do skręcania papierosów przed dłuższą podróżą. Zwiększają szybkość przeładowania o 2%.
+st_bm_gloves_1_name	Rękawice motocyklisty
+st_bm_gloves_2_desc	Ciężkie, mocne rękawice nabijane metalowymi kolcami. Przydadzą się, gdy zabraknie amunicji, a wynik bitwy zależał będzie od walki wręcz.
+st_bm_gloves_2_name	Ćwiekowane rękawice
+st_bm_helmet_1_desc	Skórzana czapka pilotka. Chroni głowę przed uderzeniami twardymi przedmiotami. Niezbędna podczas bójek między bojownikami Czarnego Rynku.
+st_bm_helmet_1_name	Czapka pilotka
+st_bm_helmet_5_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_helmet_5_name	Hełm "Maruder"
+st_bm_legs_1_desc	Klasyczne, wytrzymałe dżinsy. Chronią nogi przed zimnem. Zdobyte z trudem z okradzionego sklepu. Kieszenie umożliwiają przeniesienie kilku wnyków lub granatów.
+st_bm_legs_1_name	Jeans
+st_bm_legs_2_desc	Zmodyfikowane spodnie skórzane z ochraniaczami na kolana. Chronią nogi przed zimnem i obrażeniami.
+st_bm_legs_2_name	Wzmocnione dżinsy
+st_bm_legs_4_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_legs_4_name	Spodnie bandyty
+st_bm_legs_5_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_legs_5_name	Spodnie "Maruder"
+st_bm_mask_1_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_mask_1_name	Maska "Korsarz"
+st_bm_rep_modifier	Reputacja na Czarnym Rynku
+st_bm_torso_1_desc	Kurtka motocyklowa bez rękawów. Strój bojowników Czarnego Rynku. Chroni przed bronią białą i złą pogodą. Ma specjalne kieszenie na zapasową amunicję, wnyki i granaty.
+st_bm_torso_1_name	Skórzana kurtka bez rękawów
+st_bm_torso_2_desc	Ciężka nitowana kurtka z grubej skóry, wyposażona w płyty ochronne. Początkowo używana wyłącznie przez największych bojowników Czarnego Rynku, skąd wzięła się jej nazwa. Stylizowana czaszka na rękawie symbolizuje pogardę dla śmierci.
+st_bm_torso_2_name	Kurtka bandyty
+st_bm_torso_3_desc	Ciężka, skórzana kurtka szturmowca Czarnego Rynku wzmocniona metalowymi płytami. Widok szturmującego bojownika w "Korsarzu" jest w stanie przerazić i wywołać panikę nawet u doświadczonych ocalałych. Posiada specjalne kieszenie na zapasową amunicję, pułapki i granaty.
+st_bm_torso_3_name	Kurtka "Korsarz"
+st_bm_torso_4_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_torso_4_name	Kurtka bandyty
+st_bm_torso_5_desc	OPIS NIE JEST GOTOWY!!!
+st_bm_torso_5_name	Kurtka "Maruder"
+st_bonus_day	Dzień
+st_bonus_victory	Premia za zwycięstwo
+st_border_faction	Osadnicy Skraju
+st_born_leader_compliment	Urodzony przywódca
+st_bot_or_cheater_claim	Bot albo oszust
+st_breath_holding_time_description	Czas wstrzymania oddechu:
+st_breath_holding_time_name	Żelazne płuca
+st_bring_item_to_base	Dostarcz baterię do swojej bazy!
+st_btn_add_premium_label	Uzupełnij konto
+st_btn_add_premium_message	Uzupełnij konto
+st_btn_add_rank_label	Dodaj rangę
+st_btn_become_commander	Zostań przywódcą
+st_btn_cancel_decal	Anuluj
+st_btn_change_name_label	Zmień imię
+st_btn_chat	Czat
+st_btn_clan_team_invite_memeber	Zaproś
+st_btn_close_upgrades_label	Zakończ zmianę wyglądu przedmiotu
+st_btn_craft_accept	Gotowe
+st_btn_craft_label	Ulepszenie
+st_btn_create_clan_team	Stwórz drużynę
+st_btn_disband_clan_label	Rozwiąż
+st_btn_disband_clan_team	Rozwiąż drużynę
+st_btn_end_tutorial_label	Zakończ
+st_btn_equipment	Sprzęt
+st_btn_exchange_premium_money	Wymień złoto na monety
+st_btn_exit_label	Wyjście
+st_btn_find_player	Znajdź gracza
+st_btn_friends	Znajomi
+st_btn_friends_online_filter	Znajomi online
+st_btn_go_to_online_store	Dalej
+st_btn_invite_clan_memeber_label	Zaproś
+st_btn_item_craft	Ulepsz
+st_btn_join_team	Dołącz
+st_btn_kick_clan_memeber_label	Wyrzuć
+st_btn_knowledge_base	Baza wiedzy
+st_btn_leave_clan_label	Opuść
+st_btn_leave_clan_team	Opuść drużynę
+st_btn_no	Nie
+st_btn_not_ready	Niegotowy
+st_btn_paperdoll	Wyposażenie
+st_btn_premium_hint	Aktywuj konto premium
+st_btn_rank_down_clan_memeber_label	Zdegraduj
+st_btn_rank_up_clan_memeber_label	Awansuj
+st_btn_ready	Gotowy
+st_btn_remove_rank_label	Usuń rangę
+st_btn_reroll_change_label	Zmień
+st_btn_reroll_choose_label	Wybierz
+st_btn_reroll_label	Modyfikacja
+st_btn_settings_label	Opcje
+st_btn_show_log_list	Historia
+st_btn_show_log_list_hint	Lista ostatnich rozgrywek
+st_btn_upgrade_hint	Modyfikuj przedmiot
+st_btn_upgrade_label	Wygląd
+st_btn_use_item	Użyj
+st_btn_yes	Tak
+st_bundle_clik_hint	Kliknij zestaw, aby uzyskać więcej informacji
+st_button_buy_profile_text	Kup profil bohatera
+st_button_exit	Zamknij
+st_button_skip_tutorial_label	Pomiń trening
+st_buy	Kup
+st_buy_post_premium	Zdobądź bonusy
+st_buy_premium_with_discount	Kup w niższej cenie już dziś!
+st_buy_profile_confirmation_text	Stworzyć nowego bohatera?
+st_buy_profile_price_text	Profil dostępny dla:
+st_buy_treasure_maps	Kup mapę
+st_camo_black_leather_01_name	Kruk
+st_camo_black_leather_name	Czarna śmierć
+st_camo_blue_leather_name	Bryza
+st_camo_brown_leather_01_name	Skóra 2
+st_camo_brown_leather_02_name	Skóra 3
+st_camo_brown_leather_03_name	Skóra 4
+st_camo_brown_leather_04_name	Skóra 5
+st_camo_brown_leather_05_name	Ifryt
+st_camo_brown_leather_name	Skóra
+st_camo_camouflage_green_01_name	Łowca
+st_camo_camouflage_green_name	Dąb
+st_camo_chemical_fabric_01_name	Zielony NBC
+st_camo_chemical_fabric_02_name	Zielone listowie
+st_camo_chemical_fabric_03_name	Niebieskie niebo
+st_camo_city_camo_name	Panterka
+st_camo_cyfra_01_camo_name	Cyfra-N
+st_camo_cyfra_02_camo_name	Cyfrowy
+st_camo_cyfra_03_camo_name	Żołnierz
+st_camo_denim_01_name	Ciemny jeans
+st_camo_denim_name	Jeans
+st_camo_desert_camo_name	Pustynia
+st_camo_fabric_brown_01_name	Sucha ziemia
+st_camo_fabric_brown_02_name	Burza piaskowa
+st_camo_fabric_brown_03_name	Skorpion
+st_camo_fabric_brown_name	Brązowa tkanina
+st_camo_fabric_camouflage_name	Ocalały
+st_camo_fabric_green_01_name	Zielony materiał
+st_camo_fabric_green_name	Biała tkanina
+st_camo_fabric_grey_name	Duch
+st_camo_flecktarn_01_camo_name	Flectarn
+st_camo_flecktarn_02_camo_name	Leśny
+st_camo_generic_desc	Umieść kamuflaż w oknach ulepszeń pancerza i spodni, aby zmienić ich wygląd.
+st_camo_green_leather_name	Zielona skóra
+st_camo_izlom_name	Załamanie
+st_camo_khaki_fabric_01_name	Gorący piasek
+st_camo_khaki_fabric_02_name	Gorące słońce
+st_camo_khaki_fabric_03_name	Pył
+st_camo_multicam_name	Miraż
+st_camo_new_year	Nowy Rok 2015
+st_camo_quilted_fabric_name	Pikowana tkanina
+st_camo_red_leather_name	Legionista
+st_camo_rubber_green_01_name	Poszukiwacz
+st_camo_rubber_green_02_name	Żółta guma
+st_camo_rubber_green_name	Zielona guma
+st_camo_slot	Kamuflaż
+st_camo_spekrt_01_name	Spektrum – jesień
+st_camo_spekrt_02_name	Spektrum – wiosna
+st_camo_spekrt_03_name	Spektrum – lato
+st_camo_steam	"Steam" kamuflaż
+st_camo_suede_leather_name	Zamsz
+st_camo_ucp_name	UCP
+st_camo_vsr_name	Ministerstwo Bezpieczeństwa
+st_camo_yellow_leather_name	Żółta skóra
+st_can_be_installed_on	Można zamontować na
+st_can_sprint_description	Możesz biec, kiedy jesteś przeciążony.
+st_can_sprint_name	Sprint
+st_cancel	Anuluj
+st_cannot_buy_item	Nie można kupić przedmiotu
+st_cannot_craft_item	Nie można ulepszyć tego przedmiotu.
+st_cannot_pickup_item	Niesiesz już jeden pojemnik!
+st_cannot_pickup_item_broken_hand	Rana rąk! Nie można podnieść pojemnika
+st_cannot_relocate_item	Przesunięcie obiektu niemożliwe.
+st_cannot_repair_item	Naprawa przedmiotu niemożliwa
+st_cannot_reroll_skills	Błąd resetowania umiejętności.
+st_cannot_select_rerolled_modification	Nie udało się zmienić modyfikacji.
+st_cannot_upgrade_item	Błąd podczas modyfikacji przedmiotu. Spróbuj jeszcze raz.
+st_cannot_use_drop_card	Nie można użyć mapy skrytek.
+st_cant_add_clan_member	Dodanie gracza do klanu nie powiodło się.
+st_cant_add_clan_team_member	Dodanie gracza do drużyny nie powiodło się.
+st_cant_buy_clan_registration	Rejestracja klanu nie powiodła się.
+st_cant_buy_premium_message	Za mało złotych monet do zakończenia transakcji.
+st_cant_cancel_clan_registration	Błąd anulowania rejestracji klanu.
+st_cant_change_clan_team_battle_status	Zmiana statusu pozycji w drużynie nie powiodła się.
+st_cant_change_commander_team_role	Nie można zmienić roli dowódcy
+st_cant_change_permission	Zmiana praw dostępu nie powiodła się.
+st_cant_change_rank_clan_member	Zmiana rangi gracza nie powiodła się.
+st_cant_change_ready_state	Zmiana statusu gotowości nie powiodła się.
+st_cant_change_role_himself	Nie możesz zmienić własnej rangi.
+st_cant_change_status_clan_team_member	Zmiana statusu gracza nie powiodła się.
+st_cant_clan_match_closed	Opuszczenie drużyny klanu nie powiodło się.
+st_cant_create_clan	Założenie klanu nie powiodło się.
+st_cant_create_clan_rank	Stworzenie rangi klanowej nie powiodło się.
+st_cant_create_clan_team	Stworzenie drużyny nie powiodło się.
+st_cant_delete_default_rank	Nie można usunąć rangi standardowej.
+st_cant_disband_clan_team	Rozwiązanie drużyny nie powiodło się.
+st_cant_find_player	Nie znaleziono gracza o takim imieniu.
+st_cant_invite_player_to_clan	Zaproszenie gracza do klanu nie powiodło się.
+st_cant_invite_player_to_clan_team	Zaproszenie gracza do drużyny nie powiodło się.
+st_cant_kick_himself	Usunięcie siebie z klanu jest niemożliwe.
+st_cant_kick_member	Wyrzucenie gracza z klanu nie powiodło się.
+st_cant_leave_clan_team	Opuszczenie drużyny nie powiodło się.
+st_cant_oust_commander	Zmiana dowódcy nie powiodła się.
+st_cant_oust_yourself	Usunięcie siebie z drużyny jest niemożliwe.
+st_cant_rank_up_clan_member	Awans gracza nie powiódł się.
+st_cant_remove_clan_rank	Usunięcie rangi klanowej nie powiodło się.
+st_cant_remove_clan_team_member	Wyrzucenie gracza z drużyny nie powiodło się.
+st_cant_remove_yourself	Nie można wykluczyć siebie z drużyny.
+st_cant_request_to_join_clan_team	Próba dołączenia do drużyny klanu nie powiodła się.
+st_cant_reserve_clan	Zarezerwowanie nazwy nie powiodło się.
+st_cant_set_clan_team_commander	Ustanowienie dowódcy drużyny klanu nie powiodło się.
+st_cant_set_daily_message	Ustalenie komunikatu dnia nie powiodło się.
+st_cant_set_yourself	Nie można wybrać siebie na dowódcę drużyny.
+st_cant_upgrade_while_repair_hint	Nie można ulepszyć przedmiotu podczas trwania jego naprawy.
+st_capture_info	Zdobycie instalacji...
+st_chamber_a_round_description	Szybkość pociągania za spust
+st_chamber_a_round_name	Opanowanie spustu
+st_change	Zmiana nazwy
+st_change_name_error	Zmiana imienia bohatera nie powiodła się.
+st_change_name_label	Zmiana imienia
+st_change_order	Zmiana kolejności
+st_change_profile	Zmień profil
+st_change_quest	Zmiana zadania
+st_change_quest_label	Zmiana zadania
+st_change_weapon_speed_description	Szybkość zmiany broni:
+st_change_weapon_speed_name	Zręczne dłonie
+st_character	Umiejętności
+st_character_decals_1_12_name	Jaryło
+st_character_decals_1_1_name	Literat
+st_character_decals_1_2_name	Brygada "Alfa"
+st_character_decals_1_3_name	Ocalały
+st_character_decals_1_4_name	Odkrywca
+st_character_decals_1_5_name	Weteran
+st_character_decals_1_6_name	Mistrz
+st_character_decals_1_7_name	Legenda
+st_character_decals_1_8_name	Latające Huzary
+st_character_decals_2_1_name	Nowicjusz włóczęgów
+st_character_decals_2_2_name	Weteran włóczęgów
+st_character_decals_2_3_name	Rekrut Czarnego Rynku
+st_character_decals_2_4_name	Elita Czarnego Rynku
+st_character_decals_2_5_name	Żołnierz Armii Odrodzenia
+st_character_decals_2_6_name	Pułkownik Armii Odrodzenia
+st_character_decals_2_7_name	Myśliwy osadników Skraju
+st_character_decals_2_8_name	Mistrz osadników Skraju
+st_character_decals_3_10_name	Grozi śmiercią
+st_character_decals_3_11_name	Czaszka zwierzęcia
+st_character_decals_3_12_name	Pocisk
+st_character_decals_3_13_name	Granat
+st_character_decals_3_14_name	Pierwsza pomoc
+st_character_decals_3_15_name	Celownik
+st_character_decals_3_16_name	Specnaz
+st_character_decals_3_17_name	Desant
+st_character_decals_3_18_name	Setka
+st_character_decals_3_19_name	Kordzik
+st_character_decals_3_1_name	Zagrożenie biologiczne
+st_character_decals_3_20_name	Symbol atomu
+st_character_decals_3_21_name	Łańcuch DNA
+st_character_decals_3_2_name	Ograniczenie broni
+st_character_decals_3_3_name	Anarchia
+st_character_decals_3_4_name	Pirat
+st_character_decals_3_5_name	Radioaktywność
+st_character_decals_3_6_name	Grozi wybuchem
+st_character_decals_3_7_name	Lasowi wstęp wzbroniony
+st_character_decals_3_8_name	Drzewo życia
+st_character_decals_3_9_name	Klepsydra
+st_character_decals_4_10_name	Flaga Gruzji
+st_character_decals_4_11_name	Flaga Uzbekistanu
+st_character_decals_4_12_name	Flaga Tadżykistanu
+st_character_decals_4_13_name	Flaga Kirgistanu
+st_character_decals_4_14_name	Flaga Turkmenistanu
+st_character_decals_4_15_name	Flaga Azerbejdżanu
+st_character_decals_4_16_name	Flaga Armenii
+st_character_decals_4_17_name	Flaga Niemiec
+st_character_decals_4_18_name	Flaga Wielkiej Brytanii
+st_character_decals_4_19_name	Flaga Francji
+st_character_decals_4_1_name	Flaga ZSSR
+st_character_decals_4_20_name	Flaga Włoch
+st_character_decals_4_21_name	Flaga Hiszpanii
+st_character_decals_4_22_name	Flaga Polski
+st_character_decals_4_23_name	Flaga Rumunii
+st_character_decals_4_24_name	Flaga Holandii
+st_character_decals_4_25_name	Flaga Grecji
+st_character_decals_4_26_name	Flaga Portugalii
+st_character_decals_4_27_name	Flaga Czech
+st_character_decals_4_28_name	Flaga Belgii
+st_character_decals_4_29_name	Flaga Węgier
+st_character_decals_4_2_name	Flaga Rosji
+st_character_decals_4_30_name	Flaga Szwecji
+st_character_decals_4_31_name	Flaga Austrii
+st_character_decals_4_32_name	Flaga Szwajcarii
+st_character_decals_4_33_name	Flaga Bułgarii
+st_character_decals_4_34_name	Flaga Serbii
+st_character_decals_4_35_name	Flaga Danii
+st_character_decals_4_36_name	Flaga Słowacji
+st_character_decals_4_37_name	Flaga Norwegii
+st_character_decals_4_38_name	Flaga Irlandii
+st_character_decals_4_39_name	Flaga Chorwacji
+st_character_decals_4_3_name	Flaga Ukrainy
+st_character_decals_4_40_name	Flaga Bośni i Hercegowiny
+st_character_decals_4_41_name	Flaga Turcji
+st_character_decals_4_42_name	Flaga USA
+st_character_decals_4_43_name	Flaga Kanady
+st_character_decals_4_44_name	Flaga Brazylii
+st_character_decals_4_45_name	Flaga Argentyny
+st_character_decals_4_46_name	Flaga Australii
+st_character_decals_4_47_name	Flaga Finlandii
+st_character_decals_4_48_name	Flaga Nowej Zelandii
+st_character_decals_4_49_name	Flaga Irlandii
+st_character_decals_4_4_name	Flaga Białorusi
+st_character_decals_4_50_name	Flaga Szkocji
+st_character_decals_4_51_name	Flaga Anglii
+st_character_decals_4_52_name	Flaga Korei Płd.
+st_character_decals_4_53_name	Flaga Japonii
+st_character_decals_4_54_name	Flaga Chin
+st_character_decals_4_55_name	Flaga Indii
+st_character_decals_4_56_name	Flaga Indonezji
+st_character_decals_4_57_name	Flaga Malezji
+st_character_decals_4_58_name	Flaga Filipin
+st_character_decals_4_59_name	Flaga Tajlandii
+st_character_decals_4_5_name	Flaga Kazachstanu
+st_character_decals_4_60_name	Flaga Wietnamu
+st_character_decals_4_61_name	Flaga Boliwii
+st_character_decals_4_62_name	Flaga Chile
+st_character_decals_4_63_name	Flaga Kolumbii
+st_character_decals_4_64_name	Flaga Ekwadoru
+st_character_decals_4_65_name	Flaga Paragwaju
+st_character_decals_4_66_name	Flaga Peru
+st_character_decals_4_67_name	Flaga Urugwaju
+st_character_decals_4_68_name	Flaga Wenezueli
+st_character_decals_4_69_name	Flaga Albanii
+st_character_decals_4_6_name	Flaga Łotwy
+st_character_decals_4_70_name	Flaga Kuby
+st_character_decals_4_71_name	Flaga Słowenii
+st_character_decals_4_72_name	Flaga Angoli
+st_character_decals_4_73_name	Flaga Nigerii
+st_character_decals_4_74_name	Flaga Południowej Afryki
+st_character_decals_4_75_name	Flaga Walii
+st_character_decals_4_7_name	Flaga Litwy
+st_character_decals_4_8_name	Flaga Estonii
+st_character_decals_4_9_name	Flaga Mołdawii
+st_character_decals_5_10_name	Godło Gruzji
+st_character_decals_5_11_name	Godło Uzbekistanu
+st_character_decals_5_12_name	Godło Tadżykistanu
+st_character_decals_5_13_name	Godło Kirgistanu
+st_character_decals_5_14_name	Godło Turkmenistanu
+st_character_decals_5_15_name	Godło Azerbejdżanu
+st_character_decals_5_16_name	Godło Armenii
+st_character_decals_5_17_name	Emblemat NATO
+st_character_decals_5_18_name	Emblemat ONZ
+st_character_decals_5_19_name	Godło Niemiec
+st_character_decals_5_1_name	Czerwona gwiazda
+st_character_decals_5_20_name	Godło Anglii
+st_character_decals_5_21_name	Godło Francji
+st_character_decals_5_22_name	Godło Włoszech
+st_character_decals_5_23_name	Godło Hiszpanii
+st_character_decals_5_24_name	Godło Polski
+st_character_decals_5_25_name	Godło Rumunii
+st_character_decals_5_26_name	Godło Holandii
+st_character_decals_5_27_name	Godło Grecji
+st_character_decals_5_28_name	Godło Portugalii
+st_character_decals_5_29_name	Godło Czech
+st_character_decals_5_2_name	Godło Rosji
+st_character_decals_5_30_name	Godło Belgii
+st_character_decals_5_31_name	Godło Węgier
+st_character_decals_5_32_name	Godło Szwecji
+st_character_decals_5_33_name	Godło Austrii
+st_character_decals_5_34_name	Godło Szwajcarii
+st_character_decals_5_35_name	Godło Bułgarii
+st_character_decals_5_36_name	Godło Serbii
+st_character_decals_5_37_name	Godło Danii
+st_character_decals_5_38_name	Godło Słowacji
+st_character_decals_5_39_name	Godło Norwegii
+st_character_decals_5_3_name	Godło Ukrainy
+st_character_decals_5_40_name	Godło Irlandii
+st_character_decals_5_41_name	Godło Chorwacji
+st_character_decals_5_42_name	Godło Bośni i Hercegowiny
+st_character_decals_5_4_name	Godło Białorusi
+st_character_decals_5_5_name	Godło Kazachstanu
+st_character_decals_5_6_name	Herb Łotwy
+st_character_decals_5_7_name	Godło Litwy
+st_character_decals_5_8_name	Godło Estonii
+st_character_decals_5_9_name	Herb Mołdawii
+st_character_decals_7_27_name	Ozdobna koniczyna
+st_character_decals_7_28_name	Podkowa
+st_character_decals_7_9_name	Zioła
+st_character_decals_generic_desc	Aby zmienić wygląd kamizelki lub spodni, umieść naszywki w oknach ich ulepszeń.
+st_characteristics_label	Statystyki gracza
+st_chat_channel_clan	Czat klanowy
+st_chat_channel_clan_team	Drużyna klanu
+st_chat_channel_general	Czat ogólny
+st_chat_channel_match	Wszyscy
+st_chat_channel_private	Prywatny
+st_chat_channel_squad	Brygada
+st_chat_channel_system	System
+st_chat_channel_team	Drużyna
+st_checkbox_battle_commander_permission	Dowódca polowy
+st_checkbox_clan_change_rank_permission	Zmiana rangi graczy
+st_checkbox_clan_daily_message_permission	Zmiana komunikatu dnia
+st_checkbox_clan_invite_permission	Zaproszenia
+st_checkbox_clan_member_kick_permission	Wyrzucanie
+st_checkbox_compare_items	Porównywanie przedmiotów
+st_checkbox_compare_items_hint	Wyświetlaj opis używanego przedmiotu
+st_checkbox_players_live_search	Szukaj podczas wpisywania
+st_checkbox_show_locked_items	Niedostępny
+st_checkbox_show_locked_items_hint	Wyświetlaj niedostępne przedmioty
+st_checkbox_show_offline_players	Pokazuj graczy offline
+st_checkbox_show_player_groups	Pokaż grupy graczy
+st_checkbox_show_shop_items	Sklep
+st_checkbox_show_shop_items_hint	Wyświetlaj przedmioty ze sklepu
+st_choose	Wybierz
+st_choose_faction_button_hint	Wybierz frakcję
+st_choose_faction_description	Frakcje są głównym dostawcą ekwipunku i amunicji. Zdobywaj reputację przez wykonywanie dla nich zadań. W zamian otrzymasz dostęp do najlepszego towaru. Można współpracować tylko z jedną frakcją naraz.
+st_choose_faction_label	Wybierz frakcję
+st_choose_modifier	Wybierz modyfikator:
+st_choose_premium_subscription	Wybierz subskrypcję premium:
+st_claim_player	Złóż skargę
+st_claims_count_per_day_owerflow	Wysłano dopuszczalną ilość zażaleń przewidzianą na jeden dzień.
+st_claims_count_per_user_owerflow	Nie można złożyć dwóch skarg na jednego użytkownika w tym samym dniu!
+st_clan	Klan
+st_clan_abbr_is_not_valid	Ten skrót jest już zarezerwowany
+st_clan_abbreviation	Skrót nazwy klanu
+st_clan_abbreviation_default_text	Wybierz skrót
+st_clan_abbreviation_info	(3 do 6 znaków)
+st_clan_accept_button_label	Rejestracja
+st_clan_buy_registration_button_label	Zapłać
+st_clan_cancel_button_label	Anuluj rejestrację
+st_clan_control_tab	Zarządzanie klanem
+st_clan_creation_info_description	Aby zarejestrować klan, potrzebujesz poparcia co najmniej 5 graczy. Po zakończeniu rejestracji zostaną oni automatycznie do niego dodani.
+st_clan_creation_info_label	Zdobądź poparcie graczy
+st_clan_daily_message	Komunikat dnia
+st_clan_invite_1	Gracz
+st_clan_invite_2	pomyślnie zaproszony do klanu.
+st_clan_invite_accepted	Zaakceptowany
+st_clan_invite_pending	Oczekiwanie na odpowiedź
+st_clan_invite_player_button_label	Zaproś
+st_clan_invite_rejected	Odmowa
+st_clan_kick_1	Czy na pewno wyrzucić gracza?
+st_clan_kick_2	z klanu?
+st_clan_leave_button_label	Opuść klan
+st_clan_level_label	Poziom klanu
+st_clan_level_up_1	Nasz klan osiągnął
+st_clan_level_up_2	Poziom
+st_clan_manage_window_label	Klan
+st_clan_max_members_count_error	Osiągnięto maksymalną ilość członków klanu.
+st_clan_member_joined	dołączył do klanu.
+st_clan_member_kicked	usunął z klanu
+st_clan_member_left	opuścił klan.
+st_clan_name	Nazwa klanu
+st_clan_name_and_abbr_are_not_valid	Ta nazwa lub skrót są już zarezerwowane
+st_clan_name_default_text	Wprowadź nazwę klanu
+st_clan_name_is_not_valid	To imię już jest zarezerwowane
+st_clan_options_tab	Ustawienia
+st_clan_players_level_label	Poz.
+st_clan_players_list_availabe_postfix	możliwy
+st_clan_players_list_availabe_prefix	Lista graczy 
+st_clan_players_name_label	Imię
+st_clan_players_rank_label	Ranga
+st_clan_players_ready	Gotowe 
+st_clan_players_status_label	Status
+st_clan_rank	Ranking klanu
+st_clan_rank_assistant	Zastępca dowódcy
+st_clan_rank_commander	Dowódca
+st_clan_rank_soldier	Żołnierz
+st_clan_rank_warlord	Sierżant
+st_clan_registration_cost	Koszt\nrejestracji
+st_clan_registration_paid	Zapłacono
+st_clan_reserve_name_button_label	Załóż konto
+st_clan_system_message_sender	Komunikaty systemu klanowego
+st_clan_team_commander	Dowódca polowy
+st_clan_team_invite_2	pomyślnie zaproszony do drużyny klanu.
+st_clan_team_invites	Podania
+st_clan_team_is_full	Osiągnięto maksymalną ilość graczy mogącą wziąć udział w rozgrywce klanowej.
+st_clan_team_reserve	Rezerwa
+st_clan_team_soldier	Skład drużyny
+st_clan_team_window_label	Skład drużyny
+st_clan_was_disbanded	Twój klan został rozwiązany przez dowódcę klanu.
+st_clan_window_close_message	Czy na pewno chcesz opuścić drużynę?
+st_clan_window_close_message_commander	Czy na pewno chcesz opuścić drużynę?
+st_clan_window_label	Rejestracja klanu
+st_clear	Wyczyść
+st_close	Zamknij
+st_collect_statistics_option	Zezwól na zbieranie statystyk
+st_compliment_count_per_day_owerflow	Wykorzystano maksymalną liczbę pochwał przyznaną na jeden dzień.
+st_compliment_count_per_user_owerflow	Nie możesz dwukrotnie pochwalić tego samego użytkownika w ciągu jednego dnia!
+st_compliment_player	Pochwal
+st_confirm	Zatwierdź
+st_conflict_message	Takie ustawienie klawiatury zmieni:
+st_convert_weapon_slot_to_pocket_description	Otrzymujesz dodatkowe miejsce na specjalne środki, ale nie możesz używać drugiej broni.
+st_convert_weapon_slot_to_pocket_name	Posłaniec
+st_cost	Koszt
+st_count	Liczba
+st_craft	Ulepszenie
+st_craft_message_broken_item	Nie można ulepszyć uszkodzonego przedmiotu.
+st_craft_message_equipped_item	Nie można ulepszyć używanego przedmiotu podczas tworzenia rozgrywki.
+st_craft_message_modifers_count	Dalsze ulepszanie przedmiotu jest niemożliwe. Osiągnięto maksymalną ilość modyfikatorów.
+st_craft_message_modifiers_difference	Nie można użyć przedmiotu z dużą ilością modyfikatorów jako dawcy. Czy chcesz je zamienić?
+st_craft_result_fail_label	Niestety, twój brak wprawy doprowadził do pogorszenia się stanu przedmiotu.
+st_craft_result_neutral_label	Niestety, nie udało się ulepszyć przedmiotu.
+st_craft_result_success_label	Udało się ulepszyć przedmiot!
+st_critical_damages	Obrażenia krytyczne
+st_crosshair_static_option	Celownik statyczny
+st_crosshair_type_option	Wybierz celownik
+st_crouch_action	Kucanie (przytrzymaj)
+st_crouch_toggle_action	Kucanie
+st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już maksymalną liczbę graczy.
+st_current_value	\nBieżąca wartość:
+st_daily_bonus_description	Graj każdego dnia i otrzymaj <highlight>x2</highlight> więcej doświadczenia i reputacji za <highlight>pierwsze trzy</highlight> zwycięstwa.
+st_daily_bonus_hint	Wyświetl ekran powitalny
+st_daily_bonus_label	Witaj z powrotem
+st_daily_bonus_progress	Twój dzisiejszy postęp
+st_daily_bonus_reward_complete	<gold>Osiągnięto</gold>
+st_daily_bonus_reward_description	<gold>7 dnia</gold> otrzymasz
+st_daily_bonus_victories	zwycięstw
+st_daily_message_label	Komunikat dnia:
+st_day_short	d.
+st_dealy_breath_action	Wstrzymanie oddechu
+st_decal_editor_description	LPM – umieść naszywkę\nALT – obróć naszywkę\nСTRL – zmień rozmiar
+st_decal_editor_label	Tryb edycji
+st_decal_slot	Naszywka
+st_decorations_options	Jakość dekoracji
+st_default_profile_name1	Profil 1
+st_default_profile_name2	Profil 2
+st_default_profile_name3	Profil 3
+st_default_scope_name	Fabryczny celownik optyczny
+st_defeat	Porażka
+st_defuse_trap	Wyłącz ({USE})
+st_disband_clan_message	Czy na pewno chcesz rozwiązać klan?
+st_disband_clan_money_message	Czy na pewno chcesz rozwiązać klan? Srebro zdeponowane na koncie rejestracyjnym przepadnie.
+st_disband_squad	Rozwiąż brygadę
+st_disconnected_from_lobby	Rozłączono z serwerem lobby!
+st_dispersion_correction_perc_name	Rozrzut strzału z biodra
+st_dispersion_from_hip_description	Precyzja przy strzale z biodra:
+st_dispersion_from_hip_name	Celność
+st_dispersion_movement_influence_description	Precyzja w ruchu:
+st_dispersion_movement_influence_name	Twardy orzech
+st_dont_have_permission	Niewystarczające uprawnienia do przeprowadzenia tej czynności.
+st_drop	Zdejmij
+st_drop_action	Wyrzuć
+st_drop_card_descr	Użyj mapy skrytek po zakończeniu rozgrywki, aby znaleźć ukryte przedmioty.
+st_drop_card_name	Mapa skrytek
+st_duty_026_boots_desc	Ciężkie opancerzone buty, które bojownicy Powinności noszą do ciężkiego pancerza.
+st_duty_026_boots_name	Buty Powinności
+st_duty_026_gloves_desc	Wzmocnione rękawice bez palców, które bojownicy Powinności noszą do ciężkiego pancerza.
+st_duty_026_gloves_name	Rękawice Powinności
+st_duty_026_head_desc	Hermetyczny hełm eksperymentalnego egzoszkieletu Powinności z wbudowanym respiratorem. Osłania całą głowę i twarz.
+st_duty_026_helmet_name	Hełm egzoszkieletu Powinności
+st_duty_026_suit_desc	Eksperymentalny egzemplarz wojskowego egzoszkieletu. Nigdy nie trafił do produkcji seryjnej z powodu ogromnych kosztów i wad konstrukcyjnych. Niewielkie partie wciąż powstają w podziemnych warsztatach poza Ukrainą. Wyposażony we wbudowany pojemnik na artefakty.
+st_duty_026_suit_name	Egzoszkielet Powinności
+st_edge_accuracy_descr	Jeden precyzyjny strzał jest lepszy niż tuzin oddany w powietrze. Zwłaszcza teraz, kiedy każdy pocisk jest na wagę złota. Udowodnij, że zasługujesz na miano łowcy.
+st_edge_accuracy_name	Strzelec wyborowy
+st_edge_accuracy_obj	Wygraj rozgrywkę z celnością nie niższą niż:
+st_edge_back_1_desc	Korzystanie z artefaktów jest specjalnością osadników Skraju. Jeżeli znasz się na poszukiwaniu artefaktów i wiesz, jak je wykorzystywać, nie pożałujesz wyboru tego dużego pojemnika z miejscem na dwa artefakty.
+st_edge_back_1_name	Pojemnik "Dar 2M"
+st_edge_back_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_back_2_name	Plecak stalkera
+st_edge_back_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_back_3_name	Aparat oddechowy "Bryza"
+st_edge_back_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_back_5_name	Pojemnik "Podróżnik"
+st_edge_back_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_back_6_name	Pojemnik "Pielgrzym"
+st_edge_boots_1_desc	Wysokie, lekkie buty o miękkich podeszwach. Idealne przy podchodzeniu do ofiary. Bardzo wygodnie na długie wyprawy.
+st_edge_boots_1_name	Buty myśliwego
+st_edge_boots_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_boots_2_name	Buty stalkera
+st_edge_boots_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_boots_3_name	Buty odkrywcy
+st_edge_boots_4_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_boots_4_name	Buty mistrza
+st_edge_boots_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_boots_5_name	Buty strażnika
+st_edge_boots_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_boots_6_name	Buty "Pielgrzym"
+st_edge_bring_x_items_descr	Ziemia nie znosi przemocy. Każdy akt agresji spotyka się z odpowiedzią natury Nazywamy to burzą. Nauczyliśmy się, jak ją przetrwać i jak się przed nią bronić, ale potrzebujemy do tego zasilania.
+st_edge_bring_x_items_name	Poszukiwacz
+st_edge_bring_x_items_obj	Odnajdź i dostarcz baterie:
+st_edge_defend_items_descr	Ochrona terytorium jest świętym obowiązkiem każdego wojownika osadników Skraju. Jeżeli nie jesteś stanie obronić swojej bazy, to jak chcesz ocalić ludzkość przed zagładą?
+st_edge_defend_items_name	Strażnik
+st_edge_defend_items_obj	Wygraj rozgrywkę bez straty baterii z bazy.
+st_edge_find_artifacts_descr	Naszą siłą jest harmonia z naturą. Artefakty – to dar, który otrzymaliśmy od sił o wiele mądrzejszych od nas samych. I jeśli artefakty mają nam pomóc przeżyć, głupio byłoby ich nie wykorzystać.
+st_edge_find_artifacts_name	Dary natury
+st_edge_find_artifacts_obj	Znajdź artefakty podczas walki:
+st_edge_gloves_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_gloves_2_name	Rękawice stalkera
+st_edge_gloves_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_gloves_3_name	Rękawice odkrywcy
+st_edge_gloves_4_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_gloves_4_name	Rękawice mistrza
+st_edge_gloves_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_gloves_5_name	Rękawice strażnika
+st_edge_gloves_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_gloves_6_name	Rękawice "Pielgrzym"
+st_edge_grenade_enemies_descr	Kiedy broń nie jest w stanie przebić pancerza, zawsze można użyć granatu. Jeden zwinny rzut - i twój przeciwnik spotka się z przodkami.
+st_edge_grenade_enemies_name	Miotacz
+st_edge_grenade_enemies_obj	Przeciwnicy do zabicia granatem podczas bitwy:
+st_edge_headshots_descr	W rzeczywistości trudno jest uniknąć przemocy. Jeżeli więc musisz zabić wroga - zrób to szybko, strzałem w głowę.
+st_edge_headshots_name	Miłosierdzie
+st_edge_headshots_obj	Przeciwnicy do zabicia strzałem w głowę:
+st_edge_helmet_1_desc	Kaptur z wytrzymałej zwierzęcej skóry ochroni nie tylko przed deszczem, ale także przed odłamkami i słabszą amunicją.
+st_edge_helmet_1_name	Kaptur myśliwego
+st_edge_helmet_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_helmet_3_name	Czapka odkrywcy
+st_edge_helmet_4_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_helmet_4_name	Kaptur mistrza
+st_edge_helmet_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_helmet_5_name	Hełm "Strażnik"
+st_edge_helmet_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_helmet_6_name	Hełm "Pielgrzym"
+st_edge_kd_ratio_descr	Kim jesteś? Ofiarą czy drapieżnikiem? Myśliwym czy zwierzyną? W postapokaliptycznym świecie każdy jest zdany na siebie. Przetrwają tylko najsilniejsi.
+st_edge_kd_ratio_name	Selekcja naturalna
+st_edge_kd_ratio_obj	Wygraj rozgrywkę ze stosunkiem zabitych/śmierci co najmniej
+st_edge_legs_1_desc	Spodnie z grubej skóry zmutowanych zwierząt. Zapewniają dobrą ochronę zarówno przeciwko anomaliom, jak i pociskom do pistoletów. Zwiększają szybkość poruszania się o 3%.
+st_edge_legs_1_name	Spodnie myśliwego
+st_edge_legs_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_legs_2_name	Spodnie stalkera
+st_edge_legs_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_legs_3_name	Spodnie odkrywcy
+st_edge_legs_4_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_legs_4_name	Spodnie "Goblin"
+st_edge_legs_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_legs_5_name	Spodnie "Strażnik"
+st_edge_legs_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_legs_6_name	Spodnie "Pielgrzym"
+st_edge_level_0	Nieznany
+st_edge_level_1	Myśliwy
+st_edge_level_10	Wiedzący
+st_edge_level_2	Łowca
+st_edge_level_3	Wędrowiec
+st_edge_level_4	Tropiciel
+st_edge_level_5	Oddany
+st_edge_level_6	Starszy
+st_edge_level_7	Mistrz
+st_edge_level_8	Wieszcz
+st_edge_level_9	Strażnik
+st_edge_level_unlock_0	Gratulacje! Odblokowano zadania osadników Skraju!
+st_edge_level_unlock_1	Gratulacje! Jesteś teraz łowcą osadników Skraju!
+st_edge_level_unlock_10	Gratulacje! Jesteś teraz wiedzącym osadników Skraju!
+st_edge_level_unlock_2	Gratulacje! Jesteś teraz łowcą osadników Skraju!
+st_edge_level_unlock_3	Gratulacje! Jesteś teraz wędrowcem osadników Skraju!
+st_edge_level_unlock_4	Gratulacje! Jesteś teraz tropicielem osadników Skraju!
+st_edge_level_unlock_5	Gratulacje! Jesteś teraz oddanym osadników Skraju!
+st_edge_level_unlock_6	Gratulacje! Jesteś teraz starszym osadników Skraju!
+st_edge_level_unlock_7	Gratulacje! Jesteś teraz mistrzem osadników Skraju!
+st_edge_level_unlock_8	Gratulacje! Jesteś teraz wieszczem osadników Skraju!
+st_edge_level_unlock_9	Gratulacje! Jesteś teraz strażnikiem osadników Skraju!
+st_edge_mask_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_mask_2_name	Noktowizor
+st_edge_mask_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_mask_5_name	Maska przeciwgazowa "Strażnik"
+st_edge_meele_kill_descr	Natura sprawiła, że człowiek jest silny i dzielny. Broń przez niego stworzona uczyniła go słabszym i bardziej bojaźliwym. Pamiętaj o tym i unikaj strzelaniny, kiedy nie jest ona potrzebna.
+st_edge_meele_kill_name	Prawa natury
+st_edge_meele_kill_obj	Zabij przeciwników w walce wręcz.
+st_edge_rep_modifier	Reputacja "osadników Skraju"
+st_edge_represent	Musisz włożyć barwy osadników Skraju.
+st_edge_reps_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_resp_1_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_resp_1_name	Aparat oddechowy "Malachit"
+st_edge_resp_3_name	Maska przeciwgazowa "Szmaragd"
+st_edge_steal_box_descr	Przeciwników niekoniecznie trzeba zabijać własnymi rękoma. Można po prostu osłabić ich ochronę przed burzą. Natura dokończy dzieła.
+st_edge_steal_box_name	Skryty atak
+st_edge_steal_box_obj	Wykradnij baterię z obozu przeciwnika i dostarcz ją do swojej bazy.
+st_edge_torso_1_desc	Skórzana kurtka myśliwego z wszytymi amuletami przeciwko gniewowi natury. Ozdobiona wilczą skórą, aby odstraszać drapieżniki i siać strach w sercach przeciwników. Wygodna torba podręczna umożliwia przenoszenie przedmiotów.
+st_edge_torso_1_name	Kurtka myśliwego
+st_edge_torso_2_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_torso_2_name	Kurtka stalkera
+st_edge_torso_3_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_torso_3_name	Kurtka odkrywcy
+st_edge_torso_4_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_torso_4_name	Kamizelka "Goblin"
+st_edge_torso_5_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_torso_5_name	Kamizelka kuloodporna "Strażnik"
+st_edge_torso_6_desc	OPIS NIE JEST GOTOWY!!!
+st_edge_torso_6_name	Kamizelka kuloodporna "Pielgrzym"
+st_edge_win_score_descr	Im lepsza jest nasza ochrona przed burzą, tym łatwiej rozprawimy się z przeciwnikiem. Im więcej znajdziemy baterii, tym mniej zostanie ich dla nieprzyjaciół. A burza zwieńczy dzieło.
+st_edge_win_score_name	Sztuka wojenna
+st_edge_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
+st_edge_win_x_games_descr	Musimy być przygotowani, aby bronić siebie i naszej ziemi. Tylko pokonując przeciwnika można wywalczyć prawo do życia. Tylko wygrywając bitwę można obronić ziemię przed inwazją.
+st_edge_win_x_games_name	Na straży
+st_edge_win_x_games_obj	Rozgrywki do wygrania:
+st_elo_after	Obecny ranking
+st_elo_before	Ranking przed bitwą
+st_empty_ammo_message	Za mało pocisków!
+st_empty_clan_string	Wprowadź nazwę klanu
+st_empty_name_string	Wpisz imię.
+st_enable_seeding_in_lobby_option	Włącz seedowanie
+st_eng_active_time_desc	Wydłuża się czas działania aktywowanych urządzeń.
+st_eng_active_time_name	Czas działania
+st_eng_electronic_desc	Szkoli w obsłudze najnowocześniejszych urządzeń i prototypów.
+st_eng_electronic_name	Inżynier elektronik
+st_eng_encrypting_desc	Chroni twoje urządzenia przed hakowaniem ze strony przeciwnika.
+st_eng_encrypting_name	Szyfrowanie
+st_eng_explosive_master_desc	Zwiększa obrażenia od granatów i materiałów wybuchowych.
+st_eng_explosive_master_name	Pirotechnik
+st_eng_fast_recoil_desc	Skraca czas w jakim urządzenia są ponownie gotowe do użycia.
+st_eng_fast_recoil_name	Szybki restart
+st_eng_hacker_desc	Umożliwia przeprogramowanie urządzeń elektronicznych wroga na twoją korzyść.
+st_eng_hacker_name	Haker
+st_eng_sapper_desc	Umożliwia skrytą dezaktywację pułapek przeciwnika.
+st_eng_sapper_name	Saper
+st_engineer_succ_chance_corr_perc_name	Szansa powodzenia
+st_engineer_use_time_corr_perc_name	Szybkość użycia
+st_engineering_skills_descr	Zwiększa twoją umiejętność w posługiwaniu się gadżetami i urządzeniami.
+st_engineering_skills_label	Umiejętności techniczne
+st_engineering_skills_name	Umiejętności techniczne
+st_enter_char_name	Podaj imię
+st_enter_chat_message	Wprowadź wiadomość
+st_enter_name_warning	Niedozwolone znaki
+st_enter_profile_name	Wpisz nazwę profilu
+st_enter_rank_name	Wprowadź nazwę rangi
+st_enter_search_player_name	Wprowadź imię do wyszukania
+st_eotech_552_collimator_desc	Amerykański celownik holograficzny firmy EOTech. Zamiast świecącego punktu wyświetla holograficzny znak celowniczy i działa na zwykłych bateriach AA. Szeroko używany przez wojsko i policję.
+st_eotech_552_collimator_name	Kolimator EOTech 552
+st_equipment_cost	Całkowity koszt:
+st_equipment_level	Poziom wyposażenia
+st_equipment_weight	Waga
+st_equipped	Używana
+st_error_during_storing_user_comment	Błąd bazy danych. Spróbuj jeszcze raz.
+st_error_while_using_premium_access_voucher	Błąd aktywacji konta premium. Spróbuj jeszcze raz.
+st_event_capture_the_point_description	Zdobycie instalacji
+st_event_kill_invader_description	Zabicie najeźdźcy
+st_exchange_button	Wymiana
+st_exchange_window_label	Wymień złoto na monety
+st_exitLabel	test
+st_exit_from_login	Wyjście
+st_exit_game_confirm_accept	Wyjście
+st_exit_game_confirm_cancel	Anuluj
+st_exit_game_confirm_text	Czy na pewno wyjść z gry?
+st_exit_match_confirm_accept	Opuść
+st_exit_match_confirm_cancel	Anuluj
+st_exit_match_confirm_text	Czy na pewno opuścić rozgrywkę?
+st_exp_reward_match	Zdobyte doświadczenie
+st_exp_reward_premium	Bonus premium
+st_experience	Doświadczenie
+st_experience_modifier	Otrzymane doświadczenie
+st_face_069d_balaclava_3_hole_desc	Dziana kominiarka z otworami na oczy i usta. Grzeje i zakrywa twarz.
+st_face_069d_balaclava_3_hole_name	Kominiarka z 3 otworami
+st_face_069d_balaclava_desc	Przylegająca wojskowa kominiarka z jednym otworem na oczy, do noszenia pod hełmem.
+st_face_069d_balaclava_name	Kominiarka
+st_face_069d_buff_desc	Komin z nadrukiem czaszki naciągnięty na usta i nos. Zakrywa twarz i nie wpuszcza pyłu.
+st_face_069d_buff_name	Buff
+st_face_069d_keffiyeh_desc	Bawełniana kefija owinięta wokół głowy i twarzy. Chroni przed pyłem i wiatrem i nieco łagodzi uderzenie po stycznej.
+st_face_069d_keffiyeh_name	Kefija
+st_face_069d_protective_mask_desc	Brezentowy kaptur z goglami spawalniczymi i filtrem przy ustach. Zakrywa całą głowę; lepiej chroni przed odłamkami niż przed oparami.
+st_face_069d_protective_mask_name	Maska ochronna
+st_faction_1_description	Wyposażenie włóczęgów stworzono do walki na średni i duży dystans. Chroni ono także przed anomaliami. Weterani włóczęgów mają dostęp do karabinów snajperskich.
+st_faction_2_description	Skórzany ubiór czarnorynkowców stanowi niezłą ochronę, ale jest słabym zabezpieczeniem przeciwko anomaliom. Broń wykorzystywana jest na krótkich dystansach, a elitarni bojownicy uzbrojeni są w AKS-74U.
+st_faction_3_description	Żołnierze Armii Odrodzenia mają dostęp do najbardziej zaawansowanej broni i wyposażenia. Są w stanie walczyć na każdy dystans, nawet w skażonym środowisku. Najlepszym żołnierzom udostępnia się superciężkie pancerze i karabiny maszynowe.
+st_faction_4_description	Wyposażenie osadników Skraju ma najlepszą ochronę przeciw anomaliom i jest doskonale przystosowany do poszukiwania i używania artefaktów. Broń bardziej nadaje się do wykorzystania w zasadzkach, niż w otwartej walce.
+st_faction_blackmarket_blocked_text	Czarny Rynek odmawia przydzielenia zadań
+st_faction_edge_blocked_text	Wymagany maksymalny poziom reputacji u włóczęgów lub na Czarnym Rynku
+st_faction_info	Informacje
+st_faction_join	Dołącz
+st_faction_mercenaries_blocked_text	Omega odmawia przydzielenia zadań
+st_faction_renaissance_blocked_text	Wymagany maksymalny poziom reputacji u włóczęgów lub na Czarnym Rynku
+st_faction_reputation_label	Reputacja we frakcji
+st_faction_scavengers_blocked_text	Włóczędzy odmawiają przydzielenia zadań
+st_faction_scientists_blocked_text	Naukowcy odmawiają przydzielenia zadań
+st_fall_damage_description	Obrażenia przy upadku:
+st_fall_damage_name	Desantowiec
+st_few_alpha_clan_string	Nieprawidłowa nazwa
+st_filter_all	Wszystko
+st_filter_ammo	Amunicja
+st_filter_ammo_assault_rifle	Karabiny szturmowe
+st_filter_ammo_machine_gun	Karabiny maszynowe
+st_filter_ammo_pistol	Pistolety
+st_filter_ammo_shotgun	Strzelby
+st_filter_ammo_sniper_rifle	Karabiny snajperskie
+st_filter_ammo_submachine_gun	Pistolety maszynowe
+st_filter_assault_rifle	Karabiny szturmowe
+st_filter_body_armor	Pancerz
+st_filter_boots	Buty
+st_filter_camo	Kamuflaż
+st_filter_decal	Naszywki
+st_filter_device	Urządzenia
+st_filter_equipment	Wyposażenie
+st_filter_gloves	Rękawice
+st_filter_grenade	Granaty
+st_filter_helmet	Hełm
+st_filter_inventory	Ekwipunek
+st_filter_items	Przedmioty
+st_filter_machine_gun	Karabiny maszynowe
+st_filter_mask	Maska
+st_filter_medkit	Lekarstwa
+st_filter_mine	Miny
+st_filter_pants	Spodnie
+st_filter_pistol	Pistolety
+st_filter_rig	Sprzęt
+st_filter_scaner	Detektory
+st_filter_shop	Sklep
+st_filter_shop_and_inventory	Ekwipunek i sklep
+st_filter_shotgun	Strzelby
+st_filter_sniper_rifle	Karabiny snajperskie
+st_filter_stimulator	Stymulanty
+st_filter_submachine_gun	Pistolety maszynowe
+st_filter_upgrades	Ulepszenia
+st_filter_vouchers	Materiały zużywalne
+st_filter_weapons	Broń
+st_final_countdown	Oczekiwanie na rozpoczęcie rozgrywki:
+st_find_player	Znajdź gracza
+st_finish_match_mode_02_loser_message	Porażka. Drużyna przeciwnika zebrała wszystkie elementy zasilania.
+st_finish_match_mode_02_winner_message	Zwycięstwo! Twoja drużyna zebrała wszystkie elementy zasilania.
+st_finish_match_mode_03_loser_message	Porażka. Drużyna przeciwnika zebrała wszystkie elementy zasilania.
+st_finish_match_mode_03_winner_message	Zwycięstwo! Twoja drużyna zebrała wszystkie elementy zasilania.
+st_finish_match_mode_04_loser_message	Porażka. Twoja drużyna zostania unicestwiona.
+st_finish_match_mode_04_winner_message	Zwycięstwo! Wszyscy przeciwnicy pokonani.
+st_finish_match_mode_05_draw_message	Remis. Obie drużyny zbadały tyle samo
+st_finish_match_mode_05_loser_message	Porażka. Drużyna przeciwnika ukończyła badanie anomalii
+st_finish_match_mode_05_winner_message	Zwycięstwo! Twoja drużyna ukończyła badanie anomalii
+st_first_weapon_action	Broń 1
+st_fix	Napraw
+st_fn_fnc_description	Belgijski karabinek automatyczny, amunicja: 5,56x45. Opracowany przez FN Herstal w latach 70. i przyjęty przez armię belgijską; wersje licencyjne służą w Szwecji i Indonezji. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_fn_fnc_name	FN FNC
+st_fn_p90_description	Belgijska broń osobista typu PDW, amunicja: 5,7x28. Opracowana przez FN Herstal około 1990 r. razem z własnym nabojem; układ bullpup i 50-nabojowy magazynek leżący wzdłuż górnej części broni. Używana przez jednostki specjalne i policję w wielu krajach. Posiada tryb ognia pojedynczego i ciągłego.
+st_fn_p90_name	FN P90
+st_fort_17_description	Pistolet samopowtarzalny ukraińskiej konstrukcji, amunicja: 9х18. Seryjną produkcję rozpoczęto w 2004 r. Używany był przez siły wewnętrzne i niektóre oddziały sił specjalnych. Wyposażony w 12-nabojowy magazynek.
+st_fort_17_name	Fort 17
+st_fov_option	FOV
+st_freedom_026_boots_desc	Ciężkie opancerzone buty w barwach Swobody, noszone do ciężkiego pancerza.
+st_freedom_026_boots_name	Buty Swobody
+st_freedom_026_gloves_desc	Wzmocnione rękawice bez palców w barwach Swobody, noszone do ciężkiego pancerza.
+st_freedom_026_gloves_name	Rękawice Swobody
+st_freedom_026_head_desc	Hermetyczny hełm egzoszkieletu Swobody z wbudowanym respiratorem. Osłania całą głowę i twarz.
+st_freedom_026_helmet_name	Hełm egzoszkieletu Swobody
+st_freedom_026_suit_desc	Eksperymentalny wojskowy egzoszkielet przemalowany w barwy Swobody. Nigdy nie trafił do produkcji seryjnej z powodu kosztów i wad konstrukcyjnych; niewielkie partie wciąż opuszczają podziemne warsztaty. Wyposażony we wbudowany pojemnik na artefakty.
+st_freedom_026_suit_name	Egzoszkielet Swobody
+st_friend_options_label	Opcje znajomego
+st_friend_search_hint	Wciśnij "Enter", aby przeszukać
+st_friend_state_away	Zaraz wracam
+st_friend_state_game	Online
+st_friend_state_lobby	Lobby
+st_friend_state_offline	Offline
+st_friendly_user_compliment	Przyjazny gracz
+st_friends_online	Znajomi online
+st_friends_signin_notification_option	Powiadom mnie, gdy znajomi zmienią status na online
+st_fullscreen_option	Pełny ekran
+st_general_volume_option	Ogólny
+st_generic_money_name	Monety
+st_geometry_quality_option	Jakość geometrii
+st_go_to_knowledge_base_message	Baza wiedzy otworzy się w nowym oknie przeglądarki.
+st_go_to_online_store_message	Sklep online zostanie otwarty w oknie przeglądarki. Kontynuować?
+st_go_to_video_tutorial_message	Trening wideo zostanie otwarty w oknie przeglądarki. Kontynuować?
+st_gold_2	złota
+st_good_player_compliment	Znakomity gracz
+st_goto_shop	Do sklepu
+st_graphics_quality_option	Jakość grafiki
+st_grenade_throw_power_description	Odległość rzutu:
+st_grenade_throw_power_name	Grenadier
+st_health_regen_correction_perc_name	Regeneracja
+st_hide_ammo	Ukryj amunicję
+st_hide_interface_action	Ukryj interfejs
+st_hide_quest_list	Ukryj okno zadań
+st_hide_spam_option	Ukryj spam
+st_hide_squad_list	Ukryj okno brygady
+st_hk416_description	Niemiecki karabinek automatyczny, amunicja: 5,56x45. Rozwinięcie konstrukcji AR-15 firmy Heckler & Koch z tłokiem gazowym o krótkim ruchu, przedstawione w połowie lat 2000. i używane przez wojska specjalne oraz armie kilku państw NATO. Ten egzemplarz ma celownik holograficzny EOTech 552. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_hk416_name	H&K 416A5
+st_hk_mp7_description	Niemiecka broń osobista typu PDW, amunicja: 4,6x30. Opracowana przez Heckler & Koch razem z własnym nabojem, zaprojektowanym do przebijania kamizelek kuloodpornych; przedstawiona w 2001 r., używana przez Bundeswehrę i jednostki specjalne policji. Wyposażona w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_hk_mp7_name	H&K MP7
+st_hk_mp7_silencer_description	Niemiecka broń osobista typu PDW, amunicja: 4,6x30, tutaj w wersji MP7A1 z tłumikiem. Opracowana przez Heckler & Koch razem z własnym nabojem przeciwpancernym, używana przez Bundeswehrę i jednostki specjalne policji. Wyposażona w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_hk_mp7_silencer_name	H&K MP7A1
+st_hk_mp7_silencer_special_description	Niemiecka broń osobista typu PDW, amunicja: 4,6x30, tutaj w wersji MP7A1 z tłumikiem. Opracowana przez Heckler & Koch razem z własnym nabojem przeciwpancernym, używana przez Bundeswehrę i jednostki specjalne policji. Wyposażona w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_hk_mp7_silencer_special_name	H&K MP7A1 "Legenda"
+st_hour_short	godz.
+st_hud_tutorial_frame_0_text_1	Sterowanie kamerą
+st_hud_tutorial_frame_0_text_2	Użyj myszki, aby się rozejrzeć
+st_hud_tutorial_frame_1_text_1	Poruszanie się
+st_hud_tutorial_frame_1_text_2	Użyj klawiszy W, A, S, D, aby się przemieszczać
+st_hud_tutorial_frame_2_text_1	Tryb celowania
+st_hud_tutorial_frame_2_text_2	Aby wycelować, przytrzymaj\nprawy lub wciśnij\nśrodkowy klawisz myszki
+st_hud_tutorial_frame_3_text_1	Sprint
+st_hud_tutorial_frame_3_text_2	Aby wziąć rozbieg, przytrzymaj\nSHIFT lub wciśnij klawisz X
+st_hud_tutorial_frame_4_text_1	Skok
+st_hud_tutorial_frame_4_text_2	Aby podskoczyć, wciśnij SPACE
+st_hud_tutorial_frame_5_text_1	Kucanie
+st_hud_tutorial_frame_5_text_2	Aby przykucnąć, przytrzymaj\nCTRL lub wciśnij klawisz C
+st_hud_tutorial_frame_6_text_1	Do boju!
+st_hud_tutorial_frame_6_text_2	Udało ci się ukończyć podstawowe\nszkolenie bojowe. Powodzenia!
+st_hud_tutorial_frame_6_text_3	Twoja nagroda:
+st_ignored	Wyświetl ignorowanych graczy
+st_in_develepoment_hint	W procesie tworzenia
+st_ingame_volume_option	Gra
+st_injury_penalty_description	Kara do rozrzutu przy zranieniu rąk:
+st_injury_penalty_name	Spokój
+st_inv_activation_time_sec	Aktywacja
+st_inv_activity_time_sec	Czas działania
+st_inv_additional_ammo_bags	Ładownice
+st_inv_ano_armor	Izolacja
+st_inv_armor	Pancerz
+st_inv_arp	Penetracja pancerza
+st_inv_artefact_slots	Pojemnik na artefakty
+st_inv_buckshot	Śrut
+st_inv_clip_size	Nabojów w opakowaniu
+st_inv_clip_weight	Waga opakowania
+st_inv_damage	Obrażenia
+st_inv_damage_protection_infection	Ochrona przeciwko infekcji
+st_inv_damage_protection_pain	Próg bólu
+st_inv_device_slots	Miejsca na przedmioty
+st_inv_dispersion	Rozrzut
+st_inv_heal_amount	Leczenie
+st_inv_heal_amount_infection	Dezynfekcja
+st_inv_heal_amount_pain	Środek przeciwbólowy
+st_inv_heal_broken_parts	Leczy poważne obrażenia
+st_inv_healing_body_head	Leczenie: tułów / głowa
+st_inv_healing_limbs	Leczenie: ręce / nogi
+st_inv_item_weight	Waga
+st_inv_magazine	Amunicja
+st_inv_magazine_size	Magazynek
+st_inv_max_damage_distance	Odległość
+st_inv_move_speed_modifier	Szybkość poruszania się
+st_inv_oxygen_amount	Zapas tlenu
+st_inv_pain_relief	Ulga w bólu
+st_inv_reload	Szybkość przeładowania
+st_inv_rpm	Szybkostrzelność
+st_inv_splash_radius	Pole rażenia
+st_inv_stamina_regen	Regeneracja kondycji
+st_inv_stopingpower	Siła hamująca
+st_inventory_label	Ekwipunek
+st_inventrory	Wyposażenie
+st_invite_from_friends_option	Zaproszenia tylko od znajomych
+st_invite_to_clan	Zaproś do klanu
+st_invite_to_squad	Zaproś do brygady
+st_item_bought	Kupno zakończone
+st_item_craft_description	Przygotowanie zakończone. Można zacząć ulepszanie.
+st_item_craft_description_choose_donor	Wybierz przedmiot – dawcę
+st_item_craft_description_choose_item	Wybierz przedmiot do ulepszenia.
+st_item_craft_description_no_items	Wybierz przedmiot do ulepszenia.
+st_item_craft_donor_slot	Przedmiot – dawca
+st_item_craft_fail_label	Prawdopod. niepow. (-1 do mod.)
+st_item_craft_label	Ulepszenie
+st_item_craft_main_slot	Przedmiot ulepszany
+st_item_craft_success_label	Prawdopod. sukcesu(1+ do mod.)
+st_item_damage_state	Status
+st_item_drop_chance_base	Bazowa szansa na odnalezienie przedmiotu:
+st_item_drop_chance_by_premium	Konto premium:
+st_item_drop_chance_label	Szansa na odnalezienie przedmiotu
+st_item_drop_chance_match_result	Przewaga w walce:
+st_item_drop_chance_penalty	Kara za brak aktywności:
+st_item_drop_chance_team_premium	Gracze premium w rozgrywce:
+st_item_hint_label	Ekwipunek
+st_item_hint_label_shop	Sklep
+st_item_level	Poziom przedmiotu
+st_item_modification	Zmiana modyfikacji
+st_item_piece_postfix	szt.
+st_item_props_kg	kg
+st_item_props_meters	m
+st_item_props_percent	%
+st_item_props_sec	s
+st_item_sell_precondition_faction_1	Wymagana reputacja u włóczęgów
+st_item_sell_precondition_faction_2	Wymagana reputacja z Czarnym Rynkiem
+st_item_sell_precondition_faction_3	Wymagana reputacja w Armii Odrodzenia
+st_item_sell_precondition_faction_4	Wymagany poziom reputacji u osadników Skraju
+st_item_sold	Przedmiot sprzedany
+st_items_notes	Przedmioty specjalne
+st_items_notes_frame_1_text_1	Aby zwiększyć swoje szanse na przeżycie,\nmożesz zabierać do walki przedmioty specjalne
+st_items_notes_frame_1_text_2	Do przedmiotów specjalnych zaliczają się granaty, lekarstwa,\npułapki, miny i inne przyrządy
+st_items_notes_frame_2_text_1	Przedmioty specjalne umieszczane są w odpowiednich slotach
+st_items_notes_frame_3_text_1	Możesz zwiększyć liczbę slotów,\nużywając wyposażenia o odpowiedniej charakterystyce
+st_items_notes_frame_4_text_1	W jednym miejscu można umieścić\nograniczoną liczbę przedmiotów danego typu
+st_items_notes_frame_5_text_1	Możesz zwiększyć pojemność slotów,\nużywając wyposażenia o odpowiedniej charakterystyce
+st_izh27_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony MP-27M "Lancaster".\n- 1000 nabojów śrutowych 12x70.</white>
+st_izh27_bundle_name	Zestaw MP-27M "Lancaster"
+st_izh27_description	OPIS NIE JEST GOTOWY!!!
+st_izh27_name	MR-27M "Lancaster"
+st_izh27_premium_2_description	Rosyjska dwulufowa strzelba z lufami w układzie pionowym, kaliber 12. Produkowana przez Iżewskie Zakłady Mechaniczne pod marką Bajkał, jedna z najpopularniejszych dubeltówek myśliwskich i sportowych. Dwie lufy, po jednym naboju. Strzela z jednej lufy lub z obu naraz. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_izh27_premium_2_name	MP-27 "Błyskawica"
+st_jump_action	Skok
+st_kedr_description	Radziecki pistolet maszynowy, amunicja: 9x18 PM. Zaprojektowany przez Jewgienija Dragunowa na początku lat 70., produkowany seryjnie dopiero od lat 90. dla rosyjskiego MSW i policji. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_kedr_name	PP-91 Kedr
+st_kg_postfix	kg
+st_kick_clan_message	Na pewno usunąć gracza z klanu?
+st_kiparis_description	Ten pistolet maszynowy na amunicję 9x18 PM zaprojektowany został w latach 70. XX wieku, ale nigdy nie trafił do masowej produkcji. Zebrano je ponownie w latach 90., kiedy powstało zapotrzebowanie na pistolet maszynowy w siłach MSW Rosji.  Wyposażony w 30-nabojowy magazynek. 
+st_kiparis_name	OC-02 "Cyprys"
+st_knowledge_skills_descr	Odkrywając nowy świat nauczysz się lepiej obchodzić z artefaktami i anomaliami.
+st_knowledge_skills_name	Wiedza o świecie
+st_knw_advanced_art_desc	Wydłuża czas działania aktywowanych artefaktów.
+st_knw_advanced_art_name	Ekspert od artefaktów
+st_knw_artefact_hunter_desc	Umożliwia korzystanie z nowoczesnych detektorów artefaktów oraz urządzeń opartych na artefaktach.
+st_knw_artefact_hunter_name	Łowca artefaktów
+st_knw_artefacts_desc	Umożliwia uwolnienie wewnętrznej energii artefaktu w celu jego aktywacji.
+st_knw_artefacts_name	Aktywacja artefaktu
+st_knw_covering_desc	Przebywając w anomalii uzyskujesz dodatkową premię przeciwko wykryciu.
+st_knw_covering_name	Pod osłoną
+st_knw_empathy_desc	Jakimś cudem wyczuwasz tworzący się w pobliżu artefakt.
+st_knw_empathy_name	Zmysł natury
+st_knw_protecting_desc	Przebywając w anomalii uzyskujesz dodatkową ochronę przed ostrzałem i eksplozjami.
+st_knw_protecting_name	Tarcza anomalii
+st_knw_synergy_desc	Moc artefaktów rośnie proporcjonalnie z posiadaną ich ilością
+st_knw_synergy_name	Synergia
+st_kriss_vector_description	Amerykański pistolet maszynowy, amunicja: .45 ACP. Przedstawiony przez firmę KRISS w latach 2000.; jego system tłumienia odrzutu kieruje zamek w dół, co ogranicza podrzut lufy. Ten egzemplarz ma celownik kolimatorowy Walther Competition II. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego, seriami i ciągłego.
+st_kriss_vector_name	KRISS Vector
+st_label_invites	Zaproszenia
+st_label_leave_queue_btn	Opuść kolejkę
+st_label_quenue	Oczekiwanie na graczy:
+st_label_reports	Raporty
+st_label_status	Status
+st_label_support	Wiadomości systemowe
+st_label_teamA	Towarzysze
+st_label_teamB	Przeciwnicy
+st_label_time_average	Czas oczekiwania:
+st_leave_button	Opuść
+st_leave_clan_message	Czy na pewno chcesz opuścić klan?
+st_leave_clan_money_message	Czy na pewno chcesz opuścić klan? Srebro zdeponowane na koncie rejestracyjnym przepadnie.
+st_leave_squad	Opuść brygadę
+st_left_strafe_action	Krok w lewo
+st_less_then_hour	mniej niż godzina
+st_level_01_name	Rudnia
+st_level_02_name	Szkoła
+st_level_03_name	Stacja Radarowa "Vostok"
+st_level_04_name	Zakłady chemiczne
+st_level_05_name	Fort Tarakanów
+st_level_06_name	Kurhan Mamaja
+st_level_07_name	Laboratorium "Wektor"
+st_level_08_name	Most w Kolonii
+st_level_09_name	Londyn
+st_level_10_name	Stacja Radarowa "Vostok" (v0.21)
+st_level_11_name	Kurhan Mamaja (v0.21)
+st_level_12_name	Zakłady chemiczne (v0.11)
+st_level_13_name	Stacja Radarowa "Vostok" (v0.11)
+st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
+st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
+st_lightning_quality_option	Jakość oświetlenia
+st_login_button_label	Wejdź
+st_login_default_text	E-mail
+st_login_eula_label	Umowa licencyjna\n z użytkownikiem końcowym gry „Survarium”
+st_login_menu_accept	Akceptuj
+st_login_menu_cancel	Anuluj
+st_login_menu_status_access_level_restriction	Niewystarczający poziom dostępu, aby wejść.
+st_login_menu_status_connecting	Autoryzacja…
+st_login_menu_status_error_connection	Brak połączenia z serwerem Skhid. Zezwól na grę w zaporze (Skhid-network-setup.cmd). W Rosji użyj VPN i dodaj do niego pliki .exe gry (VPN.txt).
+st_login_menu_status_invalid_user_or_password	Nieprawidłowy e-mail lub hasło
+st_login_menu_status_invalid_version	Korzystasz z nieaktualnej wersji gry.
+st_login_menu_status_sign_in_already_online	Użytkownik jest już w grze
+st_login_menu_status_sign_in_attempt_interval_violated	Przekroczono maksymalną liczbę prób logowana. Spróbuj ponownie za 10 sekund.
+st_login_menu_status_user_banned	Zbanowano ciebie. 
+st_login_menu_status_user_not_confirmed	Twoje konto nie zostało zweryfikowane. Użyj odnośnika, który wysłano na twój adres e-mail, aby dokonać weryfikacji konta.
+st_login_str	E-mail
+st_lost_modifier	Utracony modyfikator
+st_loyalty_bonus_rep	Premia do lojalności
+st_m4a1_description	Amerykański karabinek, amunicja: 5,56x45. Skrócone i lżejsze rozwinięcie karabinu M16, przyjęte przez siły zbrojne USA w latach 90.; wersja M4A1 strzela ogniem ciągłym i jest używana przez wojska specjalne. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_m4a1_name	M4A1
+st_magnum_description	Sześciostrzałowy rewolwer kalibru .357 Magnum. Wprowadzony do użytku w 1955 r. Przez niektórych uważany za najlepszy w swojej klasie. Wyróżnia się płynnie działającym mechanizmem spustowym i wysoką precyzją strzału.
+st_magnum_name	Colt Python
+st_maintenance	Trwa konserwacja techniczna serwerów. Aplikacja zostanie zamknięta.
+st_map	Mapa
+st_match_items_found	Znaleziono
+st_match_making_level	Poziom rozgrywki
+st_match_rewards	Nagroda za rozgrywkę
+st_match_settings_checkbox_PVE	Swobodna gra
+st_match_settings_checkbox_PVE_hint	Przetrwaj z innymi graczami w trudnych warunkach dyktowanych przez bezwzględny Las
+st_match_settings_checkbox_PVP	Gracz z graczem
+st_match_settings_checkbox_PVP_hint	Tryby konfrontacji graczy dobranych na podstawie wyposażenia i połączonych w drużyny według osobistego rankingu
+st_match_settings_checkbox_battery_charge	Ładowanie urządzenia
+st_match_settings_checkbox_battery_charge_hint	Tryb rywalizacji drużyn w zbieraniu baterii do instalacji obronnych
+st_match_settings_checkbox_capture_points	Badania
+st_match_settings_checkbox_capture_points_hint	Tryb bitwy drużynowej ze zdobywaniem kluczowych pozycji
+st_match_settings_checkbox_clan_match_hint	Tryby konfrontacji drużyn klanowych
+st_match_settings_checkbox_rank_match	Rozgrywka rankingowa
+st_match_settings_checkbox_rank_match_hint	Tryb konfrontacji pomiędzy losowo wybranymi drużynami klanów z tabeli rankingu klanów
+st_match_settings_checkbox_team_match	Bitwa drużynowa
+st_match_settings_checkbox_team_match_hint	Tryb konfrontacji drużynowej do całkowitego unicestwienia przeciwnika
+st_match_settings_checkbox_tournament_match	Rozgrywka turniejowa
+st_match_settings_checkbox_tournament_match_hint	Tryb konfrontacji drużyn klanów w trwającym turnieju
+st_match_settings_checkbox_training_match	Rozgrywka treningowa
+st_match_settings_checkbox_training_match_hint	Tryb sali treningowej
+st_match_settings_clan_match	Bitwa klanowa
+st_match_time_is_up	Czas rozgrywki dobiegł końca!
+st_max_carried_weight_description	Udźwig:
+st_max_carried_weight_name	Siłacz
+st_max_carried_weight_ultimate_description	Udźwig nie wpływa już na prędkość poruszania się, ale nie możesz biec.
+st_max_carried_weight_ultimate_name	Mocarz
+st_med_combat_shock_desc	Kary dotyczące krytycznych obrażeń kończyn nakładane są o kilka sekund później.
+st_med_combat_shock_name	W ogniu walki
+st_med_farmacial_desc	Wydłuża czas trwania leków.
+st_med_farmacial_name	Farmaceutyki
+st_med_fast_use_desc	Czas potrzebny do przygotowania leków jest wyraźnie skrócony.
+st_med_fast_use_name	Szybkie użycie
+st_med_medical_desc	Umożliwia wykorzystanie nowoczesnych leków i urządzeń medycznych.
+st_med_medical_name	Medyk
+st_med_reanimation_desc	Znacząco poprawia stan zdrowia zreanimowanych towarzyszy.
+st_med_reanimation_name	Reanimacja
+st_med_refining_desc	Zwiększa efektywność leków.
+st_med_refining_name	Dezynfekcja lekarstw
+st_med_revive_desc	Umożliwia samodzielną reanimację pod warunkiem posiadania odpowiedniego urządzenia.
+st_med_revive_name	Ostatni wysiłek
+st_medicial_skills_descr	Zwiększa twoje szanse na przetrwanie i szkoli w wykorzystaniu urządzeń medycznych i lekarstw.
+st_medicial_skills_name	Przetrwanie i pierwsza pomoc
+st_meele_hit_range_description	Będzie dostępne w najbliższych aktualizacjach.
+st_meele_hit_range_name	Skok z nożem
+st_meele_hit_ultimate_description	Będzie dostępne w najbliższych aktualizacjach.
+st_meele_hit_ultimate_name	Młot
+st_melee_action	Walka wręcz
+st_member_dont_have_battle_permission	Gracz nie ma wystarczających uprawnień do statusu dowódcy polowego.
+st_mercenaries_faction	Najemnicy
+st_message_reroll_text	Cofnąć rozdanie umiejętności?
+st_messages_censor_option	Włącz cenzurę wiadomości
+st_messages_only_from_friends_option	Przyjmuj wiadomości prywatne tylko od znajomych
+st_microphone_sensitivity_option	Czułość mikrofonu
+st_minimap	Minimapa
+st_minimap_bottom	Dolny lewy róg
+st_minimap_off	Minimapa wyłączona
+st_minimap_position	Pozycja minimapy
+st_minimap_rotable_option	Ustal pozycję minimapy
+st_minimap_top	Górny lewy róg
+st_missile_weapon_action	Granat
+st_missions	Misje
+st_mm_button_back	Wstecz
+st_mm_button_exit_to_os	Wyjdź do pulpitu
+st_mm_button_leave_match	Opuść rozgrywkę
+st_mm_button_settings	Opcje
+st_mm_match_found	Dobór graczy zakończony! \nOczekiwanie na odpowiedź serwera.
+st_mode_02_description	Nadciąga „Burza”. Jedyna szansa na przeżycie to znaleźć na mapie elementy zasilające i przywrócić zasilanie urządzeń ochronnych, zdolnych zneutralizować jej działanie. Wygrywa drużyna, która zbierze najwięcej baterii.
+st_mode_02_name	Urządzenie ochronne
+st_mode_03_description	Nadciąga „Burza”. Jedyna szansa na przeżycie to znaleźć na mapie elementy zasilające i przywrócić zasilanie urządzeń ochronnych, zdolnych zneutralizować jej działanie. Wygrywa drużyna, która zbierze najwięcej baterii.
+st_mode_03_name	Urządzenie ochronne
+st_mode_04_description	Umocnienie pozycji twojej grupy w tej okolicy, po usunięciu jak największej liczby przeciwników. Każda śmierć żołnierza obniża ogólny wynik jego drużyny o jeden punkt wsparcia. Wygrywa drużyna, która pod koniec meczu będzie miała więcej punktów wsparcia.
+st_mode_04_name	Walka drużynowa
+st_mode_05_description	Twoim zadaniem jest przejęcie kontroli nad mobilnymi stanowiskami badawczymi. Każde zdobyte przez twoją drużynę stanowisko daje punkty badania anomalii. Zwycięża drużyna, która zdobędzie więcej punktów.
+st_mode_05_name	Badania
+st_modification_screen_edit_decal_hint	Aby zmienić rozmiar i pozycję naszywki, kliknij na jej okno
+st_modification_screen_hint	Przeciągnij kamuflaż lub naszywkę z ekwipunku do okna ulepszenia przedmiotu
+st_modified	Zmodyfikowano
+st_modifier_reroll_description	Możesz zmienić tylko jeden modyfikator w przedmiocie, ale za to nieograniczoną ilość razy. Jeżeli zmienisz modyfikator, pojawi się opcja wyboru jednego z trzech losowych modyfikatorów.
+st_modifier_reroll_timer_description	Płacąc srebrem możliwa jest tylko jedna próba na 6 godzin.
+st_module_is_installed_on	Moduł jest zamontowany
+st_money	Pieniądze
+st_money_modifier	Zdobywane srebro
+st_money_reward_match	Nagroda za rozgrywkę
+st_money_reward_premium	Bonus premium
+st_money_reward_quest	Nagroda za zadanie
+st_monitor_ajust	Kalibracja monitora
+st_monitor_count_option	Aktywny monitor
+st_mosin_description	Karabin powtarzalny, amunicja: 7.62x54 mm. Przyjęty do uzbrojenia armii Imperium Rosyjskiego Popularny podczas I i II wojny światowej. Wyposażony w stały 5-nabojowy magazynek.
+st_mosin_name	Karabin Mosin
+st_motion_blur_amount_options	Rozmycie podczas ruchu
+st_mouse_invertion_option	Odwróć kierunek myszy
+st_mouse_sensitivity_option	Czułość myszki
+st_move_backward_action	Wstecz
+st_move_forward_action	Naprzód
+st_move_speed_weapon_penalty_description	Anulowana jest kara dotycząca prędkości poruszania się w przypadku noszenia dużej broni.
+st_move_speed_weapon_penalty_name	Noszenie broni
+st_move_to_reserve	Do rezerwy
+st_move_to_team	Umieść w zespole
+st_movement_speed_correction_perc_name	Szybkość poruszania się
+st_movement_speed_description	Szybkość poruszania się:
+st_movement_speed_name	Porywczy
+st_movement_speed_when_aiming_description	Prędkość poruszania się podczas celowania:
+st_movement_speed_when_aiming_name	Pozycja bojowa
+st_mp153_description	Samopowtarzalna strzelba gładkolufowa rosyjskiej konstrukcji, amunicja: 12x70.  Dzięki przystępnej cenie i przyzwoitej niezawodności znalazła szerokie zastosowanie jako strzelba myśliwska i sportowa. Wyposażona w 4-nabojowy magazynek rurowy.
+st_mp153_name	MP-153 "Bajkał"
+st_msbs_carbine_description	Polski modułowy karabinek, amunicja: 5,56x45. Opracowany w latach 2010. przez Wojskową Akademię Techniczną w Warszawie i Fabrykę Broni w Radomiu; przyjęty na uzbrojenie Wojska Polskiego jako Grot. Ten egzemplarz ma celownik holograficzny EOTech 552. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego, seriami i ciągłego.
+st_msbs_carbine_name	MSBS Radon
+st_multiplicative_breath_vibration_modifier	Kołysanie celownika
+st_multiplicative_chamber_a_round_time_modifier	Czas wprowadzenia naboju do komory
+st_multiplicative_device_damage_modifier	Obrażenia od urządzeń
+st_multiplicative_recoil_modifier	Odrzut broni
+st_multiplicative_reliability_modifier	Niezawodność
+st_multiplicative_reload_time_modifier	Szybkość przeładowania
+st_multiplicative_respawn_time_modifier	Czas odrodzenia
+st_multiplicative_splash_radius_modifier	Pole rażenia
+st_multiplicative_stamina_spending_modifier	Koszty energii
+st_munition	Sprzęt
+st_music_volume_option	Muzyka
+st_must_be_in_clan_team	Musisz należeć do drużyny klanu.
+st_my_place	Mój ranking
+st_neostead_description	Południowoafrykańska strzelba powtarzalna typu pump-action kalibru 12. Zaprojektowana w latach 90. przez Tony'ego Neophytou w układzie bullpup; ma dwa magazynki rurowe nad lufą, a do przeładowania czółenko przesuwa się do przodu. Mieści 12 nabojów. Tylko ogień pojedynczy.
+st_neostead_name	NeoStead 2000
+st_neostead_premium_description	Południowoafrykańska strzelba powtarzalna typu pump-action kalibru 12. Zaprojektowana w latach 90. przez Tony'ego Neophytou w układzie bullpup; ma dwa magazynki rurowe nad lufą, a do przeładowania czółenko przesuwa się do przodu. Mieści 12 nabojów. Tylko ogień pojedynczy. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_neostead_premium_name	NeoStead 2000 M2
+st_new_items_unlocked	nowych przedmiotów w sklepie:
+st_new_level_reached	Osiągnięto nowy poziom!
+st_new_modifier	Nowy modyfikator
+st_next_ammo_action	Zmiana rodzaju amunicji
+st_next_fire_queue_action	Zmiana trybu ognia
+st_next_weapon	Następna broń
+st_nickname	Imię
+st_no_available_resolution	Niewspierane
+st_no_faction_button_label	Wybór
+st_no_faction_message_label	Współpraca z frakcjami
+st_no_faction_message_text	Frakcje są głównym dostawcą ekwipunku i amunicji. Zdobywaj reputację przez wykonywanie dla nich zadań. W zamian otrzymasz dostęp do najlepszego towaru. Można współpracować tylko z jedną frakcją naraz.
+st_non_faction_items	Handlarze niezależni
+st_non_sport_behavior_claim	Zabójstwo towarzysza
+st_not_all_team_members_ready	Nie wszyscy gracze potwierdzili gotowość.
+st_not_enough_money	Za mało pieniędzy do przeprowadzenia transakcji.
+st_not_enought_money_for_repair	Za mało pieniędzy na naprawę
+st_not_enougth_money	Za mało pieniędzy
+st_not_enougth_money_for_reroll	Za mało pieniędzy do zresetowania umiejętności
+st_not_logged_id	Błąd identyfikacji gracza. Uruchom grę ponownie.
+st_not_ready	Niegotowy
+st_notes_if_you_read	Po przeczytaniu
+st_notes_reward	otrzymasz:
+st_novice_026_helmet_desc	Dziergana czapka stalkera nowicjusza z anulowanego S.T.A.L.K.E.R. 2.
+st_novice_026_helmet_name	Czapka nowicjusza
+st_of	z
+st_ok	OK
+st_on_enemy_theft_item	Przeciwnik ukradł baterię z twojej bazy. Zatrzymaj go!
+st_on_spawn_victory_item	Bateria naładowana! Dostarcz ją do bazy!
+st_one_handed	Zapasowa
+st_online_store	Kup złoto
+st_onyx_activation_hint	Onyks aktywowany! Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 75% na %s s.
+st_onyx_pickup_hint	Artefakt Onyks. Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 5%.
+st_open	Otwórz
+st_options_2taa	2xTAA
+st_options_adjust_gamma	Gamma:
+st_options_apply	Zastosuj
+st_options_cancel	Anuluj
+st_options_chat	Czat:
+st_options_chat_keys	Czat:
+st_options_controller	Klawiatura
+st_options_cross_type	Celownik:
+st_options_custom	Użytkownika
+st_options_default_controls	Ustawienia domyślne
+st_options_default_video	Ustawienia domyślne
+st_options_friends	Znajomi:
+st_options_fxaa	FXAA
+st_options_game	Gra:
+st_options_gameplay	Gra
+st_options_hbao	HDAO
+st_options_high	Wysokie
+st_options_lobby	Lobby:
+st_options_low	Niskie
+st_options_medium	Średnie
+st_options_minimum	Minimalne
+st_options_off	Wyłączone
+st_options_ok	OK
+st_options_on	Włączone
+st_options_optimal_video	Ustawienia optymalne
+st_options_sound	Audio
+st_options_ssao	SSAO
+st_options_ssdo	SSDO
+st_options_ultra	Ultra
+st_options_video	Grafika
+st_options_voice	Głos:
+st_options_volume	Głośność:
+st_other	Inne
+st_oust_commander	Zmień dowódcę
+st_overweight_penalty_description	Wpływ wagi na prędkość poruszania się:
+st_overweight_penalty_name	Pakowacz
+st_oxygen_tank_description	Butla z tlenem ręcznie wykonana przez rzemieślników w obozie włóczęgów. Mieszanka tlenowa przechowywany jest w postaci sprężonego gazu.
+st_oxygen_tank_name	Butla tlenowa
+st_pain_healt_correction_perc_name	Próg bólu
+st_paperdoll_btn_ammo	Amunicja
+st_paperdoll_btn_fix	Napraw
+st_paperdoll_btn_weight	Waga
+st_paperdoll_label	Bohater
+st_particles_quality_options	Jakość cząsteczek
+st_password_default_text	Hasło
+st_password_str	Hasło
+st_pause_game_action	Pauza
+st_pd_artefact	Artefakt
+st_pd_back	plecak
+st_pd_foot	buty
+st_pd_hands	rękawice
+st_pd_head	hełm
+st_pd_legs	spodnie
+st_pd_mask	maska
+st_pd_torso	kurtka
+st_pd_weapon	Broń
+st_percent_postfix	%
+st_personal_statistics	Osiągnięcia osobiste
+st_phy_adrenalin_desc	Każde otrzymane obrażenia zwiększają odrobinę szybkość ruchu i przywracają część kondycji.
+st_phy_adrenalin_name	Przypływ adrenaliny
+st_phy_athlet_desc	Zmniejsza karę do szybkości ruchu spowodowaną nadmiernym obciążeniem.
+st_phy_athlet_name	Atleta
+st_phy_ignor_pain_desc	Sprint zwiększa odporność na ból.
+st_phy_ignor_pain_name	Ignorowanie bólu
+st_phy_melee_rush_desc	Zwiększyła się odległość, z jakiej można zabić przeciwnika w walce wręcz.
+st_phy_melee_rush_name	Skok z nożem
+st_phy_second_breath_desc	W razie wyczerpania energii całkowicie regeneruje siły. Działa tylko raz na minutę.
+st_phy_second_breath_name	Drugi oddech
+st_phy_sprinter_desc	Zwiększa szybkość poruszania się podczas sprintu.
+st_phy_sprinter_name	Sprinter
+st_phy_war_rage_desc	Zabicie przeciwnika w walce wręcz całkowicie regeneruje kondycję i likwiduje ból wywołany obrażeniami.
+st_phy_war_rage_name	Szał bitewny
+st_physical_skills_descr	Zwiększa twoją szybkość, udźwig oraz regenerację kondycji.
+st_physical_skills_label	Trening fizyczny
+st_physical_skills_name	Trening fizyczny
+st_picatinny_scope_medium_name	Optyka / kolimatory
+st_pickup_item	Podnieś ({USE})
+st_ping_postfix	ms
+st_pkp_pecheneg_description	Rosyjski uniwersalny karabin maszynowy, amunicja: 7,62x54R. Opracowany w CNIITocznMasz na bazie PKM i przyjęty na uzbrojenie w 2001 r.; ciężka lufa z osłoną wymuszonego chłodzenia powietrzem pozwala na długie serie bez wymiany lufy. Zasilany z taśmy na 100 nabojów. Posiada tryb ognia pojedynczego i ciągłego.
+st_pkp_pecheneg_name	PKP Pieczenieg
+st_place	Połóż
+st_play_button	Graj
+st_player_equipment_level	Poziom wyposażenia
+st_player_info_label	Informacje o graczu
+st_player_is_already_in_clan	Gracz należy już do klanu.
+st_player_level	POZIOM
+st_player_not_found	Nie odnaleziono gracza.
+st_player_skills_check_failed	Błąd potwierdzenia zdobycia umiejętności.
+st_players_list_filter_text	Sortuj wg imienia
+st_pm_description	Pistolet Makarowa, amunicja: 9x18 PM. Zaprojektowany w 1948 r.jako następca pistoletu TT. Przyjęty jako broń przyboczna w armii i siłach porządkowych. Wyposażony w 8-nabojowy magazynek.
+st_pm_name	PM
+st_pockets	Kieszenie
+st_point	pkt
+st_points_aviable	Dostępne punkty
+st_points_earned	Twój poziom
+st_post_process_options	Jakość postprocessingu
+st_pp2000_description	OPIS NIE JEST GOTOWY!!!
+st_pp2000_name	PP-2000
+st_ppsh_description	Pistolet maszynowy Szpagina, legendarna broń zwycięstwa. W niektórych krajach używany do późnych lat 80. Wyposażony w 35-nabojowy magazynek.
+st_ppsh_name	PPSz-41
+st_premium	Premium
+st_premium_3_day	3 dni
+st_premium_3_day_descr	(72 godziny)
+st_premium_3_month	3 miesiące
+st_premium_3_month_descr	(90 dni)
+st_premium_6_month	6 miesięcy
+st_premium_6_month_descr	(180 dni)
+st_premium_access_1d_voucher_descr	Ten kupon umożliwia aktywację konta premium na jeden dzień.
+st_premium_access_1d_voucher_name	Konto premium
+st_premium_action	Promocja!
+st_premium_advert	Aktywuj konto premium już teraz,\na otrzymasz za tę grę wszystkie bonusy
+st_premium_ally_members	Dzięki graczom z kontem premium
+st_premium_bonus	Doświadczenie\nPrzychód\nReputacja
+st_premium_bonus_experience	DOŚWIADCZENIE ZA WALKĘ!
+st_premium_bonus_item_search	PREMIA DO WYSZUKIWANIA PRZEDMIOTÓW!
+st_premium_bonus_money	NAGRODA ZA WALKĘ!
+st_premium_bonus_profile	Profil wyposażenia
+st_premium_bonus_reputation	PREMIA DO REPUTACJI FRAKCJI!
+st_premium_button_advert	Kup PREMIUM
+st_premium_day	Doba
+st_premium_day_descr	(24 godziny)
+st_premium_discount	Zniżka
+st_premium_left	Pozostało:
+st_premium_money	Złoto
+st_premium_money_name	Złoto
+st_premium_month	Miesiąc
+st_premium_month_descr	(30 dni)
+st_premium_post_reward_descr	Aktywuj konto premium,\na otrzymasz w nagrodę wszystkie bonusy\nz ubiegłego tygodnia!
+st_premium_post_reward_label	Więcej korzyści z kontem premium!
+st_premium_profile_hint	Dostępny z kontem premium
+st_premium_profile_unlock_description	Trzeci profil wyposażenia dostępny jest tylko z kontem premium
+st_premium_reward_part_1	Po rozgrywce znajdziesz
+st_premium_reward_part_2	więcej przedmiotów
+st_premium_week	Tydzień
+st_premium_week_descr	(7 dni)
+st_premium_year	Rok
+st_premium_year_descr	(365 dni)
+st_prepare_to_battle_notes	Przygotowanie do walki
+st_prepare_to_battle_notes_frame_1_text_1	W walce uczestniczą dwie drużyny
+st_prepare_to_battle_notes_frame_2_text_1	Nad głowami twoich sojuszników\nznajdują się znaczki
+st_prepare_to_battle_notes_frame_2_text_2	- wyświetl nicki sojuszników
+st_prepare_to_battle_notes_frame_3_text_1	Uważaj, wróg może być\nledwie zauważalny
+st_prepare_to_battle_notes_frame_3_text_2	Poruszaj się ostrożnie
+st_prepare_to_battle_notes_frame_4_text_1	Wskaźnik ran wyświetla\nobecny stan ciała
+st_prepare_to_battle_notes_frame_4_text_2	Użyj lekarstwa, dzięki któremu\nuśmierzysz ból i przyspieszysz gojenie się rany
+st_prepare_to_battle_notes_frame_5_text_1	Możesz odnieść krytyczną ranę\nręki lub nogi
+st_prepare_to_battle_notes_frame_5_text_2	Daje to karę do precyzji strzelania\ni szybkości poruszania się
+st_prepare_to_battle_notes_frame_6_text_1	Jeśli masz złamane obie ręce,\nnie będziesz w stanie używać\nbroni dwuręcznej
+st_prepare_to_battle_notes_frame_7_text_1	Jeśli zaś złamiesz obie nogi,\nnie będziesz mógł się przemieszczać
+st_prev_weapon	Poprzednia broń
+st_private_messages_in_game_option	Ukryj czat na czas rozgrywki
+st_profile	Profil
+st_profile_check_failed	Nie można dołączyć do bitwy bez broni!
+st_profile_check_failed_weapon	Nie można dołączyć do bitwy bez broni!
+st_profile_check_failed_weapon_ammo	Nie można dołączyć do rozgrywki z powodu niewystarczającej ilości amunicji w ekwipunku!
+st_profile_check_failed_weapon_ammo_in_inv	Nie można rozpocząć walki. Masz za mało amunicji w magazynie!
+st_profile_play_time	Czas gry
+st_profile_rename	Zmień nazwę profilu
+st_profile_rename_label	Zmiana nazwy profilu
+st_profile_selection_warning	+20 sekund do czasu odrodzenia przy zmianie profilu.
+st_profile_warning_weapon	Profil nieaktywny: brak broni
+st_profile_warning_weapon_ammo	Profil nieaktywny: za mało naboi w plecaku
+st_profile_warning_weapon_ammo_in_inv	Profil nieaktywny: za mało naboi w magazynie
+st_ptt_action	PTT
+st_ptt_button_option	PTT
+st_put_item	Umieść ({USE})
+st_quest_change_warning	Uwaga! Przy zmianie zadań spadnie lojalność frakcji wobec ciebie!
+st_quest_completed	Zadanie wykonane!
+st_quest_failed	Nie udało się wykonać zadania!
+st_quest_progress	Postęp w wykonaniu zadania
+st_quest_reward_info	Nagroda na koniec bitwy zależy od poziomu rozgrywki.
+st_quests	Misje
+st_quests_label	Misje
+st_quests_progress_text_alpha_option	Przezroczystość
+st_quick_fix	Szybka naprawa
+st_quick_use_action_1	Przedmiot 1
+st_quick_use_action_2	Przedmiot 2
+st_quick_use_action_3	Przedmiot 3
+st_quick_use_action_4	Przedmiot 4
+st_quick_use_action_5	Przedmiot 5
+st_quick_use_action_6	Przedmiot 6
+st_rank_up_to_commander_message	Czy na pewno chcesz, aby wybrany gracz został dowódcą klanu zamiast ciebie?
+st_ranking	Ranking
+st_ranking_diff	Różnica
+st_rattle_activation_hint	Grzechotka aktywowana! Przeciwnik nie usłyszy twoich kroków!
+st_rattle_pickup_hint	Artefakt Grzechotka. Tłumi odgłos kroków o 50%.
+st_rdgm_descr	OPIS NIE JEST GOTOWY!!!
+st_rdgm_name	Granat dymny RDG-M
+st_reach_level	osiągnął <green>Poziom</green>
+st_ready	Gotowy
+st_refill_ammo_btn	Zastosuj
+st_refill_ammo_label	Amunicja
+st_regen_booster_description	Stare, wojskowe racje żywnościowe. Stosowane z powodzeniem w armiach krajów WNP w czasach przed kryzysem. Pobudzają metabolizm i są całkiem smaczne.
+st_regen_booster_name	Racje
+st_registration_str	Utwórz konto
+st_regular_fix	Naprawa
+st_regular_money	Srebro
+st_reload_speed_description	Szybkość przeładowania:
+st_reload_speed_name	Przeładowanie
+st_relocate	Przesuń
+st_rem700_description	Amerykański karabin powtarzalny, amunicja: 7.62x51. Stosowany w sporcie, łowiectwie oraz jako karabin snajperski. Wyposażony w 5-nabojowy magazynek.
+st_rem700_name	Remington 700
+st_rem700_premium_description	Amerykański karabin powtarzalny, amunicja: 7.62x51. Stosowany w sporcie, łowiectwie oraz jako karabin snajperski. Wyposażony w 5-nabojowy magazynek. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_rem700_premium_name	Remington 700 "Oprawca"
+st_rem870_description	Amerykańska strzelba-pompka, amunicja: 12x70. Wykorzystywana często jako broń policyjna i myśliwska. Myśliwi zmodyfikowali rurowy magazynek tak, aby pomieścił 4 naboje.
+st_rem870_name	Remington 870
+st_remove	Usuń
+st_remove_from_friends	Usuń ze znajomych
+st_remove_from_ignore	Usuń z ignorowanych
+st_remove_from_squad	Usuń z brygady
+st_remove_from_team	Wyrzuć z drużyny
+st_ren_back_1_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_back_1_name	Plecak szturmowca
+st_ren_back_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_back_3_name	Butla "Świt 4N"
+st_ren_back_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_back_5_name	Butla "UKV-1"
+st_ren_boots_1_desc	Niezawodne buty wojskowe chroniące stopy noszącego przed urazami mechanicznymi i niewielkimi pułapkami.
+st_ren_boots_1_name	Buty wojskowe
+st_ren_boots_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_boots_3_name	Buty zwiadowcy
+st_ren_boots_4_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_boots_4_name	Wzmocnione buty
+st_ren_boots_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_boots_5_name	Buty "OZK-18KB"
+st_ren_boots_6_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_boots_6_name	Buty "Żubr UM-4"
+st_ren_gloves_1_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_gloves_1_name	Rękawice szturmowe
+st_ren_gloves_4_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_gloves_4_name	Wzmocnione rękawice
+st_ren_gloves_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_gloves_5_name	Rękawice "OZK-18KB"
+st_ren_gloves_6_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_gloves_6_name	Rękawice "Żubr UM-4"
+st_ren_helmet_1_desc	Hełm radzieckiego desantowca. Armia Odrodzenia bardzo ceni sobie ten symbol. Dobrze chroni głowę przed urazami, a wszyte stalowe płyty zatrzymają pociski niewielkiego kalibru.
+st_ren_helmet_1_name	Hełm spadochroniarza
+st_ren_helmet_2_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_helmet_2_name	Hełm "Witiaź-S"
+st_ren_helmet_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_helmet_3_name	Hełm zwiadowcy
+st_ren_helmet_4_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_helmet_4_name	Hełm "Młot UM-2"
+st_ren_helmet_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_helmet_5_name	Hełm "OZK-18KB"
+st_ren_helmet_6_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_helmet_6_name	Hełm "Żubr UM-4"
+st_ren_legs_1_desc	Spodnie maskujące z ochraniaczami na kolana domowej roboty. Wysoka jakość wykonania i dopasowany krój sprawiają, że nie ograniczają ruchów i umożliwiają żołnierzowi w pełnym rynsztunku sprawniej się poruszać. Mają dodatkową kieszeń na przedmioty.
+st_ren_legs_1_name	Spodnie wojskowe
+st_ren_legs_2_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_legs_2_name	Spodnie "Szturm"
+st_ren_legs_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_legs_3_name	Spodnie zwiadowcy
+st_ren_legs_4_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_legs_4_name	Spodnie "Młot UM-2"
+st_ren_legs_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_legs_5_name	Spodnie "OZK-18KB"
+st_ren_legs_6_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_legs_6_name	Spodnie "Żubr UM-4"
+st_ren_mask_2_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_mask_2_name	Maska szturmowa
+st_ren_mask_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_mask_3_name	Automat oddechowy "Kurtyna"
+st_ren_mask_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_mask_5_name	Maska przeciwgazowa "PMK-7S"
+st_ren_rep_modifier	Reputacja w Armii Odrodzenia
+st_ren_torso_1_desc	Pospolita wojskowa kamizelka kuloodporna II klasy, przystosowana do użytku w postapokaliptycznym świecie. Liczne kieszenie zapewniają dużą ilość miejsca na amunicję i wyposażenie.
+st_ren_torso_1_name	Wojskowa kamizelka kuloodporna
+st_ren_torso_2_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_torso_2_name	Kamizelka kuloodporna "Szturm"
+st_ren_torso_3_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_torso_3_name	Kamizelka kuloodporna "Sokół"
+st_ren_torso_4_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_torso_4_name	Kamizelka kuloodporna "Młot UM-2"
+st_ren_torso_5_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_torso_5_name	Kamizelka kuloodporna "OZK-18KB"
+st_ren_torso_6_desc	OPIS NIE JEST GOTOWY!!!
+st_ren_torso_6_name	Kamizelka kuloodporna "Żubr UM-4"
+st_renaissance_bring_x_items_descr	Nowy świat postawił przed nami nowe wyzwania.  Sama eliminacja nieprzyjaciół nie wystarczy, aby przeżyć. Trzeba także aktywować specjalne urządzenie do ochrony przed burzą.
+st_renaissance_bring_x_items_name	Ochrona przed burza
+st_renaissance_bring_x_items_obj	Znajdź i dostarcz baterie:
+st_renaissance_defend_items_descr	Na wojnie liczy się wszystko. Dobra obrona jest tak samo ważna, jak atak. Broń bazy przed przeciwnikiem. Nie pozwól rozkraść tego, co krwią i potem zdobyli twoi sojusznicy.
+st_renaissance_defend_items_name	Doskonała obrona
+st_renaissance_defend_items_obj	Wygraj rozgrywkę bez straty baterii z bazy.
+st_renaissance_faction	Armia Odrodzenia
+st_renaissance_grenade_enemies_descr	Granaty już dawno dowiodły swojej efektywności podczas operacji ofensywnych i defensywnych. Ty też musisz nauczyć się nimi posługiwać.
+st_renaissance_grenade_enemies_name	Grenadier
+st_renaissance_grenade_enemies_obj	Przeciwnicy do zabicia granatem podczas bitwy:
+st_renaissance_headshots_descr	Udowodnij, że mistrzowsko posługujesz się bronią. Że przygotowanie to nie jest tylko pusta fraza.  I nieważne, co to za broń – pistolet maszynowy czy snajperski. Dobry żołnierz zawsze strzela celnie.
+st_renaissance_headshots_name	Strzelec wyborowy
+st_renaissance_headshots_obj	Przeciwnicy do zabicia strzałem w głowę:
+st_renaissance_kd_ratio_descr	Dobry żołnierz nie jest bezmyślnym zabójcą. Samokontrola i dyscyplina sprawia, że jesteśmy silniejsi i wyróżniamy się z motłochu. Udowodnij to!
+st_renaissance_kd_ratio_name	Przewaga!
+st_renaissance_kd_ratio_obj	Wygraj rozgrywkę ze stosunkiem zabitych/śmierci co najmniej
+st_renaissance_kill_enemies_descr	Na wojnie – jak na wojnie. Zwycięstwo nie zawsze jest możliwe bez rozlewu krwi, więc nie baw się z przeciwnikiem. Pamiętaj, każdy zabity nieprzyjaciel przybliża nas do zwycięstwa!
+st_renaissance_kill_enemies_name	Strzelaj, by zabić
+st_renaissance_kill_enemies_obj	Przeciwnicy do zabicia w jednej rozgrywce:
+st_renaissance_killstreak_descr	Na polu boju czeka na ciebie chwała. Ale tylko prawdziwy bohater jest w stanie ją zdobyć! Udowodnij, że zasługujesz na tytuł bohatera Armii Odrodzenia!
+st_renaissance_killstreak_name	Bohater!
+st_renaissance_killstreak_obj	Przeciwnicy do zabicia w serii:
+st_renaissance_level_0	Nieznany
+st_renaissance_level_1	Żołnierz
+st_renaissance_level_10	Pułkownik
+st_renaissance_level_2	Kapral
+st_renaissance_level_3	Sierżant
+st_renaissance_level_4	St. sierżant
+st_renaissance_level_5	Chorąży
+st_renaissance_level_6	Porucznik
+st_renaissance_level_7	Kapitan
+st_renaissance_level_8	Major
+st_renaissance_level_9	Podpułkownik
+st_renaissance_level_unlock_0	Gratulacje! Otrzymujesz dostęp do zadań od Armii Odrodzenia!
+st_renaissance_level_unlock_1	Gratulacje! Jesteś teraz żołnierzem Armii Odrodzenia!
+st_renaissance_level_unlock_10	Gratulacje! Jesteś teraz pułkownikiem Armii Odrodzenia!
+st_renaissance_level_unlock_2	Gratulacje! Jesteś teraz kapralem Armii Odrodzenia!
+st_renaissance_level_unlock_3	Gratulacje! Jesteś teraz sierżantem Armii Odrodzenia!
+st_renaissance_level_unlock_4	Gratulacje! Jesteś teraz starszym sierżantem Armii Odrodzenia!
+st_renaissance_level_unlock_5	Gratulacje! Jesteś teraz chorążym Armii Odrodzenia!
+st_renaissance_level_unlock_6	Gratulacje! Jesteś teraz porucznikiem Armii Odrodzenia!
+st_renaissance_level_unlock_7	Gratulacje! Jesteś teraz kapitanem Armii Odrodzenia!
+st_renaissance_level_unlock_8	Gratulacje! Jesteś teraz majorem Armii Odrodzenia!
+st_renaissance_level_unlock_9	Gratulacje! Jesteś teraz podpułkownikiem Armii Odrodzenia!
+st_renaissance_meele_kill_descr	Bojownicy Armii Odrodzenia są silni nie tylko duchem, ale i ciałem. Wytrzymałość i męstwo - to nasza droga do zwycięstwa. Naucz się bronić w walce wręcz.
+st_renaissance_meele_kill_name	Droga do zwycięstwa
+st_renaissance_meele_kill_obj	Zabij przeciwników w walce wręcz.
+st_renaissance_represent	Musisz włożyć barwy Armii Odrodzenia.
+st_renaissance_steal_box_descr	Walka twarzą w twarz jest honorowa, ale nie zawsze skuteczna. Umiejętna dywersja na tyłach wroga może odwrócić losy bitwy i przynieść zwycięstwo!
+st_renaissance_steal_box_name	Dywersant
+st_renaissance_steal_box_obj	Wykradnij baterię z obozu przeciwnika i dostarcz ją do swojej bazy.
+st_renaissance_win_score_descr	Nigdy nie spoczywaj na laurach – oto motto Armii Odrodzenia. Im więcej baterii w obwodzie, tym mniej ucierpimy z powodu burzy.
+st_renaissance_win_score_name	Wspaniałe zwycięstwo!
+st_renaissance_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
+st_renaissance_win_x_games_descr	Krok za krokiem, bitwa za bitwą, zwycięstwo za zwycięstwem – oto sposób na odzyskanie potęgi! Nie mamy się dokąd cofać. Musimy zwyciężyć za wszelką cenę!
+st_renaissance_win_x_games_name	Za ojczyznę!
+st_renaissance_win_x_games_obj	Walk do wygrania:
+st_rename_account_voucher_descr	Ten kupon umożliwia darmową zmianę imienia bohatera.
+st_rename_account_voucher_name	Kupon zmiany imienia bohatera
+st_rep_reward_match	Wzrost reputacji
+st_rep_reward_premium	Bonus premium
+st_rep_reward_quest	Nagroda za wykonanie zadania
+st_repair_time	Naprawianie
+st_repair_time_label	czas
+st_repair_voucher_descr	Zestawem naprawczym usuniesz każdą krytyczną usterkę wyposażenia.
+st_repair_voucher_name	Zestaw naprawczy
+st_repair_window_label	Napraw
+st_reputation	Reputacja
+st_reroll	Reset
+st_reroll_message_broken_item	Nie można modyfikować uszkodzonego przedmiotu.
+st_reroll_modifier_lock_hint	Możesz zmienić tylko ten modyfikator.
+st_reroll_timer_hint	Będzie możliwe za
+st_research_unit_a_captured	Instalacja A zdobyta
+st_research_unit_a_lost	Instalacja A utracona
+st_research_unit_b_captured	Instalacja B zdobyta
+st_research_unit_b_lost	Instalacja B utracona
+st_research_unit_c_captured	Instalacja C zdobyta
+st_research_unit_c_lost	Instalacja C utracona
+st_resolution_option	Rezolucja
+st_respawn_booster_description	Cywilne radio "FD3". Niezwykle użyteczne podczas działań bojowych i współpracy między żołnierzami.
+st_respawn_booster_name	Radio
+st_respawn_time_pref	Odrodzenie za
+st_resupply_check_empty_inventory	Za mało amunicji w magazynie
+st_resupply_check_full_ammo	Osiągnięto limit ilości amunicji
+st_resupply_finished	Amunicja i wyposażenie uzupełnione!
+st_revenue	Przychód
+st_reward	Nagroda
+st_rgd5_descr	Ręczny granat zaczepny. Podczas eksplozji razi odłamkami pochodzącymi ze skorupy.
+st_rgd5_name	Granat RGD-5
+st_rgo_descr	OPIS NIE JEST GOTOWY!!!
+st_rgo_name	RGO
+st_right_strafe_action	Krok w prawo
+st_rpd_description	OPIS NIE JEST GOTOWY
+st_rpd_name	RPD
+st_rpk_description	OPIS NIE JEST GOTOWY
+st_rpk_name	RPK-74M
+st_saiga_12_description	Rosyjska strzelba samopowtarzalna kalibru 12. Zbudowana w zakładach Iżmasz na bazie systemu Kałasznikowa w latach 90. do polowań i dla służb ochrony; wersja K ma krótką lufę i składaną kolbę. Wyposażona w 5-nabojowy magazynek pudełkowy. Tylko ogień pojedynczy.
+st_saiga_12_name	Saiga-12K
+st_saiga_12_premium_description	Rosyjska strzelba samopowtarzalna kalibru 12. Zbudowana w zakładach Iżmasz na bazie systemu Kałasznikowa w latach 90. do polowań i dla służb ochrony; wersja S ma składaną kolbę. Wyposażona w 5-nabojowy magazynek pudełkowy. Tylko ogień pojedynczy.
+st_saiga_12_premium_name	Saiga-12S
+st_save_password_str	Zapisz hasło
+st_scav_back_1_desc	Ręcznie wykonany pojemnik do przechowywania artefaktów zaprojektowany jako plecak. Przydatny podczas wyprawiania się na poszukiwanie artefaktów.
+st_scav_back_1_name	Plecak z pojemnikiem
+st_scav_boots_1_desc	Zwykłe buty znalezione w śmieciach lub zdjęte z jakiegoś trupa. Chronią nogi przed obrażeniami i urazami, co często może okazać się zbawienne podczas wymagających wypraw.
+st_scav_boots_1_name	Skórzane buty
+st_scav_boots_2_desc	Hermetyczna ochrona nóg podczas chodzenia po toksycznym podłożu. W takich butach można dotrzeć w trudno dostępne dla większości ocalałych obszary.
+st_scav_boots_2_name	Buty przeciwchemiczne
+st_scav_boots_3_desc	Wytrzymałe, ocieplone i wodoszczelne buty z metalowym nosem. Przez włóczęgów uważane za bezcenny łup. Znacznie zwiększają szansę na przeżycie w ciężkich warunkach pogodowych.  Zwiększają szybkość poruszania się o 2%.
+st_scav_boots_3_name	Buty wojskowe
+st_scav_gloves_1_desc	Zwykłe rękawice bez palców. Grzeją i chronią dłonie podczas marszu. Wygodne w użyciu. Nie trzeba ich zdejmować, żeby coś wyciągnąć lub użyć. Zwiększają szybkość celowania o 2%.
+st_scav_gloves_1_name	Rękawice bez palców
+st_scav_gloves_2_desc	Podgumowane rękawice ochronne przeznaczone do pracy z materiałem skażonym i pochodzącym z anomalii. Niezbędne wyposażenie każdego łowcy artefaktów.
+st_scav_gloves_2_name	Rękawice przeciwchemiczne
+st_scav_gloves_4_desc	OPIS NIE JEST GOTOWY!!!
+st_scav_gloves_4_name	Prymitywne rękawice
+st_scav_helmet_1_desc	OPIS NIE JEST GOTOWY!!!
+st_scav_helmet_1_name	Hełm montażowy
+st_scav_legs_1_desc	Prymitywne spodnie. Ogrzewają nogi i wytrzymają trudy związane z przemierzaniem ruin budynków.
+st_scav_legs_1_name	Lniane spodnie
+st_scav_legs_2_desc	Ręcznie wykonane przez włóczęgów spodnie ochronne. Chronią nogi przed toksycznymi substancjami. Wygodna kieszeń umożliwia przeniesienie kilku apteczek lub granatów.
+st_scav_legs_2_name	Spodnie przeciwchemiczne
+st_scav_legs_3_desc	Precyzyjnie zszyte spodnie z wytrzymałego materiału. Wyposażone w ochraniacze na kolana i mocowania na dodatkowy ekwipunek. Zapewniają dobrą ochronę nóg przed ciężkimi warunkami podczas marszu. Wygodna kieszeń umożliwia przeniesienie kilku apteczek lub granatów.
+st_scav_legs_3_name	Spodnie polowe
+st_scav_legs_4_desc	OPIS NIE JEST GOTOWY!!!
+st_scav_legs_4_name	Spodnie ocalałego
+st_scav_legs_5_desc	OPIS NIE JEST GOTOWY!!!
+st_scav_legs_5_name	Wzmocnione spodnie
+st_scav_rep_modifier	Reputacja "włóczęgi"
+st_scav_resp_1_desc	Zmodyfikowany przez włóczęgów aparat do ochrony dróg oddechowych. Chroni przed toksycznymi oparami i radioaktywnym pyłem.
+st_scav_resp_1_name	Aparat oddechowy "Bursztyn"
+st_scav_torso_1_desc	Lekka i łatwa do wykonania pikowana kurtka. Typowy ubiór włóczęgów. Ułatwia przeżycie w ciężkich warunkach pogodowych. Duże kieszenie umożliwiają przechowywanie apteczek, granatów i dodatkowych pudełek z amunicją.
+st_scav_torso_1_name	Pikowana kurtka
+st_scav_torso_2_desc	Niezastąpiona rzecz podczas eksploracji skażonych ekologicznie miejsc. Chroni klatkę piersiową i ręce przed kontaktem z toksycznymi i trującymi substancjami. Wyposażona we wbudowany pojemnik na artefakty.
+st_scav_torso_2_name	Przeciwchemiczny płaszcz ochronny
+st_scav_torso_3_desc	Wojskowa kamizelka zmodyfikowana przez włóczęgów. Zdjęta z martwego żołnierza lub zdobyta podczas plądrowania magazynu wojskowego. Liczne kieszenie umożliwiają przechowywanie apteczek, granatów lub dodatkowych pudełek z amunicją.
+st_scav_torso_3_name	Lekka kamizelka kuloodporna
+st_scav_torso_4_desc	OPIS NIE JEST GOTOWY!!!
+st_scav_torso_4_name	Kurtka ocalałego
+st_scav_torso_5_desc	Pikowana kurtka bawełniana. Wzmocniona od środka wyprofilowanymi metalowymi płytami, a na zewnątrz łatami ze skóry. Dobry wybór dla doświadczonego włóczęgi.
+st_scav_torso_5_name	Wzmocniona ocieplana kurtka
+st_scavenger_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka ocalałego".\n- "Spodnie ocalałego".\n- Ulepszony OC-02 "Cyprys".\n- 1000 nabojów 9x18 PM.</white>
+st_scavenger_starter_bundle_name	Zestaw "Ocalały"
+st_scavengers_accuracy_descr	Nie ma sensu walić z broni gdzie popadnie. Dobremu strzelcowi wystarczy jedna kula, aby odebrać życie. Naucz się oszczędzania nabojów.
+st_scavengers_accuracy_name	Umiejętności strzeleckie
+st_scavengers_accuracy_obj	Wygraj rozgrywkę z celnością nie niższą niż:
+st_scavengers_bring_x_items_descr	Walki nie zawsze wygrywa się z użyciem broni. Pamiętaj o najważniejszym celu – zebrać jak najwięcej baterii do wykorzystania w instalacji obronnej.
+st_scavengers_bring_x_items_name	Udział w zwycięstwie
+st_scavengers_bring_x_items_obj	Znajdź i dostarcz baterie:
+st_scavengers_defend_items_descr	Pamiętaj, przeciwnik nie zawsze przestrzega reguł. Nie zapominaj o obronie swojej bazy i przeciwdziałaniu próbom kradzieży baterii.
+st_scavengers_defend_items_name	Ochrona własności
+st_scavengers_defend_items_obj	Wygraj rozgrywkę bez straty baterii z bazy.
+st_scavengers_faction	Włóczędzy
+st_scavengers_find_artifacts_descr	Badaj anomalie w poszukiwaniu artefaktów. Umieszczając artefakty na pasie wzmocnisz się przed zażartą bitwą. Ochrona przeciwko anomaliom znacznie ułatwi ich poszukiwanie.
+st_scavengers_find_artifacts_name	Znajdź artefakty
+st_scavengers_find_artifacts_obj	Znajdź artefakty podczas walki:
+st_scavengers_grenade_enemies_descr	Posługiwanie się granatem jest tak samo ważne, jak celne strzelanie. Czasami nie ma innej możliwości, aby dosięgnąć przeciwnika inaczej niż granatem.
+st_scavengers_grenade_enemies_name	Celny rzut
+st_scavengers_grenade_enemies_obj	Przeciwnicy do zabicia granatem podczas bitwy:
+st_scavengers_kd_ratio_descr	Nie jest trudno być bohaterem. Trudniej jest przy tym zachować życie. Im dłużej przeżyjesz – tym większe korzyści dasz drużynie. Nie warto jednak tchórzliwie chować się po kątach. Naucz się sztuki przetrwania!
+st_scavengers_kd_ratio_name	Przetrwanie
+st_scavengers_kd_ratio_obj	Wygraj rozgrywkę ze stosunkiem zabitych/śmierci co najmniej
+st_scavengers_kill_enemies_descr	Nie ma czasu na sentymenty, jeżeli znajdziesz się twarzą w twarz z przeciwnikiem. Zwycięzca pojedynku może być tylko jeden. Lepiej, żeby padło na ciebie!
+st_scavengers_kill_enemies_name	Samoobrona
+st_scavengers_kill_enemies_obj	Przeciwnicy do zabicia w jednej rozgrywce:
+st_scavengers_level_0	Nieznany
+st_scavengers_level_1	Nowicjusz
+st_scavengers_level_2	Sprawdzony
+st_scavengers_level_3	Doświadczony
+st_scavengers_level_4	Zaprawiony
+st_scavengers_level_5	Weteran
+st_scavengers_level_unlock_0	Gratulacje! Odblokowano zadania włóczęgów!
+st_scavengers_level_unlock_1	Gratulacje! Jesteś teraz nowicjuszem włóczęgów!
+st_scavengers_level_unlock_2	Gratulacje! Jesteś teraz doświadczonym włóczęgą!
+st_scavengers_level_unlock_3	Gratulacje! Jesteś teraz doświadczonym włóczęgą!
+st_scavengers_level_unlock_4	Gratulacje! Jesteś teraz zaprawionym włóczęgą!
+st_scavengers_level_unlock_5	Gratulacje! Jesteś teraz weteranem włóczęgów!
+st_scavengers_meele_kill_descr	Jeśli konflikt jest nieunikniony, postaraj się rozwiązać go jak najszybciej i najciszej. O wiele lepiej jest zakraść się do przeciwnika i wyeliminować go, niż otwierać ogień i zwrócić na siebie uwagę.
+st_scavengers_meele_kill_name	Bez zbędnego hałasu
+st_scavengers_meele_kill_obj	Zabij przeciwników w walce wręcz.
+st_scavengers_represent	Musisz włożyć barwy włóczęgów.
+st_scavengers_steal_box_descr	Odebranie baterii wrogowi to podwójna przyjemność. Niektórzy nazwą to kradzieżą, ale jeśli nieprzyjaciele nie pilnują swojej własności, to chyba jej nie potrzebują.
+st_scavengers_steal_box_name	Złodziejaszek
+st_scavengers_steal_box_obj	Wykradnij baterię z obozu przeciwnika i dostarcz ją do swojej bazy.
+st_scavengers_win_score_descr	Im więcej baterii będzie podłączonych do urządzenia ochronnego, tym większą otrzymasz nagrodę za wygranie rozgrywki.
+st_scavengers_win_score_name	Zwycięstwo doskonałe
+st_scavengers_win_score_obj	Wygraj rozgrywkę z dostarczonymi bateriami:
+st_scavengers_win_x_games_descr	Świat, w którym żyjemy, jest okrutny. Zwycięzca dostaje wszystko, a pokonany musi się zadowolić resztkami. Pamiętaj, zwycięska drużyna otrzymuje większą nagrodę.
+st_scavengers_win_x_games_name	Smak zwycięstwa
+st_scavengers_win_x_games_obj	Rozgrywki do wygrania:
+st_scientists_faction	Instytut
+st_search_label	Szukaj
+st_search_range	Poziom rozgrywki
+st_second_weapon_action	Broń 2
+st_seconds_short	sek.
+st_seed_settings	Seedowanie w lobby
+st_seeding_max_upload_in_kb_option	Ogranicz prędkość wysyłania:
+st_select_send_to_action	Wybierz odbiorcę
+st_sell	Sprzedaj
+st_send	Wyślij
+st_send_message	Wyślij wiadomość
+st_send_message_action	Wyślij wiadomość
+st_server_maintenance	Czas pozostały do rozpoczęcia rutynowej konserwacji serwera
+st_settings	Ustawienia
+st_settings_label	Ustawienia
+st_shading_quality_option	Jakość cieniowania
+st_shadow_quality_option	Jakość cieni
+st_shooting_skills_label	Trening strzelecki
+st_shop	Sklep
+st_shop_label	Sklep
+st_shop_scope_1p69_hyperon_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_1p69_hyperon_name	Celownik optyczny Zenit "Hyperion", x4
+st_shop_scope_acog_ta31_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_acog_ta31_name	Celownik optyczny TA31, x4
+st_shop_scope_aimpoint_compm4_description	Szwedzki celownik kolimatorowy z punktem 2 MOA i baterią wystarczającą na nawet osiem lat ciągłej pracy. Przyjęty przez armię USA jako M68 CCO; montowany na szynie Picatinny.
+st_shop_scope_aimpoint_compm4_name	Kolimator CompM4
+st_shop_scope_cobra_ekp_8_description	Rosyjski celownik kolimatorowy z czterema wybieranymi czerwonymi znakami celowniczymi. Pozwala szybko celować obojgiem otwartych oczu; montowany na bocznej szynie broni rodziny Kałasznikowa.
+st_shop_scope_cobra_ekp_8_name	Kolimator Cobra EKP-8
+st_shop_scope_docter_description	Kompaktowy niemiecki otwarty celownik kolimatorowy z czerwonym punktem. Lekki i szybki w celowaniu; przeznaczony do strzelb, pistoletów i krótkiej broni.
+st_shop_scope_docter_name	Kolimator Docter
+st_shop_scope_elcan_specterdr_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_elcan_specterdr_name	Celownik optyczny SpecterDR, x4
+st_shop_scope_eotech_552_description	Amerykański celownik holograficzny: pierścień 65 MOA z punktem 1 MOA pośrodku, zasilany bateriami AA. Szybki na krótkim i średnim dystansie; montowany na szynie Picatinny.
+st_shop_scope_eotech_552_name	Kolimator EOTech 552
+st_shop_scope_leupold_deltapoint_description	Kompaktowy amerykański celownik kolimatorowy z czerwonym trójkątnym znakiem celowniczym. Przeznaczony do pistoletów i lekkiej broni; na tyle mały, że nie przeszkadza.
+st_shop_scope_leupold_deltapoint_name	Kolimator Leupold DeltaPoint
+st_shop_scope_leupold_mk4_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_leupold_mk4_name	Celownik optyczny Leupold MK4, x4
+st_shop_scope_pso_1_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_pso_1_name	Celownik optyczny PSO-1, x4
+st_shop_scope_pso_1_old_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_pso_1_old_name	Celownik optyczny PSO-1 O, x4
+st_shop_scope_pu_3_5x_description	Celownik optyczny o powiększeniu 3.5x
+st_shop_scope_pu_3_5x_name	Celownik optyczny PU, x3.5
+st_shop_showcase	Główne
+st_short_clan_string	Imię jest za krótkie
+st_show_ammo	Pokaż amunicję
+st_show_character_action	Okno bohatera
+st_show_enemy_killed_marker	Wizualny wskaźnik zabicia
+st_show_friends_action	Znajomi
+st_show_inventory_action	Magazyn
+st_show_options_action	Opcje
+st_show_player_info_button_hint	Wyświetl informacje o graczu
+st_show_player_info_hint	Kliknij dwukrotnie, aby wyświetlić informacje
+st_show_quest_list	Wyświetl okno zadań
+st_show_quests_progress_option	Pokazuj w czasie bitwy
+st_show_shop_action	Sklep
+st_show_squad_list	Wyświetl okno brygady
+st_skills_already_rerolled	Umiejętności zostały już zresetowane
+st_sks_description	Karabinek samopowtarzalny Simonowa, amunicja: 7.62x39. Wprowadzony do użytku w radzieckiej armii w 1949 r., wyparty później przez broń automatyczną. Wyposażony w stały 10-nabojowy magazynek.
+st_sks_name	SKS
+st_sks_premium_2_description	Karabinek samopowtarzalny Simonowa, amunicja: 7.62x39. Wprowadzony do użytku w radzieckiej armii w 1949 r., wyparty później przez broń automatyczną. Wyposażony w stały 10-nabojowy magazynek. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_sks_premium_2_name	SKS "Grot"
+st_sks_premium_description	Karabinek samopowtarzalny Simonowa, amunicja: 7.62x39. Wprowadzony do użytku w radzieckiej armii w 1949 r., wyparty później przez broń automatyczną. Wyposażony w stały 10-nabojowy magazynek. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_sks_premium_name	SKS-MF
+st_slide1_button_accept_label	Dalej
+st_slide1_text	Witaj, ocalały. Udało ci się przeżyć koniec świata. Po wielu dniach podróży dotarłeś w końcu do miejsc, których Las nie zdążył jeszcze pochłonąć.
+st_slide1_text_enter_name	Jakie imię chcesz nosić w nowym świecie?
+st_slide1_tutorial_reward	Przejdź szkolenie, aby zdobyć nagrodę:
+st_slot_control_label	Wybierz ilość
+st_slots	Miejsca
+st_sniper_skills_descr	Szkoli w obsłudze broni. Zwiększa celność strzału i szybkość celowania.
+st_sniper_skills_name	Trening strzelecki
+st_snp_fast_draw_desc	Twoja wprawa umożliwia szybszą zmianę broni na inną.
+st_snp_fast_draw_name	Szybka zmiana broni
+st_snp_fast_reload_desc	Zdobyto umiejętność szybszego przeładowania broni.
+st_snp_fast_reload_name	Szybkie przeładowanie
+st_snp_fast_shot_desc	Zwiększa szybkość pociągania za spust przy użyciu broni samopowtarzalnej.
+st_snp_fast_shot_name	Opanowanie spustu
+st_snp_iron_breath_desc	Umożliwia dłuższe wstrzymanie oddechu podczas celowania.
+st_snp_iron_breath_name	Żelazne płuca
+st_snp_sniper_desc	Znacząco poprawia celność przy wykorzystaniu celowników snajperskich, taktycznych i kolimatorowych.
+st_snp_sniper_name	Snajper
+st_snp_steady_breath_desc	Szybciej dochodzisz do siebie po wstrzymanym oddechu.
+st_snp_steady_breath_name	Równy oddech
+st_snp_steady_grip_desc	Zwiększa celność strzału podczas poruszania się.
+st_snp_steady_grip_name	Mocny chwyt
+st_soc_vepr_description	Rosyjski samopowtarzalny karabinek z rodziny Wepr, amunicja: 7,62x39. Produkowany przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK jako broń myśliwska i sportowa. Wyposażony w 10-nabojowy magazynek. Tylko ogień pojedynczy.
+st_soc_vepr_name	SOK-94
+st_socom16_description	OPIS NIE JEST GOTOWY!!!
+st_socom16_name	SOCOM 16
+st_sort	Sortuj
+st_sort_cost	Wg ceny
+st_sort_label	Filtr
+st_sort_level	Wg poziomu
+st_sort_reset	Reset
+st_space_symbol_clan_string	Niedozwolone separatory
+st_spam_filter_block_notification	Filtr antyspamowy zablokował wiadomość. Czekaj
+st_spam_filter_block_notification_fin	sek.
+st_spas12_description	OPIS NIE JEST GOTOWY!!!
+st_spas12_name	Franchi SPAS-12
+st_special_offer	Oferta specjalna
+st_speed_booster_description	Napój energetyczny o dużej zawartości kofeiny i tauryny. Orzeźwia i stymuluje pracę ośrodkowego układu nerwowego.
+st_speed_booster_name	Napój energetyczny "Tornado"
+st_spot_action	Zauważono przeciwnika
+st_spring_activation_hint	Sprężyna aktywowana! Szybkość poruszania się i celowania zwiększona o 10%. Przyspieszona regeneracja energii! Pociski cię nie spowalniają!
+st_spring_pickup_hint	Artefakt Sprężyna. Zwiększa szybkość poruszania się i celowania o 5%.
+st_sprint_action	Sprint (przytrzymaj)
+st_sprint_toggle_action	Sprint
+st_squad	Brygada
+st_squad_list_locked_hint	Nie można utworzyć brygady będąc w drużynie klanu
+st_squad_not_ready	Brygada niegotowa
+st_sr2m_description	OPIS NIE JEST GOTOWY
+st_sr2m_name	SR-2M "Wrzos"
+st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "Wintoriez".\n- 2000 nabojów 9x39 SP-6.</white>
+st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
+st_sr3m_description	OPIS NIE JEST GOTOWY
+st_sr3m_name	SR-3M "Wichr"
+st_srp_attachments	Dodatki
+st_srp_exchange_balance	Saldo
+st_srp_exchange_button	Wymień
+st_srp_exchange_gold	Złoto
+st_srp_exchange_pay	Płacisz
+st_srp_exchange_receive	Otrzymujesz
+st_srp_exchange_short_gold	Za mało złota
+st_srp_exchange_short_silver	Za mało srebra
+st_srp_exchange_title	Wymiana
+st_srp_inventory_search	Szukaj
+st_srp_language_option	Język:
+st_srp_language_restart	Zadziała po ponownym uruchomieniu.
+st_srp_loadout_block_ammo	Za mało amunicji do broni
+st_srp_loadout_block_locked	Ten profil jest zablokowany
+st_srp_loadout_block_maintenance	Wkrótce przerwa techniczna: za %1$s min
+st_srp_loadout_block_pocket_twice	Ten sam przedmiot w dwóch kieszeniach
+st_srp_loadout_block_shared_slot	Dwa przedmioty w jednym miejscu
+st_srp_loadout_block_weapon	Brak broni
+st_srp_loadout_empty	pusty
+st_srp_loadout_refused	Nie udało się wybrać zestawu.
+st_srp_loadout_sell_and	 i 
+st_srp_loadout_sell_item	%1$s
+st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
+st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
+st_srp_loadout_title	Zestaw
+st_srp_loadout_unfit	nie do gry
+st_srp_login_account_hint	Konto powstaje przy pierwszym logowaniu
+st_srp_map_chemical_plant	Zakłady chemiczne
+st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)
+st_srp_map_cologne	Most w Kolonii
+st_srp_map_london	Londyn
+st_srp_map_mamayev_kurgan	Kurhan Mamaja
+st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
+st_srp_map_rudnya	Rudnia
+st_srp_map_school	Szkoła
+st_srp_map_tarakanovsky_fort	Fort Tarakanów
+st_srp_map_vector	Laboratorium "Wektor"
+st_srp_map_vostok	Stacja Radarowa "Vostok"
+st_srp_map_vostok_v011	Stacja Radarowa "Vostok" (v0.11)
+st_srp_map_vostok_v021	Stacja Radarowa "Vostok" (v0.21)
+st_srp_matches_another_joining	Inny gracz właśnie dołącza
+st_srp_matches_balanced	Rozgrywka jest już wyrównana
+st_srp_matches_cannot_join	Nie możesz teraz dołączyć
+st_srp_matches_closed	Ta rozgrywka jest już zamknięta
+st_srp_matches_ends_soon	Rozgrywka wkrótce się skończy
+st_srp_matches_full	Brak wolnych miejsc w rozgrywce
+st_srp_matches_in_match	Jesteś już w rozgrywce
+st_srp_matches_in_squad	Najpierw opuść brygadę
+st_srp_matches_joining	dołączanie…
+st_srp_matches_maintenance	Skończy się po rozpoczęciu konserwacji
+st_srp_matches_mode_protective_device	Urządzenie ochronne
+st_srp_matches_no_answer	Brak odpowiedzi, spróbuj ponownie
+st_srp_matches_no_late_join	Rozgrywka nie przyjmuje nowych graczy
+st_srp_matches_no_place	Brak wolnych miejsc w rozgrywce
+st_srp_matches_none	Brak rozgrywek w tej chwili
+st_srp_matches_not_in_play	Rozgrywka jeszcze się nie zaczęła
+st_srp_matches_outdated	Zaktualizuj grę
+st_srp_matches_played_before	Twoje miejsce w tej rozgrywce już wykorzystano
+st_srp_matches_queued	Najpierw przerwij wyszukiwanie
+st_srp_matches_starting	start
+st_srp_matches_title	Rozgrywki
+st_srp_matches_waiting	oczekiwanie
+st_srp_mode_blackout	Urządzenie ochronne: blackout
+st_srp_mode_chargers	Urządzenie ochronne: ładowarki
+st_srp_mode_protective_device	Urządzenie ochronne
+st_srp_mode_research	Badania
+st_srp_mode_team_deathmatch	Walka drużynowa
+st_srp_optics	Optyka
+st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
+st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
+st_srp_pvb_busy	%1$s (zajęte)
+st_srp_pvb_checking	Sprawdzanie…
+st_srp_pvb_clan_match	Najpierw wyłącz "Bitwa klanowa"
+st_srp_pvb_demo_start	Demo: serwer uruchomiłby teraz rozgrywkę: %1$s
+st_srp_pvb_gear_max	Poziom wyposażenia musi wynosić %1$s lub mniej
+st_srp_pvb_gear_max_yours	Poziom wyposażenia musi wynosić %1$s lub mniej (twój: %2$s)
+st_srp_pvb_generic	Rozgrywka z botami nie może teraz wystartować
+st_srp_pvb_hint	Rozgrywka z botami, w twojej drużynie też są boty
+st_srp_pvb_in_match	Jesteś już w rozgrywce
+st_srp_pvb_in_squad	Najpierw opuść brygadę
+st_srp_pvb_maintenance	Wkrótce konserwacja, nowe rozgrywki z botami nie wystartują
+st_srp_pvb_no_answer	Brak odpowiedzi serwera
+st_srp_pvb_off	Rozgrywki z botami są teraz wyłączone
+st_srp_pvb_outdated	Zaktualizuj grę
+st_srp_pvb_retry	Brak odpowiedzi, spróbuj ponownie
+st_srp_pvb_searching	Najpierw przerwij wyszukiwanie
+st_srp_pvb_team_size	%1$s na %2$s
+st_srp_pvb_title	Gracz z botami
+st_srp_pvb_unknown_choice	Ta mapa lub wielkość drużyn jest teraz niedostępna
+st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
+st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_close	CLOSE
+st_srp_replay_demo_quest	Victory contribution
+st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
+st_srp_replay_demo_seller	Scavengers
+st_srp_replay_download	DOWNLOAD AND WATCH
+st_srp_replay_failed	The server could not prepare the replay of this match.
+st_srp_replay_gone	The replay of this match is no longer kept on the server.
+st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_made_now	Being made now. Waiting: %1$s s.
+st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
+st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_off	Replays are switched off on this server.
+st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_size	%1$s.%2$s MB
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
+st_srp_replay_title	Watch replay
+st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_reroll_description	Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów.
+st_srp_rooms_all	Wszystkie
+st_srp_rooms_all_rooms	Wszystkie pokoje
+st_srp_rooms_any	Dowolny
+st_srp_rooms_back	Wstecz
+st_srp_rooms_code_10	Właściciel usunął cię z pokoju.
+st_srp_rooms_code_11	Najpierw opuść drużynę klanu.
+st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
+st_srp_rooms_code_13	Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju.
+st_srp_rooms_code_14	Nie udało się wybrać zestawu.
+st_srp_rooms_code_16	Naciśnij Graj, aby wejść do pokoju publicznego.
+st_srp_rooms_code_2	Ten pokój już nie istnieje.
+st_srp_rooms_code_3	Błędny PIN.
+st_srp_rooms_code_4	Pokój jest pełny.
+st_srp_rooms_code_5	Jesteś w meczu.
+st_srp_rooms_code_6	Za dużo pokojów.
+st_srp_rooms_code_7	Zaktualizuj grę.
+st_srp_rooms_code_8	Wybierz co najmniej jedną mapę.
+st_srp_rooms_code_9	Wkrótce przerwa techniczna.
+st_srp_rooms_code_label	kod
+st_srp_rooms_countdown	Start
+st_srp_rooms_create	Utwórz
+st_srp_rooms_enter_anyway	Wejdź mimo to
+st_srp_rooms_exit	Wyjdź
+st_srp_rooms_experimental	eksp.
+st_srp_rooms_in_match	Gra
+st_srp_rooms_in_queue	W kolejce
+st_srp_rooms_join	Dołącz
+st_srp_rooms_join_in	Do meczu za %1$s s albo teraz: Dołącz do meczu
+st_srp_rooms_join_match	Dołącz do meczu
+st_srp_rooms_join_room	Dołącz do pokoju
+st_srp_rooms_join_why_1	Inny gracz dołącza do meczu; ty wchodzisz po nim.
+st_srp_rooms_join_why_2	Gra jednego z graczy się wczytuje; dołączenie za chwilę.
+st_srp_rooms_join_why_3	Zostało mniej niż 30 s: zagrasz następny mecz.
+st_srp_rooms_join_why_4	Mecz jest pełny.
+st_srp_rooms_join_why_5	Wkrótce przerwa techniczna: brak nowych wejść.
+st_srp_rooms_join_why_6	Mecz się kończy: zagrasz następny.
+st_srp_rooms_join_why_7	Ten mecz osiągnął limit graczy. Dołączysz do następnego meczu.
+st_srp_rooms_joined_room	%1$s dołączył do pokoju
+st_srp_rooms_late_hint	Kto dołączy teraz, zobaczy pokój, potem trafi do meczu.
+st_srp_rooms_leave	Opuść
+st_srp_rooms_leave_queue	Opuść kolejkę
+st_srp_rooms_leave_room	Opuść pokój
+st_srp_rooms_left_room	%1$s opuścił pokój
+st_srp_rooms_level	Poziom
+st_srp_rooms_map	Mapa
+st_srp_rooms_max	Maks. poziom
+st_srp_rooms_modes	Tryby
+st_srp_rooms_my_room	Mój pokój
+st_srp_rooms_name	Nazwa
+st_srp_rooms_new	Pokój prywatny
+st_srp_rooms_next_map	Następna
+st_srp_rooms_none	Brak pokojów. Utwórz lub naciśnij Graj.
+st_srp_rooms_none_no_play	Brak pokojów. Utwórz.
+st_srp_rooms_none_quiet	Brak pokojów.
+st_srp_rooms_nothing	Żadna
+st_srp_rooms_offer_fits	Twój ekwipunek %2$s przekracza maks. poziom %1$s. Zestaw %3$s: poziom %4$s.
+st_srp_rooms_offer_higher	Maks. poziom pokoju %1$s, twój ekwipunek %2$s. Zestaw %3$s: poziom %4$s.
+st_srp_rooms_offer_unfit	Twój zestaw nie nadaje się do gry. Zestaw %1$s: poziom %2$s.
+st_srp_rooms_open	wolne
+st_srp_rooms_open_slots	wolne: %1$s
+st_srp_rooms_owner_tag	właściciel
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	PIN ma 4 cyfry.
+st_srp_rooms_pin_hint	Wymagane 4 cyfry
+st_srp_rooms_players	Gracze
+st_srp_rooms_playing	Trwa mecz
+st_srp_rooms_pool	Pula
+st_srp_rooms_pool_hint	Głosowanie losuje z nich 3 karty.
+st_srp_rooms_private_room	Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start.
+st_srp_rooms_queue	Kolejka
+st_srp_rooms_queue_room	Kolejka do pokoju
+st_srp_rooms_room	Pokój
+st_srp_rooms_room_chat	Czat pokoju
+st_srp_rooms_servers	Pokoje
+st_srp_rooms_start_hint	Naciśnij Rozpocznij, gdy wszyscy wejdą.
+st_srp_rooms_start_match	Rozpocznij
+st_srp_rooms_starts	Mecz za
+st_srp_rooms_state	Stan
+st_srp_rooms_switch_enter	Zmień i wejdź
+st_srp_rooms_switch_to	Zmień pokój
+st_srp_rooms_switch_who	Pokój %1$s · graczy: %2$s
+st_srp_rooms_switch_why	Uczciwszy mecz: sprzęt rywali do poziomu %1$s
+st_srp_rooms_team_1	Drużyna 1
+st_srp_rooms_team_2	Drużyna 2
+st_srp_rooms_teams	Drużyny są losowane na starcie meczu.
+st_srp_rooms_teams_later	Drużyny można zmienić po meczu.
+st_srp_rooms_teams_member	Drużyny ustawia twórca.
+st_srp_rooms_teams_owner	Przenoś graczy między drużynami przyciskami « i ».
+st_srp_rooms_unfit_gear	Twój ekwipunek przekracza maks. poziom: obniż go, inaczej na starcie opuścisz pokój.
+st_srp_rooms_unfit_kit	Twój zestaw nie może grać (brak broni lub za mało amunicji): popraw, inaczej na starcie opuścisz pokój.
+st_srp_rooms_vote	Głosuj na następną mapę
+st_srp_rooms_vote_hint	3 karty z puli. Wygrywa większość; remis losowo. Kliknij, aby zmienić głos.
+st_srp_rooms_vote_now	Zagłosuj na następną mapę: kliknij kartę. Gdy czas minie, mecz zacznie się na zwycięskiej.
+st_srp_rooms_voting	Głosowanie
+st_srp_rooms_waiting	Czekamy na graczy
+st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
+st_srp_rooms_waiting_short	Oczekiwanie
+st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Bazowe przybliżenie
+st_srp_weapon_chamber	Czas repetowania
+st_srp_weapon_draw_time	Czas wyciągnięcia
+st_srp_weapon_full_damage	Pełne obrażenia do
+st_srp_weapon_hip_spread	Rozrzut z biodra
+st_srp_weapon_holster_time	Czas schowania
+st_srp_weapon_kick_side	Odrzut poziomy
+st_srp_weapon_kick_side_variability	Zmienność w poziomie
+st_srp_weapon_kick_up	Odrzut pionowy
+st_srp_weapon_kick_up_variability	Zmienność w pionie
+st_srp_weapon_minimum_damage	Minimalne obrażenia
+st_srp_weapon_minimum_damage_from	Minimalne obrażenia od
+st_srp_weapon_recoil_heading	Odrzut, rozrzut i kołysanie
+st_srp_weapon_reload	Przeładowanie
+st_srp_weapon_shift_hint	Przytrzymaj Shift: szczegóły
+st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
+st_srp_weapon_spread_max	Limit wzrostu rozrzutu
+st_srp_weapon_spread_per_shot	Rozrzut na strzał
+st_srp_weapon_spread_recovery	Tempo odzyskania celności
+st_srp_weapon_stamina_damage	Obrażenia kondycji
+st_srp_weapon_stats	Statystyki broni
+st_srp_weapon_sway_cycle	Cykl kołysania
+st_srp_weapon_sway_horizontal	Kołysanie poziome
+st_srp_weapon_sway_vertical	Kołysanie pionowe
+st_srp_weather_before_rain	przed deszczem
+st_srp_weather_day	dzień
+st_srp_weather_evening	wieczór
+st_srp_weather_night	noc
+st_srp_weather_rain	deszcz
+st_srp_weight_no_sprint_heavyweight	Sprint niedostępny: umiejętność „Mocarz”.
+st_srp_weight_no_sprint_limit	Sprint niedostępny: przeciążenie.
+st_srp_weight_speed	Prędkość ruchu: %1$s
+st_srp_weight_sprint_stamina	Koszty energii przy sprincie: %1$s
+st_srp_weight_title	Wpływ wagi
+st_stamina_boost_name	Drugi oddech
+st_stamina_boost_time_description	Odzyskanie energii po zabiciu przeciwnika:
+st_stamina_loss_on_hit_description	Utrata energii przy zranieniu:
+st_stamina_loss_on_hit_name	Niepowstrzymany
+st_stamina_regen_correction_perc_name	Regeneracja kondycji
+st_stamina_regeneration_speed_description	Szybkość odzyskiwania energii:
+st_stamina_regeneration_speed_name	Oddech
+st_stamina_spending_speed_description	Zużycie energii:
+st_stamina_spending_speed_name	Wytrzymałość
+st_start_chat_action	Czat
+st_start_match_welcome_message	Odnajdź baterie i dostarcz je do swojej bazy!
+st_start_match_welcome_message_2	Odnajdź i obroń stacje ładowania baterii!
+st_start_match_welcome_message_3	Zabij jak najwięcej przeciwników!
+st_start_match_welcome_message_5	Znajdź i przejmij stanowiska badawcze!
+st_statistic_sync_text	Odbieranie statystyk rozgrywki
+st_statistics_daily_bonus	Bonus codzienny
+st_statistics_equipment_bonus	Premia do sprzętu
+st_statistics_exp	Zdobyte doświadczenie:
+st_statistics_money	Zarobione pieniądze:
+st_statistics_rating_delta	Zmiana rankingu
+st_statistics_score	Zdobyte punkty:
+st_statistics_score_game_events	Za działania w walce
+st_statistics_score_help	Pomoc sojusznikowi
+st_statistics_score_kills	Zabito przeciwników
+st_statistics_score_match	Według wyników meczu
+st_statistics_score_premium	Konto premium
+st_statistics_score_quests	Za wykonanie zadania
+st_stats_accuracy	Celność:
+st_stats_artefacts_gathered	Zebrane artefakty:
+st_stats_assists	Asysty:
+st_stats_deaths	Śmierci:
+st_stats_headshots	Strzały w głowę:
+st_stats_healed	Uleczono:
+st_stats_items_defended	Obronione baterie:
+st_stats_items_gathered	Odnalezione baterie:
+st_stats_kills	Zabici:
+st_stats_max_killstreak	Zabici w serii:
+st_stats_melee_kills	Zabici w walce wręcz:
+st_stats_saved	Uratowano:
+st_stats_silent_kills	Ciche zabójstwa:
+st_stats_stolen_victory_items	Skradzione baterie:
+st_status_str	Status:
+st_storage	Magazyn
+st_string_pattern_error	Imię jest za długie lub zawiera niedozwolone znaki
+st_support	Wsparcie:
+st_survival_notes	Notatki ocalałego
+st_survival_notes_complete	Udało ci się ukończyć
+st_survival_skills_label	Umiejętność przetrwania
+st_sv_98_description	OPIS NIE JEST GOTOWY!!!
+st_sv_98_name	SW-98
+st_svd_description	Samopowtarzalny karabin wyborowy Dragunowa, amunicja: 7.62х54. Przez lata stanowił podstawowe uzbrojenie strzelców wyborowych armii ZSSR. Wyposażony w 5-nabojowy magazynek.
+st_svd_name	SWD
+st_swear_clan_string	Linia zawiera wulgaryzmy
+st_swearing_claim	Wulgarny język
+st_team_already_has_commander	Drużyna klanu posiada już dowódcę.
+st_team_member_is_not_commander	Ten członek drużyny nie jest dowódcą.
+st_texture_quality_option	Jakość tekstur
+st_there_is_no_item_in_inventory	Nie odnaleziono przedmiotu w magazynie
+st_thief_item	Weź pojemnik
+st_throw_grenade_action	Rzuć granat
+st_time_current	Wybór graczy:
+st_time_was_resynchronized	Przywracanie połączenia…
+st_to_all	Wszyscy
+st_top100	Top 100
+st_total	Ogółem
+st_tournaments	Turnieje
+st_toz122_description	Sztucer wielostrzałowy, amunicja: 7.62х51. Stworzony głównie z myślą o amatorskim i profesjonalnym łowiectwie. Wyposażony w 5-nabojowy magazynek.
+st_toz122_name	TOZ-122
+st_toz34_description	Nadlufka myśliwska, amunicja: 12x70 Jedna z pierwszych seryjnie produkowanych strzelb myśliwskich. Cechuje się niewielką wagą i dużym skupieniem.
+st_toz34_name	TOZ-34
+st_toz66_description	Dubeltówka myśliwska, amunicja: 12x70. Zdolność do oddania niemal jednoczesnego strzału z obu luf jednocześnie czyni ją bardzo efektywną w walce na krótki dystans.
+st_toz66_name	TOZ-66
+st_trap_damage	Obrażenia od pułapek
+st_treasure_map_advert	Skorzystaj z mapy skrytek, aby znaleźć ukryte przedmioty.
+st_tt_description	Pistolet TT został wprowadzony do użytku w 1933 r., amunicja: 7.62х25mm. Zaprojektowany w latach 30. XX wieku, stał się pierwszym samopowtarzalnym wojskowym pistoletem ZSSR. Wyposażony w 8-nabojowy magazynek. 
+st_tt_name	TT-33
+st_turn_down_action	
+st_turn_left_action	
+st_turn_right_action	
+st_turn_up_action	
+st_tutorial_apply_ammo_message_1	Potwierdź działania, wciskając przycisk <tutorial_highlight>„Zastosuj”</tutorial_highlight> lub <tutorial_highlight>„Ukryj amunicję”</tutorial_highlight>.
+st_tutorial_choose_ammo_message_1	Liczba pocisków podawana jest w pudełkach. Pamiętaj, że pojemność pudełek zależy od typu pocisków.
+st_tutorial_choose_ammo_message_2	Weź maksymalną liczbę pocisków.
+st_tutorial_choose_faction_message_1	W tym samym czasie możesz współpracować tylko z jedną frakcją. Reputację we frakcji można zdobywać na dwa sposoby: za udane działania podczas walki oraz za zadania otrzymane od frakcji.
+st_tutorial_choose_faction_message_2	Dołącz do jednej z frakcji.
+st_tutorial_choose_wpn_message_1	Do walki możesz wziąć jednorazowo tylko dwa rodzaje broni. Dobrze się zastanów, z czym chcesz stanąć do walki.
+st_tutorial_choose_wpn_message_2	Przeciągnij karabin Mosin lub\nPPSz-41 do pustego slotu na broń.
+st_tutorial_click_ammo_message_1	Pamiętaj, że możesz nieść ograniczoną liczbę naboi. <tutorial_highlight>Wciśnij przycisk „Wyświetl amunicję”,</tutorial_highlight> aby samodzielnie zdecydować, ile pocisków konkretnego rodzaju chcesz wziąć do walki.
+st_tutorial_click_inventory_message_1	Niestety, Las nie jest jedynym niebezpiecznym miejscem w nowym świecie. Państwa upadły. Teraz każdy jest zdany na siebie. Musisz walczyć o wszystko: o jedzenie, lekarstwa, o prawo do życia. Broń znaleziona w starym schronie nie jest może idealna, ale lepszy rydz niż nic.
+st_tutorial_click_inventory_message_2	Otwórz zakładkę „Wyposażenie”, aby wyposażyć swoją postać.
+st_tutorial_complete_label	Gratulacje!\nUdało ci się ukończyć trening.
+st_tutorial_complete_reward_label	Twoja nagroda za postęp:
+st_tutorial_equip_drop_message_1	Jest kilka sposobów na zdobycie nowych rodzajów broni i wyposażenia. Po każdej walce masz możliwość znalezienia przedmiotu na polu bitwy. Możesz także poprawiać stosunki z frakcjami, aby otrzymać dostęp do unikalnych towarów.
+st_tutorial_equip_drop_message_2	Otwórz okno wyboru frakcji.
+st_tutorial_exit_warning	Jeśli pominie się trening, nie będzie można do niego później wrócić i zdobyć nagrody. Kontynuować?
+st_tutorial_press_play_message_1	Wciśnij przycisk <tutorial_highlight>„Graj”</tutorial_highlight>, by rozpocząć pierwszą walkę. Aby otrzymać dodatkowe informacje, zapoznaj się z <tutorial_highlight>„Notatkami ocalałego”</tutorial_highlight>. Możesz je przejrzeć po walce.
+st_two_handed	Główna
+st_ump45_description	OPIS NIE JEST GOTOWY
+st_ump45_name	H&K UMP45
+st_unknown_faction	Neutralny
+st_unlimited_upload	nieograniczona
+st_use_action	Użyj
+st_use_artefact_container	Zdobądź artefakt ({USE})
+st_use_fix_voucher	Zestawu naprawczego
+st_use_item_message	Czy na pewno chcesz użyć tego przedmiotu?
+st_use_ladder	Drabina
+st_use_microphone_option	Włącz mikrofon
+st_use_resupply_zone	Dodaj amunicję ({USE})
+st_use_two_double_handed_weapons_description	Możesz wziąć do walki dwie ręczne bronie.
+st_use_two_double_handed_weapons_name	Terminator
+st_using_progress_message	Postęp:
+st_uzi_description	Pistolet maszynowy, amunicja: 9х19. Zaprojektowany w 1954 r. na potrzeby sil zbrojnych Izraela. Jedna z najbardziej rozpoznawalnych broni na swiecie. Posiada tryb ognia pojedynczego i ciaglego.
+st_uzi_name	Uzi
+st_uzi_premium_2_description	Pistolet maszynowy, amunicja: 9x19. Zaprojektowany w 1954 r. na potrzeby sil zbrojnych Izraela. Jedna z najbardziej rozpoznawalnych broni na swiecie. Posiada tryb ognia pojedynczego i ciaglego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_uzi_premium_2_name	UZI "Cień"
+st_val_description	OPIS NIE JEST GOTOWY
+st_val_name	AS "Wał"
+st_valmet_description	Fiński karabinek automatyczny, amunicja: 7,62x39. Zbudowany na bazie konstrukcji Kałasznikowa przez firmy Valmet i Sako i przyjęty przez fińskie siły zbrojne w 1962 r., stąd nazwa. Znany z celności i niezawodności w warunkach arktycznych. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_valmet_name	Valmet Rk.62
+st_vepr_12_description	Rosyjska strzelba samopowtarzalna kalibru 12. Produkowana przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK; pojawiła się w latach 2000. do strzelectwa sportowego, polowań i służb ochrony. Wyposażona w 8-nabojowy magazynek pudełkowy. Tylko ogień pojedynczy.
+st_vepr_12_name	Vepr-12
+st_vepr_12_premium_description	Rosyjska strzelba samopowtarzalna kalibru 12. Produkowana przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK; pojawiła się w latach 2000. do strzelectwa sportowego, polowań i służb ochrony. Wyposażona w 8-nabojowy magazynek pudełkowy. Tylko ogień pojedynczy. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_vepr_12_premium_name	Wepr-12 Molot
+st_vepr_description	OPIS NIE JEST GOTOWY
+st_vepr_name	Wiepr
+st_vepr_premium_description	Rosyjski karabinek z rodziny Wepr, amunicja: 5,45x39. Produkowany przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK-74. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_vepr_premium_name	Wepr Skitalec
+st_victory	Zwycięstwo
+st_victory_screen_no_dropped_item	Na polu bitwy niczego nie znaleziono.
+st_vityaz_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony PP-19-01 "Witiaź".\n- 2000 nabojów 9x19 Parabellum.</white>
+st_vityaz_bundle_name	Zestaw PP-19-01 "Witiaź"
+st_vityaz_description	Pistolet maszynowy, amunicja: 9х19. Zaprojektowany w 2004 r. na potrzeby rosyjskiego specnazu. Posiada tryb ognia pojedynczego i ciągłego.
+st_vityaz_name	PP-19-01 "Witiaź"
+st_voice_chat_volume_option	Czat głosowy
+st_vsk94_description	OPIS NIE JEST GOTOWY!!!
+st_vsk94_name	WSK-94
+st_vsk94_premium_description	Rosyjski karabin wyborowy, amunicja: 9x39. Opracowany przez tulskie biuro KBP w latach 90. na bazie 9A-91, z tłumikiem i kolbą snajperską; przeznaczony do cichego strzelania na krótkie i średnie dystanse. Wyposażony w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
+st_vsk94_premium_name	WSK-94 Chranitel
+st_vss_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "Wintoriez".\n- 1000 nabojów 9x39 SP-5.</white>
+st_vss_bundle_name	Zestaw WSS "Wintoriez"
+st_vss_description	OPIS NIE JEST GOTOWY!!!
+st_vss_name	WSS "Wintoriez"
+st_vssk_camo_description	Rosyjski powtarzalny karabin wyborowy, amunicja: 12,7x55. Opracowany przez tulskie CKIB SOO w latach 2000. z dużym tłumikiem dla jednostek specjalnych, którym potrzebne są ciche strzały do celów za osłoną lub w kamizelkach kuloodpornych. Wyposażony w 5-nabojowy magazynek. Tylko ogień pojedynczy. Wersja w specjalnym malowaniu kamuflażowym.
+st_vssk_camo_name	SW-1367 Zakat
+st_vssk_description	OPIS NIE JEST GOTOWY!!!
+st_vssk_name	WSSK Wychłop
+st_vsync_option	Synchronizacja pionowa
+st_vz58_description	Czechosłowacki karabinek automatyczny, amunicja: 7,62x39. Zaprojektowany przez Jiříego Čermáka i przyjęty na uzbrojenie w 1958 r.; z wyglądu przypomina Kałasznikowa, ale ma własną automatykę z krótkim ruchem tłoka i własny układ ryglowania. Wersja P ma stałą drewnianą kolbę. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
+st_vz58_name	vz. 58 P
+st_waiting_for_players	Oczekiwanie na pozostałych graczy:
+st_walther_competition2_collimator_desc	Niemiecki celownik kolimatorowy z czerwonym punktem firmy Walther, pierwotnie zaprojektowany do strzelectwa sportowego. W jego rurowym korpusie świeci punkt celowniczy.
+st_walther_competition2_collimator_name	Kolimator Competition II
+st_wasted	Koszt
+st_weapon_aim_action	Celowanie (przytrzymaj)
+st_weapon_could_not_be_used	Rana rąk! Nie można użyć broni
+st_weapon_fire_action	Strzał
+st_weapon_reload_action	Przeładowanie
+st_wear	Zastosuj
+st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.
+st_weight_booster_name	Odżywka "Anormalna Siła"
+st_winchester1894_description	Zaprojektowany przez amerykańskiego konstruktora w 1894 r. Produkowany aż do 2006 r., co czyni go jednym z najbardziej rozpoznawalnych i popularnych karabinów myśliwskich na świecie. Wyposażony w 6-nabojowy magazynek rurowy.
+st_winchester1894_name	Winchester 1894
+st_wrong_skill_points_count	Nieprawidłowa ilość punktów umiejętności
+st_wrong_symbol_clan_string	Linia zawiera niedrukowany znak
+st_you_have_no_voucher_for_premium	Nie posiadasz kuponu aktywacji premium
+st_you_have_no_voucher_for_rename	Nie posiadasz kuponu zmiany imienia bohatera
+st_you_have_no_voucher_for_repair	Nie posiadasz zestawu naprawczego.
+st_youtube_video_tutorial_button	Zobacz przewodnik filmowy!

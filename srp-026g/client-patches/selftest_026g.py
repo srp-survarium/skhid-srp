@@ -809,8 +809,12 @@ def allowed_ranges(original, mode, cave_size, server=None):
     ranges = [(P.file_offset(P.CERT[0]), len(P.CERT[1]))]
     if mode == "cert-only":
         return ranges, []
+    knowledge = Image(original)
+    for va, old, _ in P.KNOWLEDGE_BASE:
+        ranges.append((knowledge.offset(va), len(old)))
     ranges.append((P.file_offset(P.MUTEX[0]), len(P.MUTEX[1])))
     rewritten = [(P.CERT[0], P.CERT[0] + 3), (P.MUTEX[0], P.MUTEX[0] + 2)]
+    rewritten.extend((va, va + len(old)) for va, old, _ in P.KNOWLEDGE_BASE[1:])
     ranges.append((P.file_offset(P.HASH_INTERVAL_BYTE_VA), 1))
     rewritten.append((P.HASH_INTERVAL_BYTE_VA, P.HASH_INTERVAL_BYTE_VA + 1))
     for va, old, _ in P.GATHER:
@@ -1329,11 +1333,12 @@ def test_server_options(original):
     else:
         check(False, "cert-only must refuse an embedded server")
     for embedded in (False, True):
-        line = overlay.launch_line("localhost:1234", "english", embedded)
-        batch = overlay.bat("localhost:1234", "english", embedded).decode("ascii")
+        line = overlay.launch_line("localhost:1234", embedded)
+        batch = overlay.bat("localhost:1234", embedded).decode("ascii")
         start = next(line for line in batch.splitlines() if line.startswith('start "" '))
-        check(("-server=" in line) != embedded and ("-server=" in start) != embedded,
-              f"overlay launch line and batch use {'embedded' if embedded else 'explicit'} server")
+        check(("-server=" in line) != embedded and ("-server=" in start) != embedded
+              and "-localization" not in line and "-localization" not in start,
+              f"overlay launch line and batch use {'embedded' if embedded else 'explicit'} server, no language")
 
 
 # sign_in_on_connected: from the copy of the version string to the write of
@@ -1550,6 +1555,7 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
@@ -3955,6 +3961,57 @@ def test_blackout(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_language(original, image, before):
+    """Check 79: the game language is a setting kept in user.cfg (patch 79,
+    the Rust patch `language`, three lohooks of language.toml;
+    ../docs/notes/language-option.md). check_language_026g.py runs each from
+    the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    text_at = lambda at: bytes(original[stock.offset(at):original.index(b"\0", stock.offset(at))])
+    check(rows(0x1EA2C0, 7) == ["mov eax,edi", "call 0x1ec380"]
+          and rows(0x1EA2FF, 0x13) == ["mov eax,edi", "call 0x1ec380", "lea eax,[edi+0x52a8]", "push eax",
+                                       "call 0x1feed0"]
+          and rows(0x1EA210, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"],
+          "game::on_configs_loaded (0x1EA210) runs load_cc_script twice (startup.cfg, user.cfg) and then "
+          "load_text_localization with the game's text translator (+52A8h): the variable is registered at its "
+          "start, the language resolved between the two (0x1EA306)")
+    check(rows(0x1FEED6, 5) == ["mov eax,[0x21e75e0]"] and rows(0x1EA868, 6) == ["mov edx,[dword 0x21e75e0]"]
+          and rows(0xE3C48, 10) == ["mov eax,0x21e75e0", "mov ecx,0xa81a88"]
+          and text_at(0x9E654C) == b"original" and text_at(0x9FC7F4) == b"resources/localization/",
+          "the game language is the buffer_string 0x21E75E0 (default \"original\"), which core::preinitialize "
+          "fills from -localization= (key 0xA81A88) and the dictionary's and the swear filter's paths read")
+    check(rows(0x1FF5D0, 6) == ["push ebp", "push esi", "mov esi,[esp+0x10]"]
+          and rows(0x1FF96E, 6) == ["pop edi", "pop esi", "pop ebp", "ret 0x10"]
+          and stock.read(0x9FCCD0, 15) == b"accept_changes\0",
+          "game_options::scaleform_callback (0x1FF5D0, the method's name at [esp+8]) compares the name with its "
+          "methods and returns at 0x1FF96E (`ret 10h` at 0x1FF971) for one it does not know")
+    table = imports(stock)
+    check(table.get(0x87027C) == ("KERNEL32.dll", "GetUserDefaultLCID")
+          and not any(name == "GetUserDefaultUILanguage" for _, name in table.values()),
+          "0x87027C is the KERNEL32 GetUserDefaultLCID import (a new player's language: the user locale's); the "
+          "game imports no GetUserDefaultUILanguage")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "language"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted(h["site_name"] for h in hooks) == ["configs.start", "configs.texts", "options.callback"]
+          and all(h["kind"] == "lohook" for h in hooks),
+          "language.toml's three hooks are lohooks at configs.start, configs.texts and options.callback")
+    for h in hooks:
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4128,14 +4185,14 @@ def test_artefacts(original, image, before):
           "(+2F0h, at ebx-0C30h) with set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms) once for "
           "each Onyx; 0x25F9DD's eleven bytes are whole instructions before `push 14h` at 0x25F9E8")
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
-    hints = [e["to"] for e in json.load(open(os.path.join(HERE, "..", "scripts", "content-edit",
-                                                          "artefact-texts-1.json"), encoding="utf-8"))["edit_text"]
-             if e["path"] == "strings/st_onyx_activation_hint"]
+    from localization_026g import CATALOG, LANGUAGES, read_translations
+    hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
+             for language, *_ in LANGUAGES]
     check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
-          and len(hints) == 6 and all(h.count("%s") == 1 and "75" in h for h in hints),
+          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 and "75" in h for h in hints),
           "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
-          "six Onyx activation hints say 75 % for %s")
+          "all Onyx activation hints say 75 % for %s")
     check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
                                           "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
                                           "movss xmm0,dword [eax]"]
@@ -4259,11 +4316,11 @@ def test_match_keys(original, image, before):
                                                                 "Settings.as")
           and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
                                                           "settingsTabs_15.as")
-          and "\nedit\tmatch-chat-off-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+          and "\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                             encoding="utf-8").read(),
           "the hud movie has root.select_kit_key, the main menu enables the option's checkbox (_no_in_batle: its "
           "timeline and create_content), "
-          "release/content.tsv labels it (match-chat-off-1.json)")
+          "release/content.tsv labels it (localization-1.json)")
 
 
 def test_hide_ui(original, image, before):
@@ -4397,9 +4454,9 @@ def test_hide_ui(original, image, before):
           <= {v for kind, v in image.relocations().values() if kind == 3},
           "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
           "the build without the late join has them as the original")
-    check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+    check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
-          "release/content.tsv makes the label (hide-interface-1.json)")
+          "release/content.tsv makes the label (localization-1.json)")
     # the movies' side: each movie's interface is its root, hidden in one step; every layer the
     # game put on the stage is in the root's _stageLayer (the lobby's: _layers and _overlay)
     tree = lambda movie: {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "..", "flash", movie, "src")):
@@ -6016,7 +6073,7 @@ def test_arena(original):
                                         research_va + P.RESEARCH_ASM_SIZE)]
     calls = {s for s in moved.symbols if s.startswith("engine_") and any(
         t == f"call {moved.symbols[s]:#x}" or t.endswith(f",{moved.symbols[s]:#x}") for t in listing)}
-    check(moved.blocks["artefacts.code"].va == P.ARENA_VA != default.blocks["artefacts.code"].va
+    check(moved.blocks["artefacts.code"].va == default.blocks["research.code"].va != default.blocks["artefacts.code"].va
           and moved.blocks["research.code"].va != default.blocks["research.code"].va
           and all(target == moved.symbols[symbol] != default.symbols[symbol] for _, symbol, target in hooks)
           and len(calls) >= 11 and P.artefacts_backs(moved) == list(P.ARTEFACTS_BACKS)
@@ -6495,6 +6552,7 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
+    test_language(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

@@ -39,6 +39,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponMovement;
    import survarium.item.ModificationRolls;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
@@ -59,7 +60,6 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
-   import survarium.rooms.RoomsText;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -182,9 +182,6 @@ package survarium.controls
       
       private static const SEARCH_ICON_GAP:int = 4;
       
-      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl)
-      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj"];
-      
       // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
       // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
       // apart); from SEARCH_TYPO on, also with one letter wrong, missing, extra or swapped, and
@@ -207,22 +204,23 @@ package survarium.controls
       private static const MATCH_LEVEL:int = 1000;
       
       // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
-      // the items of that kind above any name: [the words (en, uk, ru), the category, or with group
-      // the super category].
+      // the items of that kind above any name: [the words, the category, or with group the super
+      // category]. The words of every language match, whatever the game's language (search words,
+      // not texts shown: they are not in the dictionaries).
       private static const MATCH_KIND:int = 450;
       
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","шолом","шлем"],category:ItemCategory.HELMETS},
-         {words:["mask","маска"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет"],category:ItemCategory.BODY_ARMOR},
-         {words:["rig","розвантаження","разгрузка"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки"],category:ItemCategory.GLOVES},
-         {words:["pants","trousers","штани","штаны"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки"],category:ItemCategory.BOOTS}];
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
+         {words:["helmet","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
+         {words:["mask","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
+         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
+         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;
@@ -245,18 +243,21 @@ package survarium.controls
       private static const SEARCH_LETTERS:Object = {
          "à":"a","á":"a","â":"a","ã":"a","ä":"a","å":"a","ā":"a","ą":"a","Ą":"a",
          "ç":"c","ć":"c","č":"c","Ć":"c","Č":"c",
+         "ď":"d","đ":"d","Ď":"d","Đ":"d",
          "è":"e","é":"e","ê":"e","ë":"e","ę":"e","ě":"e","Ę":"e","Ě":"e",
          "ì":"i","í":"i","î":"i","ï":"i",
          "ł":"l","Ł":"l",
          "ñ":"n","ń":"n","ň":"n","Ń":"n","Ň":"n",
-         "ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ø":"o",
+         "ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ø":"o","ő":"o","Ő":"o",
+         "ř":"r","Ř":"r",
          "ś":"s","š":"s","Ś":"s","Š":"s","ß":"ss",
-         "ù":"u","ú":"u","û":"u","ü":"u","ů":"u","Ů":"u",
+         "ù":"u","ú":"u","û":"u","ü":"u","ů":"u","Ů":"u","ű":"u","Ű":"u",
+         "ť":"t","Ť":"t",
          "ý":"y","ÿ":"y",
          "ź":"z","ż":"z","ž":"z","Ź":"z","Ż":"z","Ž":"z",
          "а":"a","б":"b","в":"v","г":"g","ґ":"g","д":"d","е":"e","ё":"e","є":"e","ж":"zh","з":"z",
          "и":"i","і":"i","ї":"i","й":"i","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
-         "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
+         "с":"s","т":"t","у":"u","ў":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
          "ы":"y","ь":"","э":"e","ю":"yu","я":"ya"
       };
       
@@ -731,6 +732,7 @@ package survarium.controls
             item_data.modifiersDefault[i].isDefault = true;
          }
          item_data.properties = descrData.item_properties;
+         WeaponMovement.expose(item_data);
          if((descrData.descr))
          {
             item_data.itemDescription = descrData.descr;
@@ -2145,7 +2147,7 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
-         this._searchBox.defaultText = SEARCH_WORD[RoomsText.language()];
+         this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,

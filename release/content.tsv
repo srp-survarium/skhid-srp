@@ -37,7 +37,7 @@ movie	debug_animations	-	the animation debug screen
 movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
 movie	login_menu	-	the login screen with the login hint
-movie	main_menu	-	the main menu with the FOV slider
+movie	main_menu	-	the main menu with the FOV slider and the Language choice (exe patch 79)
 movie	player_icons	-	the players' icons over their heads
 movie	replay_player	-	the replay player
 pack	bandit-mask@12	resources.db.patch_17	the Bandit balaclava (1810)
@@ -63,7 +63,6 @@ edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
 edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
 edit	battery-pickup-1.json	-	battery pick-up 20 % faster (#221)
-edit	duty-name-uk-1.json	-	Ukrainian: the Duty faction is Долг (#222)
 edit	weapon-balance-2.json	-	weapon balance 2: AK-12, Socom16 (#242, #260), A-545 (#265)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
 edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263; after weapon-balance-2)
@@ -76,20 +75,19 @@ edit	battery-respawn-1.json	-	battery modes: respawn 10 s, respawn_time 8 -> 10 
 edit	v011e-spawn-protection-1.json	-	the v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s, invulnerability_time 2 -> 6 on the 174 respawn points of their four projects (as 0.26g's maps)
 edit	premium-armour-1.json	-	premium armour: its experience and reputation bonuses rerollable modifications of its own, upgradable as the plain piece (after golden-weapons-1)
 edit	lobby-scene-2.json	-	the lobby without the New Year tree, its gifts and the Christmas sound; the bulb above the workbench lit (a point light of its own, the ceiling lamp's copied: its warm colour, intensity 3, range 5 m) and a second bulb as the bench one (level/lobby/bench_bulb of pack lobby-bulb@1, tilted on a drop wire, a wire_set) with its light (intensity 1.15, range 4 m, attenuation 2) over the artefact table, lighting the weapon from the camera's side; lobby-bench-light-1 (the fill light under the bench) withdrawn
-edit	ban-texts-1.json	-	what a banned player reads: the ban header no longer names prohibited software, and ban code 0x1C (a reason without the login server's words) says "Decision of the administration.", not "Pretending to be administrator", in the six localization tables
 edit	artefacts-1.json	-	the artefacts: Spring passive speed +5 % and aim time -5 %, active aim time -10 % and no slow from bullets (client patch 54 reads aim_time_mod and stopping_power_mod); Lifebone regeneration without its 2 s delay; Onyx active -75 % (damage and piercing x0.25, was x0.1), patch 54 makes n Onyx fired together each active 3 s + (n - 1) s, reducing a hit once (docs/notes/artefacts.md)
-edit	artefact-texts-1.json	-	the artefacts' pickup and activation hints as they now are, in the six localization tables: Spring aiming speed, its passive 5 %, no slow from bullets; Lifebone's active restores health; Onyx's stock numbers 10 % -> 5 %, 95 % -> 75 % (for its active's seconds) (after artefacts-1)
 edit	crouch-steps-2.json	-	crouched steps fire: the 16 moving crouch clips get the player_sound_events channel run and sprint have (2 steps a cycle), so the crouch pairs of crouch-steps-1 play (T27)
 edit	protective-mask-1.json	-	the Protective mask (1816, the "hunter mask") is just a mask: it no longer covers the helmet slot, so a helmet is worn with it (T28; masks-pack.md)
 edit	master-set-net-1.json	-	the Master set's camouflage net (the "Leshy" vest and pants, Master's hood: part edge_sniper_06_alpha_s of the seven edge_sniper_06 models) drawn deferred with an alpha test, a copy of the hood's material with the net's textures, not as 0.26g's unfinished forward test material, which streaked across other players' screens (T31)
-edit	match-chat-off-1.json	-	the gameplay options' dead "Disable private messages at the time of battle" checkbox is "Hide chat in match" (exe patch 58 makes it live), in the six localization tables
-edit	hide-interface-1.json	-	the controls options' "Hide interface" row (toggle_replay_ui, F11; exe patch 62 adds it): its label st_hide_interface_action in the six localization tables
 edit	bandages-1.json	-	the bandage buff (the owner, 2026-10-24): the Pack of bandages heals hands and legs fully (influences 0.3/s -> 1/s) and pain, body and head 35 % (new influences 0.35/s, 0.14/s, 0.35/s for its 1 s), its lobby description in the six localization tables and no Heal amount line on its card (docs/notes/bandages.md)
 edit	socom-nerf-1.json	-	the SOCOM 16 nerf (the owner, 2026-10-25): damage 70 -> 60, armour piercing 45 -> 40 (bullet_damage 0.7 -> 0.6, bullet_pierce 0.45 -> 0.4, the card's props 1 and 3), equipment level 15 (item_level and match_making_level 12 -> 15) (#443; docs/notes/socom_nerf.md; after weapon-balance-2)
-edit	network-texts-1.json	-	the login screen's "Connection error." (st_login_menu_status_error_connection, status 0) says what to try: the firewall (Skhid-network-setup.cmd) and, in Russia, a VPN with the game's programs in its split tunnelling (VPN.txt), in the six localization tables
 edit	svd-level-1.json	-	the SVD at equipment level 15 (the owner, 2026-10-25): item_level and match_making_level 12 -> 15, so its Renaissance shop rank 7 -> 10 (docs/notes/socom_nerf.md; after socom-nerf-1)
 edit	kill-feed-weapons-1.json	-	the kill feed shows the ported weapons' own icons: ui_desc/combat_log_icon of the 21 configs of base patch 19's weapons back to their builds' icons (53 to 68, which the hud movie now has; the M4A1 21), from stand-ins of stock weapons (docs/notes/kill-feed-icons.md)
 edit	london-1.json	-	London without anomalies: all seven anomalies and their artefacts, damage zones and collision removed from day_2 to day_5; battery modes lose the old spawn-protection zones. The owner's map-editor placement supplies ten points per team in every mode: team1 on building_06_1's first floor and team2 on building_10's first floor, preserving point order and non-placement properties.
 edit	medical-cards-1.json	-	bandages and medkit: explicit healing and pain relief percentages, weight retained, lower activation time better; presentation only (after bandages-1 and weapon-balance-1)
 edit	vegetation-runtime-1.json	-	runtime vegetation for the four supported early ported maps, each in day_2 and day_4: v021d_level_03, v021d_level_06, v011e_level_03, v011e_level_04; discard editor painting chunks 0x4d/0x4e and retain plant positions and normals byte for byte (docs/notes/vegetation-runtime.md)
+edit	weapon-movement-ui-1.json	-	Expose each weapon's own movement-speed parameter in its built-in bonuses, using the native speed icon; presentation only
+edit	weapon-details-ui-1.json	-	Weapon cards: base reload, chambering time and damage falloff, Shift for handling, recoil, spread and sway; presentation only
+edit	weapon-rolls-1.json	-	weapon rolls take effect (the owner, 2026-10-29), the same percentages: recoil (2080-2084, defect 3060) on the six kick keys the game reads, min/max top, left and right recoil, not obsolete first/queue-shoot keys no weapon has; aim time (2070-2074) on the weapon's parameters/aim_time, type 2, not the player modifier aim_time_modifier a weapon never registers (docs/notes/weapon-rolls.md)
+edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
 edit	headwear-1.json	-	the eight approved stock helmets use a separate render bone for cosmetic fly-off on death; Pilgrim excluded, animation skeleton unchanged

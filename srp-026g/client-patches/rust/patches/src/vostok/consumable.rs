@@ -1,6 +1,5 @@
 //! Read-only presentation of the native medkit state machine. No patch clock
 //! or retained item pointers: each HUD update reads the current simulation.
-use core::ffi::c_void;
 use super::{Context, Reg};
 use super::ui::{Movie, movie_of};
 use crate::raw;
@@ -40,46 +39,42 @@ pub struct QuickSlotActivity<'t> {
 
 impl<'t> QuickSlotActivity<'t> {
     pub fn at_update(ctx: &'t Context<'_>) -> Option<Self> {
-        let ui = ctx.reg(Reg::Esi) as usize as *mut c_void;
-        let player = ctx.reg(Reg::Ebp) as usize as *mut c_void;
-        let inventory = ctx.reg(Reg::Ebx) as usize as *mut c_void;
+        use raw::site::quick_slots_activity as site;
         let slot = ctx.reg(Reg::Edi);
         let index = ctx.reg(Reg::Eax) as usize;
-        // SAFETY: these are the live objects held by update_local_player_state.
-        // Medicines occupy the inventory's fixed slots. Artefact mappings
-        // instead encode an offset into a separately allocated container array;
-        // do not turn those offsets into an in-bounds inventory pointer.
+        // SAFETY: the context is this site's: the live objects
+        // update_local_player_state holds, on the game's thread. Medicines
+        // occupy the inventory's fixed slots. Artefact mappings instead encode
+        // an offset into a separately allocated container array; an index past
+        // the slots is no slot.
         let (movie, activity) = unsafe {
-            let movie = movie_of(*raw::game_world_ui::hud_movie(ui))?;
-            let slots = raw::inventory::slots(inventory);
-            let end = raw::inventory::slots_end(inventory);
-            let count = (end as usize - slots as usize) / core::mem::size_of::<u32>();
-            let item = if index < count {
-                *slots.add(index) as usize as *mut c_void
-            } else { core::ptr::null_mut() };
-            let activity = if *raw::player::alive(player) == 0 || item.is_null()
-                || *raw::inventory_item::vtable(item) != raw::image::MEDKIT_VTABLE
-            { Activity::Inactive } else {
-                let active = *raw::medkit::active(item) != 0;
-                let delay = *raw::medkit::delay_remaining(item);
-                let remaining = *raw::medkit::remaining(item);
-                // The same profile, current kit and modifier as native tick.
-                let profile = *raw::player::profile(player) as usize as *mut c_void;
-                let kit = usize::from(*raw::player::kit(player));
-                let mut kit_base = profile;
-                for _ in 0..kit { kit_base = raw::profile_kit::end(kit_base).cast(); }
-                let modifiers = raw::player_profile::kit_modifiers(kit_base).cast();
-                let duration = if active && remaining != 0 {
-                    if delay != 0 {
-                        // Native set_active uses drug_use_time (33), weight 1.
-                        raw::engine_apply_modifier(modifiers, 33, *raw::medkit::use_delay(item) as f32,
-                                                   1.0) as u32
-                    } else {
-                        raw::engine_apply_modifier(modifiers, 34, *raw::medkit::duration(item) as f32,
-                                                   *raw::medkit::skill_weight(item)) as u32
-                    }
-                } else { 0 };
-                Activity::parse(active, delay, remaining, duration)
+            let (ui, player, inventory) = (site::ui(ctx)?, site::player(ctx)?, site::inventory(ctx)?);
+            let movie = movie_of(ui.hud_movie())?;
+            let slots = inventory.slots();
+            let count = inventory.slots_end().index_from(slots).unwrap_or(0);
+            let item = if index < count { slots.at(index).item() } else { None };
+            let activity = match item {
+                Some(item) if *player.alive() != 0 && *item.vtable() == raw::image::MEDKIT_VTABLE => {
+                    // the vtable says it is a medkit (all medical consumables)
+                    let medkit = item.medkit();
+                    let active = *medkit.active() != 0;
+                    let delay = *medkit.delay_remaining();
+                    let remaining = *medkit.remaining();
+                    // The same profile, current kit and modifier as native tick.
+                    let kit = usize::from(*player.kit());
+                    let modifiers = player.profile().map(|profile| profile.kits().at(kit).modifiers());
+                    let duration = if active && remaining != 0 {
+                        if delay != 0 {
+                            // Native set_active uses drug_use_time (33), weight 1.
+                            raw::engine_apply_modifier(modifiers, 33, *medkit.use_delay() as f32, 1.0) as u32
+                        } else {
+                            raw::engine_apply_modifier(modifiers, 34, *medkit.duration() as f32,
+                                                       *medkit.skill_weight()) as u32
+                        }
+                    } else { 0 };
+                    Activity::parse(active, delay, remaining, duration)
+                }
+                _ => Activity::Inactive,
             };
             (movie, activity)
         };

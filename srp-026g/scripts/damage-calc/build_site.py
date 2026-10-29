@@ -62,6 +62,7 @@ def main():
                             str(raw / "flash_movies__lobby_menu.swf")], check=True, capture_output=True)
         run(HERE / "assets" / "tools" / "build_icons.py", json_dir, images, icons, "--webp")
         run(HERE / "build_page.py", "--site", work / "calc-data.json", SITE, icons / "icons", SITE / "maps", revision(rows))
+        run(HERE.parent / "wiki" / "build.py", "--calculator", SITE / "calc.js", "--out", SITE.parent / "wiki")
     write_built_from(SITE / "built-from.tsv", rows, "the calculator (srp-026g/scripts/damage-calc/build_site.py)")
     print(f"{SITE}: revision {revision(rows)}")
 

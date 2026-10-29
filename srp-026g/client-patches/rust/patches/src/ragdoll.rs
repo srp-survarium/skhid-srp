@@ -808,7 +808,7 @@ fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
 /// mt_draw's render command, after its weapon draw and before any arguments
 /// have been pushed. Alive/canned bodies use Head; a ragdoll uses its own pose.
 pub fn on_post_bones(ctx: &mut Context<'_>) -> Flow<RagdollOnPostBonesExit> {
-    let posted = DrawnBones::at(ctx).is_some_and(|bones| {
+    let posted = DrawnBones::at_post_bones(ctx).is_some_and(|bones| {
         let extra = STATE.with(ctx.thread(), |state| headwear_pose(state, &bones.player()));
         bones.post_headwear(extra)
     });

@@ -4681,3 +4681,47 @@ va	name	location	role	basis
 0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	ECX	skeleton render model; resizes inverse-bind vector at +140h to the input u16 count, skips each zero-terminated bone name, reads 9 floats (translation, rotation, scale), builds and inverts each matrix in file order (0x15A000..0x15A0C9); no animation-skeleton lookup	observed
 0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	EDI	reader {begin, cursor, size}; input starts with u16 bone count, then name and 36 bytes per bone; called by combined cook at 0x128D46 on its bind_pose resource	observed
 0x00128260	vostok::render::skeleton_combined_model_cook::query_resources_by_data	[entry ESP+12]+118h	bind-pose path buffer: queried as raw_data_class (3) at 0x1282A8..0x1282B6; profile_skin_visual_cook fills it from gameplay/bodyparts/default body_parts/bind_pose, whose mounted value is resources/models/character/human/scavengers/scavengers_01_torso_s1.skinned_model/render/bind_pose; the combined cook passes this resource to load_bind_pose at 0x128D46	observed
+0x00426ae1	setlocale	entry ESP+4	the category (LC_ALL 0, LC_COLLATE 1, LC_NUMERIC 4)	observed
+0x00426ae1	setlocale	entry ESP+8	the locale name (".1251", "C", ...)	observed
+0x000e3c10	vostok::core::preinitialize	EDI	stored at 0x1F1D63C (the object whose vtable+50h survarium::game::save_user_config asks for the user data folder); the -localization key 0xA81A88 read at 0xE3C52 into the global buffer_string 0x21E75E0 (default "original", 0x84E3E0), then setlocale(LC_ALL) from it: original/russian ".1251", english ".1252", polish ".1250", other names none; LC_COLLATE ".ACP" before, LC_NUMERIC "C" after	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	ECX	the command-line key (0xA81A88 localization: a buffer_string of its value and its name)	observed
+0x000ddeb0	vostok::command_line::key<string>::is_set	EAX	the buffer_string the value is copied into, or 0	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	EAX	the console command object (48h bytes: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Dh saved, +40h the buffer, +44h its size; vtable cc_string 0x9E7C2C; linked at the head of the list 0x1F1D66C)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+4	the name (+10h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+8	the buffer address of the string value (+40h)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+12	the buffer's size (+44h; execute 0xEC8C0 copies a value with strncpy_s(buffer, size, value, size))	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+16	saved to user.cfg, a byte (+1Dh; 1 for r_current_render_configuration)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	ECX	the options' ExternalInterface (game_options+4, vtable 0x9FD478; +30h the game, game_options+34h)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+4	the movie (main_menu's GFx movie)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+8	the method name (accept_changes, cancel_changes, options_tab_changed, ...; an unknown one returns at 0x1FF96E)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+12	the arguments (GFx values, 24 bytes each: +4 the type, 6 a string, 40h its managed bit; +8 the value)	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+16	the argument count	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	EAX	stamina; +18h minimum weight, +1Ch maximum, +20h speed penalty, +24h spend increase, +48h modifiers	observed
+0x00329b20	survarium::player_stamina::update_weight_modifiers	entry ESP+4	carried weight in kg, supplied by base_player tick at 0x2DAAB5 after inventory::update_weight	observed
+0x00329290	survarium::player_stamina::player_stamina	EAX	stamina destination	observed
+0x00329290	survarium::player_stamina::player_stamina	ECX	40-byte stamina_base_parameters	observed
+0x00329290	survarium::player_stamina::player_stamina	entry ESP+4	player_params_modifiers_container pointer	observed
+0x002dbf40	survarium::base_player::can_sprint	entry ESP+4	player	observed
+0x002221e0	survarium::lobby_menu::update_player_items_weight	EAX	lobby menu; +6A0h profile, +9Ch game, +690h movie resource, +3118h configured capacity	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	EAX	kit index (low byte); profile+58h+704h*kit	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	ECX	equipment-compatible parameter index only; 0x2F7470 has an unchecked switch lookup at 0x2F7643; player modifier indices 26/31/32 are invalid and crash with equipped items; use 0x2D5AE0 on the kit modifier container for those	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+4	base value	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+8	profile	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+12	dictionary	observed
+0x00331840	survarium::weapon_recoil_parameters::load	ESI	recoil config node	observed
+0x00331840	survarium::weapon_recoil_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4	output parameter block	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8	dispersion config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	ESI	breath_vibration config node	observed
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	entry ESP+4	output parameter block	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	EAX	indexed config path node	observed
+0x002f1430	survarium::item_config_cook::find_modifier_target	entry ESP+4	root config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ESI	mutable scalar config node	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	ECX	end iterator pointer	observed
+0x00358010	vostok::configs::apply_multiplicative_modifiers	entry ESP+4	begin iterator	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	entry ESP+4	unused callback argument; ret 4	observed
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	[0x021E75E0]	zero-terminated language name pointer; russian/ukrainian select ru, others en	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+4	the lobby menu	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+8	element: 0 the paper doll (with the slot), 1 the inventory, 2 the shop	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed

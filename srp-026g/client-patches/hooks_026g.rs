@@ -111,6 +111,56 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- language (patch 79) ----
+
+/// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_language_on_configs_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `language_on_configs_start` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::language::on_configs_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- language (patch 79) ----
+
+/// The entry `language_on_configs_texts` (0x1ea306, on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `language_on_configs_texts` calls this, from the game's jump at 0x1ea306,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::language::on_configs_texts(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- language (patch 79) ----
+
+/// The named exits of language::on_options_call (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LanguageOnOptionsCallExit { Done }
+/// The entry `language_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_language_on_options_call(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `language_on_options_call` calls this, from the game's jump at 0x1ff5d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::language::on_options_call(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
@@ -266,23 +316,26 @@ impl OrigActionPresent {
     pub fn call(&self, handler: &mut InputHandler, action: Action, state: &mut Out<u32>) -> bool {
         // SAFETY: engine_action_present at its own site; the arguments are the hook's,
         // typed by the row (engine_026g.tsv).
-        unsafe { raw::engine_action_present(handler.ptr(), action.0, state.at()) != 0 }
+        unsafe { raw::engine_action_present(Some(handler.raw()), action.0, state.at()) != 0 }
     }
 }
 
 /// The entry `suicide_key_on_spot` (0x242196, the input builder's last action query (spot)) calls this with
-/// engine_action_present's 3 arguments.
+/// engine_action_present's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `suicide_key_on_spot`.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
+pub unsafe extern "C" fn hook_suicide_key_on_spot(a0: Option<raw::PlayerInputHandler>, a1: u32, a2: *mut u32) -> u32 {
     // SAFETY: only the entry `suicide_key_on_spot` calls this, from the game's call at
     // 0x242196, on the game's thread; a0.. are engine_action_present's arguments.
     let thread = unsafe { Thread::new() };
     let Some(mut handler) = (unsafe { InputHandler::from_raw(&thread, a0) }) else {
         // a null InputHandler never happens at this site; take the unpatched path.
-        return u32::from(unsafe { raw::engine_action_present(a0 as usize as *mut _, a1, a2 as usize as *mut _) } != 0);
+        return u32::from(unsafe { raw::engine_action_present(a0, a1, a2) } != 0);
     };
     let action = Action(a1);
-    let mut state = unsafe { Out::<u32>::new(&thread, a2 as usize as *mut u32) };
+    let mut state = unsafe { Out::<u32>::new(&thread, a2) };
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
 }

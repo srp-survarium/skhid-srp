@@ -494,8 +494,8 @@ fn bans_maintenance_and_registration_are_the_stores() {
 fn the_pages_are_the_026g_ones() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
-    assert!(home.contains("survarium_skhid.exe -localization=english -server="));
-    assert!(home.contains("-mt_allocator=768 -minimum_resources_memory_size=768"));
+    // The exe has the server and memory built in and its language in Settings.
+    assert!(!home.contains("-localization") && !home.contains("-mt_allocator"));
     assert!(!home.contains("-client") && !home.contains("0.21d") && !home.contains("0.21D"));
     assert!(home.contains("Survarium 0.26g client"));
     assert!(!home.contains("/exchange"));
@@ -1027,6 +1027,45 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
     assert!(uk.contains(" aria-current=page>Мапи</a>"));
+}
+
+#[test]
+fn wiki_routes_use_the_sites_navigation_and_language() {
+    let world = world();
+    for path in ["/wiki", "/wiki/weapons"] {
+        for lang in [Lang::En, Lang::Uk] {
+            let mut request = get(path);
+            request.lang = lang;
+            let response = world.web.route(&request, "t");
+            assert_eq!(response.status, "200 OK");
+            assert!(
+                response
+                    .body
+                    .contains(&format!("<html lang=\"{}\">", lang.code()))
+            );
+            assert!(response.body.contains(&format!(
+                "href=\"/wiki?lang={}\" aria-current=page",
+                lang.code()
+            )));
+        }
+    }
+    assert_eq!(
+        world.web.route(&get("/wiki/unknown"), "t").status,
+        "404 Not Found"
+    );
+}
+
+/// A standalone local review of the real HTTP routes, with in-memory test
+/// accounts. Does not start or connect to login, lobby or match servers.
+#[test]
+#[ignore = "local browser preview; serves until stopped"]
+fn serve_wiki_preview() {
+    let world = world();
+    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    for stream in listener.incoming() {
+        world.web.serve(stream.unwrap());
+    }
 }
 
 #[test]

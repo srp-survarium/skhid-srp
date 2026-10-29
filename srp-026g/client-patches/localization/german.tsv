@@ -1,0 +1,2562 @@
+key	text
+bm_back_1_desc	Description is not ready!!!
+bm_back_1_name	Behälter "Marodeur"
+k0	0
+k1	1
+k2	2
+k3	3
+k4	4
+k5	5
+k6	6
+k7	7
+k8	8
+k9	9
+kA	A
+kADD	+
+kAPOSTROPHE	'
+kB	B
+kBACK	Backspace
+kBACKSLASH	\\
+kC	C
+kCOMMA	,
+kD	D
+kDECIMAL	.
+kDELETE	Delete
+kDOWN	Down
+kE	E
+kEND	Ende
+kEQUALS	=
+kESCAPE	Esc
+kF	F
+kF1	F1
+kF10	F10
+kF11	F11
+kF12	F12
+kF13	F13
+kF14	F14
+kF15	F15
+kF2	F2
+kF3	F3
+kF4	F4
+kF5	F5
+kF6	F6
+kF7	F7
+kF8	F8
+kF9	F9
+kG	G
+kGRAVE	~
+kH	H
+kHOME	Home
+kI	I
+kINSERT	Einfügen
+kJ	J
+kK	K
+kL	L
+kLBRACKET	<
+kLCONTROL	Lctrl
+kLEFT	Left
+kLSHIFT	Lshift
+kM	M
+kMINUS	-
+kN	N
+kNUMLOCK	NumLock
+kNUMPAD0	Num0
+kNUMPAD1	Num1
+kNUMPAD2	Num2
+kNUMPAD3	Num3
+kNUMPAD4	Num4
+kNUMPAD5	Num5
+kNUMPAD6	Num6
+kNUMPAD7	Num7
+kNUMPAD8	Num8
+kNUMPAD9	Num9
+kNUMPADCOMMA	NumComma
+kNUMPADENTER	NumEnter
+kNUMPADEQUALS	=
+kO	O
+kP	P
+kPAUSE	Pause
+kPERIOD	.
+kQ	Q
+kR	R
+kRBRACKET	>
+kRCONTROL	Rcontrol
+kRETURN	Enter
+kRIGHT	Right
+kRSHIFT	Rshift
+kS	S
+kSCROLL	ScrollLock
+kSEMICOLON	,
+kSLASH	/
+kSPACE	Leertaste
+kSUBTRACT	-
+kT	T
+kTAB	Tab
+kU	U
+kUP	Up
+kV	V
+kW	W
+kX	X
+kY	Y
+kZ	Z
+mouse1	LMB
+mouse2	RMB
+mouse3	MMB
+mouse4	X1MB
+mouse5	X2MB
+mouse6	X3MB
+mouse7	X4MB
+mouse8	X5MB
+mouse_wheel_down	Mausrad nach unten
+mouse_wheel_up	Mausrad nach oben
+st_a545_description	X5MB
+st_a545_name	A-545
+st_a9_91_description	Description is not ready!!!
+st_a9_91_name	9A-91
+st_abilities	Fähigkeiten
+st_accept	Akzeptieren
+st_accept_changes	Übernehmen
+st_account	Konto
+st_account_trading_claim	Konto Handel
+st_achieved	Erreichen!
+st_achievements_label	Die Errungenschaften des Spielers
+st_action_premium_activated	Premium ist aktiviert! Ihre Belohnung:
+st_activate_premium	Premium Konto aktivieren.
+st_add	Hinzufügen
+st_add_profile_button_blocked_hint_text	Es ist aximale Anzahl der Spieler erreicht!
+st_add_profile_button_hint_text	neuen Charakter einfügen
+st_add_to_clan_request	lädt Sie in den Klan ein
+st_add_to_clan_team_request	lädt Sie in den Klan Team ein
+st_add_to_friends	Freunden hinzufügen
+st_add_to_friends_request	Freundschaftsanfragen
+st_add_to_ignore	In Block Liste
+st_add_to_squad_request	Um der Ableitung beizutreten.
+st_additional_max_weight_name	Tragbarer Gewicht
+st_additive_quick_slot_size_modifier	Taschen Größe
+st_aek919k_description	Russische kompakte Maschinenpistole, Munition: 9x18 PM. In den 1990er Jahren im Mechanischen Werk Kowrow für das Innenministerium und andere Sicherheitskräfte entwickelt. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_aek919k_name	AEK-919K "Kashtan"
+st_aim_time_description	Geschwindigkeit Sichtung:
+st_aim_time_name	Schnelle Reaktion
+st_aim_toggle_action	Zielen
+st_aiming_booster_description	Die versäumten Tabletten, wurden streng nach dem Rezept entlassen. Im Laufe von vielen Jahren haben den Teil der Eigenschaften, jedoch den Beruhigungseffekt immer noch in der Kraft verloren.
+st_aiming_booster_name	Extrakt des Herzgespanns
+st_aiming_speed_correction_perc_name	Geschwindigkeit des Zielens
+st_ak12_description	Description is not ready!!!
+st_ak12_name	AK-12
+st_ak12_premium_description	Russisches Sturmgewehr der neuen Kalaschnikow-Generation. Anfang der 2010er Jahre von Ischmasch entwickelt, mit Schienen für Visiere und Zubehör sowie überarbeitetem Schaft und Bedienelementen. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_ak12_premium_name	AK-12M1
+st_ak74m_description	Die modernisierte Variante von Kalaschnikow mit der Munition 5.45N...39. War auf der Ausrüstung übernommen und hat die gute Reputation unter den Streitkräften verdient. Unterstüzt das einzelne und automatische Regime der Schießerei.
+st_ak74m_name	AK-74M
+st_ak74n_bundle_descr	<white>Enthält folgende Sachen:\n- verbessert "AK-74N"\n- 2000 5.45x39 7N6M Patronen</white>
+st_ak74n_bundle_name	Set "AK-74N"
+st_ak74n_description	Description is not ready!!!
+st_ak74n_name	AK-74N
+st_ak74u_description	Die verkürzte Modifikation des Automaten AK74 unter der Munition 5.45N...39. Dank den Umfängen, wurde von den militärischen Landetruppen, das Innenministerium und den Schutzstrukturen breit verwendet. Unterstützt das einzelne und automatische Regime der Schießerei.
+st_ak74u_name	AKS-74U
+st_ak74u_premium_description	Die verkürzte Modifikation des Automaten AK74 unter der Munition 5.45N...39. Dank den Umfängen, wurde von den militärischen Landetruppen, das Innenministerium und den Schutzstrukturen breit verwendet. Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
+st_ak74u_premium_name	AKS-74U "der Korsar"
+st_akmn_description	Das automatische Gewehr Kalaschnikow modernisiert für die 7.62×39mm Patrone. Dank der mächtigen Patrone verliert die Aktualität auf die Zeit nicht. Unterstützt das einzelne und automatische Regime der Schießerei.
+st_akmn_name	AKM
+st_akmn_premium_2_description	Das automatische Gewehr Kalaschnikow modernisiert für die 7.62×39mm Patrone. Dank der mächtigen Patrone verliert die Aktualität auf die Zeit nicht. Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
+st_akmn_premium_2_name	AKM "Rächer"
+st_akmn_premium_description	Das automatische Gewehr Kalaschnikow modernisiert für die 7.62×39mm Patrone. Dank der mächtigen Patrone verliert die Aktualität auf die Zeit nicht. Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
+st_akmn_premium_name	AKM '65
+st_all_factions	Alle Verkäufer
+st_all_quests	Alle Aufgaben zeigen
+st_already_as_reserve_in_team	Spieler ist reserviert
+st_already_as_soldier_in_team	Spieler ist bereits in einem Team
+st_already_exist_clan_string	Name ist schon besetzt
+st_already_has_status_clan_team	Der Spieler ist schon eingeladen, oder ist Mitglied einer Klan Mannschaft.
+st_already_in_clan_team	Spieler ist in einem anderen Team.
+st_already_in_inventory	Der vorliegende Objekt ist  schon gekauft. Wollen Sie den trozdem kaufen ?
+st_ambient_occlusion_options	Umgebende Verstopfungsqualität
+st_ammo	Munition
+st_ammo_127x54_pt_description	Description is not ready!!!
+st_ammo_127x54_pt_name	12.7x54 PT
+st_ammo_127x54_vps_description	Description is not ready!!!
+st_ammo_127x54_vps_name	12:7x54 VPS
+st_ammo_127x55_description	Description is not ready!!!
+st_ammo_127x55_name	12.7x55
+st_ammo_12mm_buck2_desc	Die verstärkte Version der Jagdpatrone 12 Kaliber. Wegen den großen Schrottkugel erhöht sich die durchdringende Handlung und die Distanz des wirksamen Feuers nimmt zu.
+st_ammo_12mm_buck2_name	12x70, Kartätsche
+st_ammo_12mm_buck_desc	Die standardmäßige Jagdschrottpatrone. Bringt hohe Schaden gegen nicht gepanzerten Zielen.
+st_ammo_12mm_buck_name	12x70, Schrotkugel
+st_ammo_12mm_slug_desc	Shell-Version von der Jagdpatrone 12 Kaliber. Hat eine hohe Bremskraft und durchdringenden Aktion.
+st_ammo_12mm_slug_name	12x70, Jacques
+st_ammo_30_description	Die Gewehrpatrone der amerikanischen Herkunft, ist auf den Weiten bis zu 150 Metern wirksam. Die erste Patrone für die bürgerlichen Waffen auf rauchfreien Pulver.
+st_ammo_30_name	.30-30 Winchester
+st_ammo_357m_description	Die amerikanische leistungsfähige Revolverpatrone. Entstand unter dem trockenen Gesetz, wie der mächtigere Ersatz der standardmäßigen Polizeipatrone.
+st_ammo_357m_name	.357 Magnum
+st_ammo_45acp_description	Description is not ready!!!
+st_ammo_45acp_name	.45 ACP
+st_ammo_46x30_description	Von Heckler & Koch für die MP7 entwickelte Patrone. Ihr kleines, hartes Geschoss ist darauf ausgelegt, Schutzwesten auf kurze und mittlere Entfernung zu durchschlagen.
+st_ammo_46x30_name	4.6x30
+st_ammo_545x39_7n10_description	Description is not ready!!!
+st_ammo_545x39_7n10_name	5.45x39 7N10
+st_ammo_545x39_7n22_description	Description is not ready!!!
+st_ammo_545x39_7n22_name	5.45x39 7N22
+st_ammo_545x39_7n6m_description	Die sowjetische Zwischenpatrone mit Stahlkern und niedriger Impulsionstärke ausgestattet ist. Das Kleinkalibergeschoss mit der hohen Anfangsgeschwindigkeit gewährleistet hoche Ebenheit der Schussbahn.
+st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_description	NATO-Mittelpatrone für Gewehre, aus der amerikanischen .223 Remington entwickelt und 1980 von der NATO standardisiert. Ein leichtes, schnelles Geschoss mit gestreckter Flugbahn und geringem Rückstoß.
+st_ammo_556x45_name	5.56x45
+st_ammo_57x28_description	Um 1990 von FN Herstal für die P90 und später die Pistole Five-seveN entwickelte Patrone. Ein leichtes, schnelles Geschoss, das Schutzwesten durchschlagen soll.
+st_ammo_57x28_name	5.7x28
+st_ammo_65x39_description	Description is not ready!!!
+st_ammo_65x39_name	6.5x39 Grendel
+st_ammo_762x25_description	Erste sowjetische unitäre Patrone für Pistole. Wurde unter Berücksichtigung der Nutzung der Pistolen sowie für die Pistolen-Maschinengewehre entwickelt.
+st_ammo_762x25_name	7.62x25
+st_ammo_762x39_7n23_description	Description is not ready!!!
+st_ammo_762x39_7n23_name	7.62x39 7N23
+st_ammo_762x39_description	Die 7.62-mm Patrone des Musters von Jahr 1943, wird als dritt mächtigste Automatpatrone in der Welt angenommen.
+st_ammo_762x39_m_description	Description is not ready!!!
+st_ammo_762x39_m_name	7.62x39 PRD
+st_ammo_762x39_name	7.62x39 
+st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
+st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
+st_ammo_762x51_name	7.62x51
+st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
+st_ammo_762x54R_old_name	7.62x54R
+st_ammo_9x18_description	Sowjetische Einheitspatronen sind geschaffen, um veraltete 7,62 mm Patronen zu ersetzen. Standard-Kugeln mit einer guten Tiefenwirkung gegen nicht-metallische Hindernisse.
+st_ammo_9x18_name	9x18 MP
+st_ammo_9x18_pbm_description	Panzerpatrone 9-18 mm 7N25 hat im Vergleich zu 9N...18 mm erhäht um 1,5  die Zunahme in der Schwungenergie und Vergrößrung der treffenden Fähigkeit
+st_ammo_9x18_pbm_name	9x18 PBM
+st_ammo_9x19p_7n21_description	Die Patrone mit dem Stahlkern. Nach der Macht übertrifft die kommerzielle Munition 9×19 Parabellum
+st_ammo_9x19p_7n21_name	9x19 7N21
+st_ammo_9x19p_7n31_description	Description is not ready!!!
+st_ammo_9x19p_7n31_name	9x19 7N31
+st_ammo_9x19p_para_description	Unitär Pistole Patrone des Kalibers 9mm. Nach dem Zweiten Weltkrieg war auf die Ausrüstung wie die standardmäßige Patrone von NATO übernommen.
+st_ammo_9x19p_para_name	9x19 Parabellum
+st_ammo_9x21_description	Description is not ready!!!
+st_ammo_9x21_name	9x21 SP-10
+st_ammo_ammo_762x54_7n13_description	Russische Gewehrpatrone 7,62x54R mit gehärtetem Stahlkern für bessere Durchschlagskraft. Für Maschinengewehre und Scharfschützengewehre; in Gurten geliefert.
+st_ammo_ammo_762x54_7n13_name	7.62x54 7N13
+st_ammo_ammo_762x54_7n1_description	Description is not ready!!!
+st_ammo_ammo_762x54_7n1_name	7.62x54 7N1
+st_ammo_bags_description	Sie bekommen zusätzliche Pratronenbeutel.
+st_ammo_bags_name	Kampfsatz
+st_ammo_equipped_label	Rucksack
+st_ammo_label	Patrone
+st_ammo_pab9_description	Description is not ready!!!
+st_ammo_pab9_name	9x39 PAB -9
+st_ammo_sp5_description	Description is not ready!!!
+st_ammo_sp5_name	9x39 SP-5
+st_ammo_sp6_description	Description is not ready!!!
+st_ammo_sp6_name	9x39 SP-6
+st_ammo_storage_label	Lager
+st_aniso_filtering_option	Die anisotrope Filtrierung
+st_anomaly_damage_corr_perc_name	Schaden der Anomalie
+st_anomaly_skills_label	Wissen der Welt
+st_antialiasing_option	Antialiasing
+st_antitoxin_description	Das komplexe Präparat, das für die Neutralisation der Gifte und der Toxine im Organismus des Menschen geschaffen ist. Für den maximalen Effekt, vor der schädlichen Einwirkung zu verwenden.
+st_antitoxin_name	Gegengift
+st_apply_changes_msg	Wollen Sie die Abstimmungen verwenden?
+st_aps_description	Description is not ready!!!
+st_aps_name	APS
+st_army_026_mask_desc	Sturmhaube mit einem breiten Augenschlitz aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_army_026_mask_name	Armee-Sturmhaube
+st_artcontainer_time_corr_perc_name	Zeit zum Sammeln der Artefakte
+st_artefact_activated_message	Artefakt ist aktiviert
+st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.
+st_artefact_booster_name	Artefakten-Master
+st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
+st_artefact_search_failed	Artefakt ist nicht gefunden
+st_artefact_search_success	Sie haben das Artefakt erreicht!
+st_ash12_description	Description is not ready!!!
+st_ash12_name	ASh-12
+st_attention	Es ist ein Fehler beim Starten des Laders Survarium geschehen. Bitte, wiederholen Sie den Versuch später.
+st_auto	Auto
+st_auto_button_hint	Autoergänzung der verbrauchten Ausrüstung
+st_auto_repair_button_label	Auto-Reperatur
+st_auto_repair_hint	Auto-Raparierung
+st_autobuy_button_label	Autoergänzung
+st_autobuy_money	Munition auffüllen
+st_autobuy_money_ammo	Munition
+st_autobuy_money_consulabels	Spez.Mittel
+st_autorepair_money	Reparatur Kosten
+st_back_use_action	Sauerstoff Ballon
+st_backpack	Rücksack
+st_ban_reason_account_trading	Verkauf oder versuch des Verkaufs des Spielkontos
+st_ban_reason_administrator	Entscheidung der Administration.
+st_ban_reason_advertising	Verbreitung der Werbung
+st_ban_reason_bad_language	obszöne Rede
+st_ban_reason_cheating	Vertrieb, die Werbung oder die Erörterung der aussenstehenden Software.
+st_ban_reason_discuss_admins	Erörterung der Handlungen der Adminstration.
+st_ban_reason_faschism	Äußerung von Rassismus, Nazismus oder Nationallismus.
+st_ban_reason_flood	Spam, Floort, nicht informativen Mitteilungen.
+st_ban_reason_incorrect_info	Der Vertrieb wissentlich falschen Informationen.
+st_ban_reason_insult	Beleidigung, Provokation
+st_ban_reason_nickname	Name ist besetzt oder ungültig.
+st_ban_reason_politics	Beredung der Politik.
+st_ban_reason_reallife_treating	Drohung im realen Leben.
+st_ban_reason_teamkilling	Teamkill
+st_bandit_026_mask_desc	Banditen-Sturmhaube aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_bandit_026_mask_name	Banditen-Sturmhaube
+st_base_bandages_description	Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her.
+st_base_bandages_name	Verbandpackung
+st_base_medkit_description	Die grundlegende Apotheke der Erstversorgung. Lässt nicht nur zu den Effekt der kritischen Verwundung zu neutralisieren, sondern auch, das Befinden des Verwundeten zu verbessern.
+st_base_medkit_name	Erste-Hilfe 
+st_base_painkiller_description	Stark schmerzstillend, erhöht die Schmerzgrenze  vorübergehend, was dem Kämpfer zulässt vom Schmerzschock und beim Erhalten der nicht Letalwunden bei Bewusstsein zu bleiben.
+st_base_painkiller_name	Schmerzmittel
+st_base_trap_description	Das gewöhnliche Jagdfangeisen mit der mächtigen Feder. Kann leicht das Bein des grossen Tier oder dem Menschen zu zerbrechen.
+st_base_trap_name	Falle
+st_benelli_description	Italienische Selbstladeflinte, Kaliber 12. Ende der 1990er Jahre von Benelli mit Gasdrucklader entwickelt und vom US Marine Corps als M1014 eingeführt. Geladen wird ein Röhrenmagazin unter dem Lauf. Nur Einzelfeuer.
+st_benelli_name	Benelli M4 Super 90
+st_best	Beste
+st_best_explorer	FORSCHER
+st_best_explorer_artefacts	Artefakten:
+st_best_explorer_items	Gegenständen:
+st_best_player	SPIELER
+st_best_player_score	Ergebnis:
+st_best_sniper	SCHÜTZE
+st_best_sniper_accuracy	Genauigkeit:
+st_best_sniper_shots	Schüsse:
+st_best_support	PARTNER
+st_best_support_healed	Geheilt:
+st_best_support_saved	Gerettet:
+st_bind_text	Taste drücken
+st_black_market_faction	Schwarzer Markt
+st_blackmarket_bring_x_items_descr	Der Sturm schont weder unserer Feinde, noch uns. Um zu überleben, muss man möglichst viele Batterien an die Schutzeinrichtung anschließen. Sie kann man auf der Ortung finden. Gerade von der Base der Feinde klauen ist auch eine gute Variante.
+st_blackmarket_bring_x_items_name	Common Cause
+st_blackmarket_bring_x_items_obj	Batterien finden und nach Base bringen:
+st_blackmarket_entrap_enemies_descr	Wer warst du bis zur Epidemie? Du hast die Fangeisen auf den Tieren in den Wäldern gestellt? Es ist die Zeit gekommen, sich an deine Fähigkeiten zu errinern,aber jetzt ist Mensch deine Beute!
+st_blackmarket_entrap_enemies_name	Wilddieb
+st_blackmarket_entrap_enemies_obj	Den Gegner mit den Fangeisen fangen:
+st_blackmarket_grenade_enemies_descr	Glaub mir, es gibt kein besseres Geschenk, als die gute Granate. Besonders ohne Schecks! Und wenn du es schaffen wirst, so ein Geschenk kann man sofort einigen Feinden schenken! Die Hauptsache ist, es deinen nicht zuschenken.
+st_blackmarket_grenade_enemies_name	Geschenkchen!
+st_blackmarket_grenade_enemies_obj	Töten Sie den Gegner mit der Granate pro Kampf:
+st_blackmarket_headshots_descr	Die Panzerweste kann vom Tod retten, aber sie wird nicht schützen, wenn du auf den Kopf zielst. Sogar der Helm garantiert den absoluten Schutz nicht. Der Schuss in den Kopf spart die Zeit, die Patronen und die Nerven.
+st_blackmarket_headshots_name	Kontrollschuss
+st_blackmarket_headshots_obj	Gegner mit Headshot töten:
+st_blackmarket_kd_ratio_descr	Wenn auch andere vor uns fürchten! Wir  der schwarze Markt, fürchten uns nicht vor dem Tod , und mit Freude werden wir mit uns ein Paar unserer Feinde mitnehmen!
+st_blackmarket_kd_ratio_name	Einschüchternd und  erobern!
+st_blackmarket_kd_ratio_obj	Das Feld zu behaupten mit Verhältnis der Totschläge und der Tode nicht weniger als:
+st_blackmarket_kill_enemies_descr	Wenn der Kampf ist erledigt. Der Feind ist zerstreut, und Habar geteilt ist, kommt es Zeit über die Kampfverdiensten erzählen. Wenn hast du was zu sagen.
+st_blackmarket_kill_enemies_name	Persönliche Ergebnis
+st_blackmarket_kill_enemies_obj	Gegners pro Kampf töten:
+st_blackmarket_kill_enemy_x_descr	Man darf nicht sagen, dass die Landstreicher unsere bösesten Feinde sind. Aber von Zeit zu Zeit muss man sie auf seine Stelle stellen. Es auf dem anschaulichen Beispiel am besten ist.
+st_blackmarket_kill_enemy_x_name	Headhunting
+st_blackmarket_kill_enemy_x_obj	der Landstreicher pro Kampf  töten:
+st_blackmarket_killstreak_descr	Manchmal gibt es mehr Feinde, als unserer Leute. Einige halten es für das Problem. Wir meinen, dass es je grösser die Anzahl der Feinde ist, desto mehr Ruhm wird uns zufallen, wenn sie niedergeworfen sind.
+st_blackmarket_killstreak_name	Death Machine
+st_blackmarket_killstreak_obj	Der Totschläge Serie begehen:
+st_blackmarket_level_0	Unbekannt
+st_blackmarket_level_1	Rekrut
+st_blackmarket_level_2	Kämpfer
+st_blackmarket_level_3	Aufseher 
+st_blackmarket_level_4	Zenturio
+st_blackmarket_level_5	Elite
+st_blackmarket_level_unlock_0	Wir gratulieren!Die Aufgaben vom schwarzen Markt zugänglich sind!
+st_blackmarket_level_unlock_1	Wir gratulieren! Sie sind jetzt der Rekrut des schwarzen Marktes!
+st_blackmarket_level_unlock_2	Wir gratulieren! Sie sind jetzt ein Kämpfer des schwarzen Marktes.
+st_blackmarket_level_unlock_3	Wir gratulieren! Sie sind jetzt Aufseher des schwarzen Marktes!
+st_blackmarket_level_unlock_4	Wir gratulieren! Sie sind jetzt Zenturio des schwarzen Marktes!
+st_blackmarket_level_unlock_5	Wir gratulieren! Sie sind jetzt Elite des schwarzen Marktes.
+st_blackmarket_meele_kill_descr	Wenn du schafst die Arbeit sauber zu machen - sei bereit, die Hände zu beschmutzen. Gerade dadurch unterscheiden wir uns von anderen. Beweise, dass du bist einer von uns - arbeite mit den Händen.
+st_blackmarket_meele_kill_name	schmutzige Arbeit
+st_blackmarket_meele_kill_obj	Gegner im Nahkampf töten:
+st_blackmarket_represent	Sie sollen in die Ausrüstung des schwarzen Marktes bekleidet sein.
+st_blackmarket_starter_bundle_descr	<white>Enthält folgende Sachen: \n- "Räuber Jacke"\n- "Räuber Hosen"\n- verbessert Uzi\n- 2000 9x19 Parabellum Patronen.</white>
+st_blackmarket_starter_bundle_name	Set "Räuber"
+st_blackmarket_steal_box_descr	Ergreife und herrsche! Merke dir diese Regel! Stiehl die Batterie von der fremden Base. Von einer Handlung wirst du die Feinde ohne Schutz lassen und deinen Mitspielern helfen!
+st_blackmarket_steal_box_name	Diebstahl
+st_blackmarket_steal_box_obj	Klauen Sie die Batterie von der Base des Gegners und bringen Sie zu ihrer Base.
+st_blackmarket_win_score_descr	Was kann besser als der Sieg sein? Nur der absolute Sieg, wenn die Feinde keine Chance haben, ausßer  in den Winkeln zu sitzen und zu beten, damit dieser Alptraum so schnell wie möglich zu Ende geht.
+st_blackmarket_win_score_name	Dominieren 
+st_blackmarket_win_score_obj	Mit der Anzahl der gebrachten Batterien das Feld zu behaupten:
+st_blackmarket_win_x_games_descr	Es gibt nichts süßeres als der Sieg! Habar, der Ruhm, die Achtung" fällt alles dem Sieger zu. Ganz zu schweigen von der Reputation unter den Brüdern des schwarzen Marktes!
+st_blackmarket_win_x_games_name	In den Ruhm des schwarzen Marktes!
+st_blackmarket_win_x_games_obj	Kämpfe zu gewinnen:
+st_bm_boots_1_desc	Brutaale Cowboystiefel. Vor dem Katastrophe  unverzichtbares Attribut von Rockern und Bikern.
+st_bm_boots_1_name	Kosaken
+st_bm_boots_2_desc	Die niedrigen Lederstiefel, schützen die Beine gut. Auf der Base des schwarzen Marktes, werden sie von dem Meister desen Spitznamen "die Spinne" lautet Hergestellt und somit tragen Stiefel sein Zeichen. Dank der Bequemlichkeit, verringern sie die Müdigkeit beim Laufen.
+st_bm_boots_2_name	Ropers
+st_bm_boots_3_desc	Die mächtigen Cowboystiefel mit den eisernen Einschüben und den Riemen. Ist das Kennzeichnen des Status unter allen Banden des schwarzen Marktes.
+st_bm_boots_3_name	Choppers
+st_bm_gloves_1_desc	Fingerlose Lederhandschuhe. Bequem zum Kämpfen und beim Gebrauch der Schießwaffen genau so wie beim stopfen von einer Pfeife. Erhöht die Nachladungsgeschwindigkeit um 2%.
+st_bm_gloves_1_name	Biker Handschuhe
+st_bm_gloves_2_desc	Die schweren, mächtigen Stachelhandschuhe. Sehr nützlich beim Nähkampf.
+st_bm_gloves_2_name	Stachelhandschuhe
+st_bm_helmet_1_desc	Ledern Bikerhelm. Schützt den Kopf vor den Schlägen mit den schweren Gegenständen. Solcher Helm ist während der Auseinandersetzungen der Kämpfer des schwarzen Marktes lebensnotwendig.
+st_bm_helmet_1_name	Biker Helm
+st_bm_helmet_5_desc	Description is not ready!!!
+st_bm_helmet_5_name	"Marodeur" Helm
+st_bm_legs_1_desc	Klassische verschleißfeste Hosen aus Jeansstoff. Schützen die Beine von der Kälte. Sind von Geschäft ausgeraubt worden. Die Taschen lassen zu, ein Paar Falle oder Granaten mitzunehmen.
+st_bm_legs_1_name	Jeans
+st_bm_legs_2_desc	Die abgeänderten Lederhosen mit den Schutzplatten auf dem Knie. Schützen die Beine von der Kälte und der Verwundungen.
+st_bm_legs_2_name	Lederhosen
+st_bm_legs_4_desc	Description is not ready!!!
+st_bm_legs_4_name	Räuber Hose
+st_bm_legs_5_desc	Description is not ready!!!
+st_bm_legs_5_name	"Marodeur" Hosen
+st_bm_mask_1_desc	Description is not ready!!!
+st_bm_mask_1_name	"Korsar" Maske
+st_bm_rep_modifier	Reputation "Schwarzer Markt"
+st_bm_torso_1_desc	Die Biker Jacke ohne Ärmel. Die Kleidung der gewöhnlichen Kämpfer des schwarzen Marktes. Schützt vor der blanken Waffe und dem strengen Wetter. In der Jacke sind die speziellen Taschen für die zusätzlichen Patronen, den Fangeisen und der Granaten eingenäht.
+st_bm_torso_1_name	Leder Weste
+st_bm_torso_2_desc	Schwer genietete Jacke aus der dicken Haut mit den eingenähten Schutzplatten. Ursprünglich wurde sie von den besonders grossen Kämpfern des schwarzen Marktes verwendet, woher der Titel entstanden ist. Auf dem Ärmel der stilisierte Schädel, der die Furchtlosigkeit des Besitzers im Angesicht des Todes demonstriert.
+st_bm_torso_2_name	Jacke "Rowdy"
+st_bm_torso_3_desc	Die schwere Lederjacke des Jagdbombers des schwarzen Marktes, ist von den dicken metallischen Platten verstärkt. Die Art des stürmenden Kämpfers im "Korsaren" ist fähig, im Schock und dem Zittern sogar erfahren Überlebenden zu versetzen. Enthält die speziellen Taschen für zusätzlich Munitionen, der Falle und Granaten.
+st_bm_torso_3_name	Jacke "Corsar"
+st_bm_torso_4_desc	Description is not ready!!!
+st_bm_torso_4_name	Jacke des Räubers
+st_bm_torso_5_desc	Description is not ready!!!
+st_bm_torso_5_name	Jacke "Marodeur"
+st_bonus_day	Tag
+st_bonus_victory	Siegesbonus
+st_border_faction	Siedlung "Rand"
+st_born_leader_compliment	Angeborene Kommandeur
+st_bot_or_cheater_claim	Bot oder Cheater
+st_breath_holding_time_description	Zeit des Verzuges der Atmung:
+st_breath_holding_time_name	Eisernen Lunge
+st_bring_item_to_base	Bringen Sie die Batterie zur der Base.
+st_btn_add_premium_label	Konto ergänzen
+st_btn_add_premium_message	Konto ergänzen
+st_btn_add_rank_label	Rang hinzufügen
+st_btn_become_commander	Kommandant werden
+st_btn_cancel_decal	Abbrechen
+st_btn_change_name_label	Name wechseln
+st_btn_chat	Chat
+st_btn_clan_team_invite_memeber	Einladen
+st_btn_close_upgrades_label	Das Verbessern des Objekts beenden.
+st_btn_craft_accept	Fertig
+st_btn_craft_label	Verbesserung
+st_btn_create_clan_team	Team erstellen
+st_btn_disband_clan_label	Auflösen
+st_btn_disband_clan_team	Team auflösen
+st_btn_end_tutorial_label	Beenden
+st_btn_equipment	Ausrüstung
+st_btn_exchange_premium_money	Des Gold auf Rubels austauschen.
+st_btn_exit_label	Abmeldung 
+st_btn_find_player	Spieler finden
+st_btn_friends	Freunde
+st_btn_friends_online_filter	Freunde Online
+st_btn_go_to_online_store	Fortsetzen
+st_btn_invite_clan_memeber_label	Einladen
+st_btn_item_craft	Verbessern
+st_btn_join_team	Zum Team dazugehoeren.
+st_btn_kick_clan_memeber_label	Verdrängen
+st_btn_knowledge_base	Data Base
+st_btn_leave_clan_label	Verlassen
+st_btn_leave_clan_team	Team verlassen
+st_btn_no	Nein
+st_btn_not_ready	Nicht bereit
+st_btn_paperdoll	Ausrüstung
+st_btn_premium_hint	Premium Konto aktivieren.
+st_btn_rank_down_clan_memeber_label	Verkleinern
+st_btn_rank_up_clan_memeber_label	Erhöhen
+st_btn_ready	Fertig
+st_btn_remove_rank_label	Rang Zurücksetzen
+st_btn_reroll_change_label	Verändern
+st_btn_reroll_choose_label	Wählen
+st_btn_reroll_label	Modifikation
+st_btn_settings_label	Optionen
+st_btn_show_log_list	Geschichte
+st_btn_show_log_list_hint	Liste der letzten Kämpfe.
+st_btn_upgrade_hint	Modifizieren
+st_btn_upgrade_label	Verbesserungen
+st_btn_use_item	Verwenden
+st_btn_yes	Ja
+st_bundle_clik_hint	Klicken Sie auf das Set für weitere Informationen
+st_button_buy_profile_text	Charakter erstellen
+st_button_exit	Sließen
+st_button_skip_tutorial_label	Tutorium überspringen
+st_buy	Kaufen
+st_buy_post_premium	die Bonusse Zu bekommen
+st_buy_premium_with_discount	Kaufen Sie jetzt mit Rabatt!
+st_buy_profile_confirmation_text	Wollen Sie neuer Charakter erfügen?
+st_buy_profile_price_text	Erstellung Kosten
+st_buy_treasure_maps	Karte kaufen
+st_camo_black_leather_01_name	Rabe
+st_camo_black_leather_name	Schwarzer Tod
+st_camo_blue_leather_name	Brise
+st_camo_brown_leather_01_name	Leder 2
+st_camo_brown_leather_02_name	Leder 3
+st_camo_brown_leather_03_name	Leder 4
+st_camo_brown_leather_04_name	Leder 5
+st_camo_brown_leather_05_name	Ifrit
+st_camo_brown_leather_name	Leder 
+st_camo_camouflage_green_01_name	Jäger
+st_camo_camouflage_green_name	Eiche
+st_camo_chemical_fabric_01_name	Grüner UGZ
+st_camo_chemical_fabric_02_name	Grünes Laub
+st_camo_chemical_fabric_03_name	Blauer Himmel
+st_camo_city_camo_name	Leopard
+st_camo_cyfra_01_camo_name	Ziffer-N
+st_camo_cyfra_02_camo_name	Ziffer
+st_camo_cyfra_03_camo_name	Krieger
+st_camo_denim_01_name	Dunkle Jeans
+st_camo_denim_name	Jeans
+st_camo_desert_camo_name	Wüste
+st_camo_fabric_brown_01_name	Festland
+st_camo_fabric_brown_02_name	Sandsturm
+st_camo_fabric_brown_03_name	Skorpion
+st_camo_fabric_brown_name	Brauner Stoff
+st_camo_fabric_camouflage_name	Überlebender
+st_camo_fabric_green_01_name	Grüner Stoff
+st_camo_fabric_green_name	Weißer Stoff
+st_camo_fabric_grey_name	Geist
+st_camo_flecktarn_01_camo_name	Camu
+st_camo_flecktarn_02_camo_name	Wald
+st_camo_generic_desc	Verwenden Sie die Tarnung im Erscheinungsbild Fenster der kugelsicheren Westen und Hosen , um Aussehen zu verändern.
+st_camo_green_leather_name	Grüners Leder
+st_camo_izlom_name	Brechen
+st_camo_khaki_fabric_01_name	Heißer Sand
+st_camo_khaki_fabric_02_name	Heiße Sonne
+st_camo_khaki_fabric_03_name	Staub
+st_camo_multicam_name	Fata Morgana
+st_camo_new_year	Das neue Jahr 2015
+st_camo_quilted_fabric_name	Steppstoff
+st_camo_red_leather_name	Ligionär
+st_camo_rubber_green_01_name	Finder
+st_camo_rubber_green_02_name	Gelbes Gummi
+st_camo_rubber_green_name	Grünes Gummi
+st_camo_slot	Tarnung
+st_camo_spekrt_01_name	Spector-Herbst
+st_camo_spekrt_02_name	Spector-Frühling
+st_camo_spekrt_03_name	Spector-Sommer
+st_camo_steam	Tarnung "Dampf"
+st_camo_suede_leather_name	Wildleder
+st_camo_ucp_name	UCP
+st_camo_vsr_name	Mkats
+st_camo_yellow_leather_name	Gelbes Leder
+st_can_be_installed_on	Kann installiert werden
+st_can_sprint_description	Sie können sprintern, wenn Sie überlastet werden.
+st_can_sprint_name	Ruck
+st_cancel	Abrechnen
+st_cannot_buy_item	Es ist unmöglich den Gegenstand zu kaufen
+st_cannot_craft_item	Sie dürfen nicht diesen Objekt verbessern.
+st_cannot_pickup_item	Sie tragen den Container schon!
+st_cannot_pickup_item_broken_hand	Verletzte Hände! Unmöglich den Behälter aufzuheben.
+st_cannot_relocate_item	Es ist unmöglich das Objekt zu versetzen
+st_cannot_repair_item	Reparatur unmöglich
+st_cannot_reroll_skills	Fehler beim zurücksetzen der Kentnisse 
+st_cannot_select_rerolled_modification	Fehler beim welchseln der Modifikation
+st_cannot_upgrade_item	Es ist der Fehler bei der Modifikation des Gegenstandes geschehen. Probieren Sie noch einmal.
+st_cannot_use_drop_card	Cache-Karte Nutzung unmöglich ist.
+st_cant_add_clan_member	Fehler beim Hinzufügen vom neuen Klan Mitglieder.
+st_cant_add_clan_team_member	Fehler bei hinzufügen eines Spieler ins Team.
+st_cant_buy_clan_registration	Fehler beim Bezahlen der Anmeldung Kosten des Team
+st_cant_buy_premium_message	Es ist ungenügend goldene Rubeln für des Kaufes.
+st_cant_cancel_clan_registration	Fehler beim Abbrechen der Klan Registrierung.  
+st_cant_change_clan_team_battle_status	Fehler beim wechseln des Team Status
+st_cant_change_commander_team_role	Unmöglich die Rolle als Kommandant zu wechseln.
+st_cant_change_permission	Fehler beim verändern der Zugangsrechte .
+st_cant_change_rank_clan_member	Fehler beim wechseln des Spieler Rangs.
+st_cant_change_ready_state	Fehler beim wechseln des Bereit-Statuses.
+st_cant_change_role_himself	Unmöglich seinen eigenen Rang zu wechseln.
+st_cant_change_status_clan_team_member	Fehler beim wechseln des Spieler Status.
+st_cant_clan_match_closed	Fehler beim Verlassen der Klan Mannschaft.
+st_cant_create_clan	Fehler beim Klan herstellen.
+st_cant_create_clan_rank	Fehler beim herstellen der Klan Rangs
+st_cant_create_clan_team	Fehler beim Herstellen des Teams.
+st_cant_delete_default_rank	Unmöglich den Standard Rank zu löschen.
+st_cant_disband_clan_team	Fehler beim auflösen des Teams.
+st_cant_find_player	Der Spieler mit solchem Namen existiert nicht.
+st_cant_invite_player_to_clan	Fehler beim Einladen des Spielers in den Klan.
+st_cant_invite_player_to_clan_team	Fehler beim einladen eines Spielers in den Team.
+st_cant_kick_himself	Unmöglich sich selbst aus dem Klan zu vertreiben.
+st_cant_kick_member	Fehler beim Vertreiben des Spieler vom Klan.
+st_cant_leave_clan_team	Fehler beim Verlassen des Teams.
+st_cant_oust_commander	Fehler bei wechseln des Kommondantes:
+st_cant_oust_yourself	Unmöglich sich aus dem Team zu vertreiben.
+st_cant_rank_up_clan_member	Fehler beim Erhöhung des Rangs eines Spielers.
+st_cant_remove_clan_rank	Fehler beim Entfernen Klan Rang
+st_cant_remove_clan_team_member	Fehler beim Vertreiben des Spieler vom Klan.
+st_cant_remove_yourself	Man darf sich selbst nicht aus dem Team vertreiben.
+st_cant_request_to_join_clan_team	Fehler bei Anfrage des Eintritts in den Klan
+st_cant_reserve_clan	Fehler beim reservieren des Namens.
+st_cant_set_clan_team_commander	Fehler beim wählen des Kommandanten des Klan Teams
+st_cant_set_daily_message	Fehler beim Installieren der Nachricht des Tages.
+st_cant_set_yourself	Sie dürfen sich nicht selbst als Kommandant des Teams bestimmen
+st_cant_upgrade_while_repair_hint	Unmöglich das Objekt zu verbessern während der Reparatur.
+st_capture_info	Erfassen der Installation...
+st_chamber_a_round_description	Verdrehensgeschwindigkeit des Verschlusses
+st_chamber_a_round_name	Schneller Zug
+st_change	Umbenennen
+st_change_name_error	Fehler bei Name wechseln
+st_change_name_label	Name wechseln
+st_change_order	Ordnung ändern
+st_change_profile	Profil wechseln
+st_change_quest	Aufgabe wechseln
+st_change_quest_label	Aufgabe wechseln
+st_change_weapon_speed_description	Geschwindigkeit der Waffen Wechselung:
+st_change_weapon_speed_name	Gewandten Hände
+st_character	Charakter
+st_character_decals_1_12_name	Jarilo
+st_character_decals_1_1_name	Literat
+st_character_decals_1_2_name	Trupp "Alpha"
+st_character_decals_1_3_name	Überlebender
+st_character_decals_1_4_name	Forscher
+st_character_decals_1_5_name	Veteran
+st_character_decals_1_6_name	Meister
+st_character_decals_1_7_name	Legende
+st_character_decals_1_8_name	Flüchtigen Husaren
+st_character_decals_2_1_name	Landstreicher Neuling
+st_character_decals_2_2_name	Landstreicher Veteran
+st_character_decals_2_3_name	Rekrut des schwarzen Marktes
+st_character_decals_2_4_name	Elite des schwarzen Marktes
+st_character_decals_2_5_name	Soldat der Armee der Wiederbelebung 
+st_character_decals_2_6_name	Oberst der Armee der Wiedergeburt
+st_character_decals_2_7_name	Eingeweiht zur Siedlung "Rand"
+st_character_decals_2_8_name	Master-Siedlung "Rand"
+st_character_decals_3_10_name	Tödlich
+st_character_decals_3_11_name	Tier Schädel
+st_character_decals_3_12_name	Kugel
+st_character_decals_3_13_name	Granate
+st_character_decals_3_14_name	Erste-Hilfe
+st_character_decals_3_15_name	Visier
+st_character_decals_3_16_name	SWAT
+st_character_decals_3_17_name	VDV
+st_character_decals_3_18_name	Hundert
+st_character_decals_3_19_name	Dolch
+st_character_decals_3_1_name	Biogefahr
+st_character_decals_3_20_name	Atom Zeichen
+st_character_decals_3_21_name	DNA-Helix
+st_character_decals_3_2_name	Waffenverbot
+st_character_decals_3_3_name	Anarchie
+st_character_decals_3_4_name	Pirat
+st_character_decals_3_5_name	Radioaktiv
+st_character_decals_3_6_name	Explosionsgefahr
+st_character_decals_3_7_name	Wald Verbot
+st_character_decals_3_8_name	Baum des Lebens
+st_character_decals_3_9_name	Sanduhr
+st_character_decals_4_10_name	Flagge von Georgia
+st_character_decals_4_11_name	Flagge von Usbekistan
+st_character_decals_4_12_name	Flagge von Tadschikistan
+st_character_decals_4_13_name	Flagge von Kirgisistan
+st_character_decals_4_14_name	Flagge von Turkmenistan
+st_character_decals_4_15_name	Flagge von Aserbaidschan
+st_character_decals_4_16_name	Flagge von Armenien
+st_character_decals_4_17_name	Deutsche Flagge
+st_character_decals_4_18_name	UK Flagge
+st_character_decals_4_19_name	Frankreich Flagge
+st_character_decals_4_1_name	Flagge von UDSSR
+st_character_decals_4_20_name	Italenische Flagge
+st_character_decals_4_21_name	Spanische Flagge
+st_character_decals_4_22_name	Polnische Flagge
+st_character_decals_4_23_name	Rumänische Flagge
+st_character_decals_4_24_name	Niderlandische Flagge
+st_character_decals_4_25_name	Griechensche Flagge
+st_character_decals_4_26_name	Portugalische Flagge
+st_character_decals_4_27_name	Tschechische Flagge
+st_character_decals_4_28_name	Belgische Flagge
+st_character_decals_4_29_name	Ungarische Flagge
+st_character_decals_4_2_name	Flagge von Russland
+st_character_decals_4_30_name	Schwedische Flagge
+st_character_decals_4_31_name	Österreich Flagge
+st_character_decals_4_32_name	Schweiz Flage
+st_character_decals_4_33_name	Bulgarische Flagge
+st_character_decals_4_34_name	Serbische Flagge
+st_character_decals_4_35_name	Dänemark Flagge
+st_character_decals_4_36_name	Slowakische Flagge
+st_character_decals_4_37_name	Norwegische Flagge
+st_character_decals_4_38_name	Irlandische Flagge
+st_character_decals_4_39_name	Kroatien Flagge
+st_character_decals_4_3_name	Flagge von Ukraine
+st_character_decals_4_40_name	Bosnien und Herzegowina Flagge
+st_character_decals_4_41_name	Türkische Flagge
+st_character_decals_4_42_name	Flagge der USA
+st_character_decals_4_43_name	Flagge von Kanada
+st_character_decals_4_44_name	Flagge von Brasilien
+st_character_decals_4_45_name	Flagge von Argentinien
+st_character_decals_4_46_name	Flagge von Australien
+st_character_decals_4_47_name	Finnische Flagge
+st_character_decals_4_48_name	Neuseeländische Flagge
+st_character_decals_4_49_name	Irische Flagge
+st_character_decals_4_4_name	Flagge von Weißrussland
+st_character_decals_4_50_name	Schottische Flagge
+st_character_decals_4_51_name	Englische Flagge
+st_character_decals_4_52_name	Südkoreanische Flagge
+st_character_decals_4_53_name	Japanische Flagge
+st_character_decals_4_54_name	Chinesische Flagge
+st_character_decals_4_55_name	Flagge von Indien
+st_character_decals_4_56_name	Flagge von Indonesien
+st_character_decals_4_57_name	Flagge von Malaysia
+st_character_decals_4_58_name	Flagge der Philippinen
+st_character_decals_4_59_name	Flagge von Thailand
+st_character_decals_4_5_name	Flagge von Kasachstan
+st_character_decals_4_60_name	Flagge von Vietnam
+st_character_decals_4_61_name	Flagge von Bolivien
+st_character_decals_4_62_name	Flagge von Chile
+st_character_decals_4_63_name	Flagge von Kolumbien
+st_character_decals_4_64_name	Flagge von Ecuador
+st_character_decals_4_65_name	Flagge von Paraguay
+st_character_decals_4_66_name	Flagge von Peru
+st_character_decals_4_67_name	Flagge von Uruguay
+st_character_decals_4_68_name	Flagge von Venezuela
+st_character_decals_4_69_name	Flagge Albaniens
+st_character_decals_4_6_name	Flagge von Lettland
+st_character_decals_4_70_name	Flagge Kubas
+st_character_decals_4_71_name	Flagge Sloweniens
+st_character_decals_4_72_name	Flagge Angolas
+st_character_decals_4_73_name	Flagge Nigerias
+st_character_decals_4_74_name	Flagge Südafrikas
+st_character_decals_4_75_name	Flagge von Wales
+st_character_decals_4_7_name	Flagge von Litauen
+st_character_decals_4_8_name	Flagge von Estland
+st_character_decals_4_9_name	Flagge von Moldawien
+st_character_decals_5_10_name	Wappen von Georgia
+st_character_decals_5_11_name	Wappen von Usbekistan
+st_character_decals_5_12_name	Wappen von Tadschikistan
+st_character_decals_5_13_name	Wappen von Kirgisistan
+st_character_decals_5_14_name	Wappen von Turkmenistan
+st_character_decals_5_15_name	Wappen von Aserbaidschan
+st_character_decals_5_16_name	Wappen von Armenien
+st_character_decals_5_17_name	NATO Zeichen
+st_character_decals_5_18_name	UN Zeichen
+st_character_decals_5_19_name	Deutscher Wappen
+st_character_decals_5_1_name	Rotes Stern
+st_character_decals_5_20_name	Engländischer Wappen
+st_character_decals_5_21_name	Französischer Wappen
+st_character_decals_5_22_name	Italenischer Wappen
+st_character_decals_5_23_name	Spanischer Wappen
+st_character_decals_5_24_name	Polnischer Wappen
+st_character_decals_5_25_name	Rumänischer Weppen
+st_character_decals_5_26_name	Niderländischer Wappen
+st_character_decals_5_27_name	Griechischer Wappen
+st_character_decals_5_28_name	Portugalischer Wappen
+st_character_decals_5_29_name	Tschechiescher Wappen
+st_character_decals_5_2_name	Wappen von Russland
+st_character_decals_5_30_name	Belgischer Wappen
+st_character_decals_5_31_name	Ungarischer Wappen
+st_character_decals_5_32_name	Schwedischer Wappen
+st_character_decals_5_33_name	Österreichischer Wappen
+st_character_decals_5_34_name	Schweizischer Wappen
+st_character_decals_5_35_name	Bulgarischer Wappen
+st_character_decals_5_36_name	Serbischer Wappen
+st_character_decals_5_37_name	Dänemark Wappen
+st_character_decals_5_38_name	Slowakeinischer Wappen
+st_character_decals_5_39_name	Norwegischer Wappen
+st_character_decals_5_3_name	Wappen von Ukraine
+st_character_decals_5_40_name	Irlandischer Wappen
+st_character_decals_5_41_name	Kroatischer Wappen
+st_character_decals_5_42_name	Bosnischer und Herzegowinischer Wappen
+st_character_decals_5_4_name	Wappen von Weißrussland
+st_character_decals_5_5_name	Wappen von Kasachstan
+st_character_decals_5_6_name	Wappen von Lettland
+st_character_decals_5_7_name	Wappen von Litauen
+st_character_decals_5_8_name	Wappen von Estland
+st_character_decals_5_9_name	Wappen von Moldova
+st_character_decals_7_27_name	Kleeornament
+st_character_decals_7_28_name	Hufeisen
+st_character_decals_7_9_name	Kräuter
+st_character_decals_generic_desc	Verwenden Sie die Litzen im Erscheinungsbild Fenster der kugelsicheren Westen und Hosen , um Aussehen zu verändern.
+st_characteristics_label	Die Charakteristiken des Spielers
+st_chat_channel_clan	Clan Chat
+st_chat_channel_clan_team	Klan  Mannschaft
+st_chat_channel_general	Gemeinsam
+st_chat_channel_match	Allen
+st_chat_channel_private	Privat
+st_chat_channel_squad	Truppe
+st_chat_channel_system	System
+st_chat_channel_team	Team
+st_checkbox_battle_commander_permission	Kriegsherr
+st_checkbox_clan_change_rank_permission	Die Veränderung des Ranges des Spielers.
+st_checkbox_clan_daily_message_permission	Nachricht des Tages wechseln
+st_checkbox_clan_invite_permission	Einladung
+st_checkbox_clan_member_kick_permission	Vertriebung
+st_checkbox_compare_items	Objekt  Vergleich
+st_checkbox_compare_items_hint	Die Beschreibung von Ihnen bekleideten Objekt darstellen
+st_checkbox_players_live_search	Während der Eingabe suchen
+st_checkbox_show_locked_items	Nicht verfügbar
+st_checkbox_show_locked_items_hint	Die unzugänglichen Objekte zeigen
+st_checkbox_show_offline_players	Offline Spieler anzeigen.
+st_checkbox_show_player_groups	Spielergruppen anzeigen
+st_checkbox_show_shop_items	Shop
+st_checkbox_show_shop_items_hint	Die Objekte aus dem Shop zeigen
+st_choose	Auswählen 
+st_choose_faction_button_hint	Fraktion wählen
+st_choose_faction_description	Die Gruppierungen sind die Hauptlieferanten der Ausrüstung und Munition. Die abgeschlossene Aufgaben von der Gruppierung verbessert sein Reputation. Als Ersatz du bekommst Zugang zum besten Waren. Gleichzeitig kann man nur mit einer Gruppierung zusammenarbeiten.
+st_choose_faction_label	Wahlen sie derGruppierung aus
+st_choose_modifier	Wählen sie den Modifikator:
+st_choose_premium_subscription	Zeit Wählen:
+st_claim_player	Klagen
+st_claims_count_per_day_owerflow	Es ist das Maximum der Klagen für den Tag verwendet.
+st_claims_count_per_user_owerflow	Sie können sich nur einmal am Tag über ein Mitspieler beklagen!
+st_clan	Klan
+st_clan_abbr_is_not_valid	Diese Abkürzung ist bereits reserviert
+st_clan_abbreviation	Klan Abkürzung
+st_clan_abbreviation_default_text	Abkürzung eingeben.
+st_clan_abbreviation_info	( von 3 bis 6 Zeichen)
+st_clan_accept_button_label	Registrieren
+st_clan_buy_registration_button_label	Bezahlen
+st_clan_cancel_button_label	Registrierung Abbrechen
+st_clan_control_tab	Klan Führung
+st_clan_creation_info_description	Um den Klan zu registrieren, müssen Sie sich die Unterstützung nicht weniger als 5 Spieler sichern. Nach der Registrierung des Klans, sie werden sich an ihn automatisch anschließen.
+st_clan_creation_info_label	Nehmen Sie die Hilfe von Spielern
+st_clan_daily_message	Nachricht des Tages
+st_clan_invite_1	Der Spieler
+st_clan_invite_2	Ist zum Klan erfolgreich eingeladen.
+st_clan_invite_accepted	Bestätigt
+st_clan_invite_pending	Erwartung der Antwort
+st_clan_invite_player_button_label	Einladen
+st_clan_invite_rejected	Ablehnung
+st_clan_kick_1	Wollen Sie wirklich den Spieler raus werfen?
+st_clan_kick_2	Von Klan?
+st_clan_leave_button_label	Klan verlassen
+st_clan_level_label	Klan Rang
+st_clan_level_up_1	Unser Clan hat Level
+st_clan_level_up_2	erreicht.
+st_clan_manage_window_label	Klan
+st_clan_max_members_count_error	Das ist die maximale Anzahl der Team Mitglieder.
+st_clan_member_joined	Zum Klan beigefügt.
+st_clan_member_kicked	Vertrieben vom Klan
+st_clan_member_left	Hat Klan verlassen.
+st_clan_name	Name des Klans
+st_clan_name_and_abbr_are_not_valid	Dieser Spitzname oder Abkürzung ist bereits reserviert
+st_clan_name_default_text	Namen des Klans eingeben
+st_clan_name_is_not_valid	Diese Spitzname  ist bereits reserviert
+st_clan_options_tab	Einstellungen
+st_clan_players_level_label	Lv.
+st_clan_players_list_availabe_postfix	Moegliches
+st_clan_players_list_availabe_prefix	Spieler Liste-
+st_clan_players_name_label	Name 
+st_clan_players_rank_label	Rang
+st_clan_players_ready	Bereit
+st_clan_players_status_label	Status
+st_clan_rank	Klan Rating
+st_clan_rank_assistant	Stellvertretender Kommandeur
+st_clan_rank_commander	Kriegsherr
+st_clan_rank_soldier	Soldat 
+st_clan_rank_warlord	Kommandant
+st_clan_registration_cost	Anmeldung\nKosten
+st_clan_registration_paid	Bezahlt
+st_clan_reserve_name_button_label	Konto eröffnen
+st_clan_system_message_sender	Clan-System-Nachricht
+st_clan_team_commander	Kriegsherr
+st_clan_team_invite_2	Ist in die Klan Mannschaft erfolgreich eingeladen.
+st_clan_team_invites	Antrag
+st_clan_team_is_full	Die maximale Anzahl der Spieler in einem Clan-Schlacht ist erreicht.
+st_clan_team_reserve	Reserv
+st_clan_team_soldier	Team Zusammensetzung
+st_clan_team_window_label	Turnier Kampf
+st_clan_was_disbanded	Ihr Klan war vom Kommandeur des Klans aufgelöst.
+st_clan_window_close_message	Sind Sie sicher, dass Sie die Mannschaft verlassen wollen?
+st_clan_window_close_message_commander	Sind Sie sicher, dass Sie die Mannschaft verlassen wollen?
+st_clan_window_label	Klan Registrierung
+st_clear	Clear
+st_close	Schließen
+st_collect_statistics_option	Die Gebühr der Statistik zu erlauben
+st_compliment_count_per_day_owerflow	Es ist das Maximum des Lobes für den Tag verwendet.
+st_compliment_count_per_user_owerflow	Sie können ein Mensch nur einmal auf den Tag loben!
+st_compliment_player	Loben
+st_confirm	Bestätigen
+st_conflict_message	Diese Bindung wird folgender verändern:
+st_convert_weapon_slot_to_pocket_description	Sie bekommen zusätzlich platz für die spez.Mittel, aber Sie können die zweiten Waffen nicht ausrüsten.
+st_convert_weapon_slot_to_pocket_name	Habarschik
+st_cost	Wert
+st_count	Anzahl
+st_craft	Verbesserung
+st_craft_message_broken_item	Unmöglich ein geschädigtes Objekt zu verbessern
+st_craft_message_equipped_item	Es ist unmöglich, das Objekt während der Match Suche  zu verbessern.
+st_craft_message_modifers_count	Weitere Verbesserung des Objekts ist unmöglich. Maximale Anzahl der Modifikation ist erreicht.
+st_craft_message_modifiers_difference	Sie koenne ein Objekt mit einer grossen Anzahl von Modifaktoren als Spender verwenden. Die Stelle des Objekts wechseln?
+st_craft_result_fail_label	Leider hat ihr ungeschicktes Handel das Objekt verschlechtert.
+st_craft_result_neutral_label	Leider ist das verbessern des Objekts ihnen nicht gelungen.
+st_craft_result_success_label	Objekt Verbesserung gelungen!
+st_critical_damages	Kritische Bruch
+st_crosshair_static_option	Statische Visier
+st_crosshair_type_option	Visier Auswahl
+st_crouch_action	Hocken (halt.)
+st_crouch_toggle_action	Hocken
+st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft befindet sich schon die Maximale Anzahl der Spieler.
+st_current_value	\nAktueller Wert
+st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
+st_daily_bonus_hint	Begrüßungs Fenster zeigen
+st_daily_bonus_label	Willkommen zurück
+st_daily_bonus_progress	Ihr Progress vom Tag
+st_daily_bonus_reward_complete	<gold>Erledigt</gold>
+st_daily_bonus_reward_description	Auf <gold> 7 Tag </gold> Sie bekommen
+st_daily_bonus_victories	Gewinne
+st_daily_message_label	Nachricht des Tages
+st_day_short	d.
+st_dealy_breath_action	Luft anhalten
+st_decal_editor_description	LMT- Litze aufhängen\nALT- Litze drehen\nCTRL- Größe ändern
+st_decal_editor_label	Bearbeitungsmodus
+st_decal_slot	Armstreifen 
+st_decorations_options	Dekorationen Qualität
+st_default_profile_name1	Profil 1
+st_default_profile_name2	Profil 2
+st_default_profile_name3	Profil 3
+st_default_scope_name	Standardzielfernrohr
+st_defeat	Verlust 
+st_defuse_trap	Entschärfen ({USE})
+st_disband_clan_message	Sind Sie sicher, dass Sie den Klan aufläsen wollen?
+st_disband_clan_money_message	Sind Sie sicher, dass Sie den Clan auflösen wollen? Silber, das auf das Konto der Registrierung erfolgte, wird verloren.
+st_disband_squad	Ableitung zerstreuen
+st_disconnected_from_lobby	Von Service Lobby abgeschaltet!
+st_dispersion_correction_perc_name	Streuung der Hüfte
+st_dispersion_from_hip_description	Schießengenauigkeit aus der Hüfte:
+st_dispersion_from_hip_name	Genauigkeit
+st_dispersion_movement_influence_description	Genauigkeit in der Bewegung:
+st_dispersion_movement_influence_name	Stark Halten
+st_dont_have_permission	Ungenügend Rechte um diese Aktion durchzuführen.
+st_drop	Abziehen
+st_drop_action	Verwerfen
+st_drop_card_descr	Verwenden Sie die Caches Karte nach dem Kampf, um mehr Gegenstände zu finden.
+st_drop_card_name	Caches Karte
+st_duty_026_boots_desc	Schwere gepanzerte Stiefel, die Kämpfer der Pflicht zu ihrer schweren Rüstung tragen.
+st_duty_026_boots_name	Pflicht-Stiefel
+st_duty_026_gloves_desc	Verstärkte fingerlose Handschuhe, die Kämpfer der Pflicht zu ihrer schweren Rüstung tragen.
+st_duty_026_gloves_name	Pflicht-Handschuhe
+st_duty_026_head_desc	Der versiegelte Helm des experimentellen Pflicht-Exoskeletts, mit eingebautem Atemschutz. Bedeckt den ganzen Kopf und das Gesicht.
+st_duty_026_helmet_name	Pflicht-Exoskeletthelm
+st_duty_026_suit_desc	Ein experimentelles Muster eines militärischen Exoskeletts. Wegen der enormen Kosten und einiger Konstruktionsmängel ging es nie in Serie. Kleine Stückzahlen werden noch immer in Untergrundwerkstätten außerhalb der Ukraine gefertigt. Mit eingebautem Artefaktbehälter.
+st_duty_026_suit_name	Pflicht-Exoskelett
+st_edge_accuracy_descr	Ein genauer Schuss ist besser, als Halbhundert ausgegebener Patronen. Besonders jetzt, wenn jede Patrone Gold wert ist. Beweise, dass du das Recht hast Jäger genannt zu werden.
+st_edge_accuracy_name	Scharf Schütze
+st_edge_accuracy_obj	Das Feld zu behaupten mit der Genauigkeit der Schießerei höher als
+st_edge_back_1_desc	Die Nutzung der Artefakte - der Schlittschuh der Siedlung "Rand". Wenn Sie die Artefakte zu finden wissen und wissen wie man mit ihnen umghet, den großen Container auf zwei Artefakte ist eine gute wahl.
+st_edge_back_1_name	Container "Dar 2M"
+st_edge_back_2_desc	Description is not ready!!!
+st_edge_back_2_name	Stalkers Rucksack
+st_edge_back_3_desc	Description is not ready!!!
+st_edge_back_3_name	Atmungssystem "Brise"
+st_edge_back_5_desc	Description is not ready!!!
+st_edge_back_5_name	Container "Wandere"
+st_edge_back_6_desc	Description is not ready!!!
+st_edge_back_6_name	Behälter "Pilger"
+st_edge_boots_1_desc	Die hohen leichten Stiefel mit der weichen Sohle. Sind für anschleichen zu der Beute ideal. Lassen weniger zu, bei den entfernten Übergängen zu ermüden.
+st_edge_boots_1_name	Jäger Stiefel
+st_edge_boots_2_desc	Description is not ready!!!
+st_edge_boots_2_name	Stalkers Stiefel
+st_edge_boots_3_desc	Description is not ready!!!
+st_edge_boots_3_name	Forschers Stiefel
+st_edge_boots_4_desc	Description is not ready!!!
+st_edge_boots_4_name	Meisters Stiefeln
+st_edge_boots_5_desc	Description is not ready!!!
+st_edge_boots_5_name	Stiefel des Hüters
+st_edge_boots_6_desc	Description is not ready!!!
+st_edge_boots_6_name	Schuhe "Pilger"
+st_edge_bring_x_items_descr	Die Erde erträgt keine Gewalt. Jeder Ausbruch der Aggression bewirkt die Antwort der Natur. Wir haben uns gewöhnt, es als Sturm zu nennen. Wir haben gelernt, zu überleben und sich gegen den Sturm zu verteidigen, aber für die Schutzanlage muss man die Batterien finden.
+st_edge_bring_x_items_name	Finder
+st_edge_bring_x_items_obj	Batterien finden und nach Base bringen:
+st_edge_defend_items_descr	Das Territorium zu schützen ist  die heilige Pflicht jedes der Siedlung "Rand" . Wenn du die Base vor der Beraubung nicht schützen kannst, wie willst du die Menschheit vor der Vernichtung schützen?
+st_edge_defend_items_name	Hüter
+st_edge_defend_items_obj	Das Feld zu behaupten, ohne den Diebstahl der Batterie von der Base zu zulassen.
+st_edge_find_artifacts_descr	Unsere Kraft ist in der Einigkeit mit der Natur. Die Artefakte sind eine Gabe, die uns von den Kräften der Natur gegeben ist. Und wenn die Artefakte uns helfen werden, wär dumm die nicht zu nutzen.
+st_edge_find_artifacts_name	Naturalien
+st_edge_find_artifacts_obj	Artefakten pro Kampf finden:
+st_edge_gloves_2_desc	Description is not ready!!!
+st_edge_gloves_2_name	Stalkers Handschuhe
+st_edge_gloves_3_desc	Description is not ready!!!
+st_edge_gloves_3_name	Forscher Hnadschuhe
+st_edge_gloves_4_desc	Description is not ready!!!
+st_edge_gloves_4_name	Master Handschuhe
+st_edge_gloves_5_desc	Description is not ready!!!
+st_edge_gloves_5_name	Hüters Handschuhe
+st_edge_gloves_6_desc	Description is not ready!!!
+st_edge_gloves_6_name	Handschuhe "Pilger"
+st_edge_grenade_enemies_descr	Dort, wo die Waffen die Panzerweste nicht lochen können, wird immer die Granate zu Hilfe kommen. Ein scharfer Wurf - und Ihr Gegner wird zum Treffen mit den Vorfahren treffen.
+st_edge_grenade_enemies_name	Werfer
+st_edge_grenade_enemies_obj	Gegnern mit Granaten pro Kampf töten:
+st_edge_headshots_descr	Leider gelingt es nicht in der realen Welt, Gewalt zu entkommen. Und wenn wir gezwungen sind, unseren Feind zu töten, so passiert es schnell mit einem Headshot.
+st_edge_headshots_name	Barmherzigkeit 
+st_edge_headshots_obj	Die Gegner mit Headshot töten:
+st_edge_helmet_1_desc	Die Kapuze aus der festen Schale wird nicht nur vor dem Regen, sondern auch von den kleinen Scherben und den schwachen Geschossen schützen.
+st_edge_helmet_1_name	Jäger Kaputze
+st_edge_helmet_3_desc	Description is not ready!!!
+st_edge_helmet_3_name	Mütze des Forschers
+st_edge_helmet_4_desc	Description is not ready!!!
+st_edge_helmet_4_name	Meisters Kaputze
+st_edge_helmet_5_desc	Description is not ready!!!
+st_edge_helmet_5_name	Helm "Hüter"
+st_edge_helmet_6_desc	Description is not ready!!!
+st_edge_helmet_6_name	Helm "Pilger"
+st_edge_kd_ratio_descr	Wer bist du, das Opfer oder das Raubtier? Der Jäger, oder seine Beute? In der Welt der Nachapokalypse ist jeder für sich. Nur der Stärkster ist auf das Überleben berechtigt.
+st_edge_kd_ratio_name	Natürliche Selektion
+st_edge_kd_ratio_obj	Das Feld zu behaupten mit Verhältnis der Totschläge und der Tode nicht weniger als:
+st_edge_legs_1_desc	Die Hosen aus dem dicken Pelz der mutierenden Tiere gewährleisten den guten Schutz wie von den Anomalien, als auch von Pistol Kugel. Erhöht die Geschwindigkeit der Fortbewegung auf 3 %.
+st_edge_legs_1_name	Jäger Hose
+st_edge_legs_2_desc	Description is not ready!!!
+st_edge_legs_2_name	Stalkers Hose
+st_edge_legs_3_desc	Description is not ready!!!
+st_edge_legs_3_name	Forschers Hose
+st_edge_legs_4_desc	Description is not ready!!!
+st_edge_legs_4_name	Hose "Leshy"
+st_edge_legs_5_desc	Description is not ready!!!
+st_edge_legs_5_name	Hose "Hüter"
+st_edge_legs_6_desc	Description is not ready!!!
+st_edge_legs_6_name	Hosen "Pilger"
+st_edge_level_0	Unbekannt
+st_edge_level_1	Jäger
+st_edge_level_10	Magister
+st_edge_level_2	Jäger
+st_edge_level_3	Wanderer 
+st_edge_level_4	Spurenleser
+st_edge_level_5	Eingeweihte
+st_edge_level_6	Älteste 
+st_edge_level_7	Master
+st_edge_level_8	Wahrsager
+st_edge_level_9	Hüter 
+st_edge_level_unlock_0	Wir gratulieren! Ihnen sind die Aufgaben von der Siedlung "Rand" zugänglich!
+st_edge_level_unlock_1	Wir gratulieren! Sie sind jetzt der Jäger der Siedlung "Rand"!
+st_edge_level_unlock_10	Wir gratulieren! Sie sind jetzt der Magister der Siedlung "Rand"!
+st_edge_level_unlock_2	Wir gratulieren! Sie sind jetzt der Jäger der Siedlung "Rand"!
+st_edge_level_unlock_3	Wir gratulieren! Sie sind jetzt der Wanderer der Siedlung "Rand"!
+st_edge_level_unlock_4	Wir gratulieren! Sie sind jetzt der Spurenleser der Siedlung "Rand"!
+st_edge_level_unlock_5	Wir gratulieren! Sie sind jetzt in der Siedlung "Rand" gewidmet!
+st_edge_level_unlock_6	Wir gratulieren! Sie jetzt der Älteste der Siedlung "Rand"!
+st_edge_level_unlock_7	Wir gratulieren! Sie jetzt der Meister der Siedlung "Rand"!
+st_edge_level_unlock_8	Wir gratulieren! Sie sind jetzt der Wahrsager der Siedlung "Rand"!
+st_edge_level_unlock_9	Wir gratulieren! Sie sind jetzt der Beschützer der Siedlung "Rand"!
+st_edge_mask_2_desc	Description is not ready!!!
+st_edge_mask_2_name	NVD
+st_edge_mask_5_desc	Description is not ready!!!
+st_edge_mask_5_name	Maske "Hüter"
+st_edge_meele_kill_descr	Die Natur hat den Menschen stark und mutig gemacht. Die Waffen, die vom Menschen gefunden wäre, hat ihm schwächer und feiger gemacht. Erinnere sich daran, und vermeide die Schießerei dann, wenn es  ist nicht notwendig.
+st_edge_meele_kill_name	Naturgesetze
+st_edge_meele_kill_obj	Gegner im Nahkampf töten:
+st_edge_rep_modifier	Reputation "Siedlung Rand"
+st_edge_represent	Sie sollen in der Ausrüstung der Siedlung "Rand" bekleidet sein.
+st_edge_reps_3_desc	Description is not ready!!!
+st_edge_resp_1_desc	Description is not ready!!!
+st_edge_resp_1_name	Atemschutzmaske "Malachite"
+st_edge_resp_3_name	Gasmaske "Smaragd"
+st_edge_steal_box_descr	Es ist nicht obligatorisch, den Gegner mit den Händen zu töten. Man kann einfach ihren Schutz vor dem Sturm schwächen und dann wird die Natur den Rest machen.
+st_edge_steal_box_name	Versteckte Reid.
+st_edge_steal_box_obj	Klauen Sie die Batterie von der Base des Gegners und bringen Sie zu ihrer Base.
+st_edge_torso_1_desc	Die aus den Schalen genähte Jacke des Jägers mit den Schutzamuletten vom Zorn der Natur. Ist dekoriert von  Wolfsfell, um die Raubtiere abzuschrecken und die Angst den Gegnern einzuflössen. Bequem Beutel lässt zu, spezialmittel mitzunehmen.
+st_edge_torso_1_name	Jäger Jacke
+st_edge_torso_2_desc	Description is not ready!!!
+st_edge_torso_2_name	Stalkers Jacke
+st_edge_torso_3_desc	Description is not ready!!!
+st_edge_torso_3_name	Forscher Jacke
+st_edge_torso_4_desc	Description is not ready!!!
+st_edge_torso_4_name	Schutzweste "Leshy"
+st_edge_torso_5_desc	Description is not ready!!!
+st_edge_torso_5_name	Schutzweste "Hüter"
+st_edge_torso_6_desc	Description is not ready!!!
+st_edge_torso_6_name	Weste "Pilger"
+st_edge_win_score_descr	Je sicherer ist unsere Schutz vor dem Sturm, deto leichen für uns unsere Gegner zerstören. Je grössere Anzahl der Batterien wir finden , desto weniger bekommt unsern Gegnern. Und Rest macht Sturm!
+st_edge_win_score_name	Kunst des Kriegs!
+st_edge_win_score_obj	Das Feld zu behaupten mit der Anzahl der gebrachten Batterien:
+st_edge_win_x_games_descr	Wir müssen uns und unseren Gebiet beschützen können. Nur mit dem Sieg kann man sein Leben und sein Gebiet eroben.
+st_edge_win_x_games_name	Auf dem Wächter
+st_edge_win_x_games_obj	Kämpfe zu gewinnen:
+st_elo_after	Aktuelle Rating
+st_elo_before	Rating vor dem Kampf
+st_empty_ammo_message	Nicht genug Patronen
+st_empty_clan_string	Klan Name eingeben
+st_empty_name_string	Geben Sie den Namen ein
+st_enable_seeding_in_lobby_option	Die Verteilung zu erlauben
+st_eng_active_time_desc	Die Wirkungszeit der aktivierten Geräten vergrößert sich.
+st_eng_active_time_name	Wirkungszeit
+st_eng_electronic_desc	Lehrt dich mit neusten elektrischen Geräten und Prototypen umzugehen
+st_eng_electronic_name	Elektroniker
+st_eng_encrypting_desc	Sichert ihre elektronische Geräte gegen Hacken.
+st_eng_encrypting_name	Verschlüsselung
+st_eng_explosive_master_desc	Vergrößert den Schaden euerer Granaten und anderen entzündlichen Objekten 
+st_eng_explosive_master_name	Zünder
+st_eng_fast_recoil_desc	Verkleinert die Zeit zum Wiederholungs Bedarf der Geräte.
+st_eng_fast_recoil_name	Schnelle Wiederherstellung
+st_eng_hacker_desc	Damit können Sie feindliche elektrische Geräte zu Ihrem nutze umprogrammieren. 
+st_eng_hacker_name	Hacker
+st_eng_sapper_desc	Ermöglicht Ihnen unbemerkt Fallen von Gegner zu entschärfen.
+st_eng_sapper_name	Sappeur
+st_engineer_succ_chance_corr_perc_name	Gewinn Chansen
+st_engineer_use_time_corr_perc_name	Anwendungs Geschwindigkeit
+st_engineering_skills_descr	Lehrt die Fähigkeit des Umgangs mit Geräten.
+st_engineering_skills_label	technischen Fertigkeiten
+st_engineering_skills_name	Ingeneurausbildung
+st_enter_char_name	Geben Sie den Name ein
+st_enter_chat_message	Nachricht eingeben
+st_enter_name_warning	Ungültige Zeichen
+st_enter_profile_name	Profil Name eingeben 
+st_enter_rank_name	Rang Name eingeben
+st_enter_search_player_name	Suchname eingeben
+st_eotech_552_collimator_desc	Amerikanisches holografisches Visier von EOTech. Statt eines Leuchtpunkts zeigt es ein holografisches Absehen und läuft mit gewöhnlichen AA-Batterien. Weit verbreitet bei Militär und Polizei.
+st_eotech_552_collimator_name	EOTech 552 Kollimator
+st_equipment_cost	Insgesamt:
+st_equipment_level	Ausrüstung Niveau
+st_equipment_weight	Gewicht
+st_equipped	Benutzt
+st_error_during_storing_user_comment	Es ist ein Fehler bei der Datenbank aufgeträten. Probieren Sie noch einmal.
+st_error_while_using_premium_access_voucher	Es ist ein Fehler beim Aktivieren des Premium Konto geschehen. Probieren Sie noch einmal.
+st_event_capture_the_point_description	Unit capture
+st_event_kill_invader_description	Invader kill
+st_exchange_button	Tauschen
+st_exchange_window_label	Gold auf Rubeln wechseln
+st_exitLabel	Test
+st_exit_from_login	Verlassen
+st_exit_game_confirm_accept	Verlassen
+st_exit_game_confirm_cancel	Abrechnen:
+st_exit_game_confirm_text	Wollen Sie wirklich Spiel verlassen ?
+st_exit_match_confirm_accept	Verlassen
+st_exit_match_confirm_cancel	Abrechnung
+st_exit_match_confirm_text	Wollen Sie das Spiel wirklich verlassen?
+st_exp_reward_match	Bekommende Erfahrung
+st_exp_reward_premium	Premium Bonus
+st_experience	Erfahrung
+st_experience_modifier	Bekommen Erfahrung
+st_face_069d_balaclava_3_hole_desc	Eine gestrickte Sturmhaube mit Löchern für Augen und Mund. Sie wärmt und verbirgt das Gesicht.
+st_face_069d_balaclava_3_hole_name	3-Loch-Sturmhaube
+st_face_069d_balaclava_desc	Eine eng anliegende Armee-Sturmhaube mit einer Öffnung für die Augen, gemacht zum Tragen unter dem Helm.
+st_face_069d_balaclava_name	Sturmhaube
+st_face_069d_buff_desc	Ein Schlauchtuch mit aufgedrucktem Totenkopf, über Mund und Nase gezogen. Es verbirgt das Gesicht und hält den Staub ab.
+st_face_069d_buff_name	Schlauchtuch
+st_face_069d_keffiyeh_desc	Eine Kufiya aus Baumwolle, um Kopf und Gesicht gewickelt. Sie hält Staub und Wind ab und dämpft einen Streifschlag ein wenig.
+st_face_069d_keffiyeh_name	Kufiya
+st_face_069d_protective_mask_desc	Eine Haube aus Segeltuch mit Schweißerbrille und Filtermundstück. Sie bedeckt den ganzen Kopf und hält Splitter besser ab als Dämpfe.
+st_face_069d_protective_mask_name	Schutzmaske
+st_faction_1_description	Die Ausrüstung der Landstreicher ist für den Kampf an die mittleren und entfernten Distanzen gut geeignet, sowie für das Überleben an den anomalen Stellen berechnet. Die Veteranen der Landstreicher können mit dem Scharfschützengewehr ausgerüstet werden.
+st_faction_2_description	Die Lederkleidung des schwarzen Marktes ist für das Überleben an den anomalen Stellen schwach verwendet, aber hat gute Schutzeigenschaften. Die Waffen sind gut für die Nutzung auf der nahen Distanz geeignet. Elitekämpfer hat Möglichkeit AK74m ausgerüsten.
+st_faction_3_description	Die Kämpfer der Armee der Wiedergeburt bekommen den Zugang auf den breitesten Satz der Ausrüstung. Sie können auf einer beliebigen Distanz, sogar in den verschmutzten Bezirken kämpfen. Die besten Kämpfer bekommen den Zugang auf die superschweren Panzerwesten und die Handmaschinengewehre.
+st_faction_4_description	Die Ausrüstung der Siedlung "Rand" verfügt über den besten Schutz vor den Anomalien und ist für die Suche und die Nutzung der Artefakte ausgezeichnet verwendet. Die Waffen kommen für die Hinterhalte, als für den offenen Kampf grösser heran.
+st_faction_blackmarket_blocked_text	Der schwarze Markt will keine Aufgaben dir geben.
+st_faction_edge_blocked_text	Sie brauchen maximale Reputation bei den Landstreichern oder beim schwarzen Markt haben.
+st_faction_info	Information
+st_faction_join	Beitreten
+st_faction_mercenaries_blocked_text	"Omega" verzichtet, Ihnen die Aufgaben auszugeben
+st_faction_renaissance_blocked_text	Sie brauchen maximale Reputation bei den Landstreichern oder beim schwarzen Markt haben.
+st_faction_reputation_label	Gruppierung Reputation
+st_faction_scavengers_blocked_text	Die Landstreicher verzichten Ihnen die Aufgaben auszugeben
+st_faction_scientists_blocked_text	Die Gelehrten verzichten, Ihnen die Aufgaben auszugeben
+st_fall_damage_description	Beschädigungen beim Fallen:
+st_fall_damage_name	Fallschirmjäger
+st_few_alpha_clan_string	Inkorrekter Name
+st_filter_all	Alles
+st_filter_ammo	Patrone
+st_filter_ammo_assault_rifle	Sturmgewehr
+st_filter_ammo_machine_gun	Maschinengewehren
+st_filter_ammo_pistol	Pistolen
+st_filter_ammo_shotgun	Schrotflinte
+st_filter_ammo_sniper_rifle	Scharfschützengewehr
+st_filter_ammo_submachine_gun	Maschinengewehre-Pistolen
+st_filter_assault_rifle	Sturmgewehr
+st_filter_body_armor	Panzerweste  
+st_filter_boots	Schuhen
+st_filter_camo	Tarnung
+st_filter_decal	Armstreifen 
+st_filter_device	Gerät
+st_filter_equipment	Ausrüstung
+st_filter_gloves	Handschuhe
+st_filter_grenade	Granaten
+st_filter_helmet	Helm
+st_filter_inventory	Inventar
+st_filter_items	Spez.Mittel
+st_filter_machine_gun	Maschinengewehren
+st_filter_mask	Maske
+st_filter_medkit	Medikamente 
+st_filter_mine	Minen
+st_filter_pants	Hosen
+st_filter_pistol	Pistolen
+st_filter_rig	Ausrüstung
+st_filter_scaner	Scanner
+st_filter_shop	Shop
+st_filter_shop_and_inventory	Das Inventar und Shop
+st_filter_shotgun	Schrotflinten
+st_filter_sniper_rifle	Scharfschützengewehr
+st_filter_stimulator	Stimulator
+st_filter_submachine_gun	Pistole-Maschinengewehre
+st_filter_upgrades	Verbesserungen
+st_filter_vouchers	Verbrauchsmaterial 
+st_filter_weapons	Waffe
+st_final_countdown	Warten auf das Spiel:
+st_find_player	Spieler zu finden
+st_finish_match_mode_02_loser_message	Verloren. Gegners Team hat alle Batarien gesammelt.
+st_finish_match_mode_02_winner_message	Sieg! Sein Team hat alle Batarien gesammelt!
+st_finish_match_mode_03_loser_message	Verloren. Gegners Team hat alle Batarien gesammelt.
+st_finish_match_mode_03_winner_message	Sieg! Sein Team hat alle Batarien gesammelt!
+st_finish_match_mode_04_loser_message	Verloren. Dein Team war zerstört
+st_finish_match_mode_04_winner_message	Sieg! Alle Gegeners sind zerstören!
+st_finish_match_mode_05_draw_message	Unentschieden. Beide Mannschaften haben gleich viel erforscht
+st_finish_match_mode_05_loser_message	Niederlage. Die gegnerische Manschaft hat die Forschung der anomalen Aktivität beendet.
+st_finish_match_mode_05_winner_message	Sieg! Ihre Mannschaft hat die Forschung der anomalen Aktivität beendet
+st_first_weapon_action	Waffe 1
+st_fix	Reparieren
+st_fn_fnc_description	Belgisches Sturmgewehr, Munition: 5,56x45. In den 1970er Jahren von FN Herstal entwickelt und von der belgischen Armee eingeführt; Lizenzversionen dienen in Schweden und Indonesien. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_fn_fnc_name	FN FNC
+st_fn_p90_description	Belgische Verteidigungswaffe (PDW), Munition: 5,7x28. Um 1990 von FN Herstal zusammen mit einer eigenen Patrone entwickelt; eine Bullpup-Waffe mit einem 50-Schuss-Magazin, das oben längs auf der Waffe liegt. Bei Spezialkräften und der Polizei vieler Länder im Einsatz. Einzel- und Dauerfeuer.
+st_fn_p90_name	FN P90
+st_fort_17_description	Die ukrainische Selbstladende Pistole mit dem Kaliber 9N...18. Die Serienfertigung ist in 2004 gestartet worden. Wurde von den Truppen des Innenministeriums und einigen Sondereinheiten verwendet.
+st_fort_17_name	Fort 17
+st_fov_option	Sichtfeld
+st_freedom_026_boots_desc	Schwere gepanzerte Stiefel in den Farben der Freiheit, zu schwerer Rüstung getragen.
+st_freedom_026_boots_name	Freiheit-Stiefel
+st_freedom_026_gloves_desc	Verstärkte fingerlose Handschuhe in den Farben der Freiheit, zu schwerer Rüstung getragen.
+st_freedom_026_gloves_name	Freiheit-Handschuhe
+st_freedom_026_head_desc	Der versiegelte Helm des Freiheit-Exoskeletts, mit eingebautem Atemschutz. Bedeckt den ganzen Kopf und das Gesicht.
+st_freedom_026_helmet_name	Freiheit-Exoskeletthelm
+st_freedom_026_suit_desc	Ein experimentelles militärisches Exoskelett in den Farben der Freiheit. Wegen der Kosten und der Konstruktionsmängel ging es nie in Serie; kleine Stückzahlen verlassen noch immer Untergrundwerkstätten. Mit eingebautem Artefaktbehälter.
+st_freedom_026_suit_name	Freiheit-Exoskelett
+st_friend_options_label	Freundesoptionen
+st_friend_search_hint	Drücken Sie "Enter" um zu suchen
+st_friend_state_away	Weg
+st_friend_state_game	Online
+st_friend_state_lobby	Lobby
+st_friend_state_offline	Offline
+st_friendly_user_compliment	Freundlich
+st_friends_online	Freunde Online
+st_friends_signin_notification_option	Über das Freunde Erscheinen benachrichtigen
+st_fullscreen_option	Voll Bild Modus
+st_general_volume_option	Allgemein
+st_generic_money_name	Rubeln
+st_geometry_quality_option	Geometrie Qualität
+st_go_to_knowledge_base_message	Database wird in Browser geöffnet.
+st_go_to_online_store_message	Online-Shop wird im Fenster des Browsers geöffnet. Fortsetzen?
+st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
+st_gold_2	Gold
+st_good_player_compliment	Spitz Spieler
+st_goto_shop	In den Laden
+st_graphics_quality_option	Graphik Qualität
+st_grenade_throw_power_description	Wurfweite:
+st_grenade_throw_power_name	Grenadier
+st_health_regen_correction_perc_name	Regeneration
+st_hide_ammo	Munition verbergen
+st_hide_interface_action	Oberfläche ausblenden
+st_hide_quest_list	Aufgaben Fenster schließen 
+st_hide_spam_option	Spam vergeben
+st_hide_squad_list	Truppen Fenster schließen
+st_hk416_description	Deutsches Sturmgewehr, Munition: 5,56x45. Die Weiterentwicklung der AR-15-Konstruktion von Heckler & Koch mit Kurzhub-Gaskolben, Mitte der 2000er Jahre vorgestellt und bei Spezialkräften und den Armeen mehrerer NATO-Staaten im Einsatz. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_hk416_name	H&K 416A5
+st_hk_mp7_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x30. Von Heckler & Koch zusammen mit einer eigenen, gegen Schutzwesten ausgelegten Patrone entwickelt; 2001 vorgestellt und bei der Bundeswehr und Spezialeinheiten der Polizei im Einsatz. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_hk_mp7_name	H&K MP7
+st_hk_mp7_silencer_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x30, hier in der Version MP7A1 mit Schalldämpfer. Von Heckler & Koch zusammen mit einer eigenen panzerbrechenden Patrone entwickelt und bei der Bundeswehr und Spezialeinheiten der Polizei im Einsatz. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_hk_mp7_silencer_name	H&K MP7A1
+st_hk_mp7_silencer_special_description	Deutsche Verteidigungswaffe (PDW), Munition: 4,6x30, hier in der Version MP7A1 mit Schalldämpfer. Von Heckler & Koch zusammen mit einer eigenen panzerbrechenden Patrone entwickelt und bei der Bundeswehr und Spezialeinheiten der Polizei im Einsatz. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_hk_mp7_silencer_special_name	H&K MP7A1 "Legende"
+st_hour_short	st.
+st_hud_tutorial_frame_0_text_1	Kamera Lenkung
+st_hud_tutorial_frame_0_text_2	Verwenden Sie die Maus um sich umzuschauen
+st_hud_tutorial_frame_1_text_1	Bewegen
+st_hud_tutorial_frame_1_text_2	Verwendet Sie die Tasten W, A, S, D um sich zu bewegen
+st_hud_tutorial_frame_2_text_1	Zielen
+st_hud_tutorial_frame_2_text_2	Um zu Zielen, halten\nSie den rechten Maus Knopf fest oder drücken\nSie den mittleren Maus Knopf
+st_hud_tutorial_frame_3_text_1	Ruck
+st_hud_tutorial_frame_3_text_2	Um zu sprinten, halten Sie SHIFT fest,\noder drücken Sie die X Taste
+st_hud_tutorial_frame_4_text_1	Sprung
+st_hud_tutorial_frame_4_text_2	Um zu Springen, drücken Sie SPACE
+st_hud_tutorial_frame_5_text_1	Ducken
+st_hud_tutorial_frame_5_text_2	Um zu zielen, halten Sie CTRL\ngedrückt oder drücken Sie die Taste C
+st_hud_tutorial_frame_6_text_1	In den Kampf!
+st_hud_tutorial_frame_6_text_2	Sie haben den grundlegenden Kurs\nder Kampfvorbereitung beendet. Viel Glück!
+st_hud_tutorial_frame_6_text_3	Ihre Belohnung:
+st_ignored	Spieler von Ignorliste anzeigen.
+st_in_develepoment_hint	In der Entwicklung
+st_ingame_volume_option	Spiel
+st_injury_penalty_description	Dispersionstrafe bei der Hände Verwundung:
+st_injury_penalty_name	Gelassenheit
+st_inv_activation_time_sec	Anwendung
+st_inv_activity_time_sec	Wirkungs Zeit
+st_inv_additional_ammo_bags	Patronen Beutel
+st_inv_ano_armor	Isolierung
+st_inv_armor	Rüstung
+st_inv_arp	Panzerschutzkraft
+st_inv_artefact_slots	Container für Artefakten
+st_inv_buckshot	Schrotkugeln
+st_inv_clip_size	Patronen in der Packung
+st_inv_clip_weight	Gewicht der Packung
+st_inv_damage	Schaden
+st_inv_damage_protection_infection	Infektions Schutz
+st_inv_damage_protection_pain	Schmerz Grenze
+st_inv_device_slots	Zelle für spezielle Mittel
+st_inv_dispersion	Dispersion
+st_inv_heal_amount	Heilen
+st_inv_heal_amount_infection	Desinfektion
+st_inv_heal_amount_pain	Anästhesie
+st_inv_heal_broken_parts	Heilt schwer Verletzte
+st_inv_healing_body_head	Heilung: Körper / Kopf
+st_inv_healing_limbs	Heilung: Arme / Beine
+st_inv_item_weight	Gewicht
+st_inv_magazine	Munition
+st_inv_magazine_size	Magazin
+st_inv_max_damage_distance	Distanz
+st_inv_move_speed_modifier	Bewegungs Geschwindigkeit
+st_inv_oxygen_amount	Sauerstoff Reserve
+st_inv_pain_relief	Schmerzlinderung
+st_inv_reload	Nachladung Geschwindigkeit
+st_inv_rpm	Rate
+st_inv_splash_radius	Explosions Umfang
+st_inv_stamina_regen	Energie Wiederherstellung
+st_inv_stopingpower	anhaltende Kraft
+st_inventory_label	Inventar 
+st_inventrory	Objekte
+st_invite_from_friends_option	Die Einladungen nur von Freunden zunehmen
+st_invite_to_clan	Zum Klan einladen
+st_invite_to_squad	Zur Abteilung einzuladen
+st_item_bought	Kauf erfolgt
+st_item_craft_description	Vorbereitung abgeschlossen, Sie können mit der Verbesserung anfangen.
+st_item_craft_description_choose_donor	Spender Objekt wählen
+st_item_craft_description_choose_item	Wählen Sie den Verbesserung Objekt aus
+st_item_craft_description_no_items	Wählen Sie ein Objekt zum verbessern aus.
+st_item_craft_donor_slot	Spender Objekt
+st_item_craft_fail_label	Unglück Chanse (- 1mod.)
+st_item_craft_label	Verbesserung
+st_item_craft_main_slot	Verbesserungs Objekt
+st_item_craft_success_label	Erfolgschancen (+1 mod.)
+st_item_damage_state	Zustand
+st_item_drop_chance_base	Die Basis Chance Objekt zu bekommen
+st_item_drop_chance_by_premium	Premium Konto
+st_item_drop_chance_label	Die Chance des Ausfalles der Gegenstände
+st_item_drop_chance_match_result	Vorteil im Kampf:
+st_item_drop_chance_penalty	Die Strafe für Passivität
+st_item_drop_chance_team_premium	Im Spiel sind Spieler mit einem Premium-Account:
+st_item_hint_label	Inventar
+st_item_hint_label_shop	Laden
+st_item_level	Objekten Level
+st_item_modification	Modifikationen Änderung
+st_item_piece_postfix	stk.
+st_item_props_kg	kg
+st_item_props_meters	m
+st_item_props_percent	%
+st_item_props_sec	s
+st_item_sell_precondition_faction_1	Sie brauchen Reputation mit den Landstreichern
+st_item_sell_precondition_faction_2	Sie brauchen Reputation mit der Schwarzes Markts
+st_item_sell_precondition_faction_3	Sie brauchen Reputation mit der Armee der Wiedergeburt.
+st_item_sell_precondition_faction_4	Es ist die Reputation mit der Siedlung Rand wichtig
+st_item_sold	Verkauft.
+st_items_notes	Sondermittel
+st_items_notes_frame_1_text_1	Um Ihre Chansen zum Überleben zu steigern, können Sie in den Kampf Sondermitel mitnehmen
+st_items_notes_frame_1_text_2	Zu den Sondermittel gehören Granaten, Medikamente, Fallen, Minen und andere Geräte
+st_items_notes_frame_2_text_1	Die Sondermittel passen in die dazu geehörige Taschen
+st_items_notes_frame_3_text_1	Sie können die Anzahl der Taschen vergrößern, indem Sie die Ausrüstung mit der entsprechenden Charaktisierung  verwenden
+st_items_notes_frame_4_text_1	In eine Tache können Sie eine begrenzte Anzahl von Objekten einer Sorte haben
+st_items_notes_frame_5_text_1	Sie können die Taschengröße vergrößern, indem Sie die Ausrüstung mit der entsprechenden Charaktisierung  verwenden
+st_izh27_bundle_descr	<white>Enthält folgende Sachen:\n- Verbessert MP-27M "Lancaster".\n- 1000 12x70 Patronen, Bruch</white>
+st_izh27_bundle_name	Set MP-27M "Lancaster"
+st_izh27_description	Description is not ready!!!
+st_izh27_name	MP-27M "Lankaster"
+st_izh27_premium_2_description	Russische Bockdoppelflinte, Kaliber 12. Vom Ischewsker Mechanischen Werk unter dem Namen Baikal gebaut, eine der verbreitetsten Jagd- und Sportdoppelflinten. Zwei Läufe mit je einer Patrone. Feuert einen Lauf oder beide zugleich. Premium-Version mit einer besonderen Tarnlackierung.
+st_izh27_premium_2_name	MP-27 "Donnerschlag"
+st_jump_action	Springen
+st_kedr_description	Sowjetische Maschinenpistole, Munition: 9x18 PM. Von Jewgeni Dragunow Anfang der 1970er Jahre entwickelt, in Serie gefertigt erst seit den 1990er Jahren, für das russische Innenministerium und die Polizei. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_kedr_name	PP-91 "Kedr"
+st_kg_postfix	kg
+st_kick_clan_message	Sind Sie sicher, dass Sie den Spieler aus dem Klan vertreiben wollen.
+st_kiparis_description	Die Maschinengewehr Pistole für Munition 9x18 MP war noch in 70 Jahren entwickelt, aber ist in die Serienfertigung nicht geraten. Darüber hat man sich in den 90er erinnert, wenn das Bedürfnis nach der Maschinengewehr Pistole für die Kräfte des Innenministeriums Russlands entstanden ist. Ist mit dem Käfig für 30 Patronen ausgestattet.
+st_kiparis_name	OTS-02 Kiparis
+st_knowledge_skills_descr	Durch die Entdeckung der neuen Welten, lernen Sie Artefakte und Anomalien besser im Griff zu haben.
+st_knowledge_skills_name	Weltwissen
+st_knw_advanced_art_desc	Zeit der aktivierten Artefakten erhöht sich.
+st_knw_advanced_art_name	Artefakten Expert
+st_knw_artefact_hunter_desc	Lehrt dir den Umgang mit neuesten Artefakten Detektoren und Geräten in der Artefakten Base.
+st_knw_artefact_hunter_name	Artefakten Jäger
+st_knw_artefacts_desc	Gibt die Möglichkeit die innere Energie der Artefakten freizugeben.
+st_knw_artefacts_name	Artefakten aktivierung
+st_knw_covering_desc	Wenn Sie in der Anomalie sind, erhalten Sie einen zusätzlichen Schutz gegen Erkennung.
+st_knw_covering_name	Under cover
+st_knw_empathy_desc	Auf eine magische weiße findest du heraus wenn ein neuer Artefakt neben dir entstanden ist
+st_knw_empathy_name	Natur Gefühl
+st_knw_protecting_desc	Während Sie in der Anomalie sind, erhalten Sie einen zusätzlichen Schutz gegen Feuerwaffen und Explosionen.
+st_knw_protecting_name	Schutz der Anomalie
+st_knw_synergy_desc	Stärke der Artefakten vergrößert sich proportional zu ihrer Menge.
+st_knw_synergy_name	Synergie
+st_kriss_vector_description	Amerikanische Maschinenpistole, Munition: .45 ACP. In den 2000er Jahren von KRISS vorgestellt; ihr Rückstoßsystem lenkt den Verschluss nach unten ab und hält so die Mündung ruhig. Diese Waffe trägt ein Rotpunktvisier Walther Competition II. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
+st_kriss_vector_name	KRISS Vector
+st_label_invites	Einladung
+st_label_leave_queue_btn	Reihe verlassen
+st_label_quenue	Stelle in der Reihe:
+st_label_reports	Bericht 
+st_label_status	Status
+st_label_support	System Nachrichten
+st_label_teamA	Verbündete 
+st_label_teamB	Gegner
+st_label_time_average	Wartezeit:
+st_leave_button	Verlassen
+st_leave_clan_message	Sind Sie sicher, dass Sie den Klan verlassen wollen?
+st_leave_clan_money_message	Sind Sie sicher, dass Sie den Clan auflösen wollen? Silber, das auf das Konto der Registrierung erfolgte, wird verloren.
+st_leave_squad	Ableitung verlassen
+st_left_strafe_action	Schritt nach Links
+st_less_then_hour	weniger als eine Stunde
+st_level_01_name	Rudnya
+st_level_02_name	Schule
+st_level_03_name	RS Vostok
+st_level_04_name	Chemiebetrieb 
+st_level_05_name	Tarakanowski Fort
+st_level_06_name	Mamaew kurgan
+st_level_07_name	Labor Vektor
+st_level_08_name	Köln
+st_level_09_name	London
+st_level_10_name	RS Vostok (v0.21)
+st_level_11_name	Mamaew kurgan (v0.21)
+st_level_12_name	Chemiebetrieb (v0.11)
+st_level_13_name	RS Vostok (v0.11)
+st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
+st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
+st_lightning_quality_option	Beleuchtung Qualität
+st_login_button_label	Betreten 
+st_login_default_text	E-mail
+st_login_eula_label	Lizenzvereinbarung
+st_login_menu_accept	Akzeptieren
+st_login_menu_cancel	Abrechnen
+st_login_menu_status_access_level_restriction	Niveau des Zuganges ist dem Eingang ungenügend.
+st_login_menu_status_connecting	Autorisierung
+st_login_menu_status_error_connection	Der Skhid-Server ist nicht erreichbar. Erlaube das Spiel in deiner Firewall (Skhid-network-setup.cmd). In Russland nutze ein VPN und füge die .exe-Dateien des Spiels hinzu (VPN.txt).
+st_login_menu_status_invalid_user_or_password	Ungültige E-mail oder Passwort
+st_login_menu_status_invalid_version	Sie verwenden eine veraltete Version des Spiels.
+st_login_menu_status_sign_in_already_online	Der Benutzer ist schon im Spiel
+st_login_menu_status_sign_in_attempt_interval_violated	Die maximale Anzahl der Anmelde Versuche ist zu ende. Versuchen Sie es erneut nach 10 Sekunden.
+st_login_menu_status_user_banned	Sie sind gesperrt. 
+st_login_menu_status_user_not_confirmed	Ihr Benutzerkonto ist nicht bestätigt. Verwenden Sie den Link für die Bestätigung des Benutzerkontos, die Ihnen per  e-mail bei der Registrierung des Benutzerkontos abgeschickt wurde.
+st_login_str	E-mail
+st_lost_modifier	Verlorener Modifikator 
+st_loyalty_bonus_rep	Loyalität Bonus
+st_m4a1_description	Amerikanischer Karabiner, Munition: 5,56x45. Eine verkürzte, leichtere Weiterentwicklung des M16-Gewehrs, in den 1990er Jahren bei den US-Streitkräften eingeführt; die Version M4A1 schießt vollautomatisch und wird von Spezialkräften verwendet. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_m4a1_name	M4A1
+st_magnum_description	Der Magnum Revolver des Kalibers .357. War in 1955 zum ersten Mal vorgestellt. Einige meinen, dass es einer der besten Vertreter der Klasse ist. Es unterscheidet sich durch den weichen Abstieg und hocher Genauigkeit.
+st_magnum_name	Colt Phyton
+st_maintenance	Die technische Wartung des Server hat angefangen. Die Amwendung wird geschlossen.
+st_map	Karte
+st_match_items_found	Gefunden
+st_match_making_level	Match Level
+st_match_rewards	Kampf Beholung
+st_match_settings_checkbox_PVE	Freies Spiel
+st_match_settings_checkbox_PVE_hint	Der Modus des einzelnen Überlebens unter anderen Spieler in den strengen Bedingungen, die vom schonungslosen Wald diktiert werden
+st_match_settings_checkbox_PVP	Eins vs.  Eins 
+st_match_settings_checkbox_PVP_hint	Der Vs-Modus wird nach der Rüstung und dem persönlichem Rating gebildet.
+st_match_settings_checkbox_battery_charge	Ladegerät
+st_match_settings_checkbox_battery_charge_hint	Batterien Sammlung Regime. Zwei Manschetten sammeln die Batterien für Schutzgerät.
+st_match_settings_checkbox_capture_points	Forschung
+st_match_settings_checkbox_capture_points_hint	Schlüsselpositionen Ergreifungs Regime.
+st_match_settings_checkbox_clan_match_hint	Der VS- Klan Mode
+st_match_settings_checkbox_rank_match	Wertung Kämpf
+st_match_settings_checkbox_rank_match_hint	Der VS- Modus wird zufällig ausgewählt zwischen den Klan- Teams von der Ratingtabelle der Kläne
+st_match_settings_checkbox_team_match	Team Kampf 
+st_match_settings_checkbox_team_match_hint	VS. Regime bis zur vollen Vernichtung oder der Überlegenheit an die Store
+st_match_settings_checkbox_tournament_match	Turnier Kampf
+st_match_settings_checkbox_tournament_match_hint	Der Modus der Gegenstände der Mannschaften im Rahmen des durchgeführten Turniers
+st_match_settings_checkbox_training_match	Übungskampf
+st_match_settings_checkbox_training_match_hint	Modus des Training Raums
+st_match_settings_clan_match	Clan Kampf
+st_match_time_is_up	Spiel Zeit ist vorbei
+st_max_carried_weight_description	Tragbarer Gewicht
+st_max_carried_weight_name	Strongman
+st_max_carried_weight_ultimate_description	Das Tragbarer Gewicht beeinflusst  nicht mehr die Bewegungs Geschwindigkeit, aber Sie können nicht sprintern.
+st_max_carried_weight_ultimate_name	Schwergewichtler
+st_med_combat_shock_desc	Strafen unter kritischen Schaden von Gliedmaßen anwendbar gelten mehrere Sekunden später.
+st_med_combat_shock_name	In der Hitze des Kampfes
+st_med_farmacial_desc	Erhöht die Wirkungszeit der Medikamente
+st_med_farmacial_name	Pharmazie
+st_med_fast_use_desc	Zeit für die Anwendung der Medikamente verkürzt sich deutlich.
+st_med_fast_use_name	Schnelle Anwendung
+st_med_medical_desc	Bring dir bei mit neusten Medikamenten und  medizinischen Gegenständen umzugehen.
+st_med_medical_name	Mediziner
+st_med_reanimation_desc	Verbessert deutlich den Zustand von reanimierten Verbündeten.
+st_med_reanimation_name	Reanimation
+st_med_refining_desc	Vergrößert den Effekt der Medikamente
+st_med_refining_name	Medikamenten Reinigung
+st_med_revive_desc	Können Sie sich selber Wiederbeleben, beim entsprechendem Gerät
+st_med_revive_name	Von der letzten Kraft
+st_medicial_skills_descr	Erhöht Ihre Überlebenschancen, lehrt Fähigkeiten, um Arzneimittel und Medizinprodukte zu benötigen
+st_medicial_skills_name	Überleben und erste Hilfe
+st_meele_hit_range_description	Wird in der nächste Aktualisierung zugänglich sein.
+st_meele_hit_range_name	Sprung mit dem Messer
+st_meele_hit_ultimate_description	Wird in der nächste Aktualisierung zugänglich sein.
+st_meele_hit_ultimate_name	Vorschlaghammer
+st_melee_action	Nahkampf
+st_member_dont_have_battle_permission	Spieler hat nicht genügend Rechte für den Status des Kriegsherrens.
+st_mercenaries_faction	Söldner
+st_message_reroll_text	Die Fertigkeiten rücksetzen?
+st_messages_censor_option	Die Zensur der Mitteilungen aufzunehmen. 
+st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freunden zu nehmen
+st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
+st_minimap	Minikarte
+st_minimap_bottom	untere linke Winkel
+st_minimap_off	Minikarte AUS
+st_minimap_position	Position der Minikarte
+st_minimap_rotable_option	Minikarte fixieren
+st_minimap_top	Der obere linke Winkel.
+st_missile_weapon_action	Granate
+st_missions	Aufgaben
+st_mm_button_back	Zurück
+st_mm_button_exit_to_os	Zurück zum Betrieb System
+st_mm_button_leave_match	Match verlassen
+st_mm_button_settings	Optionen
+st_mm_match_found	Die Auswahl der Gegner ist beendet! \nDie Erwartung des Servers.
+st_mode_02_description	Es nähert sich "der Sturm". Die einzige Möglichkeit zu überleben ist auf der Karte die Elemente einer Ernährung und die Schutzanlage zu finden und den  Einfluss des Sturm zu neutralisieren. Je mehrere Elemente einer Ernährung gefunden werden, desto besser wird  der Schutz. Es wird diejenige Mannschaft gewinnen, die die meiste Zahl der Batterien gesamelt hat.
+st_mode_02_name	Laden der Schutzeinrichtung
+st_mode_03_description	Es nähert sich "der Sturm". Die einzige Möglichkeit zu überleben ist auf der Karte die Elemente einer Ernährung und die Schutzanlage zu finden und den  Einfluss des Sturm zu neutralisieren. Je mehrere Elemente einer Ernährung gefunden werden, desto besser wird  der Schutz. Es wird diejenige Mannschaft gewinnen, die die meiste Zahl der Batterien gesamelt hat.
+st_mode_03_name	Laden der Schutzeinrichtung
+st_mode_04_description	Festigen Sie die Position ihrer Gruppe im gegebenen Bezirk, um möglichst viel Gegner zu zerstört. Jeder Tod eines Kämpfers nimmt einen Punkt der Bekräftigung von der allgemeinen Rechnung seiner Mannschaft ab. Es wird die  Mannschaft gewinnen, bei der es mehr Punkte der Bekräftigung  übrig bleibt.
+st_mode_04_name	Kommandokampf
+st_mode_05_description	Ihre Aufgabe - die Kontrolle über die mobilen Forschungsanlagen zu ergreifen. Jede Anlage, die von Ihrer Mannschaft ergriffen ist, erzeugt die Punkte der Forschung der anomalen Aktivität. Es besiegt die Mannschaft, die höheste Punkte Anzahl am Ende des Spiel zusammennahm.
+st_mode_05_name	Forschung
+st_modification_screen_edit_decal_hint	Um die Größe und Lage der Litze zu verändern, klicken Sie auf ihren Schlitz
+st_modification_screen_hint	Verlegen Sie die Tarnung oder die Litze aus Ihrem Inventar in entsprechende Zelle der Modifikation des Gegenstandes
+st_modified	Modifiziert
+st_modifier_reroll_description	Sie können nur einen Modifikator auf dem Gegenstand verändern, aber die unbeschränkte Male. Bei der Veränderung des Modifikators, wird es ihnen vorgeschlagen, drei zufälliger Modifikatoren zu wählen.
+st_modifier_reroll_timer_description	Für Silber ist nur eine Möglichkeit in 6 Stunden verfügbar.
+st_module_is_installed_on	Das Modul ist installiert auf
+st_money	Geld
+st_money_modifier	erhaltenes Silber
+st_money_reward_match	Kampf Gewinn
+st_money_reward_premium	Premium Bonus
+st_money_reward_quest	Aufgabe Gewinn
+st_monitor_ajust	Monitor Einstellungen
+st_monitor_count_option	Anzahl der Monitoren
+st_mosin_description	Das Ladengewehr für die Munition 7.62N...54 mm. War auf die Ausrüstung von der Russischen Kaiserlicher Armee übernommen. Gut hat sich das in den ersten und zweiten Weltkriegen bewährt. Ist mit dem nicht abnehmbaren Geschäft auf 5 Patronen ausgestattet.
+st_mosin_name	Mosin Karabin
+st_motion_blur_amount_options	Bewegungsunschärfe
+st_mouse_invertion_option	Maus Invertierung
+st_mouse_sensitivity_option	Mausempfindlichkeit
+st_move_backward_action	Zurück
+st_move_forward_action	Vor
+st_move_speed_weapon_penalty_description	Es gilt die Geschwindigkeitstrafe bei der schweren Waffen übertragung.
+st_move_speed_weapon_penalty_name	Tragen der Waffen
+st_move_to_reserve	Im Reserve
+st_move_to_team	IN den Team verschieben
+st_movement_speed_correction_perc_name	Bewegungs Geschwindigkeit
+st_movement_speed_description	Bewegungs Geschwindigkeit
+st_movement_speed_name	Ungestüm
+st_movement_speed_when_aiming_description	Die  Bewegungs Geschwindigkeit im Sichtung Modus:
+st_movement_speed_when_aiming_name	Kampfhaltung
+st_mp153_description	Das Russischer halbautomatische Gewehr mit dem reibungslose Stamm nutzt Munition 12N...70. Dank dem nicht hohen Preis und der guten Zuverlässigkeit, hat den breiten Vertrieb wie die Jagd- und sportlichen Waffen bekommen. Es ist mit dem Rohrgeschäft auf 4 Patronen ausgestattet.
+st_mp153_name	MP-153 "Baikal"
+st_msbs_carbine_description	Polnischer modularer Karabiner, Munition: 5,56x45. In den 2010er Jahren von der Militärtechnischen Akademie in Warschau und der Fabryka Broni in Radom entwickelt; von der polnischen Armee als Grot eingeführt. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
+st_msbs_carbine_name	MSBS Radon
+st_multiplicative_breath_vibration_modifier	Verwackeln des Zielfernrohrs
+st_multiplicative_chamber_a_round_time_modifier	Cham Zeit
+st_multiplicative_device_damage_modifier	Schaden vom Gerät
+st_multiplicative_recoil_modifier	Waffenrückstoß
+st_multiplicative_reliability_modifier	Zuverlässigkeit
+st_multiplicative_reload_time_modifier	Nachladung Geschwindigkeit
+st_multiplicative_respawn_time_modifier	Zeit der Wiederbelebung
+st_multiplicative_splash_radius_modifier	Explosions Umfang
+st_multiplicative_stamina_spending_modifier	Energiekosten
+st_munition	Ausrüstung
+st_music_volume_option	Musik
+st_must_be_in_clan_team	Sie muessen in dem Klan Team sein
+st_my_place	Mein Rating
+st_neostead_description	Südafrikanische Vorderschaftrepetierflinte, Kaliber 12. In den 1990er Jahren von Tony Neophytou in Bullpup-Bauweise konstruiert; sie hat zwei Röhrenmagazine über dem Lauf, und zum Repetieren wird der Vorderschaft nach vorn geschoben. Fasst 12 Patronen. Nur Einzelfeuer.
+st_neostead_name	NeoStead 2000
+st_neostead_premium_description	Südafrikanische Vorderschaftrepetierflinte, Kaliber 12. In den 1990er Jahren von Tony Neophytou in Bullpup-Bauweise konstruiert; sie hat zwei Röhrenmagazine über dem Lauf, und zum Repetieren wird der Vorderschaft nach vorn geschoben. Fasst 12 Patronen. Nur Einzelfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_neostead_premium_name	NeoStead 2000 M2
+st_new_items_unlocked	neue Objekte im Laden:
+st_new_level_reached	Sie haben einen neuen Level errreicht!
+st_new_modifier	Neuer Modifikator:
+st_next_ammo_action	Patronen Typ wechseln
+st_next_fire_queue_action	Schieß Art wechseln
+st_next_weapon	nächste Waffe
+st_nickname	Name
+st_no_available_resolution	Wird nicht unterstützt
+st_no_faction_button_label	Wahl
+st_no_faction_message_label	Zusammenarbeit mit den Gruppierungen.
+st_no_faction_message_text	Die Gruppierungen sind die Hauptlieferanten der Ausrüstung und Munition. Die abgeschlossene Aufgaben von der Gruppierung verbessert sein Reputation. Als Ersatz du bekommst Zugang zum besten Waren. Gleichzeitig kann man nur mit einer Gruppierung zusammenarbeiten.
+st_non_faction_items	Unabhängiger Händler
+st_non_sport_behavior_claim	Team kill
+st_not_all_team_members_ready	Nicht alle Mitglieder des Teams sind bereit.
+st_not_enough_money	Es ist ungenügend Geld für die Vollziehung der Operation.
+st_not_enought_money_for_repair	Nicht genug Geld für Reparatur
+st_not_enougth_money	Nicht genug Geld
+st_not_enougth_money_for_reroll	Sie habe nicht genug Geld für die Fähigkeiten Reset
+st_not_logged_id	Fehler beim Identifizierung des Spielers aufgetreten. Bitte, Loggen Sie sich nochmal ein.
+st_not_ready	Nicht bereit
+st_notes_if_you_read	Nachdem durchlesen
+st_notes_reward	sie bekommen:
+st_novice_026_helmet_desc	Strickmütze eines Neulings-Stalkers aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_novice_026_helmet_name	Strickmütze des Neulings
+st_of	aus
+st_ok	Ok
+st_on_enemy_theft_item	Der Gegner hat die Batterie von Ihrer Base gestohlen, halten Sie es an!
+st_on_spawn_victory_item	Batterie ist aufgeladen! Bringen Sie sie in die Base.
+st_one_handed	Zubehör
+st_online_store	Gold einkaufen
+st_onyx_activation_hint	Der Onyx ist aktiviert! Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 75 % für %s s.
+st_onyx_pickup_hint	Das Artefakt der Onyx. Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 5 %.
+st_open	Öffnen 
+st_options_2taa	2xTAA
+st_options_adjust_gamma	Gamma:
+st_options_apply	Verwenden
+st_options_cancel	Aufhebung 
+st_options_chat	Chat:
+st_options_chat_keys	Chat:
+st_options_controller	Verwaltung
+st_options_cross_type	Visier:
+st_options_custom	Anwender- 
+st_options_default_controls	Basis Einstellungen
+st_options_default_video	Basis Einstellungen
+st_options_friends	Freunde:
+st_options_fxaa	FXXA
+st_options_game	Spiel:
+st_options_gameplay	Spiel
+st_options_hbao	HDAO
+st_options_high	Hoch
+st_options_lobby	Lobby:
+st_options_low	Niedrig
+st_options_medium	Mittel
+st_options_minimum	Minimal
+st_options_off	Aus
+st_options_ok	OK
+st_options_on	Ein
+st_options_optimal_video	Optimale Einstellungen
+st_options_sound	Ton
+st_options_ssao	SSAO
+st_options_ssdo	SSDO
+st_options_ultra	Ultra
+st_options_video	Graphik:
+st_options_voice	Stimme:
+st_options_volume	Lautstärke:
+st_other	Andere
+st_oust_commander	Kommandanten wechseln
+st_overweight_penalty_description	Einfluss des Gewichts auf die Bewegungs Geschwindigkeit
+st_overweight_penalty_name	Packer
+st_oxygen_tank_description	Der selbstgemachte Sauerstoffballon, von Handwerkern gemacht im Lager der Landstreicher. Die Atmungsmischung wird in zusammengepresster, nicht flüßiger Substanz bewahrt.
+st_oxygen_tank_name	Sauerstoffflasche
+st_pain_healt_correction_perc_name	Schmerz Grenze
+st_paperdoll_btn_ammo	Patronen
+st_paperdoll_btn_fix	Reparieren
+st_paperdoll_btn_weight	Gewicht
+st_paperdoll_label	Charakter
+st_particles_quality_options	Teilchen Qualität
+st_password_default_text	Kennwort
+st_password_str	Passwort
+st_pause_game_action	Pause
+st_pd_artefact	Artefakt
+st_pd_back	Rücksack
+st_pd_foot	Schuhen
+st_pd_hands	Handschuhen
+st_pd_head	Helm
+st_pd_legs	Hosen
+st_pd_mask	Maske
+st_pd_torso	Jacke
+st_pd_weapon	Waffe
+st_percent_postfix	%
+st_personal_statistics	Persönlichen Errungenschaften
+st_phy_adrenalin_desc	Jeder  von ihnen gemachter Treffer erhöht wenig die Bewegungs Geschwindigkeit und stellt den Teil der Energie wieder her.
+st_phy_adrenalin_name	Adrenalin ausstoßen
+st_phy_athlet_desc	Reduziert die Auswirkung von Gewicht auf Geschwindigkeit 
+st_phy_athlet_name	Athlet
+st_phy_ignor_pain_desc	Durch Bewegung mit Beschleunigung, wird der Schmerz reduziert.
+st_phy_ignor_pain_name	Ignorierung des Schmerzens
+st_phy_melee_rush_desc	Die Distanz von der Sie den Gegner im Nahkampf töten können vergrößert sich.
+st_phy_melee_rush_name	Sprung mit Messer
+st_phy_second_breath_desc	Mit dem Verlust der Energie, stellen sie vollständig die Ausdauer her. Wirkt nicht weniger als einmal pro minute.
+st_phy_second_breath_name	Zweite Atmung
+st_phy_sprinter_desc	Vergrößert die Geschwindigkeit beim Sprinten.
+st_phy_sprinter_name	Sprinten
+st_phy_war_rage_desc	Durch das Töten des Gegners im Nahkampf wird die Energie vollständig wiederhergestellt und spüren die gegebenen Schmerzen nicht.
+st_phy_war_rage_name	Kampf Wut
+st_physical_skills_descr	Vergrößert die Bewegungs Geschwindigkeit, das Bewegungs Gewicht und die Geschwindigkeit der Wiederherstellung
+st_physical_skills_label	physische Vorbereitung
+st_physical_skills_name	Körperliche Vorbereitung
+st_picatinny_scope_medium_name	Optiken / Kollimatoren
+st_pickup_item	Heben ({USE})
+st_ping_postfix	ms.
+st_pkp_pecheneg_description	Russisches Universal-Maschinengewehr, Munition: 7,62x54R. Von ZNIITochMasch auf Grundlage des PKM entwickelt und 2001 eingeführt; der schwere Lauf mit Zwangsluftkühlung erlaubt lange Feuerstöße ohne Laufwechsel. Zuführung aus einem 100-Schuss-Gurt. Einzel- und Dauerfeuer.
+st_pkp_pecheneg_name	PKP "Pecheneg"
+st_place	Platz
+st_play_button	Spielen
+st_player_equipment_level	Ausrüstung Niveau
+st_player_info_label	Info über den Spieler:
+st_player_is_already_in_clan	Spieler gehört schon zum einem Klan.
+st_player_level	LEVEL
+st_player_not_found	Spieler nicht gefunden.
+st_player_skills_check_failed	Fehlerbestätigung  beim Lernfähigkeiten.
+st_players_list_filter_text	Sortieren nach Name
+st_pm_description	Die Makarow-Pistole mit der Munition 9N...18 MP wurde entwickelt in 1948, wie der Ersatz für die Pistole. War als persönliche Waffen auf der Ausrüstung in der Armee und den Rechtsschutzorganen benutzt. Der Käfig enthält 8 Patronen.
+st_pm_name	PM
+st_pockets	Taschen
+st_point	Punkte
+st_points_aviable	Zugängliche Punkten
+st_points_earned	Ihr Niveau
+st_post_process_options	Postprozessoren Qualität
+st_pp2000_description	Description is not ready!!!
+st_pp2000_name	PP-2000
+st_ppsh_description	Die sagenhaften Waffen des Sieges, die Maschinengewehr Pistole des Systems Schpagina. In den abgesonderten Staaten wurde sie bis zum Ende 80er Jahre verwendet. Ist mit einem Teilkäfig für 35 Patronen ausgestattet.
+st_ppsh_name	PPSH-41
+st_premium	Premium
+st_premium_3_day	3 Tage
+st_premium_3_day_descr	( 72 Stunden)
+st_premium_3_month	3 Monaten
+st_premium_3_month_descr	( 90 Tage )
+st_premium_6_month	6 Monaten
+st_premium_6_month_descr	( 180 Tage )
+st_premium_access_1d_voucher_descr	Die vorliegende Karte ermöglicht Ihnen, das Premium Benutzerkonto auf ein Tage zu aktivieren.
+st_premium_access_1d_voucher_name	Premium Konto
+st_premium_action	Aktion!
+st_premium_advert	Wenn Sie jetzt ein Premium-Konto aktivieren,\nsammelen sie alle Bonuspunkte von den vorherige Spiel
+st_premium_ally_members	Dank den Spieler mit dem Premium konto
+st_premium_bonus	Erfahrung\nEinkommen\nReputation
+st_premium_bonus_experience	ERFAHRUNG FÜR DEN KAMPF!
+st_premium_bonus_item_search	BONUS DER GEGENSTÄNDE SUCHEN!
+st_premium_bonus_money	KAMPF GEWINN!
+st_premium_bonus_profile	Inventar Profil 
+st_premium_bonus_reputation	GRUPPIERUNG REPUTATION!
+st_premium_button_advert	Premium kaufen
+st_premium_day	24 Stunden
+st_premium_day_descr	( 24 Stunden)
+st_premium_discount	Rabat
+st_premium_left	Noch:
+st_premium_money	Gold
+st_premium_money_name	Gold
+st_premium_month	Monat
+st_premium_month_descr	( 30 Tagen)
+st_premium_post_reward_descr	Aktivieren Sie das premium-Benutzerkonto Konto jetzt,\nund bekommen Sie alle Bonusse\nfür die vorige Woche als Belohnung!
+st_premium_post_reward_label	Erhalten Sie mehr mit dem premium Account!
+st_premium_profile_hint	Nur mit Premium Konto erreichbar 
+st_premium_profile_unlock_description	Dritte Profil können Sie nur mit dem premium Account nutzen
+st_premium_reward_part_1	Sie finden nach dem Kampf
+st_premium_reward_part_2	mehrere Objekte
+st_premium_week	Woche
+st_premium_week_descr	( 7 Tage )
+st_premium_year	Jahr
+st_premium_year_descr	( 365 Tage )
+st_prepare_to_battle_notes	Vorbereitung zum Kampf
+st_prepare_to_battle_notes_frame_1_text_1	Im Kampf nehmen zwei Mannschaften teil
+st_prepare_to_battle_notes_frame_2_text_1	Ihre Allies sind mit einem Zeichen über ihren Kopf markiert
+st_prepare_to_battle_notes_frame_2_text_2	 - Alliierten Name anzeigen
+st_prepare_to_battle_notes_frame_3_text_1	Seien Sie Aufmerksam, der Feind kann schlecht zu erkennen sein
+st_prepare_to_battle_notes_frame_3_text_2	Bewegen Sie sich vorsichtig Fort
+st_prepare_to_battle_notes_frame_4_text_1	Der Indikator der Verwundungen stellt den laufende Zustand des Körpers dar
+st_prepare_to_battle_notes_frame_4_text_2	Verwendet Sie Medikamente, um den Schmerz zu stillen und die Wunden zu verheilen
+st_prepare_to_battle_notes_frame_5_text_1	Sie können eine kritische Verletzung der Arme oder Beine bekommen
+st_prepare_to_battle_notes_frame_5_text_2	Das gibt eine Strafe auf die Zielgenaugkeit und die Geschwindigkeit der Fortbewegung
+st_prepare_to_battle_notes_frame_6_text_1	Wenn Sie beide Arme gebrochen haben, können Sie keine Waffe verwenden die beidhändig ist
+st_prepare_to_battle_notes_frame_7_text_1	Wenn Sie beide Beine gebrochen haben, können Sie sich nicht fortbewegen
+st_prev_weapon	vorherige Waffe
+st_private_messages_in_game_option	Chat im Kampf ausblenden
+st_profile	Profil 
+st_profile_check_failed	Man darf nicht in den Kampf ohne Waffen teilnehmen!
+st_profile_check_failed_weapon	Man darf nicht in den Kampf ohne Waffen teilnehmen!
+st_profile_check_failed_weapon_ammo	Man darf nicht in den Kampf teilnehmen, es ist nicht genug Patronen im Rucksack!
+st_profile_check_failed_weapon_ammo_in_inv	Man darf nicht in den Kampf eingehen, es ist nicht genun  Patronen auf Lager!
+st_profile_play_time	Spiel zeit
+st_profile_rename	Profil Umbenennen
+st_profile_rename_label	Profil Umbenennen 
+st_profile_selection_warning	Nach dem Profil wechseln,  dauert die Wiedergeburt 20sek. länger. 
+st_profile_warning_weapon	Unaktive Profil: Keine Waffen
+st_profile_warning_weapon_ammo	Unaktive Profil: ungenügend Patronen im Rucksack
+st_profile_warning_weapon_ammo_in_inv	Unaktive Profil: ungenügend Patronen im Lager
+st_ptt_action	PTT
+st_ptt_button_option	PTT
+st_put_item	Setzen ({USE})
+st_quest_change_warning	Vorsicht! Bei Aufgabe wechseln die Loyalität der Gruppierung wird zu Ihnen herabgesetzt!
+st_quest_completed	Mission erfüllt!
+st_quest_failed	Mission ist gescheitert!
+st_quest_progress	Der Fortschritt der Aufgaben
+st_quest_reward_info	Finale Belohnung hängt vom Level des Kampfes ab.
+st_quests	Mission
+st_quests_label	Aufgabe
+st_quests_progress_text_alpha_option	Transparenz
+st_quick_fix	Express Reparatur
+st_quick_use_action_1	Objekt 1
+st_quick_use_action_2	Objekt 2
+st_quick_use_action_3	Objekt 3
+st_quick_use_action_4	Objekt 4
+st_quick_use_action_5	Objekt 5
+st_quick_use_action_6	Objekt 6
+st_rank_up_to_commander_message	Sind Sie sicher, dass dieser Spieler statt ihnen der Klan Kommandeur werden soll?
+st_ranking	Rating
+st_ranking_diff	Unterschied
+st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
+st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
+st_rdgm_descr	Description is not ready!!!
+st_rdgm_name	Rauchgranate RDG-M
+st_reach_level	<green>Stufe </green> erreicht
+st_ready	Bereit
+st_refill_ammo_btn	Umbenennen
+st_refill_ammo_label	Ausrüstung
+st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
+st_regen_booster_name	Ration
+st_registration_str	Konto registrieren
+st_regular_fix	Reparatur
+st_regular_money	Silber
+st_reload_speed_description	Nachladung Geschwindigkeit
+st_reload_speed_name	Nachladung
+st_relocate	Versetzen 
+st_rem700_description	Das amerikanische Ladengewehr mit der Munition 7.62N...51. Hat die Anerkennung wie Sportliche-, Jäger- und Scharfschützengewehr gefunden. Ist mit dem Käfig für 5 Patronen ausgestattet.
+st_rem700_name	Remington 700
+st_rem700_premium_description	Das amerikanische Ladengewehr mit der Munition 7.62N...51. Hat die Anerkennung wie Sportliche-, Jäger- und Scharfschützengewehr gefunden. Ist mit dem Käfig für 5 Patronen ausgestattet. Premium-Version mit einer besonderen Tarnlackierung.
+st_rem700_premium_name	Remington 700 "Henker"
+st_rem870_description	Die amerikanischer Flinte mit der Munition 12x70. Oft wurde sie polizeilich und jägerhaft verwendet. In der Jagdmodifikation ist mit dem Rohrkäfig auf 4 Patronen ausgestattet.
+st_rem870_name	Remington 870
+st_remove	Entfernen
+st_remove_from_friends	Von Freund Liste Löschen
+st_remove_from_ignore	Aus der schwarzen Liste entfernen
+st_remove_from_squad	Von Abteilung hinauswerfen
+st_remove_from_team	Aus dem Team entfernen.
+st_ren_back_1_desc	Description is not ready!!!
+st_ren_back_1_name	Rucksack des Jagdbombers
+st_ren_back_3_desc	Description is not ready!!!
+st_ren_back_3_name	Ballon "Zarya 4N"
+st_ren_back_5_desc	Ballon "Zarya 4N"
+st_ren_back_5_name	Ballon "VHF-1"
+st_ren_boots_1_desc	Zuverlässige Militärische Stiefel, beschützen deine Füße gegen Verletzungen und schwachen Fallen.
+st_ren_boots_1_name	Militärische Stiefel
+st_ren_boots_3_desc	Description is not ready!!!
+st_ren_boots_3_name	Stiefel des Spions
+st_ren_boots_4_desc	Description is not ready!!!
+st_ren_boots_4_name	Verstärkte Stiefel
+st_ren_boots_5_desc	Verstärkte Stiefel
+st_ren_boots_5_name	Stiefel "OZK-18KB"
+st_ren_boots_6_desc	Description is not ready!!!
+st_ren_boots_6_name	Schuhe "Zubr UM-4"
+st_ren_gloves_1_desc	Description is not ready!!!
+st_ren_gloves_1_name	Angriffs Handschuhe
+st_ren_gloves_4_desc	Description is not ready!!!
+st_ren_gloves_4_name	Verstärkte Handschuhe
+st_ren_gloves_5_desc	Verstärkte Handschuhe
+st_ren_gloves_5_name	Handschuhe "OZK-18KB"
+st_ren_gloves_6_desc	Description is not ready!!!
+st_ren_gloves_6_name	Handschuhe "Zubr UM-4"
+st_ren_helmet_1_desc	Der Landungshelm von den Luftlandetruppen der UdSSR. Es ist kompliziert, die Rolle des gegebenen Symbols für die Armee der Wiedergeburt umzuwerten. Schützt den Kopf gut vor der Einwirkung der Explosionswelle, und die eingenähten Stahlplatten sind fähig, Pistolenkugel aufzuhalten.
+st_ren_helmet_1_name	Landungshelm
+st_ren_helmet_2_desc	Description is not ready!!!
+st_ren_helmet_2_name	Helm "Witez-S"
+st_ren_helmet_3_desc	Description is not ready!!!
+st_ren_helmet_3_name	Spionen Helm
+st_ren_helmet_4_desc	Description is not ready!!!
+st_ren_helmet_4_name	Helm "Molot UM-2"
+st_ren_helmet_5_desc	Helm "Molot UM-2"
+st_ren_helmet_5_name	Helm "OZK-18KB"
+st_ren_helmet_6_desc	Description is not ready!!!
+st_ren_helmet_6_name	Helm "Zubr UM-4"
+st_ren_legs_1_desc	Die Tarnhosen mit dem selbstgemachten verstärkten Schutz des Kniegelenkes. Dank der hohen Qualität, beschränken sie die Bewegungen nicht ein, sondern erleichtern die Fortbewegung des Soldaten in der maximalen Berechnung. Enthält die zusätzliche Tasche für spezialmittel .
+st_ren_legs_1_name	Militärische Hosen
+st_ren_legs_2_desc	Description is not ready!!!
+st_ren_legs_2_name	Hosen "Sturm"
+st_ren_legs_3_desc	Description is not ready!!!
+st_ren_legs_3_name	Hosen des Spions
+st_ren_legs_4_desc	Description is not ready!!!
+st_ren_legs_4_name	Hose "Molot UM-2"
+st_ren_legs_5_desc	Hose "Molot UM-2"
+st_ren_legs_5_name	Hose "OZK-18KB"
+st_ren_legs_6_desc	Description is not ready!!!
+st_ren_legs_6_name	Hosen "Zubr UM-4"
+st_ren_mask_2_desc	Description is not ready!!!
+st_ren_mask_2_name	Maske des Jagdbombers
+st_ren_mask_3_desc	Description is not ready!!!
+st_ren_mask_3_name	Atemschutzmaske "Zanaves"
+st_ren_mask_5_desc	Atemschutzmaske "Zanaves"
+st_ren_mask_5_name	Maske "PMK-7S"
+st_ren_rep_modifier	Reputation "Armee der Wiederbelebung"
+st_ren_torso_1_desc	Die gewöhnliche Armeepanzerweste der II. Klasse, die für die Nutzung in apokalyptischer Welt verwendet ist. Die große Menge Beutel lässt maximal zu, von der Munition und spezielemittel ausgerüstet zu werden.
+st_ren_torso_1_name	Armeepanzerweste
+st_ren_torso_2_desc	Description is not ready!!!
+st_ren_torso_2_name	Schutzweste "Sturm"
+st_ren_torso_3_desc	Description is not ready!!!
+st_ren_torso_3_name	Schutzweste "Sokal"
+st_ren_torso_4_desc	Description is not ready!!!
+st_ren_torso_4_name	Panzerweste "Molot UM-2"
+st_ren_torso_5_desc	Panzerweste "Molot UM-2"
+st_ren_torso_5_name	Weste "OZK-18KB"
+st_ren_torso_6_desc	Description is not ready!!!
+st_ren_torso_6_name	Schutzweste "Zubr UM-4"
+st_renaissance_bring_x_items_descr	Die neue Welt hat uns der Bewährung vorbereitet. Es ist nicht genug nur  den Gegner zu zerstören, muss man die spezielle Kontur aktivieren die gegen dem Sturm schützt.
+st_renaissance_bring_x_items_name	Sturm Schutz
+st_renaissance_bring_x_items_obj	Batterien finden und nach Base bringen:
+st_renaissance_defend_items_descr	Beim Krieg gibt es keine Kleinigkeiten. Die gute Verteidigung ist genauso wichtig, wie auch der Angriff. Verteidigen Sie Ihre Base von den Angriffen des Gegners, lassen Sie den Verlust nicht zu, was vom Blut Ihrer Verbündeten erworben ist.
+st_renaissance_defend_items_name	Sichere Verteidigung
+st_renaissance_defend_items_obj	Das Feld zu behaupten ohne den Diebstahl der Batterie von der Base:
+st_renaissance_faction	Arme der Wiedergeburt
+st_renaissance_grenade_enemies_descr	Die Granatäpfel haben die Effektivität bei der Nutzung in den angreiferischen und Verteidigungszielen seit langem bewiesen. Du sollst auch diese Art der Waffen ergreifen.
+st_renaissance_grenade_enemies_name	Grenadier
+st_renaissance_grenade_enemies_obj	Gegnern mit Granaten pro Kampf töten:
+st_renaissance_headshots_descr	Beweise, dass du die Waffen in der Vollkommenheit besitzt. Dass die Normen TRP für dich nicht ein leere Laut ist. Es ist nicht wichtig, welche Waffe du hast ein Automat oder ein Scharfschützengewehr. Der gute Soldat markiert das Ziel immer.
+st_renaissance_headshots_name	Woroschilow Sharpshooter
+st_renaissance_headshots_obj	Gegner mit Headshot töten:
+st_renaissance_kd_ratio_descr	Der gute Soldat ist nicht der fanatische Kopfabschneider. Die Selbstbeherrschung und die Schulung, dass unterscheidet uns vom übrigen Gesindel, was uns stärker macht. Beweise es im Kampf!
+st_renaissance_kd_ratio_name	Überlegenheit!
+st_renaissance_kd_ratio_obj	Das Feld zu behaupten mit Verhältnis der Totschläge und der Tode nicht weniger als:
+st_renaissance_kill_enemies_descr	Beim Krieg gelingt es nicht immer ohne Blut zu siegen, deshalb muss man nicht mit dem Gegner ein Kaffe trinken. Erinnere sich, jeder getötete Feind nähert uns dem Sieg!
+st_renaissance_kill_enemies_name	Das Feuer der Niederlage.
+st_renaissance_kill_enemies_obj	Gegnern pro Kampf töten:
+st_renaissance_killstreak_descr	Der militärische Ruhm wartet auf dich beim Gefechtsfeld. Aber nur der gegenwärtige Held ist fähig, sie zu verdienen! Beweise, dass du es würdig bist den hohen Titel der Armee der Wiedergeburt zutragen!
+st_renaissance_killstreak_name	Held!
+st_renaissance_killstreak_obj	Der Totschläge Serie begehen:
+st_renaissance_level_0	Unbekannt
+st_renaissance_level_1	Soldat 
+st_renaissance_level_10	Oberst
+st_renaissance_level_2	Gefreite 
+st_renaissance_level_3	Sergeant
+st_renaissance_level_4	Hauptfeldwebel 
+st_renaissance_level_5	Fähnrich 
+st_renaissance_level_6	Leutnant
+st_renaissance_level_7	Kapitän
+st_renaissance_level_8	Major
+st_renaissance_level_9	Oberstleutnant 
+st_renaissance_level_unlock_0	Wir gratulieren ! Sie haben Zugriff für die Aufgaben von der Armee der Wiedergeburt zugänglich!
+st_renaissance_level_unlock_1	Wir gratulieren! Sie sind jetzt der Soldat der Armee der Wiedergeburt!
+st_renaissance_level_unlock_10	Wir gratulieren! Sie sind jetzt der Oberst der Armee der Wiedergeburt!
+st_renaissance_level_unlock_2	Wir gratulieren! Sie sind jetzt der Gefreite der Armee der Wiedergeburt!
+st_renaissance_level_unlock_3	Wir gratulieren! Sie sind jetzt der Sergeant der Armee der Wiedergeburt!
+st_renaissance_level_unlock_4	Wir gratulieren! Sie sind jetzt der Hauptfeldwebel der Armee der Wiedergeburt!
+st_renaissance_level_unlock_5	Wir gratulieren! Sie sind jetzt der Fähnrich der Armee der Wiedergeburt!
+st_renaissance_level_unlock_6	Wir gratulieren! Sie sind jetzt der Leutnant der Armee der Wiedergeburt!
+st_renaissance_level_unlock_7	Wir gratulieren! Sie jetzt der Kapitän der Armee der Wiedergeburt!
+st_renaissance_level_unlock_8	Wir gratulieren! Sie sind jetzt der Major der Armee der Wiedergeburt!
+st_renaissance_level_unlock_9	Wir gratulieren! Sie sind jetzt der Oberstleutnant der Armee der Wiedergeburt!
+st_renaissance_meele_kill_descr	Die Kämpfer der Armee der Wiedergeburt sind nicht nur mit dem Geist, sondern auch köperlich stark. Die Ausdauer und Mutigkeit ist unser Weg zum Sieg. Schaff, im Nahkampf mit dem Gegner für sich selbst einzustehen.
+st_renaissance_meele_kill_name	Weg zum Sieg
+st_renaissance_meele_kill_obj	Gegner im Nahkampf töten:
+st_renaissance_represent	Sie sollen in die Ausrüstung der Armee der Wiedergeburt bekleidet sein.
+st_renaissance_steal_box_descr	Mit dem Gegner von Angesicht zu Angesicht kämpfen  ist würdig. Aber es ist nicht immer wirksam. Die geschickte Diversion im Hinterland kann den Lauf des Kampfs zerbrechen und, den Sieg bringen!
+st_renaissance_steal_box_name	Sabotuer
+st_renaissance_steal_box_obj	Klauen Sie die Batterie von der Base des Gegners und bringen Sie zu ihrer Base.
+st_renaissance_win_score_descr	Niemals auf dem Erreicht aufzuhören!  das ist das Motto der Armee der Wiedergeburt. Je größsser wir an den Konturen der Batterien angeschlossen sind desto weniger Schaden vom Sturm bekommen wir.
+st_renaissance_win_score_name	Wunderbare Sieg!
+st_renaissance_win_score_obj	Das Feld zu behaupten, mit der Anzahl der gebrachten Battarien:
+st_renaissance_win_x_games_descr	Schritt für Schritt, Kampf für Kampf, Sieg für Sieg das ist unser Weg zur Wiedergeburt der vergangenen Macht! Wir haben keinen Platz zurückzutreten, der Sieg ist um jeden Preis nötig!
+st_renaissance_win_x_games_name	Für das Vaterland!
+st_renaissance_win_x_games_obj	Kämpfe zu gewinnen:
+st_rename_account_voucher_descr	Der vorliegende Bon gibt das Recht auf den kostenlosen Namen wechsel des Hauptcharakters.
+st_rename_account_voucher_name	Formular für den Namen wechsel.
+st_rep_reward_match	Kampf Reputation
+st_rep_reward_premium	Premium Bonus
+st_rep_reward_quest	Aufgaben Reputation
+st_repair_time	In Reparatur
+st_repair_time_label	Zeit
+st_repair_voucher_descr	Mit Hilfe des Reparatursatzes kann man einen beliebigen kritischen Defekt der Ausrüstung augenblicklich reparieren.
+st_repair_voucher_name	Reparierugns Ausrüstung
+st_repair_window_label	Reparatur
+st_reputation	Reputation
+st_reroll	Rücksetzen
+st_reroll_message_broken_item	Unmöglich ein beschädigtes Objekt zu modifizieren.
+st_reroll_modifier_lock_hint	Sie können nur diesen Modefaktor wechseln.
+st_reroll_timer_hint	Ist erreichbar in
+st_research_unit_a_captured	Installation A eingenommen
+st_research_unit_a_lost	Installation A verloren
+st_research_unit_b_captured	Installation B eingenommen
+st_research_unit_b_lost	Installation B verloren
+st_research_unit_c_captured	Installation C eingenommen
+st_research_unit_c_lost	Installation C verloren
+st_resolution_option	Auflösung
+st_respawn_booster_description	Die bürgerliche Funkstelle "FD3". Ist unter den Bedingungen des Kampfes für die Organisationseinheit und der Kooperation der Kämpfer äußerst nützlich.
+st_respawn_booster_name	Radio
+st_respawn_time_pref	Wiedergeburt nach:
+st_resupply_check_empty_inventory	Nicht genug Munition im Lager.
+st_resupply_check_full_ammo	Sie sind schon vollausgestattenen
+st_resupply_finished	Munition und die speziellen Mittel sind ergänzt!
+st_revenue	Einkommen
+st_reward	Belohnung
+st_rgd5_descr	Handgranate gegen Infanterie des angreiferischen Typs.  Bei der Explosion gewährleistet die Niederlage der lebendigen Kraft des Gegners mit den Scherben des zerrissenen Körpers.
+st_rgd5_name	Granate RGD-5
+st_rgo_descr	Description is not ready!!!
+st_rgo_name	RGO
+st_right_strafe_action	Schritt nach Rechts
+st_rpd_description	Description is not ready!!!
+st_rpd_name	RPD
+st_rpk_description	RPD
+st_rpk_name	RPK-74M
+st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_name	Saiga-12K
+st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_premium_name	Saiga-12S
+st_save_password_str	Passwort Speichern
+st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
+st_scav_back_1_name	Rücksack mit Container
+st_scav_boots_1_desc	Die einfachen Schuhe, die auf dem Müllhaufen gefunden oder von der Leiche abgezogen worden sind. Schützen die Beine vor den Wunden und den Beschädigungen, hilft mehrmals bei den komplizierten Übergängen .
+st_scav_boots_1_name	Leder Schuhe
+st_scav_boots_2_desc	Der dichte Schutz der Beine bei der Umstellung auf giftigen Oberflächen. Mit solchen Stiefeln kann man in  schwer zugänglichen Stellen eindringen, wohin die Mehrheit nicht geraten kann.
+st_scav_boots_2_name	Chemikalien schützende Stiefel
+st_scav_boots_3_desc	Die festen wasserdichten Schuhe mit der Stahlsocke und wärmedämmung. Solche Schuhe - wertlose Beute für den Landstreicher. In den strengen Wetterbedingungen vergrössert die Chancen auf das Überleben wesentlich. Erhöht die Geschwindigkeit der Fortbewegung auf 2 %.
+st_scav_boots_3_name	Schienbein Stiefel
+st_scav_gloves_1_desc	Die einfachen Handschuhe mit den beschnittenen Fingern. Erwärmen und schützen die Hände in der Wanderungen. Sind in der Nutzung bequem - muss man nicht abnehmen, um etwas zu erreichen oder zu verwenden. Erhöht die Geschwindigkeit des Zielens auf 2 %.
+st_scav_gloves_1_name	Fingerlose Handschuhe
+st_scav_gloves_2_desc	Die Gummierte Isolatins Handschuhe für die Arbeit mit den verschmutzten und anomalen Materialien. Die notwendige Ausrüstung für den Jäger der Artefakten.
+st_scav_gloves_2_name	Chemikalien schützende Handschuhe
+st_scav_gloves_4_desc	Description is not ready!!!
+st_scav_gloves_4_name	Grobe Handschuhe
+st_scav_helmet_1_desc	Description is not ready!!!
+st_scav_helmet_1_name	Montagen Helm
+st_scav_legs_1_desc	Die grob genähten Hosen. Wärmen die Beine und ertragen die Belastungen unter dem zerstörten Bau.
+st_scav_legs_1_name	Leinenhosen
+st_scav_legs_2_desc	Von Landschtreicher handgemachte isolierte Hosen. Schützen die Beine vor den giftigen Stoffe. Die bequeme Tasche lässt zu, ein Paar Apotheken oder Granaten mitzunehmen.
+st_scav_legs_2_name	Chemikalien schützende Hosen
+st_scav_legs_3_desc	Die gut genähten Hosen aus dem standhaften Material mit den geschützten Knien und den Befestigungen für die zusätzliche Ausrüstung. Der gute Schutz der Beine vor den strengen Bedingungen während der Wanderung. Die bequeme Tasche lässt zu, ein Paar Apotheken oder Granaten mitzunehmen.
+st_scav_legs_3_name	Wanderhose
+st_scav_legs_4_desc	Description is not ready!!!
+st_scav_legs_4_name	Hosen des Überlebenden
+st_scav_legs_5_desc	Description is not ready!!!
+st_scav_legs_5_name	Verstärkte Hosen
+st_scav_rep_modifier	Reputation "Tramp"
+st_scav_resp_1_desc	Modifiziert von den Landstreichern der Respirator. Schützt vor den giftigen Verdunstungen und dem radioaktiven Staub.
+st_scav_resp_1_name	Atmungsschutzmaske "Jantar"
+st_scav_torso_1_desc	Leicht und einfach in der Produktion Steppjacke. Die erste Kleidung des Landstreichers, hilft die strengen Wetterbedingungen zu überleben. Die geräumigen Taschen lassen zu, ein Paar Apotheken oder Granaten, sowie die zusätzlichen Schachteln mit den Patronen mitzunehmen.
+st_scav_torso_1_name	Wattierte Jacke
+st_scav_torso_2_desc	Die unersetzliche Sache bei der Forschung der ökologisch verschmutzten Territorien. Schützt den Oberkörper und die Hände beim Kontakt mit den giftigen Stoffen. Enthält den eingebauten Container für die Artefakte.
+st_scav_torso_2_name	Chemie schützende Jacke
+st_scav_torso_3_desc	Die von den Landstreichern erleichterte Armeepanzerweste mit dem Ausladen. Ist vom umgekommenen Soldaten abgenommen oder ist vom ausgeraubten Armeelagerhaus erworben. Die große Menge vom Beutel lässt zu, ein Paar Apotheken oder Granaten, sowie die zusätzlichen Schachteln mit den Patronen mitzunehmen.
+st_scav_torso_3_name	Leichte Schutzweste
+st_scav_torso_4_desc	Description is not ready!!!
+st_scav_torso_4_name	Jacke des Überlebenden
+st_scav_torso_5_desc	Stepp Jacke ist von den gebogenen metallischen Platten außen und Lederflicken innen gefestigt. Ist gute Kleidung für erfahrene Landstreicher.
+st_scav_torso_5_name	Verstärkte Kragen 
+st_scavenger_starter_bundle_descr	<white>Enthält folgende Sachen:\n- "Jacke des Überlebenden"\n- "Hose des Überlebendes"\n- Verbessert OTs-02 "Kiparis"\n- 1000 9x18 PM Patronen.</white>
+st_scavenger_starter_bundle_name	Set "Überlebender"
+st_scavengers_accuracy_descr	Das ist sinnlos Geld auswerfen. Der gute Schütze braucht nur ein Geschoss, um das Leben abzunehmen. Lerne wie die Patronen einzusparen.
+st_scavengers_accuracy_name	Fertigkeiten der Schießerei
+st_scavengers_accuracy_obj	Das Feld zu behaupten, mit der Genauigkeit der Schießerei höher als:
+st_scavengers_bring_x_items_descr	Nicht immer werden die Schlachten mit Hilfe der Waffen gewonnen. Erinnere sich an das Hauptziel  möglichst viel Batterien für die Schutzanlage zu sammeln.
+st_scavengers_bring_x_items_name	Beitrag an den Sieg
+st_scavengers_bring_x_items_obj	Batterien finden und nach Base bringen:
+st_scavengers_defend_items_descr	Erinnere sich, dass der Gegner nicht immer nach den Regeln spielt. Vergiss die Verteidigung der Base nicht und schaff beliebige Versuche des Gegners ab, die Batterien von Ihrer Base zu stehlen.
+st_scavengers_defend_items_name	Schutz des Eigentums
+st_scavengers_defend_items_obj	Das Feld zu behaupten ohne Diebstahl der Batterie von der Base.
+st_scavengers_faction	Landschtreicher
+st_scavengers_find_artifacts_descr	Untersuche die Anomalien auf der Suche nach den Artefakten. Im gespannten Kampf wird es nicht überflüssig sein das Artefakt um die Hüfte aufzuhängt um sich zu verstärken. Der Schutz vor den Anomalien wird die Suche der Artefakte wesentlich vereinfachen.
+st_scavengers_find_artifacts_name	Suche der Artefakte
+st_scavengers_find_artifacts_obj	In der Kampfzeit Artefakten finden:
+st_scavengers_grenade_enemies_descr	Die Granatäpfel verwenden zu können ist genau so wichtig, wie scharf zu schiessen. Im Kampf kommen die oft Situationen, dass es außer der Granate keine andere Weise gibt, den Gegner zu erreichen.
+st_scavengers_grenade_enemies_name	scharfer Wurf
+st_scavengers_grenade_enemies_obj	Gegnern mit Granaten pro Kampf töten:
+st_scavengers_kd_ratio_descr	Ein Held zu sein ist nicht kompliziert. Es ist kompliziert, dabei lebendig zu bleiben. Je länger du lebst desto nütztlicher bist du für die Mannschaft. Aber man braucht nicht ein Feigling sein und sich zu verschtecken . Lerne es wie zu überleben!
+st_scavengers_kd_ratio_name	Überleben
+st_scavengers_kd_ratio_obj	Das Feld zu behaupten mit Verhältnis der Totschläge und der Tode nicht weniger als:
+st_scavengers_kill_enemies_descr	Wenn du dich von Angesicht zu Angesicht mit dem Feind bist gibt es keine Zeit für Sentimente. Der Sieger in Ihrem Duell wird nur einer sein. Und es ist besser, wenn es du wirst!
+st_scavengers_kill_enemies_name	Selbstverteidigung 
+st_scavengers_kill_enemies_obj	Gegners pro Kampf töten:
+st_scavengers_level_0	Unbekannt
+st_scavengers_level_1	Neuling
+st_scavengers_level_2	Geprüfte 
+st_scavengers_level_3	Erfahren
+st_scavengers_level_4	Brutal
+st_scavengers_level_5	Veteran
+st_scavengers_level_unlock_0	Wir gratulieren! Sie haben jetzt Zugang zu den Aufgaben der Landstreicher! 
+st_scavengers_level_unlock_1	Wir gratulieren! Sie sind jetzt ein Neuling der Landstreicher!
+st_scavengers_level_unlock_2	Wir gratulieren! Sie sind jetzt ein vertrauenswürdiger Landstreicher!
+st_scavengers_level_unlock_3	Wir gratulieren! Sie sind jetzt erfahrener Landstreicher!
+st_scavengers_level_unlock_4	Wir gratulieren! Sie sind jetzt ein brutaler Landstreicher!
+st_scavengers_level_unlock_5	Wir gratulieren! Sie sind jetzt Veteran der Landstreichern!
+st_scavengers_meele_kill_descr	Wenn der Konflikt unvermeidlich ist - bemühe sich, es so schnell wie möglich und leiser zu entscheiden. Schleichen Sie unauffällig  zum Gegner um ihm  herauszuhauen. Es ist viel besser, als das öffentlich Feuer starten und die überflüssige Aufmerksamkeit heranzuziehen.
+st_scavengers_meele_kill_name	Ohne überflüssigen Lärm
+st_scavengers_meele_kill_obj	Gegner im Nahkampf töten:
+st_scavengers_represent	Sie sollen in der Ausrüstung der Landstreicher bekleidet sein.
+st_scavengers_steal_box_descr	Die Batterie beim Feind abzunehmen ist zweimal angenehm. Und wenn auch einige es Diebstahl nennen, aber wenn der Feind das Eigentum nicht schützt, so bedeutet das es ihm nicht notwendig ist .
+st_scavengers_steal_box_name	kleiner Diebstahl
+st_scavengers_steal_box_obj	Stehlen Sie die Batterie von der Base des Gegners und bringen sie auf ihre Base.
+st_scavengers_win_score_descr	Je grßsser die Anzahl der Batterien in der Schutzeinrichtung aktiviert sind  desto höher wird Ihre Belohnung für den Sieg.
+st_scavengers_win_score_name	Sichere Sieg
+st_scavengers_win_score_obj	Das Feld zu behaupten mit der Anzahl der gebrachten Batterien:
+st_scavengers_win_x_games_descr	Wir leben in der grausamen Welt. Dem Sieger fällt alles zu, und den Verlierern ist erzwungen, sich nur mit den Knirpsen zu begnügen. Merke dir, die in den Kampf siegende Mannschaft bekommt die großere Belohnung.
+st_scavengers_win_x_games_name	Sieg Geschmack
+st_scavengers_win_x_games_obj	Kämpfe zu gewinnen:
+st_scientists_faction	Institut
+st_search_label	Such
+st_search_range	Match Level
+st_second_weapon_action	Waffe 2
+st_seconds_short	s.
+st_seed_settings	Säen  in der Lobby
+st_seeding_max_upload_in_kb_option	Maximale Geschwindigkeit der Verteilung:
+st_select_send_to_action	Empfänger wählen
+st_sell	Verkaufen
+st_send	Senden
+st_send_message	Senden
+st_send_message_action	Nachricht senden
+st_server_maintenance	Bis zur planmäßigen Serverarbeit  blieb es übrig:
+st_settings	Einstellungen
+st_settings_label	Einstellungen
+st_shading_quality_option	Shader Qualität
+st_shadow_quality_option	Schatten Qualität
+st_shooting_skills_label	Schießvorbereitung
+st_shop	Laden
+st_shop_label	Laden
+st_shop_scope_1p69_hyperon_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" Optisches Visier, x4
+st_shop_scope_acog_ta31_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_acog_ta31_name	TA31 optisches Visier, x4
+st_shop_scope_aimpoint_compm4_description	Schwedisches Rotpunktvisier mit einem 2-MOA-Punkt und einer Batterie, die bis zu acht Jahre Dauerbetrieb hält. Von der US-Armee als M68 CCO eingeführt; wird auf einer Picatinny-Schiene montiert.
+st_shop_scope_aimpoint_compm4_name	CompM4 Kollimator
+st_shop_scope_cobra_ekp_8_description	Russisches Kollimatorvisier mit vier wählbaren roten Absehen. Ermöglicht schnelles Zielen mit beiden Augen offen; wird an der Seitenschiene von Waffen der Kalaschnikow-Familie montiert.
+st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 Kollimator
+st_shop_scope_docter_description	Kompaktes deutsches offenes Reflexvisier mit Leuchtpunkt. Leicht und schnell im Anschlag; für Flinten, Pistolen und kurze Waffen gebaut.
+st_shop_scope_docter_name	Docter Kollimator
+st_shop_scope_elcan_specterdr_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_elcan_specterdr_name	SpecterDR optisches Visier, x4
+st_shop_scope_eotech_552_description	Amerikanisches holografisches Visier: ein 65-MOA-Ring mit einem 1-MOA-Punkt in der Mitte, betrieben mit AA-Batterien. Schnell auf kurze und mittlere Entfernung; wird auf einer Picatinny-Schiene montiert.
+st_shop_scope_eotech_552_name	EOTech 552 Kollimator
+st_shop_scope_leupold_deltapoint_description	Kompaktes amerikanisches Reflexvisier mit einem roten dreieckigen Zielpunkt. Für Pistolen und leichte Waffen gebaut; so klein, dass es nicht stört.
+st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint-Kollimator
+st_shop_scope_leupold_mk4_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_leupold_mk4_name	Leupold MK4 optisches Visier, x4
+st_shop_scope_pso_1_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_pso_1_name	PSO-1 optisches Visier, x4
+st_shop_scope_pso_1_old_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_pso_1_old_name	PSO-1 O optisches Visier, x4
+st_shop_scope_pu_3_5x_description	Zielfernrohr mit Vergrößerung x3.5
+st_shop_scope_pu_3_5x_name	PU optisches Visier, x3.5
+st_shop_showcase	Haupt
+st_short_clan_string	Zu kurzer Name
+st_show_ammo	Munition anzeigen
+st_show_character_action	Charackter Menü
+st_show_enemy_killed_marker	Indikator des Mordes anzeigen
+st_show_friends_action	Freunde
+st_show_inventory_action	Inventar
+st_show_options_action	Einstellungen
+st_show_player_info_button_hint	Spielerinformationen anzeigen
+st_show_player_info_hint	Doppelklick um die Informationen vorzuführen
+st_show_quest_list	Aufgaben Fenster anzeigen
+st_show_quests_progress_option	Fortschritt der Aufgaben im Kampf anzeigen
+st_show_shop_action	Laden
+st_show_squad_list	Truppen Fenster anzeigen
+st_skills_already_rerolled	Fähigkeiten sind schon zurück gesetzt
+st_sks_description	Der selbstnachladende Karabiner Simonowa mit Patrone 7.62×39mm. Hat auf die Ausrüstung der sowjetischen Armee in 1949 gehandelt, aber war von der automatischen Feuerwaffe verdrängt. Ist mit dem nicht abnehmbaren Käfig auf 10 Patronen ausgestattet.
+st_sks_name	SKS
+st_sks_premium_2_description	Der selbstnachladende Karabiner Simonowa mit Patrone 7.62×39mm. Hat auf die Ausrüstung der sowjetischen Armee in 1949 gehandelt, aber war von der automatischen Feuerwaffe verdrängt. Ist mit dem nicht abnehmbaren Käfig auf 10 Patronen ausgestattet. Premium-Version mit einer besonderen Tarnlackierung.
+st_sks_premium_2_name	SKS "Pfeilspitze"
+st_sks_premium_description	Der selbstnachladende Karabiner Simonowa mit Patrone 7.62×39mm. Hat auf die Ausrüstung der sowjetischen Armee in 1949 gehandelt, aber war von der automatischen Feuerwaffe verdrängt. Ist mit dem nicht abnehmbaren Käfig auf 10 Patronen ausgestattet. Premium-Version mit einer besonderen Tarnlackierung.
+st_sks_premium_name	SKS-MF
+st_slide1_button_accept_label	Weiter
+st_slide1_text	Wir begrüssen Sie, Überlebender. Ihnen ist es geglückt, das Ende der Welt zu erleben. Nach den Wochen des Umherwanderns haben Sie endlich geschafft, bis zu den Stellen zu gelangen, die noch nicht dazugekommen sind, vom Wald absorbiert zu werden.
+st_slide1_text_enter_name	Welchen Namen wählen Sie in der neuen Welt?
+st_slide1_tutorial_reward	Wenn Sie das Tutorial beenden, bekommen Sie eine Belohnung:
+st_slot_control_label	Mengen Auswahl
+st_slots	Plätze
+st_sniper_skills_descr	Erhöht die Fähigkeit der Waffen Nutzung und verbessert die Zielung.
+st_sniper_skills_name	Gewehr Ausbildung
+st_snp_fast_draw_desc	Mit ihren Fähigkeiten können Sie Waffen schneller  wechseln.
+st_snp_fast_draw_name	Schnelles wechseln der Waffe
+st_snp_fast_reload_desc	Sie haben gelernt die Waffe schnell nachzuladen.
+st_snp_fast_reload_name	Schnelle Nachladung
+st_snp_fast_shot_desc	Erhöht die Geschwindigkeit vom Auslöser der halbautomatischen Waffen.
+st_snp_fast_shot_name	Schnelle Angabe
+st_snp_iron_breath_desc	Damit können Sie die Atmung länger beim Zielen halten.
+st_snp_iron_breath_name	Stahl Lungen
+st_snp_sniper_desc	Erhöht deutlich die Genauigkeit des Schusses bei der Verwendung von Scharfschützen, Taktischen- und Kollimatorischen Zielfernrohr.
+st_snp_sniper_name	Scharfschützer
+st_snp_steady_breath_desc	Sie rehabilitieren sich schneller nach dem Luft anhalten.
+st_snp_steady_breath_name	glatt ausatmen
+st_snp_steady_grip_desc	Erhöht die Genauigkeit des Schießens beim Bewegen.
+st_snp_steady_grip_name	Fest im Griff
+st_soc_vepr_description	Russischer Selbstladekarabiner der Wepr-Familie, Munition: 7,62x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-Maschinengewehrs als Jagd- und Sportwaffe gebaut. Mit einem 10-Schuss-Magazin ausgestattet. Nur Einzelfeuer.
+st_soc_vepr_name	SOK-94
+st_socom16_description	Description is not ready!!!
+st_socom16_name	SOCOM 16
+st_sort	Sortieren
+st_sort_cost	Nach Preis
+st_sort_label	Filter
+st_sort_level	Nach Level
+st_sort_reset	Zurücksetzen
+st_space_symbol_clan_string	Ungültige Ort Separatoren
+st_spam_filter_block_notification	Die Spam-Filter hat die Mitteilung ausgesondert. Bitte warten!
+st_spam_filter_block_notification_fin	sek.
+st_spas12_description	Description is not ready!!!
+st_spas12_name	Franchi SPAS-12
+st_special_offer	Sonderangebot
+st_speed_booster_description	Energie Getränke mit höche Koffein -  und Taurinhaltiges Getränk.  Erfrischt!
+st_speed_booster_name	Tornado
+st_spot_action	Feind markieren
+st_spring_activation_hint	Die Feder ist aktiviert! Die Geschwindigkeit der Fortbewegung und des Zielens +15 %. Es erhöht sich die Regeneration der Energie! Geschosse bremsen Sie nicht!
+st_spring_pickup_hint	Artefakt Feder. Erhöht die Geschwindigkeit der Fortbewegung und des Zielens um 5%.
+st_sprint_action	Sprint (halt.)
+st_sprint_toggle_action	Sprint
+st_squad	Abteilung
+st_squad_list_locked_hint	Es ist unmöglich, eine Truppe zu erstellen, wenn man sich bereits in einer Klan  Mannschaft befindend
+st_squad_not_ready	Abteilung ist nicht fertig
+st_sr2m_description	Description is not ready!!!
+st_sr2m_name	SR-2M "Veresk"
+st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikhr"\n- 2000 9x39 SP-6 Patronen.</white>
+st_sr3m_bundle_name	Set SR-3M "Vikhr"
+st_sr3m_description	Description is not ready!!!
+st_sr3m_name	SR-3M "Vikhr"
+st_srp_attachments	Anbauteile
+st_srp_exchange_balance	Guthaben
+st_srp_exchange_button	Tauschen
+st_srp_exchange_gold	Gold
+st_srp_exchange_pay	Sie zahlen
+st_srp_exchange_receive	Sie erhalten
+st_srp_exchange_short_gold	Nicht genug Gold
+st_srp_exchange_short_silver	Nicht genug Silber
+st_srp_exchange_title	Tausch
+st_srp_inventory_search	Suche
+st_srp_language_option	Sprache:
+st_srp_language_restart	Gilt nach einem Neustart.
+st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
+st_srp_loadout_block_locked	Dieses Profil ist gesperrt
+st_srp_loadout_block_maintenance	Bald Wartung: in %1$s Min
+st_srp_loadout_block_pocket_twice	Ein Gegenstandstyp in zwei Taschen
+st_srp_loadout_block_shared_slot	Zwei Gegenstände in einem Platz
+st_srp_loadout_block_weapon	Keine Waffe
+st_srp_loadout_empty	leer
+st_srp_loadout_refused	Das Loadout ließ sich nicht wählen.
+st_srp_loadout_sell_and	 und 
+st_srp_loadout_sell_item	%1$s
+st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
+st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
+st_srp_loadout_title	Loadout
+st_srp_loadout_unfit	nicht spielbar
+st_srp_login_account_hint	Konto wird beim ersten Login erstellt
+st_srp_map_chemical_plant	Chemiebetrieb
+st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
+st_srp_map_cologne	Köln
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamaew kurgan
+st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	Schule
+st_srp_map_tarakanovsky_fort	Tarakanowski Fort
+st_srp_map_vector	Labor Vektor
+st_srp_map_vostok	RS Vostok
+st_srp_map_vostok_v011	RS Vostok (v0.11)
+st_srp_map_vostok_v021	RS Vostok (v0.21)
+st_srp_matches_another_joining	Ein anderer Spieler tritt gerade bei
+st_srp_matches_balanced	Match ist bereits ausgeglichen
+st_srp_matches_cannot_join	Beitritt gerade nicht möglich
+st_srp_matches_closed	Dieses Match ist geschlossen
+st_srp_matches_ends_soon	Match endet bald
+st_srp_matches_full	Kein freier Platz im Match
+st_srp_matches_in_match	Du bist bereits in einem Match
+st_srp_matches_in_squad	Verlasse zuerst deine Abteilung
+st_srp_matches_joining	Beitritt…
+st_srp_matches_maintenance	Endet nach Beginn der Wartung
+st_srp_matches_mode_protective_device	Laden der Schutzeinrichtung
+st_srp_matches_no_answer	Keine Antwort, erneut versuchen
+st_srp_matches_no_late_join	Match nimmt keine neuen Spieler auf
+st_srp_matches_no_place	Kein freier Platz im Match
+st_srp_matches_none	Zurzeit keine Matches
+st_srp_matches_not_in_play	Match hat noch nicht begonnen
+st_srp_matches_outdated	Aktualisiere dein Spiel
+st_srp_matches_played_before	Du hast in diesem Match schon gespielt
+st_srp_matches_queued	Brich zuerst die Suche ab
+st_srp_matches_starting	Start
+st_srp_matches_title	Matches
+st_srp_matches_waiting	Warten
+st_srp_mode_blackout	Schutzeinrichtung: Blackout
+st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
+st_srp_mode_protective_device	Schutzeinrichtung
+st_srp_mode_research	Forschung
+st_srp_mode_team_deathmatch	Kommandokampf
+st_srp_optics	Optik
+st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
+st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
+st_srp_pvb_busy	%1$s (belegt)
+st_srp_pvb_checking	Prüfung…
+st_srp_pvb_clan_match	Schalte zuerst "Clan Kampf" ab
+st_srp_pvb_demo_start	Demo: der Server würde das Match jetzt starten: %1$s
+st_srp_pvb_gear_max	Ausrüstung Niveau muss %1$s oder niedriger sein
+st_srp_pvb_gear_max_yours	Ausrüstung Niveau muss %1$s oder niedriger sein (deins: %2$s)
+st_srp_pvb_generic	Ein Bot-Match kann gerade nicht starten
+st_srp_pvb_hint	Ein Match gegen Bots, auch in deinem Team spielen Bots
+st_srp_pvb_in_match	Du bist bereits in einem Match
+st_srp_pvb_in_squad	Verlasse zuerst deine Abteilung
+st_srp_pvb_maintenance	Die Wartung beginnt bald, keine neuen Bot-Matches
+st_srp_pvb_no_answer	Keine Antwort vom Server
+st_srp_pvb_off	Matches mit Bots sind gerade abgeschaltet
+st_srp_pvb_outdated	Aktualisiere dein Spiel
+st_srp_pvb_retry	Keine Antwort, erneut versuchen
+st_srp_pvb_searching	Brich zuerst die Suche ab
+st_srp_pvb_team_size	%1$s vs. %2$s
+st_srp_pvb_title	Spieler vs. Bots
+st_srp_pvb_unknown_choice	Diese Karte oder Teamgröße ist gerade nicht verfügbar
+st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
+st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_close	CLOSE
+st_srp_replay_demo_quest	Victory contribution
+st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
+st_srp_replay_demo_seller	Scavengers
+st_srp_replay_download	DOWNLOAD AND WATCH
+st_srp_replay_failed	The server could not prepare the replay of this match.
+st_srp_replay_gone	The replay of this match is no longer kept on the server.
+st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_made_now	Being made now. Waiting: %1$s s.
+st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
+st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_off	Replays are switched off on this server.
+st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_size	%1$s.%2$s MB
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
+st_srp_replay_title	Watch replay
+st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_reroll_description	Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.
+st_srp_rooms_all	Alle
+st_srp_rooms_all_rooms	Alle Räume
+st_srp_rooms_any	Alle
+st_srp_rooms_back	Zurück
+st_srp_rooms_code_10	Der Besitzer hat dich entfernt.
+st_srp_rooms_code_11	Verlasse zuerst dein Clanteam.
+st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
+st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
+st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
+st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
+st_srp_rooms_code_3	Falsche PIN.
+st_srp_rooms_code_4	Der Raum ist voll.
+st_srp_rooms_code_5	Du bist in einem Match.
+st_srp_rooms_code_6	Zu viele Räume.
+st_srp_rooms_code_7	Aktualisiere dein Spiel.
+st_srp_rooms_code_8	Wähle mindestens eine Karte.
+st_srp_rooms_code_9	Bald Wartung.
+st_srp_rooms_code_label	Code
+st_srp_rooms_countdown	Start
+st_srp_rooms_create	Erstellen
+st_srp_rooms_enter_anyway	Trotzdem rein
+st_srp_rooms_exit	Abbrechen
+st_srp_rooms_experimental	exp.
+st_srp_rooms_in_match	Läuft
+st_srp_rooms_in_queue	In der Warteschlange
+st_srp_rooms_join	Beitreten
+st_srp_rooms_join_in	Ins Match in %1$s s, oder jetzt: Match beitreten
+st_srp_rooms_join_match	Match beitreten
+st_srp_rooms_join_room	Raum beitreten
+st_srp_rooms_join_why_1	Ein anderer Spieler betritt das Match; du kommst danach.
+st_srp_rooms_join_why_2	Das Spiel eines Spielers lädt; Beitreten gleich wieder möglich.
+st_srp_rooms_join_why_3	Weniger als 30 s übrig: du spielst das nächste Match.
+st_srp_rooms_join_why_4	Das Match ist voll.
+st_srp_rooms_join_why_5	Bald Wartung: keine neuen Beitritte.
+st_srp_rooms_join_why_6	Das Match endet: du spielst das nächste.
+st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst im nächsten Match.
+st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
+st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
+st_srp_rooms_leave	Verlassen
+st_srp_rooms_leave_queue	Warteschlange verlassen
+st_srp_rooms_leave_room	Raum verlassen
+st_srp_rooms_left_room	%1$s hat den Raum verlassen
+st_srp_rooms_level	Stufe
+st_srp_rooms_map	Karte
+st_srp_rooms_max	Max. Stufe
+st_srp_rooms_modes	Modi
+st_srp_rooms_my_room	Mein Raum
+st_srp_rooms_name	Name
+st_srp_rooms_new	Privater Raum
+st_srp_rooms_next_map	Als Nächstes
+st_srp_rooms_none	Noch keine Räume. Erstelle einen oder drücke Spielen.
+st_srp_rooms_none_no_play	Noch keine Räume. Erstelle einen.
+st_srp_rooms_none_quiet	Noch keine Räume.
+st_srp_rooms_nothing	Keine
+st_srp_rooms_offer_fits	Deine Ausrüstung %2$s liegt über der max. Stufe %1$s. Loadout %3$s: Stufe %4$s.
+st_srp_rooms_offer_higher	Max. Stufe des Raums %1$s, deine Ausrüstung %2$s. Loadout %3$s: Stufe %4$s.
+st_srp_rooms_offer_unfit	Dein Loadout ist nicht spielbar. Loadout %1$s: Stufe %2$s.
+st_srp_rooms_open	frei
+st_srp_rooms_open_slots	%1$s frei
+st_srp_rooms_owner_tag	Besitzer
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	Die PIN hat 4 Ziffern.
+st_srp_rooms_pin_hint	4 Ziffern erforderlich
+st_srp_rooms_players	Spieler
+st_srp_rooms_playing	Match läuft
+st_srp_rooms_pool	Pool
+st_srp_rooms_pool_hint	Die Wahl zieht 3 Karten daraus.
+st_srp_rooms_private_room	Privater Raum: bis 20 Spieler; du stellst die Teams und startest.
+st_srp_rooms_queue	Warteschlange
+st_srp_rooms_queue_room	Raum-Warteschlange
+st_srp_rooms_room	Raum
+st_srp_rooms_room_chat	Raum-Chat
+st_srp_rooms_servers	Räume
+st_srp_rooms_start_hint	Drücke Starten, wenn alle da sind.
+st_srp_rooms_start_match	Starten
+st_srp_rooms_starts	Match beginnt in
+st_srp_rooms_state	Status
+st_srp_rooms_switch_enter	Wechseln, rein
+st_srp_rooms_switch_to	Raum wechseln
+st_srp_rooms_switch_who	Raum von %1$s · %2$s Spieler
+st_srp_rooms_switch_why	Fairer: Ausrüstung der Gegner bis Stufe %1$s
+st_srp_rooms_team_1	Team 1
+st_srp_rooms_team_2	Team 2
+st_srp_rooms_teams	Teams werden beim Matchstart gebildet.
+st_srp_rooms_teams_later	Die Teams lassen sich nach dem Match ändern.
+st_srp_rooms_teams_member	Der Ersteller stellt die Teams zusammen.
+st_srp_rooms_teams_owner	Verschiebe Spieler mit « und » zwischen den Teams.
+st_srp_rooms_unfit_gear	Deine Ausrüstung liegt über der max. Stufe: senke sie, sonst verlässt du beim Start den Raum.
+st_srp_rooms_unfit_kit	Deine Ausrüstung kann nicht spielen (keine Waffe oder zu wenig Munition): sonst verlässt du beim Start den Raum.
+st_srp_rooms_vote	Stimme für die nächste Karte
+st_srp_rooms_vote_hint	3 Karten aus dem Pool. Die meisten Stimmen gewinnen; Gleichstand: Zufall. Klicke, um umzustimmen.
+st_srp_rooms_vote_now	Stimme für die nächste Karte: klicke eine Karte. Ist die Zeit um, beginnt das Match auf der Gewinnerin.
+st_srp_rooms_voting	Kartenwahl
+st_srp_rooms_waiting	Warten auf Spieler
+st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
+st_srp_rooms_waiting_short	Warten
+st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Basis-Zielzoom
+st_srp_weapon_chamber	Repetierzeit
+st_srp_weapon_draw_time	Ziehzeit
+st_srp_weapon_full_damage	Voller Schaden bis
+st_srp_weapon_hip_spread	Hüftfeuer-Streuung
+st_srp_weapon_holster_time	Wegsteckzeit
+st_srp_weapon_kick_side	Horizontaler Rückstoß
+st_srp_weapon_kick_side_variability	Horizontale Schwankung
+st_srp_weapon_kick_up	Vertikaler Rückstoß
+st_srp_weapon_kick_up_variability	Vertikale Schwankung
+st_srp_weapon_minimum_damage	Minimalschaden
+st_srp_weapon_minimum_damage_from	Minimalschaden ab
+st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
+st_srp_weapon_reload	Nachladen
+st_srp_weapon_shift_hint	Shift halten: Details
+st_srp_weapon_spread_growth	Zunahme der Streuung
+st_srp_weapon_spread_max	Maximale Zusatzstreuung
+st_srp_weapon_spread_per_shot	Streuung pro Schuss
+st_srp_weapon_spread_recovery	Erholung der Präzision
+st_srp_weapon_stamina_damage	Energieschaden
+st_srp_weapon_stats	Waffenwerte
+st_srp_weapon_sway_cycle	Verwackelperiode
+st_srp_weapon_sway_horizontal	Horizontales Verwackeln
+st_srp_weapon_sway_vertical	Vertikales Verwackeln
+st_srp_weather_before_rain	vor dem Regen
+st_srp_weather_day	Tag
+st_srp_weather_evening	Abend
+st_srp_weather_night	Nacht
+st_srp_weather_rain	Regen
+st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
+st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.
+st_srp_weight_speed	Bewegungsgeschwindigkeit: %1$s
+st_srp_weight_sprint_stamina	Energiekosten beim Sprinten: %1$s
+st_srp_weight_title	Gewichtseffekte
+st_stamina_boost_name	Zweiter Atem
+st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:
+st_stamina_loss_on_hit_description	Energieverlust bei der Verwundung:
+st_stamina_loss_on_hit_name	Unaufhaltsam
+st_stamina_regen_correction_perc_name	Energie Wiederherstellung
+st_stamina_regeneration_speed_description	Geschwindigkeit der Energiewiederherstellung :
+st_stamina_regeneration_speed_name	Atmung
+st_stamina_spending_speed_description	Konsum der Energie:
+st_stamina_spending_speed_name	Ausdauer
+st_start_chat_action	Chat
+st_start_match_welcome_message	Finden Sie die Batterie und bringen Sie sie zur Base!
+st_start_match_welcome_message_2	Finden und beschützen Sie Aufladungs Platz der Batterien
+st_start_match_welcome_message_3	Zerstören Sie möglichst viel Gegner!
+st_start_match_welcome_message_5	Die Forschungsanlagen finden und ergreifen!
+st_statistic_sync_text	Statistik des Spieles wird berechnen
+st_statistics_daily_bonus	Daily bonus
+st_statistics_equipment_bonus	Der Ausruestungs Bonus
+st_statistics_exp	Bekommende Erfahrung
+st_statistics_money	Geld bekommen:
+st_statistics_rating_delta	Veränderung des Ratings  
+st_statistics_score	Gesammelten Punkte:
+st_statistics_score_game_events	Für die Handlungen im Kampf
+st_statistics_score_help	Hilfe für Verbündete:
+st_statistics_score_kills	Anzahl der zerstörter Gegner 
+st_statistics_score_match	Ergebnis des Spieles
+st_statistics_score_premium	Premium Konto
+st_statistics_score_quests	Für die erfüllte Aufgabe
+st_stats_accuracy	Genauigkeit:
+st_stats_artefacts_gathered	Artefakten gesammelt:
+st_stats_assists	Hilfe für Verbündete:
+st_stats_deaths	Tode:
+st_stats_headshots	Kopfschuss
+st_stats_healed	Geheilt:
+st_stats_items_defended	Batterien geschützt:
+st_stats_items_gathered	Gefunden Batterien:
+st_stats_kills	Totschläge:
+st_stats_max_killstreak	Multikill:
+st_stats_melee_kills	Nahkampf:
+st_stats_saved	Es ist gerettet:
+st_stats_silent_kills	unmerklichen Totschläge:
+st_stats_stolen_victory_items	Batterien gestohlen:
+st_status_str	Status:
+st_storage	Lager
+st_string_pattern_error	Der Name enthält unkorrekte Symbole oder ist zu lang
+st_support	Support:
+st_survival_notes	Notizen vom Überlebenden
+st_survival_notes_complete	Sie beendeten
+st_survival_skills_label	Fertigkeiten des Überlebens
+st_sv_98_description	Description is not ready!!!
+st_sv_98_name	SV-98
+st_svd_description	Das SWD (Scharfschätzengewehr von Dragunow) unter die Patrone 7.62N...54. Es war langen Jahre ein Hauptscharfschützengewehr der Armee der UdSSR. Ist mit dem Käfig für 5 Patronen ausgestattet.
+st_svd_name	SVD
+st_swear_clan_string	Zeile enthält zensierte Sprache
+st_swearing_claim	Unflätige Lexik
+st_team_already_has_commander	Bei der Klan Mannschaft gibt es schon einen Kommandeur.
+st_team_member_is_not_commander	Dieser Team-Mitglied ist kein Kommandant.
+st_texture_quality_option	Texturen Qualität
+st_there_is_no_item_in_inventory	Objekt war am Lager nicht gefunden
+st_thief_item	Container zu ergreifen
+st_throw_grenade_action	Granate werfen
+st_time_current	Die Auslese der Spieler:
+st_time_was_resynchronized	Wiederherstellung der Verbindung...
+st_to_all	Für alle
+st_top100	Top 100
+st_total	Insgesamt:
+st_tournaments	Turnieren
+st_toz122_description	Der mehrladene Karabiner unter die Patrone 7.62N...51. Entstand speziell für die liebhaberische und professionelle Jagd. Ist mit dem Käfig für 5 Patronen ausgestattet.
+st_toz122_name	TOZ-122
+st_toz34_description	Die Büchse mit der senkrechten Anordnung der Stämme mit der Munition 12x70. Eine der ersten, serienmäßig hergestellten Büchsen. Unterscheidet sich durch das kleine Gewicht und hocher Gruppierung.
+st_toz34_name	TOZ-34
+st_toz66_description	Das Jagdgewehr mit abgesägtem Lauf und Doppelflinten für die Munition 12x70. Dank der Möglichkeit, zwei Schüsse gleichzeitig zu erzeugen - ist sie auf der nahen Distanz besonders wirksam.
+st_toz66_name	TOZ-66
+st_trap_damage	Schaden der Falle
+st_treasure_map_advert	Verwenden Sie die Karte Caches, um mehr Gegenstände zu finden.
+st_tt_description	Tuler Tokarews des Musters 1933 mit der Munition 7.62N...25 mm. Ist in 30er Jahren des zwanzigsten Jahrhundertes entwickelt und ist erste halbautomatische Pistole der armee- von UdSSR. Der Käfig enthält 8 Patronen.
+st_tt_name	TT-33
+st_turn_down_action	
+st_turn_left_action	
+st_turn_right_action	
+st_turn_up_action	
+st_tutorial_apply_ammo_message_1	Für Bestätigung drücken Sie bitte <tutorial_highlight>«Übernehmen»</tutorial_highlight> oder  <tutorial_highlight>«Rüstung ausblenden»</tutorial_highlight>.
+st_tutorial_choose_ammo_message_1	Die Anzahl der Patronen wir auf jeder Pakung angezeigt. Achten Sie darauf, dass Die Anzahl der Patronen in einer Packung je nach Typ der Patronen variieren kann. 
+st_tutorial_choose_ammo_message_2	Nehmen Sie die maximale Anzahl an Patronen.
+st_tutorial_choose_faction_message_1	Sie können gleichzeitig nur mit einer Gruppierung zusammenarbeiten.Um Reputations Punkte zu bekommen, gibt es zwei Möglichkeiten: Sich gut im Kampf zeigen oder Aufgaben von der Gruppierung lösen.
+st_tutorial_choose_faction_message_2	Zu einer Gruppierung beitreten.
+st_tutorial_choose_wpn_message_1	Sie können nur zwei Waffen in den Kampf mit nehmen. Wählen Sie sorgfältig die Waffen aus , die Sie mit in den Kampf nehmen wollen.
+st_tutorial_choose_wpn_message_2	Ziehen Sie den Karabiner Mossina oder\nPPS-41 in die leere Tasche für Waffen.
+st_tutorial_click_ammo_message_1	Erinnern Sie sich dran, dass Sie eine begrenzte Anzahl der Patronen tragen können. <tutorial_highlight> Drücken Sie den Knopf "Ausrüstung"</tutorial_highlight>, um manuell zu wählen, wieviel von welche Patronen Sie in den Kampf nehmen wollen.
+st_tutorial_click_inventory_message_1	Leider, ist der Wald nicht die einzige Gefahr der neuen Welt. Die Staaten sind gefallen, jetzt ist jeder für sich. Sie müssen für alles kämpfen: für das Essen, für die Medikamente, für das Recht, zu überleben. Die Waffen, die in altertümlichen Verstecken gefunden werden, sind nicht die beste Auswahl, aber  sie sind besser, als nichts.
+st_tutorial_click_inventory_message_2	Öffnen Sie den Tab "Objekte" um ihren Spieler auszurüsten.
+st_tutorial_complete_label	Herzlichen Glückwunsch! Sie haben das Tutorium beendet.
+st_tutorial_complete_reward_label	Ihre Belohnung für das Durchgehen:
+st_tutorial_equip_drop_message_1	Sie haben mehrere Möglichkeite neue Waffen oder Ausrüstung zu bekommen. Nach jedem  Kampf können sie die neue Gegenstände auf dem Kampffeld finden.Außerdem können Sie das Verhältniss mit Ihrer Gruppierung verbessern, um Zugang zu Ihren einzigartigen Waren zu bekommen.
+st_tutorial_equip_drop_message_2	Öffnen Sie das Fenster auswahl der Gruppierung
+st_tutorial_exit_warning	Wenn Sie das Tutorium verlassen, können Sie nicht zurückkehren und ein Preis bekommen. Sind Sie sicher?
+st_tutorial_press_play_message_1	Drücken sie den Knopf <tutorial_highlight>"Spielen"</tutorial_highlight>, um Ihren ersten Kampf zu beginnen. Um zusätzliche Informationen zu bekommen - empfehlen wir <tutorial_highlight>"Notizen vom Überlebenden"</tutorial_highlight>zu erkunden.
+st_two_handed	Wesentlich 
+st_ump45_description	Description is not ready!!!
+st_ump45_name	H&K UMP45
+st_unknown_faction	Neutral
+st_unlimited_upload	unbegrenzt
+st_use_action	Anwenden
+st_use_artefact_container	Das Artefakt erhalten ({USE})
+st_use_fix_voucher	Reparatur Kit
+st_use_item_message	Wollen sie den Gegenstand wirklich verwenden?
+st_use_ladder	Treppe
+st_use_microphone_option	Das Mikrofon nutzen.
+st_use_resupply_zone	Munition ergänzen ({USE})
+st_use_two_double_handed_weapons_description	Sie können in den Kampf zwei Zweihandwaffen nehmen.
+st_use_two_double_handed_weapons_name	Terminator
+st_using_progress_message	Fortschritt:
+st_uzi_description	Die Maschinengewehr Pistole mit der Munition 9N...19. Ist in 1954 für die Bedürfnisse der israelischen Armee entwickelt worden. Ist einer der Weltweite verbreitete Waffen Art . Unterstützt das einzelne und automatische Regime der Schießerei.
+st_uzi_name	Uzi
+st_uzi_premium_2_description	Die Maschinengewehr Pistole mit der Munition 9N...19. Ist in 1954 für die Bedürfnisse der israelischen Armee entwickelt worden. Ist einer der Weltweite verbreitete Waffen Art . Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
+st_uzi_premium_2_name	UZI "Schatten"
+st_val_description	Description is not ready!!!
+st_val_name	AS "Wal"
+st_valmet_description	Finnisches Sturmgewehr, Munition: 7,62x39. Von Valmet und Sako auf Grundlage der Kalaschnikow gebaut und 1962 bei den finnischen Streitkräften eingeführt, daher der Name. Bekannt für Präzision und Zuverlässigkeit unter arktischen Bedingungen. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_valmet_name	Valmet Rk.62
+st_vepr_12_description	Russische Selbstladeflinte, Kaliber 12. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-Maschinengewehrs gebaut; in den 2000er Jahren für Sportschießen, Jagd und Sicherheitsdienste eingeführt. Mit einem 8-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_vepr_12_name	Vepr-12
+st_vepr_12_premium_description	Russische Selbstladeflinte, Kaliber 12. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-Maschinengewehrs gebaut; in den 2000er Jahren für Sportschießen, Jagd und Sicherheitsdienste eingeführt. Mit einem 8-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_vepr_12_premium_name	Wildschwein-12 "Hammer"
+st_vepr_description	Description is not ready!!!
+st_vepr_name	Wildschwein
+st_vepr_premium_description	Russischer Karabiner der Wepr-Familie, Munition: 5,45x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-74-Maschinengewehrs gebaut. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_vepr_premium_name	Vepr "Der Wanderer"
+st_victory	Sieg
+st_victory_screen_no_dropped_item	Sie haben auf dem Schlachtfeld nichts gefunden.
+st_vityaz_bundle_descr	<white> Enthält folgende Verbesserungen:\n- verbessert PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>
+st_vityaz_bundle_name	Set PP-19-01 "Vityaz"
+st_vityaz_description	Die Maschinengewehr-Pistole unter der Munition 9N...19. Ist in 2004 speziell unter die Forderungen der Abteilung der Sondertruppen des Innenministeriums Russlands entwickelt. Unterstützt das einzelne und automatische Regime der Schießerei.
+st_vityaz_name	PP-19-01 Vityaz
+st_voice_chat_volume_option	Voice Chat
+st_vsk94_description	Description is not ready!!!
+st_vsk94_name	VSK-94
+st_vsk94_premium_description	Russisches Scharfschützengewehr, Munition: 9x39. In den 1990er Jahren vom KBP in Tula auf Grundlage des 9A-91 entwickelt, mit Schalldämpfer und Scharfschützenschaft; für leises Schießen auf kurze und mittlere Entfernung gedacht. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
+st_vsk94_premium_name	VSK-94 "der Hüter"
+st_vss_bundle_descr	<white>Enthält folgende Sachen:\n- Verbessert VSS "Vintorez" \n- 1000 9x39 SP-5 Patronen.</white>
+st_vss_bundle_name	Set VSS "Vintorez"
+st_vss_description	Description is not ready!!!
+st_vss_name	VSS "Vintorez"
+st_vssk_camo_description	Russisches Repetier-Scharfschützengewehr, Munition: 12,7x55. In den 2000er Jahren vom ZKIB SOO in Tula mit einem großen Schalldämpfer entwickelt, für Spezialeinheiten, die leise Schüsse auf Ziele hinter Deckung oder in Schutzwesten brauchen. Mit einem 5-Schuss-Magazin ausgestattet. Nur Einzelfeuer. Version mit einer besonderen Tarnlackierung.
+st_vssk_camo_name	SV-1367 "Abenddämmerung"
+st_vssk_description	Description is not ready!!!
+st_vssk_name	VKS "Auspuff"
+st_vsync_option	Vertikalsynchronisations
+st_vz58_description	Tschechoslowakisches Sturmgewehr, Munition: 7,62x39. Von Jiří Čermák konstruiert und 1958 eingeführt; es sieht einer Kalaschnikow ähnlich, hat aber einen eigenen Kurzhub-Gaskolben und einen eigenen Verschluss. Die Version P hat einen festen Holzschaft. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
+st_vz58_name	vz. 58 P
+st_waiting_for_players	Warten auf andere Spieler:
+st_walther_competition2_collimator_desc	Deutsches Rotpunktvisier von Walther, ursprünglich für das Sportschießen entwickelt. In seinem Rohrgehäuse leuchtet ein Zielpunkt.
+st_walther_competition2_collimator_name	Competition II Kollimator
+st_wasted	Kosten
+st_weapon_aim_action	Zielen (halt.)
+st_weapon_could_not_be_used	Verwundung der Hände! Es ist unmöglich, die Waffen zu verwenden
+st_weapon_fire_action	Schießen
+st_weapon_reload_action	Nachladen
+st_wear	Anziehen
+st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.
+st_weight_booster_name	 Anomalie Starke
+st_winchester1894_description	Entwickelt vom amerikanischen Konstrukteur im Jahre 1894, wurde das vorliegende Gewehr bis 2006 ausgegeben, was zugelassen hat, eines der bekanntesten und populären Jagdgewehre zu werden. Ist mit dem Rohrgeschäft auf 6 Patronen ausgestattet.
+st_winchester1894_name	Winchester 1894
+st_wrong_skill_points_count	Falsche Fähigkeiten Anzahl
+st_wrong_symbol_clan_string	Zeile enthält nicht druckbare Zeichen
+st_you_have_no_voucher_for_premium	Sie haben kein Formular für den Premium Konto.
+st_you_have_no_voucher_for_rename	Sie haben kein Name wechseln Formular.
+st_you_have_no_voucher_for_repair	Sie haben keinen Reparatursatz
+st_youtube_video_tutorial_button	Schauen sie Video Tutorial an!

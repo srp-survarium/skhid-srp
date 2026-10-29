@@ -27,7 +27,7 @@
 use session::LockExt;
 use session::v026g::rewards::MatchReport;
 use session::v026g::{bonus, names, premium, quests, wire};
-use survarium::v026g::lobby::requests::id;
+use survarium::v026g::lobby::requests::{INVENTORY_SLOT, id};
 use survarium::v026g::lobby::{self, NameRefusal};
 
 use super::core::{Core, Who};
@@ -142,10 +142,24 @@ impl Core<'_> {
                 self.send_made(who.addr, lobby::permitted_bought(&bought));
                 self.push_account(who);
             }
-            Err(error) => {
-                log::info!("{}: purchase refused: {error}", who.name);
-                self.deny(who.addr, id::SHOP, error.text_key());
-            }
+            Err(error) => self.refuse_purchase(who, &error, error.text_key(), target_slot),
+        }
+    }
+
+    /// A `47 00` refused: the game's text, and for a buy dropped on a slot
+    /// the account again, as the game locked the paper doll for it and only
+    /// the account unlocks it (`on_profile_changed` 0x222330).
+    pub(super) fn refuse_purchase(
+        &mut self,
+        who: &Who,
+        why: &dyn std::fmt::Display,
+        text_key: &str,
+        target_slot: u8,
+    ) {
+        log::info!("{}: purchase refused: {why}", who.name);
+        self.deny(who.addr, id::SHOP, text_key);
+        if target_slot != INVENTORY_SLOT {
+            self.push_account(who);
         }
     }
 

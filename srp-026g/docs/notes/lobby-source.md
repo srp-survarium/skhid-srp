@@ -169,8 +169,9 @@ Ctrl+F over an item list ([item-search.md](item-search.md)), written in the clas
 - Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the
   list: `LobbyMenu.windowKeysOff`; the Ctrl keys: `onKeyDownStage`, `onKeyUpStage`,
   `MainScene.isCtrl`, `KeyCode`;
-- the box's words in the five languages are the code's own (`InventoryList.SEARCH_WORD`, the
-  language by `RoomsText.language`); no content edit.
+- the empty box's word is the dictionary's `st_srp_inventory_search`
+  (`client-patches/localization`); the item-kind words of every language are the code's own
+  (`InventoryList.SEARCH_KINDS`: search words, any language matches).
 
 ## Scaleform pitfalls
 

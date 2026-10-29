@@ -209,23 +209,23 @@ package survarium.rooms
         internal function render():void
         {
             var y:Number = 50;
-            look.text(look._content, win.say("name").toUpperCase(), 14, y, 100, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_name").toUpperCase(), 14, y, 100, 12, RoomsLook.DIM);
             look.text(look._content, myName(), 110, y - 3, FORM_W - 110, 17, RoomsLook.LIGHT);
             y += 30;
-            look.text(look._content, win.say("pin").toUpperCase(), 14, y + 4, 100, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_pin").toUpperCase(), 14, y + 4, 100, 12, RoomsLook.DIM);
             _makePin = look.input(look._content, 110, y, _makePinText);
             _makePin.addEventListener(Event.CHANGE, onPinChange, false, 0, true);
-            look.text(look._content, win.say("pinHint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
+            look.text(look._content, win.say("st_srp_rooms_pin_hint"), 190, y + 4, FORM_W - 190, 14, RoomsLook.GREY);
             y += 38;
             // Only private rooms can be made by hand; public rooms grow
             // with Play's demand. A private room is started by its owner.
-            look.text(look._content, win.say("privateRoom"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
+            look.text(look._content, win.say("st_srp_rooms_private_room"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
             y += 48;
             // The modes the server's pool offers, in MODE_ORDER: the three kinds
             // of protective device apart (plain, chargers, blackout), team
             // deathmatch and Research; a mode out takes all its entries out of
             // the pool. Rows of 24 px: four fit where three of 30 did.
-            look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
+            look.text(look._content, win.say("st_srp_rooms_modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
             var offered:Array = poolModes();
             for (var mi:int = 0; mi < offered.length; mi++)
@@ -253,7 +253,7 @@ package survarium.rooms
                 y += 24;
             }
             win.message(look._h - RoomsLook.FOOT_H - 30);
-            var made:Array = look.footer([[win.say("back"), onBack, null], [win.say("create"), onCreate, null]]);
+            var made:Array = look.footer([[win.say("st_srp_rooms_back"), onBack, null], [win.say("st_srp_rooms_create"), onCreate, null]]);
             // No map chosen: nothing to make, the button is off.
             _createButton = made[1];
             _createButton.enabled = poolChosen() && _makePinText.length == RoomsWire.PIN_DIGITS;
@@ -300,11 +300,11 @@ package survarium.rooms
             for (var t:int = 0; t < tiles.length; t++)
                 if (tiles[t].on)
                     on++;
-            look.text(look._content, win.say("pool").toUpperCase() + ": " + on + " / " + tiles.length,
+            look.text(look._content, win.say("st_srp_rooms_pool").toUpperCase() + ": " + on + " / " + tiles.length,
                 x0 + 16, 58, 260, 16, RoomsLook.LIGHT);
-            look.text(look._content, win.say("poolHint"), x0 + 230, 60, w - 430, 14, RoomsLook.GREY);
-            look.button(look._content, win.say("all"), x0 + w - 190, 54, 84, onAll, true);
-            look.button(look._content, win.say("nothing"), x0 + w - 100, 54, 84, onAll, false);
+            look.text(look._content, win.say("st_srp_rooms_pool_hint"), x0 + 230, 60, w - 430, 14, RoomsLook.GREY);
+            look.button(look._content, win.say("st_srp_rooms_all"), x0 + w - 190, 54, 84, onAll, true);
+            look.button(look._content, win.say("st_srp_rooms_nothing"), x0 + w - 100, 54, 84, onAll, false);
             // The maps in the pool's order, each with its weathers.
             var rows:Array = [];
             var at:Object = {};
@@ -369,7 +369,7 @@ package survarium.rooms
                     edge.graphics.lineStyle(2, one.on ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
-                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : ""),
+                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("st_srp_rooms_experimental").toUpperCase() : ""),
                         0, ch - 22 + 3, cw, 12, 0xFFFFFF, "center");
                     chip.buttonMode = true;
                     chip.mouseChildren = false;

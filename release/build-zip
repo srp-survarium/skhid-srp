@@ -13,7 +13,7 @@
 #      SKHID_REVISION=<n>: their version resource says it), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
 #      --required-patches=<the list's> --server=$SKHID_GAME_SERVER
-#      --site=$SKHID_SITE --localization=$SKHID_LOCALIZATION (no
+#      --site=$SKHID_SITE (no language: the game keeps its own, patch 79; no
 #      resources.db regions: patches come from the server's /patches), and
 #      patch_026g.py --revision=<n> --required-patches=<the list's> without
 #      a server, for the record's second hash (both in the dev shell: the
@@ -60,7 +60,7 @@ done
 need_cmds git nix curl sha256sum od
 [[ -z $revision ]] || is_revision "$revision" || die "--revision $revision: a revision is 1 to 255"
 lower_priority
-load_env SKHID_GAME SKHID_SITE SKHID_LOCALIZATION
+load_env SKHID_GAME SKHID_SITE
 if ((test_server)); then
     load_env SKHID_TEST_GAME_SERVER SKHID_TEST_SITE
     server=$SKHID_TEST_GAME_SERVER site=${SKHID_TEST_SITE%/}
@@ -137,8 +137,7 @@ if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.e
 # In the checkout's dev shell (client_patches_python): the exe's arena
 # (`.srpx`) is linked from its sources there, with the lock's tools.
 { client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
-    --revision="$revision" --required-patches="$required" --server="$server" --site="$site" \
-    --localization="$SKHID_LOCALIZATION" &&
+    --revision="$revision" --required-patches="$required" --server="$server" --site="$site" &&
     client_patches_python "$work/src" patch_026g.py "$original" "$work/without-server.exe" \
         --revision="$revision" --required-patches="$required"; } >"$work/make_client.log" 2>&1 || {
     tail -n 30 "$work/make_client.log" >&2

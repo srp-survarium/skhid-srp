@@ -1580,7 +1580,7 @@ A player's asks (board T29): number keys for the kit choice before a respawn (mi
 - **Why kit 3 came after a death** (PROVEN, the owner's report 2026-10-25: "I often press 3 mid-fight to heal with the medkit, I die, and I swap to my 3rd kit"). Not a held key (that is kind 3, which the hook let by), and no queue of the patch's own: the hook asked the cursor when the key was handed out, not when it went down. A tick hands out what its poll got, every key that went down since the poll before; the death turns the hud to the kits in the game world's update after that poll. So the first tick on the death screen handed out, as kind 1 with the cursor shown, the key 3 pressed in play in the frame of the death (after that frame's poll), and `select_kit_key(2)` picked kit 3 at once: `profile_changed` queues the kit input (0xDE) for the next send, and the server makes it the next life's kit at its tick (§3.29); only another pick undoes it. The keys were taken in every state with the cursor: the death screen from the first tick after the death through the respawn countdown (the death camera is that screen, patch 46), and the kits before the start (patch 31). Run on main's build (rev 34) with the game's tick: 3 held at the death, nothing; 3 pressed or tapped in the death's frame, kit 3.
 - **The patch, the kits' first 300 ms** (`MATCH_KEYS_POLL_SLOT`, SLOT at 0x9FC59C, `ret 4` 0x75AF0 -> `match_keys_poll`): the slot runs after each poll, before its keys are handed out, and moves `kit_keys` (match_keys.state) by the cursor (+2E0h) and GetTickCount (its import 0x870090, as bake_cache's): hidden CLOSED (`kit_keys_since` cleared); shown, from CLOSED OPENING with the time now in `kit_keys_since` (the kits came after the last poll: a key of this one may have gone down before them); from OPENING OPEN once now - since (unsigned, over the wrap) is `KIT_KEYS_DELAY` (300 ms) or more, else OPENING; from OPEN OPEN. The owner's rule (2026-10-25, after the first version, which opened at the next poll): a player still pressing 3 to heal just after the death presses on the kits before seeing them, so the keys pick nothing for 300 ms after the kits appear. `match_keys_keyboard` picks only in OPEN (and with the cursor still shown). OPEN comes at a later poll than the one that saw the kits, so a key pressed in their frame is OPENING's; a key pressed in their first 300 ms (less a frame: a press is taken at the poll that hands it out) is OPENING's; held, either makes no kind 1 until let go and pressed again. The same holds for the kits before the start. Nothing else changes: the keys go on to the game as before (1/2/3 the quick slots in play). The pointer in .rdata is the vtable's, under a base relocation already (the exe is never rebased).
 - **The option** (PROVEN). The gameplay options (`options_tab::options_tab` 0x262300, tab 0) make option 4 at 0x262454: `options_item_bool` (vtable 0xA06744) named "g_private_messages_in_game" (0xA064FC, in the exe there alone), labelled `st_private_messages_in_game_option`. `options_item_base::options_item_base` (0x260E90) looks its command up by name (0xEB7C0, the list 0x1F1D66C) and logs a warning when there is none: there is none, so the option has no value and nothing reads it; `main_menu.swf`'s timeline greys its checkbox (`_no_in_batle.enabled = false`, as the other social options, which are dead the same way: g_invite_from_friends, g_friends_signin_notification, g_messages_only_from_friends, g_hide_spam). The options are made by `game_options::on_resources_ready` (from `game_options::initialize` 0x1FFC10, called at 0x1EAC7C after the base resources).
-- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; the content edit `match-chat-off-1.json` labels it "Hide chat in match".
+- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; `client-patches/localization/*.tsv` labels it "Hide chat in match".
 - **The patch, the lines** (`MATCH_KEYS_HOOKS[2]`, CALLEE at 0x26B916, `call 0x208AD0` -> `call match_keys_chat`): `process_incoming_text_message` (0x26B6F0, message 0xA2) gives every line it shows to `chat_handler::add_message` (0x208AD0; stdcall: the handler, the channel, the body, the name, the tag; `ret 14h`). `chat_handler::set_mode` (0x209430) sets the handler's movie (+14h) and +0Dh: 1 with the hud (the game world's `on_activate`, 0x1F93C5), 0 with the lobby's (0x21D34F); add_message gives channels 1 and 4 to the lobby's movie while +0Dh is set. `match_keys_chat`: option on, +0Dh set and channel 3 or 5..9 -> `ret 14h` (eax not kept: add_message's own eax is garbage, the caller's next call `add_to_recent_list` 0x209330 takes the name and edi); else `jmp 0x208AD0`. The server relays a line to everyone but its sender (`relay`, `**id != from`), and the sender's own line is shown by the local echo (`messaging_client` 0x26ADF4, another call): it stays.
 - **What changes:** in a match, keys 1, 2 and 3 pick kit 1, 2 and 3 on the kit screen (the key also reaches the player's handler as before, which a dead player's game does not send); with "Hide chat in match" checked, no other player's line appears in the match chat. No simulation change.
 - **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): the poll's ten cases (299 and 300 ms, over GetTickCount's wrap too), 216 key cases (each state of `kit_keys`), 64 input-tick runs of the game's own tick and keyboard process (keys 1 to 4, GetTickCount from 1000 and from before its wrap: pressed 100 and 250 ms after the kits appear, none; 350 ms after, a pick; pressed at 100 ms and held into OPEN, none until let go and pressed again; held into the kits; pressed in their frame; in play; a respawn and a death), the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
@@ -2366,3 +2366,140 @@ removed when the native effect ends. Waiting maps to the existing gray icon and
 filled cooldown sector. Active displays only ceiling seconds in the native
 countdown field; no custom outlined ring is added. Artefacts retain their
 native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
+
+### Lobby weight explanation
+
+`weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
+`weight_ui.state` arena blocks. The jump at 0x22110F saves the machine state,
+reads the current lobby's player stamina config, replays `mov eax,[esi+108h]`,
+then continues at 0x221115. The call at 0x2222EB replaces only the lobby weight
+GFx invocation: the original movie arguments supply current and modified maximum
+weight; `engine_apply_modifier` (0x2D5AE0) on `profile + F4h + kit * 704h`
+supplies modifiers 26, 31 and 32, matching the stamina calculation. The profile
+equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
+switch crashes with equipped gear, now covered by the native regression check.
+The callback gains movement/spending fractions and sprint state
+(0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It retains the original two arguments if the config is unavailable or invalid.
+The shim preserves registers, flags and floating-point state and returns with
+the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
+the original callback and kit evaluator; `data.md` records the formula evidence.
+No gameplay calculation or release revision changes.
+
+### Knowledge database link
+
+The lobby's Knowledge database button keeps its confirmation dialog and native
+`go_to_knowledge_base` callback (0x28CAB0), but opens
+`https://026g.skhid.link/wiki`. `KNOWLEDGE_BASE` replaces the fixed URL prefix at
+0xA0A7A8 and NOPs the two `strcat_s` calls at 0x28CBA3/0x28CBB7 that appended
+the old support site's language and path. Their argument pushes and cdecl stack
+cleanup remain paired. ShellExecuteA, `AL=1`, and `ret 4` stay unchanged. The wiki
+uses browser language selection and its own language switch. No new code arena
+is needed for these constant-data/in-place removals. `check_knowledge_base_026g.py`
+executes the original and patched callback in every game language, capturing
+the browser call and checking its URL, arguments, preserved ESI and stack.
+
+### Weapon detail cards
+
+`weapon-details-ui-1.json` copies each weapon's existing configuration values
+into non-comparable UI properties 138–159; it changes no simulation parameters.
+`WeaponDetails.as` reads those values for inventory and shop cards. The compact
+card replaces the ambiguous distance row with the full-damage distance and the
+minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
+draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
+spread/recovery and sway. Wear rates and reliability are deliberately excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded.
+
+Recoil and spread are not labelled degrees: the native recoil loader at
+0x331840 divides horizontal config values by 21.48 and vertical values by
+63.735. The dispersion loader at 0x330EE0 copies growth and recovery rates
+directly, as the breath loader at 0x2DEBC0 does for amplitudes and period.
+The UI reports each weapon's own base recoil/spread/sway values, named in each
+language's own recoil, spread and sway words (the stock dictionary's: Russian
+отдача, разброс, раскачивание). Vertical (initial upward) recoil
+shows `[min_top, max_top]`; horizontal (initial sideways) recoil shows
+`[min_right - max_left, max_right - min_left]`, matching the engine's independent
+right-minus-left draws. Variability is the standard deviation: upward range
+width divided by `sqrt(12)`, sideways `sqrt((right_width² + left_width²) / 12)`.
+These describe the initial shot impulse before accumulation and recovery.
+Signed sideways ranges stay neutral; lower variability compares as better.
+Upward ranges compare as better only when both endpoints are no higher and at
+least one is lower, using displayed precision; crossing ranges stay neutral.
+The values are relative configuration units, not degrees.
+An early AK-74M = 100% benchmark was removed because it looked like a
+weapon parameter and obscured the actual values.
+Missing detail metadata retains the original distance row. Native card layout
+owns resizing, and lobby positioning is refreshed when Shift changes its height.
+
+Focused check: `scripts/weight-ui/check_ui.sh <lobby.swf> <output-dir>
+scripts/weapon-details/WeaponDetailsHarness.as DETAILS` exercises native card
+expansion/collapse, comparison colors, translated heights, base values and old
+content fallback. In every language, compact and expanded, and beside the widest
+values of the live weapons (MSBS: -0.58…0.58, 1.98…2.2), every label is one line
+ending left of its value and every heading one line, with 5% of the width to
+spare (Ruffle lays out the embedded Calibri close to, not exactly as, Scaleform);
+each miss is printed as a `DETAILS OVERFLOW` line. A label that would not fit
+wraps before its value rather than under it (`LabelDiffIndicator`), the row
+taking the lines. The existing weight harness also checks the shop constructor.
+
+Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
+`WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,
+transforms and original row spacing from `ItemCompare`.
+An initial dynamic `TextField` copied from the empty description rendered with
+tiny black fallback text in Scaleform despite looking legible in Ruffle.
+An intermediate fix still overrode the original gray/bold labels, gold numbers
+and column geometry. `LabelDiffIndicator.setDetailText` now follows the original
+formatter and only substitutes the read-only value string and hides bars (these
+base fields have no comparison ranges). Native unit spacing is retained; long
+notes wrap at the original columns. The harness compares font, size, boldness,
+alignment, color, global text scale, columns and row spacing against the card's
+original rows, as well as checking value and frame bounds in every language (the texts are
+`st_srp_weapon_*` and `st_srp_unit_*` dictionary keys, localization/README.md).
+
+Headings and the Shift hint are separate caption entries,
+rendered with native embedded-font fields by `WeaponDetailCaption`; headings
+have brighter, larger text on a near-black divider band, while the Shift hint is muted gray.
+Only numeric entries use the stat-row formatter. Comparison cards reserve the
+larger of each pair's wrapped label heights. Missing `from_the_hip_multiplier`
+now displays 1x (including Kiparis), matching the loader's 0x330FE3 branch to the
+1.0 constant at 0xA70884, rather than omitting the row and shifting every later
+stat. The harness verifies matching row positions and caption contrast as well.
+Compared weapon cards also reserve the larger natural header height, including
+wrapped optics descriptions, so their original and added stats align. Returning
+to a single card restores its natural header. The redundant "Weapon modifiers
+only" note is omitted. Early comparison resize events wait for the three bonus
+list containers as well as their data providers before laying out the card.
+
+Each stat has a stable property id and an explicit comparison direction. Higher
+damage/range and recovery rate are better; lower times, recoil, spread and sway
+amplitudes are better. Zoom and sway period are neutral traits. Draw/holster,
+damage-floor distance/amount and horizontal/vertical sway have separate rows so
+one value cannot inherit another value's color. The native row formatter supplies
+red/green; equal displayed values retain the original neutral color (comparison
+scores use display precision, avoiding float-noise differences).
+Holding Ctrl suppresses comparison colors and difference bars in both original
+and added card rows, independently of Shift's expanded view. Releasing Ctrl
+restores comparisons without changing values. The harness covers both key orders
+and restores both original and added colors.
+
+Audit of all 83 weapon configurations: none of these displayed parameters is
+constant across every weapon. The minimum damage fraction is the closest: 60%
+for 82 weapons, 80% for Winchester 1894. No varying stat was removed as a constant.
+
+`WeaponDetails.read` applies only `item.modifiers` (already containing defaults),
+never the profile, gloves or other equipped items. Property 24 scales both
+falloff distances by `max(0, 1 + sum)`; property 114 scales weapon reload time by
+`max(0, 1 - sum)`. The opposite reload sign is explicit in weapon modification
+2040..2044 and defect 3040: the UI calls a reload improvement positive while its
+config change to `parameters/reload_time` is negative. The native type-2 operator
+at 0x358010 sums percentages, clamps `1 + sum` at zero, then multiplies the base.
+Values are copied before modification and comparisons use the resulting values.
+
+Existing data issue, deliberately not masked by UI: recoil modifications
+2080..2084 and defect 3060 target `max_first_shoot_*` / `*_queue_shoot_*` fields,
+absent from current weapons' recoil blocks. `find_modifier_target` 0x2F1430
+returns null for missing paths; the cook skips them at 0x2F1ABF. Current recoil
+loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
+The card therefore does not invent a recoil reduction. Likewise a base-dispersion
+upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+separate view FOV does not change the explicitly labelled base aim-zoom parameter.

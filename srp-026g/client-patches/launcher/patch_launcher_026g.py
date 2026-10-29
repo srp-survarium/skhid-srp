@@ -135,6 +135,12 @@ STRINGS = [
     (0x3EA90, "Can't run survarium_updater from service nor directly",
      f"Cannot start {UPDATER_NAME}. Copy the files again.",
      "the message when the updater cannot be started"),
+    # The game keeps its language in user.cfg (Settings, exe patch 79): PLAY
+    # passes none, so the choice made there holds; the game falls back to
+    # this menu's language until one is made. swprintf ignores the language
+    # word it is still given.
+    (0x3F1C0, "\"%s\" -localization=%s ", "\"%s\" ",
+     "get_game_launch_parameters: PLAY's command line without -localization"),
 ]
 
 # The title of the box that shows an updater's error text (ASCII).

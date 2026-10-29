@@ -700,7 +700,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 36
+REVISION = 37
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1189,7 +1189,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language")
 
 
 def rust_hooks(original):
@@ -1402,6 +1402,19 @@ REPLAY_LINK_VA = SECTION_VA + REPLAY_LINK_OFFSET
 REPLAY_LINK_HANDLER = 0x28CDA0
 REPLAY_LINK_HOOK = (0x28CDB6, bytes.fromhex("6a016a006a00"), 0, 0xE9)
 REPLAY_LINK_BUFFER = 0x1E6144                 # in the lobby client
+
+# The Knowledge database callback (0x28CAB0) copies this fixed prefix to
+# its stack, appends ru/en and /Knowledgebase/List, then ShellExecuteA's it.
+# Keep the native browser call and stack cleanup, but skip both appends:
+# the wiki chooses its language from the browser and its own language switch.
+KNOWLEDGE_BASE_URL = b"https://026g.skhid.link/wiki"
+KNOWLEDGE_BASE_ORIGINAL = b"https://support.survarium.com/index.php?/\0"
+KNOWLEDGE_BASE = (
+    (0xA0A7A8, KNOWLEDGE_BASE_ORIGINAL,
+     (KNOWLEDGE_BASE_URL + b"\0").ljust(len(KNOWLEDGE_BASE_ORIGINAL), b"\0")),
+    (0x28CBA3, bytes.fromhex("e8d3a31900"), b"\x90" * 5),
+    (0x28CBB7, bytes.fromhex("e8bfa31900"), b"\x90" * 5),
+)
 
 # One upgrade on several items (patch 30, client_patch.md section 3.28):
 # shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
@@ -2376,6 +2389,14 @@ INSTALLS = {
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
 }
+# Explain weight in the lobby; presentation only, no simulation changes.
+WEIGHT_UI_HOOKS = (
+    (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
+    (0x2222EB, bytes.fromhex("e810f32e00"), "weight_ui_display", 0xE8),
+)
+INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
+INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2562,6 +2583,8 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
+    ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
+    ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
     ArenaBlock("research.code", "code", 0x1000,
                ("research_026g.asm", "research_arena/Cargo.toml")),
@@ -3168,6 +3191,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     # Every build: `stage.focus` reads null for a focused object without its
     # ActionScript object (patch 52; no relocation under the 46 bytes).
     patch(data, *STAGE_FOCUS)
+    for va, expected, new in KNOWLEDGE_BASE:
+        patch_section_value(data, va, expected, new)
+    rewritten.extend((va, va + len(expected)) for va, expected, _ in KNOWLEDGE_BASE[1:])
     rewritten.append((STAGE_FOCUS[0], STAGE_FOCUS[0] + len(STAGE_FOCUS[1])))
     if mode == "hash-mismatch":
         if len(cave) > HASH_MISMATCH_SIZE:
@@ -3628,7 +3654,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
