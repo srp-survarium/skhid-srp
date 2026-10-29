@@ -20,6 +20,7 @@
 use std::ops::{Add, Div, Mul};
 use std::sync::Arc;
 
+use mapdata::Vec3;
 use survarium::v026g::damage::{self, ArmourParams};
 
 use super::hazards::Hazard;
@@ -299,6 +300,25 @@ impl Hazard {
         } else {
             damage.max_hit * 1000.0 / damage.interval_ms.max(1) as f32
         };
+        self.cost_of(damage, per_part, armour)
+    }
+
+    /// [`Self::cost_per_s`] by the client's rule for a body whose centre is at `point`: each part's hit
+    /// `max_hit x 1000 / interval_ms` at the zone's intensity there ([`mapdata::Damage::rate_at`]), the interval included. What
+    /// the bench's stand-in hurts its bodies with.
+    pub fn client_cost_per_s(&self, armour: &ZoneArmour, point: Vec3) -> Cost {
+        let Some(damage) = &self.damage else {
+            return Cost::body(f32::INFINITY);
+        };
+        if damage.part_names.is_empty() {
+            return Cost::body(self.hit_rate_at(point));
+        }
+        let d = mapdata::Shape::least_normalised_distance(&self.shapes, point);
+        self.cost_of(damage, damage.part_rate_at(d), armour)
+    }
+
+    /// The pools that kill, under `armour`, for `per_part` a second to each part the zone hits.
+    fn cost_of(&self, damage: &mapdata::Damage, per_part: f32, armour: &ZoneArmour) -> Cost {
         damage::human()
             .zone_hit(
                 &damage.part_names,
@@ -336,6 +356,7 @@ mod tests {
                 ..Damage::default()
             }),
             centre: Vec3::ZERO,
+            shapes: Vec::new(),
             control: Control::Static,
             activity: Activity::Always,
         }

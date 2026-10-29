@@ -115,6 +115,8 @@ pub struct Hazard {
     /// Its hit (`None`: not in the map file; taken as harmful).
     pub damage: Option<Damage>,
     pub centre: Vec3,
+    /// Its trigger shapes (`mapdata::Zone::shapes`): what the hit at a point is made from ([`Self::hit_rate_at`]).
+    pub shapes: Vec<Shape>,
     pub control: Control,
     pub activity: Activity,
 }
@@ -131,6 +133,16 @@ impl Hazard {
                 per_second,
             } => threshold > per_second * ENERGY_REACH_S,
         }
+    }
+
+    /// What a body whose centre is at `point` takes a second in the zone while it is on, before armour, by the client's
+    /// rule ([`mapdata::Damage::rate_at`] at the normalised distance from the zone's centre, the interval included): what
+    /// the bench's stand-in hurts its bodies with. Infinite when the map file gives no hit ([`Hazard::damage`]). The bots
+    /// still price [`Self::hit_per_s`].
+    pub fn hit_rate_at(&self, point: Vec3) -> f32 {
+        self.damage
+            .as_ref()
+            .map_or(f32::INFINITY, |damage| damage.rate_at(Shape::least_normalised_distance(&self.shapes, point)))
     }
 
     /// Its hit a second while on, at full intensity: a continuous zone's
@@ -417,6 +429,7 @@ impl Hazards {
                 damage_type: zone.damage_type.clone(),
                 damage: zone.damage.clone(),
                 centre: zone.position,
+                shapes: zone.shapes.clone(),
                 control: Control::Static,
                 activity: Activity::Always,
             });

@@ -950,4 +950,52 @@ mod tests {
         assert_eq!(raw.zone_pool_deaths, [0, 0, 0, 0]);
         assert!(raw.bodies[0].health <= 1e-3);
     }
+
+    /// The stand-in hurts a body by the client's rule (`zone_intensity`): the hit curve at the body's place in the zone and the
+    /// interval, `max_hit x intensity x 1000 / interval_ms` a second; off, the full hit with the interval ignored for a
+    /// continuous zone (the stand-in before). A sphere of 10 m with the straight curve of the radiation zones, a body 2.5 m
+    /// from its centre (d 0.25, intensity 0.75), a hit of 0.01 every 500 ms: 0.015 a second against the flat 0.01.
+    #[test]
+    fn the_stand_in_hurts_a_body_by_the_clients_rule_when_asked() {
+        use crate::v026g::bots::hazards::Hazards;
+        use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let feet = mapdata::Vec3::new(30.0, 0.0, 20.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            let up = 0.5 * mapdata::Body::default().stand_height;
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "radiation".into(),
+                team: -1,
+                position: feet,
+                damage_type: "radiation".into(),
+                damage: Some(Damage {
+                    max_hit: 0.01,
+                    interval_ms: 500,
+                    continuous: true,
+                    parts: 1,
+                    hit_curve: vec![(0.0, 1.0), (1.0, 0.0)],
+                    ..Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: feet + mapdata::Vec3::new(-2.5, up, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: mapdata::Vec3::new(10.0, 10.0, 10.0),
+                }],
+            });
+        });
+        let inside = Hazards::build(&world, 0.0);
+        let hurt_in_10_s = |client_rule: bool| {
+            let mut game = super::super::Game::new(world.clone(), &[0, 1], 1, None, None);
+            game.zone_intensity = client_rule;
+            game.bodies[0].feet = feet;
+            for _ in 0..(10.0 / super::super::TICK_S) as usize {
+                game.tick += super::super::TICK_MS;
+                game.zone_tick(&inside, &inside, true);
+            }
+            game.zone_hp
+        };
+        assert!((hurt_in_10_s(true) - 0.15).abs() < 0.005, "the client's rule: {}", hurt_in_10_s(true));
+        assert!((hurt_in_10_s(false) - 0.10).abs() < 0.005, "the flat hit: {}", hurt_in_10_s(false));
+    }
 }

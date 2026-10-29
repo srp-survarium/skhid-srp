@@ -156,6 +156,27 @@ pub struct Zone {
     pub shapes: Vec<Shape>,
 }
 
+impl Zone {
+    /// How far `point` is from the zone's centre towards its surface, `[0, 1]`: the least over its shapes
+    /// ([`Shape::normalised_distance`]), from 1 (the client's `collision_sensor` helper 0x307870 starts at 1.0 and keeps the
+    /// least of `damage_zone_shape::normalised_distance` 0x2F9860, PROVEN).
+    pub fn normalised_distance(&self, point: Vec3) -> f32 {
+        Shape::least_normalised_distance(&self.shapes, point)
+    }
+
+    /// The share of the zone's full hit a body at `point` takes: the hit curve at its normalised distance
+    /// ([`Damage::intensity`]); 1 for a zone with no damage.
+    pub fn intensity_at(&self, point: Vec3) -> f32 {
+        self.damage.as_ref().map_or(1.0, |damage| damage.intensity(self.normalised_distance(point)))
+    }
+
+    /// What a body whose centre is at `point` takes a second in this zone, before armour: [`Damage::rate_at`] at its
+    /// normalised distance; 0 for a zone with no damage.
+    pub fn hit_rate_at(&self, point: Vec3) -> f32 {
+        self.damage.as_ref().map_or(0.0, |damage| damage.rate_at(self.normalised_distance(point)))
+    }
+}
+
 /// A damage zone's hit (`damage_zone` config; the zone side of the hit is
 /// read in the client, 0x319AF0 / 0x31A410, PROVEN):
 /// - `continuous`: every tick `max_hit × intensity × dt / interval` to each
@@ -197,9 +218,38 @@ impl Damage {
         self.max_hit * f32::from(self.parts)
     }
 
+    /// What a body takes a second inside at full intensity, the client's rate: a continuous zone gives each part
+    /// `max_hit x intensity x dt / interval_ms` every tick, the others `max_hit x intensity` once an interval
+    /// (`damage_zone_core::tick` 0x319A70 -> 0x319AF0, PROVEN; the interval is the zone's `interval_in_msec`), so both are
+    /// `raw() x 1000 / interval_ms` a second. [`Self::raw`] is that rate only for an interval of 1000 ms, which every
+    /// shipped continuous zone has but Vector Laboratory's `death_damage_zone` (500 ms: twice `raw()`).
+    pub fn rate_per_s(&self) -> f32 {
+        self.part_rate_per_s() * f32::from(self.parts)
+    }
+
+    /// [`Self::rate_per_s`] for one part.
+    pub fn part_rate_per_s(&self) -> f32 {
+        // A continuous zone whose file gives no interval counts as 1000 ms (hand-made test zones; every shipped one gives it).
+        let interval_ms = if self.continuous && self.interval_ms == 0 { 1000 } else { self.interval_ms.max(1) };
+        self.max_hit * 1000.0 / interval_ms as f32
+    }
+
+    /// [`Self::rate_per_s`] at the zone's normalised distance `d` ([`Self::intensity`]).
+    pub fn rate_at(&self, d: f32) -> f32 {
+        self.rate_per_s() * self.intensity(d)
+    }
+
+    /// [`Self::part_rate_per_s`] at the zone's normalised distance `d`.
+    pub fn part_rate_at(&self, d: f32) -> f32 {
+        self.part_rate_per_s() * self.intensity(d)
+    }
+
     /// The hit curve at `d` (0 centre, 1 edge): linear between keys,
-    /// clamped to [0, 1]. Keys are Hermite in the game (GUESS: close
-    /// enough for a cost); no keys is 1.
+    /// clamped to [0, 1]; no keys is 1. The game evaluates the keys as a cubic
+    /// (0x25F30, PROVEN), but every shipped key's tangents lie on the chord to
+    /// its neighbour, so every segment is a straight line: the largest gap to
+    /// this function is 0.001 over all the shipped zones (`fx-zones-armour-re.md`
+    /// section 5).
     pub fn intensity(&self, d: f32) -> f32 {
         let d = d.clamp(0.0, 1.0);
         let curve = &self.hit_curve;
@@ -384,6 +434,34 @@ pub struct Shape {
 impl Shape {
     pub fn contains(&self, point: Vec3) -> bool {
         self.distance(point) <= 0.0
+    }
+
+    /// 0 at the shape's centre, 1 on its surface and beyond (the gauge of the convex shape: the point's distance from the
+    /// centre over the distance from the centre to the surface along the same ray): a sphere `|v| / r`, a box `max |v_i| / h_i`
+    /// in its own axes, a cylinder `max(rho / r, |y| / h)`. The client's `damage_zone_shape::normalised_distance` (0x2F9860)
+    /// divides the point's distance by a per-kind extent: the sphere's is its radius (PROVEN); the box (0x2F9050) and the
+    /// cylinder (0x2F9200) helpers were read only in part, so those two are LIKELY.
+    pub fn normalised_distance(&self, point: Vec3) -> f32 {
+        let d = point - self.center;
+        let at = |extent: f32, along: f32| if extent > 0.0 { along / extent } else { f32::INFINITY };
+        let gauge = match self.kind {
+            ShapeKind::Sphere => at(self.half.x, d.length()),
+            ShapeKind::Box => {
+                let local = self.rotation.transposed().apply(d);
+                at(self.half.x, local.x.abs()).max(at(self.half.y, local.y.abs())).max(at(self.half.z, local.z.abs()))
+            }
+            ShapeKind::Cylinder => {
+                let local = self.rotation.transposed().apply(d);
+                at(self.half.x, (local.x * local.x + local.z * local.z).sqrt()).max(at(self.half.y, local.y.abs()))
+            }
+        };
+        gauge.min(1.0)
+    }
+
+    /// The least [`Self::normalised_distance`] over `shapes`, 1 for none: a zone's (the client's helper 0x307870 keeps the
+    /// least over its shapes). The one place the zone's shapes are folded, for [`Zone`] and for a copy of its shapes.
+    pub fn least_normalised_distance(shapes: &[Shape], point: Vec3) -> f32 {
+        shapes.iter().map(|shape| shape.normalised_distance(point)).fold(1.0, f32::min)
     }
 
     /// Metres from `point` to the shape, 0 inside.
@@ -994,6 +1072,72 @@ fn anomaly_of(object: &ConfigValue) -> Anomaly {
 mod tests {
     use super::*;
     use crate::library::Face;
+
+    fn shape(kind: ShapeKind, half: Vec3) -> Shape {
+        Shape { kind, center: Vec3::new(10.0, 5.0, 10.0), rotation: Rotation::IDENTITY, half }
+    }
+
+    /// 0 at a shape's centre, 1 on its surface and beyond, the gauge in between (a cylinder: the larger of the radial and the
+    /// vertical share).
+    #[test]
+    fn a_shapes_normalised_distance_runs_from_its_centre_to_its_surface() {
+        let at = |dx: f32, dy: f32, dz: f32| Vec3::new(10.0 + dx, 5.0 + dy, 10.0 + dz);
+        let sphere = shape(ShapeKind::Sphere, Vec3::new(4.0, 4.0, 4.0));
+        assert_eq!(sphere.normalised_distance(at(0.0, 0.0, 0.0)), 0.0);
+        assert!((sphere.normalised_distance(at(2.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
+        assert_eq!(sphere.normalised_distance(at(0.0, 9.0, 0.0)), 1.0);
+        let cylinder = shape(ShapeKind::Cylinder, Vec3::new(10.0, 2.0, 10.0));
+        assert!((cylinder.normalised_distance(at(5.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
+        assert!((cylinder.normalised_distance(at(1.0, 1.8, 0.0)) - 0.9).abs() < 1e-6, "the vertical share is the larger");
+        let cuboid = shape(ShapeKind::Box, Vec3::new(4.0, 1.0, 2.0));
+        assert!((cuboid.normalised_distance(at(1.0, 0.0, 1.0)) - 0.5).abs() < 1e-6);
+    }
+
+    /// The client's rate is the hit over the interval, a second's worth whatever the interval: Vector Laboratory's
+    /// `death_damage_zone` (0.2 x 4 parts, 500 ms, continuous) takes 1.6 a second at its centre, the 1000 ms zones their `raw()`.
+    #[test]
+    fn a_zones_rate_is_its_hit_over_its_interval_at_its_intensity() {
+        let death = Damage { max_hit: 0.2, parts: 4, interval_ms: 500, continuous: true, hit_curve: vec![(0.0, 1.0), (1.0, 0.0)], ..Damage::default() };
+        assert!((death.rate_per_s() - 1.6).abs() < 1e-6 && (death.raw() - 0.8).abs() < 1e-6);
+        assert!((death.rate_at(0.75) - 0.4).abs() < 1e-6);
+        let anomaly = Damage { max_hit: 0.08, parts: 4, interval_ms: 1000, continuous: true, ..death.clone() };
+        assert_eq!(anomaly.rate_per_s(), anomaly.raw());
+        let pulse = Damage { continuous: false, ..death };
+        assert!((pulse.rate_per_s() - 1.6).abs() < 1e-6, "a hit each 500 ms is 2 hits a second");
+        let zone = Zone {
+            kind: ZoneKind::Damage,
+            name: "z".into(),
+            team: -1,
+            position: Vec3::new(10.0, 5.0, 10.0),
+            damage_type: "radiation".into(),
+            damage: Some(anomaly),
+            shapes: vec![shape(ShapeKind::Sphere, Vec3::new(4.0, 4.0, 4.0))],
+        };
+        assert!((zone.hit_rate_at(Vec3::new(12.0, 5.0, 10.0)) - 0.32 * 0.5).abs() < 1e-6);
+        assert_eq!(Zone { damage: None, ..zone }.hit_rate_at(Vec3::new(10.0, 5.0, 10.0)), 0.0);
+    }
+
+    /// A zone's intensity is its hit curve at the least normalised distance over its shapes: Vector Laboratory's radiation
+    /// zones fall in a straight line from 1 at the centre to 0 at the rim.
+    #[test]
+    fn a_zones_intensity_is_its_hit_curve_at_its_normalised_distance() {
+        let zone = Zone {
+            kind: ZoneKind::Damage,
+            name: "logic/anomaly/anomaly_damage_zone".into(),
+            team: -1,
+            position: Vec3::new(10.0, 5.0, 10.0),
+            damage_type: "radiation".into(),
+            damage: Some(Damage { max_hit: 0.08, hit_curve: vec![(0.0, 1.0), (1.0, 0.0)], ..Damage::default() }),
+            shapes: vec![
+                shape(ShapeKind::Cylinder, Vec3::new(10.0, 2.0, 10.0)),
+                Shape { center: Vec3::new(40.0, 5.0, 10.0), ..shape(ShapeKind::Sphere, Vec3::new(2.0, 2.0, 2.0)) },
+            ],
+        };
+        assert!((zone.intensity_at(Vec3::new(15.0, 5.0, 10.0)) - 0.5).abs() < 1e-6);
+        assert!((zone.intensity_at(Vec3::new(10.0, 5.0, 10.0)) - 1.0).abs() < 1e-6);
+        assert_eq!(zone.intensity_at(Vec3::new(25.0, 5.0, 10.0)), 0.0);
+        assert!((zone.intensity_at(Vec3::new(41.0, 5.0, 10.0)) - 0.5).abs() < 1e-6, "the nearer shape counts");
+    }
 
     #[test]
     fn filters_follow_the_engine_groups() {
