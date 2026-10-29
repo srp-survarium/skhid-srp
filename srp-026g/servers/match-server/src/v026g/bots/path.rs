@@ -537,7 +537,7 @@ pub fn plan_in(
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, from, to, allowed, region_ok, None, &mut iters) {
+    match plan_start(grid, regions, from, to, allowed, region_ok, None, None, &mut iters) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }
@@ -547,6 +547,9 @@ pub fn plan_in(
 /// queries: it goes on in [`Planning::resume`].
 pub struct Planning {
     search: RouteSearch,
+    /// Its floors are weighed (a cost search, `RouteFilter::weight`): its
+    /// route is pulled straight over floors of weight 1 only ([`finish`]).
+    weighted: bool,
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
@@ -556,8 +559,10 @@ pub struct Planning {
 /// [`plan_in`] for a body whose jumps rise at most `max_rise` metres
 /// (`None`: the grid's own), for at most `iters` floors expanded (taken off it): the
 /// route, or none, once the search ends within them; else the search,
-/// to go on with the same `allowed` and `region_ok`. A search that ends
-/// within them gives what [`plan_in`] gives.
+/// to go on with the same `allowed`, `region_ok` and `weight`. A search
+/// that ends within them gives what [`plan_in`] gives. `weight`: a cost on
+/// each floor (at least 1, [`mapdata::SlicedSearch::step`]); none, the
+/// plain search.
 // The Err is the search under way, which the bot keeps: not an error to box.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 pub fn plan_start(
@@ -568,6 +573,7 @@ pub fn plan_start(
     allowed: impl Fn(NodeId) -> bool,
     region_ok: impl Fn(u32) -> bool,
     max_rise: Option<f32>,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
     #[cfg(test)]
@@ -576,17 +582,18 @@ pub fn plan_start(
         Err((found, _stage)) => {
             #[cfg(test)]
             count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);
-            Ok(finish(grid, found, allowed))
+            Ok(finish(grid, found, allowed, weight))
         }
         Ok(search) => {
             let mut planning = Planning {
                 search,
+                weighted: weight.is_some(),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume(grid, regions, allowed, region_ok, iters) {
+            match planning.resume(grid, regions, allowed, region_ok, weight, iters) {
                 Some(route) => Ok(route),
                 None => Err(planning),
             }
@@ -597,17 +604,24 @@ pub fn plan_start(
 impl Planning {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// route, or none, once the search ends; `None` while it goes on.
+    /// `weight` is the one it started with.
     pub fn resume(
         &mut self,
         grid: &WalkGrid,
         regions: &Regions,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
+        weight: Option<&dyn Fn(NodeId) -> f32>,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        debug_assert_eq!(self.weighted, weight.is_some(), "a search goes on with the weight it started with");
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let ended = self.search.step(regions, grid, &allowed, region_ok, iters);
+        // The plain search keeps its own loop (no call through the weight).
+        let ended = match weight {
+            Some(w) => self.search.step(regions, grid, &allowed, region_ok, w, iters),
+            None => self.search.step(regions, grid, &allowed, region_ok, |_| 1.0, iters),
+        };
         #[cfg(test)]
         {
             self.us += started.elapsed().as_secs_f64() * 1e6;
@@ -622,7 +636,7 @@ impl Planning {
             self.search.expanded() as u64,
             self.slices,
         );
-        Some(finish(grid, found, allowed))
+        Some(finish(grid, found, allowed, weight))
     }
 
     /// Floors expanded so far.
@@ -639,10 +653,22 @@ impl Planning {
     }
 }
 
-fn finish(grid: &WalkGrid, found: Search, allowed: impl Fn(NodeId) -> bool) -> Option<Route> {
-    match found {
-        Search::Found(path) => Some(pull(grid, path.nodes, allowed)),
-        Search::NoWay | Search::TooFar => None,
+/// The route of a search that ended. A weighed search's path is pulled
+/// straight only across floors of weight 1 or its own: a line pulled across
+/// a costly floor it went round would undo the way round.
+fn finish(
+    grid: &WalkGrid,
+    found: Search,
+    allowed: impl Fn(NodeId) -> bool,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
+) -> Option<Route> {
+    match (found, weight) {
+        (Search::Found(path), None) => Some(pull(grid, path.nodes, allowed)),
+        (Search::Found(path), Some(w)) => {
+            let own: std::collections::HashSet<NodeId> = path.nodes.iter().copied().collect();
+            Some(pull(grid, path.nodes, |n| allowed(n) && (w(n) <= 1.0 || own.contains(&n))))
+        }
+        (Search::NoWay | Search::TooFar, _) => None,
     }
 }
 
@@ -653,6 +679,7 @@ fn count(found: &Search, stage: Stage, us: f64, expanded: u64, slices: u64) {
         let mut c = s.get();
         c.searches += 1;
         c.failed += u64::from(!matches!(found, Search::Found(_)));
+        tag::ended(!matches!(found, Search::Found(_)), expanded);
         c.us += us;
         c.stages[stage as usize] += 1;
         c.stage_us[stage as usize] += us;
@@ -669,6 +696,60 @@ fn count(found: &Search, stage: Stage, us: f64, expanded: u64, slices: u64) {
         c.slices += slices;
         s.set(c);
     });
+}
+
+/// The bench's grid searches by why they ran (the threat answer's work,
+/// `tests/tallies/owner/threat_answer.rs`): a thread's tag, set by the
+/// drive around a bot's search and by the poll around its resumed one;
+/// each ended search adds its count, failure and floors to its tag's.
+#[cfg(test)]
+pub mod tag {
+    use std::cell::Cell;
+
+    /// The tags: another search; K1's whole-route search; an A3 replan's
+    /// search for the cover alone; a K2 job play's search.
+    pub const OTHER: u8 = 0;
+    pub const K1: u8 = 1;
+    pub const REPLAN: u8 = 2;
+    pub const JOB: u8 = 3;
+    pub const NAMES: [&str; 4] = ["other", "k1", "replan", "job"];
+
+    thread_local! {
+        static TAG: Cell<u8> = const { Cell::new(OTHER) };
+        static BY_TAG: Cell<[[u64; 3]; 4]> = const { Cell::new([[0; 3]; 4]) };
+    }
+
+    /// The tag from now until it drops (the one before then again).
+    pub struct Scope(u8);
+
+    impl Scope {
+        pub fn new(tag: u8) -> Self {
+            Self(TAG.with(|t| t.replace(tag)))
+        }
+    }
+
+    impl Drop for Scope {
+        fn drop(&mut self) {
+            TAG.with(|t| t.set(self.0));
+        }
+    }
+
+    /// An ended search: failed or not, its floors.
+    pub(super) fn ended(failed: bool, expanded: u64) {
+        let tag = usize::from(TAG.with(Cell::get));
+        BY_TAG.with(|c| {
+            let mut all = c.get();
+            all[tag][0] += 1;
+            all[tag][1] += u64::from(failed);
+            all[tag][2] += expanded;
+            c.set(all);
+        });
+    }
+
+    /// Searches, failed, floors by tag so far.
+    pub fn counted() -> [[u64; 3]; 4] {
+        BY_TAG.with(Cell::get)
+    }
 }
 
 /// The tops of the counts of searches by floors expanded
