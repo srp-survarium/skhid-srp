@@ -1,4 +1,4 @@
-owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near)]
+owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]
 {
   "spacing": {
     "by_play": {
@@ -35,6 +35,28 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
     },
     "by_team": {
       "0": {
+        "by_life": [
+          {
+            "mates_alive": 160,
+            "mates_near": 130,
+            "samples": 80
+          },
+          {
+            "mates_alive": 160,
+            "mates_near": 145,
+            "samples": 80
+          },
+          {
+            "mates_alive": 60,
+            "mates_near": 60,
+            "samples": 30
+          },
+          {
+            "mates_alive": 0,
+            "mates_near": 0,
+            "samples": 0
+          }
+        ],
         "clumped_samples": 0,
         "crowd_enemies": 24,
         "crowded_deaths": 8,
@@ -44,6 +66,28 @@ owner-test spacing: team 0 [mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % o
         "samples": 360
       },
       "1": {
+        "by_life": [
+          {
+            "mates_alive": 80,
+            "mates_near": 80,
+            "samples": 40
+          },
+          {
+            "mates_alive": 80,
+            "mates_near": 80,
+            "samples": 40
+          },
+          {
+            "mates_alive": 30,
+            "mates_near": 30,
+            "samples": 15
+          },
+          {
+            "mates_alive": 0,
+            "mates_near": 0,
+            "samples": 0
+          }
+        ],
         "clumped_samples": 0,
         "crowd_enemies": 12,
         "crowded_deaths": 4,
