@@ -37,3 +37,11 @@ lobby icon (Zubr UM-4, `ren_boots_6`).
   `stock_framed`). The exo boots are squat, so the pair is wider than the
   Zubr's.
 - The textures and the glove icons are the same as in `@1`.
+
+## Version 3: the gloves keep their stock icons
+
+The owner (2026-10-29), on the rev 38 local test: the re-rendered glove icon (one
+glove alone, fingers down) read as an arm pointing down; "just use old ones".
+
+- `exo-gear@3` renders only the two boot icons (as in `@2`); the Duty and
+  Freedom gloves keep their stock lobby icons. The textures are `@1`'s.
