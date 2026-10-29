@@ -16,8 +16,11 @@ pub struct SmokeTuning {
     /// man it did not see, and at where he was, not where he is (0: it stops at once). The owner's cap for fire
     /// through cover, 0.75 s.
     pub spray_ms: u32,
-    /// The least length of a sight line inside a cloud that hides, metres: a line that only grazes the thin edge
-    /// sees past it. GUESS (the edge's puffs are sparse: a player sees a body through the last half metre).
+    /// The least length of a sight line inside the clouds that hides, metres (summed over the clouds it crosses): a
+    /// line that only grazes an edge sees past it. Valve's Counter-Strike bot (`CBotManager::IsLineBlockedBySmoke`,
+    /// the shipped bot's source, ReGameDLL_CS `game_shared/bot/bot_manager.cpp`) sums the smoked chords the same way
+    /// and sees through up to 0.7 of its 115-unit smoke radius, 80 units, about 2.0 m: a smoke's density, not its
+    /// size, so the metres carry over. LIKELY for 0.26g's puffs (four or more overlap on a line, `smoke.rs`).
     pub thin_m: Metres,
 }
 
@@ -26,7 +29,7 @@ impl Default for SmokeTuning {
         Self {
             sight: true,
             spray_ms: 750,
-            thin_m: Metres::of(1.0),
+            thin_m: Metres::of(2.0),
         }
     }
 }
