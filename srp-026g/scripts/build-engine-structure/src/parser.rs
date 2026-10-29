@@ -70,11 +70,10 @@ pub fn parse_function_name(input: &str) -> String {
         .split(' ')
         // Remove calling convention specification
         .next_back()
-        .unwrap()
-        // Remove register return type for custom calling conventions
-        .trim_suffix('@')
-        .trim_start_matches('*')
-        .trim_start_matches('*');
+        .unwrap();
+    // Remove register return type for custom calling conventions
+    let func_name = func_name.strip_suffix('@').unwrap_or(func_name);
+    let func_name = func_name.trim_start_matches('*').trim_start_matches('*');
     let result = func_name.to_string();
 
     match result.is_empty() {

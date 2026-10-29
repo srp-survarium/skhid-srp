@@ -9,5 +9,4 @@ workspace = true
 [dependencies]
 bytemuck = { workspace = true }
 
-survarium = { workspace = true }
 vostok = { workspace = true }
