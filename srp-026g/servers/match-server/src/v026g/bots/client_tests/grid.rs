@@ -150,10 +150,6 @@ fn link_a_mates(_: &TryStart) -> Box<dyn CustomMeter> {
     Box::new(JumpMeter::new(Jumpers::Mates, (LINK_A.0[0], LINK_A.0[2]), 1.0))
 }
 
-fn step_owner(_: &TryStart) -> Box<dyn CustomMeter> {
-    Box::new(JumpMeter::new(Jumpers::Owner, (STEP_FOOT.0[0], STEP_FOOT.0[2]), 0.6))
-}
-
 fn step_mates(_: &TryStart) -> Box<dyn CustomMeter> {
     Box::new(JumpMeter::new(Jumpers::Mates, (STEP_FOOT.0[0], STEP_FOOT.0[2]), 0.6))
 }
@@ -168,11 +164,6 @@ fn ledge_owner(_: &TryStart) -> Box<dyn CustomMeter> {
 
 fn near_flat(frame: &Frame, at: Spot, r_m: f32) -> bool {
     frame.owner.as_ref().is_some_and(|o| o.body.alive && o.body.feet.distance_xz(at.vec()) <= r_m)
-}
-
-/// The owner is on the top of the link or the step (within 0.4 m of its height).
-fn on_link_top(frame: &Frame, _since: Span) -> bool {
-    frame.owner.as_ref().is_some_and(|o| (o.body.feet.y - LINK_A_TOP.0[1]).abs() < 0.4)
 }
 
 /// A walk up a step: whether he reached its top, and the jumps he pressed on the way. Names: `reached_top` and `jumps`.

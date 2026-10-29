@@ -748,7 +748,7 @@ mod tests {
     fn the_exit_meter_counts_deaths_at_the_exit_and_the_rate_after_the_second_kill() {
         let exit = Vec3::new(40.0, 0.0, 0.0);
         let mut meter = ExitMeter::make(&start());
-        let mut f = |ms, kills, bots: Vec<BotView>| {
+        let f = |ms, kills, bots: Vec<BotView>| {
             let mut f = frame(ms, kills, bots, Vec::new(), Vec::new());
             f.exits[1] = vec![exit];
             f
