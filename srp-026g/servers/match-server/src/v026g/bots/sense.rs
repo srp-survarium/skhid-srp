@@ -204,6 +204,7 @@ fn reach(me: &PlaceView, enemy: &PlaceView, tuning: &SenseTuning) -> Result<(), 
 /// [`LookOutcome::Untested`], not a negative. A think's tests of the
 /// enemies in view give it their own [`RayBudget::new`]`(`[`LOOK_RAYS`]`)`
 /// ([`sense_looks`]), so they are never starved.
+#[cfg(test)]
 pub fn look(
     me: &PlaceView,
     enemy: &PlaceView,
@@ -270,6 +271,7 @@ pub fn look_order(
 /// The percepts of the bot `me` at `now`, the sounds since `since`.
 /// `order` gives the enemies to look at first ([`look_order`]).
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn sense(
     me: &PlaceView,
     view: &MatchView,
@@ -289,6 +291,7 @@ pub fn sense(
 /// showing). An enemy of the bot's own team is not looked at. The rays are
 /// counted in `rays.exempt`, not taken from it.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn sense_looks(
     me: &PlaceView,
     view: &MatchView,
@@ -485,6 +488,22 @@ enum BatteryLook {
     Spawner(usize, Vec3),
 }
 
+/// [`sense_batteries`] on the bullet mesh alone (tests).
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub fn sense_batteries_clear(
+    me: &PlaceView,
+    view: &MatchView,
+    sight: &RayTree,
+    spawners: &[mapdata::BatterySpawner],
+    tuning: &SenseTuning,
+    team: &mut TeamKnowledge,
+    worth: impl Fn(usize) -> bool,
+    rays: &mut RayBudget,
+) {
+    sense_batteries(me, view, sight, Veil::Clear, spawners, tuning, team, worth, rays);
+}
+
 /// With the battery cheat off: what the bot `me` sees of the batteries for
 /// its team (`player_bots_behaviour.md` §2: "a battery a bot sees becomes
 /// known to its team"). A battery lying in the view, within
@@ -502,11 +521,14 @@ enum BatteryLook {
 /// spot so seen is checked.
 /// Nearest first, at most `battery_rays` rays from the poll's budget.
 /// `worth(spawner)` says which spawners are worth a look.
+/// Through `veil`: a battery, or a spawner's spot seen empty, behind smoke is not seen (`smoke.rs`, no ray cast for
+/// a line it hides).
 #[allow(clippy::too_many_arguments)]
 pub fn sense_batteries(
     me: &PlaceView,
     view: &MatchView,
     sight: &RayTree,
+    veil: Veil<'_>,
     spawners: &[mapdata::BatterySpawner],
     tuning: &SenseTuning,
     team: &mut TeamKnowledge,
@@ -593,7 +615,8 @@ pub fn sense_batteries(
                 if !rays.take(me.place, me.team) {
                     break 'looks;
                 }
-                if super::aimpoint::sight_line(sight, eye, at + Vec3::new(0.0, up, 0.0)) {
+                let point = at + Vec3::new(0.0, up, 0.0);
+                if !veil.hides(eye, point) && super::aimpoint::sight_line(sight, eye, point) {
                     seen = Some(format!("a clear line at +{up:.2} m, {k} blocked before it"));
                     break;
                 }
@@ -1076,7 +1099,7 @@ mod tests {
         let tuning = SenseTuning::default();
         let mut rays = RayBudget::new(100);
         let sight = wall();
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1116,7 +1139,7 @@ mod tests {
         // The next think: battery 1 and spawner 1 lie behind the wall,
         // battery 2 behind the bot. The battery is tried at its three
         // heights, the spot at one.
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1130,7 +1153,7 @@ mod tests {
         assert!(team.battery(1).is_none() && team.battery(2).is_none());
         assert_eq!(team.spawner_seen(1), None);
         // Without the wall both are seen.
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &RayTree::build(&[]),
@@ -1172,7 +1195,7 @@ mod tests {
         ));
         let mut team = TeamKnowledge::default();
         let mut rays = RayBudget::new(100);
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1186,7 +1209,7 @@ mod tests {
         assert_eq!(rays.left, 98, "the top, then the middle");
         // Taken since: the spot, seen empty by its middle, is forgotten.
         view.batteries = vec![BatteryState::Carried(None)];
-        sense_batteries(
+        sense_batteries_clear(
             &me,
             &view,
             &sight,
@@ -1226,13 +1249,13 @@ mod tests {
         let mut rays = RayBudget::new(100);
         let sight = RayTree::build(&[]);
         let tuning = SenseTuning::default();
-        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        sense_batteries_clear(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
         assert_eq!(rays.left, 100);
         assert_eq!(team.battery(0).map(|k| k.at), Some(known));
         // Taken and dropped 0.7 m on: seen there, the team's spot follows.
         let moved = Vec3::new(0.7, 0.1, 10.0);
         view.batteries = vec![BatteryState::Free(moved)];
-        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        sense_batteries_clear(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
         assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
         // From a take's stand a metre off it, no ray is needed.
         let mut team = TeamKnowledge::default();
@@ -1246,7 +1269,7 @@ mod tests {
         );
         let stand = place(0, 0, Vec3::new(0.0, 0.0, 9.0), 0.0);
         let mut none = RayBudget::new(0);
-        sense_batteries(&stand, &view, &sight, &[], &tuning, &mut team, |_| true, &mut none);
+        sense_batteries_clear(&stand, &view, &sight, &[], &tuning, &mut team, |_| true, &mut none);
         assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
     }
 
@@ -1446,7 +1469,7 @@ mod tests {
             let thinks_left = (due.len() - k) as u32;
             rays.allow(fair.then(|| fair_share(rays.left, thinks_left, think_most(3))).flatten());
             let (me, spawners) = (&places[p], &[]);
-            sense_batteries(me, &view, &sight, spawners, &tuning, &mut team, |_| false, &mut rays);
+            sense_batteries_clear(me, &view, &sight, spawners, &tuning, &mut team, |_| false, &mut rays);
             rays.allow(None);
             used.push(before - rays.left);
         }

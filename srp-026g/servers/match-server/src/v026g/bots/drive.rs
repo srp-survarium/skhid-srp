@@ -64,6 +64,8 @@ const AVOID_ARRIVE_M: f32 = 0.8;
 /// ([`Tactics::step_out`], over the floors the body may walk, the landings it gave up shut).
 struct BlastAround<'a> {
     tactics: &'a Tactics,
+    /// The team's eyes through the match's smoke: a grenade lying in a cloud is not seen (`smoke.rs`).
+    veil: super::smoke::Veil<'a>,
     stuck: &'a Stuck,
     side: Option<i32>,
     time: u32,
@@ -72,7 +74,7 @@ struct BlastAround<'a> {
 
 impl grenade_threat::Surroundings for BlastAround<'_> {
     fn sees(&self, from: Vec3, to: Vec3) -> bool {
-        self.tactics.world.sight.visible(from, to)
+        !self.veil.hides(from, to) && self.tactics.world.sight.visible(from, to)
     }
 
     fn way_out(
@@ -467,6 +469,7 @@ fn drive_tick_inner(
     {
         let around = BlastAround {
             tactics,
+            veil: view.smoke.veil(view.clock, &tuning.smoke),
             stuck: &bot.stuck,
             side: bot.side,
             time,

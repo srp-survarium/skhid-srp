@@ -272,15 +272,18 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         &mut bot.rng,
     );
     bot.heard_until = now;
-    #[cfg(test)]
+    // A sight it had, lost to smoke: one note (the reflex's notes, taken at its think).
     for &(who, outcome) in &looks {
         if outcome == LookOutcome::Failed(Miss::Smoke) {
-            let event = if live.iter().any(|&(live, _)| live == who) {
-                super::smoke::tally::Event::SightLost
-            } else {
-                super::smoke::tally::Event::NotSeen
-            };
-            super::smoke::tally::add(bot.team, event);
+            let had = live.iter().any(|&(live, _)| live == who);
+            if had {
+                bot.reflex.note_smoke(format!("lost player {who} to smoke (a look)"));
+            }
+            #[cfg(test)]
+            super::smoke::tally::add(
+                bot.team,
+                if had { super::smoke::tally::Event::SightLost } else { super::smoke::tally::Event::NotSeen },
+            );
         }
     }
     for &(who, outcome) in &looks {
@@ -456,6 +459,7 @@ pub(super) fn sense_batteries(
             me,
             view,
             &tactics.world.sight,
+            view.smoke.veil(view.clock, &tuning.smoke),
             &tactics.world.map.battery_spawners,
             &tuning.sense,
             &mut state.knowledge,
@@ -552,6 +556,9 @@ pub(super) fn react(
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
+        bot.note(notes, now, text);
+    }
+    for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);
     }
     // A grenade decided on: its place is the team's to skip for a while.

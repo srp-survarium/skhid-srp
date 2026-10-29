@@ -60,9 +60,13 @@ pub struct CloudShape {
     /// The radius across the ground, metres: the puffs' centres' (8 m, PROVEN as read). The puffs reach about
     /// 2.5 m more, a thin rim seen through (`SmokeTuning::thin_m`).
     pub radius_m: f32,
-    /// The cloud's top over the rest point, metres: the centres to 2.5-3.5 m and a puff's half size over them
-    /// (LIKELY 5 m); it hides from half a metre under the rest point (a body on a slope) to there.
+    /// The cloud's top over the floor under the rest point, metres: the centres to 2.5-3.5 m and a puff's half
+    /// size over them (LIKELY 5 m).
     pub height_m: f32,
+    /// How far under that floor it reaches, metres: the lowest centres at +0.5 m less a puff's half size (1.8-3.3
+    /// m) reach 1.3-2.8 m under it; the least, 1.3 m (LIKELY: the cylinder's centring is a GUESS, `fx-smoke-data.md`
+    /// section 2). A body on a slope below the cloud is still in it, as the client draws it.
+    pub below_m: f32,
 }
 
 impl CloudShape {
@@ -113,6 +117,7 @@ impl SmokeGrenade {
             gone_ms: 26_000,
             radius_m: 8.0,
             height_m: 5.0,
+            below_m: 1.3,
         },
     };
 
@@ -142,7 +147,7 @@ impl SmokeGrenade {
 pub struct Cloud {
     pub by: Place,
     pub team: u8,
-    /// Where the grenade rests: the cloud's centre on the ground.
+    /// The floor under where the grenade rests (`SmokeThrow::cloud_at`): the cloud's centre on the ground.
     pub centre: Vec3,
     /// When the grenade was thrown (the key went down), and when the smoke begins.
     pub thrown: MatchMs,
@@ -169,8 +174,20 @@ impl Cloud {
         at < self.ends()
     }
 
+    /// Whether `point` is inside it at `at`.
+    pub fn holds(&self, point: Vec3, at: MatchMs) -> bool {
+        let (bottom, top) = self.span();
+        self.radius_at(at)
+            .is_some_and(|r| point.distance_xz(self.centre) <= r && point.y >= bottom && point.y <= top)
+    }
+
+    /// Its bottom and top, metres.
+    fn span(&self) -> (f32, f32) {
+        (self.centre.y - self.shape.below_m, self.centre.y + self.shape.height_m)
+    }
+
     /// The length of the line from `a` to `b` inside it at `at`, metres: a vertical cylinder of its radius
-    /// then, from half a metre under its centre to its top.
+    /// then, from `below_m` under its centre to its top.
     pub fn inside_m(&self, a: Vec3, b: Vec3, at: MatchMs) -> f32 {
         let Some(r) = self.radius_at(at).filter(|r| *r > 0.0) else {
             return 0.0;
@@ -181,7 +198,7 @@ impl Cloud {
             return 0.0;
         }
         // The part of the line (0..1) within the cloud's height.
-        let (bottom, top) = (self.centre.y - 0.5, self.centre.y + self.shape.height_m);
+        let (bottom, top) = self.span();
         let (mut t0, mut t1) = (0.0f32, 1.0f32);
         if d.y.abs() < 1e-6 {
             if a.y < bottom || a.y > top {
@@ -318,13 +335,21 @@ pub struct SmokeThrow {
     pub grenade: SmokeGrenade,
 }
 
+/// How far under a rest point the floor is looked for, metres: a grenade that stopped on a wall (20 of 45 recorded
+/// first contacts, `arc.rs`) comes down to the floor under it.
+pub const FLOOR_BELOW_M: f32 = 30.0;
+
 impl SmokeThrow {
-    /// The cloud of this throw once the arc put the grenade to rest at `rest`.
-    pub fn cloud_at(&self, rest: Vec3) -> Cloud {
+    /// The cloud of this throw once the arc put the grenade to rest at `rest`: centred on the floor under it
+    /// (`floor`: the first surface of the bullet mesh straight down from just over the rest, none for no map or
+    /// none within [`FLOOR_BELOW_M`]: the rest itself). The arc's rest keeps its first contact's height, a wall's
+    /// or a slope's; the grenade falls to the floor (the client's physics body), and its particles are placed there.
+    pub fn cloud_at(&self, rest: Vec3, floor: impl FnOnce(Vec3) -> Option<f32>) -> Cloud {
+        let centre = floor(rest).map_or(rest, |y| Vec3::new(rest.x, y, rest.z));
         Cloud {
             by: self.by,
             team: self.team,
-            centre: rest,
+            centre,
             thrown: self.press,
             pours: self.press.plus(self.grenade.cloud.fuse_ms),
             shape: self.grenade.cloud,
@@ -379,6 +404,24 @@ pub mod tally {
     pub fn counts() -> [[u64; EVENTS]; 2] {
         COUNTS.with(Cell::get)
     }
+
+    thread_local! {
+        static SPRAYED: std::cell::RefCell<Vec<(usize, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// The bot at `place` fired a spray at `now`: the fairness count leaves that shot out.
+    pub fn sprayed(place: usize, now: u32) {
+        SPRAYED.with(|s| {
+            let mut s = s.borrow_mut();
+            s.retain(|&(p, _)| p != place);
+            s.push((place, now));
+        });
+    }
+
+    /// When the bot at `place` last fired a spray.
+    pub fn last_spray(place: usize) -> Option<u32> {
+        SPRAYED.with(|s| s.borrow().iter().find(|&&(p, _)| p == place).map(|&(_, t)| t))
+    }
 }
 
 #[cfg(test)]
@@ -393,7 +436,7 @@ mod tests {
             press: MatchMs(1_000),
             grenade: SmokeGrenade::RDG_M,
         }
-        .cloud_at(at)
+        .cloud_at(at, |_| None)
     }
 
     #[test]
@@ -567,11 +610,9 @@ mod scenarios {
             grid: Arc::new(mapdata::WalkGrid::build(&[], [0.0, 0.0, 1.0, 1.0], 0.25, mapdata::Body::default())),
             sight: Arc::new(RayTree::build(&[])),
         });
-        let look = Sight::default()
-            .update(me, Some(1), view, &world, veil, smoke.spray_ms, view.clock)
-            .unwrap();
-        assert_eq!(look.smoke, !look.shown, "{look:?}");
-        (looks[0].1, look.shown)
+        let look = Sight::default().update(me, Some(1), view, &world, &smoke, view.clock).unwrap();
+        assert_ne!(look.look, PartsLook::Hidden, "{look:?}");
+        (looks[0].1, look.look == PartsLook::Shows)
     }
 
     const SEEN: (LookOutcome, bool) = (LookOutcome::Seen, true);

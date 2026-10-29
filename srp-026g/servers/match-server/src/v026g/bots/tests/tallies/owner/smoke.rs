@@ -49,11 +49,7 @@ impl SmokeCounts {
     /// Whether `feet` stand inside a cloud at `tick`.
     fn inside(&self, tick: u32, feet: Vec3) -> bool {
         let at = smoke::MatchMs(tick);
-        self.clouds.iter().any(|c| {
-            c.radius_at(at).is_some_and(|r| {
-                feet.distance_xz(c.centre) <= r && feet.y >= c.centre.y - 0.5 && feet.y <= c.centre.y + c.shape.height_m
-            })
-        })
+        self.clouds.iter().any(|c| c.holds(feet, at))
     }
 
     /// The tick's hits and kills through smoke, by the shooter's team.

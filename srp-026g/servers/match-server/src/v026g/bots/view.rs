@@ -988,7 +988,14 @@ impl Tracker {
             let team = usize::from(throw.team & 1);
             match self.launch_of(throw.by, throw.grenade.flight, world) {
                 Launch::Lands(landing) => {
-                    let cloud = throw.cloud_at(landing.rest);
+                    // The floor under the rest: straight down the bullet mesh from just over it.
+                    let cloud = throw.cloud_at(landing.rest, |rest| {
+                        let from = rest + Vec3::new(0.0, 0.2, 0.0);
+                        world
+                            .sight
+                            .ray_cast(from, Vec3::new(0.0, -1.0, 0.0), super::smoke::FLOOR_BELOW_M)
+                            .map(|t| from.y - t)
+                    });
                     let c = cloud.centre;
                     self.notes.push(format!(
                         "smoke cloud by player {} (team {}) at ({:.1}, {:.1}, {:.1}), pours at {} ms, gone at {} ms",

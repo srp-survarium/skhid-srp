@@ -14,7 +14,7 @@ switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: detour spots sprint
 switches ON traps: enabled react.defuse react.hear react.jump react.on react.pass react.shot
 switches ON unstick: blind_stop_ms=4500 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
-switches OFF aim: combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_push_tracks combat.grenade_volley combat.hit_bearing combat.hit_bearing_with_target combat.outranged_cover combat.reacquire_keep
+switches OFF aim: combat.aim_last_known combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_push_tracks combat.grenade_volley combat.hit_bearing combat.hit_bearing_with_target combat.outranged_cover combat.reacquire_keep
 switches OFF cheats: batteries
 switches OFF feel: floor_height_clear
 switches OFF mods: risk_alive.invert
