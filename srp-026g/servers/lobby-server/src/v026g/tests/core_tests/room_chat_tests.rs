@@ -296,7 +296,15 @@ fn play_into_a_room_is_a_member_of_its_chat() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(8), None);
+    let key = create(
+        &mut world,
+        alice,
+        survarium::v026g::lobby::rooms::RoomSpec {
+            max_level: 10,
+            ..spec(8)
+        },
+        None,
+    );
     world.advance(Duration::from_secs(1));
     assert!(listen(&mut world, alice).is_empty());
     world.ask(bob, request::play(1));

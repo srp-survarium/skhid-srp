@@ -131,7 +131,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   | sale, more | Used in Loadout 2 and Loadout 4. Sell anyway? | Використовується в комплектах 2 і 4. Продати? | Используется в комплектах 2 и 4. Продать? | Wird in Loadout 2 und 4 genutzt. Trotzdem verkaufen? | Używany w zestawach 2 i 4. Sprzedać? |
 
   The level's word is the kit tabs' own (`clan_players_level_label`, "Lvl."). The join popup's
-  lines (`RoomsText` `offerHigher`, `offerFits`, `code14`) say "Loadout" too. The movie's fonts
+  lines (`st_srp_rooms_offer_higher`, `_offer_fits`, `_code_14`) say "Loadout" too. The movie's fonts
   (CalibriBold, Calibri Bold) have every glyph of them.
 - **A sale asks first** (the owner's, 2026-10-23: "when selling an item which is equipped in any
   kit of any preset I should get a warning"): selling an item a preset uses, the active one's
@@ -199,7 +199,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     action: choose, then the join; a choice refused joins nothing (code 14).
 - **Gone with the owner's change of the same day:** the Save and Apply buttons, saving into a
   preset by hand, an "apply" that left no preset active, and their requests on the wire.
-- **Texts:** short, the lobby's five languages; the movie's own (`LocalPlayerProfile`,
-  `RoomsText`), no content edit.
+- **Texts:** short; srp's dictionary texts (`st_srp_loadout_*`, `st_srp_rooms_*`,
+  `client-patches/localization`).
 - **Wire:** srp's `3B` ranking starts and `91` rows, as the rooms; no exe change.
 - **Release:** server and lobby movie together.

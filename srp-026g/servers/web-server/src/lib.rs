@@ -48,6 +48,7 @@ mod password_reset;
 mod patches;
 mod stats;
 mod v026g;
+mod wiki;
 
 pub use patches::OfferedPatch;
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
@@ -172,8 +173,7 @@ struct Stats {
     /// The 0.26g page.
     v026g: bool,
     /// The download holds the launcher (0.26g): the page tells players to
-    /// start that, and keeps the start script and the command line for
-    /// those who want them.
+    /// start that, and keeps the start script for those who want it.
     launcher: bool,
     /// The download's launcher brings the original game itself (0.26g):
     /// the page tells players to unpack into an empty folder, and names
@@ -668,7 +668,8 @@ impl Web {
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)));
+                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
@@ -681,6 +682,9 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some() && matches!(request.path.as_str(), wiki::PATH | wiki::WEAPONS)
+        {
+            damage::POLICY
         } else {
             POLICY
         };
@@ -940,6 +944,9 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
+                    path @ (wiki::PATH | wiki::WEAPONS) => {
+                        return wiki_page(path, request.lang);
+                    }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
                             launcher::language(path, request.lang),
@@ -1589,6 +1596,14 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, maps::PATH))
 }
 
+fn wiki_page(path: &str, lang: Lang) -> Response {
+    let connect = CONNECT.get();
+    let test = connect.is_some_and(|connect| connect.test_server);
+    let other_url = connect.and_then(|connect| connect.other_url.as_deref());
+    let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    wiki::page(path, lang, &format!("{header}{notice}"))
+}
+
 /// The site's header over a page of its own look (the calculator's, the
 /// Maps tab's), `path` the page shown.
 fn tool_header(lang: Lang, path: &str) -> String {
@@ -1647,6 +1662,7 @@ fn site_header(
     let damage_link = if v026g {
         tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
             + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
+            + &tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
@@ -1760,12 +1776,12 @@ fn room_rules(lang: Lang, squads: bool) -> String {
     let cards = session::v026g::rooms::CARDS;
     let mut items = vec![
         lang.tr(
-            "Matches are played in rooms in the lobby: join one from the list, make your own (its size, max level, maps, wait and an optional PIN), or press Play.",
-            "Матчі грають у кімнатах у лобі: приєднайтеся до однієї зі списку, створіть свою (розмір, макс. рівень, мапи, очікування й PIN за бажанням) або натисніть «Грати».",
+            "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
+            "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
         ),
         lang.tr(
-            "Play puts you in the open room nearest your level, or makes a new one.",
-            "«Грати» ставить вас у відкриту кімнату, найближчу до вашого рівня, або створює нову.",
+            "Play uses rooms capped at equipment level 10 or 15, creating the first room when needed. Full rooms have a queue; six waiting Play users in the same bracket open another room. Players up to level 10 can also choose a level-15 room from Rooms.",
+            "«Грати» підбирає кімнату з максимальним рівнем спорядження 10 або 15, створюючи першу за потреби. У повні кімнати є черга; шість гравців, що очікують через «Грати» в одній групі рівнів, відкривають нову кімнату. Гравці до 10-го рівня також можуть вибрати кімнату до 15-го через список кімнат.",
         ),
         lang.tr(
             &format!(
@@ -1908,57 +1924,39 @@ fn home(lang: Lang, stats: Stats) -> String {
         lang.tr("registered", "зареєстровано"),
     );
     let version = if v026g { "0.26g" } else { "0.21d" };
-    // 0.26g: `-server=` (it has no `-client=`), and the exe that takes srp's
-    // certificate (`scripts/client-patch-026g`).
-    let server_key = if v026g { "-server" } else { "-client" };
-    let mut options = format!(
-        "<ul class=opts><li><code>{server_key}</code> {}</li><li><code>-localization</code> {}</li>",
+    // 0.21d: the start command, typed by hand. 0.26g's exe has the server and
+    // the memory sizes built in and its language is chosen in its Settings, so
+    // its page names no command line.
+    let command_line = format!(
+        "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
+        lang.tr(
+            "Start it with this command line:",
+            "Запустіть гру з такою командою:"
+        ),
+        lang.tr("english", "ukrainian"),
+        escape(address),
         lang.tr("server address", "адреса сервера"),
         lang.tr(
             "language: english, russian, ukrainian",
             "мова: english, russian, ukrainian"
         ),
     );
-    if v026g {
-        options += &format!(
-            "<li><code>-mt_allocator=768</code> {}</li><li><code>-minimum_resources_memory_size=768</code> {}</li>",
-            lang.tr(
-                "memory for the game (maps need more than the default), MB",
-                "пам'ять для гри (мапам замало типової), МБ"
-            ),
-            lang.tr("memory for resources, MB", "пам'ять для ресурсів, МБ"),
-        );
-    }
-    options += "</ul>";
-    let launch = if v026g {
-        format!(
-            "<pre>survarium_skhid.exe -localization={} -server={} -mt_allocator=768 -minimum_resources_memory_size=768</pre><p><small>{}</small></p>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-            lang.tr(
-                "Run it from the game's <code>game\\binaries\\x86</code> folder (the download's <code>play_skhid.bat</code> does).",
-                "Запускайте з теки гри <code>game\\binaries\\x86</code> (це робить <code>play_skhid.bat</code> із завантаження).",
-            ),
-        )
-    } else {
-        format!(
-            "<pre>survarium.exe -localization={} -client={}</pre>",
-            lang.tr("english", "ukrainian"),
-            escape(address),
-        )
-    };
-    let command_line = format!(
-        "{}{launch}{options}",
+    let language = format!(
+        "<p>{}</p>",
         lang.tr(
-            "Start it with this command line:",
-            "Запустіть гру з такою командою:"
-        ),
+            "Language: in the game, <b>Settings</b>, <b>Game</b>, <b>Language</b> (applies after a restart).",
+            "Мова: у грі, <b>Опції</b>, <b>Гра</b>, <b>Мова</b> (діє після перезапуску).",
+        )
+    );
+    let without_launcher = lang.tr(
+        "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
+        "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
     );
     // With the launcher in the download a player starts that and types
-    // nothing; the start script and the command line stay, folded away.
+    // nothing; the start script stays, folded away.
     let start = if with_launcher {
         format!(
-            "{}<p><small>{}</small></p><details><summary>{}</summary><p>{}</p>{command_line}</details>",
+            "{}<p><small>{}</small></p>{language}<details><summary>{}</summary><p>{without_launcher}</p></details>",
             if installs_game {
                 lang.tr(
                     "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
@@ -1982,11 +1980,9 @@ fn home(lang: Lang, stats: Stats) -> String {
                 )
             },
             lang.tr("Without the launcher", "Без лаунчера"),
-            lang.tr(
-                "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-                "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
-            ),
         )
+    } else if v026g {
+        format!("<p>{without_launcher}</p>{language}")
     } else {
         command_line
     };
@@ -3019,6 +3015,15 @@ mod tests {
     }
 
     #[test]
+    fn the_wiki_is_only_on_the_026g_site() {
+        let web = web(None);
+        for path in ["/wiki", "/wiki/weapons"] {
+            assert_eq!(web.route(&get(path), "t").status, "404 Not Found");
+        }
+        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
+    }
+
+    #[test]
     fn the_other_server_is_linked_only_by_a_plain_https_address() {
         assert_eq!(
             other_url(" https://026g.skhid.link/ ").as_deref(),
@@ -3276,8 +3281,8 @@ mod tests {
             installs_game: false,
         };
         // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. The script and the command line are
-        // folded away below.
+        // download is needed once; how to change the language. The script
+        // is folded away below.
         for (lang, press, once, folded) in [
             (
                 Lang::En,
@@ -3307,7 +3312,9 @@ mod tests {
             assert!(!shown.contains("play_skhid.bat"), "{shown}");
             assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
             assert!(hidden.contains("play_skhid.bat"));
-            assert!(hidden.contains("<pre>survarium_skhid.exe -localization="));
+            assert!(shown.contains("<b>Language</b>") || shown.contains("<b>Мова</b>"), "{shown}");
+            assert!(!steps.contains("-localization"), "{steps}");
+            assert!(!steps.contains("<pre>"), "{steps}");
             assert_eq!(steps.matches("<details>").count(), 1);
             assert_eq!(steps.matches("</details>").count(), 1);
         }
@@ -3375,8 +3382,10 @@ mod tests {
         let page = home(Lang::En, stats(false));
         assert!(!page.contains("launcher_skhid.exe"));
         assert!(!page.contains("<details>"));
-        assert!(page.contains("Start it with this command line:<pre>survarium_skhid.exe"));
+        assert!(!page.contains("command line"));
+        assert!(!page.contains("-localization"));
         assert!(page.contains("<code>play_skhid.bat</code>"));
+        assert!(page.contains("<b>Settings</b>, <b>Game</b>, <b>Language</b>"));
     }
 
     #[test]

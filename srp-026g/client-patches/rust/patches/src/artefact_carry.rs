@@ -5,7 +5,7 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, Event, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Context, Flow, InputHandler, Lock, GameCell, NoExit, Reg, ActionMask};
+use crate::vostok::{Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask};
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, Key, WeaponVisibility};
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::world::Player;
@@ -50,7 +50,7 @@ fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
 /// Called on every set_input, including inputs for which native early-out
 /// skips its copy. Command and Use edge detection therefore sees releases.
 pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(player) = native::player(ctx, Reg::Ecx) else { return Flow::Continue };
+    let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
     let before = machine(&player, ctx);
     let allowed = player.carry_allowed();
@@ -91,7 +91,7 @@ fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
 
 pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> { on_death(ctx) }
 pub fn on_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, Reg::Ecx) {
+    if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
         if let Some(artefact) = machine(&player, ctx).artefact() { player.drop_carried(artefact); }
         event(&player, ctx, Event::Gone);
     }
@@ -105,7 +105,7 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, Reg::Edi)
+    if let Some(player) = native::player(ctx, native::PlayerSite::Filter)
         && player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
@@ -113,7 +113,7 @@ pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, Reg::Ebx) {
+    if let Some(player) = native::player(ctx, native::PlayerSite::Tick) {
         if player.carry_allowed() {
             let carry = machine(&player, ctx);
             if carry.pending().is_some_and(|a| !player.carry_owned(a)) { event(&player, ctx, Event::PendingLost); }
@@ -133,12 +133,12 @@ pub fn on_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(player) = native::player(ctx, Reg::Ebx) { native::write_snapshot(ctx, machine(&player, ctx)); }
+    if let Some(player) = native::player(ctx, native::PlayerSite::Save) { native::write_snapshot(ctx, machine(&player, ctx)); }
     Flow::Continue
 }
 pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let saved = native::read_snapshot(ctx).unwrap_or_default();
-    if let Some(player) = native::player(ctx, Reg::Ebx)
+    if let Some(player) = native::player(ctx, native::PlayerSite::Load)
         && let Some(key) = player.carry_key() {
             OWNERS.with(ctx.thread(), |owners| {
                 let owner = owners.get_mut(key);
@@ -263,7 +263,7 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWeaponExit> {
-    let Some(player) = native::player(ctx, Reg::Ebx) else { return Flow::Continue };
+    let Some(player) = native::player(ctx, native::PlayerSite::Weapon) else { return Flow::Continue };
     let Some(key) = player.carry_key() else { return Flow::Continue };
     if !player.alive() {
         return Flow::Continue;

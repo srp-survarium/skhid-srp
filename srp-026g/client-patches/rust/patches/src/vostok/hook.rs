@@ -95,14 +95,19 @@ impl<'t, T: Copy> Out<'t, T> {
 }
 
 /// A game object a hooked function's argument points to, built by the
-/// generated shim (an unsafe step a patch cannot take). A patch receives
-/// the handle; it cannot conjure one, because every way to make one is
-/// `unsafe` and a patch module forbids `unsafe`.
+/// generated shim from the argument's raw handle (typed by the function's
+/// row; an unsafe step a patch cannot take). A patch receives the handle; it
+/// cannot conjure one, because every way to make one is `unsafe` and a
+/// patch module forbids `unsafe`.
 pub trait Handle<'t>: Sized {
+    /// The raw layer's handle this one wraps.
+    type Raw;
+
+    /// None for a null argument.
+    ///
     /// # Safety
-    /// `raw` is the kind this handle wraps, as the hook's row says: a
-    /// pointer to such an object, or null.
-    unsafe fn from_raw(thread: &'t Thread, raw: u32) -> Option<Self>;
+    /// `raw` is alive while the hook runs, on its thread.
+    unsafe fn from_raw(thread: &'t Thread, raw: Option<Self::Raw>) -> Option<Self>;
 }
 
 #[cfg(test)]

@@ -337,3 +337,88 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     assert_eq!(bench.game().resyncs(0), 0);
     bench.assert_no_faults();
 }
+
+#[test]
+fn a_solo_humans_bot_match_keeps_accepted_actions_for_replay() {
+    use crate::v026g::{record, sur_convert};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    let dir = std::env::temp_dir().join(format!(
+        "srp-solo-pve-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let settings = Settings {
+        record: Some(record::RecordSettings {
+            dir: dir.clone(),
+            min_players: 6,
+            max_bytes: 1 << 20,
+            replays: None,
+        }),
+        ..Settings::default()
+    };
+    let mut bench = Bench::vs_bots(2, MAP_TDM, settings, &[1]);
+    bench.join(0);
+    assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0, 1]));
+    bench.run(4_000);
+    let accepted = bench.clients[0].input(100, 0x8000_0021);
+    bench.run(300);
+    bench.clients[0].profile_input(1);
+    bench.clients[0].input(3_000, 0x1234); // Refused: too far in the future.
+    bench.run(300);
+    bench.assert_no_faults();
+    drop(bench);
+    let mut path = None;
+    for _ in 0..200 {
+        path = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| {
+                p.extension().is_some_and(|e| e == "srprec")
+                    && record::read(p).is_ok_and(|r| {
+                        r.last().is_some_and(|r| {
+                            r.kind == record::NOTE && r.bytes.starts_with(b"{\"dropped\"")
+                        })
+                    })
+            });
+        if path.is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let path = path.expect("solo PvE recording was kept and closed");
+    let records = record::read(&path).unwrap();
+    let human: Vec<_> = records
+        .iter()
+        .filter(|r| r.kind == record::ACCEPTED_INPUT)
+        .collect();
+    assert_eq!(human.len(), 1, "only the accepted input is saved");
+    assert_eq!(human[0].place, 0);
+    assert_eq!(&human[0].bytes[4..8], &accepted.rotation);
+    assert_eq!(&human[0].bytes[8..], &accepted.actions.to_le_bytes());
+    assert!(
+        records
+            .iter()
+            .any(|r| r.kind == record::ACCEPTED_PROFILE && r.place == 0)
+    );
+    let notes = record::read_notes(&path).unwrap();
+    let (file, report) =
+        sur_convert::convert_file(&path, &notes, b"config", sur_convert::Settings::default())
+            .unwrap();
+    assert!(report.inputs > 1, "human and bot inputs are present");
+    let chunks = crate::v026g::sur::chunks(&file).unwrap();
+    let events = crate::v026g::sur::read_body(
+        &survarium::v026g::lzma2::unpack(chunks[2].1, 1 << 20).unwrap(),
+    )
+    .unwrap();
+    assert!(events.iter().any(|r| {
+        r.event
+            .inputs
+            .iter()
+            .any(|(place, input)| *place == 0 && input.actions == 0x21)
+    }));
+    std::fs::remove_dir_all(dir).unwrap();
+}

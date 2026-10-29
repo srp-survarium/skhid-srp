@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use artefact_carry::{Artefact, Place};
 use artefact_carry::carry::{Carry, Time};
 use super::{Context, Reg};
-use super::world::{Object, Player, floats, pointer, read};
+use super::world::{Player, floats, read};
 use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,32 +16,32 @@ impl Player<'_> {
     pub fn carry_key(&self) -> Option<Key> {
         // SAFETY: this is a live base_player. No client-only fields here.
         unsafe {
-            let place = Place::parse(read(raw::player::place(self.this.ptr())))?;
-            let kit = read(raw::player::kit(self.this.ptr()));
+            let place = Place::parse(read(self.this.place()))?;
+            let kit = read(self.this.kit());
             if kit >= 3 { return None; }
-            let world = pointer(raw::player::world_core(self.this.ptr()))?;
-            Some(Key { object: self.this.id(), world: world.id(), spawn: self.spawned(), index: usize::from(place.get()) * 3 + usize::from(kit) })
+            let world = self.this.world_core()?;
+            Some(Key { object: self.this.address(), world: world.address(), spawn: self.spawned(), index: usize::from(place.get()) * 3 + usize::from(kit) })
         }
     }
     pub fn carry_time(&self) -> Time {
         // SAFETY: live player's simulation clock.
-        Time(unsafe { read(raw::player::time(self.this.ptr())) })
+        Time(unsafe { read(self.this.time()) })
     }
     pub fn carry_allowed(&self) -> bool {
         if !self.alive() || !self.inserted() { return false; }
         // SAFETY: only known weapon interfaces can enter carry mode.
-        unsafe { pointer(raw::player::held_item(self.this.ptr())).is_some_and(|held| {
-            [raw::image::WEAPON_VTABLE, raw::image::WEAPON_CORE_VTABLE].contains(&read(raw::active_item::vtable(held.ptr())))
+        unsafe { self.this.held_item().is_some_and(|held| {
+            [raw::image::WEAPON_VTABLE, raw::image::WEAPON_CORE_VTABLE].contains(&read(held.vtable()))
         }) }
     }
     pub fn carry_dirty(&self) {
         // SAFETY: snapshot dirtiness belongs to this live native player.
-        unsafe { raw::player::modified(self.this.ptr()).write_volatile(1) }
+        unsafe { self.this.modified().write_volatile(1) }
     }
     pub fn carry_filter(&self, actions: u32) {
         // SAFETY: set_input has copied the packet to the player's own input.
         // Never edit the shared packet or its compressed/replay representation.
-        unsafe { raw::player::actions(self.this.ptr()).write_volatile(actions) }
+        unsafe { self.this.actions().write_volatile(actions) }
     }
     pub fn carry_owned(&self, artefact: Artefact) -> bool {
         self.inventory().is_some_and(|i| i.owns_passive(artefact))
@@ -49,28 +49,28 @@ impl Player<'_> {
     pub fn carry_team(&self) -> Option<u8> {
         // SAFETY: the live player's retained profile.
         unsafe {
-            let profile = pointer(raw::player::profile(self.this.ptr()))?;
-            match read(raw::player_profile::team(profile.ptr())) { 0 => Some(0), 1 => Some(1), _ => None }
+            let profile = self.this.profile()?;
+            match read(profile.team()) { 0 => Some(0), 1 => Some(1), _ => None }
         }
     }
     pub fn carry_eye(&self) -> ([f32; 3], [f32; 3]) {
         // SAFETY: computed eye is a complete native 4x4 matrix.
-        let m: [f32; 16] = unsafe { floats(raw::player::eye(self.this.ptr())) };
+        let m: [f32; 16] = unsafe { floats(self.this.eye()) };
         ([m[12], m[13], m[14]], [m[8], m[9], m[10]])
     }
     /// The core world owns the active kit. Release only the extra reference
     /// returned by the lookup, as NetworkClient::player does.
     pub fn carry_peer(&self, place: Place) -> Option<Player<'_>> {
-        let mut out = 0;
+        let mut out = None;
         // SAFETY: own live world and a bounded roster place. Native lookup
         // verifies membership and returns the world's current kit, not a cache.
         unsafe {
-            let world = pointer(raw::player::world_core(self.this.ptr()))?;
-            raw::engine_core_active_player(world.ptr(), u32::from(place.get()), &mut out);
-            let this = Object::at(out)?;
-            let refs = raw::player::references(this.ptr());
+            let world = self.this.world_core()?;
+            raw::engine_core_active_player(Some(world), u32::from(place.get()), &mut out);
+            let this = out?;
+            let refs = this.references();
             if AtomicU32::from_ptr(refs).fetch_sub(1, Ordering::AcqRel) == 1 {
-                raw::engine_release_object(this.ptr(), refs);
+                raw::engine_release_object(Some(this), refs);
                 return None;
             }
             Some(Player { this, thread: self.thread })
@@ -78,34 +78,41 @@ impl Player<'_> {
     }
 }
 
-pub fn player<'t>(ctx: &'t Context<'_>, reg: Reg) -> Option<Player<'t>> { Player::at(ctx, reg) }
+pub enum PlayerSite { Input, Filter, Tick, Save, Load, Weapon, Death }
+pub fn player<'t>(ctx: &'t Context<'_>, site: PlayerSite) -> Option<Player<'t>> {
+    // SAFETY: each caller names the hook whose live player it borrows.
+    let raw = unsafe { match site {
+        PlayerSite::Input => raw::site::carry_input::player(ctx),
+        PlayerSite::Filter => raw::site::carry_filter::player(ctx),
+        PlayerSite::Tick => raw::site::carry_tick::player(ctx),
+        PlayerSite::Save => raw::site::carry_save::player(ctx),
+        PlayerSite::Load => raw::site::carry_load::player(ctx),
+        PlayerSite::Weapon => raw::site::carry_weapon::player(ctx),
+        PlayerSite::Death => raw::site::carry_death::player(ctx),
+    }};
+    Player::of(ctx, raw)
+}
 
 pub fn local_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    let stack = ctx.reg(Reg::Esp).wrapping_add(8) as *mut c_void;
     // SAFETY: update_player_icons entry argument and its live client world.
     unsafe {
-        let ui = pointer(raw::update_player_icons_frame::ui(stack))?;
-        let world = pointer(raw::game_world_ui::world(ui.ptr()))?;
-        let game = pointer(raw::game_world::game(world.ptr()))?;
-        let client = pointer(raw::game::network_client(game.ptr()))?;
-        Some(Player { this: pointer(raw::network_client::local_player(client.ptr()))?, thread: ctx.thread() })
+        let ui = raw::site::player_icons_update_start::frame(ctx)?.ui()?;
+        let client = ui.world()?.game()?.network_client()?;
+        Some(Player { this: client.local_player()?, thread: ctx.thread() })
     }
 }
 
 pub fn incoming(ctx: &Context<'_>) -> Option<(Time, u32)> {
-    let stack = ctx.reg(Reg::Esp).wrapping_add(8) as *mut c_void;
-    // SAFETY: set_input's entry, before its prologue; frame locations are
-    // catalogued against the original function and the generated lohook ABI.
+    // SAFETY: set_input's entry frame, before its prologue.
     unsafe {
-        let input = pointer(raw::input_entry_frame::input(stack))?;
-        Some((Time(read(raw::input_entry_frame::time(stack))), read(raw::native_player_input::actions(input.ptr()))))
+        let frame = raw::site::carry_input::frame(ctx)?;
+        Some((Time(read(frame.time())), read(frame.input()?.actions())))
     }
 }
 
 pub fn constructed(ctx: &Context<'_>) -> u32 {
-    let stack = ctx.reg(Reg::Esp).wrapping_add(8) as *mut c_void;
-    // SAFETY: base_player constructor entry first argument, identity only.
-    unsafe { read(raw::base_player_ctor_frame::player(stack)) }
+    // SAFETY: constructor's destination is an identity, never dereferenced.
+    unsafe { raw::site::carry_construct::frame(ctx).map_or(0, |f| read(f.player())) }
 }
 
 pub fn write_snapshot(ctx: &Context<'_>, carry: Carry) {
@@ -122,20 +129,20 @@ pub(super) fn write_bytes(ctx: &Context<'_>, register: Reg, bytes: &[u8]) {
 }
 
 pub fn read_snapshot(ctx: &Context<'_>) -> Option<Carry> {
-    Carry::restore(read_bytes(ctx, Reg::Esi)?)
+    // SAFETY: live deserialize reader at the player-load site.
+    Carry::restore(read_bytes(unsafe { raw::site::carry_load::reader(ctx) }?)?)
 }
-pub(super) fn read_bytes<const N: usize>(ctx: &Context<'_>, register: Reg) -> Option<[u8; N]> {
-    let reader = ctx.reg(register) as *mut c_void;
+pub(super) fn read_bytes<const N: usize>(reader: raw::BufferReader) -> Option<[u8; N]> {
     // SAFETY: base_player::deserialize's live reader. Check the complete
     // extension against its allocation before copying or advancing it.
     unsafe {
-        let begin = read(raw::buffer_reader::begin(reader));
-        let cursor = read(raw::buffer_reader::cursor(reader));
-        let size = read(raw::buffer_reader::size(reader));
-        let next = cursor.checked_add(N as u32)?;
+        let begin = reader.begin() as usize;
+        let cursor = reader.cursor() as usize;
+        let size = read(reader.size()) as usize;
+        let next = cursor.checked_add(N)?;
         if cursor < begin || next > begin.checked_add(size)? { return None; }
         let bytes = (cursor as *const [u8; N]).read_unaligned();
-        raw::buffer_reader::cursor(reader).write(next);
+        reader.set_cursor(next as *mut u8);
         Some(bytes)
     }
 }
@@ -165,49 +172,49 @@ impl HeldShape {
         }
         result
     }
-    unsafe fn for_model(model: Object) -> Option<Self> {
+    unsafe fn for_model(model: raw::PlayerModel) -> Option<Self> {
         // SAFETY: all four native artefact cooks produce static model holders.
         // The retained held flower has the same type. get_aabb copies the
         // original resource's local bounds, not last frame's world bounds.
         unsafe {
-            let instance = pointer(raw::player_model::render_instance(model.ptr()))?;
+            let instance = model.render_instance().instance()?;
             let mut bounds = [0.0; 6];
-            raw::engine_static_model_bounds(instance.ptr(), bounds.as_mut_ptr());
+            raw::engine_static_model_bounds(Some(instance), bounds.as_mut_ptr());
             Self::parse(bounds)
         }
     }
 }
 
 /// The renderer calls queue a copy and retain both resource references.
-pub(super) struct Scene { renderer: Object, reference: *mut c_void }
+pub(super) struct Scene { renderer: raw::SceneRenderer, reference: raw::SceneReference }
 impl Scene {
-    pub(super) unsafe fn of_world(world: Object) -> Option<Self> {
+    pub(super) unsafe fn of_world(world: raw::GameWorld) -> Option<Self> {
         // SAFETY: live client world from a client callback/draw argument.
         unsafe {
-            let game = pointer(raw::game_world::game(world.ptr()))?;
-            let renderer = pointer(raw::game::renderer(game.ptr()))?;
-            Some(Self { renderer: pointer(raw::renderer::scene_renderer(renderer.ptr()))?, reference: raw::game_world::scene(world.ptr()).cast() })
+            let game = world.game()?;
+            let renderer = game.renderer()?;
+            Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
-    unsafe fn present(&self, model: Object, matrix: &[f32; 16]) {
+    unsafe fn present(&self, model: raw::PlayerModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
-            let reference = raw::player_model::render_instance(model.ptr());
-            let Some(instance) = pointer(reference) else { return };
-            if read(raw::render_model_instance::in_scene(instance.ptr())) == 0 {
-                raw::engine_add_model(self.renderer.ptr(), reference.cast(), self.reference, matrix.as_ptr(), matrix.as_ptr());
+            let reference = model.render_instance();
+            let Some(instance) = reference.instance() else { return };
+            if read(instance.in_scene()) == 0 {
+                raw::engine_add_model(Some(self.renderer), Some(reference), Some(self.reference), matrix.as_ptr(), matrix.as_ptr());
             } else {
-                raw::engine_update_model(self.renderer.ptr(), reference.cast(), self.reference, matrix.as_ptr(), matrix.as_ptr());
+                raw::engine_update_model(Some(self.renderer), Some(reference), Some(self.reference), matrix.as_ptr(), matrix.as_ptr());
             }
         }
     }
-    pub(super) unsafe fn remove(&self, model: Object) -> bool {
+    pub(super) unsafe fn remove(&self, model: raw::PlayerModel) -> bool {
         // SAFETY: as present; guard native remove with its own in-scene bit.
         unsafe {
-            let reference = raw::player_model::render_instance(model.ptr());
-            let Some(instance) = pointer(reference) else { return false };
-            if read(raw::render_model_instance::in_scene(instance.ptr())) == 0 { return false; }
-            raw::engine_remove_model(self.renderer.ptr(), reference.cast(), self.reference);
+            let reference = model.render_instance();
+            let Some(instance) = reference.instance() else { return false };
+            if read(instance.in_scene()) == 0 { return false; }
+            raw::engine_remove_model(Some(self.renderer), Some(reference), Some(self.reference));
             true
         }
     }
@@ -221,30 +228,29 @@ pub enum WeaponVisibility {
 
 /// A live native on_hide argument, which remains valid even if the player
 /// already selected a different weapon. Never dereference a cached identity.
-pub struct WeaponHiding { weapon: Object }
+pub struct WeaponHiding { weapon: raw::Weapon }
 impl WeaponHiding {
     pub fn at(ctx: &Context<'_>) -> Option<Self> {
-        let stack = ctx.reg(Reg::Esp).wrapping_add(8) as *mut c_void;
         // SAFETY: weapon::on_hide entry, exact native frame and live this.
         unsafe {
-            if read(raw::weapon_hide_frame::was_visible(stack)) == 0 { return None; }
-            Some(Self { weapon: Object::at(ctx.reg(Reg::Ecx))? })
+            if read(raw::site::carry_weapon_hide::frame(ctx)?.was_visible()) == 0 { return None; }
+            Some(Self { weapon: raw::site::carry_weapon_hide::weapon(ctx)? })
         }
     }
     pub fn restore(&self, state: &mut WeaponVisibility) {
         let WeaponVisibility::Hidden { weapon, models: removed } = *state else { return };
-        if weapon != self.weapon.id() { return; }
+        if weapon != self.weapon.address() { return; }
         // SAFETY: on_hide owns this weapon, its models and client world.
         // Restore the original native model set; on_hide immediately removes
         // it through its normal queue. Both commands precede rendering.
         unsafe {
-            let Some(world) = pointer(raw::weapon::world(self.weapon.ptr())) else { return };
+            let Some(world) = self.weapon.world() else { return };
             let Some(scene) = Scene::of_world(world) else { return };
-            let optics = pointer(raw::weapon::optics(self.weapon.ptr()));
-            let models = [pointer(raw::weapon::model(self.weapon.ptr())),
-                optics.and_then(|o| pointer(raw::weapon_optics::model(o.ptr()))),
-                optics.and_then(|o| pointer(raw::weapon_optics::aim_model(o.ptr())))];
-            let matrix = floats(raw::weapon::transform(self.weapon.ptr()));
+            let optics = self.weapon.optics();
+            let models = [self.weapon.model(),
+                optics.and_then(|o| o.model()),
+                optics.and_then(|o| o.aim_model())];
+            let matrix = floats(self.weapon.transform());
             for (n, model) in models.into_iter().enumerate() {
                 if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
             }
@@ -256,29 +262,30 @@ impl WeaponHiding {
 /// Sole owner of the temporary render removal. Store identities only; on
 /// restoration resolve the currently held weapon again before touching it.
 pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, state: &mut WeaponVisibility) {
-    let Some(player) = Player::at(ctx, Reg::Ebx) else { return };
+    let Some(player) = player(ctx, PlayerSite::Weapon) else { return };
     // SAFETY: player_draw's live player, client weapon parsed by exact vtable.
     unsafe {
-        let Some(weapon) = pointer(raw::player::held_item(player.this.ptr())) else { return };
-        if read(raw::active_item::vtable(weapon.ptr())) != raw::image::WEAPON_VTABLE { *state = WeaponVisibility::Native; return; }
-        let Some(world) = pointer(raw::player::game_world(player.this.ptr())) else { return };
+        let Some(weapon) = player.this.held_item() else { return };
+        if read(weapon.vtable()) != raw::image::WEAPON_VTABLE { *state = WeaponVisibility::Native; return; }
+        let weapon = weapon.weapon();
+        let Some(world) = player.this.game_world() else { return };
         let Some(scene) = Scene::of_world(world) else { return };
-        let optics = pointer(raw::weapon::optics(weapon.ptr()));
-        let models = [pointer(raw::weapon::model(weapon.ptr())),
-            optics.and_then(|o| pointer(raw::weapon_optics::model(o.ptr()))),
-            optics.and_then(|o| pointer(raw::weapon_optics::aim_model(o.ptr())))];
+        let optics = weapon.optics();
+        let models = [weapon.model(),
+            optics.and_then(|o| o.model()),
+            optics.and_then(|o| o.aim_model())];
         match (*state, hide) {
             (previous, true) => {
                 let mut removed = match previous {
-                    WeaponVisibility::Hidden { weapon: previous, models } if previous == weapon.id() => models,
+                    WeaponVisibility::Hidden { weapon: previous, models } if previous == weapon.address() => models,
                     _ => 0,
                 };
                 for (n, model) in models.into_iter().enumerate() {
                     if model.is_some_and(|model| scene.remove(model)) { removed |= 1 << n; }
                 }
-                *state = WeaponVisibility::Hidden { weapon: weapon.id(), models: removed };
+                *state = WeaponVisibility::Hidden { weapon: weapon.address(), models: removed };
             }
-            (WeaponVisibility::Hidden { weapon: previous, models: removed }, false) if previous == weapon.id() => {
+            (WeaponVisibility::Hidden { weapon: previous, models: removed }, false) if previous == weapon.address() => {
                 let matrix = (ctx.reg(Reg::Eax) as *const [f32; 16]).read_unaligned();
                 for (n, model) in models.into_iter().enumerate() {
                     if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
@@ -295,50 +302,48 @@ pub enum ArtefactClass { Spring, Lifebone, Onyx, Rattle }
 
 pub enum DrawCommand { Present([f32; 16]), Keep, Native }
 
-pub struct ArtefactDraw { callback: Object, item: Object }
+pub struct ArtefactDraw { callback: raw::ArtefactClient, item: raw::Artefact }
 impl ArtefactDraw {
-    pub(super) fn of_item(item: Object) -> Option<Self> {
-        // SAFETY: a live inventory artefact. Exact client vtables distinguish
-        // the four callback layouts from core-only server objects.
-        let offset = unsafe { match read(raw::active_item::vtable(item.ptr())) {
-            raw::image::SPRING_VTABLE => 0x398,
-            raw::image::LIFEBONE_VTABLE => 0x498,
-            raw::image::ONYX_VTABLE => 0xF20,
-            raw::image::RATTLE_VTABLE => 0x340,
+    pub(super) fn of_item(item: raw::Artefact) -> Option<Self> {
+        // SAFETY: a live inventory artefact. Exact vtables select its callback.
+        let callback = unsafe { match read(item.item().vtable()) {
+            raw::image::SPRING_VTABLE => item.spring_callback(),
+            raw::image::LIFEBONE_VTABLE => item.lifebone_callback(),
+            raw::image::ONYX_VTABLE => item.onyx_callback(),
+            raw::image::RATTLE_VTABLE => item.rattle_callback(),
             _ => return None,
         }};
-        Some(Self { item, callback: Object::at(item.id().checked_add(offset)?)? })
+        Some(Self { item, callback })
     }
 
     pub fn at(ctx: &Context<'_>, class: ArtefactClass) -> Option<Self> {
-        let callback = Object::at(ctx.reg(Reg::Ecx))?;
-        // SAFETY: class is fixed by the four distinct callback hook sites.
-        let item = unsafe { match class {
-            ArtefactClass::Spring => raw::artefact_spring_client::base(callback.ptr()),
-            ArtefactClass::Lifebone => raw::artefact_lifebone_client::base(callback.ptr()),
-            ArtefactClass::Onyx => raw::artefact_onyx_client::base(callback.ptr()),
-            ArtefactClass::Rattle => raw::artefact_rattle_client::base(callback.ptr()),
+        // SAFETY: class names the exact callback site, whose offsets are in raw.
+        let (callback, item) = unsafe { match class {
+            ArtefactClass::Spring => { let c = raw::site::carry_spring::callback(ctx)?; (c.callback(), c.base()) },
+            ArtefactClass::Lifebone => { let c = raw::site::carry_lifebone::callback(ctx)?; (c.callback(), c.base()) },
+            ArtefactClass::Onyx => { let c = raw::site::carry_onyx::callback(ctx)?; (c.callback(), c.base()) },
+            ArtefactClass::Rattle => { let c = raw::site::carry_rattle::callback(ctx)?; (c.callback(), c.base()) },
         }};
-        Some(Self { callback, item: Object::at(item as u32)? })
+        Some(Self { callback, item })
     }
-    pub fn id(&self) -> u32 { self.item.id() }
+    pub fn id(&self) -> u32 { self.item.address() }
     pub fn ground(&self, ctx: &Context<'_>) -> bool {
         let Some(item) = super::carry_ground::GroundItem::of_item(self.item, ctx.thread()) else { return false };
         // SAFETY: native item world owns its simulation clock.
-        let now = unsafe { pointer(raw::item::world(self.item.ptr()))
-            .map(|w| Time(read(raw::core_world::time(w.ptr())))) };
+        let now = unsafe { self.item.item().world()
+            .map(|w| Time(read(w.time()))) };
         let Some(position) = now.and_then(|now| item.position(now)) else { return false };
         unsafe {
-            let Some(world) = pointer(raw::artefact_client::world(self.callback.ptr())) else { return false };
+            let Some(world) = self.callback.world() else { return false };
             let Some(scene) = Scene::of_world(world) else { return false };
-            let Some(model) = pointer(raw::artefact_client::model(self.callback.ptr())) else { return false };
-            let cached = raw::artefact_client::cached_state(self.callback.ptr());
+            let Some(model) = self.callback.model() else { return false };
+            let cached = self.callback.cached_state();
             if read(cached) == 5 {
-                super::carry_flower::with_model(ctx.thread(), self.item.id(), model, |held| { scene.remove(held); });
+                super::carry_flower::with_model(ctx.thread(), self.item.address(), model, |held| { scene.remove(held); });
             }
-            let Some(instance) = pointer(raw::player_model::render_instance(model.ptr())) else { return false };
+            let Some(instance) = model.render_instance().instance() else { return false };
             let mut bounds = [0.; 6];
-            raw::engine_static_model_bounds(instance.ptr(), bounds.as_mut_ptr());
+            raw::engine_static_model_bounds(Some(instance), bounds.as_mut_ptr());
             if !bounds.iter().all(|v| v.is_finite()) { return false; }
             let mut matrix = [1.,0.,0.,0., 0.,1.,0.,0., 0.,0.,1.,0., 0.,0.,0.,1.];
             matrix[12] = position[0] - (bounds[0] + bounds[3]) * 0.5;
@@ -354,13 +359,13 @@ impl ArtefactDraw {
     pub fn update(&self, ctx: &Context<'_>, command: DrawCommand) -> bool {
         // SAFETY: the original callback owns its item/model/world throughout.
         unsafe {
-            let cached = raw::artefact_client::cached_state(self.callback.ptr());
-            let state = read(raw::artefact::state(self.item.ptr()));
-            let Some(world) = pointer(raw::artefact_client::world(self.callback.ptr())) else { return false };
+            let cached = self.callback.cached_state();
+            let state = read(self.item.state());
+            let Some(world) = self.callback.world() else { return false };
             let Some(scene) = Scene::of_world(world) else { return false };
-            let Some(model) = pointer(raw::artefact_client::model(self.callback.ptr())) else { return false };
+            let Some(model) = self.callback.model() else { return false };
             if read(cached) == 6 { scene.remove(model); cached.write(0); }
-            super::carry_flower::with_model(ctx.thread(), self.item.id(), model, |held| {
+            super::carry_flower::with_model(ctx.thread(), self.item.address(), model, |held| {
                 if read(cached) == 5 && (state != 3 || matches!(command, DrawCommand::Native)) {
                     scene.remove(held);
                     cached.write(3);

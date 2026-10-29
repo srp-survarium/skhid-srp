@@ -1,8 +1,4 @@
 va	status	ref_021d	name
-0x002febc0	reviewed	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
-0x002df050	reviewed		survarium::portable_interactive_object_core::set_user_animation_resource
-0x002fb8a0	reviewed	0x001e0aca	survarium::weapon_user_animations_selector::~weapon_user_animations_selector
-0x00231bc0	reviewed		survarium::hit_animations_selector::~hit_animations_selector
 0x00014650	reviewed	0x00013315	vostok::render::one_way_render_channel::owner_initialize
 0x00014710	reviewed	0x000133ca	vostok::render::one_way_render_channel::owner_finalize
 0x000147e0	reviewed	0x00013457	on_mounted_resources
@@ -545,7 +541,6 @@ va	status	ref_021d	name
 0x0016c1a0	reviewed	0x00101fcd	vostok::render::effect_block_compression::compile
 0x0016c520	reviewed	0x0010218b	vostok::render::model_factory::create_render_surface
 0x0016c8b0	reviewed	0x0010239d	vostok::render::model_factory::create_render_model
-0x0016e420	verified	0x0010369b	vostok::render::static_render_model_instance::get_aabb
 0x0016e460	reviewed	0x001036b9	vostok::render::static_render_model_instance::get_surfaces_count
 0x0016e500	reviewed	0x0010372b	vostok::render::static_render_surface::fill_lpv_vertex_color
 0x0016e550	reviewed	0x00103772	vostok::render::static_render_surface::add_shadow_vertices
@@ -1823,6 +1818,23 @@ va	status	ref_021d	name
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
 0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent
+0x00426ae1	verified		setlocale
+0x00329b20	verified		survarium::player_stamina::update_weight_modifiers
+0x00329290	verified		survarium::player_stamina::player_stamina
+0x002dbf40	verified	0x001d6747	survarium::base_player::can_sprint
+0x002221e0	verified		survarium::lobby_menu::update_player_items_weight
+0x002f7660	verified		survarium::player_profile::apply_kit_parameter
+0x00331840	observed		survarium::weapon_recoil_parameters::load
+0x00330ee0	observed		survarium::weapon_dispersion_parameters::load
+0x002debc0	observed		survarium::weapon_breath_vibration_parameters::load
+0x002f1430	observed		survarium::item_config_cook::find_modifier_target
+0x00358010	observed		vostok::configs::apply_multiplicative_modifiers
+0x0028cab0	verified		survarium::lobby_menu::go_to_knowledge_base
+0x002febc0	reviewed	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
+0x002df050	reviewed		survarium::portable_interactive_object_core::set_user_animation_resource
+0x002fb8a0	reviewed	0x001e0aca	survarium::weapon_user_animations_selector::~weapon_user_animations_selector
+0x00231bc0	reviewed		survarium::hit_animations_selector::~hit_animations_selector
+0x0016e420	verified	0x0010369b	vostok::render::static_render_model_instance::get_aabb
 0x002d0ab0	observed	0x001caa92	survarium::game_world_core::active_player_ptr
 0x002d6990	observed	0x001d2e62	survarium::base_player::base_player
 0x002d86e0	observed	0x001d4323	survarium::base_player::apply_new_input

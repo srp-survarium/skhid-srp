@@ -1,23 +1,21 @@
 package survarium.controls
 {
    import flash.display.Graphics;
-   import flash.display.Bitmap;
    import flash.display.DisplayObject;
    import flash.display.Sprite;
-   import flash.events.Event;
    import flash.filters.GlowFilter;
    import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
-   import flash.utils.getTimer;
 
    // Research (mode 5): the research units under the teams' points. One circle
    // a unit, its letter, filled in the colour of its owner (the game's own
    // team blue, the other red, nobody grey), a ring as far round as the
    // capture of the team taking it, under a unit the time left of its
    // capture or neutralisation while one runs; the unit the game's own player
-   // is inside larger (INSIDE), without a capture caption. The exe
+   // is inside larger (INSIDE), without a capture caption. The activity overlay
+   // is swords while contested, or ! while the enemy alone advances capture. The exe
    // (research_arena) sends the state with
    // HUD.research_update.
    public class ResearchUnits extends Sprite
@@ -47,11 +45,7 @@ package survarium.controls
 
       protected var _units:Array = [];
 
-      protected var _swords:Array = [];
-
-      protected var _pulseStarts:Array = [];
-
-      public static const PULSE_MS:uint = 2000;
+      protected var _alerts:Array = [];
 
       // A unit's time left, under its circle.
       protected var _timers:Array = [];
@@ -214,23 +208,20 @@ package survarium.controls
          var shape:Sprite;
          var g:Graphics;
          var timer:TextField;
-         var swords:Bitmap;
+         var alert:ResearchAlert;
          var contested:Boolean;
-         var anyContested:Boolean = false;
+         var advancing:uint;
          while(this._units.length < units.length)
          {
             shape = new Sprite();
             addChild(shape);
             this._units.push(shape);
-            swords = new Bitmap(new ResearchSwords());
-            swords.smoothing = true;
-            swords.scaleX = swords.scaleY = 2 * (RADIUS + RING) / 54;
-            swords.x = -swords.width / 2;
-            swords.y = -swords.height / 2;
-            swords.visible = false;
-            shape.addChild(swords);
-            this._swords.push(swords);
-            this._pulseStarts.push(uint(0));
+            alert = new ResearchAlert();
+            alert.scaleX = alert.scaleY = 2 * (RADIUS + RING) / 54;
+            alert.x = -54 * alert.scaleX / 2;
+            alert.y = -53 * alert.scaleY / 2;
+            shape.addChild(alert);
+            this._alerts.push(alert);
             timer = this.makeTimer();
             addChild(timer);
             this._timers.push(timer);
@@ -239,8 +230,7 @@ package survarium.controls
          {
             removeChild(this._units.pop());
             removeChild(this._timers.pop());
-            this._swords.pop();
-            this._pulseStarts.pop();
+            ResearchAlert(this._alerts.pop()).setState(ResearchAlert.NONE);
          }
          while(i < units.length)
          {
@@ -261,15 +251,10 @@ package survarium.controls
                drawRing(g,RADIUS,RING,unit.progress / 100,colourOf(unit.capturing,ownTeam));
             }
             drawLetter(g,unit.cp_id,RADIUS);
-            swords = this._swords[i];
+            alert = this._alerts[i];
             contested = unit.inside_0 > 0 && unit.inside_1 > 0;
-            if(contested && !swords.visible)
-            {
-               this._pulseStarts[i] = uint(getTimer());
-               swords.alpha = 1;
-            }
-            swords.visible = contested;
-            anyContested = anyContested || contested;
+            advancing = unit.inside_0 > 0 ? 0 : unit.inside_1 > 0 ? 1 : NO_TEAM;
+            alert.setState(ResearchAlert.forCapture(ownTeam,advancing,unit.left,contested));
             timer = this._timers[i];
             timer.visible = unit.left > 0;
             if(timer.visible)
@@ -277,32 +262,6 @@ package survarium.controls
                timer.text = timeText(unit.left);
                timer.x = Math.round(shape.x - timer.width / 2);
                timer.y = Math.round((RADIUS + RING) * shape.scaleY);
-            }
-            i++;
-         }
-         if(anyContested)
-         {
-            addEventListener(Event.ENTER_FRAME,this.onContestedFrame);
-         }
-         else
-         {
-            removeEventListener(Event.ENTER_FRAME,this.onContestedFrame);
-         }
-      }
-
-      // The top HUD keeps its own contested pulse even when the world
-      // markers' parent has faded to zero for a scope.
-      protected function onContestedFrame(e:Event) : void
-      {
-         var now:uint = uint(getTimer());
-         var elapsed:uint;
-         var i:uint = 0;
-         while(i < this._swords.length)
-         {
-            if(this._swords[i].visible)
-            {
-               elapsed = uint(now - uint(this._pulseStarts[i]));
-               this._swords[i].alpha = Math.abs(1 - (elapsed % PULSE_MS) / PULSE_MS * 2);
             }
             i++;
          }

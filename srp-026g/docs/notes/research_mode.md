@@ -48,12 +48,20 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
-- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
-  to capture a point either way"). Captures, neutralisations and kill invader pay as their
-  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
-  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
-  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
-  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
+- **Rewards: combat-adjusted cap** (PR #691, revised 2026-10-28):
+  - captures and neutralisations share a payment allowance of **200 score + 40 per paid
+    enemy kill + 20 per assist**. Above it, those two counters are reduced proportionally;
+    their weights remain 30 per whole capture/neutralisation. Kill-invader rewards stay whole;
+  - the repeat-kill cap runs first, so unpaid feeding kills cannot expand the allowance.
+    `reward_caps::Payment` owns this order and the payment-only copy. Bot matches skip these event caps and have a tier-7 reward ceiling instead;
+  - the earlier flat 200-point cap cut a contested 12/10 player's silver by 46% and a
+    9/8 player's by 43% in match `7964b894`. Both now fit within the allowance. Conversely,
+    21 captures and 20 neutralisations with zero kills/assists still pay at most 200 points;
+  - score, quests and rating use the ordinary statistics; only the payment copy is reduced.
+    Kills, help and the fixed payment are not cut by the objective rule;
+  - these counters are evidence of repeated objectives, not proof of collusion. Objective-only
+    legitimate play can still cross the allowance, while coordinated combat can raise it.
+    Historical audit details and limits: `farm_cap_audit.md`.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred right under them, as in rev 30;
   the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
   following its position every frame, so the indicator's centring never counts them) (letter,
@@ -275,15 +283,28 @@ The C filename in the hash-mismatch field metadata is retained for compatibility
 The top HUD and projected world markers are separate. Neither shows “Capturing unit…”.
 The local world marker grows from 24 to 34 px and has corner brackets; the HUD icon
 grows by the same 34/24 factor. Both teams inside
-means crossed swords, with a two-second pulse measured by elapsed time (not frame count).
+means crossed swords. An enemy alone advancing a capture or neutralisation shows a white
+`!`, on friendly-owned and neutral units alike; it clears when capture stops or finishes.
+Friendly capture shows neither overlay. Swords take priority when both teams are inside.
+Both overlays use `ResearchAlert`, with a two-second pulse measured by elapsed time
+(not frame count), the swords' 54 x 53 image bounds, and the existing per-movie scale.
+The approved warning source is `tools/actionscript/art/ResearchWarning.svg`; its 54 x 53
+RGBA rendering is checked in as `ResearchWarning.png` in both movies. Repeated updates
+keep the pulse phase; changing activity starts the new overlay fully visible.
 The top HUD remains visible during aiming. World markers have alpha 0.55, fill alpha 0.12,
 no opaque backing and sit below player icons in the movie's display list.
 
 At 0x23B207, after the original update_player_icons call, Rust sends
 `root.research_markers(team, count, [cp_id, projected, x, y, distance, owner, capturing,
-progress, ms_left, local_inside] * count, [contested] * count, aiming)` on change and
+progress, ms_left, local_inside] * count, [contested] * count, aiming, [advancing_team] * count)` on change and
 every 60 frames. Projection uses the engine library's point_to_screen with the point
 raised 2 m. Markers behind the camera or off screen are hidden; this is not wall occlusion.
+The appended `advancing_team` is the sole occupying team (0/1, 2 for empty or contested),
+not `capturing`: the latter remains the defender while its progress drains. The movie
+combines this team with `ms_left > 0` to show an enemy warning. Older senders omit the
+tail and show no warning rather than infer the wrong team; older movies ignore the tail.
+The top HUD derives the same activity from its existing occupancy counts and timer.
+No rule state, network message, capture timing, scoring or replay format changes.
 
 Aiming follows the actual weapon state, not the scope attachment or mouse input:
 game+4D58h is the input handler, camera director+84h must equal input+4, input+358h
@@ -294,8 +315,9 @@ hide markers too. Free cameras and dead players do not inherit another player's 
 
 Visibility belongs to the world-marker parent Sprite: smoothstep to zero in 200 ms,
 to one in 300 ms. Repeated packets do not restart the fade; reversals begin at the
-current alpha. Only the crossed swords pulse; the capture icon stays steady. The swords
-animate a child, so they cannot reveal a hidden marker. The normal hide-interface key
+current alpha. Only the activity overlay pulses; the capture icon stays steady. The overlay
+animates a child, so it cannot reveal a hidden marker. Hidden/removed markers stop their
+activity animation. The normal hide-interface key
 still hides this parent.
 
 Retail reference: 0.27d's CapturePointMarker used 24/34 px and alpha 195/255; its

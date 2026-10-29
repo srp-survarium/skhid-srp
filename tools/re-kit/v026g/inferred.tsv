@@ -962,6 +962,7 @@ va	status	ref_021d	name
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_shotgun_reload_base_substate::execute
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_throw_grenade_base_substate::execute
 0x001af330	inferred-medium	0x0020960a	survarium::weapon_core_melee_state::execute
+0x001af330	inferred-medium		survarium::weapon::add_modifiers
 0x001af3b0	inferred-medium	0x00125574	vostok::render::create_color_grading_base_lut
 0x001af450	inferred-medium	0x00125607	vostok::render::bloom_shader_constants::bloom_shader_constants
 0x001af500	inferred-medium	0x00125682	vostok::render::bloom_shader_constants::set
@@ -3083,6 +3084,11 @@ va	status	ref_021d	name
 0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
 0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
 0x001e8da0	inferred-high		survarium::delete_folder
+0x003b7bd0	inferred-medium		vostok::input::input_world::tick
+0x003b8cc0	inferred-medium		vostok::input::platform::keyboard::on_activate
+0x003b8cf0	inferred-medium		vostok::input::platform::keyboard::on_deactivate
+0x003b8d00	inferred-medium		vostok::input::platform::keyboard::is_key_down
+0x003b9af0	inferred-medium		vostok::input::platform::keyboard::process
 0x00301cb0	inferred-medium		survarium::victory_item_core::activate_physics
 0x00306d50	inferred-medium		survarium::game_material_manager::material_pair
 0x00332440	inferred-medium		survarium::ammo_data::load
@@ -3091,6 +3097,15 @@ va	status	ref_021d	name
 0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
 0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
 0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list
+0x000e3c10	observed		vostok::core::preinitialize
+0x000ddeb0	observed		vostok::command_line::key<string>::is_set
+0x0084e3e0	observed		vostok::core::`dynamic initializer for 's_localization''
+0x001e9030	observed		survarium::game::save_user_config
+0x001e9c00	observed		survarium::game::~game
+0x00229400	inferred-high		survarium::lobby_menu::set_ui_element_lock_state
+0x00276360	inferred-high		survarium::lobby_client::on_buy_item_result
+0x002f7470	inferred-medium		survarium::player_profile::add_item_kit_parameters
+0x0028a2c0	inferred-medium		survarium::items_dictionary::copy_item_record
 0x002fe7f0	inferred-high		survarium::inventory::quick_slot_to_inventory_slot
 0x002d4540	inferred-high		survarium::active_objects::append
 0x00299830	inferred-high		survarium::empty_hands::empty_hands

@@ -45,3 +45,13 @@ bandage in 0.26g. The edit list is `scripts/content-edit/bandages-1.json`.
   contradict the description. Use time, active time and weight stay on the card.
 - Each text uses only characters its table already has, and writes "35%" with no space, as the
   tables do.
+
+## Explicit medical card values (2026-10-27)
+
+`medical-cards-1.json` follows the earlier bandage edit. Both bandages and medkits
+show healing for arms/legs and body/head separately, plus pain relief. Bandages:
+100%, 35%, 35%; medkit: 100%, 100%, 0%. The original activation time, duration,
+and weight rows remain; a lower activation time compares as better. These are UI
+properties only and do not change the medical effects. The card no longer invents
+zero-valued rows from a compared medicine whose properties differ, and its layout
+responds when the comparison changes the rows.

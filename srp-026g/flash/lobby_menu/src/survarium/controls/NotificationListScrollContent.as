@@ -24,7 +24,6 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.constants.Faction;
    import survarium.constants.ImportantMessageType;
-   import survarium.constants.Language;
    import survarium.constants.MoneyType;
    import survarium.constants.NotificationType;
    import survarium.constants.QuestStatus;
@@ -62,39 +61,40 @@ package survarium.controls
       // the download was started
       private static const RP_STARTED:int = 4;
       
-      // The prompt's texts: an index into rpWords (rpText, rpFill, rpShow); RP_KEY_NONE is no text shown.
-      private static const RP_KEY_NONE:int = -1;
+      // The prompt's texts (dictionary keys; rpShow); RP_KEY_NONE is no text shown.
+      private static const RP_KEY_NONE:String = null;
       
-      private static const RP_KEY_TITLE:int = 0;
+      private static const RP_KEY_TITLE:String = "st_srp_replay_title";
       
-      private static const RP_KEY_DOWNLOAD:int = 1;
+      private static const RP_KEY_DOWNLOAD:String = "st_srp_replay_download";
       
-      private static const RP_KEY_CLOSE:int = 2;
+      private static const RP_KEY_CLOSE:String = "st_srp_replay_close";
       
-      private static const RP_KEY_ASKING:int = 3;
+      private static const RP_KEY_ASKING:String = "st_srp_replay_asking";
       
-      private static const RP_KEY_BEING_MADE:int = 4;
+      private static const RP_KEY_BEING_MADE:String = "st_srp_replay_being_made";
       
-      private static const RP_KEY_READY_SIZE:int = 5;
+      private static const RP_KEY_READY_SIZE:String = "st_srp_replay_ready_size";
       
-      private static const RP_KEY_READY:int = 6;
+      private static const RP_KEY_READY:String = "st_srp_replay_ready";
       
-      // the first of the final answers (rpFinalKey): not_recorded, gone, not_yours, old_game, incompatible, busy, failed, off
-      private static const RP_KEY_FIRST_FINAL:int = 7;
+      // the final answers (rpFinalKey), by the server's status
+      private static const RP_FINALS:Object = {
+         "not_recorded":"st_srp_replay_not_recorded",
+         "gone":"st_srp_replay_gone",
+         "not_yours":"st_srp_replay_not_yours",
+         "old_game":"st_srp_replay_old_game",
+         "incompatible":"st_srp_replay_incompatible",
+         "busy":"st_srp_replay_busy",
+         "failed":"st_srp_replay_failed",
+         "off":"st_srp_replay_off"
+      };
       
-      private static const RP_KEY_NO_ANSWER:int = 15;
+      private static const RP_KEY_NO_ANSWER:String = "st_srp_replay_no_answer";
       
-      private static const RP_KEY_STARTING:int = 16;
+      private static const RP_KEY_STARTING:String = "st_srp_replay_starting";
       
-      private static const RP_KEY_MB:int = 17;
-      
-      private static const RP_KEY_PLACE_IN_LINE:int = 18;
-      
-      private static const RP_KEY_MADE_NOW:int = 19;
-      
-      private static const RP_KEY_WAITING:int = 20;
-      
-      private static const RP_KEY_STILL_PREPARING:int = 21;
+      private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
       
       // The highest place in the replay server's line the prompt shows.
       private static const RP_PLACE_MAX:int = 999;
@@ -146,7 +146,7 @@ package survarium.controls
       
       protected var _rpDialogData:Object;
       
-      protected var _rpShownKey:int;
+      protected var _rpShownKey:String;
       
       protected var _rpDemoStep:int;
       
@@ -923,89 +923,15 @@ package survarium.controls
          }
       }
       
-      protected function rpLang() : int
+      protected function rpText(key:String) : String
       {
-         var word:String = LocalizationData.getName("btn_friends");
-         if(word == "Друзі")
-         {
-            return Language.UK;
-         }
-         if(word == "Друзья")
-         {
-            return Language.RU;
-         }
-         return Language.EN;
+         return LocalizationData.getName(key);
       }
       
-      protected function rpWords() : Array
+      protected function rpFinalKey(status:String) : String
       {
-         var words:Array = [["Watch replay","Дивитися повтор","Смотреть повтор"],["DOWNLOAD AND WATCH","ЗАВАНТАЖИТИ Й ДИВИТИСЯ","СКАЧАТЬ И СМОТРЕТЬ"],["CLOSE","ЗАКРИТИ","ЗАКРЫТЬ"],["Asking the match server for the replay of this match…","Запитуємо в сервера матчу повтор цього матчу…","Запрашиваем у сервера матча повтор этого матча…"],[["The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n",""],["Повтор створюється із запису матчу. Так буває, коли цей матч дивляться вперше, і це займає трохи часу.\nЦе вікно можна закрити: сервер продовжить його створювати.\n\n",""],["Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n",""]],[["Replay of this match: ",".\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed."]
-         ,["Повтор цього матчу: ",".\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість."],["Повтор этого матча: ",".\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость."]],["The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.","Повтор цього матчу готовий.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F11 для керування: гравці, камера, перемотування, швидкість."
-         ,"Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость."],["This match was not recorded: it had fewer than 6 players, or recording was off at the time.","Цей матч не записано: у ньому було менше 6 гравців або запис тоді був вимкнений.","Этот матч не записан: в нём было меньше 6 игроков или запись тогда была выключена."],["The replay of this match is no longer kept on the server.","Повтор цього матчу більше не зберігається на сервері.","Повтор этого матча больше не хранится на сервере."],["You can watch replays only of matches you played in.","Дивитися можна лише повтори матчів, у яких ви грали.","Смотреть можно только повторы матчей, в которых вы играли."],["Your game version cannot play replays. Update the game: start it again through the launcher.","Ваша версія гри не відтворює повтори. Оновіть гру: запустіть її знову через лаунчер."
-         ,"Ваша версия игры не воспроизводит повторы. Обновите игру: запустите её снова через лаунчер."],["This replay was recorded by a game version that yours cannot play.","Цей повтор записала версія гри, яку ваша гра не може відтворити.","Этот повтор записан версией игры, которую ваша игра не может воспроизвести."],["The server is busy with other replays right now. Try again in a minute.","Сервер зараз зайнятий іншими повторами. Спробуйте ще раз за хвилину.","Сервер сейчас занят другими повторами. Попробуйте ещё раз через минуту."],["The server could not prepare the replay of this match.","Серверу не вдалося підготувати повтор цього матчу.","Серверу не удалось подготовить повтор этого матча."],["Replays are switched off on this server.","Повтори на цьому сервері вимкнено.","Повторы на этом сервере отключены."],["The server did not answer. Try again later.","Сервер не відповів. Спробуйте пізніше.","Сервер не ответил. Попробуйте позже."],["Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls."
-         ,"Запускаємо повтор: відкриється друге вікно гри, лобі залишиться відкритим. Якщо щось піде не так, програма оновлення покаже, що сталося.\n\nУ повторі натисніть F11 для керування.","Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F11 для управления."],["MB","МБ","МБ"],[["Place in line: ",". Waiting: "," s."],["Місце в черзі: ",". Очікування: "," с."],["Место в очереди: ",". Ожидание: "," с."]],[["Being made now. Waiting: "," s."],["Створюється зараз. Очікування: "," с."],["Создаётся сейчас. Ожидание: "," с."]],[["Waiting: "," s."],["Очікування: "," с."],["Ожидание: "," с."]],["Still being prepared. It keeps being made on the server; open Watch replay again in a minute.","Повтор ще готується. Сервер продовжує його створювати; відкрийте «Дивитися повтор» ще раз за хвилину.","Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту."]];
-         return words;
-      }
-      
-      protected function rpText(key:int) : String
-      {
-         var words:Array = this.rpWords();
-         var entry:Object = null;
-         if(key < 0 || key >= words.length)
-         {
-            return "";
-         }
-         entry = words[key][this.rpLang()];
-         if(entry is Array)
-         {
-            return this.rpFill(key,[]);
-         }
-         return String(entry);
-      }
-      
-      protected function rpFill(key:int, values:Array) : String
-      {
-         var words:Array = this.rpWords();
-         var pieces:Array = null;
-         var text:String = "";
-         var i:int = 0;
-         if(key < 0 || key >= words.length)
-         {
-            return "";
-         }
-         pieces = words[key][this.rpLang()] as Array;
-         if(!pieces)
-         {
-            return String(words[key][this.rpLang()]);
-         }
-         text = String(pieces[0]);
-         i = 1;
-         while(i < pieces.length)
-         {
-            if(values && i - 1 < values.length)
-            {
-               text += String(values[i - 1]);
-            }
-            text += String(pieces[i]);
-            i++;
-         }
-         return text;
-      }
-      
-      protected function rpFinalKey(status:String) : int
-      {
-         var finals:Array = ["not_recorded","gone","not_yours","old_game","incompatible","busy","failed","off"];
-         var i:int = 0;
-         i = 0;
-         while(i < finals.length)
-         {
-            if(finals[i] == status)
-            {
-               return RP_KEY_FIRST_FINAL + i;
-            }
-            i++;
-         }
-         return RP_KEY_NONE;
+         var key:String = RP_FINALS[status] as String;
+         return key != null ? key : RP_KEY_NONE;
       }
       
       protected function rpHex(value:uint) : String
@@ -1021,7 +947,6 @@ package survarium.controls
       protected function rpSizeText(bytes:Number) : String
       {
          var tenths:Number = 0;
-         var text:String = null;
          if(!(bytes > 0))
          {
             return "";
@@ -1031,8 +956,7 @@ package survarium.controls
          {
             tenths = 1;
          }
-         text = String(Math.floor(tenths / 10)) + (this.rpLang() != Language.EN ? "," : ".") + String(tenths % 10);
-         return text + " " + this.rpText(RP_KEY_MB);
+         return LocalizationData.format("st_srp_replay_size",Math.floor(tenths / 10),tenths % 10);
       }
       
       public function replayBegin(id:uint) : void
@@ -1141,7 +1065,7 @@ package survarium.controls
          var status:String = fields.length > 1 ? String(fields[1]) : "";
          var hex:String = fields.length > 2 ? String(fields[2]).toLowerCase() : "";
          var size:Number = fields.length > 3 ? Number(fields[3]) : 0;
-         var key:int = RP_KEY_NONE;
+         var key:String = RP_KEY_NONE;
          if(this._rpState != RP_ASKING)
          {
             return;
@@ -1172,7 +1096,7 @@ package survarium.controls
             return;
          }
          key = this.rpFinalKey(status);
-         if(key >= 0)
+         if(key != null)
          {
             this.rpStop();
             this._rpState = RP_ENDED;
@@ -1200,17 +1124,17 @@ package survarium.controls
          }
          if(this._rpPlace > 1)
          {
-            line = this.rpFill(RP_KEY_PLACE_IN_LINE,[String(this._rpPlace),String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_place_in_line",this._rpPlace,seconds);
          }
          else if(this._rpPlace == 1)
          {
-            line = this.rpFill(RP_KEY_MADE_NOW,[String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_made_now",seconds);
          }
          else
          {
-            line = this.rpFill(RP_KEY_WAITING,[String(seconds)]);
+            line = LocalizationData.format("st_srp_replay_waiting",seconds);
          }
-         return this.rpFill(RP_KEY_BEING_MADE,[line]);
+         return LocalizationData.format(RP_KEY_BEING_MADE,line);
       }
       
       protected function rpShowPreparing() : void
@@ -1243,7 +1167,7 @@ package survarium.controls
          }
       }
       
-      protected function rpShow(key:int, download:Boolean) : void
+      protected function rpShow(key:String, download:Boolean) : void
       {
          var text:String = this.rpText(key);
          var data:Object = null;
@@ -1251,7 +1175,7 @@ package survarium.controls
          var format:TextFormat = null;
          if(key == RP_KEY_READY_SIZE)
          {
-            text = this.rpFill(RP_KEY_READY_SIZE,[this.rpSizeText(this._rpSize)]);
+            text = LocalizationData.format(RP_KEY_READY_SIZE,this.rpSizeText(this._rpSize));
          }
          if(key == RP_KEY_BEING_MADE)
          {
@@ -1443,13 +1367,11 @@ package survarium.controls
       
       protected function rpDemoOtherRows() : Array
       {
-         var lang:int = this.rpLang();
-         var quest:String = ["Victory contribution","Внесок у перемогу","Вклад в победу"][lang];
+         var quest:String = LocalizationData.getName("st_srp_replay_demo_quest");
          var seller:String = GangShop.getSellerName(Faction.SCAVENGERS);
-         var rankText:Array = [": rank 3 reached. New items are available in the shop.",": досягнуто ранг 3. У крамниці з\'явилися нові предмети.",": достигнут ранг 3. В магазине появились новые предметы."];
          if(!seller || seller == "noSuchSeller")
          {
-            seller = ["Scavengers","Бродяги","Бродяги"][lang];
+            seller = LocalizationData.getName("st_srp_replay_demo_seller");
          }
          return [{
             "notificationType":NotificationType.QUEST,
@@ -1495,7 +1417,7 @@ package survarium.controls
             "hideTimer":15000,
             "faction_id":Faction.SCAVENGERS,
             "level":3,
-            "label":"«" + seller + "»" + rankText[lang]
+            "label":LocalizationData.format("st_srp_replay_demo_rank",seller)
          },{
             "notificationType":NotificationType.PLAIN,
             "srpDemo":true,

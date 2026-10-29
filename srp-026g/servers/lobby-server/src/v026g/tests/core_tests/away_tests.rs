@@ -212,7 +212,15 @@ fn a_client_away_through_its_match_comes_back_to_the_lobby_after_it() {
         super::pvb_tests::with_gear(&mut world, player, 6);
     }
     let (first, alice_team) = world.match_of(alice, bob);
-    super::rooms_tests::create(&mut world, carol, super::rooms_tests::spec(8), None);
+    super::rooms_tests::create(
+        &mut world,
+        carol,
+        survarium::v026g::lobby::rooms::RoomSpec {
+            max_level: 10,
+            ..super::rooms_tests::spec(8)
+        },
+        None,
+    );
     let (second, carol_team) = world.match_of(carol, dave);
     world.silent_for(alice, Duration::from_secs(121));
     // Carol's game is gone for good.

@@ -14,7 +14,8 @@ The game's own launcher (`survarium_launcher.exe`), patched so that it
   server's page offers, the launcher and the updater themselves included,
   and the game's content patches (`resources.db.patch_<n>`) the server
   lists, and enables PLAY only for a game the server lets in;
-- starts the game in the language chosen in its menu.
+- starts the game, which keeps its language itself (Settings, Language;
+  this menu's language at its first start).
 
 The original launcher is not in this repository. The tools below work on
 your own copy, and the patched exe is made from it.
@@ -92,16 +93,20 @@ installs whenever the ZIP's checksum changes.
    "Server maintenance..." and PLAY is off. Is it back, or does it offer a
    new ZIP, the window closes and opens again by itself and updates. So
    PLAY never starts a game the server would refuse as outdated.
-6. PLAY (or Enter) starts `survarium_skhid.exe -localization=<language>
-   -mt_allocator=768 -minimum_resources_memory_size=768` from
-   `game\binaries\x86`, and the launcher closes.
+6. PLAY (or Enter) starts `survarium_skhid.exe -mt_allocator=768
+   -minimum_resources_memory_size=768` from `game\binaries\x86`, and the
+   launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
+   it passes no `-localization=`: the game's language is the one chosen in
+   its Settings (user.cfg).
 7. The language menu (EN, RU, UA, DE, PL) changes the launcher's texts and
-   the page at once, is remembered, and is the language the game starts in.
+   the page at once and is remembered. The game takes it once, at its first
+   start with patch 79, and keeps it; then it is changed in the game's
+   Settings.
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
 through the launcher: the game starts `updater_skhid.exe replay ...`, which
 fetches the replay and starts a second `survarium_skhid.exe` with PLAY's
-arguments, the language the launcher keeps, and `-match_replay=<file>`
+arguments and `-match_replay=<file>` (the game's own language)
 (`../../../client/updater/README.md`, "Watch replay").
 
 Gone from the window: the four social buttons, CREATE ACCOUNT (an account is
@@ -693,9 +698,10 @@ installation and service.
   server has no answer with words of its own. The launcher keeps PLAY from
   starting such a game; a game started otherwise gets that line.
 - One launcher at a time (its mutex), as before.
-- The language is the one value still kept in the registry
+- The launcher's language is the one value still kept in the registry
   (`HKCU\Software\Vostok Games\Survarium`, `language`), by the launcher's
-  own code.
+  own code. The game reads it only at its first start with patch 79,
+  when it has no language of its own yet.
 - `play_skhid.bat` starts the game without the server: it runs
   `updater_skhid.exe ready`, which checks the patches against the last
   list, and looks for no update.

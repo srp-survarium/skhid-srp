@@ -577,7 +577,6 @@ va	name	source	ret_cleanup	result
 0x0016c1a0	vostok::render::effect_block_compression::compile	manual	12	
 0x0016c520	vostok::render::model_factory::create_render_surface	manual	0	EAX: constructed surface pointer or null on allocation failure; invalid target dispatch does not reach a normal result
 0x0016c8b0	vostok::render::model_factory::create_render_model	manual	0	EAX: model pointer or zero on observed allocation-null branches
-0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
 0x0016e460	vostok::render::static_render_model_instance::get_surfaces_count	manual	0	EAX (32bits): zero-extended byte surface count; EAX range0..255
 0x0016e500	vostok::render::static_render_surface::fill_lpv_vertex_color	manual	8	
 0x0016e550	vostok::render::static_render_surface::add_shadow_vertices	manual	8	
@@ -996,7 +995,6 @@ va	name	source	ret_cleanup	result
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
 0x00243dd0		auto	4	
-0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
 0x00244570		auto	0	
 0x002445e0		auto	4	
 0x00244610		auto	4	
@@ -1146,7 +1144,6 @@ va	name	source	ret_cleanup	result
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
-0x002d77c0	survarium::base_player::on_player_death	manual	4	ECX live player; remove_alive(this, 1) at 0x2D77C6, inventory death at 0x2D77D1; ret 4
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
@@ -1971,6 +1968,12 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x003b7bd0	vostok::input::input_world::tick	manual	4	
+0x003b8cc0	vostok::input::platform::keyboard::on_activate	manual	0	
+0x003b8cf0	vostok::input::platform::keyboard::on_deactivate	manual	0	
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	manual	4	EAX: 1 the key down (bit 7 of its state), else 0
+0x003b8d20	vostok::input::platform::keyboard::execute	manual	0	
+0x003b9af0	vostok::input::platform::keyboard::process	manual	4	
 0x00306d50		manual	0	EAX: the material pair record of the two material ids (a 128x128 table at +308h, each id first mapped by its material's +66h base id, the default id +1030Ch for an empty slot): +8 the decals, +18h the sound, +24h..+28h the particles (4-byte slots, the next one +64h), +74h the particles' parameter, +8Ch the decal's size
 0x003223e0	survarium::bullet_manager::play_particle	manual	20	none; queues the particle at the point (a functor on the manager's +30h stack, run after the bullets' tick, threads too); nothing when the manager's +90h (the renderer) is 0
 0x003222f0	survarium::bullet_manager::play_sound	manual	12	none; queues the sound at the point as play_particle does
@@ -1988,6 +1991,27 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
+0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
+0x000e3c10	vostok::core::preinitialize	manual		
+0x000ddeb0	vostok::command_line::key<string>::is_set	manual	0	AL: 1 when the key is on the command line (its value then copied into EAX's buffer_string), 0 when not
+0x001e9030	survarium::game::save_user_config	manual	0	void: console_commands::save (0xEBE60) of user.cfg in the user data folder (vtable+50h of the engine world [0x1F1D63C], else "")
+0x000ec860	vostok::console_commands::cc_string::cc_string	manual	16	
+0x001ff5d0	survarium::game_options::scaleform_callback	manual	16	void: an unknown method name returns at 0x1FF96E (pop edi / esi / ebp, ret 10h at 0x1FF971)
+0x00329b20	survarium::player_stamina::update_weight_modifiers	manual	4	updates stamina-spend node +58h (index 19) and movement node +68h (index 4); descriptive RE name; data.md weight section
+0x00329290	survarium::player_stamina::player_stamina	manual	4	EAX: stamina initialized from 40-byte base parameters, modifiers pointer +48h
+0x002dbf40	survarium::base_player::can_sprint	manual	4	EAX: boolean; rejects low stamina, weight >= modified maximum unless modifier 31, and Heavyweight modifier 32
+0x002221e0	survarium::lobby_menu::update_player_items_weight	manual	0	void; root.update_player_items_weight with profile weight and modified capacity; descriptive RE name
+0x002f7660	survarium::player_profile::apply_kit_parameter	manual	0	XMM0: base parameter with selected kit skills then equipped-item modifiers; descriptive RE name
+0x00331840	survarium::weapon_recoil_parameters::load	manual	8	EAX: output block; descriptive name. Horizontal config ranges divided by 21.48, vertical by 63.735; not degrees.
+0x00330ee0	survarium::weapon_dispersion_parameters::load	manual	8	EAX: output block; descriptive name. speed_of_aiming at +0x0c, growth_speed at +0x10, direct scalar copies. Optional from_the_hip_multiplier (+0x18) and aim_multiplier (+0x1c) default to 1.0 at 0x330FE3/0x331034 (constant 0xA70884).
+0x002debc0	survarium::weapon_breath_vibration_parameters::load	manual	4	EAX: output block; descriptive name. Horizontal/vertical amplitudes and base_period copied directly.
+0x002f1430	survarium::item_config_cook::find_modifier_target	manual	0	EAX: matching config node or null; missing path at 0x2F1462 returns null, skipped by cook at 0x2F1ABF.
+0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
+0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
+0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
+0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
+0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
+0x002d77c0	survarium::base_player::on_player_death	manual	4	ECX live player; remove_alive(this, 1) at 0x2D77C6, inventory death at 0x2D77D1; ret 4
 0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: encoded slot ((external array - inventory - 0x10c) SAR 2) + container ordinal, or fixed slot; 23 when absent
 0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
 0x00313470	survarium::artefact_base::on_taken	manual	0	no result used

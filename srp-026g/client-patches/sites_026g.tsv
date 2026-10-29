@@ -1,35 +1,39 @@
-site	va	kind	callee	span	exits	what
-input_builder.spot_query	0x242196	call	engine_action_present	-	-	the input builder's last action query (spot)
-game_world.after_move	0x1F7C3C	lohook	-	5	-	game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)
-player_draw.cull	0x24757C	lohook	-	7	-	mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)
-player_draw.bones	0x247716	lohook	-	6	-	mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)
-camera.eye	0x1F3643	lohook	-	6	-	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
-bullet.ray_traced	0x32D627	lohook	-	10	-	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
-player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
-static_info.options_read	0x27b92d	lohook	-	5	-	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
-replay.options_read	0x1f0971	lohook	-	5	-	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
-player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
-keyboard.tab_state	0x25cd2c	lohook	-	7	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
-input_builder.end	0x2421b0	lohook	-	5	-	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
-player_names.visibility	0x1F2F10	lohook	-	7	-	render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only
-text_input.char_target	0x79D369	lohook	-	6	ignore@0x79D4AD	AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated
-carry.input	0x2D86E0	lohook	-	6	-	base_player set_input entry; ECX player, stack time and immutable input; before early-out
-carry.weapon_hide	0x243FA0	lohook	-	6	-	weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal
-carry.filter	0x2D876F	lohook	-	5	-	set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched
-carry.tick	0x2DAAC1	lohook	-	6	-	base_player tick before held object tick; EBX player, updated time at +324h
-carry.construct	0x2D6990	lohook	-	5	-	base_player constructor entry; stack first argument destination, identity only
-carry.save	0x2DB47E	lohook	-	5	-	base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp
-carry.load	0x2DBAB5	lohook	-	7	-	base_player deserialize after final native field; EBX player, ESI reader
-carry.weapon	0x2477C8	lohook	-	6	skeleton@0x2477DF	mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
-carry.spring	0x25EBB0	lohook	-	6	done@0x25EC84	Spring client update entry; ECX callback; done is native bare ret, no prologue executed
-carry.lifebone	0x25F100	lohook	-	6	done@0x25F1D4	Lifebone client update entry; ECX callback; done is native bare ret
-carry.onyx	0x25F640	lohook	-	6	done@0x25F714	Onyx client update entry; ECX callback; done is native bare ret
-carry.rattle	0x25FB80	lohook	-	6	done@0x25FC54	Rattle client update entry; ECX callback; done is native bare ret
-carry.damage_bones	0x2DA769	lohook	-	6	-	before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h
-carry.flower_query	0x25E91A	lohook	-	9	done@0x25E928	artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only
-carry.flower_ready	0x260278	lohook	-	6	-	Lifebone assignment call: EDI item EBX queries_result; retain fourth model
-carry.flower_destroy	0x25EFE0	lohook	-	9	-	Lifebone destructor entry: ECX item; remove held model and release owned resource
-carry.death	0x2D77C0	lohook	-	5	-	base_player::on_player_death entry, ECX live player before remove_alive/inventory death
-carry.ground_save	0x313735	lohook	-	6	-	artefact_base::serialize after native state-dependent fields; ESI item EDI writer
-carry.ground_load	0x3137EC	lohook	-	5	-	artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader
-carry.client_death	0x1F28E0	lohook	-	5	-	client player death override, ECX player; inlines base teardown, does not call 0x2D77C0
+site	va	kind	callee	span	exits	holds	what
+input_builder.spot_query	0x242196	call	engine_action_present	-	-	-	the input builder's last action query (spot)
+game_world.after_move	0x1F7C3C	lohook	-	5	-	world=EBX:survarium::game_world	game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)
+player_draw.cull	0x24757C	lohook	-	7	-	player=EBX:survarium::player	mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)
+player_draw.bones	0x247716	lohook	-	6	-	player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame	mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)
+camera.eye	0x1F3643	lohook	-	6	-	player=EBX:survarium::player	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
+bullet.ray_traced	0x32D627	lohook	-	10	-	bullet=EDI:survarium::bullet result=EAX:vostok::physics::ray_result frame=ESP:survarium::check_collision_frame	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
+player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	player=EBX:survarium::player	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
+static_info.options_read	0x27b92d	lohook	-	5	-	options=ESI:survarium::match_options frame=EBP:survarium::static_info_frame	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
+replay.options_read	0x1f0971	lohook	-	5	-	frame=ESP:survarium::replay_options_frame	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
+player_icons.update_start	0x23aa10	lohook	-	6	-	frame=ESP:survarium::update_player_icons_frame	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
+keyboard.tab_state	0x25cd2c	lohook	-	7	-	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
+input_builder.end	0x2421b0	lohook	-	5	-	handler=EBX:survarium::player_input_handler	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
+player_names.visibility	0x1F2F10	lohook	-	7	-	player=ESI:survarium::player frame=ESP:survarium::render_name_frame	render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only
+text_input.char_target	0x79D369	lohook	-	6	ignore@0x79D4AD	field=EDI:scaleform::avm_text_field	AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated
+quick_slots.activity	0x23B7A0	lohook	-	7	-	ui=ESI:survarium::game_world_ui player=EBP:survarium::player inventory=EBX:survarium::inventory	update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer
+configs.start	0x1EA210	lohook	-	6	-	-	game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)
+configs.texts	0x1EA306	lohook	-	6	-	-	on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded
+options.callback	0x1FF5D0	lohook	-	6	done@0x1FF971	options=ECX:survarium::game_options_interface frame=ESP:survarium::options_callback_frame	game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`
+carry.input	0x2D86E0	lohook	-	6	-	player=ECX:survarium::player frame=ESP:survarium::input_entry_frame	base_player set_input entry; ECX player, stack time and immutable input; before early-out
+carry.weapon_hide	0x243FA0	lohook	-	6	-	weapon=ECX:survarium::weapon frame=ESP:survarium::weapon_hide_frame	weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal
+carry.filter	0x2D876F	lohook	-	5	-	player=EDI:survarium::player	set_input after copying to player+32Ch; EDI player, before process_quick_slots; shared packet untouched
+carry.tick	0x2DAAC1	lohook	-	6	-	player=EBX:survarium::player	base_player tick before held object tick; EBX player, updated time at +324h
+carry.construct	0x2D6990	lohook	-	5	-	frame=ESP:survarium::base_player_ctor_frame	base_player constructor entry; stack first argument destination, identity only
+carry.save	0x2DB47E	lohook	-	5	-	player=EBX:survarium::player	base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp
+carry.load	0x2DBAB5	lohook	-	7	-	player=EBX:survarium::player reader=ESI:vostok::buffer_reader	base_player deserialize after final native field; EBX player, ESI reader
+carry.weapon	0x2477C8	lohook	-	6	skeleton@0x2477DF	player=EBX:survarium::player	mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
+carry.spring	0x25EBB0	lohook	-	6	done@0x25EC84	callback=ECX:survarium::artefact_spring_client	Spring client update entry; ECX callback; done is native bare ret, no prologue executed
+carry.lifebone	0x25F100	lohook	-	6	done@0x25F1D4	callback=ECX:survarium::artefact_lifebone_client	Lifebone client update entry; ECX callback; done is native bare ret
+carry.onyx	0x25F640	lohook	-	6	done@0x25F714	callback=ECX:survarium::artefact_onyx_client	Onyx client update entry; ECX callback; done is native bare ret
+carry.rattle	0x25FB80	lohook	-	6	done@0x25FC54	callback=ECX:survarium::artefact_rattle_client	Rattle client update entry; ECX callback; done is native bare ret
+carry.damage_bones	0x2DA769	lohook	-	6	-	player=EDI:survarium::player	before hit_model update; EDI player, ESI model-space bones, EBX non-root count; native skeleton +408h
+carry.flower_query	0x25E91A	lohook	-	9	done@0x25E928	frame=ESP:survarium::flower_query_frame	artefact cook before count/requests setup: stack requests +2Ch, five cdecl args; append held Lifebone model only
+carry.flower_ready	0x260278	lohook	-	6	-	item=EDI:survarium::artefact result=EBX:vostok::carry_queries	Lifebone assignment call: EDI item EBX queries_result; retain fourth model
+carry.flower_destroy	0x25EFE0	lohook	-	9	-	item=ECX:survarium::carry_lifebone	Lifebone destructor entry: ECX item; remove held model and release owned resource
+carry.death	0x2D77C0	lohook	-	5	-	player=ECX:survarium::player	base_player::on_player_death entry, ECX live player before remove_alive/inventory death
+carry.ground_save	0x313735	lohook	-	6	-	item=ESI:survarium::artefact	artefact_base::serialize after native state-dependent fields; ESI item EDI writer
+carry.ground_load	0x3137EC	lohook	-	5	-	item=EBX:survarium::artefact reader=EDI:vostok::buffer_reader	artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader
+carry.client_death	0x1F28E0	lohook	-	5	-	player=ECX:survarium::player	client player death override, ECX player; inlines base teardown, does not call 0x2D77C0

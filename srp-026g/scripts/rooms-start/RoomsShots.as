@@ -49,6 +49,8 @@ package
          try
          {
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            // The English texts, as the exe gives them (set_localization_data).
+            domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
             var Scene:* = domain.getDefinition("MainScene");
             Scene.stage = this;
             var Win:* = domain.getDefinition("survarium.rooms.RoomsWindow");

@@ -64,8 +64,7 @@ def value(data, path):
 class MapEditorEdits(unittest.TestCase):
     def test_hud_string_rows_append_without_changing_neighbors(self):
         data = config({'hud_strings': [['existing', 'st_existing']], 'other': ['unchanged']})
-        at = ce.find(data, 'hud_strings')
-        self.assertEqual(ce.append_item(data, at, ['carry', 'st_carry']), 1)
+        self.assertEqual(ce.append_rows(data, 'hud_strings', [['carry', 'st_carry']]), 1)
         self.assertEqual(value(data, 'hud_strings[0][0]'), 'existing')
         self.assertEqual(value(data, 'hud_strings[1][0]'), 'carry')
         self.assertEqual(value(data, 'hud_strings[1][1]'), 'st_carry')
@@ -105,6 +104,23 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[1]/geometries[0]/name'), 'copy-geometry')
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
+
+    def test_modifier_retarget_by_its_path(self):
+        """A modification's modifiers differ only in their `path`: `where` takes a path in the entry."""
+        def modifier(key):
+            return {'path': ['recoil', key], 'value': -0.02, 'type': 2}
+        data = config({'modifications': [{'id': 2080, 'modifiers': [modifier('a'), modifier('b'), modifier('c')]}]})
+        ce.set_entry(data, 'modifications', {'id': 2080}, {'modifiers[0]/path[1]': 'a'},
+                     {'modifiers[0]/path[1]': 'max_top_recoil'})
+        with self.assertRaises(ValueError):  # every modifier has this value and type
+            ce.remove_entry(bytearray(data), 'modifications[0]/modifiers', {'type': 2})
+        ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        with self.assertRaises(ValueError):  # gone: a second removal is refused
+            ce.remove_entry(data, 'modifications[0]/modifiers', {'path[1]': 'b'})
+        self.assertEqual([value(data, 'modifications[0]/modifiers[%d]/path[1]' % i) for i in range(2)],
+                         ['max_top_recoil', 'c'])
+        self.assertTrue(ce.same(value(data, 'modifications[0]/modifiers[1]/value'), -0.02))
+        ce.walk(data)
 
     def test_cli_checks_add_remove_and_entry_index_shifts(self):
         edits = {

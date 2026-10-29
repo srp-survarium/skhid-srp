@@ -3,7 +3,7 @@ use artefact_carry::{Artefact, ArtefactId, Refused};
 use artefact_carry::carry::Time;
 use artefact_carry::ground::Drop;
 use super::{Context, Lock, Reg, Thread};
-use super::world::{Object, Player, pointer, read};
+use super::world::{Player, read};
 use super::inventory::{ContainerSpace, Inventory};
 use crate::raw;
 
@@ -16,21 +16,21 @@ struct Key { world: u32, item: u32, id: ArtefactId }
 struct Released { key: Key, drop: Drop }
 static RELEASED: Lock<[Option<Released>; 255]> = Lock::new([None; 255]);
 
-pub struct GroundItem<'t> { pub(super) item: Object, key: Key, thread: &'t Thread }
+pub struct GroundItem<'t> { pub(super) item: raw::Artefact, key: Key, thread: &'t Thread }
 impl<'t> GroundItem<'t> {
-    pub(super) fn of_item(item: Object, thread: &'t Thread) -> Option<Self> {
+    pub(super) fn of_item(item: raw::Artefact, thread: &'t Thread) -> Option<Self> {
         // SAFETY: live inventory/registry/artefact callback argument.
         unsafe {
-            let id = ArtefactId::parse(read(raw::artefact::id(item.ptr())))?;
-            let world = pointer(raw::item::world(item.ptr()))?;
-            Some(Self { item, key: Key { world: world.id(), item: item.id(), id }, thread })
+            let id = ArtefactId::parse(read(item.id()))?;
+            let world = item.item().world()?;
+            Some(Self { item, key: Key { world: world.address(), item: item.address(), id }, thread })
         }
     }
     pub fn id(&self) -> ArtefactId { self.key.id }
     pub fn position(&self, now: Time) -> Option<[f32; 3]> { self.release().map(|d| d.position(now)) }
     fn release(&self) -> Option<Drop> {
         // SAFETY: a world-owned live item, re-resolved on every interaction.
-        if unsafe { read(raw::artefact::state(self.item.ptr())) != DROPPED || read(raw::item::inventory(self.item.ptr())) != 0 } { return None; }
+        if unsafe { read(self.item.state()) != DROPPED || self.item.item().inventory().is_some() } { return None; }
         RELEASED.with(self.thread, |all| all[usize::from(self.key.id.get())].filter(|d| d.key == self.key).map(|d| d.drop))
     }
     fn store(&self, drop: Option<Drop>) {
@@ -46,7 +46,7 @@ impl<'t> GroundItem<'t> {
     pub(super) fn release_from(&self, drop: Drop) {
         // SAFETY: caller removed this exact passive item from its inventory;
         // the world registry and anomaly retain it through the transition.
-        unsafe { raw::artefact::state(self.item.ptr()).write(DROPPED); }
+        unsafe { self.item.state().write(DROPPED); }
         self.store(Some(drop));
     }
 }
@@ -56,14 +56,14 @@ impl<'t> Player<'t> {
         // SAFETY: live core world owns a vector of registered artefact refs;
         // its bounded length is checked before indexing (native deserialize).
         unsafe {
-            let world = pointer(raw::player::world_core(self.this.ptr()))?;
-            let first = read(raw::core_world::artefacts_begin(world.ptr()));
-            let end = read(raw::core_world::artefacts_end(world.ptr()));
-            let bytes = end.checked_sub(first)?;
-            if first == 0 || !first.is_multiple_of(4) || !bytes.is_multiple_of(4) || bytes / 4 > 255 || u32::from(id.get()) >= bytes / 4 { return None; }
-            let item = pointer((first + u32::from(id.get()) * 4) as *mut u32)?;
+            let world = self.this.world_core()?;
+            let first = world.artefacts_begin()?;
+            let end = world.artefacts_end()?;
+            let count = end.index_from(first)?;
+            if !first.address().is_multiple_of(4) || count > 255 || usize::from(id.get()) >= count { return None; }
+            let item = first.at(usize::from(id.get())).item()?.artefact();
             let view = GroundItem::of_item(item, self.thread)?;
-            (view.key.world == world.id() && view.id() == id).then_some(view)
+            (view.key.world == world.address() && view.id() == id).then_some(view)
         }
     }
     pub fn drop_carried(&self, artefact: Artefact) -> bool {
@@ -84,15 +84,15 @@ impl<'t> Player<'t> {
 }
 
 pub fn save(ctx: &Context<'_>) {
-    let Some(item) = Object::at(ctx.reg(Reg::Esi)).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
+    let Some(item) = (unsafe { raw::site::carry_ground_save::item(ctx) }).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
     // Only state 6 has an extension; the native state byte is its tag.
     if let Some(drop) = item.release() { super::carry_runtime::write_bytes(ctx, Reg::Edi, &drop.snapshot()); }
 }
 pub fn load(ctx: &Context<'_>) {
-    let Some(item) = Object::at(ctx.reg(Reg::Ebx)).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
+    let Some(item) = (unsafe { raw::site::carry_ground_load::item(ctx) }).and_then(|i| GroundItem::of_item(i, ctx.thread())) else { return };
     // SAFETY: deserialize just read this live artefact's native state byte.
-    let drop = if unsafe { read(raw::artefact::state(item.item.ptr())) } == DROPPED {
-        super::carry_runtime::read_bytes::<20>(ctx, Reg::Edi).and_then(Drop::restore)
+    let drop = if unsafe { read(item.item.state()) } == DROPPED {
+        unsafe { raw::site::carry_ground_load::reader(ctx) }.and_then(super::carry_runtime::read_bytes::<20>).and_then(Drop::restore)
     } else { None };
     item.store(drop);
 }

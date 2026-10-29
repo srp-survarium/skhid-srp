@@ -65,16 +65,36 @@ the site and its callee (section 3), and checked against the exe.
 A patch never touches a raw address or an `unsafe` block. Everything is in
 one crate, `client-patches/rust/patches`, in three layers:
 
-- **`raw`** (generated, unsafe, no logic): `extern` declarations for every
-  game function and the address of every object field. engine_026g.py writes
-  it (`engine_026g.rs`) from `engine_026g.tsv` (the functions) and
-  `fields_026g.tsv` (the fields). A function Rust can call directly (stdcall,
-  cdecl, thiscall) is declared in that convention at its VA; one the game
-  takes in registers keeps its cdecl thunk (block `engine.code`). kernel32's
-  imports are declarations over their IAT slots. Only `vostok` names `raw`.
-- **`vostok`** (the engine, safe and typed): handles (`InputHandler`),
-  enums and newtypes (`Action`, `ActionState`, `ActionMask`), and the hook
-  system. It is the only place with `unsafe`, each block with its invariant.
+- **`raw`** (generated, unsafe, no logic): the only layer that knows the
+  game's memory. engine_026g.py writes it (`raw_026g.rs`) from
+  `engine_026g.tsv` (the functions), `fields_026g.tsv` (the kinds and their
+  fields) and `sites_026g.tsv`'s `holds` (what a site's registers hold):
+  - a handle per kind, a `#[repr(transparent)]` pointer that is never 0
+    (`Player`, `MovieHolder`, `GfxMovie`, ...), with an unsafe accessor
+    per field of its own. A field's `type` says what it is: a plain value
+    (`u8` .. `f32`: its place), `ptr<kind>` (read: `Option<Kind>`),
+    `ptr<u8>`/`ptr<f32>` (plain data: a C string, matrices), `obj<kind>`
+    (one inside it, at the offset) or `size` (the kind's size: `at(i)`
+    and `index_from` over an array of them, and `<Kind>Storage`, room of
+    ours for one);
+  - every game function, its prototype's `struct <kind> *` that kind's
+    handle (`Option`, as C may pass or return 0). A function Rust can call
+    directly (stdcall, cdecl, thiscall) is declared in that convention at its
+    VA; one the game takes in registers keeps its cdecl thunk (block
+    `engine.code`). kernel32's imports are declarations over their IAT slots;
+  - `raw::site::<site>::<name>(machine)`: the handle a site's register (or
+    its frame, by ESP or EBP) holds, as the site's `holds` declares it.
+
+  A handle is made there alone: from a typed field, a function's typed
+  result or a site's typed register; there is no constructor from a number.
+  Only `vostok` names `raw`. (`engine_026g.rs` is the same functions with
+  C's types, for research_arena.)
+- **`vostok`** (the engine, safe and typed): what the handles mean -- its
+  own handles borrowing the hook's thread (`InputHandler`, `Player`,
+  `Movie`), enums and newtypes (`Action`, `ActionState`, `ActionMask`),
+  and the hook system. It is the only place with `unsafe`: calls of
+  `raw`'s accessors, each saying why the object is alive on that thread,
+  never an address or an offset.
   The runtime lives here too (the log, the panic handler, `memcpy`/`memset`,
   `c_u32`), in `vostok::rt`/`vostok::log`.
 - **The patches** (`patches::<patch>`, one module each): safe logic over
@@ -224,11 +244,14 @@ wait for their first patch to wire the install into patch_026g.py. A span
 hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
 reads them from the exe it builds from (hooks_026g.py and the checks take
 `SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
-Which register or frame slot a site holds is said once, in vostok's view of
-that site (`vostok::draw`, `vostok::bullet`, ...); the site row's `what`
-says it for the reader. A frame local is a `fields_026g.tsv` row with a
-negative offset (by EBP); a data VA the code compares with (a vtable) is a
-row of the kind `<...>::image`, generated as a constant.
+Which kind a site's register or frame holds is said once, in the site row's
+`holds` (`player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame`;
+ESP is the site's own), from which `raw::site` is generated; vostok's view
+of the site (`vostok::draw`, `vostok::bullet`, ...) says what it means. A
+frame is a kind of `fields_026g.tsv` whose rows are its locals (a negative
+offset by EBP); a data VA the code compares with (a vtable) is a row of the
+kind `<...>::image`, generated as a constant (an object there, `obj<kind>`,
+as its handle). A slot whose kind is not known stays a plain `u32`.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not
@@ -278,7 +301,7 @@ bit when the key went down.
 ## 5. The build and the checks
 
 - **Generators**: engine_026g.py (`--write`/`--check`) writes the `raw`
-  layer; hooks_026g.py (`--write`/`--check`) writes the entries and shims
+  layer (`raw_026g.rs`); hooks_026g.py (`--write`/`--check`) writes the entries and shims
   from the TOML and lists the installs (with their owning patch) for
   patch_026g.py. link_026g.py links the arena and writes the lock; it builds
   the crate and runs the layer check first.

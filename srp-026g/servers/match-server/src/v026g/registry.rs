@@ -903,6 +903,9 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::snapshot::event`). `None`: no
     /// trusted snapshot had statistics.
     pub statistics: Option<PlayerStatistics>,
+    /// Payment-only counters after anti-farming limits. `None` pays the
+    /// ordinary statistics; scores, quests and rating never use this copy.
+    pub pay_statistics: Option<PlayerStatistics>,
     /// The scoreboard's score from those counters and the match's weights;
     /// the client rounds each event as it happens, so its own last digit
     /// can differ [LIKELY].

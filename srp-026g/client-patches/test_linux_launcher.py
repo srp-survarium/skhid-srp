@@ -172,18 +172,18 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
     def test_generated_full_launcher_uses_embedded_server_and_keeps_exe(self):
         self.copy_exe()
         self.exe.write_bytes(PATCHED_FIXTURE)
-        self.script.write_bytes(overlay.sh('release.example:2234', 'polish', True))
+        self.script.write_bytes(overlay.sh('release.example:2234', True))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
-        self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe', '-localization=polish',
+        self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
         self.assertEqual(self.exe.read_bytes(), PATCHED_FIXTURE)
         self.assertFalse(self.exe.with_name(self.exe.name + '.before-memory-patch').exists())
 
     def test_a_db_the_updater_finds_not_updated_keeps_the_game_from_starting(self):
         self.copy_exe()
-        self.script.write_bytes(overlay.sh('release.example:2234', 'polish', True))
+        self.script.write_bytes(overlay.sh('release.example:2234', True))
         (self.bin / 'updater_skhid.exe').write_bytes(b'MZ updater')
         self.env['TEST_FAIL'] = 'wine:updater_skhid.exe'
         result = self.run_script()
@@ -199,20 +199,20 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
         self.assertEqual([call['args'][:2] for call in calls[-2:]],
-                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-localization=polish']])
+                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-mt_allocator=768']])
 
     def test_generated_cert_only_launcher_passes_configured_server(self):
         self.copy_exe()
-        self.script.write_bytes(overlay.sh('release.example:2234', 'german', False))
+        self.script.write_bytes(overlay.sh('release.example:2234', False))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
-        self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe', '-localization=german',
+        self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768', '-server=release.example:2234'])
 
     def test_full_launcher_allows_an_explicit_server_override(self):
         self.copy_exe()
-        script = overlay.sh('release.example:2234', 'english', True)
+        script = overlay.sh('release.example:2234', True)
         self.script.write_bytes(script.replace(b'server=\n', b'server=local.example:4321\n'))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -308,7 +308,8 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
         self.assertEqual(calls[3]['cwd'], str(self.bin))
-        self.assertEqual(calls[3]['args'], ['survarium_skhid.exe', '-localization=english',
+        # No language set: none passed, the game keeps the one chosen in its Settings.
+        self.assertEqual(calls[3]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
         self.assertIn('qwave=', calls[3]['dll'])
         self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))

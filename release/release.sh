@@ -236,7 +236,7 @@ if ((now && no_maint)); then say "note: --now plans no maintenance anyway: --no-
 [[ $ref =~ ^[A-Za-z0-9._/-]+$ && $ref != -* ]] || die "$ref: not a branch name"
 [[ -z $label || $label =~ ^[A-Za-z0-9._-]+$ ]] || die "$label: a label is letters, digits, . _ -"
 need_cmds ssh curl jq sha256sum od git tar awk df
-load_env SKHID_JUMP SKHID_SITE SKHID_STOCK_DB SKHID_GAME SKHID_LOCALIZATION
+load_env SKHID_JUMP SKHID_SITE SKHID_STOCK_DB SKHID_GAME
 step_flags=()
 if ((test_server)); then
     use_target test

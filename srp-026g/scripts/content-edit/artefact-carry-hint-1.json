@@ -1,138 +1,22 @@
 {
-  "_about": "The action named Use takes the offered artefact; no recipient pickup animation. The hint follows the binding action, without hardcoding a physical key.",
-  "add_key": [
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Take artefact"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "No artefact container"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "No free artefact container"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Artefakt nehmen"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "Kein Artefaktbehälter"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "Kein freier Artefaktbehälter"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Weź artefakt"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "Brak pojemnika na artefakty"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "Brak wolnego pojemnika na artefakty"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Взять артефакт"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "Нет контейнера для артефакта"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "Нет свободного контейнера для артефакта"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Взяти артефакт"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "Немає контейнера для артефакту"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "Немає вільного контейнера для артефакту"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_artefact_take_teammate",
-      "text": "{USE}: Взять артефакт"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_artefact_no_container",
-      "text": "Нет контейнера для артефакта"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_artefact_container_full",
-      "text": "Нет свободного контейнера для артефакта"
-    }
-  ],
-  "append_item": [
+  "_about": "Map the existing collection widget to the take/container hints. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
+  "append_rows": [
     {
       "file": "localization/flash_movies_localizations.options",
       "path": "hud_strings",
-      "value": [
-        "st_artefact_take_teammate",
-        "st_artefact_take_teammate"
-      ]
-    },
-    {
-      "file": "localization/flash_movies_localizations.options",
-      "path": "hud_strings",
-      "value": [
-        "st_artefact_no_container",
-        "st_artefact_no_container"
-      ]
-    },
-    {
-      "file": "localization/flash_movies_localizations.options",
-      "path": "hud_strings",
-      "value": [
-        "st_artefact_container_full",
-        "st_artefact_container_full"
+      "rows": [
+        [
+          "st_artefact_take_teammate",
+          "st_artefact_take_teammate"
+        ],
+        [
+          "st_artefact_no_container",
+          "st_artefact_no_container"
+        ],
+        [
+          "st_artefact_container_full",
+          "st_artefact_container_full"
+        ]
       ]
     }
   ]

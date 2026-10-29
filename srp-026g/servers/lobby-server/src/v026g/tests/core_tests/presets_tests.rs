@@ -393,7 +393,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         &mut world,
         alice,
         RoomSpec {
-            max_level: 7,
+            max_level: 10,
             ..spec(8)
         },
         None,
@@ -404,7 +404,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     choose(&mut world, erin, 1);
     assert_eq!(
         rows(&mut world, erin, ROOM_OFFER_BASE, 1),
-        [format!("S1;O;{key};1;2;5;0;7")]
+        [format!("S1;O;{key};1;2;5;0;10")]
     );
     // "Switch and enter": preset 2 active, then Play, which takes that room.
     let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);

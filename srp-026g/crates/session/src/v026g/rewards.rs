@@ -250,6 +250,9 @@ pub struct PlayerResult {
     pub time_in_match_ms: u32,
     /// Its counters in the last trusted snapshot, by event and kit.
     pub statistics: Option<PlayerStatistics>,
+    /// Payment-only counters after anti-farming limits. `None` pays the
+    /// ordinary statistics; scores, quests and rating never use this copy.
+    pub pay_statistics: Option<PlayerStatistics>,
     /// The scoreboard's score from those counters.
     pub score: u32,
     pub kills: u16,
@@ -1029,6 +1032,7 @@ impl Results {
             .map(|player| player.driven || accounts.is_bot(player.account_id))
             .collect();
         shared.unrated = bots.contains(&true) || result.private;
+        shared.money_floor = shared.money_floor(&bots);
 
         // What the screen's rows and the rating need of every account.
         let held: Vec<Option<(u16, u8, String)>> = result
@@ -1413,11 +1417,17 @@ struct Shared<'a> {
     /// The weights its score was counted with: the terms', with Research's
     /// own in mode 5 ([`static_info::weights_of`]).
     weights: [f32; EVENTS],
-    /// The match level's multipliers: money, experience, reputation.
+    /// Reward-table level, capped at seven for PvE. The match's actual
+    /// level and equipment remain unchanged.
+    reward_level: u16,
+    /// The reward level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
     /// A test bot was in the match, or it is a room with a PIN's
     /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
+    /// The silver of the rows a player who takes the floor is paid at
+    /// least ([`Shared::money_floor`]); 0 for none.
+    money_floor: u32,
 }
 
 impl<'a> Shared<'a> {
@@ -1432,8 +1442,13 @@ impl<'a> Shared<'a> {
                 }
             }
         }
+        let reward_level = if result.vs_bots {
+            result.match_level.min(super::pvb::MAX_REWARD_LEVEL)
+        } else {
+            result.match_level
+        };
         let multipliers = Dictionary::shared()
-            .match_level(usize::from(result.match_level))
+            .match_level(usize::from(reward_level))
             .map_or((1.0, 1.0, 1.0), |level| {
                 (
                     pay::multiplier(level.money_k),
@@ -1449,9 +1464,57 @@ impl<'a> Shared<'a> {
             batteries,
             stole,
             weights: static_info::weights_of(result.game_mode, terms.score_weights),
+            reward_level,
             multipliers,
             unrated: false,
+            money_floor: 0,
         }
+    }
+
+    /// The share of the rows' silver the match pays (its level's rate, a
+    /// match against the server's bots' share), times the level's
+    /// multiplier.
+    fn money_k(&self) -> f64 {
+        let pvb_pay = if self.result.vs_bots {
+            self.terms.pvb_pay.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        self.multipliers.0 * f64::from(self.terms.money_rate.at(self.reward_level)) / 100.0
+            * pvb_pay
+    }
+
+    /// The silver of a player's rows, before premium and every bonus.
+    fn rows_money(&self, player: &PlayerResult, main: usize) -> u32 {
+        let k = self.money_k();
+        self.lines(player, main)
+            .iter()
+            .flatten()
+            .filter(|(amount, _)| *amount > 0.0)
+            .map(|(_, base)| pay::cell(base.money, k).min(f64::from(u32::MAX)) as u32)
+            .fold(0, u32::saturating_add)
+    }
+
+    /// The floor of the match's lowest: [`pay::FLOOR_OF_MEDIAN`] of the
+    /// rows' silver of its median player, of those who stayed to the end
+    /// (bots not counted; the lower of two middle ones).
+    fn money_floor(&self, bots: &[bool]) -> u32 {
+        if self.result.private || !self.trusted {
+            return 0;
+        }
+        let mut paid: Vec<u32> = self
+            .result
+            .players
+            .iter()
+            .zip(bots)
+            .filter(|(player, bot)| !**bot && self.standing(player) == Standing::Finished)
+            .map(|(player, _)| self.rows_money(player, 0))
+            .collect();
+        if paid.is_empty() {
+            return 0;
+        }
+        paid.sort_unstable();
+        (f64::from(paid[(paid.len() - 1) / 2]) * pay::FLOOR_OF_MEDIAN) as u32
     }
 
     fn standing(&self, player: &PlayerResult) -> Standing {
@@ -1636,7 +1699,14 @@ impl<'a> Shared<'a> {
     /// paying events and what they pay before the rates and the match
     /// level ([`pay`]).
     fn lines(&self, player: &PlayerResult, main: usize) -> [[(f64, Pay); KITS]; 3] {
-        let events = self.events(player);
+        let events = if self.trusted {
+            player
+                .pay_statistics
+                .as_ref()
+                .map_or_else(|| counters(player), |s| s.events)
+        } else {
+            [[0; KITS]; EVENTS]
+        };
         let weights = &self.weights;
         let factor = self.points_factor();
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];
@@ -1871,12 +1941,21 @@ impl<'a> Shared<'a> {
             1.0
         };
         let rate = f64::from(self.terms.experience_rate) * pvb_pay;
-        let money_share =
-            f64::from(self.terms.money_rate.at(self.result.match_level)) / 100.0 * pvb_pay;
         let reputation_share = f64::from(self.terms.reputation_rate) / 100.0;
+        let cell_money_k = self.money_k();
         let (money_k, experience_k, reputation_k) = self.multipliers;
         let faction = account.quest_faction;
         let lines = self.lines(player, main);
+        // The floor of the match's lowest (`pay::FLOOR_OF_MEDIAN`): what
+        // its rows lack of it goes into the main kit's activity cell, so
+        // premium's half and the items' bonus count it too.
+        let top_up =
+            if standing == Standing::Finished && !bot && reward.score >= pay::FLOOR_MIN_SCORE {
+                self.money_floor
+                    .saturating_sub(self.rows_money(player, main))
+            } else {
+                0
+            };
         let (mut money, mut experience, mut reputation) = (0_u32, 0_u32, 0_u32);
         let mut bonus = (0_u32, 0_u32, 0_u32);
         // The daily bonus: the account is seen today, and a victory it
@@ -1898,8 +1977,11 @@ impl<'a> Shared<'a> {
                 if amount <= 0.0 {
                     continue;
                 }
-                let cell_money =
-                    pay::cell(base.money, money_k * money_share).min(f64::from(u32::MAX)) as u32;
+                let mut cell_money =
+                    pay::cell(base.money, cell_money_k).min(f64::from(u32::MAX)) as u32;
+                if kit == main && line == ACTIVITY_LINE {
+                    cell_money = cell_money.saturating_add(top_up);
+                }
                 // What the wire's s16 holds.
                 let cell = |plain: f64, k: f64| pay::cell(plain, k).min(f64::from(i16::MAX)) as i16;
                 let cell_experience = cell(base.experience, experience_k * rate);

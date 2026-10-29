@@ -186,7 +186,7 @@ that rule is mended when the accounts load, and never plays.
 | `RUST_LOG` | `info` | The log level |
 | `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
-| `SRP_RECORD_MIN_PLAYERS` | `6` | A recording is kept once this many players (test bots not counted) have entered its match, late joiners included; the others are deleted when their match ends |
+| `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
 | `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). Off without `SRP_RECORD_DIR` or `SRP_GAME_MODES_DIR` (the lobby answers `off`) |
 | `SRP_GAME_MODES_DIR` | unset (off; the compose file sets `/srv/srp/data/game_modes`) | The game's `gameplay/game_modes/*.options` files, every patch's included (game data: never in the repository): copy them into the data volume's folder. `off` or empty in `.env`: replays off |
@@ -249,7 +249,6 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_RESYNC_WORLD_ONLY` | off | `on`: a playing client is resynced with 0xE8 alone |
 | `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
-| `SRP_BLACKOUT` | off | `on`: the rooms offer Blackout ("Protective device: blackout", a prototype; `docs/notes/blackout.md`, exe patch 65): each plain battery map of the pool once more as mode 6, by a lobby id of its own; a match of it is the battery map with the static info's Blackout flag (tag 2). Another value is logged and read as `off` |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
 | `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |

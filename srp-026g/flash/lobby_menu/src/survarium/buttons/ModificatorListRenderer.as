@@ -119,7 +119,7 @@ package survarium.buttons
             }
             else
             {
-               this.iconContainer.transform.colorTransform = null;
+               this.iconContainer.transform.colorTransform = new ColorTransform();
             }
          }
       }

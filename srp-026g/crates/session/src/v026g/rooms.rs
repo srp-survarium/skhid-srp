@@ -2,12 +2,11 @@
 //! where players wait together, vote on the next map and play match after
 //! match. The owner's rules of 2026-10-16:
 //!
-//! - A room is made by a player with a team size (6 v 6 to 10 v 10), a
-//!   max level (the highest equipment
-//!   level let in, 0 for any, never under its maker's own), a wait (15 s to a minute), an optional
-//!   PIN and a pool of maps (a private room has no max level, [`Door`]).
-//!   It is named after its maker and cannot be
-//!   changed once made. Its owner may take a member out.
+//! - Public rooms are made by the lobby on demand: 8 v 8, equipment cap
+//!   10 or 15, the standard pool. Players create private rooms only, with
+//!   a PIN and a chosen pool. A private room has no max level ([`Door`]).
+//!   A room is named after its maker and cannot be changed once made.
+//!   Only a private room's owner may take a member out.
 //! - Once two players are in it who can play (a kit with a weapon and its
 //!   ammo, equipment within the max level; one who cannot is marked red in
 //!   the room, counts for nothing, and is taken out of the room when the
@@ -27,8 +26,9 @@
 //! - After the match everyone is back in the room, and the next vote and
 //!   wait begin; except who came by Play and played it: it leaves the room
 //!   (the owner's of 2026-10-20, [`Rooms::match_over`]).
-//! - Play with nothing else chosen puts a player into an open room (no
-//!   PIN, a place free; [`Rooms::open_rooms`]), or makes a new one.
+//! - The lobby routes Play within its equipment bracket, queues for full
+//!   rooms, and opens another room when six ready Play users are waiting.
+//!   [`QueueChoice`] keeps those waiters distinct from explicit room queues.
 //! - A private room (a PIN; the owner's of 2026-10-26) has no team size
 //!   and no players to start: it takes the most a match has (10 v 10), and
 //!   nothing counts down in it. Its owner starts its match when it wants,
@@ -251,6 +251,9 @@ impl Room {
     /// A member comes: last in the list; in a private room on the side with
     /// fewer (side 0 of two alike).
     fn add_member(&mut self, account_id: u32) {
+        if self.members.is_empty() {
+            self.owner = account_id;
+        }
         self.members.push(account_id);
         if !self.is_open() {
             let side = u8::from(self.side_count(1) < self.side_count(0));
@@ -372,6 +375,20 @@ struct Draft {
     at: Instant,
 }
 
+/// Whether a queued player chose this room or asked Play to find a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QueueChoice {
+    Chosen,
+    Play,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Queued {
+    key: u32,
+    choice: QueueChoice,
+    since: Instant,
+}
+
 /// The rooms of the lobby.
 #[derive(Debug, Default)]
 pub struct Rooms {
@@ -381,7 +398,7 @@ pub struct Rooms {
     /// first (the owner's of 2026-10-17: "Queue").
     queues: HashMap<u32, VecDeque<u32>>,
     /// The room an account waits for: one at a time, from the lobby only.
-    queued: HashMap<u32, u32>,
+    queued: HashMap<u32, Queued>,
     drafts: HashMap<u32, Draft>,
     pins: HashMap<u32, (u16, Instant)>,
     serial: u32,
@@ -530,7 +547,9 @@ impl Rooms {
             return Err(Refused::GearTooHigh);
         }
         if self.rooms.len() >= most_rooms
-            && self.of(owner).is_none_or(|room| room.members.len() > 1)
+            && self.of(owner).is_none_or(|room| {
+                room.members.len() > 1 || (room.is_open() && self.queue_len(room.key) > 0)
+            })
         {
             return Err(Refused::TooMany);
         }
@@ -634,8 +653,8 @@ impl Rooms {
         })
     }
 
-    /// The account leaves its room. A room nobody is left in is gone; an
-    /// owner who leaves hands the room to the member who came first. The
+    /// The account leaves its room. An empty public room keeps its queue; an
+    /// otherwise empty room is gone. An owner hands it to the next member. The
     /// room it left, if any.
     pub fn leave(&mut self, account_id: u32) -> Option<u32> {
         let key = self.of_account.remove(&account_id)?;
@@ -648,14 +667,16 @@ impl Rooms {
         room.sides.remove(&account_id);
         room.came_in_match.remove(&account_id);
         room.serial = serial;
-        if room.members.is_empty() {
+        if room.members.is_empty() && !(room.is_open() && self.queues.contains_key(&key)) {
             self.rooms.remove(&key);
             // Its queue goes with it: nobody waits for a room that is gone.
             for waiting in self.queues.remove(&key).unwrap_or_default() {
                 self.queued.remove(&waiting);
             }
-        } else if room.owner == account_id {
-            room.owner = room.members[0];
+        } else if room.owner == account_id
+            && let Some(&owner) = room.members.first()
+        {
+            room.owner = owner;
         }
         Some(key)
     }
@@ -688,11 +709,37 @@ impl Rooms {
         key: u32,
         now: Instant,
     ) -> Result<usize, Refused> {
+        self.enqueue_as(account_id, gear, key, now, QueueChoice::Chosen)
+    }
+
+    /// Play waits for space. Unlike an explicitly chosen queue, these
+    /// players may move together to another room when demand grows.
+    pub fn enqueue_play(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        key: u32,
+        now: Instant,
+    ) -> Result<usize, Refused> {
+        self.enqueue_as(account_id, gear, key, now, QueueChoice::Play)
+    }
+
+    fn enqueue_as(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        key: u32,
+        now: Instant,
+        choice: QueueChoice,
+    ) -> Result<usize, Refused> {
         let pin = self.take_pin(account_id, now);
         if self.of_account.contains_key(&account_id) {
             return Err(Refused::Bad);
         }
         let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
+        if choice == QueueChoice::Play && !room.is_open() {
+            return Err(Refused::Bad);
+        }
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
@@ -702,21 +749,39 @@ impl Rooms {
         if !room.lets_in(gear) {
             return Err(Refused::GearTooHigh);
         }
-        if self.queued.get(&account_id) != Some(&key) {
+        if self
+            .queued
+            .get(&account_id)
+            .is_none_or(|queued| queued.key != key)
+        {
+            let since = self
+                .queued
+                .get(&account_id)
+                .map_or(now, |queued| queued.since);
             self.dequeue(account_id);
             self.queues.entry(key).or_default().push_back(account_id);
-            self.queued.insert(account_id, key);
+            self.queued
+                .insert(account_id, Queued { key, choice, since });
+        } else if let Some(queued) = self.queued.get_mut(&account_id) {
+            queued.choice = choice;
         }
         Ok(self.queue_place(account_id).map_or(0, |(_, place)| place))
     }
 
     /// The account leaves the queue it waits in, if any: its room's key.
     pub fn dequeue(&mut self, account_id: u32) -> Option<u32> {
-        let key = self.queued.remove(&account_id)?;
+        let key = self.queued.remove(&account_id)?.key;
         if let Some(queue) = self.queues.get_mut(&key) {
             queue.retain(|waiting| *waiting != account_id);
             if queue.is_empty() {
                 self.queues.remove(&key);
+                if self
+                    .rooms
+                    .get(&key)
+                    .is_some_and(|room| room.members.is_empty())
+                {
+                    self.rooms.remove(&key);
+                }
             }
         }
         Some(key)
@@ -724,7 +789,7 @@ impl Rooms {
 
     /// The room an account waits for and its place there, 1 the first.
     pub fn queue_place(&self, account_id: u32) -> Option<(u32, usize)> {
-        let key = *self.queued.get(&account_id)?;
+        let key = self.queued.get(&account_id)?.key;
         let place = self
             .queues
             .get(&key)?
@@ -743,15 +808,36 @@ impl Rooms {
         self.queued.len()
     }
 
+    /// Play's waiters across all rooms, oldest first. Repeated Play does
+    /// not change their position; choosing a room's queue removes them.
+    pub fn play_queue(&self) -> Vec<(u32, u32)> {
+        let mut waiting: Vec<_> = self
+            .queued
+            .iter()
+            .filter(|(_, queued)| queued.choice == QueueChoice::Play)
+            .map(|(&account_id, queued)| (queued.since, account_id, queued.key))
+            .collect();
+        waiting.sort_unstable();
+        waiting
+            .into_iter()
+            .map(|(_, account_id, key)| (account_id, key))
+            .collect()
+    }
+
     /// The first of the room's queue, while it has a place free: out of the
     /// queue, for the lobby to put in (`admit`) if it still may come.
     pub fn next_in_queue(&mut self, key: u32) -> Option<u32> {
         self.next_ready_in_queue(key, &|_| true)
+            .map(|(account_id, _)| account_id)
     }
 
     /// [`next_in_queue`](Self::next_in_queue), the first that `ready` takes:
     /// those before it stay in their places.
-    pub fn next_ready_in_queue(&mut self, key: u32, ready: &dyn Fn(u32) -> bool) -> Option<u32> {
+    pub fn next_ready_in_queue(
+        &mut self,
+        key: u32,
+        ready: &dyn Fn(u32) -> bool,
+    ) -> Option<(u32, QueueChoice)> {
         let room = self.rooms.get(&key)?;
         if room.is_full() {
             return None;
@@ -759,11 +845,11 @@ impl Rooms {
         let queue = self.queues.get_mut(&key)?;
         let at = queue.iter().position(|&account_id| ready(account_id))?;
         let first = queue.remove(at)?;
-        self.queued.remove(&first);
+        let choice = self.queued.remove(&first)?.choice;
         if self.queues.get(&key).is_some_and(VecDeque::is_empty) {
             self.queues.remove(&key);
         }
-        Some(first)
+        Some((first, choice))
     }
 
     /// The rooms with a queue and a place free.
@@ -886,6 +972,10 @@ impl Rooms {
         below: &mut impl FnMut(usize) -> usize,
         counts: impl Fn(u32) -> bool,
     ) -> Vec<Due> {
+        // Admission can discard the final ineligible waiter of an empty
+        // room. An empty public room with a queue survives for admission.
+        self.rooms
+            .retain(|key, room| !room.members.is_empty() || self.queues.contains_key(key));
         let mut due = Vec::new();
         for room in self.rooms.values_mut() {
             let enough = room
@@ -1027,7 +1117,7 @@ impl Rooms {
     /// by Play and played it leaves the room, as by Leave (the owner's of
     /// 2026-10-20: its next Play may put it into a room of its level); one
     /// that came by Play and did not play it (it came too late to go in)
-    /// stays for the next match. A room left empty is gone. The room's key
+    /// stays for the next match. An empty public room keeps its queue. The room's key
     /// and who left it.
     pub fn match_over(&mut self, match_id: u32) -> Option<(u32, Vec<u32>)> {
         let room = self.rooms.values_mut().find(
@@ -1653,6 +1743,26 @@ mod tests {
         assert_eq!(rooms.enqueue(2, 0, key, now), Ok(1));
         assert_eq!(rooms.dequeue(2), Some(key));
         assert_eq!(rooms.dequeue(2), None);
+    }
+
+    #[test]
+    fn an_empty_public_room_keeps_its_queue_but_cancellation_removes_both() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 8, None, now);
+        rooms.enqueue_play(2, 0, key, now).unwrap();
+        // Leaving this room would not free a room slot: its queue keeps it.
+        assert_eq!(
+            rooms.create(1, 0, spec(8, Some(42)), &[61], &[61], 1, now, &mut first),
+            Err(Refused::TooMany)
+        );
+        assert_eq!(rooms.key_of(1), Some(key));
+        rooms.leave(1);
+        assert!(rooms.get(key).unwrap().members.is_empty());
+        assert_eq!(rooms.queue_place(2), Some((key, 1)));
+        rooms.dequeue(2);
+        assert!(rooms.is_empty());
+        assert!(rooms.play_queue().is_empty());
     }
 
     /// An open room (no PIN) is everybody's: its owner turns nobody out.

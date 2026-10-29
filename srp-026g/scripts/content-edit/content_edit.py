@@ -52,6 +52,11 @@ Edits (edits.json):
                                                        with `from`) is also a new file at `to` + the rest
                                                        of its path, a path no live file has; applied first,
                                                        the globs below see the copies
+  "localization":   "relative/path/to/tsv/folder"
+                    compile every registered language from its complete TSV dictionary;
+                    preserve all source keys, check formats and the native text buffer limit;
+                    map each of srp's own texts (st_srp_*) to itself in the UI mapping of the
+                    movies that read them (localization_026g.FLASH_MOVIES), after their rows.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -62,7 +67,7 @@ Edits (edits.json):
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
                     a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
                     may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
-  "append_item":    [{"file", "path", "value"}]        append one scalar or string row to an indexed table
+  "append_rows":    [{"file", "path", "rows"}]         append rows of strings to an indexed UI table
   "add_item":       [{"file", "list", "where", "key", "value"}]
                     the one entry of the indexed table `list` whose keys match `where`: its indexed
                     table `key` (a path in the entry) of strings or numbers gets `value` after its
@@ -86,6 +91,10 @@ Edits (edits.json):
                     rotations in radians on the shortest continuous branch. Other channels keep
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. See artefact-carry-pose-1.json.
+  "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
+                                                       preserve runtime positions/normals byte for byte;
+                                                       reject unknown, duplicate or malformed chunks
+A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -288,8 +297,12 @@ def same(got, want):
 
 
 def matches(buf, entry, want):
+    """Whether each key of `want`, a path in the entry (`id`, `path[1]`), holds its value."""
     for k, v in want.items():
-        c = child(buf, entry, k)
+        try:
+            c = find(buf, k, entry)
+        except (KeyError, AssertionError):
+            c = None
         if c is None or not same(value_of(buf, c), v):
             return False
     return True
@@ -576,24 +589,12 @@ def add_item(buf, path, where, key, value):
     if len(hit) != 1:
         raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
     table = find(buf, key, children(buf, lst)[hit[0]])
-    return hit[0], append_item(buf, table, value)
-
-
-def append_item(buf, table, value):
     d, i, crc, t, cnt = rec(buf, table)
     items = children(buf, table)
     if t != T_INDEXED or not items:
-        raise ValueError('not an indexed table with items')
+        raise ValueError('%s[%d]/%s is not an indexed table with items' % (path, hit[0], key))
     _, ii, icrc, it, icnt = rec(buf, items[0])
-    if it == T_INDEXED and isinstance(value, list) and len(value) == icnt and all(isinstance(v, str) for v in value):
-        row = []
-        for child, text in zip(children(buf, items[0]), value):
-            _, ni, nc, nt, _ = rec(buf, child)
-            if nt != T_STR: raise ValueError('append_item: expected a row of strings')
-            encoded = text.encode()
-            row.append(REC.pack(append(buf, encoded + b'\0'), ni, nc, nt, len(encoded) + 1))
-        new = REC.pack(append_array(buf, row), ii, icrc, it, icnt)
-    elif it == T_STR and isinstance(value, str):
+    if it == T_STR and isinstance(value, str):
         text = value.encode()
         new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
     elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
@@ -601,9 +602,32 @@ def append_item(buf, table, value):
     elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
         new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
     else:
-        raise ValueError('array holds items of type %d, not %r' % (it, value))
+        raise ValueError('%s[%d]/%s holds items of type %d, not %r' % (path, hit[0], key, it, value))
     old = [bytes(buf[c:c + 24]) for c in items]
     REC.pack_into(buf, table, append_array(buf, old + [new]), i, crc, t, cnt + 1)
+    return hit[0], cnt
+
+
+def append_rows(buf, path, rows):
+    """`rows` (lists of strings) after the items of the indexed table `path`, each an indexed table
+    of strings made like its first item (a UI mapping's [ui key, dictionary key]). Returns the index
+    of the first new item."""
+    lst = find(buf, path)
+    d, i, crc, t, cnt = rec(buf, lst)
+    items = children(buf, lst)
+    if t != T_INDEXED or not items or rec(buf, items[0])[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table of indexed tables' % path)
+    _, ri, rcrc, _, _ = rec(buf, items[0])
+    first = children(buf, items[0])
+    if not first or rec(buf, first[0])[3] != T_STR:
+        raise ValueError('%s[0] holds no string' % path)
+    _, si, scrc, _, _ = rec(buf, first[0])
+    new = []
+    for row in rows:
+        texts = [REC.pack(append(buf, v.encode() + b'\0'), si, scrc, T_STR, len(v.encode()) + 1) for v in row]
+        new.append(REC.pack(append_array(buf, texts), ri, rcrc, T_INDEXED, len(row)))
+    old = [bytes(buf[c:c + 24]) for c in items]
+    REC.pack_into(buf, lst, append_array(buf, old + new), i, crc, t, cnt + len(new))
     return cnt
 
 
@@ -827,6 +851,42 @@ def make_held_flower(sources, spec):
     return result
 
 
+def vegetation_chunks(data):
+    """The 0.26g sequential chunk format; validate before dropping editor data."""
+    chunks = {}
+    offset = 0
+    while offset < len(data):
+        if len(data) - offset < 8:
+            raise ValueError('vegetation: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, offset)
+        end = offset + 8 + size
+        if kind not in (0x4d, 0x4e, 0x58, 0x59):
+            raise ValueError('vegetation: unknown chunk %#x' % kind)
+        if kind in chunks or end > len(data):
+            raise ValueError('vegetation: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[offset:end]
+        offset = end
+    if 0x58 not in chunks or 0x59 not in chunks:
+        raise ValueError('vegetation: missing positions or normals')
+    positions, normals = chunks[0x58][8:], chunks[0x59][8:]
+    if len(positions) != len(normals) or len(positions) % 12:
+        raise ValueError('vegetation: positions/normals must be matching float3 arrays')
+    for payload in (positions, normals):
+        if any(not math.isfinite(v) for (v,) in struct.iter_unpack('<f', payload)):
+            raise ValueError('vegetation: non-finite position or normal')
+    return chunks
+
+
+def runtime_vegetation(data):
+    """Keep complete runtime chunks in original order, including their headers."""
+    original = vegetation_chunks(data)
+    expected = {kind: chunk for kind, chunk in original.items() if kind in (0x58, 0x59)}
+    result = b''.join(expected.values())
+    if vegetation_chunks(result) != expected:
+        raise ValueError('vegetation: runtime chunks changed on read-back')
+    return result
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
@@ -914,6 +974,61 @@ def main():
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    if 'localization' in edits:
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
+        from build_localization_026g import compile_catalog
+        from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
+        directory = Path(edits_file).resolve().parent / edits['localization']
+        languages = [language for language, *_ in LANGUAGES] + ['original']
+        # New languages inherit opaque support files (EULA/profanity data) from
+        # English. Every dictionary, old or new, is compiled from its own TSV.
+        for language in languages:
+            p = f'localization/{language}/localization'
+            if p not in files:
+                for source in sorted(fnmatch.filter(files, 'localization/english/*')):
+                    target = source.replace('localization/english/', f'localization/{language}/', 1)
+                    if target not in files:
+                        copies[target] = source
+                        bufs[target] = bytearray(open(files[source], 'rb').read())
+        sources = {language: bytes(buf(f'localization/{language}/localization'))
+                   for language in languages}
+        compiled = compile_catalog(directory, sources)
+        mapping = 'localization/flash_movies_localizations.options'
+        if mapping in files:
+            config, errors = read_config(bytes(buf(mapping)))
+            if errors:
+                raise ValueError('UI mapping contains invalid UTF-8')
+            keys = read_translations(directory / 'english.tsv').keys()
+            for movie in FLASH_MOVIES:
+                table = movie + '_strings'
+                have = {row[0]: row[1] for row in config[table]}
+                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys)):
+                    raise ValueError(f'{table}: an srp text key mapped to another text')
+                rows = [row for row in flash_rows(keys) if row[0] not in have]
+                if rows:
+                    at = append_rows(buf(mapping), table, rows)
+                    for k in range(at, at + len(rows)):
+                        added.setdefault(mapping, []).extend(
+                            ['/%s[%d]' % (table, k), '/%s[%d][0]' % (table, k), '/%s[%d][1]' % (table, k)])
+                    grown.setdefault(mapping, {}).setdefault('/' + table, 0)
+                    grown[mapping]['/' + table] += len(rows)
+                    config[table] += rows
+                print('UI mapping %s: %d texts of srp mapped to themselves' % (table, len(rows)))
+            referenced = {row[1] for rows in config.values() for row in rows}
+            missing = referenced - keys
+            if missing:
+                raise ValueError(f'UI mapping keys missing from TSV: {sorted(missing)}')
+        for language, result in compiled.items():
+            p = f'localization/{language}/localization'
+            source = sources[language]
+            bufs[p] = bytearray(result)
+            old_keys = {q for q, t, _ in walk(source) if t == T_STR}
+            new_keys = {q for q, t, _ in walk(result) if t == T_STR}
+            allowed.setdefault(p, set()).update(old_keys)
+            added.setdefault(p, []).extend(sorted(new_keys - old_keys))
+            grown.setdefault(p, {})['/strings'] = len(new_keys) - len(old_keys)
+            print('localization %s: %d keys, no fallback' % (p, len(new_keys)))
     for e in edits.get('add_entry', []):
         n = 0
         for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
@@ -949,13 +1064,12 @@ def main():
             grown.setdefault(p, {}).setdefault(table, 0)
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
-    for e in edits.get('append_item', []):
-        b = buf(e['file'])
-        k = append_item(b, find(b, e['path']), e['value'])
+    for e in edits.get('append_rows', []):
+        k = append_rows(buf(e['file']), e['path'], e['rows'])
         table = '/' + e['path']
-        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        added.setdefault(e['file'], []).extend('%s[%d]' % (table, i) for i in range(k, k + len(e['rows'])))
         grown.setdefault(e['file'], {}).setdefault(table, 0)
-        grown[e['file']][table] += 1
+        grown[e['file']][table] += len(e['rows'])
     for e in edits.get('add_item', []):
         at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
         table = '/%s[%d]/%s' % (e['list'], at, e['key'])
@@ -1015,6 +1129,22 @@ def main():
         add_event_channel(clips[p], e['from'], e['add'])
         print('event channel %s: %s knots %s domains %s' % (p, e['add']['name'], e['add']['knots'], e['add']['domains']))
 
+    vegetation = {}
+    for e in edits.get('runtime_vegetation', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            sys.exit('runtime_vegetation: no files match ' + e['files'])
+        for p in paths:
+            if not p.endswith('.veg') or p in bufs or p in clips:
+                sys.exit('runtime_vegetation: invalid or conflicting edit of ' + p)
+            source = open(files[p], 'rb').read()
+            try:
+                vegetation[p] = runtime_vegetation(source)
+            except ValueError as why:
+                sys.exit('%s: %s' % (p, why))
+            print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
+                  (p, len(source), len(vegetation[p])))
+
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
                for e in edits.get('rename_key', [])]
@@ -1068,12 +1198,12 @@ def main():
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:
         print('%d new files (copies), %d of them byte for byte' % (len(copies), same_copies))
-    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips), bad))
+    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips) + len(vegetation), bad))
     if bad:
         sys.exit(1)
     if check:
         return
-    for p, b in list(bufs.items()) + list(clips.items()):
+    for p, b in list(bufs.items()) + list(clips.items()) + list(vegetation.items()):
         dst = os.path.join(out, *p.split('/'))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, 'wb') as f:

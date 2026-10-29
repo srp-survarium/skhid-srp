@@ -1043,9 +1043,9 @@ struct GfxValue {
 const _: () = assert!(size_of::<GfxValue>() == 0x18);
 const GFX_NUMBER: u32 = 5;
 
-/// The arguments of root.research_update.
+/// The arguments of root.research_update and root.research_markers.
 struct Values {
-    list: [MaybeUninit<GfxValue>; 3 + 11 * MAX_ZONES],
+    list: [MaybeUninit<GfxValue>; 3 + 12 * MAX_ZONES],
     len: usize,
 }
 
@@ -1123,7 +1123,7 @@ pub unsafe extern "C" fn research_update_hud(ui: *mut u8) {
             }
             hud.completed = completed;
         }
-        let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 11 * MAX_ZONES], len: 0 };
+        let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 12 * MAX_ZONES], len: 0 };
         let mut sum: u32 = 0;
         values.put(f64::from(local.map_or(0, |t| t as u32)));
         values.put(f64::from(state.score[0]));
@@ -1233,7 +1233,7 @@ unsafe fn hide_markers(ui: *const u8) {
         // A movie remembered from a previous match may already be destroyed.
         // Only invoke it while it is still the current UI's live movie.
         if !hud.icons.is_null() && movie_of(ui, UI_ICONS) == Some(hud.icons) {
-            let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 11 * MAX_ZONES], len: 0 };
+            let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 12 * MAX_ZONES], len: 0 };
             values.put(0.0);
             values.put(0.0);
             engine_movie_invoke(
@@ -1272,7 +1272,7 @@ pub unsafe extern "C" fn research_update_markers(ui: *mut u8) {
         let place = usize::from(get::<u8>(world.0, CORE_LOCAL_PLACE));
         let team = if place < PLAYERS { Team::from_raw(team_of(world.player(place))) } else { None };
         let count = rule.state.zone_count as usize;
-        let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 11 * MAX_ZONES], len: 0 };
+        let mut values = Values { list: [const { MaybeUninit::uninit() }; 3 + 12 * MAX_ZONES], len: 0 };
         values.put(f64::from(team.map_or(0, |t| t as u32)));
         values.put(count as f64);
         for (z, (zone, def)) in rule.state.zones.iter().zip(&rule.params.zones).take(count).enumerate() {
@@ -1300,6 +1300,19 @@ pub unsafe extern "C" fn research_update_markers(ui: *mut u8) {
             values.put(f64::from(u32::from(zone.count[0] != 0 && zone.count[1] != 0)));
         }
         values.put(f64::from(u32::from(aiming(world, game, camera))));
+        // The progress team stays the defender during neutralisation. Give
+        // the movie the sole occupying team so its enemy warning is correct
+        // on the very first frame, including at neutral points. The timer
+        // already distinguishes ongoing capture from a fully held point.
+        // Append after the existing aim flag: older movies ignore this tail.
+        for zone in rule.state.zones.iter().take(count) {
+            let advancing = match zone.count {
+                [n, 0] if n > 0 => Some(Team::Zero),
+                [0, n] if n > 0 => Some(Team::One),
+                _ => None,
+            };
+            values.put(f64::from(rr::team_byte(advancing)));
+        }
         let mut sum = 0u32;
         for value in &values.list[..values.len] {
             let bits = value.assume_init_ref().value.to_bits();

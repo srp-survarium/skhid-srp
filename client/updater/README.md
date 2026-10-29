@@ -281,9 +281,10 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe" -localization=<the launcher's language>
-   -mt_allocator=768 -minimum_resources_memory_size=768
-   -match_replay="<the file>"`. The game reads its command line as ANSI
+   `"<x86>\survarium_skhid.exe" -mt_allocator=768
+   -minimum_resources_memory_size=768 -match_replay="<the file>"`, no
+   `-localization=`: the game plays it in its own language (the one chosen
+   in its Settings, game patch 79). The game reads its command line as ANSI
    text and a value in quotes as one value, spaces and all (read in the exe:
    `srp-026g/docs/notes/client_patch.md` section 3.27). The path is given as
    it is when the ANSI code page holds every character of it and it is at

@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Build only the wiki's weapons catalogue from the calculator's generated data.
+
+No item values live here. The calculator build calls this after writing calc.js,
+so both pages use exactly the same released configs, localizations and images.
+"""
+import argparse
+import hashlib
+import html
+import json
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from stats import sections  # noqa: E402
+SITE = HERE.parents[1] / "servers" / "web-server"
+CLASSES = {
+    8: ("Assault rifle", "Штурмова гвинтівка"),
+    16: ("Machine gun", "Кулемет"),
+    15: ("Submachine gun", "Пістолет-кулемет"),
+    14: ("Shotgun", "Рушниця"),
+    13: ("Sniper rifle", "Снайперська гвинтівка"),
+    17: ("Pistol", "Пістолет"),
+}
+
+
+def number(value):
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def render(data, code, script_url):
+    def tr(en, uk):
+        return en if code == "en" else uk
+
+    def title(w):
+        name = (w.get("name_uk") if code == "uk" else None) or w["name"]
+        return name + (tr(" (premium)", " (преміум)") if w.get("premium") else "")
+
+    esc = html.escape
+    classes = sorted({CLASSES[w["category"]][code == "uk"] for w in data["weapons"].values()})
+    out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Weapons", "Зброя")}</p>',
+           f'<div class="wiki-heading"><div><p class="eyebrow">{tr("Equipment reference", "Довідник спорядження")}</p><h1>{tr("Weapons", "Зброя")}</h1></div>',
+           f'<span class="catalogue-count" role="status" aria-live="polite" data-count data-label="{tr("weapons", "од. зброї")}">{len(data["weapons"])} {tr("weapons", "од. зброї")}</span></div>',
+           f'<p class="wiki-intro">{tr("Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.", "Порівнюйте зброю або розгортайте рядки, щоб побачити ушкодження, поводження, точність, відбій і хитання прицілу.")}</p>',
+           f'<p class="wiki-note">{tr("Base weapon values. Ammunition, upgrades and character bonuses are not included.", "Базові характеристики зброї. Набої, модифікації та бонуси персонажа не враховано.")}</p>',
+           '<div class="catalogue-tools" hidden>',
+           f'<label>{tr("Find a weapon", "Знайти зброю")}<input type="search" id="weapon-search" placeholder="{tr("Search by name…", "Пошук за назвою…")}" autocomplete="off"></label>',
+           f'<label>{tr("Weapon class", "Клас зброї")}<select id="weapon-class"><option value="">{tr("All classes", "Усі класи")}</option>',
+           *[f'<option>{esc(c)}</option>' for c in classes], '</select></label>',
+           f'<label>{tr("Sort by", "Упорядкувати за")}<select id="weapon-sort">']
+    for value, label in [("level", tr("Level", "Рівень")), ("name", tr("Name", "Назва")),
+                         ("damage", tr("Damage: high to low", "Ушкодження: за спаданням")),
+                         ("rpm", tr("Fire rate: high to low", "Темп стрільби: за спаданням")),
+                         ("weight", tr("Weight: low to high", "Вага: за зростанням"))]:
+        out.append(f'<option value="{value}">{label}</option>')
+    out.extend(['</select></label></div>'])
+
+    out.append(f'<section class="comparison" id="comparison" hidden aria-labelledby="compare-title"><h2 id="compare-title">{tr("Compare weapons", "Порівняння зброї")}</h2>')
+    out.append('<div class="compare-pickers">')
+    for side in ("a", "b"):
+        out.append(f'<div class="compare-field"><label id="compare-{side}-label" for="compare-{side}-btn">{tr("Weapon", "Зброя")} {side.upper()}</label><div class="wpick" id="compare-{side}-picker"></div><select id="compare-{side}" hidden><option value="">{tr("Choose a weapon…", "Виберіть зброю…")}</option>')
+        for key, w in sorted(data["weapons"].items(), key=lambda kv: title(kv[1])):
+            name = title(w)
+            out.append(f'<option value="{esc(key)}">{esc(name)}</option>')
+        out.append('</select></div>')
+    out.append(f'</div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">{tr("Only differences", "Лише відмінності")}</label><label class="check"><input type="checkbox" id="compare-colors" checked>{tr("Color better / worse values", "Позначати кращі / гірші значення")}</label><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button><a href="#recoil-sim">{tr("Recoil simulation ↓", "Моделювання відбою ↓")}</a></div>')
+    out.append(f'<p id="compare-empty">{tr("Choose two weapons to compare. Equal values and neutral traits keep their normal color.", "Виберіть дві одиниці зброї. Однакові значення та нейтральні властивості зберігають звичайний колір.")}</p>')
+    out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div>')
+    out.append(f'<section id="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">{tr("Recoil simulation", "Моделювання відбою")}</h2>')
+    out.append(f'<p class="stat-note">{tr("Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.", "Модель поштовху та відновлення без компенсації мишею. Розкид і тремтіння камери не враховано. Бічний поштовх — внутрішнє значення, а не підтверджений кут на екрані.")}</p>')
+    out.append(f'<div class="sim-inputs"><label>{tr("Shots per weapon", "Пострілів на зброю")}<input id="sim-shots" type="number" min="1" max="60" value="10"></label><label>{tr("Sample seed", "Зерно вибірки")}<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>')
+    out.append(f'<p class="stat-note">{tr("Shots follow each weapon’s fire rate and stop at its magazine capacity. Random samples use the same seed for comparison; they are not recorded game shots.", "Постріли відповідають темпу кожної зброї та обмежені місткістю магазину. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>')
+    out.append(f'<div class="sim-buttons"><button id="sim-step" type="button">{tr("Next shot", "Наступний постріл")}</button><button id="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>')
+    out.append(f'<label for="sim-time">{tr("Timeline", "Шкала часу")} <output id="sim-time-label">0 s</output></label><input id="sim-time" type="range" min="0" max="1" step="0.01" value="0">')
+    out.append('<div id="sim-legend" aria-live="polite"></div><div class="sim-plots">')
+    for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")]:
+        out.append(f'<figure><figcaption>{tr(en,uk)} · {tr("game units", "одиниці гри")}</figcaption><svg id="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en,uk)}"></svg></figure>')
+    out.append(f'</div><p id="sim-unavailable" hidden>{tr("Recoil parameters are unavailable for this selection.", "Параметри відбою для вибраної зброї недоступні.")}</p></section></section>')
+    out.append('<div id="weapon-list">')
+
+    def stat(label, value, unit=""):
+        return f'<div><dt>{label}</dt><dd>{number(value)}{(" <small>" + unit + "</small>") if unit else ""}</dd></div>'
+
+    for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], title(kv[1]).casefold())):
+        name = title(w)
+        cls = CLASSES[w["category"]][code == "uk"]
+        attrs = {"name": name.casefold(), "search-name": w["name"], "premium": int(bool(w.get("premium"))), "class": cls, "level": w["item_level"],
+                 "damage": w["bullet_damage"], "rpm": w["rounds_per_minute"], "weight": w["weight"]}
+        attrs["recoil"] = json.dumps({"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {})})
+        out.append(f'<details class="weapon" id="{esc(key)}" ' + " ".join(f'data-{k}="{esc(str(v))}"' for k, v in attrs.items()) + '>')
+        out.append('<summary>')
+        icon = data.get("icons", {}).get(key)
+        if icon:
+            out.append(f'<img class="weapon-image" src="{esc(icon)}" alt="" width="128" height="64" loading="lazy">')
+        else:
+            out.append('<span class="weapon-image" aria-hidden="true"></span>')
+        out.append(f'<span class="weapon-title"><strong>{esc(name)}</strong><span>{esc(cls)} · {tr("Level", "Рівень")} {number(w["item_level"])}</span></span>')
+        out.append('<dl class="quick-stats">' + stat(tr("Damage", "Ушкодження"), w["bullet_damage"] * 100)
+                   + stat(tr("Fire rate", "Темп стрільби"), w["rounds_per_minute"], tr("rpm", "постр./хв"))
+                   + stat(tr("Magazine", "Магазин"), w["magazine_capacity"])
+                   + stat(tr("Weight", "Вага"), w["weight"], tr("kg", "кг")) + '</dl>')
+        out.append(f'<span class="expand-label">{tr("Details", "Докладніше")} <span aria-hidden="true">+</span></span></summary>')
+        out.append('<div class="weapon-details">')
+        for section in sections(w, code):
+            out.append(f'<section data-section="{section["id"]}"><h2>{esc(section["title"])}</h2>')
+            if section.get("note"):
+                out.append(f'<p class="stat-note">{esc(section["note"])}</p>')
+            out.append('<dl>')
+            for row in section["rows"]:
+                out.append(f'<div data-stat="{row["id"]}" data-values="{esc(json.dumps(row["values"]))}" data-direction="{row["direction"]}"><dt>{esc(row["label"])}</dt><dd>{esc(row["text"])}</dd></div>')
+            out.append('</dl></section>')
+        out.append(f'<div class="compare-from-card" hidden><button type="button" data-compare-side="a">{tr("Set as weapon A", "Вибрати як зброю A")}</button><button type="button" data-compare-side="b">{tr("Set as weapon B", "Вибрати як зброю B")}</button></div>')
+        out.append('</div></details>')
+    out.append(f'</div><p id="weapons-empty" hidden>{tr("No weapons match. Try another name or class.", "Зброю не знайдено. Спробуйте іншу назву або клас.")}</p>')
+    out.append(f'<p class="wiki-stamp">{esc(data.get("stamp_uk" if code == "uk" else "stamp", ""))}</p>')
+    out.append(f'<script src="{script_url}" defer></script>')
+    return "\n".join(out)
+
+
+def build(calculator, out):
+    blob = calculator.read_bytes()
+    # build_page.py writes a JSON literal. Decode that literal, never execute JS.
+    data = json.JSONDecoder().raw_decode(blob.decode().split("const DATA = ", 1)[1])[0]
+    script = b"\n".join((HERE / name).read_bytes() for name in ("recoil.js", "picker.js", "weapons.js"))
+    script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
+    out.mkdir(parents=True, exist_ok=True)
+    for code in ("en", "uk"):
+        (out / f"weapons.{code}.html").write_text(render(data, code, script_url))
+    (out / "weapons.js").write_bytes(script)
+    (out / "source.sha256").write_text(hashlib.sha256(blob).hexdigest() + "\n")
+    print(f"{out}: {len(data['weapons'])} weapons, EN/UK, from {calculator}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--calculator", type=Path, default=SITE / "damage" / "calc.js")
+    parser.add_argument("--out", type=Path, default=SITE / "wiki")
+    args = parser.parse_args()
+    build(args.calculator, args.out)

@@ -78,6 +78,7 @@ given), LIKELY or GUESS.
 | [esc.md](esc.md) | Esc in the lobby (the owner, 2026-10-23): Esc closes the topmost modal only; every modal (windows, popups, the Upgrade and rooms windows, messages, the right-click menu) registers on open and leaves on close (`Modals`); a message's Esc is its own close (Cancel, OK) |
 | [max-bonus.md](max-bonus.md) | The best bonus in gold (the owner, 2026-10-22): a bonus at the strongest of the five values its type rolls shows gold, not green, everywhere bonuses are listed; the premium bonuses (silver, experience, reputation) gold too; the reroll window shows a bonus's range on hover; the movie's table checked against the data |
 | [no-reliability-roll.md](no-reliability-roll.md) | No reliability rolls (the owner, 2026-10-23): upgrades, rerolls and drops never give the "Reliability" modification (wear is off since #35); owned ones stay and reroll into others; the 20 items it left with two types get a third (masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs; `third-mod-1.json`), so every live item rolls three or more |
+| [weapon-rolls.md](weapon-rolls.md) | Weapon rolls that take effect (the owner, 2026-10-29): the recoil (2080-2084, defect 3060) and aim-time (2070-2074) modifications on the keys the game reads, the same percentages (`weapon-rolls-1.json`); the card scales its kick rows and aim-time bar, and shows the chambering time with its rolls |
 | [craft-menu.md](craft-menu.md) | The craft (Upgrade) window (the owner, 2026-10-20 and 22): Buy and Sell on its list, Continue and Exit after an upgrade, and the compare card shows the item being upgraded, not the equipped one |
 | [shop-character-menu.md](shop-character-menu.md) | The character menu (kits) shown on the left in the Shop tab too (the owner, 2026-10-22) |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
@@ -176,7 +177,7 @@ Every setting has a default; none is needed on a dev PC.
   `SRP_DROP_PLAYTIME_BONUS` (off): the play time bonus to the drop chance.
   `SRP_DAILY_BONUS` (on), `SRP_DAILY_BONUS_RESET_HOUR` (0): the daily bonus.
 - `SRP_SNAPSHOT_DIR` (default `logs/snapshots`; `off`): uploaded worlds.
-- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6),
+- `SRP_RECORD_DIR=<dir>` (off by default), `SRP_RECORD_MIN_PLAYERS` (6 for PvP; PvE needs one human),
   `SRP_RECORD_MAX_MB` (5000): match recordings, every datagram of a match
   in and out, kept for matches that 6 or more players entered (late
   joiners counted). Format: `match-server/src/v026g/record.rs`; reader:

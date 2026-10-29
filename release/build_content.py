@@ -260,6 +260,10 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
 def edit_paths(edits, known):
     """The game paths an edit list reads: its `file`s, its `files` lists and what its `files` globs match."""
     paths = set()
+    if 'localization' in edits:
+        # The catalog compiler reads every existing dictionary, the UI mapping,
+        # and support files copied into newly registered language directories.
+        paths.update(p for p in known if p.startswith('localization/'))
     for entries in edits.values():
         if not isinstance(entries, list):
             continue
