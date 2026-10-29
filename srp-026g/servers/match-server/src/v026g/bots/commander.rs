@@ -97,7 +97,10 @@ fn threat_tick(
         let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
         let spots = &threat.spots;
         let unheld = |id| spots.unheld_why(id, now);
-        let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, &job_team, &unheld, now);
+        // A role's bot stands out of every held line, or of the holds' only (the switch off).
+        let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
+        let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
+        let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, lanes, opening, &job_team, &unheld, now);
         threat.deaths.retain(|d| now.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
         for event in events {
             threat::count_job(event);

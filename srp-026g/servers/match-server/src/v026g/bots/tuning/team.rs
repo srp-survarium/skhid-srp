@@ -138,6 +138,24 @@ pub struct ThreatTuning {
     /// K3's other half (`an-anticamper.md` §4.1): a Crossfire spot is never
     /// in a held spot's lanes.
     pub crossfire_out_of_lines: bool,
+    /// K1: the floors the whole-route search spends past its grant
+    /// (`whole_route_floors` is its own) are booked to the poll, so the
+    /// searches after it wait and the poll's cap holds (off: taken off the
+    /// grant only, the rest unbooked; verify-703 should-fix 1).
+    pub whole_route_booked: bool,
+    /// K2: a job opens only when a role of it can be given at once, so a
+    /// spot no free bot can take keeps no slot nor its shooter's one job
+    /// (off: opened, then dropped at the tick's end, holding the slot that
+    /// tick, every tick; verify-703 should-fix 2).
+    pub job_open_staffed: bool,
+    /// K2: a role goes to a bot out of every held line (off: out of the
+    /// holds' only, `job_kills`; verify-703 should-fix 3).
+    pub job_out_of_all_lines: bool,
+    /// K2: a Crossfire finds its job's held line by the spot's id, its
+    /// `TargetRef::ThreatSpot` (off: by the choke's point, so a plain
+    /// Crossfire on an enemy's last place that is a held spot's centre was
+    /// taken for the job's pin; verify-703 should-fix 5).
+    pub job_line_by_id: bool,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -201,6 +219,10 @@ impl Default for ThreatTuning {
             trade_out_of_lines: true,
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
+            whole_route_booked: true,
+            job_open_staffed: true,
+            job_out_of_all_lines: true,
+            job_line_by_id: true,
         }
     }
 }

@@ -12,7 +12,7 @@ use crate::v026g::bots::search;
 
 /// The queue's counts at the start of the match, for the difference at its end.
 pub(super) struct SearchQueueCounts {
-    queue: [[u64; 13]; 2],
+    queue: [[u64; 15]; 2],
     no_route: [[u64; 6]; 2],
 }
 
@@ -52,12 +52,14 @@ impl SearchQueueCounts {
             let n = |key: &str| t.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
             let c = |key: &str| causes.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
             text.push(format!(
-                "team {team}: searches granted {}, starved ticks {}, floors {} (handed over {}, idle with demand {}), waited {} times ({} polls), under way dropped (goal moved {}, hazards {}, bot gone {}), partial route ticks {}, unstick jumps {} ({} on a partial route); goal and no route ticks: no way {}, searching {}, starved {}, searched {}, ended {}, shut in {}",
+                "team {team}: searches granted {}, starved ticks {}, floors {} (handed over {}, idle with demand {}, overdrawn {}, {} of them past the poll's cap), waited {} times ({} polls), under way dropped (goal moved {}, hazards {}, bot gone {}), partial route ticks {}, unstick jumps {} ({} on a partial route); goal and no route ticks: no way {}, searching {}, starved {}, searched {}, ended {}, shut in {}",
                 n("granted"),
                 n("starved"),
                 n("floors"),
                 n("handed_over"),
                 n("idle_with_demand"),
+                n("overdrawn"),
+                n("over_poll"),
                 n("waited"),
                 n("waited_polls"),
                 n("dropped_moved"),

@@ -1259,7 +1259,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
-            filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
+            &weight,
             iters,
         )
     }
@@ -1315,7 +1315,7 @@ impl Tactics {
             &self.base.regions,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
-            None,
+            &|_| 1.0,
             iters,
         )
     }

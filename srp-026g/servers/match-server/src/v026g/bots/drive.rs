@@ -934,7 +934,7 @@ fn drive_tick_inner(
                     !tactics.allowed(from, time, side, objective)
                         && !(crossing && tactics.hazards.only_fixed_at(from))
                 });
-                let floors = &mut grant.floors;
+                let (floors, overdraft) = (&mut grant.floors, &mut grant.overdraft);
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
@@ -1078,14 +1078,19 @@ fn drive_tick_inner(
                             // Its own floors (`whole_route_floors`), not what the
                             // poll's other searches left: with the remainder it ran
                             // out in 29 of 30 searches at about 1,900 floors (p1-bench,
-                            // 2026-10-29). Taken off the poll's all the same, so the
-                            // searches after it in this poll wait.
+                            // 2026-10-29). Booked to the poll all the same (the grant's
+                            // floors, then past them: `Overdraft`), so the searches after
+                            // it in this poll wait.
                             let cap = tuning.threat.whole_route_floors as usize;
                             let mut mine = cap;
                             #[cfg(test)]
                             let _k1 = path::tag::Scope::new(path::tag::K1);
                             let way = tactics.start_route(n0, n1, time, side, objective, &avoid, &mut mine);
-                            *floors = floors.saturating_sub(cap - mine);
+                            if tuning.threat.whole_route_booked {
+                                overdraft.spend(floors, cap - mine);
+                            } else {
+                                *floors = floors.saturating_sub(cap - mine);
+                            }
                             let mut kept_m = seen.metres;
                             match way {
                                 Ok(Some(round)) if stuck::worth_round(round.length(), plain.length()) => {

@@ -549,6 +549,8 @@ pub struct Planning {
     search: RouteSearch,
     /// Its floors are weighed (a cost search, `RouteFilter::weight`): its
     /// route is pulled straight over floors of weight 1 only ([`finish`]).
+    /// Set once, at its start: [`Self::resume`] reads the weight it is given
+    /// only then.
     weighted: bool,
     #[cfg(test)]
     us: f64,
@@ -593,7 +595,7 @@ pub fn plan_start(
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume(grid, regions, allowed, region_ok, weight, iters) {
+            match planning.resume(grid, regions, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
                 Some(route) => Ok(route),
                 None => Err(planning),
             }
@@ -604,17 +606,18 @@ pub fn plan_start(
 impl Planning {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// route, or none, once the search ends; `None` while it goes on.
-    /// `weight` is the one it started with.
+    /// `weight`: the filter's (`RouteFilter::weight`), read only by a search
+    /// that started weighed, so a plain search stays plain whatever it is.
     pub fn resume(
         &mut self,
         grid: &WalkGrid,
         regions: &Regions,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
-        weight: Option<&dyn Fn(NodeId) -> f32>,
+        weight: &dyn Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
-        debug_assert_eq!(self.weighted, weight.is_some(), "a search goes on with the weight it started with");
+        let weight = self.weighted.then_some(weight);
         #[cfg(test)]
         let started = std::time::Instant::now();
         // The plain search keeps its own loop (no call through the weight).
