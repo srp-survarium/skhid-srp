@@ -131,7 +131,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   | sale, more | Used in Loadout 2 and Loadout 4. Sell anyway? | Використовується в комплектах 2 і 4. Продати? | Используется в комплектах 2 и 4. Продать? | Wird in Loadout 2 und 4 genutzt. Trotzdem verkaufen? | Używany w zestawach 2 i 4. Sprzedać? |
 
   The level's word is the kit tabs' own (`clan_players_level_label`, "Lvl."). The join popup's
-  lines (`RoomsText` `offerHigher`, `offerFits`, `code14`) say "Loadout" too. The movie's fonts
+  lines (`st_srp_rooms_offer_higher`, `_offer_fits`, `_code_14`) say "Loadout" too. The movie's fonts
   (CalibriBold, Calibri Bold) have every glyph of them.
 - **A sale asks first** (the owner's, 2026-10-23: "when selling an item which is equipped in any
   kit of any preset I should get a warning"): selling an item a preset uses, the active one's
@@ -183,7 +183,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     "Switch and enter", even when two tie: no button a loadout (the owner's, 2026-10-23: "one
     offer keeps the popup simple").
   - A room's gear range is its max level alone (the room's "level" is its members' match level,
-    no cap). A room of any max level (0) offers nothing [choice].
+    no cap). A room of any max level (0) offers nothing [choice]; nor does a private room (a
+    PIN), which has no max level (the owner's of 2026-10-26).
   - **Room allows more than the kits:** gear at most the max, and a preset higher than the gear
     fits: "Enter anyway" (the kits as they are) or "Switch and enter". None higher: joins, no popup.
   - **Gear over the max:** a preset fits: "Exit" (no join) or "Switch and enter". None fits: the
@@ -198,7 +199,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     action: choose, then the join; a choice refused joins nothing (code 14).
 - **Gone with the owner's change of the same day:** the Save and Apply buttons, saving into a
   preset by hand, an "apply" that left no preset active, and their requests on the wire.
-- **Texts:** short, the lobby's five languages; the movie's own (`LocalPlayerProfile`,
-  `RoomsText`), no content edit.
+- **Texts:** short; srp's dictionary texts (`st_srp_loadout_*`, `st_srp_rooms_*`,
+  `client-patches/localization`).
 - **Wire:** srp's `3B` ranking starts and `91` rows, as the rooms; no exe change.
 - **Release:** server and lobby movie together.

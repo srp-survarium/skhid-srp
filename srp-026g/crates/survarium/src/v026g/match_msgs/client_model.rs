@@ -630,6 +630,7 @@ mod tests {
             match_id: 7,
             match_level: 0,
             score_weights: SCORE_WEIGHTS,
+            blackout: false,
         };
         StaticInfo::new(&options, dictionary()).unwrap()
     }

@@ -52,7 +52,8 @@ pub struct Reroll {
     /// Not a lock: any of the item's own may be changed (the owner's rule
     /// of 2026-10-22, `docs/notes/reroll-keep-old.md`).
     pub modification: u32,
-    /// The changes paid for so far.
+    /// The changes paid for so far. A record only: the price does not
+    /// grow with it (the owner's rule of 2026-10-25).
     pub count: u32,
     /// A paid change that waits for its choice: the modification it
     /// replaces and the three offered.

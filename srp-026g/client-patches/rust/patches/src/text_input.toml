@@ -1,0 +1,7 @@
+# Extend patch 52's protection of detached Scaleform input objects.
+name = "text_input"
+patch = 52
+
+[[hook]]
+site = "text_input.char_target"
+handler = "on_char"

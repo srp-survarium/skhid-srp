@@ -2688,6 +2688,45 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     assert_eq!(rusher.kits[1].0.primary.0.item, "uzi");
 }
 
+/// A bot of the lobby wears its profile's kits (its match's equipment
+/// level, `session::v026g::bot_kits`): their weapons, rounds and pockets
+/// from its first life, in place of its role's fixed ones; a place that is
+/// no bot, or kits of no known weapon, change nothing.
+#[test]
+fn a_bot_wears_the_kits_of_its_profile() {
+    use survarium::v026g::loadouts::BotRole;
+    use survarium::v026g::loadouts::bot_gear::bot_kit_of;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let dict = |name: &str| dictionary.item_named(name).unwrap().dict_id;
+    let mut bots = Bots::new(
+        0x418,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &[0, 1],
+        &[true, false],
+        &[Some("camper"), None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    let svd = bot_kit_of(&[], dict("svd"), dict("ammo_7.62x54_7n1"), BotRole::Camper).unwrap();
+    let ak = bot_kit_of(&[], dict("ak_12"), dict("ammo_6.5x39"), BotRole::Support).unwrap();
+    let kits: Vec<Arms> = [&svd, &ak].into_iter().filter_map(Arms::of_kit).collect();
+    bots.wear(0, kits.clone());
+    bots.wear(1, kits);
+    bots.wear(0, Vec::new());
+    assert!(bots.bots[1].is_none());
+    let bot = bots.bots[0].as_mut().unwrap();
+    assert_eq!(bot.kits.len(), 2);
+    assert_eq!(bot.reflex.held_gun().item, "svd");
+    assert_eq!(bot.reflex.left(), 120);
+    assert_eq!(bot.kits[1].0.primary.0.item, "ak_12");
+    // Bare kits: one pocket, a medkit, no grenade.
+    assert_eq!((bot.kits[0].0.medkits, bot.kits[0].0.grenades), (1, 0));
+    // Its next life is still in the SVD's kit.
+    bot.new_life(0.5, None, Vec3::ZERO);
+    assert_eq!((bot.kit, bot.reflex.held_gun().item), (0, "svd"));
+}
+
 /// Match 0x5402a730 (2026-10-16): the client's world has a dead body
 /// without feet, and `game::driven` hands the bots its bodies before its
 /// statistics, so the death the statistics show came with no spot: no

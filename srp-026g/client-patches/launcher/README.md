@@ -14,7 +14,8 @@ The game's own launcher (`survarium_launcher.exe`), patched so that it
   server's page offers, the launcher and the updater themselves included,
   and the game's content patches (`resources.db.patch_<n>`) the server
   lists, and enables PLAY only for a game the server lets in;
-- starts the game in the language chosen in its menu.
+- starts the game, which keeps its language itself (Settings, Language;
+  this menu's language at its first start).
 
 The original launcher is not in this repository. The tools below work on
 your own copy, and the patched exe is made from it.
@@ -92,16 +93,20 @@ installs whenever the ZIP's checksum changes.
    "Server maintenance..." and PLAY is off. Is it back, or does it offer a
    new ZIP, the window closes and opens again by itself and updates. So
    PLAY never starts a game the server would refuse as outdated.
-6. PLAY (or Enter) starts `survarium_skhid.exe -localization=<language>
-   -mt_allocator=768 -minimum_resources_memory_size=768` from
-   `game\binaries\x86`, and the launcher closes.
+6. PLAY (or Enter) starts `survarium_skhid.exe -mt_allocator=768
+   -minimum_resources_memory_size=768` from `game\binaries\x86`, and the
+   launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
+   it passes no `-localization=`: the game's language is the one chosen in
+   its Settings (user.cfg).
 7. The language menu (EN, RU, UA, DE, PL) changes the launcher's texts and
-   the page at once, is remembered, and is the language the game starts in.
+   the page at once and is remembered. The game takes it once, at its first
+   start with patch 79, and keeps it; then it is changed in the game's
+   Settings.
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
 through the launcher: the game starts `updater_skhid.exe replay ...`, which
 fetches the replay and starts a second `survarium_skhid.exe` with PLAY's
-arguments, the language the launcher keeps, and `-match_replay=<file>`
+arguments and `-match_replay=<file>` (the game's own language)
 (`../../../client/updater/README.md`, "Watch replay").
 
 Gone from the window: the four social buttons, CREATE ACCOUNT (an account is
@@ -384,9 +389,9 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 
 | What happened | What the player gets |
 |---|---|
-| The server cannot be reached (no internet, server down, firewall), three tries | The reason ("Cannot connect to skhid.link. The server may be down, or a firewall blocks updater_skhid.exe"), then PLAY if the original game is present, the installed Skhid files are whole (or were never installed by this updater) and the last patch step ended with every patch in place; else PLAY stays off ("The game's patches could not be checked: ...") |
+| The server cannot be reached (no internet, server down, a provider that blocks it, a firewall), three tries | The updater's own box, in the launcher's language, with Retry and Cancel: what failed ("Couldn't find skhid.link." for a name not found, "skhid.link refused the connection.", "skhid.link didn't answer.", "The connection to skhid.link was cut off."), why it may have (a provider that blocks it, common in Russia, or a firewall) and what to do (`Skhid-network-setup.cmd`; in Russia a VPN with the three programs in its split tunnelling, `VPN.txt`) ([updater README](../../../client/updater/README.md#a-server-not-reached)). Retry runs the update again; Cancel: PLAY if the original game is present, the installed Skhid files are whole (or were never installed by this updater) and the last patch step ended with every patch in place, else status "Error" and PLAY stays off |
 | The original game is missing and Drive returns an error, a sign-in page, a redirect or bytes that do not match the pinned SHA-256 | Installation stops, PLAY stays off, and no files from that download are extracted or run. Retry or configure another mirror; verification cannot be skipped |
-| ...and a file the updater installed is missing or damaged | "x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: <reason>", status "Error", PLAY stays off |
+| ...and a file the updater installed is missing or damaged | The same box; the log says "x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: <reason>"; status "Error", PLAY stays off |
 | The answer is not the server's (a Wi-Fi sign-in page, a proxy) | "The answer from <host> is not the update server's ..." |
 | The server has no ZIP to offer | "<host> offers no client files now" |
 | The server's download slots are taken (it answers 503) | Waits 15 s and tries again, four times |
@@ -395,7 +400,7 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | Not enough disk space | "Not enough free disk space for the update in <folder>: N MB needed, M MB free." |
 | The game folder cannot be written (Program Files, read-only) | "Cannot write <file>: Access is denied (error 5). Move the game out of Program Files or start the launcher as administrator; an antivirus can block it too." |
 | A file is held by another program (the game is running) | "Cannot replace <file>: ... (error 32). Nothing was changed. Another program holds the file: close the game and try again." |
-| Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Windows Security blocked survarium_skhid.exe: a false positive.", the two steps (Protection history > Allow on device; the game folder as an exclusion), "Then try again." (or "... is in use by another program. Close the game, then try again."). Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |
+| Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Windows Security blocked survarium_skhid.exe: a false positive.", the two steps (Protection history > Allow on device; `game\binaries\x86` as an exclusion, or the game folder for a patch file), "Then try again." (or "... is in use by another program. Close the game, then try again."). Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |
 | A Skhid file cannot be read for another reason (access denied) | Repaired: the ZIP downloaded and installed again; when that fails too, the install's error naming the file, PLAY off. Never "up to date" |
 | The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). Click OK: the launcher keeps looking and starts anew with the update. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP (after OK: a launcher with a box open cannot close, and a second one is never started beside it) |
 | A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
@@ -693,9 +698,10 @@ installation and service.
   server has no answer with words of its own. The launcher keeps PLAY from
   starting such a game; a game started otherwise gets that line.
 - One launcher at a time (its mutex), as before.
-- The language is the one value still kept in the registry
+- The launcher's language is the one value still kept in the registry
   (`HKCU\Software\Vostok Games\Survarium`, `language`), by the launcher's
-  own code.
+  own code. The game reads it only at its first start with patch 79,
+  when it has no language of its own yet.
 - `play_skhid.bat` starts the game without the server: it runs
   `updater_skhid.exe ready`, which checks the patches against the last
   list, and looks for no update.

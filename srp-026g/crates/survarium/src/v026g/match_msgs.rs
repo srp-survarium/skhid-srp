@@ -270,9 +270,9 @@ impl PlayerInput {
     /// the rotations of two inputs it merges into one node, as halves
     /// (0x2C5B60 → 0x2C6640 → 0xF67B0), and a half ends at 65 504.
     pub fn rotation_is_sane(&self) -> bool {
-        self.rotation.chunks_exact(2).all(|half| {
-            u16::from_le_bytes([half[0], half[1]]) & HALF_EXPONENT < HALF_EXPONENT_1024
-        })
+        self.rotation
+            .chunks_exact(2)
+            .all(|half| u16::from_le_bytes([half[0], half[1]]) & HALF_EXPONENT < HALF_EXPONENT_1024)
     }
 }
 

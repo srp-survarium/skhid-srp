@@ -1,0 +1,672 @@
+{
+  "_about": "Base weapon detail transport, properties 138..160 (160: chambering time, on the 11 bolt and pump weapons that have one). Numeric values copied from each weapon after balance edits. The movie renders these itself; native comparison rows skip them. No simulation changes.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 137
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 138,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 138,
+        "prop_value": "{parameters/reload_time}"
+      },
+      "only_if": "parameters/reload_time"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 138
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 139,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 139,
+        "prop_value": "{parameters/max_damage_distance}"
+      },
+      "only_if": "parameters/max_damage_distance"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 139
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 140,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 140,
+        "prop_value": "{parameters/min_damage_distance}"
+      },
+      "only_if": "parameters/min_damage_distance"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 140
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 141,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 141,
+        "prop_value": "{parameters/min_damage_amount}"
+      },
+      "only_if": "parameters/min_damage_amount"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 141
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 142,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 142,
+        "prop_value": "{parameters/show_time}"
+      },
+      "only_if": "parameters/show_time"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 142
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 143,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 143,
+        "prop_value": "{parameters/hide_time}"
+      },
+      "only_if": "parameters/hide_time"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 143
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 144,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 144,
+        "prop_value": "{parameters/aim_zoom_factor}"
+      },
+      "only_if": "parameters/aim_zoom_factor"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 144
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 145,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 145,
+        "prop_value": "{parameters/stamina_damage}"
+      },
+      "only_if": "parameters/stamina_damage"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 145
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 146,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 146,
+        "prop_value": "{recoil/min_top_recoil}"
+      },
+      "only_if": "recoil/min_top_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 146
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 147,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 147,
+        "prop_value": "{recoil/max_top_recoil}"
+      },
+      "only_if": "recoil/max_top_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 147
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 148,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 148,
+        "prop_value": "{recoil/min_left_recoil}"
+      },
+      "only_if": "recoil/min_left_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 148
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 149,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 149,
+        "prop_value": "{recoil/max_left_recoil}"
+      },
+      "only_if": "recoil/max_left_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 149
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 150,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 150,
+        "prop_value": "{recoil/min_right_recoil}"
+      },
+      "only_if": "recoil/min_right_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 150
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 151,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 151,
+        "prop_value": "{recoil/max_right_recoil}"
+      },
+      "only_if": "recoil/max_right_recoil"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 151
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 152,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 152,
+        "prop_value": "{dispersion/from_the_hip_multiplier}"
+      },
+      "only_if": "dispersion/from_the_hip_multiplier"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 152
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 153,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 153,
+        "prop_value": "{dispersion/one_shoot_dispersion_amount}"
+      },
+      "only_if": "dispersion/one_shoot_dispersion_amount"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 153
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 154,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 154,
+        "prop_value": "{dispersion/speed_of_aiming}"
+      },
+      "only_if": "dispersion/speed_of_aiming"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 154
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 155,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 155,
+        "prop_value": "{dispersion/growth_speed}"
+      },
+      "only_if": "dispersion/growth_speed"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 155
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 156,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 156,
+        "prop_value": "{breath_vibration/base_horizontal_amplitude}"
+      },
+      "only_if": "breath_vibration/base_horizontal_amplitude"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 156
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 157,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 157,
+        "prop_value": "{breath_vibration/base_vertical_amplitude}"
+      },
+      "only_if": "breath_vibration/base_vertical_amplitude"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 157
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 158,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 158,
+        "prop_value": "{breath_vibration/base_period}"
+      },
+      "only_if": "breath_vibration/base_period"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 158
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 159,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 159,
+        "prop_value": "{dispersion/max_dispersion}"
+      },
+      "only_if": "dispersion/max_dispersion"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 159
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 160,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 15
+      },
+      "like": {
+        "prop_id": 15
+      },
+      "values": {
+        "prop_id": 160,
+        "prop_value": "{parameters/chamber_a_round_time}"
+      },
+      "only_if": "parameters/chamber_a_round_time"
+    }
+  ]
+}

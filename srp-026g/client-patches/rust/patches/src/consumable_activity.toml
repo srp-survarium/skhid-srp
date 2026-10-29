@@ -1,0 +1,6 @@
+name = "consumable_activity"
+patch = 77
+
+[[hook]]
+site = "quick_slots.activity"
+handler = "on_update"

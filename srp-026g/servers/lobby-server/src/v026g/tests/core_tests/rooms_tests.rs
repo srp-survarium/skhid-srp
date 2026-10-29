@@ -3,17 +3,19 @@
 //! again after the match; Play into a room; a PIN, a max level and a kick;
 //! a late joiner; and no room for an older game.
 
-use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
+use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
-    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE,
-    ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
+    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_START, ROOM_STATE, ROOM_UNQUEUE,
+    ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start, move_start,
 };
 
 use super::pvb_tests::with_gear;
 use super::*;
 use crate::v026g::LiveView;
+
+mod scaling;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
 /// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>;<next map>;
@@ -65,6 +67,50 @@ pub(super) fn spec(size: u8) -> RoomSpec {
 
 /// The asker makes a room (with `pin` asked for, given first): its key.
 pub(super) fn create(world: &mut World, index: usize, spec: RoomSpec, pin: Option<u16>) -> u32 {
+    // Public rooms are server-created now. Lifecycle tests can still set
+    // up a particular size/pool directly; the wire refusal is tested below.
+    if pin.is_none() {
+        let entries: Vec<_> = world
+            .core
+            .room_entries()
+            .iter()
+            .map(|entry| entry.map_id)
+            .collect();
+        let default: Vec<_> = world
+            .core
+            .room_entries()
+            .iter()
+            .filter(|entry| !entry.extra)
+            .map(|entry| entry.map_id)
+            .collect();
+        let account_id = world.ids[index].0;
+        let gear = matchmaking::gear_level(
+            &world.core.accounts.get(account_id).unwrap().locked(),
+            quests::now(),
+        );
+        let rng = &mut world.core.rng;
+        return world
+            .core
+            .rooms
+            .create(
+                account_id,
+                gear,
+                session::v026g::rooms::Spec {
+                    size: spec.size,
+                    wait: spec.wait,
+                    door: session::v026g::rooms::Door::Open {
+                        max_level: spec.max_level,
+                    },
+                    min_players: spec.min_side * 2,
+                },
+                &entries,
+                &default,
+                world.core.settings.rooms.max_rooms,
+                world.now,
+                &mut |bound| rng.below(bound as u32) as usize,
+            )
+            .unwrap();
+    }
     if let Some(pin) = pin {
         assert_eq!(
             rows(world, index, ROOM_PIN_BASE + u32::from(pin), 1),
@@ -107,7 +153,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
         alone[0],
         format!(
             "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2;0",
-            world.core.settings.maps.len()
+            world.core.room_entries().len()
         )
     );
     // The vote is there from the start, alone too.
@@ -174,10 +220,13 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
+    let blackout_map = maps::blackout_played(voted_cards[2]);
     assert_eq!(
-        setup.map_id, voted_cards[2],
+        setup.map_id,
+        blackout_map.unwrap_or(voted_cards[2]),
         "the vote's winner when it started"
     );
+    assert_eq!(setup.blackout, blackout_map.is_some());
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -222,7 +271,7 @@ fn play_puts_a_game_with_rooms_into_an_open_room() {
     // Its own equipment level (0), any max level, 8 v 8, 30 s.
     assert!(made[0].starts_with("S1;R;"), "{made:?}");
     let key = header(&made)[KEY].clone();
-    assert_eq!(&header(&made)[LEVEL..PHASE], ["0", "0", "8", "30"]);
+    assert_eq!(&header(&made)[LEVEL..PHASE], ["0", "10", "8", "30"]);
     world.ask(dave, request::play(1));
     world.advance(Duration::from_millis(100));
     let joined = state(&mut world, dave);
@@ -234,7 +283,7 @@ fn play_puts_a_game_with_rooms_into_an_open_room() {
 /// room goes into it; with two, each goes into the one nearest its level
 /// (the owner's of 2026-10-18).
 #[test]
-fn play_takes_the_room_nearest_the_players_level_however_far() {
+fn play_takes_the_nearest_room_within_its_bracket() {
     let mut world = World::new();
     let carol = world.connect("Carol");
     let dave = world.connect("Dave");
@@ -250,7 +299,16 @@ fn play_takes_the_room_nearest_the_players_level_however_far() {
     assert_eq!(play(&mut world, dave), low, "the only room, however far");
     // Dave leaves and makes a room of his own: one low, one high.
     rows(&mut world, dave, ROOM_LEAVE, 1);
-    let high = create(&mut world, dave, spec(8), None).to_string();
+    let high = create(
+        &mut world,
+        dave,
+        RoomSpec {
+            max_level: 10,
+            ..spec(8)
+        },
+        None,
+    )
+    .to_string();
     assert_ne!(high, low);
     with_gear(&mut world, erin, 6);
     assert_eq!(play(&mut world, erin), high);
@@ -371,8 +429,8 @@ fn a_game_started_anew_goes_back_to_its_seat_in_the_rooms_match_by_play() {
 
 /// A member is offered the open room of the lowest max level that takes it,
 /// lower than its own room's, and one click (a Join) moves it there; none
-/// over its equipment, none with a PIN, none in its own room (the owner's
-/// of 2026-10-19).
+/// over its equipment, none with a PIN, none in its own room, none out of a
+/// private room (the owner's of 2026-10-19).
 #[test]
 fn a_member_is_offered_a_room_of_a_lower_max_level() {
     let mut world = World::new();
@@ -387,7 +445,15 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
             .map(|row| row.split(';').map(str::to_owned).collect::<Vec<_>>())
     };
     // Alice's room has no max level; Bob is in it.
-    let any = create(&mut world, alice, spec(8), None);
+    let any = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 15,
+            ..spec(8)
+        },
+        None,
+    );
     rows(&mut world, bob, ROOM_JOIN_BASE + any, 1);
     assert_eq!(switch_of(&state(&mut world, bob)), None);
     // Carol's takes up to level 5, Dave's up to 3 with a PIN, Erin's up to 4.
@@ -404,7 +470,7 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
         &mut world,
         dave,
         RoomSpec {
-            max_level: 3,
+            max_level: 10,
             ..spec(8)
         },
         Some(1234),
@@ -413,18 +479,21 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
         &mut world,
         erin,
         RoomSpec {
-            max_level: 4,
+            max_level: 10,
             ..spec(6)
         },
         None,
     );
     // The lowest open one: Erin's (Dave's has a PIN).
     let offered = switch_of(&state(&mut world, bob)).expect("a room offered");
-    assert_eq!(offered, ["W", &low.to_string(), "4", "1", "6", "Erin"]);
+    assert_eq!(offered, ["W", &low.to_string(), "10", "1", "6", "Erin"]);
     // One equipped over 4 is offered Carol's.
-    with_gear(&mut world, alice, 5);
-    let offered = switch_of(&state(&mut world, alice)).expect("Carol's");
-    assert_eq!(offered[2], "5");
+    with_gear(&mut world, alice, 15);
+    assert_eq!(switch_of(&state(&mut world, alice)), None);
+    // None out of a private room: it has no max level to better.
+    let frank = world.connect("Frank");
+    create(&mut world, frank, spec(8), Some(4321));
+    assert_eq!(switch_of(&state(&mut world, frank)), None);
     // Bob's click: into Erin's room, out of Alice's.
     let moved = rows(&mut world, bob, ROOM_JOIN_BASE + low, 1);
     assert_eq!(header(&moved)[KEY], low.to_string());
@@ -551,7 +620,7 @@ fn a_max_level_keeps_higher_equipment_out() {
     world.advance(Duration::from_millis(100));
     let made = state(&mut world, bob);
     assert_ne!(header(&made)[KEY], key.to_string());
-    assert_eq!(&header(&made)[LEVEL..LEVEL + 2], ["5", "0"]);
+    assert_eq!(&header(&made)[LEVEL..LEVEL + 2], ["5", "10"]);
     // Nobody makes a room under its own equipment level.
     with_gear(&mut world, carol, 5);
     assert_eq!(
@@ -564,7 +633,7 @@ fn a_max_level_keeps_higher_equipment_out() {
             }),
             1
         ),
-        ["S1;N;12;0;0"]
+        ["S1;N;16;0;0"]
     );
     create(
         &mut world,
@@ -582,6 +651,71 @@ fn a_max_level_keeps_higher_equipment_out() {
     assert_eq!(
         header(&rows(&mut world, dave, ROOM_JOIN_BASE + open, 1))[MEMBERS],
         "2"
+    );
+}
+
+/// A private room has no max level (the owner's of 2026-10-26): its maker's
+/// window's (3 here) is kept for the next open room only. A maker over it
+/// makes the room; with the PIN a high and a low equipment join, both fit
+/// to play; the room and its row in the list tell no max level; its match
+/// takes everyone. An open room's max level still keeps higher equipment
+/// out.
+#[test]
+fn a_private_room_lets_in_any_equipment() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    with_gear(&mut world, alice, 5);
+    with_gear(&mut world, bob, 5);
+    let capped = RoomSpec {
+        max_level: 3,
+        ..spec(8)
+    };
+    let key = create(&mut world, alice, capped, Some(1234));
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    assert_eq!(
+        header(&rows(&mut world, bob, ROOM_JOIN_BASE + key, 1))[MEMBERS],
+        "2"
+    );
+    rows(&mut world, carol, ROOM_PIN_BASE + 1234, 1);
+    let joined = rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(header(&joined)[MEMBERS], "3");
+    assert_eq!(header(&joined)[LEVEL + 1], "0", "no max level");
+    // P;<place>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>
+    let members: Vec<(String, String)> = joined
+        .iter()
+        .filter(|row| row.starts_with("P;"))
+        .map(|row| {
+            let fields: Vec<&str> = row.split(';').collect();
+            (fields[2].to_owned(), fields[6].to_owned())
+        })
+        .collect();
+    let fit = |gear: &str| (gear.to_owned(), "0".to_owned());
+    assert_eq!(members, [fit("5"), fit("5"), fit("0")]);
+    // Its row: <key>;<level>;<max level>;<size>;<players>;<phase>;<secs>;
+    // <map>;<pin>;<name>.
+    let list = rows(&mut world, carol, ROOMS_LIST, 32);
+    let row: Vec<&str> = list[1].split(';').collect();
+    assert_eq!((row[0], row[2], row[8]), (&*key.to_string(), "0", "1"));
+    // Its match takes all three: nobody is out for its equipment.
+    for member in [alice, bob, carol] {
+        world.take(member);
+    }
+    let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("Alice plays");
+    for member in [bob, carol] {
+        let (sent, _) = sent_to_match(&world.take(member)).expect("each member plays");
+        assert_eq!(sent, ticket);
+    }
+    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 3);
+    // An open room of the same window keeps Bob's equipment out.
+    let dave = world.connect("Dave");
+    let open = create(&mut world, dave, capped, None);
+    let erin = world.connect("Erin");
+    with_gear(&mut world, erin, 5);
+    assert_eq!(
+        rows(&mut world, erin, ROOM_JOIN_BASE + open, 1),
+        ["S1;N;12;0;0"]
     );
 }
 
@@ -892,7 +1026,15 @@ fn who_came_by_play_leaves_the_room_after_the_match_who_chose_it_stays() {
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
     let dave = world.connect("Dave");
-    let key = create(&mut world, alice, spec(6), None);
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    );
     rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
     assert_eq!(play_into_room(&mut world, carol), key.to_string());
     world.ask(dave, request::play(1));
@@ -952,7 +1094,15 @@ fn one_who_comes_by_play_late_leaves_after_the_first_match_it_plays() {
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
     let erin = world.connect("Erin");
-    let key = create(&mut world, alice, spec(6), None);
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    );
     rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
     let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
     // Carol: the match takes her 15 s later.
@@ -992,7 +1142,15 @@ fn one_by_play_who_joins_the_room_stays_after_the_match() {
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
-    let key = create(&mut world, alice, spec(6), None);
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    );
     assert_eq!(play_into_room(&mut world, bob), key.to_string());
     assert_eq!(play_into_room(&mut world, carol), key.to_string());
     // Carol chooses the room she is in.
@@ -1023,12 +1181,30 @@ fn one_by_play_lands_by_its_next_play_in_the_room_of_its_level() {
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let dave = world.connect("Dave");
-    let low = create(&mut world, alice, spec(6), None).to_string();
+    let low = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    )
+    .to_string();
     with_gear(&mut world, bob, 6);
     assert_eq!(play_into_room(&mut world, bob), low, "the only room");
     let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
     with_gear(&mut world, dave, 6);
-    let high = create(&mut world, dave, spec(6), None).to_string();
+    let high = create(
+        &mut world,
+        dave,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    )
+    .to_string();
     world.end_match(ticket, 0);
     world.advance(Duration::from_secs(1));
     assert_eq!(state(&mut world, bob), ["S1;N;0;0;0"]);
@@ -1187,11 +1363,56 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     // Equipment over the max level now: the window offers its level.
     with_gear(&mut world, alice, 5);
     assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "5", "45"]);
+    // Lowered again (the movie asks anew when the gear changes): the max
+    // level made.
+    with_gear(&mut world, alice, 2);
+    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "3", "45"]);
     // Play's room after it keeps what the hand made.
     rows(&mut world, alice, ROOM_LEAVE, 1);
     world.ask(alice, request::play(1));
     world.advance(Duration::from_millis(100));
     assert_eq!(form(&mut world, alice).1, made);
+}
+
+/// The movie asks for its create window's start once, as its lobby comes
+/// up (the owner's of 2026-10-25: the window opens filled, nothing applied
+/// after it is drawn): the form is answered right after the sign-in,
+/// before any rooms window, and a room made by hand is in the answer to
+/// the next sign-in. Asking it tells no game its room (`room_unseen`).
+#[test]
+fn the_create_window_start_is_there_from_the_sign_in() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    // The lobby's first asks, before anything is opened: a new player's is
+    // the defaults.
+    let (fields, _) = form(&mut world, alice);
+    assert_eq!(fields, ["0", "8", "1", "0", "30"]);
+
+    // A room made by hand: what the movie keeps for its next window (the
+    // same game asking again gets the same).
+    rows(&mut world, alice, bits_start(0, 0b11), 1);
+    let made_spec = RoomSpec {
+        size: 7,
+        min_side: 3,
+        max_level: 0,
+        wait: 60,
+        pin: false,
+    };
+    let key = create(&mut world, alice, made_spec, Some(1234));
+    let made = (
+        ["1", "7", "3", "0", "60"].map(str::to_owned).to_vec(),
+        world.core.rooms.get(key).unwrap().pool.clone(),
+    );
+    assert_eq!(form(&mut world, alice), made);
+
+    // Her game started anew: its first ask has it, and she is still not
+    // told her room by it.
+    let (account_id, _) = world.ids[alice];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    assert_eq!(form(&mut world, again), made);
+    assert!(world.core.room_unseen.contains_key(&account_id));
 }
 
 /// A full room's queue (the owner's of 2026-10-17): who is in no room waits
@@ -1499,6 +1720,67 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
     world.advance(Duration::from_secs(1));
     let (sent, _) = sent_to_match(&world.take(erin)).expect("Erin goes in");
     assert_eq!(sent, ticket);
+}
+
+#[test]
+fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
+    let mut world = World::new();
+    let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
+    let key = create(
+        &mut world,
+        players[0],
+        RoomSpec {
+            max_level: 10,
+            ..spec(8)
+        },
+        None,
+    );
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    let ticket = room_match_starts(&mut world, &players, VOTE_AND_WAIT);
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    // Twenty lifetime places, but only twelve currently occupied (6 v 6).
+    // The room still has space, and its match cannot reuse the departed seats.
+    {
+        let running = world.core.matches.get_mut(&id).unwrap();
+        for n in running.seats.len()..20 {
+            running.seats.push((9000 + n as u32, (n % 2) as u8));
+            running.strengths.push(0);
+            running.names.push(String::new());
+        }
+    }
+    world.host.live.locked().insert(
+        ticket,
+        LiveView {
+            present: (1 << 12) - 1,
+            ..LiveView::default()
+        },
+    );
+    world.host.admitting.locked().insert(ticket);
+    let erin = world.connect("Erin");
+    rows(&mut world, erin, ROOM_PLAY, 1);
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
+    assert_eq!(join_row(&state(&mut world, erin)), Some("J;-1;7"));
+    world.advance(Duration::from_secs(20));
+    assert!(sent_to_match(&world.take(erin)).is_none());
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
+    world.end_match(ticket, 0);
+    for player in players {
+        world.take(player);
+    }
+    world.advance(Duration::from_secs(1));
+    world.advance(Duration::from_secs(90));
+    assert!(
+        sent_to_match(&world.take(erin)).is_some(),
+        "waiter plays the next match"
+    );
 }
 
 /// A maintenance within 30 min: a member waiting in its room while the
@@ -1901,44 +2183,366 @@ fn a_room_makes_no_match_below_its_minimum() {
     }
 }
 
-/// A room with a PIN makes private matches (the owner's of 2026-10-20):
-/// the match server is told, and its result pays nobody anything; the
-/// room goes on after it as any other.
+/// A private room (a PIN; the owner's of 2026-10-26) members join with its
+/// PIN; `count` members in all, the first its owner: the room's key and the
+/// members.
+fn private_room(world: &mut World, count: usize) -> (u32, Vec<usize>) {
+    let names = [
+        "Alice", "Bob", "Carol", "Dave", "Erin", "Frank", "Grace", "Heidi", "Ivan", "Judy", "Kim",
+    ];
+    let members: Vec<usize> = (0..count)
+        .map(|i| match names.get(i) {
+            Some(name) => world.connect(name),
+            None => world.connect(&format!("Member{i}")),
+        })
+        .collect();
+    let key = create(world, members[0], spec(6), Some(1234));
+    for &member in &members[1..] {
+        rows(world, member, ROOM_PIN_BASE + 1234, 1);
+        rows(world, member, ROOM_JOIN_BASE + key, 1);
+    }
+    for &member in &members {
+        world.take(member);
+    }
+    (key, members)
+}
+
+/// The asker presses Start in its room: what it is sent (its state; "match
+/// found" too when its match is made).
+fn press_start(world: &mut World, index: usize) -> Vec<Decoded> {
+    let addr = world.clients[index].0;
+    let now = world.now;
+    world.core.handle(
+        addr,
+        ClientMessage::QueryRanking {
+            start: ROOM_START,
+            count: 1,
+        },
+        now,
+    );
+    world.advance(Duration::from_millis(100));
+    world.take(index)
+}
+
+/// The owner's of 2026-10-26: a private room has no team size (10 v 10, the
+/// most a match has) and no countdown; its owner's Start makes its match at
+/// once with whoever is in, 1 v 0 too, the sides drawn as in any room. The
+/// match server is told a minimum of one (an empty side plays) and that it
+/// pays nothing; its result pays nobody anything.
 #[test]
-fn a_room_with_a_pin_makes_matches_that_pay_nothing() {
+fn a_private_rooms_owner_starts_its_match_with_one_three_or_five() {
+    for (count, sides) in [(1, [1, 0]), (3, [2, 1]), (5, [3, 2])] {
+        let mut world = World::new();
+        let (key, members) = private_room(&mut world, count);
+        let owner = members[0];
+        let waiting = state(&mut world, owner);
+        assert_eq!(header(&waiting)[5], "10", "10 v 10: {waiting:?}");
+        assert_eq!(header(&waiting)[15], "1");
+        // No countdown, however long.
+        world.advance(VOTE_AND_WAIT * 3);
+        assert!(world.host.made.locked().is_empty(), "{count}: no match");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "0");
+        let held: Vec<_> = members
+            .iter()
+            .map(|&member| {
+                let account = world.account(member);
+                (account.generic_money, account.exp_total, account.rating)
+            })
+            .collect();
+        let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("the owner plays");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "2");
+        for &member in &members[1..] {
+            let (sent, _) = sent_to_match(&world.take(member)).expect("each member plays");
+            assert_eq!(sent, ticket);
+        }
+        let setup = world.host.made.locked().last().unwrap().1.clone();
+        assert_eq!(setup.players.len(), count, "no bots");
+        let team = |side: u8| {
+            setup
+                .players
+                .iter()
+                .filter(|player| player.profile.team == side)
+                .count()
+        };
+        assert_eq!([team(0), team(1)], sides, "{count}");
+        assert_eq!(setup.room_minimum, Some(1));
+        assert!(setup.private);
+
+        world.end_match(ticket, 0);
+        world.advance(Duration::from_secs(2));
+        let report = world.results.find(ticket).expect("its report");
+        assert!(report.private);
+        for player in &report.players {
+            let reward = &player.reward;
+            assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
+            assert_eq!(reward.rating_after, reward.rating_before);
+        }
+        for (&member, held) in members.iter().zip(held) {
+            let account = world.account(member);
+            assert_eq!(
+                (account.generic_money, account.exp_total, account.rating),
+                held
+            );
+        }
+        // After it the room waits for its owner again: no vote, no match.
+        world.advance(VOTE_AND_WAIT * 3);
+        assert_eq!(world.host.made.locked().len(), 1, "{count}: one match");
+        assert_eq!(header(&state(&mut world, owner))[PHASE], "0");
+        assert_eq!(world.core.rooms.get(key).unwrap().members.len(), count);
+    }
+}
+
+/// Only the owner of a private room starts it, never while its match is
+/// played; an open room's owner has no Start (its countdown starts it).
+#[test]
+fn start_is_refused_to_a_member_an_open_room_and_a_room_playing() {
     let mut world = World::new();
-    let alice = world.connect("Alice");
+    let (_, members) = private_room(&mut world, 2);
+    let (owner, bob) = (members[0], members[1]);
+    let carol = world.connect("Carol");
+    create(&mut world, carol, spec(6), None);
+    assert!(sent_to_match(&press_start(&mut world, bob)).is_none());
+    assert!(sent_to_match(&press_start(&mut world, carol)).is_none());
+    world.advance(Duration::from_secs(2));
+    assert!(world.host.made.locked().is_empty(), "nobody started");
+    assert_eq!(header(&state(&mut world, carol))[PHASE], "0");
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_some());
+    assert_eq!(world.host.made.locked().len(), 1);
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_none());
+    world.advance(Duration::from_secs(2));
+    assert_eq!(world.host.made.locked().len(), 1, "not twice");
+}
+
+/// A private room's 1 v 0 takes a member who comes while it is played
+/// (with the PIN) on its empty side.
+#[test]
+fn a_private_rooms_1_v_0_takes_a_late_joiner_on_its_empty_side() {
+    let mut world = World::new();
+    let (key, members) = private_room(&mut world, 1);
     let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(6), Some(1234));
+    let (ticket, _) = sent_to_match(&press_start(&mut world, members[0])).expect("a match");
+    let (&id, _) = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap();
+    world.host.admitting.locked().insert(ticket);
     rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
     rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    let held = [alice, bob].map(|player| {
-        let account = world.account(player);
-        (account.generic_money, account.exp_total)
-    });
-    world.advance(VOTE_AND_WAIT);
-    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    world.take(bob);
+    world.advance(Duration::from_secs(17));
+    let (sent, _) = sent_to_match(&world.take(bob)).expect("Bob goes in late");
+    assert_eq!(sent, ticket);
+    assert_eq!(seat_of(&world, id, bob).1, 1);
+    assert_eq!(arrangement(&mut world, members[0]), "01");
+}
+
+/// A private room's teams as its state tells them (`A;<sides>`).
+fn arrangement(world: &mut World, index: usize) -> String {
+    let state = state(world, index);
+    state
+        .iter()
+        .find_map(|row| row.strip_prefix("A;"))
+        .unwrap_or_else(|| panic!("no arrangement: {state:?}"))
+        .to_owned()
+}
+
+/// The owner moves the member at `place` to the other team, from the state
+/// it has now.
+fn move_member(world: &mut World, owner: usize, place: u8) -> String {
+    let serial: u32 = header(&state(world, owner))[SERIAL].parse().unwrap();
+    rows(world, owner, move_start(place, serial), 1);
+    arrangement(world, owner)
+}
+
+/// The owner's of 2026-10-26 ("the owner should be able to arrange both
+/// teams (even 1 vs 10)"): newcomers come on the team with fewer; the
+/// owner moves anyone, itself too; Start plays exactly that, 3 v 0 or
+/// 1 v 10; a team holds 10 at most.
+#[test]
+fn a_private_rooms_owner_arranges_the_teams_and_start_plays_them() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 3);
+    let owner = members[0];
+    assert_eq!(arrangement(&mut world, owner), "010");
+    assert_eq!(move_member(&mut world, owner, 1), "000");
+    // Itself, and back.
+    assert_eq!(move_member(&mut world, owner, 0), "100");
+    assert_eq!(move_member(&mut world, owner, 0), "000");
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    let teams = |world: &World| {
+        let setup = world.host.made.locked().last().unwrap().1.clone();
+        let on = |side| {
+            setup
+                .players
+                .iter()
+                .filter(|player| player.profile.team == side)
+                .count()
+        };
+        [on(0), on(1)]
+    };
+    assert_eq!(teams(&world), [3, 0], "3 v 0");
+    world.end_match(ticket, 0);
+
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 11);
+    let owner = members[0];
+    assert_eq!(arrangement(&mut world, owner), "01010101010");
+    for place in (2..11).step_by(2) {
+        move_member(&mut world, owner, place);
+    }
+    assert_eq!(arrangement(&mut world, owner), "01111111111");
+    // Ten on team 1: nobody more goes there.
+    assert_eq!(move_member(&mut world, owner, 0), "01111111111");
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_some());
+    assert_eq!(teams(&world), [1, 10], "1 v 10");
+}
+
+/// The member's game started anew (it misses the next start: `room_unseen`):
+/// its new game, unseen until told the room.
+fn restart_game(world: &mut World, member: usize) -> usize {
+    world.silent_for(member, Duration::from_secs(10));
+    let (account_id, _) = world.ids[member];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    again
+}
+
+/// The members' games told their room go into its match late, one at a
+/// time, the match taking players: each one's team in it.
+fn late_teams(world: &mut World, ticket: u32, id: u32, games: &[usize]) -> Vec<u8> {
+    let mut teams = Vec::new();
+    for &game in games {
+        state(world, game);
+    }
+    let mut left: Vec<usize> = games.to_vec();
+    for _ in 0..60 {
+        world.host.admitting.locked().insert(ticket);
+        world.advance(Duration::from_secs(1));
+        left.retain(|&game| {
+            let Some((sent, _)) = sent_to_match(&world.take(game)) else {
+                return true;
+            };
+            assert_eq!(sent, ticket);
+            let session = world.ids[game].1;
+            let seats = &world.core.matches[&id].seats;
+            teams.push(seats.iter().rev().find(|(s, _)| *s == session).unwrap().1);
+            false
+        });
+        if left.is_empty() {
+            return teams;
+        }
+    }
+    panic!("not all went in: {left:?}");
+}
+
+/// The review of #527: a member who misses its owner's Start (its game
+/// started anew) goes in late on the team its owner put it on, not the side
+/// with fewer, and the arrangement stays: 1 v 3 stays 1 v 3 (`A;0111`).
+#[test]
+fn a_member_who_missed_the_start_goes_in_on_its_arranged_team() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 4);
+    let owner = members[0];
+    assert_eq!(move_member(&mut world, owner, 2), "0111");
+    let dave = restart_game(&mut world, members[3]);
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert!(setup.private);
+    assert_eq!(setup.players.len(), 3, "Dave not told the room");
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    // 1 v 2 in the match: Dave goes back to team 2, not to the side of one.
+    assert_eq!(late_teams(&mut world, ticket, id, &[dave]), [1]);
+    assert_eq!(arrangement(&mut world, owner), "0111");
+}
+
+/// No team ever goes past 10 in the arrangement: 10 v 9 with five of team 1
+/// away at the start plays 5 v 9; a newcomer with the PIN during the match
+/// goes to the side with fewer (team 1), its team in the arrangement stays
+/// team 2 (team 1 has its 10); the five come back on team 1 while it has
+/// places in the match, the last on team 2, and keep team 1 in the
+/// arrangement.
+#[test]
+fn late_joiners_never_push_a_team_past_ten() {
+    let mut world = World::new();
+    let (key, members) = private_room(&mut world, 19);
+    let owner = members[0];
+    let arranged = "0101010101010101010";
+    assert_eq!(arrangement(&mut world, owner), arranged);
+    let away: Vec<usize> = [2, 4, 6, 8, 10]
+        .iter()
+        .map(|&place| restart_game(&mut world, members[place]))
+        .collect();
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    let on = |side| {
+        setup
+            .players
+            .iter()
+            .filter(|player| player.profile.team == side)
+            .count()
+    };
+    assert_eq!([on(0), on(1)], [5, 9]);
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    let newcomer = world.connect("Newcomer");
+    rows(&mut world, newcomer, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, newcomer, ROOM_JOIN_BASE + key, 1);
+    world.take(newcomer);
+    assert_eq!(late_teams(&mut world, ticket, id, &[newcomer]), [0]);
+    assert_eq!(arrangement(&mut world, owner), format!("{arranged}1"));
+    let teams = late_teams(&mut world, ticket, id, &away);
+    assert_eq!(teams, [0, 0, 0, 0, 1], "team 1 has 10 in the match");
+    let after = arrangement(&mut world, owner);
+    assert_eq!(after, format!("{arranged}1"), "10 v 10 in the arrangement");
+    for side in ['0', '1'] {
+        assert!(after.chars().filter(|&c| c == side).count() <= 10);
+    }
+}
+
+/// A move is the owner's alone, never while the match is played; the
+/// arrangement stays across a match, and a member who leaves is out of it.
+#[test]
+fn the_teams_are_the_owners_to_move_and_kept_across_matches() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 4);
+    let (owner, bob) = (members[0], members[1]);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    // Bob's move: nothing.
+    let serial: u32 = header(&state(&mut world, bob))[SERIAL].parse().unwrap();
+    rows(&mut world, bob, move_start(0, serial), 1);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    // A move from an older list: nothing.
+    rows(&mut world, owner, move_start(0, serial + 1), 1);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    assert_eq!(move_member(&mut world, owner, 3), "0100");
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    // While it is played: no move.
+    assert_eq!(move_member(&mut world, owner, 3), "0100");
     world.end_match(ticket, 0);
     world.advance(Duration::from_secs(2));
-    let report = world.results.find(ticket).expect("its report");
-    assert!(report.private);
-    for player in &report.players {
-        let reward = &player.reward;
-        assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
-        assert_eq!(reward.rating_after, reward.rating_before);
-    }
-    for (player, held) in [alice, bob].into_iter().zip(held) {
-        let account = world.account(player);
-        assert_eq!((account.generic_money, account.exp_total), held);
-    }
     assert_eq!(
-        header(&state(&mut world, alice))[PHASE],
-        "3",
-        "the next vote"
+        arrangement(&mut world, owner),
+        "0100",
+        "kept after the match"
     );
+    // Carol leaves: out of it, the others as they were.
+    rows(&mut world, members[2], ROOM_LEAVE, 1);
+    assert_eq!(arrangement(&mut world, owner), "010");
 }
+
 /// Two accounts made friends, both ways, as an accepted request does.
 fn befriend(world: &mut World, a: usize, b: usize) {
     let (a, b) = (world.ids[a].0, world.ids[b].0);
@@ -1985,7 +2589,8 @@ fn a_friends_menu_knows_which_friends_are_in_a_room_and_joins_it_as_the_list() {
         friend_rooms(&mut world, me),
         [
             "S1;Y;2".to_owned(),
-            format!("{alice_id};{pinned};1;8;1"),
+            // A private room is 10 v 10 whatever was asked.
+            format!("{alice_id};{pinned};1;10;1"),
             format!("{erin_id};{full};12;6;0"),
         ]
     );
@@ -2022,7 +2627,7 @@ fn a_friends_menu_knows_which_friends_are_in_a_room_and_joins_it_as_the_list() {
     let me_id = world.ids[me].0;
     assert_eq!(
         friend_rooms(&mut world, bob),
-        ["S1;Y;1".to_owned(), format!("{me_id};{pinned};2;8;1")]
+        ["S1;Y;1".to_owned(), format!("{me_id};{pinned};2;10;1")]
     );
 }
 
@@ -2057,13 +2662,21 @@ fn a_member_whose_kit_can_not_play_is_offered_no_switch() {
     let bob = world.connect("Bob");
     let erin = world.connect("Erin");
     let switch_of = |rows: &[String]| rows.iter().any(|row| row.starts_with("W;"));
-    let any = create(&mut world, alice, spec(8), None);
+    let any = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 15,
+            ..spec(8)
+        },
+        None,
+    );
     rows(&mut world, bob, ROOM_JOIN_BASE + any, 1);
     create(
         &mut world,
         erin,
         RoomSpec {
-            max_level: 4,
+            max_level: 10,
             ..spec(6)
         },
         None,
@@ -2107,4 +2720,75 @@ fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in()
     world.advance(Duration::from_secs(1));
     let inside = state(&mut world, first);
     assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
+}
+
+/// Blackout (`docs/notes/blackout.md`): the rooms always offer
+/// each plain battery map of the pool once more as mode 6, by a lobby id of
+/// its own (its tile the battery map's), as part of the standard pool (the
+/// owner's of 2026-10-25): in the create window's defaults and in a room
+/// Play makes; Play puts players into a room that offers it; its match
+/// plays the battery map with the flag.
+#[test]
+fn blackout_is_a_mode_of_the_standard_pool() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117).
+    settings.maps = vec![61, 62, 117];
+    let mut world = World::with_settings(settings);
+    let entries = world.core.room_entries();
+    let blackout = maps::mode::BLACKOUT;
+    let offered: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.mode == blackout)
+        .copied()
+        .collect();
+    assert_eq!(offered.len(), 1, "{entries:?}");
+    let lobby_id = offered[0].map_id;
+    assert_eq!(maps::blackout_played(lobby_id), Some(61));
+    assert_eq!(
+        (offered[0].level, offered[0].weather),
+        (entries[0].level, entries[0].weather)
+    );
+    let index = entries
+        .iter()
+        .position(|entry| entry.mode == blackout)
+        .unwrap();
+
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    // The defaults have it.
+    let (_, chosen) = form(&mut world, alice);
+    assert!(chosen.contains(&lobby_id), "{chosen:?}");
+    // A room Play makes has it.
+    let made_by_play: u32 = play_into_room(&mut world, carol).parse().unwrap();
+    assert!(
+        world
+            .core
+            .rooms
+            .get(made_by_play)
+            .unwrap()
+            .pool
+            .contains(&lobby_id)
+    );
+    rows(&mut world, carol, ROOM_LEAVE, 1);
+    // Alice's room: Blackout alone. Play puts Bob into it.
+    rows(&mut world, alice, bits_start(0, 1 << index), 1);
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 10,
+            ..spec(6)
+        },
+        None,
+    );
+    assert_eq!(play_into_room(&mut world, bob), key.to_string());
+    let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
+    let made = world.host.made.locked().clone();
+    let (_, setup) = made
+        .iter()
+        .find(|(id, _)| *id == ticket)
+        .expect("the room's match");
+    assert_eq!(setup.map_id, 61, "the battery map");
+    assert!(setup.blackout);
 }

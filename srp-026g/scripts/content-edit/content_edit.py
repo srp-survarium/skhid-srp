@@ -22,6 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
+  "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
+                                                       type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
@@ -35,8 +37,10 @@ Edits (edits.json):
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file, a list of numbers a vector (a position), a list of vectors an
-                    indexed table of vectors (a wire's points) made anew; files without `only_if`,
-                    the table or those entries are left alone
+                    indexed table of vectors (a wire's points) made anew; a key of `values` may be a
+                    path in the entry (`spawned_item/position`): the tables on its way are copied
+                    anew, the like entry's own stay as they are; files without `only_if`, the table
+                    or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -49,10 +53,27 @@ Edits (edits.json):
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
                                                        later items move down in place, the count drops by 1
+  "promote_rolled_defaults": [{"categories", "from_top"}]
+                    every item of those `items_dict` categories: each of its `default_modifications`
+                    of a kind that rolls (a row of the kind with a drop weight that changes more than
+                    wear, as the server's Modification::rolls) weaker than that kind's `from_top`-th
+                    strongest row (1 the rarest: the rows by drop weight, commonest first, as the
+                    server and the wiki order them) becomes it; a stronger one stays (it only raises);
+                    kinds that never roll stay; applied as `set` edits, before them
+  "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table of
+                                                       numbers or strings `path` (an item's
+                                                       `default_modifications`), made like its first item;
+                                                       a value the table holds already is refused; applied
+                                                       after remove_item
   "copy":           [{"files", "from", "to"}]          every live file the glob matches (its path starts
                                                        with `from`) is also a new file at `to` + the rest
                                                        of its path, a path no live file has; applied first,
                                                        the globs below see the copies
+  "localization":   "relative/path/to/tsv/folder"
+                    compile every registered language from its complete TSV dictionary;
+                    preserve all source keys, check formats and the native text buffer limit;
+                    map each of srp's own texts (st_srp_*) to itself in the UI mapping of the
+                    movies that read them (localization_026g.FLASH_MOVIES), after their rows.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -61,7 +82,13 @@ Edits (edits.json):
   "set_entry":      [{"file", "list", "where", "from", "to"}]
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
-                    a string is appended)
+                    a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
+                    may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
+  "add_item":       [{"file", "list", "where", "key", "value"}]
+                    the one entry of the indexed table `list` whose keys match `where`: its indexed
+                    table `key` (a path in the entry) of strings or numbers gets `value` after its
+                    items, made like its first item (an anomaly's `artefact_containers`); applied after
+                    add_entry, before remove_entry
   "remove_entry":   [{"file", "list", "where"}]        the one entry of the indexed table `list` whose keys
                                                        match `where` taken out (a scene's object, model or
                                                        collision); the later entries move down in place, the
@@ -71,6 +98,17 @@ Edits (edits.json):
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
                                                        tracks stay byte for byte (see clip_parse)
+  "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
+                                                       preserve runtime positions/normals byte for byte;
+                                                       reject unknown, duplicate or malformed chunks
+  "require_headwear_bind": [{"file"}]                 verify the character config’s body_parts/bind_pose
+                                                       names one of this list’s append_headwear_bind files
+  "append_headwear_bind": [{"file"}]                   append the render-only Head copy to a native bind
+  "rigid_headwear": [{"file", "vertices"[,            bind a checked Head/Neck surface to that render bone;
+                       "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
+                                                       allow_bones: this surface's other native bones
+                                                       (indices), which then follow the head too
+A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -82,6 +120,7 @@ may differ from the live file (the check prints each difference).
 """
 import fnmatch
 import json
+import math
 import os
 import struct
 import sys
@@ -105,17 +144,18 @@ def children(buf, off):
     return [data + 24 * i for i in range(cnt)]
 
 
-def find(buf, path):
-    """Offset of the value at a/b/c; `name[i]` is item i of an indexed table (states[0]/take_time)."""
-    off = 0
+def find(buf, path, off=0):
+    """Offset of the value at a/b/c; `name[i]` is item i of an indexed table (states[0]/take_time);
+    from the value at `off` (the root by default)."""
     for part in path.split('/'):
         name, *indices = part.split('[')
-        for c in children(buf, off):
-            if name_at(buf, rec(buf, c)[1]) == name.encode():
-                off = c
-                break
-        else:
-            raise KeyError(path)
+        if name or not indices:
+            for c in children(buf, off):
+                if name_at(buf, rec(buf, c)[1]) == name.encode():
+                    off = c
+                    break
+            else:
+                raise KeyError(path)
         for i in indices:
             items, i = children(buf, off), int(i.rstrip(']'))
             if rec(buf, off)[3] != T_INDEXED or i >= len(items):
@@ -173,6 +213,20 @@ def set_number(buf, path, frm, to, as_float=False):
         raise ValueError('%s is an int; %r needs "as_float": true' % (path, to))
     raw = struct.unpack('<I', struct.pack('<f' if t == T_FLOAT else '<i', to if t == T_FLOAT else int(to)))[0]
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
+
+
+def set_bool(buf, path, frm, to):
+    """Set a native boolean without interpreting it as an integer or changing its type."""
+    if type(frm) is not bool or type(to) is not bool:
+        raise TypeError('set_bool requires JSON booleans for from and to')
+    off = find(buf, path)
+    data, name, crc, kind, count = rec(buf, off)
+    if kind != T_BOOL:
+        raise TypeError('%s is not a boolean' % path)
+    old = data & 0xffffffff
+    if old not in (0, 1) or old != int(frm):
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    REC.pack_into(buf, off, (data & ~0xffffffff) | int(to), name, crc, kind, count)
 
 
 def append(buf, blob):
@@ -270,8 +324,12 @@ def same(got, want):
 
 
 def matches(buf, entry, want):
+    """Whether each key of `want`, a path in the entry (`id`, `path[1]`), holds its value."""
     for k, v in want.items():
-        c = child(buf, entry, k)
+        try:
+            c = find(buf, k, entry)
+        except (KeyError, AssertionError):
+            c = None
         if c is None or not same(value_of(buf, c), v):
             return False
     return True
@@ -300,12 +358,35 @@ def add_entry(buf, path, after, like, values):
     if not at or not model:
         return None
     assert len(at) == 1 and len(model) == 1, (path, after, like)
-    names = {name_at(buf, rec(buf, c)[1]).decode(): c for c in children(buf, model[0])}
-    assert set(values) <= set(names), ('keys the model entry lacks', set(values) - set(names))
+    for key in values:
+        try:
+            find(buf, key, model[0])
+        except KeyError:
+            raise AssertionError(('a key the model entry lacks', path, key))
+    d, i, crc, t, cnt = rec(buf, model[0])
+    entry = REC.pack(copied_table(buf, model[0], values, path), i, crc, t, cnt)
+    old = [bytes(buf[c:c + 24]) for c in kids]
+    new = old[:at[0] + 1] + [entry] + old[at[0] + 1:]
+    d, i, crc, t, cnt = rec(buf, lst)
+    REC.pack_into(buf, lst, append_array(buf, new), i, crc, t, cnt + 1)
+    return at[0] + 1
+
+
+def copied_table(buf, table, values, path):
+    """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
+    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
     recs = []
-    for c in children(buf, model[0]):
+    named = rec(buf, table)[3] == T_NAMED
+    for k, c in enumerate(children(buf, table)):
         d, i, crc, t, cnt = rec(buf, c)
-        name = name_at(buf, i).decode()
+        name = name_at(buf, i).decode() if named else '[%d]' % k
+        subs = {key[len(name):].lstrip('/'): v for key, v in values.items()
+                if key.startswith(name + '/') or key.startswith(name + '[')}
+        if subs:
+            if name in values:
+                raise ValueError('%s: %s is set and has keys set' % (path, name))
+            recs.append(REC.pack(copied_table(buf, c, subs, path), i, crc, t, cnt))
+            continue
         if name in values:
             v = filled(buf, values[name])
             if t == T_INDEXED:
@@ -334,13 +415,7 @@ def add_entry(buf, path, after, like, values):
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
         recs.append(REC.pack(d, i, crc, t, cnt))
-    d, i, crc, t, cnt = rec(buf, model[0])
-    entry = REC.pack(append_array(buf, recs), i, crc, t, cnt)
-    old = [bytes(buf[c:c + 24]) for c in kids]
-    new = old[:at[0] + 1] + [entry] + old[at[0] + 1:]
-    d, i, crc, t, cnt = rec(buf, lst)
-    REC.pack_into(buf, lst, append_array(buf, new), i, crc, t, cnt + 1)
-    return at[0] + 1
+    return append_array(buf, recs)
 
 
 def add_key(buf, table, key, text):
@@ -437,6 +512,87 @@ def remove_item(buf, path, value):
     REC.pack_into(buf, off, d, i, crc, t, cnt - 1)
 
 
+def append_item(buf, path, value):
+    """`value` after the items of the indexed table of numbers or strings `path`, a record like its
+    first item; the table's records move to a new array with it. A value the table holds already is
+    refused (a stale base, or a second bonus of one modification)."""
+    items = items_of(buf, path)
+    if value in items:
+        raise ValueError('%s holds %r already' % (path, value))
+    off = find(buf, path)
+    kids = children(buf, off)
+    if not kids:
+        raise ValueError('%s has no item to make the new one like' % path)
+    _, ii, icrc, it, icnt = rec(buf, kids[0])
+    if it == T_STR and isinstance(value, str):
+        text = value.encode()
+        new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
+    elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
+        new = REC.pack(value & 0xffffffff, ii, icrc, it, icnt)
+    elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
+        new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
+    else:
+        raise ValueError('%s holds items of type %d, not %r' % (path, it, value))
+    old = [bytes(buf[c:c + 24]) for c in kids]
+    d, i, crc, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, append_array(buf, old + [new]), i, crc, t, cnt + 1)
+
+
+DICTIONARY = 'gameplay/db_static_dictionaries'
+MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
+# What a "reliability" modification changes, and nothing else (the server's WEAR_PARAMETERS).
+WEAR = {'parameters/degrade_per_match', 'parameters/degrade_per_use', 'parameters/degrade_per_death'}
+
+
+def rolled_strengths(mods):
+    """For each kind (type_mask's set character) that rolls, its rolling rows' ids by drop weight,
+    commonest first (then by id), as the server's Modification::rolls and its order have them."""
+    rows = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        paths = ['/'.join(items_of(mods, '%s/modifiers[%d]/path' % (at, j)))
+                 for j in range(len(children(mods, find(mods, at + '/modifiers'))))]
+        weight = value_of(mods, find(mods, at + '/drop_weight'))
+        if weight > 0 and not (paths and all(p in WEAR for p in paths)):
+            kind = value_of(mods, find(mods, at + '/type_mask')).index('1')
+            rows.setdefault(kind, []).append((-weight, value_of(mods, find(mods, at + '/id'))))
+    return {kind: [i for _, i in sorted(r)] for kind, r in rows.items()}
+
+
+def promoted_defaults(read, categories, from_top):
+    """The `set` edits of promote_rolled_defaults: (file, path, from, to) for each default of a
+    rolling kind of an item of `categories` weaker than that kind's `from_top`-th strongest row
+    (it only raises: a default at that strength or stronger stays)."""
+    mods = read(MODIFICATIONS)
+    kinds = {}
+    for i, _ in enumerate(children(mods, find(mods, 'modifications'))):
+        at = 'modifications[%d]' % i
+        kinds[value_of(mods, find(mods, at + '/id'))] = value_of(mods, find(mods, at + '/type_mask')).index('1')
+    strengths = rolled_strengths(mods)
+    dictionary = read(DICTIONARY)
+    edits = []
+    for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
+        at = 'items_dict[%d]' % i
+        if value_of(dictionary, find(dictionary, at + '/item_category')) not in categories:
+            continue
+        cfg = value_of(dictionary, find(dictionary, at + '/cfg_name'))
+        item = read(cfg)
+        try:
+            defaults = items_of(item, 'default_modifications')
+        except KeyError:
+            continue
+        for j, mid in enumerate(defaults):
+            ranked = strengths.get(kinds.get(mid))
+            if not ranked:
+                continue
+            at = max(0, len(ranked) - from_top)
+            # Strength is the place in `ranked` (commonest first); a row of the kind that never
+            # rolls has no place, and is set like a weaker one.
+            if mid not in ranked or ranked.index(mid) < at:
+                edits.append((cfg, 'default_modifications[%d]' % j, mid, ranked[at]))
+    return edits
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -501,19 +657,28 @@ def set_entry(buf, path, where, frm, to):
         raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
     at = hit[0]
     entry = children(buf, lst)[at]
+    def at_key(k):
+        try:
+            return find(buf, k, entry)
+        except KeyError:
+            return None
     for k, v in frm.items():
-        c = child(buf, entry, k)
+        c = at_key(k)
         if c is None or not same(value_of(buf, c), v):
             raise ValueError('%s[%d]/%s is %r, not %r: the base is not the live data'
                              % (path, at, k, None if c is None else value_of(buf, c), v))
     for k, v in to.items():
-        c = child(buf, entry, k)
+        c = at_key(k)
         if c is None:
             raise KeyError('%s[%d]/%s' % (path, at, k))
         d, i, crc, t, cnt = rec(buf, c)
         if t == T_STR:
             new = v.encode()
             REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        elif t > T_STR:
+            if not isinstance(v, list) or len(v) != t - 4:
+                raise ValueError('%s[%d]/%s takes %d numbers' % (path, at, k, t - 4))
+            REC.pack_into(buf, c, append(buf, struct.pack('<%df' % len(v), *v)), i, crc, t, cnt)
         else:
             set_number(buf, '%s[%d]/%s' % (path, at, k), value_of(buf, c), v)
     return at
@@ -537,6 +702,56 @@ def remove_entry(buf, path, where):
     d, i, crc, t, cnt = rec(buf, lst)
     REC.pack_into(buf, lst, d, i, crc, t, cnt - 1)
     return at
+
+
+def add_item(buf, path, where, key, value):
+    """`value` after the items of the indexed table `key` of the one entry of `path` whose keys match
+    `where`, a record like its first item. Returns (the entry's index, the new item's index)."""
+    lst = find(buf, path)
+    hit = [i for i, e in enumerate(children(buf, lst)) if matches(buf, e, where)]
+    if len(hit) != 1:
+        raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
+    table = find(buf, key, children(buf, lst)[hit[0]])
+    d, i, crc, t, cnt = rec(buf, table)
+    items = children(buf, table)
+    if t != T_INDEXED or not items:
+        raise ValueError('%s[%d]/%s is not an indexed table with items' % (path, hit[0], key))
+    _, ii, icrc, it, icnt = rec(buf, items[0])
+    if it == T_STR and isinstance(value, str):
+        text = value.encode()
+        new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
+    elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
+        new = REC.pack(value & 0xffffffff, ii, icrc, it, icnt)
+    elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
+        new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
+    else:
+        raise ValueError('%s[%d]/%s holds items of type %d, not %r' % (path, hit[0], key, it, value))
+    old = [bytes(buf[c:c + 24]) for c in items]
+    REC.pack_into(buf, table, append_array(buf, old + [new]), i, crc, t, cnt + 1)
+    return hit[0], cnt
+
+
+def append_rows(buf, path, rows):
+    """`rows` (lists of strings) after the items of the indexed table `path`, each an indexed table
+    of strings made like its first item (a UI mapping's [ui key, dictionary key]). Returns the index
+    of the first new item."""
+    lst = find(buf, path)
+    d, i, crc, t, cnt = rec(buf, lst)
+    items = children(buf, lst)
+    if t != T_INDEXED or not items or rec(buf, items[0])[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table of indexed tables' % path)
+    _, ri, rcrc, _, _ = rec(buf, items[0])
+    first = children(buf, items[0])
+    if not first or rec(buf, first[0])[3] != T_STR:
+        raise ValueError('%s[0] holds no string' % path)
+    _, si, scrc, _, _ = rec(buf, first[0])
+    new = []
+    for row in rows:
+        texts = [REC.pack(append(buf, v.encode() + b'\0'), si, scrc, T_STR, len(v.encode()) + 1) for v in row]
+        new.append(REC.pack(append_array(buf, texts), ri, rcrc, T_INDEXED, len(row)))
+    old = [bytes(buf[c:c + 24]) for c in items]
+    REC.pack_into(buf, lst, append_array(buf, old + new), i, crc, t, cnt + len(new))
+    return cnt
 
 
 def unshifted(path, lst, at):
@@ -639,6 +854,53 @@ def game_path(name):
     return name.replace('__', '/')
 
 
+def vegetation_chunks(data):
+    """The 0.26g sequential chunk format; validate before dropping editor data."""
+    chunks = {}
+    offset = 0
+    while offset < len(data):
+        if len(data) - offset < 8:
+            raise ValueError('vegetation: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, offset)
+        end = offset + 8 + size
+        if kind not in (0x4d, 0x4e, 0x58, 0x59):
+            raise ValueError('vegetation: unknown chunk %#x' % kind)
+        if kind in chunks or end > len(data):
+            raise ValueError('vegetation: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[offset:end]
+        offset = end
+    if 0x58 not in chunks or 0x59 not in chunks:
+        raise ValueError('vegetation: missing positions or normals')
+    positions, normals = chunks[0x58][8:], chunks[0x59][8:]
+    if len(positions) != len(normals) or len(positions) % 12:
+        raise ValueError('vegetation: positions/normals must be matching float3 arrays')
+    for payload in (positions, normals):
+        if any(not math.isfinite(v) for (v,) in struct.iter_unpack('<f', payload)):
+            raise ValueError('vegetation: non-finite position or normal')
+    return chunks
+
+
+def runtime_vegetation(data):
+    """Keep complete runtime chunks in original order, including their headers."""
+    original = vegetation_chunks(data)
+    expected = {kind: chunk for kind, chunk in original.items() if kind in (0x58, 0x59)}
+    result = b''.join(expected.values())
+    if vegetation_chunks(result) != expected:
+        raise ValueError('vegetation: runtime chunks changed on read-back')
+    return result
+
+
+def require_headwear_bind(config, paths):
+    """The character cook must use one of the render binds this edit extends."""
+    data, _, _, kind, count = rec(config, find(config, 'body_parts/bind_pose'))
+    if kind != T_STR:
+        raise TypeError('body_parts/bind_pose must be a resource path string')
+    reference = bytes(config[data:data + count - 1]).decode('utf-8')
+    prefix = 'resources/'
+    if not reference.startswith(prefix) or reference[len(prefix):] not in paths:
+        raise ValueError('character bind is not extended by append_headwear_bind: ' + reference)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
@@ -696,8 +958,18 @@ def main():
                 prefixed.setdefault(p, []).append((e['key'].encode(), e['prefix'].encode()))
                 n += k
         print('prefix %s with %s: %d values' % (e['key'], e['prefix'], n))
+    for e in edits.get('promote_rolled_defaults', []):
+        changed = promoted_defaults(buf, set(e['categories']), e['from_top'])
+        for cfg, path, frm, to in changed:
+            set_number(buf(cfg), path, frm, to)
+            allowed.setdefault(cfg, set()).add('/' + path)
+            print('built-in %s %s: %s -> %s' % (cfg, path, frm, to))
+        print('promote_rolled_defaults: %d defaults' % len(changed))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_bool', []):
+        set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
@@ -726,6 +998,61 @@ def main():
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    if 'localization' in edits:
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
+        from build_localization_026g import compile_catalog
+        from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
+        directory = Path(edits_file).resolve().parent / edits['localization']
+        languages = [language for language, *_ in LANGUAGES] + ['original']
+        # New languages inherit opaque support files (EULA/profanity data) from
+        # English. Every dictionary, old or new, is compiled from its own TSV.
+        for language in languages:
+            p = f'localization/{language}/localization'
+            if p not in files:
+                for source in sorted(fnmatch.filter(files, 'localization/english/*')):
+                    target = source.replace('localization/english/', f'localization/{language}/', 1)
+                    if target not in files:
+                        copies[target] = source
+                        bufs[target] = bytearray(open(files[source], 'rb').read())
+        sources = {language: bytes(buf(f'localization/{language}/localization'))
+                   for language in languages}
+        compiled = compile_catalog(directory, sources)
+        mapping = 'localization/flash_movies_localizations.options'
+        if mapping in files:
+            config, errors = read_config(bytes(buf(mapping)))
+            if errors:
+                raise ValueError('UI mapping contains invalid UTF-8')
+            keys = read_translations(directory / 'english.tsv').keys()
+            for movie in FLASH_MOVIES:
+                table = movie + '_strings'
+                have = {row[0]: row[1] for row in config[table]}
+                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys)):
+                    raise ValueError(f'{table}: an srp text key mapped to another text')
+                rows = [row for row in flash_rows(keys) if row[0] not in have]
+                if rows:
+                    at = append_rows(buf(mapping), table, rows)
+                    for k in range(at, at + len(rows)):
+                        added.setdefault(mapping, []).extend(
+                            ['/%s[%d]' % (table, k), '/%s[%d][0]' % (table, k), '/%s[%d][1]' % (table, k)])
+                    grown.setdefault(mapping, {}).setdefault('/' + table, 0)
+                    grown[mapping]['/' + table] += len(rows)
+                    config[table] += rows
+                print('UI mapping %s: %d texts of srp mapped to themselves' % (table, len(rows)))
+            referenced = {row[1] for rows in config.values() for row in rows}
+            missing = referenced - keys
+            if missing:
+                raise ValueError(f'UI mapping keys missing from TSV: {sorted(missing)}')
+        for language, result in compiled.items():
+            p = f'localization/{language}/localization'
+            source = sources[language]
+            bufs[p] = bytearray(result)
+            old_keys = {q for q, t, _ in walk(source) if t == T_STR}
+            new_keys = {q for q, t, _ in walk(result) if t == T_STR}
+            allowed.setdefault(p, set()).update(old_keys)
+            added.setdefault(p, []).extend(sorted(new_keys - old_keys))
+            grown.setdefault(p, {})['/strings'] = len(new_keys) - len(old_keys)
+            print('localization %s: %d keys, no fallback' % (p, len(new_keys)))
     for e in edits.get('add_entry', []):
         n = 0
         for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
@@ -762,24 +1089,36 @@ def main():
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
     for e in edits.get('add_item', []):
-        b = buf(e['file'])
-        at = len(children(b, find(b, e['path'])))
-        add_item(b, e['path'], e['value'])
-        added.setdefault(e['file'], []).append('/%s[%d]' % (e['path'], at))
-        grown.setdefault(e['file'], {}).setdefault('/' + e['path'], 0)
-        grown[e['file']]['/' + e['path']] += 1
-        print('item %s[%d]: %s' % (e['path'], at, json.dumps(e['value'], ensure_ascii=False)))
+        at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
+        table = '/%s[%d]/%s' % (e['list'], at, e['key'])
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (table, json.dumps(e['value'], ensure_ascii=False)))
     removed = {}
+    before_removals = {}  # includes newly copied tables and appended items
     for e in edits.get('remove_item', []):
+        before_removals.setdefault(e['file'], {}).setdefault(
+            e['path'], items_of(buf(e['file']), e['path']))
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
+    for e in edits.get('append_item', []):
+        k = len(items_of(buf(e['file']), e['path']))
+        append_item(buf(e['file']), e['path'], e['value'])
+        # The check below expects the new item and the table's count one more.
+        table = '/' + e['path']
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (e['path'], json.dumps(e['value'], ensure_ascii=False)))
     dropped = {}
     for e in edits.get('remove_entry', []):
         at = remove_entry(buf(e['file']), e['list'], e['where'])
         lst = '/' + e['list']
         print('remove %s[%d] %s' % (e['list'], at, json.dumps(e['where'], ensure_ascii=False)))
         dropped.setdefault(e['file'], []).append((lst, at))
-        grown.setdefault(e['file'], {}).setdefault(lst, 0)
+        grown[e['file']] = {(unshifted(q, lst, at) or q): n for q, n in grown.get(e['file'], {}).items()}
+        grown[e['file']].setdefault(lst, 0)
         grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
@@ -796,6 +1135,47 @@ def main():
             clips[p] = bytearray(open(files[p], 'rb').read())
         add_event_channel(clips[p], e['from'], e['add'])
         print('event channel %s: %s knots %s domains %s' % (p, e['add']['name'], e['add']['knots'], e['add']['domains']))
+
+    vegetation = {}
+    for e in edits.get('runtime_vegetation', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            sys.exit('runtime_vegetation: no files match ' + e['files'])
+        for p in paths:
+            if not p.endswith('.veg') or p in bufs or p in clips:
+                sys.exit('runtime_vegetation: invalid or conflicting edit of ' + p)
+            source = open(files[p], 'rb').read()
+            try:
+                vegetation[p] = runtime_vegetation(source)
+            except ValueError as why:
+                sys.exit('%s: %s' % (p, why))
+            print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
+                  (p, len(source), len(vegetation[p])))
+
+    for e in edits.get('require_headwear_bind', []):
+        source = open(files[e['file']], 'rb').read()
+        require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
+        print('character bind reference verified: ' + e['file'])
+
+    # Binary render assets: each operation checks its format and unchanged bytes.
+    if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('headwear', os.path.join(os.path.dirname(__file__), 'headwear.py'))
+        headwear = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(headwear)
+        for operation, transform in (
+            ('append_headwear_bind', lambda b, e: headwear.append_headwear_bind(b)),
+            ('rigid_headwear', lambda b, e: headwear.rigid_headwear(b, e['vertices'], e.get('allow_bones', ()))),
+        ):
+            for e in edits.get(operation, []):
+                p = e['file']
+                if p in bufs or p in clips:
+                    sys.exit('%s: %s already edited' % (operation, p))
+                if p not in files:
+                    sys.exit('%s: not in the live folder' % p)
+                source = open(files[p], 'rb').read()
+                clips[p] = transform(source, e)
+                print('%s %s: %d -> %d bytes' % (operation, p, len(source), len(clips[p])))
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
@@ -817,15 +1197,24 @@ def main():
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
         for lst, values in removed.get(p, {}).items():
-            was, now = items_of(source, lst), items_of(b, lst)
+            # A copied entry has no path in the original file. Compare with its
+            # table just before removals, then follow any removed parent entries.
+            end = '/' + lst
+            for l2, at in dropped.get(p, ()):
+                end = unshifted(end, l2, at)
+                if end is None:
+                    break
+            if end is None:
+                continue
+            was, now = before_removals[p][lst], items_of(b, end[1:])
             want = list(was)
             for v in values:
                 want.remove(v)
             ok = now == want
             bad += not ok
-            print('%s%s /%s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, lst, was, now))
+            print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, end, was, now))
             for d in (old, new):
-                for q in [q for q in d if q == '/' + lst or q.startswith('/%s[' % lst)]:
+                for q in [q for q in d if q == end or q.startswith(end + '[')]:
                     del d[q]
         for q in sorted(set(old) | set(new)):
             o, n = old.get(q), new.get(q)
@@ -841,12 +1230,12 @@ def main():
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:
         print('%d new files (copies), %d of them byte for byte' % (len(copies), same_copies))
-    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips), bad))
+    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips) + len(vegetation), bad))
     if bad:
         sys.exit(1)
     if check:
         return
-    for p, b in list(bufs.items()) + list(clips.items()):
+    for p, b in list(bufs.items()) + list(clips.items()) + list(vegetation.items()):
         dst = os.path.join(out, *p.split('/'))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, 'wb') as f:

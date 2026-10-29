@@ -152,7 +152,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
         data.reroll.price_premium,
         [1, 1, 2, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 19, 22, 25]
     );
-    assert_eq!(data.reroll.multiplicator, 1.1);
 }
 
 #[test]
@@ -546,14 +545,16 @@ fn craft_and_reroll_go_by_the_tables() {
     );
     assert_eq!((general[2], premium[2]), (800, 4));
 
-    assert_eq!(data.reroll.price(0, false, 0), 200);
-    assert_eq!(data.reroll.price(10, false, 0), 2400);
-    assert_eq!(data.reroll.price(10, true, 0), 12);
-    assert_eq!(data.reroll.price(10, false, 1), 2640);
-    assert_eq!(data.reroll.price(10, false, 2), 2904);
-    assert_eq!(data.reroll.price(16, true, 0), 25);
-    // It does not run away.
-    assert!(data.reroll.price(15, false, 100_000) > 5000);
+    assert_eq!(data.reroll.price(0, false), 200);
+    assert_eq!(data.reroll.price(10, false), 2400);
+    assert_eq!(data.reroll.price(10, true), 12);
+    assert_eq!(data.reroll.price(16, true), 25);
+    // No level changes for nothing (the owner's rule of 2026-10-25: the
+    // same price every time, `docs/notes/flat-reroll.md`).
+    for level in 0..=u8::MAX {
+        assert!(data.reroll.price(level, false) > 0);
+        assert!(data.reroll.price(level, true) > 0);
+    }
 }
 
 #[test]
@@ -747,7 +748,8 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
             )
         })
         .collect();
-    assert_eq!(premium.len(), 4, "{premium:?}");
+    // Silver, experience and the four factions' reputation.
+    assert_eq!(premium.len(), 6, "{premium:?}");
 
     let data = Modifications::shared();
     let taken = all_item_mods()

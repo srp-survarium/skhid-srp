@@ -413,6 +413,7 @@ impl World {
             trusted_by: 2,
             vs_bots: false,
             private: false,
+            blackout: false,
             players: vec![PlayerResult {
                 place: 0,
                 session_id,
@@ -430,6 +431,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: Some(PlayerStatistics::default()),
+                pay_statistics: None,
                 supplies: None,
             }],
         };

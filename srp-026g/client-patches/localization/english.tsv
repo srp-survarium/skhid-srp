@@ -1,0 +1,2721 @@
+key	text
+bm_back_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+bm_back_1_name	"Marodeur" container
+k0	0
+k1	1
+k2	2
+k3	3
+k4	4
+k5	5
+k6	6
+k7	7
+k8	8
+k9	9
+kA	A
+kADD	+
+kAPOSTROPHE	'
+kB	B
+kBACK	Backspace
+kBACKSLASH	\\
+kC	C
+kCOMMA	,
+kD	D
+kDECIMAL	.
+kDELETE	Delete
+kDOWN	Down
+kE	E
+kEND	End
+kEQUALS	=
+kESCAPE	Esc
+kF	F
+kF1	F1
+kF10	F10
+kF11	F11
+kF12	F12
+kF13	F13
+kF14	F14
+kF15	F15
+kF2	F2
+kF3	F3
+kF4	F4
+kF5	F5
+kF6	F6
+kF7	F7
+kF8	F8
+kF9	F9
+kG	G
+kGRAVE	~
+kH	H
+kHOME	Home
+kI	I
+kINSERT	Insert
+kJ	J
+kK	K
+kL	L
+kLBRACKET	<
+kLCONTROL	LCtrl
+kLEFT	Left
+kLSHIFT	LShift
+kM	M
+kMINUS	-
+kN	N
+kNUMLOCK	NumLock
+kNUMPAD0	Num0
+kNUMPAD1	Num1
+kNUMPAD2	Num2
+kNUMPAD3	Num3
+kNUMPAD4	Num4
+kNUMPAD5	Num5
+kNUMPAD6	Num6
+kNUMPAD7	Num7
+kNUMPAD8	Num8
+kNUMPAD9	Num9
+kNUMPADCOMMA	NumComma
+kNUMPADENTER	NumEnter
+kNUMPADEQUALS	=
+kO	O
+kP	P
+kPAUSE	Pause
+kPERIOD	.
+kQ	Q
+kR	R
+kRBRACKET	>
+kRCONTROL	RControl
+kRETURN	Enter
+kRIGHT	Right
+kRSHIFT	RShift
+kS	S
+kSCROLL	ScrollLock
+kSEMICOLON	,
+kSLASH	/
+kSPACE	Space
+kSUBTRACT	-
+kT	T
+kTAB	Tab
+kU	U
+kUP	Up
+kV	V
+kW	W
+kX	X
+kY	Y
+kZ	Z
+mouse1	LMB
+mouse2	RMB
+mouse3	MMB
+mouse4	X1MB
+mouse5	X2MB
+mouse6	X3MB
+mouse7	X4MB
+mouse8	X5MB
+mouse_wheel_down	Wheel down
+mouse_wheel_up	Wheel up
+st_a545_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_a545_name	A-545
+st_a9_91_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_a9_91_name	9A-91
+st_abilities	Skills
+st_accept	Accept
+st_accept_changes	Apply
+st_account	account
+st_account_trading_claim	Account trading
+st_achieved	reached!
+st_achievements_label	Player achievements
+st_action_premium_activated	Premium activated! Your reward:
+st_activate_premium	Activate premium account
+st_add	Add
+st_add_profile_button_blocked_hint_text	Max number of profiles reached!
+st_add_profile_button_hint_text	Add new character profile
+st_add_to_clan_request	invites you to clan 
+st_add_to_clan_team_request	invites you to clan team
+st_add_to_friends	Add to friends
+st_add_to_friends_request	Friend request
+st_add_to_ignore	Add to ignore
+st_add_to_squad_request	Join the squad
+st_additional_max_weight_name	Weight limit
+st_additive_quick_slot_size_modifier	Pocket capacity
+st_aek919k_description	Russian compact submachine gun, ammo: 9x18 PM. Developed at the Kovrov Mechanical Plant in the 1990s for the Interior Ministry and other law enforcement units. Equipped with a 20-round magazine. Supports single and automatic fire.
+st_aek919k_name	AEK-919K "Kashtan"
+st_aim_time_description	The speed of aiming:
+st_aim_time_name	Quick response
+st_aim_toggle_action	Aim 
+st_aiming_booster_description	Expired prescription-only pills. They've lost some potency over the years however the sedative is still effective.
+st_aiming_booster_name	Motherwort extract
+st_aiming_speed_correction_perc_name	Aiming speed
+st_ak12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ak12_name	AK-12
+st_ak12_premium_description	Russian assault rifle of the new Kalashnikov generation. Developed by Izhmash in the early 2010s, with rails for sights and accessories and a reworked stock and controls. Equipped with a 30-round magazine. Supports single, burst and automatic fire. Premium version in a special camouflage finish.
+st_ak12_premium_name	AK-12M1
+st_ak74m_description	A modern version of Kalashnikov submachine gun, ammo: 5,45x39. Was adopted and gained good reputation among the armed forces. Supports single and burst shooting.
+st_ak74m_name	AK-74M
+st_ak74n_bundle_descr	<white>Contains the following items:\n- Improved "AK-74N".\n- 2000 rounds of 5.45x39 7N6M ammo.</white>\n
+st_ak74n_bundle_name	"АК-74N" bundle
+st_ak74n_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ak74n_name	AK-74N
+st_ak74u_description	A shortened version of AK74 submachine gun, ammo: 5.45х39. Thanks to its size, it was used by marines, MIA and security organizations. Supports single and burst shooting. 
+st_ak74u_name	AKS-74U
+st_ak74u_premium_description	A shortened version of AK74 submachine gun, ammo: 5.45x39. Thanks to its size, it was used by marines, MIA and security organizations. Supports single and burst shooting. Premium version in a special camouflage finish.
+st_ak74u_premium_name	AKS-74U Corsair
+st_akmn_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes.
+st_akmn_name	AKM
+st_akmn_premium_2_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes. Premium version in a special camouflage finish.
+st_akmn_premium_2_name	AKM "Avenger"
+st_akmn_premium_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes. Premium version in a special camouflage finish.
+st_akmn_premium_name	AKM '65
+st_all_factions	All traders
+st_all_quests	Show all quests
+st_already_as_reserve_in_team	The player is already in reserve
+st_already_as_soldier_in_team	Player is already in team.
+st_already_exist_clan_string	This name is already reserved.
+st_already_has_status_clan_team	The player has already been invited or is a member of the clan team.
+st_already_in_clan_team	The player is already in team.
+st_already_in_inventory	This item is already purchased by you. Would you like to buy anyway?
+st_ambient_occlusion_options	Ambient occlusion quality
+st_ammo	Ammo
+st_ammo_127x54_pt_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x54_pt_name	12.7x54 ПТ
+st_ammo_127x54_vps_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x54_vps_name	12.7x54 VPS
+st_ammo_127x55_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_127x55_name	12.7x55
+st_ammo_12mm_buck2_desc	A fortified version of the hunter's 12-caliber bullet.  Thanks to the large buckshot the piercing characteristics and effective distance are increased. 
+st_ammo_12mm_buck2_name	12x70, smallshot
+st_ammo_12mm_buck_desc	A standard hunter's bullet stuffed with smallshot. Provides high damage against non-armoured targets. 
+st_ammo_12mm_buck_name	12x70, smallshot
+st_ammo_12mm_slug_desc	A full-jacket version of the 12-caliber hunter bullet. Provides a high stopping and piercing effect. 
+st_ammo_12mm_slug_name	12x70, slug
+st_ammo_30_description	Rifle ammo of American origin, effective at distances up to 150 meters. This is the first civilian bullet made with smokeless powder. 
+st_ammo_30_name	.30-30 Winchester
+st_ammo_357m_description	An American revolver ammo of high power. Was introduced in the Prohibition era as a more powerful replacement of the standard police ammo. 
+st_ammo_357m_name	.357 Magnum
+st_ammo_45acp_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_45acp_name	.45 ACP
+st_ammo_46x30_description	Cartridge developed by Heckler & Koch for the MP7. Its small, hard bullet is designed to penetrate body armour at short and medium range.
+st_ammo_46x30_name	4.6x30
+st_ammo_545x39_7n10_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_545x39_7n10_name	5.45x39 7N10
+st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_545x39_7n22_name	5.45x39 7N22
+st_ammo_545x39_7n6m_description	A Soviet low-impulse interim bullet equipped with steel core. The lightweight bullet has a high initial velocity which ensures a flat trajectory. 
+st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_description	NATO intermediate rifle cartridge, developed from the American .223 Remington and standardised by NATO in 1980. A light, fast bullet with a flat trajectory and low recoil.
+st_ammo_556x45_name	5.56x45
+st_ammo_57x28_description	Cartridge developed by FN Herstal around 1990 for the P90 and later the Five-seveN pistol. A light, fast bullet designed to penetrate body armour.
+st_ammo_57x28_name	5.7x28
+st_ammo_65x39_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_65x39_name	6.5x39 Grendel
+st_ammo_762x25_description	The first Soviet unitary pistol cartridge. Designed for use in both pistols and submachine guns. 
+st_ammo_762x25_name	7.62x25
+st_ammo_762x39_7n23_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_762x39_7n23_name	7.62x39 7N23
+st_ammo_762x39_description	7.62x39 cartridge designed in 1943, considered one of the top three most powerful rifle calibres in the world.
+st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_762x39_m_name	7.62х39 RPD
+st_ammo_762x39_name	7.62x39
+st_ammo_762x51_M59_description	An armor-piercing modification of the military 7.62x51 M61 rifle cartridge. The bullet is equipped with a jacketed steel core.
+st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_description	A popular army cartridge with the full metal jacket bullet. Designed for use in sniper and civil weapons. 
+st_ammo_762x51_name	7.62x51
+st_ammo_762x54R_old_description	Found in warehouses, this ammo is one of the oldest rifle bullets of our time. Its age and storage conditions made it less effective.
+st_ammo_762x54R_old_name	7.62x54R
+st_ammo_9x18_description	Soviet unitary bullet created to replace the dated 7.62mm one. A standard bullet at a good price and decent penetration against non-metal surfaces.
+st_ammo_9x18_name	9x18 MP
+st_ammo_9x18_pbm_description	Armor-piercing 9x18 mm PBM 7N25 bullet. Compared to 9x18 PM, it possesses a much higher muzzle velocity and increased stopping power.
+st_ammo_9x18_pbm_name	9x18 PBM
+st_ammo_9x19p_7n21_description	+P+ over-pressure ammunition. Equipped with a steel penetrator core. Its stopping power surpasses the commercial 9x19 Parabellum ammo. 
+st_ammo_9x19p_7n21_name	9x19 7N21
+st_ammo_9x19p_7n31_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_9x19p_7n31_name	9x19 7N31
+st_ammo_9x19p_para_description	9x19 Parabellum pistol unitary full metal jacket ammo. After World War II was adopted as a standard NATO round.
+st_ammo_9x19p_para_name	9x19 Parabellum
+st_ammo_9x21_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_9x21_name	9x21 SP-10
+st_ammo_ammo_762x54_7n13_description	Russian 7.62x54R rifle cartridge with a hardened steel core bullet for better penetration. Used in machine guns and sniper rifles; supplied in belts.
+st_ammo_ammo_762x54_7n13_name	7.62x54 7N13
+st_ammo_ammo_762x54_7n1_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_ammo_762x54_7n1_name	7.62х54 7N1
+st_ammo_bags_description	You get an extra cartridge pouch for ammo.
+st_ammo_bags_name	Ammunition
+st_ammo_equipped_label	Backpack
+st_ammo_label	Ammo
+st_ammo_pab9_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_pab9_name	9x39 PAB-9
+st_ammo_sp5_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_sp5_name	9x39 SP-5
+st_ammo_sp6_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ammo_sp6_name	9x39 SP-6
+st_ammo_storage_label	Storage
+st_aniso_filtering_option	Anisotrope filtering
+st_anomaly_damage_corr_perc_name	Anomaly damage
+st_anomaly_skills_label	Knowledge of the Forest.
+st_antialiasing_option	Antialiasing
+st_antitoxin_description	A complex medicine designed to neutralize poisons and toxins in the human body. To maximize the effect, consume prior to harmful impact. 
+st_antitoxin_name	Antitoxin
+st_apply_changes_msg	Would you like to apply the settings?
+st_aps_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_aps_name	APS
+st_army_026_mask_desc	A balaclava with one wide eye slit, from the cancelled S.T.A.L.K.E.R. 2.
+st_army_026_mask_name	Army balaclava
+st_artcontainer_time_corr_perc_name	Collection time
+st_artefact_activated_message	Artifact activated
+st_artefact_booster_description	The second version of the device invented by craftsmen to retrieve artifacts. The built-in suppressor of the abnormal activity from the artifact allows you to accelerate the extraction process.
+st_artefact_booster_name	Artifact-master
+st_artefact_no_free_slots	No empty slots to pick up the artifact!
+st_artefact_search_failed	Artifact not found
+st_artefact_search_success	You got an artifact! 
+st_ash12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ash12_name	Ash-12
+st_attention	An error occurred upon starting Survarium launcher. Please, try again later.
+st_auto	Auto
+st_auto_button_hint	Auto-refill ammunition
+st_auto_repair_button_label	Autorepair
+st_auto_repair_hint	Auto-repair minor equipment breakages
+st_autobuy_button_label	Autobuy
+st_autobuy_money	Add ammunition
+st_autobuy_money_ammo	Ammunition
+st_autobuy_money_consulabels	Special equipment
+st_autorepair_money	Repair cost
+st_back_use_action	Oxygen tank
+st_backpack	Backpack
+st_ban_reason_account_trading	The sale or attempted sale of an account.
+st_ban_reason_administrator	Decision of the administration.
+st_ban_reason_advertising	Distribution of advertising information.
+st_ban_reason_bad_language	Obscene lexicon
+st_ban_reason_cheating	Distribution, advertising or discussion of third-party software.
+st_ban_reason_discuss_admins	Discussing actions of the administration.
+st_ban_reason_faschism	Manifestation of racism, Nazism or nationalism.
+st_ban_reason_flood	Spam, flooding, uninformative messages.
+st_ban_reason_incorrect_info	Distributing false information.
+st_ban_reason_insult	Insult, provocation.
+st_ban_reason_nickname	Invalid character name.
+st_ban_reason_politics	Discussing politics.
+st_ban_reason_reallife_treating	Threat in real life.
+st_ban_reason_teamkilling	Killing allies.
+st_bandit_026_mask_desc	Bandit balaclava from the cancelled S.T.A.L.K.E.R. 2.
+st_bandit_026_mask_name	Bandit balaclava
+st_base_bandages_description	Fully heals arms and legs. Restores 35% of body, head and pain.
+st_base_bandages_name	Pack of bandages
+st_base_medkit_description	Basic first-aid medikit. Allows to not only neutralize critical wounds but makes the injured feel better as well.
+st_base_medkit_name	Medikit
+st_base_painkiller_description	A strong anesthetic, temporarily increases pain threshold, so the combatant doesn't lose consciousness of pain shock, in case of non-lethal wounds. 
+st_base_painkiller_name	Anesthetic
+st_base_trap_description	A common hunter's trap with a strong spring. When activated, it is able to break the leg of a large animal or a man. 
+st_base_trap_name	Trap
+st_benelli_description	Italian self-loading shotgun, 12 gauge. Developed by Benelli in the late 1990s with a gas-operated action and adopted by the US Marine Corps as the M1014. Loaded from a tube magazine under the barrel. Single shots only.
+st_benelli_name	Benelli M4 Super 90
+st_best	Best
+st_best_explorer	EXPLORER
+st_best_explorer_artefacts	Artifacts:
+st_best_explorer_items	Items:
+st_best_player	PLAYER
+st_best_player_score	Score:
+st_best_sniper	SHOOTER
+st_best_sniper_accuracy	Accuracy:
+st_best_sniper_shots	Shots:
+st_best_support	SUPPORT
+st_best_support_healed	Healed:
+st_best_support_saved	Saved:
+st_bind_text	Press the button
+st_black_market_faction	Black Market
+st_blackmarket_bring_x_items_descr	The Storm is merciless upon both our us and our enemies. In order to survive, we need to activate as many batteries at the protective device as possible. Those could be found in various places around the location. Stealing them directly from the enemy base works nicely too.
+st_blackmarket_bring_x_items_name	Common Deed
+st_blackmarket_bring_x_items_obj	Find and bring batteries:
+st_blackmarket_entrap_enemies_descr	What you've been up to before the epidemic? Maybe you set traps for animals in the woods? The time has come to remember your skills, only this time your game is man!
+st_blackmarket_entrap_enemies_name	Poacher
+st_blackmarket_entrap_enemies_obj	Catch enemies in a trap:
+st_blackmarket_grenade_enemies_descr	Take it from me, there is no better gift than a good grenade. Especially without safery pins! And if you're good enough you can give one gift to several enemies! Just try not to give such gifts to your team.
+st_blackmarket_grenade_enemies_name	A little gift!
+st_blackmarket_grenade_enemies_obj	Kill enemies with grenade in a match:
+st_blackmarket_headshots_descr	Bulletproof vests can save the wearer from death, but it will not protect if hit in the head. Even the helmet does not guarantee absolute protection. Headshot saves time, ammo, and nerves.
+st_blackmarket_headshots_name	Headshots
+st_blackmarket_headshots_obj	Enemies to kill with headshot:
+st_blackmarket_kd_ratio_descr	Let others fear us! We are the Black Market, we are not afraid to die and we'll happily take two or three enemies with us!
+st_blackmarket_kd_ratio_name	Intimidate and reign!
+st_blackmarket_kd_ratio_obj	Win a match with the kill/death ratio of at least
+st_blackmarket_kill_enemies_descr	When the battle is over, the enemy scatters and the loot is divided - it's nice to share the experience of these glorious moments with friends. Make sure you have stories to tell.
+st_blackmarket_kill_enemies_name	Personal affair
+st_blackmarket_kill_enemies_obj	Kill opponents in one match:
+st_blackmarket_kill_enemy_x_descr	One cannot say Scavengers are our fiercest enemy. But from time to time they need to be put to their place. Best to do it based on a vivid example.
+st_blackmarket_kill_enemy_x_name	Head Hunting
+st_blackmarket_kill_enemy_x_obj	Kill "Scavengers" members in one match:
+st_blackmarket_killstreak_descr	Sometimes the number of enemies prevails. Some consider it a problem. We believe though, the more enemies we kill the greater glory when they are destroyed. 
+st_blackmarket_killstreak_name	Death machine
+st_blackmarket_killstreak_obj	Make a kill streak of:
+st_blackmarket_level_0	Unknown
+st_blackmarket_level_1	Recruit
+st_blackmarket_level_2	Fighter
+st_blackmarket_level_3	Foreman
+st_blackmarket_level_4	Centurion
+st_blackmarket_level_5	Elite
+st_blackmarket_level_unlock_0	Congratulations! You have unlocked the Black Market tasks!
+st_blackmarket_level_unlock_1	Congratulations! You are a Black Market Recruit now!
+st_blackmarket_level_unlock_2	Congrats! You are a Black Market Fighter now!
+st_blackmarket_level_unlock_3	Congratulations! You are a Black Market Foreman now!
+st_blackmarket_level_unlock_4	Congrats! You've been promoted to the Black Market Centurion now!
+st_blackmarket_level_unlock_5	Congratulations! You are a Black Market Elite now!
+st_blackmarket_meele_kill_descr	When you can't do the job cleanly - be prepared to get your hands dirty. That's what differs us from the rest. Prove that you're one of us - work with your hands.
+st_blackmarket_meele_kill_name	Dirty work
+st_blackmarket_meele_kill_obj	Kill enemies using melee:
+st_blackmarket_represent	You must be dressed to represent the Black Market.
+st_blackmarket_starter_bundle_descr	<white>Contains the following items:\n"Bandit's jacket".\n"Bandit's pants".\n- Enhanced UZI.\n- 2000 rounds of 9x19 Parabellum ammo.</white>
+st_blackmarket_starter_bundle_name	"Bandit" bundle
+st_blackmarket_steal_box_descr	Kill two birds with one stone! Remember this rule! Stealing a battery from the enemy base not only leaves your opponents without protection but also greatly helps your own team!
+st_blackmarket_steal_box_name	Robbery
+st_blackmarket_steal_box_obj	Steal a battery from the enemy base and bring it to your base.
+st_blackmarket_win_score_descr	What could be better than victory? Absolute victory! When your enemies stand no chance! When they are cornered and pray for this nightmare to end.
+st_blackmarket_win_score_name	Domination
+st_blackmarket_win_score_obj	Win a match with batteries brought:
+st_blackmarket_win_x_games_descr	There is nothing as sweet as victory! Loot, glory, respect - the winner gets it all. Not to mention the reputation among the Black Market brotherhood!
+st_blackmarket_win_x_games_name	Hail the Black Market!
+st_blackmarket_win_x_games_obj	Win matches:
+st_bm_boots_1_desc	Cool cowboy boots. Used to be a must-have for rockers and bikers before the catastrophe.
+st_bm_boots_1_name	Cossacks
+st_bm_boots_2_desc	Low leather boots, provide good leg protection. At the Black Market base they are produced by the master named Spider who adds his trademark to every boot when manufacturing them. Their comfort helps you save stamina when sprinting.
+st_bm_boots_2_name	Ropers
+st_bm_boots_3_desc	Mighty cowboy boots with iron inlets and strips. They are the indicator of status among all the Black Market gangs.
+st_bm_boots_3_name	Choppers
+st_bm_gloves_1_desc	Leather fingerless gloves. Handy in fights, when using firearms, or just filling your pipe before the long journey. Increase the reload rate by 2%.
+st_bm_gloves_1_name	Biker gloves
+st_bm_gloves_2_desc	Heavy, powerful gloves reinforced by metal spikes. Will come in handly when you run out of bullets and the outcome of battle is decided by brawl.
+st_bm_gloves_2_name	Spiked gloves
+st_bm_helmet_1_desc	A leather biker's helmet. Protects the head against heavy objects hits. Such a helmet is a must-have at the time of Black Market fighters' conflicts.
+st_bm_helmet_1_name	Biker's helmet
+st_bm_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_helmet_5_name	"Marauder" helmet
+st_bm_legs_1_desc	Classic durable pants made from denim fabric. They help protect your legs against cold. Procured with toiling marauder's effort from a looted store. Pockets provide room for a couple traps or grenades.
+st_bm_legs_1_name	Jeans
+st_bm_legs_2_desc	Modified heavy-duty jeans with protective knee plates. Protect the legs against cold and injuries.
+st_bm_legs_2_name	Reinforced jeans
+st_bm_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_legs_4_name	Bandit's pants
+st_bm_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_legs_5_name	"Marodeur" pants
+st_bm_mask_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_mask_1_name	"Corsair" mask
+st_bm_rep_modifier	"Black market" reputation
+st_bm_torso_1_desc	A sleeveless biker jacket. The outfit of rank for Black Market combatants. Protects from cold and tough weather. The jacket has special pockets for extra ammo, traps and grenades.
+st_bm_torso_1_name	Leather sleeveless jacket
+st_bm_torso_2_desc	A heavy riveted jacket of thick leather with protective plate inlets. Originally was used by exquisitely big Black Market fighters, from where the name derives. The stylized skull on the arm demonstrates the owner's fearlessness in the face of death.
+st_bm_torso_2_name	Thug's jacket
+st_bm_torso_3_desc	A heavy leather jacket of the Black Market assault fighter. It is reinforced with metal plates. The look of an assaulting combatant in Corsair is able to deliver shock and awe even upon an experienced survivor. Contains special pockets for extra ammo, traps and grenades.
+st_bm_torso_3_name	Corsair jacket
+st_bm_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_torso_4_name	Bandit's jacket
+st_bm_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_bm_torso_5_name	"Marodeur" jacket
+st_bonus_day	Day
+st_bonus_victory	Victory bonus
+st_border_faction	The Fringe Settlers
+st_born_leader_compliment	Born commander
+st_bot_or_cheater_claim	Bot or Cheater
+st_breath_holding_time_description	The breath hold time:
+st_breath_holding_time_name	Iron lungs
+st_bring_item_to_base	Bring the battery to your base!
+st_btn_add_premium_label	Get Gold
+st_btn_add_premium_message	Get Gold
+st_btn_add_rank_label	Add rank
+st_btn_become_commander	Become a commander
+st_btn_cancel_decal	Cancel
+st_btn_change_name_label	Change nickname
+st_btn_chat	Chat
+st_btn_clan_team_invite_memeber	Invite
+st_btn_close_upgrades_label	Finish changing item's appearance
+st_btn_craft_accept	Ready
+st_btn_craft_label	Upgrade
+st_btn_create_clan_team	Create a team
+st_btn_disband_clan_label	Disband
+st_btn_disband_clan_team	Disband team
+st_btn_end_tutorial_label	Finish
+st_btn_equipment	Gear
+st_btn_exchange_premium_money	Echange gold for rubles
+st_btn_exit_label	Exit
+st_btn_find_player	Find player
+st_btn_friends	Friends
+st_btn_friends_online_filter	Friends online
+st_btn_go_to_online_store	Continue
+st_btn_invite_clan_memeber_label	Invite
+st_btn_item_craft	Upgrade
+st_btn_join_team	Join
+st_btn_kick_clan_memeber_label	Kick
+st_btn_knowledge_base	Knowledge base
+st_btn_leave_clan_label	Leave
+st_btn_leave_clan_team	Leave the team
+st_btn_no	No
+st_btn_not_ready	Not ready
+st_btn_paperdoll	Equipment
+st_btn_premium_hint	Activate premium account
+st_btn_rank_down_clan_memeber_label	Rank down
+st_btn_rank_up_clan_memeber_label	Rank up
+st_btn_ready	Ready
+st_btn_remove_rank_label	Remove rank
+st_btn_reroll_change_label	Change
+st_btn_reroll_choose_label	Choose
+st_btn_reroll_label	Modification
+st_btn_settings_label	Settings
+st_btn_show_log_list	History
+st_btn_show_log_list_hint	Show the list of events for the current session
+st_btn_upgrade_hint	Modify an item
+st_btn_upgrade_label	Appearance
+st_btn_use_item	Use item
+st_btn_yes	Yes
+st_bundle_clik_hint	Click on the bundle for more information
+st_button_buy_profile_text	Buy character profile
+st_button_exit	Close
+st_button_skip_tutorial_label	Skip tutorial
+st_buy	Buy
+st_buy_post_premium	Get bonuses
+st_buy_premium_with_discount	Buy now with discount!
+st_buy_profile_confirmation_text	Create new character? 
+st_buy_profile_price_text	Profile available for: 
+st_buy_treasure_maps	Buy map
+st_camo_black_leather_01_name	Raven
+st_camo_black_leather_name	Black death
+st_camo_blue_leather_name	Breeze
+st_camo_brown_leather_01_name	Leather 2
+st_camo_brown_leather_02_name	Leather 3
+st_camo_brown_leather_03_name	Leather 4
+st_camo_brown_leather_04_name	Leather 5
+st_camo_brown_leather_05_name	Ifrit
+st_camo_brown_leather_name	Leather
+st_camo_camouflage_green_01_name	Huntsman
+st_camo_camouflage_green_name	Oakley
+st_camo_chemical_fabric_01_name	Green NBC suit
+st_camo_chemical_fabric_02_name	Green foliage
+st_camo_chemical_fabric_03_name	Blue sky
+st_camo_city_camo_name	Panther
+st_camo_cyfra_01_camo_name	Digital-N
+st_camo_cyfra_02_camo_name	Digital
+st_camo_cyfra_03_camo_name	Warrior
+st_camo_denim_01_name	Dark Denim
+st_camo_denim_name	Denim
+st_camo_desert_camo_name	Desert
+st_camo_fabric_brown_01_name	Dry soil
+st_camo_fabric_brown_02_name	Desert storm
+st_camo_fabric_brown_03_name	Scorpion
+st_camo_fabric_brown_name	Brown fabric
+st_camo_fabric_camouflage_name	Survivor
+st_camo_fabric_green_01_name	Green fabric
+st_camo_fabric_green_name	White fabric
+st_camo_fabric_grey_name	Ghost
+st_camo_flecktarn_01_camo_name	Flectarn
+st_camo_flecktarn_02_camo_name	Wood
+st_camo_generic_desc	Use camouflage in the vests and pants window to change their appearance.
+st_camo_green_leather_name	Green leather
+st_camo_izlom_name	Break
+st_camo_khaki_fabric_01_name	Hot sand
+st_camo_khaki_fabric_02_name	Hot sun
+st_camo_khaki_fabric_03_name	Dust
+st_camo_multicam_name	Mirage
+st_camo_new_year	New Year 2015
+st_camo_quilted_fabric_name	Quilted fabric
+st_camo_red_leather_name	Legionary
+st_camo_rubber_green_01_name	Seeker
+st_camo_rubber_green_02_name	Yellow rubber
+st_camo_rubber_green_name	Green rubber
+st_camo_slot	Camouflage
+st_camo_spekrt_01_name	Spectre-Autumn
+st_camo_spekrt_02_name	Spectre-Spring
+st_camo_spekrt_03_name	Spectre-Summer
+st_camo_steam	Steam camo
+st_camo_suede_leather_name	Suede
+st_camo_ucp_name	UCP
+st_camo_vsr_name	MES
+st_camo_yellow_leather_name	Yellow leather
+st_can_be_installed_on	Can be installed on
+st_can_sprint_description	You can sprint while overloaded.
+st_can_sprint_name	Sprint
+st_cancel	Cancel
+st_cannot_buy_item	Cannot buy the item
+st_cannot_craft_item	Can't upgrade this item.
+st_cannot_pickup_item	You are already carrying a container!
+st_cannot_pickup_item_broken_hand	Your hands are wounded! You can't pick up the container.
+st_cannot_relocate_item	Impossible to relocate the item
+st_cannot_repair_item	Cannot repair item
+st_cannot_reroll_skills	Error resetting skills
+st_cannot_select_rerolled_modification	Error changing modification
+st_cannot_upgrade_item	An error occurred while modifying the item. Try again.
+st_cannot_use_drop_card	Cannot use stash map.
+st_cant_add_clan_member	Error adding player in clan
+st_cant_add_clan_team_member	Error adding player in team.
+st_cant_buy_clan_registration	Error paying for clan registration.
+st_cant_buy_premium_message	Insufficient Gold Rubles to complete the purchase.
+st_cant_cancel_clan_registration	Error cancelling clan registration.
+st_cant_change_clan_team_battle_status	Error changing status position in team.
+st_cant_change_commander_team_role	Can't change commander's role.
+st_cant_change_permission	Error changing access rights.
+st_cant_change_rank_clan_member	Error changing player's rank.
+st_cant_change_ready_state	Error changing readiness status.
+st_cant_change_role_himself	Can't change your own rank
+st_cant_change_status_clan_team_member	Error changing player's status.
+st_cant_clan_match_closed	Error leaving clan team.
+st_cant_create_clan	Error creating clan.
+st_cant_create_clan_rank	Error creating clan rank.
+st_cant_create_clan_team	Error creating team
+st_cant_delete_default_rank	Can’t delete standard rank
+st_cant_disband_clan_team	Error disbanding team
+st_cant_find_player	A player with that name wasn’t found.
+st_cant_invite_player_to_clan	Error inviting player in clan
+st_cant_invite_player_to_clan_team	Error inviting player in team.
+st_cant_kick_himself	You can't expel yourself from clan.
+st_cant_kick_member	Error kicking player out of clan.
+st_cant_leave_clan_team	Error leaving team
+st_cant_oust_commander	Error switching commander
+st_cant_oust_yourself	You can't expel yourself from team.
+st_cant_rank_up_clan_member	Error ranking player up.
+st_cant_remove_clan_rank	Error removing clan rank.
+st_cant_remove_clan_team_member	Error kicking player out of team
+st_cant_remove_yourself	You can't exclude yourself from the team.
+st_cant_request_to_join_clan_team	Error applying to join clan team.
+st_cant_reserve_clan	Error reserving a name.
+st_cant_set_clan_team_commander	Error setting clan team commander.
+st_cant_set_daily_message	Error setting daily message.
+st_cant_set_yourself	You cannot assign yourself the commander of the team.
+st_cant_upgrade_while_repair_hint	You can't upgrade an item while repairing it.
+st_capture_info	Capturing unit...
+st_chamber_a_round_description	Bolt cocking speed:
+st_chamber_a_round_name	Trigger discipline
+st_change	Rename
+st_change_name_error	Character rename error.
+st_change_name_label	Change nickname
+st_change_order	Change order
+st_change_profile	Change profile
+st_change_quest	Change task
+st_change_quest_label	Change task
+st_change_weapon_speed_description	Change weapon swap speed:
+st_change_weapon_speed_name	Deft hands
+st_character	Character
+st_character_decals_1_12_name	Jarilo
+st_character_decals_1_1_name	Literator
+st_character_decals_1_2_name	"Alpha" Squad
+st_character_decals_1_3_name	Survivor
+st_character_decals_1_4_name	Explorer
+st_character_decals_1_5_name	Veteran
+st_character_decals_1_6_name	Master
+st_character_decals_1_7_name	Legend
+st_character_decals_1_8_name	Flying Hussars
+st_character_decals_2_1_name	Scavengers rookie
+st_character_decals_2_2_name	Scavengers veteran
+st_character_decals_2_3_name	Black Market Recruit
+st_character_decals_2_4_name	Black Market Elite
+st_character_decals_2_5_name	The Renaissance Army Soldier
+st_character_decals_2_6_name	The Renaissance Army Colonel
+st_character_decals_2_7_name	"The Fringe Settlers" Hunter
+st_character_decals_2_8_name	The Fringe Settlers Magister
+st_character_decals_3_10_name	Deadly
+st_character_decals_3_11_name	Animal's skull
+st_character_decals_3_12_name	Bullet
+st_character_decals_3_13_name	Grenade
+st_character_decals_3_14_name	First aid
+st_character_decals_3_15_name	Crosshair
+st_character_decals_3_16_name	Spetsnaz
+st_character_decals_3_17_name	"VDV'
+st_character_decals_3_18_name	Hundred
+st_character_decals_3_19_name	Dirk
+st_character_decals_3_1_name	Biohazard
+st_character_decals_3_20_name	Atom emblem
+st_character_decals_3_21_name	DNA helix
+st_character_decals_3_2_name	Weapon restriction
+st_character_decals_3_3_name	Anarchy
+st_character_decals_3_4_name	Pirate
+st_character_decals_3_5_name	Radioactivity
+st_character_decals_3_6_name	Highly explosive
+st_character_decals_3_7_name	Forest restriction
+st_character_decals_3_8_name	Tree of life
+st_character_decals_3_9_name	Hourglass
+st_character_decals_4_10_name	Flag of Georgia
+st_character_decals_4_11_name	Flag of Uzbekistan
+st_character_decals_4_12_name	Flag of Tajikistan
+st_character_decals_4_13_name	Flag of Kyrgyzstan
+st_character_decals_4_14_name	Flag of Turkmenistan
+st_character_decals_4_15_name	Flag of Azerbaijan
+st_character_decals_4_16_name	Flag of Armenia
+st_character_decals_4_17_name	Flag Of Germany
+st_character_decals_4_18_name	Flag Of Great Britain
+st_character_decals_4_19_name	Flag Of France
+st_character_decals_4_1_name	Flag of USSR
+st_character_decals_4_20_name	Flag Of Italy
+st_character_decals_4_21_name	Flag Of Spain
+st_character_decals_4_22_name	Flag Of Poland
+st_character_decals_4_23_name	Flag Of Romania
+st_character_decals_4_24_name	Flag Of The Netherlands
+st_character_decals_4_25_name	Flag Of Greece
+st_character_decals_4_26_name	Flag Portugal
+st_character_decals_4_27_name	Flag of The Czech Republic
+st_character_decals_4_28_name	Flag Of Belgium
+st_character_decals_4_29_name	Flag Of Hungary
+st_character_decals_4_2_name	Flag of Russia
+st_character_decals_4_30_name	Flag of Sweden
+st_character_decals_4_31_name	Flag Of Austria
+st_character_decals_4_32_name	Flag Of Switzerland
+st_character_decals_4_33_name	Flag Of Bulgaria
+st_character_decals_4_34_name	Flag Of Serbia
+st_character_decals_4_35_name	Flag Of Denmark
+st_character_decals_4_36_name	Flag Of Slovakia
+st_character_decals_4_37_name	Flag Of Norway
+st_character_decals_4_38_name	Flag Of Ireland
+st_character_decals_4_39_name	Flag Of Croatia
+st_character_decals_4_3_name	Flag of Ukraine
+st_character_decals_4_40_name	Flag of Bosnia and Herzegovina
+st_character_decals_4_41_name	Flag Of Turkey
+st_character_decals_4_42_name	Flag of the USA
+st_character_decals_4_43_name	Flag of Canada
+st_character_decals_4_44_name	Flag of Brazil
+st_character_decals_4_45_name	Flag of Argentina
+st_character_decals_4_46_name	Flag of Australia
+st_character_decals_4_47_name	Flag of Finland
+st_character_decals_4_48_name	Flag of New Zealand
+st_character_decals_4_49_name	Flag of Ireland
+st_character_decals_4_4_name	Flag of Belarus
+st_character_decals_4_50_name	Flag of Scotland
+st_character_decals_4_51_name	Flag of England
+st_character_decals_4_52_name	Flag of South Korea
+st_character_decals_4_53_name	Flag of Japan
+st_character_decals_4_54_name	Flag of China
+st_character_decals_4_55_name	Flag of India
+st_character_decals_4_56_name	Flag of Indonesia
+st_character_decals_4_57_name	Flag of Malaysia
+st_character_decals_4_58_name	Flag of the Philippines
+st_character_decals_4_59_name	Flag of Thailand
+st_character_decals_4_5_name	Flag of Kazakhstan
+st_character_decals_4_60_name	Flag of Vietnam
+st_character_decals_4_61_name	Flag of Bolivia
+st_character_decals_4_62_name	Flag of Chile
+st_character_decals_4_63_name	Flag of Colombia
+st_character_decals_4_64_name	Flag of Ecuador
+st_character_decals_4_65_name	Flag of Paraguay
+st_character_decals_4_66_name	Flag of Peru
+st_character_decals_4_67_name	Flag of Uruguay
+st_character_decals_4_68_name	Flag of Venezuela
+st_character_decals_4_69_name	Flag of Albania
+st_character_decals_4_6_name	Flag of Latvia
+st_character_decals_4_70_name	Flag of Cuba
+st_character_decals_4_71_name	Flag of Slovenia
+st_character_decals_4_72_name	Flag of Angola
+st_character_decals_4_73_name	Flag of Nigeria
+st_character_decals_4_74_name	Flag of South Africa
+st_character_decals_4_75_name	Flag of Wales
+st_character_decals_4_7_name	Flag of Lithuania
+st_character_decals_4_8_name	Flag of Estonia
+st_character_decals_4_9_name	Flag of Moldova
+st_character_decals_5_10_name	Coat of arms of Georgia
+st_character_decals_5_11_name	Coat of arms of Uzbekistan
+st_character_decals_5_12_name	Coat of arms of Tajikistan
+st_character_decals_5_13_name	Coat of arms of Kyrgyzstan
+st_character_decals_5_14_name	Coat of arms of Turkmenistan
+st_character_decals_5_15_name	Coat of arms of Azerbaijan
+st_character_decals_5_16_name	Coat of arms of Armenia
+st_character_decals_5_17_name	NATO emblem
+st_character_decals_5_18_name	UN emblem
+st_character_decals_5_19_name	Coat of arms of Germany
+st_character_decals_5_1_name	Red star
+st_character_decals_5_20_name	Coat of arms of Great Britain
+st_character_decals_5_21_name	Coat of arms of France
+st_character_decals_5_22_name	Coat of arms of Italy
+st_character_decals_5_23_name	Coat of arms of Spain
+st_character_decals_5_24_name	Coat of arms of Poland
+st_character_decals_5_25_name	Coat of arms of Romania
+st_character_decals_5_26_name	Coat of arms of Nerlands
+st_character_decals_5_27_name	Coat of arms of Greece
+st_character_decals_5_28_name	Coat of arms of Portugal
+st_character_decals_5_29_name	Coat of arms of Czech Republic
+st_character_decals_5_2_name	Coat of arms of Russia
+st_character_decals_5_30_name	Coat of arms of Belgium
+st_character_decals_5_31_name	Coat of arms of Hungary
+st_character_decals_5_32_name	Coat of arms of Sweden
+st_character_decals_5_33_name	Coat of arms of Austria
+st_character_decals_5_34_name	Coat of arms of Switzerland
+st_character_decals_5_35_name	Coat of arms of Bulgaria
+st_character_decals_5_36_name	Coat of arms of Serbia
+st_character_decals_5_37_name	Coat of arms of Denmark
+st_character_decals_5_38_name	Coat of arms of Slovakia
+st_character_decals_5_39_name	Coat of arms of Norway
+st_character_decals_5_3_name	Coat of arms of Ukraine
+st_character_decals_5_40_name	Coat of arms of Ireland
+st_character_decals_5_41_name	Coat of arms of Croatia
+st_character_decals_5_42_name	Coat of arms of Bosnia and Herzegovina
+st_character_decals_5_4_name	Coat of arms of Belarus
+st_character_decals_5_5_name	Coat of arms of Kazakhstan
+st_character_decals_5_6_name	Coat of arms of Lithuania
+st_character_decals_5_7_name	Coat of arms of Lithuania
+st_character_decals_5_8_name	Coat of arms of Estonia
+st_character_decals_5_9_name	Coat of arms of Moldova
+st_character_decals_7_27_name	Clover ornament
+st_character_decals_7_28_name	Horseshoe
+st_character_decals_7_9_name	Herbs
+st_character_decals_generic_desc	Use decals in the vests and pants window to change their appearance.
+st_characteristics_label	Player stats
+st_chat_channel_clan	Clan chat
+st_chat_channel_clan_team	Clan team
+st_chat_channel_general	General chat
+st_chat_channel_match	All
+st_chat_channel_private	Private
+st_chat_channel_squad	Squad
+st_chat_channel_system	System
+st_chat_channel_team	Team
+st_checkbox_battle_commander_permission	Field commander
+st_checkbox_clan_change_rank_permission	Change players’ ranks
+st_checkbox_clan_daily_message_permission	Changing daily message
+st_checkbox_clan_invite_permission	Invitation
+st_checkbox_clan_member_kick_permission	Kick
+st_checkbox_compare_items	Comparing items
+st_checkbox_compare_items_hint	Show description of equipped item
+st_checkbox_players_live_search	Search as you type
+st_checkbox_show_locked_items	Unavailable
+st_checkbox_show_locked_items_hint	Show unavailable items
+st_checkbox_show_offline_players	Display players offline
+st_checkbox_show_player_groups	Show player groups
+st_checkbox_show_shop_items	Shop
+st_checkbox_show_shop_items_hint	Show items from the shop
+st_choose	Choose
+st_choose_faction_button_hint	Choose a faction
+st_choose_faction_description	Factions are the main suppliers of equipment, weapons and ammunition. You improve your reputation by performing faction quests. In return you are given access to their best products. At the same time, you can only cooperate with one faction.
+st_choose_faction_label	Choose a faction
+st_choose_modifier	Change modifier:
+st_choose_premium_subscription	Choose premium subscription:
+st_claim_player	File a complaint
+st_claims_count_per_day_owerflow	You've filed the maximum number of complaints for one day.
+st_claims_count_per_user_owerflow	You can't file a complaint against a user twice a day!
+st_clan	Clan
+st_clan_abbr_is_not_valid	This abbreviation is already reserved
+st_clan_abbreviation	Clan abbreviation
+st_clan_abbreviation_default_text	Choose abbreviation
+st_clan_abbreviation_info	(3 to 6 characters)
+st_clan_accept_button_label	Register
+st_clan_buy_registration_button_label	Pay
+st_clan_cancel_button_label	Cancel registration
+st_clan_control_tab	Clan control tab
+st_clan_creation_info_description	To register your clan you need to enlist at least 5 players. After registration of the clan they will automatically join it.
+st_clan_creation_info_label	Enlist the support of players
+st_clan_daily_message	Daily message
+st_clan_invite_1	Player
+st_clan_invite_2	successfully invited to clan.
+st_clan_invite_accepted	Accepted
+st_clan_invite_pending	Clan invite pending
+st_clan_invite_player_button_label	Invite
+st_clan_invite_rejected	Denied
+st_clan_kick_1	Are you sure you want to kick the player?
+st_clan_kick_2	out of clan?
+st_clan_leave_button_label	Leave clan
+st_clan_level_label	Clan level
+st_clan_level_up_1	Our clan reached
+st_clan_level_up_2	level.
+st_clan_manage_window_label	Clan
+st_clan_max_members_count_error	You have reached the maximum number of clan members.
+st_clan_member_joined	joined clan.
+st_clan_member_kicked	kicked from clan
+st_clan_member_left	left clan.
+st_clan_name	Clan name
+st_clan_name_and_abbr_are_not_valid	This nickname or abbreviation is already reserved
+st_clan_name_default_text	Enter clan name
+st_clan_name_is_not_valid	This nickname is already reserved
+st_clan_options_tab	Settings
+st_clan_players_level_label	Lvl.
+st_clan_players_list_availabe_postfix	possible
+st_clan_players_list_availabe_prefix	The list of players 
+st_clan_players_name_label	Name
+st_clan_players_rank_label	Rank
+st_clan_players_ready	Ready
+st_clan_players_status_label	Status
+st_clan_rank	Clan ranking
+st_clan_rank_assistant	Deputy commander
+st_clan_rank_commander	Commander
+st_clan_rank_soldier	Soldier
+st_clan_rank_warlord	Sergeant
+st_clan_registration_cost	Registration\ncost
+st_clan_registration_paid	Paid
+st_clan_reserve_name_button_label	Open an account
+st_clan_system_message_sender	Clan system message
+st_clan_team_commander	Field commander
+st_clan_team_invite_2	successfully invited to clan team.
+st_clan_team_invites	Applications
+st_clan_team_is_full	You've reached the maximum number of players to participate in clan match.
+st_clan_team_reserve	Reserve
+st_clan_team_soldier	Team lineup
+st_clan_team_window_label	Team lineup
+st_clan_was_disbanded	Your clan was disbanded by the clan commander.
+st_clan_window_close_message	Are you sure you want to leave the team?
+st_clan_window_close_message_commander	Are you sure you want to leave the team?
+st_clan_window_label	Clan registration
+st_clear	Clear
+st_close	Close
+st_collect_statistics_option	Enable statistics collection
+st_compliment_count_per_day_owerflow	You've used the maximum number of praises for one day.
+st_compliment_count_per_user_owerflow	You can't compliment a user twice a day!
+st_compliment_player	Praise
+st_confirm	Confirm
+st_conflict_message	Such a binding will change the following:
+st_convert_weapon_slot_to_pocket_description	You get an extra slot for special equipment but can't equip a second weapon.
+st_convert_weapon_slot_to_pocket_name	Deep Pockets
+st_cost	Cost
+st_count	Count
+st_craft	Upgrade
+st_craft_message_broken_item	Can't upgrade damaged item.
+st_craft_message_equipped_item	You can’t upgrade equipped item during matchmaking.
+st_craft_message_modifers_count	Further upgrade of the item is impossible. You have reached the maximum number of modifiers.
+st_craft_message_modifiers_difference	You can't use an item with a large number of modifiers as a donor. Do you wish to swap them?
+st_craft_result_fail_label	Unfortunately your inept actions led to the deterioration of the item.
+st_craft_result_neutral_label	Unfortunately you failed to upgrade the item.
+st_craft_result_success_label	Item upgraded successfully!
+st_critical_damages	Critical damages
+st_crosshair_static_option	Static crosshair
+st_crosshair_type_option	Select crosshair
+st_crouch_action	Crouch (hold)
+st_crouch_toggle_action	Crouch
+st_ct_max_members_count_error	Error adding new players. The clan team already has the maximum number of players.
+st_current_value	\nCurrent value:
+st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_hint	Show the welcoming screen
+st_daily_bonus_label	Welcome back
+st_daily_bonus_progress	Your progress for the current day
+st_daily_bonus_reward_complete	<gold>Complete</gold>
+st_daily_bonus_reward_description	On <gold>7th day</gold> you will get
+st_daily_bonus_victories	victories
+st_daily_message_label	Message of the day:
+st_day_short	d.
+st_dealy_breath_action	Breath hold
+st_decal_editor_description	LMB - apply decal\nALT - rotate decal\nСTRL - change size
+st_decal_editor_label	Editing mode
+st_decal_slot	Decal
+st_decorations_options	Decorations quality
+st_default_profile_name1	Profile 1
+st_default_profile_name2	Profile 2
+st_default_profile_name3	Profile 3
+st_default_scope_name	Stock scope
+st_defeat	Defeat
+st_defuse_trap	Disable ({USE})
+st_disband_clan_message	Are you sure you want to disband the clan?
+st_disband_clan_money_message	Are you sure you want to disband the clan? The silver deposited on the registration account will be lost.
+st_disband_squad	Disband squad
+st_disconnected_from_lobby	Disconnected from lobby server!
+st_dispersion_correction_perc_name	Dispersion off the hip
+st_dispersion_from_hip_description	Accuracy when firing from the hip:
+st_dispersion_from_hip_name	Accuracy
+st_dispersion_movement_influence_description	Precision during motion:
+st_dispersion_movement_influence_name	Firm grip
+st_dont_have_permission	Insufficient rights to perform this action.
+st_drop	Take off
+st_drop_action	Drop
+st_drop_card_descr	Use the stash map after the match to find more items.
+st_drop_card_name	Stash map
+st_duty_026_boots_desc	Heavy armoured boots that Duty fighters wear with their heavy armour.
+st_duty_026_boots_name	Duty boots
+st_duty_026_gloves_desc	Reinforced fingerless gloves that Duty fighters wear with their heavy armour.
+st_duty_026_gloves_name	Duty gloves
+st_duty_026_head_desc	The sealed helmet of the experimental Duty exoskeleton, with a built-in respirator. Covers the whole head and face.
+st_duty_026_helmet_name	Duty exoskeleton helmet
+st_duty_026_suit_desc	An experimental sample of a military exoskeleton. Was never mass-produced due to extraordinary cost and some design flaws. Small batches are still made in underground facilities outside Ukraine. Comes with a built-in artifact container.
+st_duty_026_suit_name	Duty exoskeleton
+st_edge_accuracy_descr	One precise shot is better than a dozen bullets fired in the air. Especially these days, when every bullet is a rare find. Prove you can really be named a hunter.
+st_edge_accuracy_name	Sharp shooter
+st_edge_accuracy_obj	Win a match with accuracy rate:
+st_edge_back_1_desc	Use of artifacts is the Fringe Settlers' specialty. If you are skilled in artifact search and know what to do with them, this large container holding 2 artifacts is your safe choice. 
+st_edge_back_1_name	Dar 2M container
+st_edge_back_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_2_name	Stalker's backpack
+st_edge_back_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_3_name	"Breeze" respiratory system
+st_edge_back_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_5_name	"Wanderer" Container
+st_edge_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_back_6_name	"Pilgrim" container
+st_edge_boots_1_desc	Tall, lightweight boots with soft soles. Ideal for stalking prey. Less tiring for long journeys. 
+st_edge_boots_1_name	Hunter's boots
+st_edge_boots_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_2_name	Stalker's boots
+st_edge_boots_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_3_name	Explorer's boots
+st_edge_boots_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_4_name	Master's boots
+st_edge_boots_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_5_name	Keeper's boots
+st_edge_boots_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_boots_6_name	"Pilgrim" boots
+st_edge_bring_x_items_descr	The Earth cannot stand the violence. Every spark of agression breeds more of nature's response. We call it the Storm. We learned to survive and protect ourselves from it, but we need to find the batteries for the protective device.
+st_edge_bring_x_items_name	Seeker
+st_edge_bring_x_items_obj	Find and bring batteries:
+st_edge_defend_items_descr	Protection of your territory is a sacred duty for any of the Fringe Settlers combatants. If you cannot protect your base from getting plundered, how are you supposed to save mankind from eradication? 
+st_edge_defend_items_name	Keeper
+st_edge_defend_items_obj	Win a match without losing batteries
+st_edge_find_artifacts_descr	Our strength - in harmony with nature. Artifacts - a gift given to us by a much wiser than ourselves, and if artifacts will help us survive - it would be foolish not to use them.
+st_edge_find_artifacts_name	Gifts of Nature
+st_edge_find_artifacts_obj	Find artifacts in one match:
+st_edge_gloves_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_2_name	Stalker's gloves
+st_edge_gloves_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_3_name	Explorer's gloves
+st_edge_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_4_name	Master's gloves
+st_edge_gloves_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_5_name	Keeper's gloves
+st_edge_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_gloves_6_name	"Pilgrim" gloves
+st_edge_grenade_enemies_descr	When weapons cannot penetrate body armor grenades will always come in handy. One well-aimed throw and your opponent will become food for worms.
+st_edge_grenade_enemies_name	Thrower
+st_edge_grenade_enemies_obj	Kill enemies with grenade in a match:
+st_edge_headshots_descr	Unfortunately, violence is hard to avoid in the real world. So if we have to kill our enemy, do it fast, with a headshot.
+st_edge_headshots_name	Mercy
+st_edge_headshots_obj	Enemies to kill with headshot:
+st_edge_helmet_1_desc	The hood of sturdy hide will protect not only against the rain, but also from small debris and weak bullets.
+st_edge_helmet_1_name	Hunter's hood
+st_edge_helmet_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_3_name	Explorer's hat
+st_edge_helmet_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_4_name	Master's hood
+st_edge_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_5_name	"Keeper" helmet
+st_edge_helmet_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_helmet_6_name	"Pilgrim" helmet
+st_edge_kd_ratio_descr	Which are you, a victim or a predator? Hunter or prey? In post-apocalyptic world everyone is for themselves. Only the strongest survive.
+st_edge_kd_ratio_name	Natural selection
+st_edge_kd_ratio_obj	Win the match with the kill/death ratio of at least
+st_edge_legs_1_desc	Pants made of thick mutant hides provide good protection against both anomalies and small calibre bullets. Movement speed increased by 3%.
+st_edge_legs_1_name	Hunter's pants
+st_edge_legs_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_2_name	Stalker's pants
+st_edge_legs_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_3_name	Explorer's pants
+st_edge_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_4_name	"Leshy" pants
+st_edge_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_5_name	"Keeper" pants
+st_edge_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_legs_6_name	"Pilgrim" pants
+st_edge_level_0	Unknown
+st_edge_level_1	Hunter
+st_edge_level_10	Magister
+st_edge_level_2	Huntsman
+st_edge_level_3	Wanderer
+st_edge_level_4	Pathfinder
+st_edge_level_5	Devoted
+st_edge_level_6	Elder
+st_edge_level_7	Master
+st_edge_level_8	Soothsayer
+st_edge_level_9	Keeper
+st_edge_level_unlock_0	Congratulations! The Fringe Settlers missions are available to you now!
+st_edge_level_unlock_1	Congrats! You are a Fringe Settlers Hunter now!
+st_edge_level_unlock_10	Congratulations! You are The Fringe Settlers Magister now!
+st_edge_level_unlock_2	Congratulations! You are a Fringe Settlers Hunter now!
+st_edge_level_unlock_3	Congrats! Now you are The Fringe Settlers Wanderer!
+st_edge_level_unlock_4	Congrats! You have been promoted to The Fringe Settlers Pathfinder!
+st_edge_level_unlock_5	Congratulations! You are The Fringe Settlers Devoted now!
+st_edge_level_unlock_6	Congrats! Now you are The Fringe Settlers Elder!
+st_edge_level_unlock_7	Congratulations! You have been promoted to a Fringe Settlers Master!
+st_edge_level_unlock_8	Congratulations! You are The Fringe Settlers Soothsayer now!
+st_edge_level_unlock_9	Congratulations! You are The Fringe Settlers Keeper now!
+st_edge_mask_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_mask_2_name	NVD
+st_edge_mask_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_mask_5_name	"Keeper" mask
+st_edge_meele_kill_descr	Nature has created man to be strong and courageous. Weapons created by man made him weaker and cowardly. Remember this and avoid firing when it is not necessary.
+st_edge_meele_kill_name	Rules of nature
+st_edge_meele_kill_obj	Kill enemies using melee:
+st_edge_rep_modifier	"The Fringe Settlers" reputation
+st_edge_represent	You must be dressed to represent the Fringe Settlers.
+st_edge_reps_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_resp_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_resp_1_name	Malachite respirator
+st_edge_resp_3_name	Gas mask "Smaragd"
+st_edge_steal_box_descr	It's not necessarily to destroy enemies with your own hands. You can simply loosen their protection from the storm, and then nature will do the rest.
+st_edge_steal_box_name	Covert raid
+st_edge_steal_box_obj	Steal a battery from the enemy base and bring it to your base.
+st_edge_torso_1_desc	Hunter's jacket made of hide and enriched with protective amulets against the wrath of nature. Wolf's skin scares the predators away and fills the enemy with terror. Handy pouch provides room for items.
+st_edge_torso_1_name	Hunter's jacket  
+st_edge_torso_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_2_name	Stalker's jacket
+st_edge_torso_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_3_name	Explorer's jacket
+st_edge_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_4_name	"Leshy" vest
+st_edge_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_5_name	Bulletproof vest "Keeper"
+st_edge_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_edge_torso_6_name	"Pilgrim" bulletproof vest
+st_edge_win_score_descr	The more secure our protection against the Storm - the easier it is for us to defeat our enemies. The more batteries we can find, the less will be left for the enemy. And the Storm will finish off what we started.
+st_edge_win_score_name	Art of War
+st_edge_win_score_obj	Win a match with batteries brought:
+st_edge_win_x_games_descr	We must be prepared to protect ourselves and our land. It's only by defeating the enemy do we earn the right to live. Only by winning the battle can one protect their territory against an invasion.
+st_edge_win_x_games_name	On Guard
+st_edge_win_x_games_obj	Win matches:
+st_elo_after	Current rating
+st_elo_before	Rating before the battle
+st_empty_ammo_message	Insufficient ammo!
+st_empty_clan_string	Enter clan name
+st_empty_name_string	Enter name
+st_enable_seeding_in_lobby_option	Enable seeding
+st_eng_active_time_desc	The operating time for the activated devices increases.
+st_eng_active_time_name	Duration
+st_eng_electronic_desc	Trains you to handle the most up-to-date electronic devices and prototypes.
+st_eng_electronic_name	Electronics engineer
+st_eng_encrypting_desc	Protects your electronic devices from enemy hacking.
+st_eng_encrypting_name	Encryption
+st_eng_explosive_master_desc	Increases damage of your grenades and other explosives.
+st_eng_explosive_master_name	Demolition man
+st_eng_fast_recoil_desc	Lowers the time for devices to be ready for use again.
+st_eng_fast_recoil_name	Quick restart
+st_eng_hacker_desc	Allows you to reprogram enemy electronic devices in your favor.
+st_eng_hacker_name	Hacker
+st_eng_sapper_desc	Allows you to covertly deactivate enemy traps set.
+st_eng_sapper_name	Sapper
+st_engineer_succ_chance_corr_perc_name	Success probability
+st_engineer_use_time_corr_perc_name	Speed of use
+st_engineering_skills_descr	Improves your ability to handle gadgets and devices.
+st_engineering_skills_label	Technical skills
+st_engineering_skills_name	Technical skills
+st_enter_char_name	Enter name
+st_enter_chat_message	Enter message
+st_enter_name_warning	Prohibited characters
+st_enter_profile_name	Enter profile name
+st_enter_rank_name	Enter rank name
+st_enter_search_player_name	Enter the name to search
+st_eotech_552_collimator_desc	American holographic weapon sight made by EOTech. Instead of a lit dot it shows a holographic reticle, and it runs on ordinary AA batteries. Widely used by the military and police.
+st_eotech_552_collimator_name	EOTech 552 collimator
+st_equipment_cost	Total cost:
+st_equipment_level	Equipment level
+st_equipment_weight	Weight
+st_equipped	Equipped
+st_error_during_storing_user_comment	Database error. Try again.
+st_error_while_using_premium_access_voucher	An error occurred while activating Premium account. Try again.
+st_event_capture_the_point_description	Unit capture
+st_event_kill_invader_description	Invader kill
+st_exchange_button	Exchange
+st_exchange_window_label	Echange gold for rubles
+st_exitLabel	test
+st_exit_from_login	Exit
+st_exit_game_confirm_accept	Exit
+st_exit_game_confirm_cancel	Cancel
+st_exit_game_confirm_text	Are you sure you want to leave the game?
+st_exit_match_confirm_accept	Quit
+st_exit_match_confirm_cancel	Cancel
+st_exit_match_confirm_text	Are you sure you want to leave the match?
+st_exp_reward_match	Experience gained
+st_exp_reward_premium	Premium bonus
+st_experience	Experience
+st_experience_modifier	Experience received
+st_face_069d_balaclava_3_hole_desc	A knitted balaclava with holes for the eyes and the mouth. Warm, and it hides the face.
+st_face_069d_balaclava_3_hole_name	3-Hole Balaclava
+st_face_069d_balaclava_desc	A close-fitting army balaclava with one opening for the eyes, made to be worn under a helmet.
+st_face_069d_balaclava_name	Balaclava
+st_face_069d_buff_desc	A tube scarf with a printed skull, pulled up over the mouth and nose. It hides the face and keeps the dust out.
+st_face_069d_buff_name	Buff
+st_face_069d_keffiyeh_desc	A cotton keffiyeh wound over the head and face. It keeps out dust and wind and softens a glancing blow a little.
+st_face_069d_keffiyeh_name	Keffiyeh
+st_face_069d_protective_mask_desc	A canvas hood with welding goggles and a filtered mouthpiece. It covers the whole head and stops splinters better than it stops fumes.
+st_face_069d_protective_mask_name	Protective mask
+st_faction_1_description	"Scavengers" outfit is designed for battle at medium and long-range distances, as well as for survival in anomalies. "Scavengers" veterans have access to sniper rifles.
+st_faction_2_description	"Black Market" leather outfit is poorly adapted for survival in anomalies, but it protects the wearer pretty well in all other respects. Weapons are intended for use at close range, and elite soldiers are armed with AK74u.
+st_faction_3_description	"Renaissance Army" soldiers have access to the most comprehensive suite of equipment and weapons. They can fight at any distance, even in polluted areas. The best soldiers gain access to superheavy body armor and machine guns.
+st_faction_4_description	"Fringe Settlers" outfit has the best defense against anomalies and it's perfectly adapted to help locate and use artifacts. The weapons are more suited for ambushes than for open battle.
+st_faction_blackmarket_blocked_text	Black Market refuses to give you the tasks
+st_faction_edge_blocked_text	Top reputation with Scavengers or Black Market required
+st_faction_info	Information
+st_faction_join	Join
+st_faction_mercenaries_blocked_text	"Omega" refuses to give you the tasks
+st_faction_renaissance_blocked_text	Top reputation with Scavengers or Black Market required
+st_faction_reputation_label	Faction reputation
+st_faction_scavengers_blocked_text	Scavengers refuse to give you the tasks
+st_faction_scientists_blocked_text	Scientists refuse to give you the tasks
+st_fall_damage_description	Damage when falling:
+st_fall_damage_name	Paratrooper
+st_few_alpha_clan_string	Incorrect name
+st_filter_all	Show all
+st_filter_ammo	Ammo
+st_filter_ammo_assault_rifle	Assault rifles
+st_filter_ammo_machine_gun	Machine guns
+st_filter_ammo_pistol	Pistols
+st_filter_ammo_shotgun	Shotguns
+st_filter_ammo_sniper_rifle	Sniper rifles
+st_filter_ammo_submachine_gun	Submachine guns
+st_filter_assault_rifle	Assault rifles
+st_filter_body_armor	Body armor
+st_filter_boots	Boots
+st_filter_camo	Camouflage
+st_filter_decal	Decals
+st_filter_device	Devices
+st_filter_equipment	Equipment
+st_filter_gloves	Gloves
+st_filter_grenade	Grenades
+st_filter_helmet	Helmet
+st_filter_inventory	Inventory
+st_filter_items	Items
+st_filter_machine_gun	Machine guns
+st_filter_mask	Mask
+st_filter_medkit	Medicines
+st_filter_mine	Mines
+st_filter_pants	Pants
+st_filter_pistol	Pistols
+st_filter_rig	Gear
+st_filter_scaner	Scaners
+st_filter_shop	Shop
+st_filter_shop_and_inventory	Inventory and shop
+st_filter_shotgun	Shotguns
+st_filter_sniper_rifle	Sniper rifles
+st_filter_stimulator	Stimulants
+st_filter_submachine_gun	Submachine guns
+st_filter_upgrades	Upgrades
+st_filter_vouchers	Consumables
+st_filter_weapons	Weapons
+st_final_countdown	Awaiting match start:
+st_find_player	Find player
+st_finish_match_mode_02_loser_message	Defeat. The enemy team has collected all the batteries.
+st_finish_match_mode_02_winner_message	Victory! Your team has collected all the batteries.
+st_finish_match_mode_03_loser_message	Defeat. The enemy team has collected all the batteries.
+st_finish_match_mode_03_winner_message	Victory! Your team has collected all the batteries.
+st_finish_match_mode_04_loser_message	Defeat. Your team was eliminated.
+st_finish_match_mode_04_winner_message	Victory! All enemies have been defeated.
+st_finish_match_mode_05_draw_message	Draw. Both teams researched as much
+st_finish_match_mode_05_loser_message	Defeat. The enemy team has completed researching anomalous activity
+st_finish_match_mode_05_winner_message	Victory! Your team has completed researching anomalous activity
+st_first_weapon_action	Weapon 1
+st_fix	Fix
+st_fn_fnc_description	Belgian assault rifle, ammo: 5.56x45. Developed by FN Herstal in the 1970s and adopted by the Belgian army; licence versions serve in Sweden and Indonesia. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_fn_fnc_name	FN FNC
+st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
+st_fn_p90_name	FN P90
+st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
+st_fort_17_name	Fort 17
+st_fov_option	FOV
+st_freedom_026_boots_desc	Heavy armoured boots in Freedom colours, worn with heavy armour.
+st_freedom_026_boots_name	Freedom boots
+st_freedom_026_gloves_desc	Reinforced fingerless gloves in Freedom colours, worn with heavy armour.
+st_freedom_026_gloves_name	Freedom gloves
+st_freedom_026_head_desc	The sealed helmet of the Freedom exoskeleton, with a built-in respirator. Covers the whole head and face.
+st_freedom_026_helmet_name	Freedom exoskeleton helmet
+st_freedom_026_suit_desc	An experimental military exoskeleton repainted in Freedom colours. Never mass-produced due to its cost and design flaws; small batches still leave underground workshops. Comes with a built-in artifact container.
+st_freedom_026_suit_name	Freedom exoskeleton
+st_friend_options_label	Friend options
+st_friend_search_hint	Press "Enter" to search
+st_friend_state_away	Away
+st_friend_state_game	Online
+st_friend_state_lobby	Lobby
+st_friend_state_offline	Offline
+st_friendly_user_compliment	Friendly
+st_friends_online	Friends online
+st_friends_signin_notification_option	Notify when friends are online
+st_fullscreen_option	Full screen mode
+st_general_volume_option	Master
+st_generic_money_name	Rubles
+st_geometry_quality_option	Geometry quality
+st_go_to_knowledge_base_message	The knowledge base will open in new browser window.
+st_go_to_online_store_message	Online store will open in a browser window. Continue?
+st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
+st_gold_2	X gold
+st_good_player_compliment	Great player
+st_goto_shop	To shop
+st_graphics_quality_option	Graphics quality
+st_grenade_throw_power_description	Throwing distance:
+st_grenade_throw_power_name	Grenadier
+st_health_regen_correction_perc_name	Regeneration
+st_hide_ammo	Hide ammo
+st_hide_interface_action	Hide interface
+st_hide_quest_list	Hide missions window
+st_hide_spam_option	Hide spam
+st_hide_squad_list	Hide squad window
+st_hk416_description	German assault rifle, ammo: 5.56x45. Heckler & Koch's development of the AR-15 design with a short-stroke gas piston, introduced in the mid-2000s and used by special forces and the armies of several NATO countries. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_hk416_name	H&K 416A5
+st_hk_mp7_description	German personal defence weapon, ammo: 4.6x30. Developed by Heckler & Koch together with its own cartridge, which is designed to penetrate body armour; introduced in 2001 and used by the Bundeswehr and police special units. Equipped with a 20-round magazine. Supports single and automatic fire.
+st_hk_mp7_name	H&K MP7
+st_hk_mp7_silencer_description	German personal defence weapon, ammo: 4.6x30, here in the MP7A1 version with a sound suppressor. Developed by Heckler & Koch together with its own armour-piercing cartridge and used by the Bundeswehr and police special units. Equipped with a 20-round magazine. Supports single and automatic fire.
+st_hk_mp7_silencer_name	H&K MP7A1
+st_hk_mp7_silencer_special_description	German personal defence weapon, ammo: 4.6x30, here in the MP7A1 version with a sound suppressor. Developed by Heckler & Koch together with its own armour-piercing cartridge and used by the Bundeswehr and police special units. Equipped with a 20-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
+st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hour_short	h.
+st_hud_tutorial_frame_0_text_1	Camera controls
+st_hud_tutorial_frame_0_text_2	Use mouse to look around
+st_hud_tutorial_frame_1_text_1	Movement
+st_hud_tutorial_frame_1_text_2	Use W, A, S, D buttons to move
+st_hud_tutorial_frame_2_text_1	Aiming mode
+st_hud_tutorial_frame_2_text_2	To aim hold the\nright mouse button or press\nthe middle mouse button
+st_hud_tutorial_frame_3_text_1	Sprint
+st_hud_tutorial_frame_3_text_2	To sprint hold\nSHIFT, or press the X key
+st_hud_tutorial_frame_4_text_1	Jump
+st_hud_tutorial_frame_4_text_2	To jump press SPACE
+st_hud_tutorial_frame_5_text_1	Crouch
+st_hud_tutorial_frame_5_text_2	To crouch hold CTRL\nor press C
+st_hud_tutorial_frame_6_text_1	To battle!
+st_hud_tutorial_frame_6_text_2	You've completed the basic course\nof combat training. Good luck!
+st_hud_tutorial_frame_6_text_3	Your reward:
+st_ignored	Black list
+st_in_develepoment_hint	In development
+st_ingame_volume_option	Game
+st_injury_penalty_description	Dispersion penalty when hands are wounded:
+st_injury_penalty_name	Equanimity
+st_inv_activation_time_sec	Activation
+st_inv_activity_time_sec	Duration
+st_inv_additional_ammo_bags	Ammo bags
+st_inv_ano_armor	Isolation
+st_inv_armor	Armor
+st_inv_arp	Armor penetration
+st_inv_artefact_slots	Artifact container
+st_inv_buckshot	Buckshot
+st_inv_clip_size	Bullets in pack
+st_inv_clip_weight	Pack weight 
+st_inv_damage	Damage
+st_inv_damage_protection_infection	Protection against infection
+st_inv_damage_protection_pain	Pain threshold
+st_inv_device_slots	Item slots
+st_inv_dispersion	Dispersion
+st_inv_heal_amount	Healing
+st_inv_heal_amount_infection	Disinfect 
+st_inv_heal_amount_pain	Anesthesia
+st_inv_heal_broken_parts	Heals severe wounds
+st_inv_healing_body_head	Healing: body / head
+st_inv_healing_limbs	Healing: arms / legs
+st_inv_item_weight	Weight
+st_inv_magazine	Reserve ammo
+st_inv_magazine_size	Magazine
+st_inv_max_damage_distance	Distance  
+st_inv_move_speed_modifier	Movement speed
+st_inv_oxygen_amount	Oxygen capacity
+st_inv_pain_relief	Pain relief
+st_inv_reload	Reload speed
+st_inv_rpm	Rate of fire
+st_inv_splash_radius	Explosion radius
+st_inv_stamina_regen	Stamina regeneration
+st_inv_stopingpower	Stopping power
+st_inventory_label	Inventory
+st_inventrory	Equipment
+st_invite_from_friends_option	Invitations from friends only
+st_invite_to_clan	Invite to clan
+st_invite_to_squad	Invite to squad
+st_item_bought	Purchase completed
+st_item_craft_description	The preparation is completed; you can start upgrading.
+st_item_craft_description_choose_donor	Choose donor item
+st_item_craft_description_choose_item	Select an item for upgrade.
+st_item_craft_description_no_items	Choose an item for upgrade.
+st_item_craft_donor_slot	Donor item
+st_item_craft_fail_label	Item craft fail probability (-1 mod.)
+st_item_craft_label	Upgrade
+st_item_craft_main_slot	Upgradable item
+st_item_craft_success_label	Success probability (+1 mod.)
+st_item_damage_state	Status
+st_item_drop_chance_base	Default chance of item drop:
+st_item_drop_chance_by_premium	Premium account
+st_item_drop_chance_label	Item drop chance
+st_item_drop_chance_match_result	Battle advantage:
+st_item_drop_chance_penalty	Penalty for idleness:
+st_item_drop_chance_team_premium	Premium players in match:
+st_item_hint_label	Inventory
+st_item_hint_label_shop	Shop
+st_item_level	Item level
+st_item_modification	Changing modifications
+st_item_piece_postfix	units
+st_item_props_kg	kg
+st_item_props_meters	m
+st_item_props_percent	%
+st_item_props_sec	s
+st_item_sell_precondition_faction_1	Reputation with Scavengers required
+st_item_sell_precondition_faction_2	Reputation with Black Market required
+st_item_sell_precondition_faction_3	Reputation with the Renaissance Army required
+st_item_sell_precondition_faction_4	Reputation with the Fringe Settlers required
+st_item_sold	Item sold
+st_items_notes	Supplies
+st_items_notes_frame_1_text_1	To increase your chance for survival\nyou can take supplies into battle
+st_items_notes_frame_1_text_2	Supplies are: grenades, medkits,\ntraps, mines etc
+st_items_notes_frame_2_text_1	Supplies are placed in the pockets
+st_items_notes_frame_3_text_1	You can increase the number of pockets,\nusing equipment with a corresponding characteristic
+st_items_notes_frame_4_text_1	You can put\na limited number of items of the same type in one slot 
+st_items_notes_frame_5_text_1	You can increase the capacity of the pockets,\nusing equipment with a corresponding characteristic
+st_izh27_bundle_descr	<white>Contains the following items:\n- Improved MP-27M "Lancaster".\n- 1000 12x70 rounds, buckshot.</white>
+st_izh27_bundle_name	MP-27M "Lancaster" bundle
+st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_izh27_name	MP-27M Lancaster
+st_izh27_premium_2_description	Russian over-and-under shotgun, 12 gauge. Made by the Izhevsk Mechanical Plant under the Baikal name, one of the most widespread hunting and sporting double-barrel guns. Two barrels, one shot each. Fires one barrel at a time or both at once. Premium version in a special camouflage finish.
+st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jump_action	Jump
+st_kedr_description	Soviet submachine gun, ammo: 9x18 PM. Designed by Yevgeny Dragunov in the early 1970s; series production started only in the 1990s, for the Russian Interior Ministry and the police. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_kedr_name	PP-91 "Kedr"
+st_kg_postfix	kg
+st_kick_clan_message	Are you sure you want to expel the player from the clan?
+st_kiparis_description	This 9x18 PM chambered submachine-gun was designed back in 1970s, however it was never mass-produced. They were recollected in 1990s when a need for submachine-gun arised within the Interior Ministry forces in Russia. Equipped with magazine of 30 rounds.
+st_kiparis_name	OTs-02 Kiparis
+st_knowledge_skills_descr	By exploring the new world, you will learn how to better handle artifacts and anomalies.
+st_knowledge_skills_name	World knowledge
+st_knw_advanced_art_desc	The duration of artifacts activated increases.
+st_knw_advanced_art_name	Artifact expert
+st_knw_artefact_hunter_desc	Enables you to handle the newest artifact detectors and artifact-based devices.
+st_knw_artefact_hunter_name	Artifact hunter
+st_knw_artefacts_desc	Enables you to release the inner energy of artifact to activate it.
+st_knw_artefacts_name	Artifact activation
+st_knw_covering_desc	When in anomaly, you obtain extra protection against unmasking.
+st_knw_covering_name	Under cover
+st_knw_empathy_desc	By a miracle you find out when a new artifact is born nearby.
+st_knw_empathy_name	Sense of nature
+st_knw_protecting_desc	When in anomaly you gain extra protection from fire arms and explosions.
+st_knw_protecting_name	Anomaly shield
+st_knw_synergy_desc	The power of artifacts grows in proportion to their amount.
+st_knw_synergy_name	Synergy
+st_kriss_vector_description	American submachine gun, ammo: .45 ACP. Introduced by KRISS in the 2000s; its recoil system moves the bolt downwards, which keeps the muzzle from climbing. This one carries a Walther Competition II collimator sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
+st_kriss_vector_name	KRISS Vector
+st_label_invites	Invites
+st_label_leave_queue_btn	Leave the queue
+st_label_quenue	Awaiting players:
+st_label_reports	Reports
+st_label_status	Status
+st_label_support	System messages
+st_label_teamA	Allies
+st_label_teamB	Opponents
+st_label_time_average	Waiting time:
+st_leave_button	Leave
+st_leave_clan_message	Are you sure you want to leave the clan?
+st_leave_clan_money_message	Are you sure you want to leave the clan? The silver deposited on the registration account will be lost.
+st_leave_squad	Leave squad
+st_left_strafe_action	Strafe left
+st_less_then_hour	less than an hour
+st_level_01_name	Rudnya
+st_level_02_name	School
+st_level_03_name	Vostok Radar Station
+st_level_04_name	Chemical Plant
+st_level_05_name	Tarakanovsky Fort
+st_level_06_name	Mamayev Kurgan
+st_level_07_name	Vector Laboratory
+st_level_08_name	Cologne
+st_level_09_name	London
+st_level_10_name	Vostok Radar Station (v0.21)
+st_level_11_name	Mamayev Kurgan (v0.21)
+st_level_12_name	Chemical Plant (v0.11)
+st_level_13_name	Vostok Radar Station (v0.11)
+st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! Health restored!
+st_lifebone_pickup_hint	Larkspur artifact. Increases health regeneration. 
+st_lightning_quality_option	Lighting quality
+st_login_button_label	Enter
+st_login_default_text	E-mail
+st_login_eula_label	Licensing agreement
+st_login_menu_accept	Accept
+st_login_menu_cancel	Cancel
+st_login_menu_status_access_level_restriction	The access level is insufficient to enter.
+st_login_menu_status_connecting	Authorizing…
+st_login_menu_status_error_connection	Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt).
+st_login_menu_status_invalid_user_or_password	Invalid e-mail or password
+st_login_menu_status_invalid_version	You're using an outdated version of the game.
+st_login_menu_status_sign_in_already_online	 The user is already in the game
+st_login_menu_status_sign_in_attempt_interval_violated	You have exceeded the number of allowed login attempts. Try again in 10 seconds.
+st_login_menu_status_user_banned	You are banned. 
+st_login_menu_status_user_not_confirmed	Your account is not verified. Use link that was sent to your email address to verify your account.
+st_login_str	E-mail
+st_lost_modifier	Lost modifier
+st_loyalty_bonus_rep	Loyalty bonus
+st_m4a1_description	American carbine, ammo: 5.56x45. A shortened, lighter development of the M16 rifle, adopted by the US armed forces in the 1990s; the M4A1 version fires fully automatic and is used by special forces. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_m4a1_name	M4A1
+st_magnum_description	A six-round revolver of .357 Magnum caliber. It was introduced in 1955. Some believe it is one of the best in its class. Stands out with its smooth release and high precision.
+st_magnum_name	Colt Python
+st_maintenance	Servers technical maintenance is in progress. The application will close.
+st_map	Map
+st_match_items_found	Found
+st_match_making_level	Match level
+st_match_rewards	Mission reward
+st_match_settings_checkbox_PVE	Free game
+st_match_settings_checkbox_PVE_hint	Survival mode among the other players in the harsh conditions imposed by the ruthless Forest
+st_match_settings_checkbox_PVP	PvP
+st_match_settings_checkbox_PVP_hint	Combat mode where match level selection is based according to the level of equipment and formed in a team according to personal rating
+st_match_settings_checkbox_battery_charge	Protective device
+st_match_settings_checkbox_battery_charge_hint	The mode in which teams collect batteries for protective devices
+st_match_settings_checkbox_capture_points	Research
+st_match_settings_checkbox_capture_points_hint	Combat Mode involving capture of key points
+st_match_settings_checkbox_clan_match_hint	Clan teams combat modes
+st_match_settings_checkbox_rank_match	Rating match
+st_match_settings_checkbox_rank_match_hint	Confrontation mode of randomly selected clan teams in the clans rating table
+st_match_settings_checkbox_team_match	Team Deathmatch
+st_match_settings_checkbox_team_match_hint	Combat Mode in which you have to eliminate the enemy completely
+st_match_settings_checkbox_tournament_match	Tournament match
+st_match_settings_checkbox_tournament_match_hint	Confrontation of clan teams mode in the ongoing tournament
+st_match_settings_checkbox_training_match	Training match
+st_match_settings_checkbox_training_match_hint	Training room mode
+st_match_settings_clan_match	Clan match
+st_match_time_is_up	Match time is over!
+st_max_carried_weight_description	Portable weight:
+st_max_carried_weight_name	Athlete
+st_max_carried_weight_ultimate_description	Portable weight no longer affects movement speed, but you can't sprint.
+st_max_carried_weight_ultimate_name	Heavyweight
+st_med_combat_shock_desc	Penatlies applicable under critical damage of extremities apply several seconds later.
+st_med_combat_shock_name	In battle heat
+st_med_farmacial_desc	Increases the duration of medicaments.
+st_med_farmacial_name	Pharmaceutics
+st_med_fast_use_desc	The time to get medicaments ready for use is considerably reduced.
+st_med_fast_use_name	Quick use
+st_med_medical_desc	Allows you to handle the newest medicaments and medical devices.
+st_med_medical_name	Medic
+st_med_reanimation_desc	Considerably improves the condition of reanimated allies.
+st_med_reanimation_name	Reanimation
+st_med_refining_desc	Increases the effectiveness of medicaments.
+st_med_refining_name	Medicine purification
+st_med_revive_desc	Allows you to resurrect yourself, given you have the device required.
+st_med_revive_name	The final dash
+st_medicial_skills_descr	Increases your chances to survive, trains you to handle remedies and medical devices
+st_medicial_skills_name	Survival and first aid
+st_meele_hit_range_description	Will be available in the next update.
+st_meele_hit_range_name	Jump with a knife
+st_meele_hit_ultimate_description	Will be available in the next update.
+st_meele_hit_ultimate_name	Sledgehammer
+st_melee_action	Close combat
+st_member_dont_have_battle_permission	The player does not have enough rights for the status of field commander.
+st_mercenaries_faction	Mercenaries
+st_message_reroll_text	Undo skills?
+st_messages_censor_option	Enable message censorship
+st_messages_only_from_friends_option	Accept private messages from friends only
+st_microphone_sensitivity_option	Microphone sensitivity
+st_minimap	Minimap
+st_minimap_bottom	Lower left corner
+st_minimap_off	Minimap off
+st_minimap_position	Minimap position
+st_minimap_rotable_option	Fix minimap
+st_minimap_top	Upper left corner
+st_missile_weapon_action	Grenade
+st_missions	Missions
+st_mm_button_back	Back
+st_mm_button_exit_to_os	Quit to Windows
+st_mm_button_leave_match	Leave match
+st_mm_button_settings	Options
+st_mm_match_found	Match-making is complete! \nAwaiting server.
+st_mode_02_description	The Storm is approaching. The only chance to survive is to find batteries on the map and restore the protective stations that can neutralize the effect of the Storm. The more batteries you find the more reliable will be the protection. The team that collects the largest number of batteries wins.
+st_mode_02_name	Protective device
+st_mode_03_description	The Storm is approaching. The only chance to survive is to find batteries on the map and restore the protective stations that can neutralize the effect of the Storm. The more batteries you find the more reliable will be the protection. The team that collects the largest number of batteries wins.
+st_mode_03_name	Protective device
+st_mode_04_description	Secure the position of your group in the area by eliminating as many enemies as possible. Every death of a soldier takes one point from the reinforcement point pool of his team. The victor is the team which have most reinforcement points at the end of the match.
+st_mode_04_name	Team Deathmatch
+st_mode_05_description	Your task is to seize control of mobile research units. Each unit captured by your team produces anomalous activity research points. The winner is the team with the most points at the end of the match.
+st_mode_05_name	Research
+st_modification_screen_edit_decal_hint	To change the size and position of a decal, click on its slot
+st_modification_screen_hint	Drag camouflage or decal from your inventory into the item modification slot
+st_modified	Modified
+st_modifier_reroll_description	You can change only one modifier on an item but an unlimited number of times. When you change the modifier you will be prompted to choose one of three random modifiers.
+st_modifier_reroll_timer_description	Only one attempt in 6 hours is available when paying with silver.
+st_module_is_installed_on	The module is installed on
+st_money	Money
+st_money_modifier	Silver received
+st_money_reward_match	Match reward
+st_money_reward_premium	Premium bonus
+st_money_reward_quest	Quest reward
+st_monitor_ajust	Monitor adjustment
+st_monitor_count_option	Active monitor
+st_mosin_description	Bolt-action rifle, ammo: 7.62x54 mm. Was adopted by the Russian Imperial army. Well established during World War I and II. Equipped with stationary magazine of 5 rounds. 
+st_mosin_name	Mosin carbine
+st_motion_blur_amount_options	Motion blur
+st_mouse_invertion_option	Invert mouse
+st_mouse_sensitivity_option	Mouse sensitivity
+st_move_backward_action	Backward
+st_move_forward_action	Forward
+st_move_speed_weapon_penalty_description	Penalty to movement speed is eliminated while wearing oversized weapons.
+st_move_speed_weapon_penalty_name	Bear arms
+st_move_to_reserve	To reserve
+st_move_to_team	Move to team
+st_movement_speed_correction_perc_name	Movement speed
+st_movement_speed_description	Movement speed:
+st_movement_speed_name	Rapid
+st_movement_speed_when_aiming_description	The speed of movement while aiming:
+st_movement_speed_when_aiming_name	Battle stance
+st_mp153_description	Russian smooth-bore semi-automatic shotgun, ammo: 12x70. Owing to low price and good reliability, the weapon got widely accepted as a hunting and sports rifle. Equipped with underbarrel tube magazine of 4 rounds.
+st_mp153_name	MP-153 Baikal
+st_msbs_carbine_description	Polish modular carbine, ammo: 5.56x45. Developed in the 2010s by the Military University of Technology in Warsaw and the Fabryka Broni in Radom; adopted by the Polish army as the Grot. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
+st_msbs_carbine_name	MSBS Radon
+st_multiplicative_breath_vibration_modifier	Sight sway
+st_multiplicative_chamber_a_round_time_modifier	Chambering time
+st_multiplicative_device_damage_modifier	Device damage
+st_multiplicative_recoil_modifier	Weapon recoil
+st_multiplicative_reliability_modifier	Reliability
+st_multiplicative_reload_time_modifier	Reload speed
+st_multiplicative_respawn_time_modifier	Respawn time
+st_multiplicative_splash_radius_modifier	Explosion radius
+st_multiplicative_stamina_spending_modifier	Energy costs
+st_munition	Munition
+st_music_volume_option	Music
+st_must_be_in_clan_team	You must be in a clan team.
+st_my_place	My rank
+st_neostead_description	South African pump-action shotgun, 12 gauge. Designed in the 1990s by Tony Neophytou in the bullpup layout; it has two tube magazines above the barrel, and the slide is pushed forward to work the action. Holds 12 rounds. Single shots only.
+st_neostead_name	NeoStead 2000
+st_neostead_premium_description	South African pump-action shotgun, 12 gauge. Designed in the 1990s by Tony Neophytou in the bullpup layout; it has two tube magazines above the barrel, and the slide is pushed forward to work the action. Holds 12 rounds. Single shots only. Premium version in a special camouflage finish.
+st_neostead_premium_name	NeoStead 2000 M2
+st_new_items_unlocked	X new items in the shop:
+st_new_level_reached	You reached a new level!
+st_new_modifier	New modifier
+st_next_ammo_action	Change ammo type
+st_next_fire_queue_action	Change firing mode
+st_next_weapon	Next weapon
+st_nickname	Name
+st_no_available_resolution	Not supported
+st_no_faction_button_label	Choice
+st_no_faction_message_label	Cooperation with factions
+st_no_faction_message_text	Factions are the main suppliers of equipment, weapons and ammunition. You improve your reputation by performing faction quests. In return you are given access to their best products. At the same time, you can only cooperate with one faction.
+st_non_faction_items	Independent traders
+st_non_sport_behavior_claim	Team kill
+st_not_all_team_members_ready	Not all players have confirmed their readiness.
+st_not_enough_money	Not enough money for the transaction.
+st_not_enought_money_for_repair	Not enough money for repair
+st_not_enougth_money	Insufficient funds
+st_not_enougth_money_for_reroll	Not enough money to reset the skills 
+st_not_logged_id	Identification error. Please, restart the game.
+st_not_ready	Not ready
+st_notes_if_you_read	After reading
+st_notes_reward	you get:
+st_novice_026_helmet_desc	A novice stalker's knit cap from the cancelled S.T.A.L.K.E.R. 2.
+st_novice_026_helmet_name	Novice's knit cap
+st_of	of
+st_ok	Ok
+st_on_enemy_theft_item	The enemy has stolen a battery from your base, stop him!
+st_on_spawn_victory_item	The battery is charged! Deliver it to your base.
+st_one_handed	Secondary
+st_online_store	Buy gold
+st_onyx_activation_hint	Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 75% for %s s.
+st_onyx_pickup_hint	Onyx artifact. Decreases the damage and armor-piercing qualities of bullets that hit  the player by 5%.
+st_open	Open
+st_options_2taa	2xTAA
+st_options_adjust_gamma	Gamma:
+st_options_apply	Apply
+st_options_cancel	Cancel
+st_options_chat	Chat:
+st_options_chat_keys	Chat:
+st_options_controller	Controls
+st_options_cross_type	Crosshair:
+st_options_custom	Custom
+st_options_default_controls	Default settings
+st_options_default_video	Default settings
+st_options_friends	Friends:
+st_options_fxaa	FXAA
+st_options_game	Game:
+st_options_gameplay	Game
+st_options_hbao	HDAO
+st_options_high	High
+st_options_lobby	Lobby:
+st_options_low	Low
+st_options_medium	Medium
+st_options_minimum	Minimal
+st_options_off	Off
+st_options_ok	OK
+st_options_on	On
+st_options_optimal_video	Optimal settings
+st_options_sound	Audio
+st_options_ssao	SSAO
+st_options_ssdo	SSDO
+st_options_ultra	Ultra
+st_options_video	Graphics
+st_options_voice	Voice:
+st_options_volume	Volume:
+st_other	Other
+st_oust_commander	Change commander
+st_overweight_penalty_description	The influence of weight on movement speed:
+st_overweight_penalty_name	Packrat
+st_oxygen_tank_description	Oxygen tank, hand-made by artisans in the Scavengers' camp. The breathing gas is stored in the compressed, non-liquified form.
+st_oxygen_tank_name	Oxygen tank
+st_pain_healt_correction_perc_name	Pain threshold
+st_paperdoll_btn_ammo	Ammo
+st_paperdoll_btn_fix	Fix
+st_paperdoll_btn_weight	Weight
+st_paperdoll_label	Character
+st_particles_quality_options	Particles quality
+st_password_default_text	Password
+st_password_str	Password
+st_pause_game_action	Pause
+st_pd_artefact	Artifact
+st_pd_back	backpack
+st_pd_foot	boots
+st_pd_hands	gloves
+st_pd_head	helmet
+st_pd_legs	pants
+st_pd_mask	mask
+st_pd_torso	jacket
+st_pd_weapon	Weapon
+st_percent_postfix	%
+st_personal_statistics	Personal achievements
+st_phy_adrenalin_desc	Every hit you receive slightly increases your movement speed and restores part of your stamina.
+st_phy_adrenalin_name	Adrenaline rush
+st_phy_athlet_desc	Lowers the impact of carried weight onto the movement speed.
+st_phy_athlet_name	Athlete
+st_phy_ignor_pain_desc	When moving in sprint, you are much less sensitive to pain.
+st_phy_ignor_pain_name	Pain ignore
+st_phy_melee_rush_desc	Distance from which you can kill an enemy in close combat is increased.
+st_phy_melee_rush_name	Jump with gun
+st_phy_second_breath_desc	In case of low stamina, you can get it fully restored. Can be activated once a minute.
+st_phy_second_breath_name	Second breath
+st_phy_sprinter_desc	Increases movement speed when sprinting.
+st_phy_sprinter_name	Sprinter
+st_phy_war_rage_desc	By killing enemy in close combat you will completely restore your stamina and stop feeling pain of wounds suffered.
+st_phy_war_rage_name	Battle rage
+st_physical_skills_descr	Increases your movement speed, weight carried, as well as stamina regeneration.
+st_physical_skills_label	Physical training
+st_physical_skills_name	Physical training
+st_picatinny_scope_medium_name	Optics / collimators
+st_pickup_item	Pick up ({USE})
+st_ping_postfix	ms
+st_pkp_pecheneg_description	Russian general-purpose machine gun, ammo: 7.62x54R. Developed by TsNIITochMash on the basis of the PKM and adopted in 2001; its heavy barrel with a forced-air cooling jacket allows long bursts without a barrel change. Fed from a 100-round belt. Supports single and automatic fire.
+st_pkp_pecheneg_name	PKP "Pecheneg"
+st_place	Place
+st_play_button	Play
+st_player_equipment_level	Equipment level
+st_player_info_label	Information about the player:
+st_player_is_already_in_clan	Player is already in clan.
+st_player_level	LEVEL
+st_player_not_found	Player not found.
+st_player_skills_check_failed	Error confirming skills upgrade.
+st_players_list_filter_text	Filter by name
+st_pm_description	Makarov pistol, ammo: 9x18 PM. Designed in 1948 to replace the Tokarev. Was adopted as a sidearm by the army and law-enforcement units. Equipped with magazine of 8 rounds.
+st_pm_name	PM
+st_pockets	Pockets
+st_point	point
+st_points_aviable	Points available
+st_points_earned	Your level
+st_post_process_options	Postprocessing quality
+st_pp2000_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_pp2000_name	PP-2000
+st_ppsh_description	Shpagin submachine gun, the legendary weapon of victory. In certain countries it was used up to late 1980s. Equipped with a 35 round box magazine.
+st_ppsh_name	PPSH-41
+st_premium	Premium
+st_premium_3_day	3 days
+st_premium_3_day_descr	(72 hours)
+st_premium_3_month	3 months
+st_premium_3_month_descr	(90 days)
+st_premium_6_month	6 months
+st_premium_6_month_descr	(180 days)
+st_premium_access_1d_voucher_descr	This voucher allows you to activate a premium account for one day.
+st_premium_access_1d_voucher_name	Premium account
+st_premium_action	Promotion!
+st_premium_advert	Activating premium now,\nyou’ll get all the bonuses for this match
+st_premium_ally_members	Thanks to Premium players
+st_premium_bonus	Experience\nIncome\nReputation
+st_premium_bonus_experience	EXPERIENCE GAIN!
+st_premium_bonus_item_search	ITEM SEARCH BONUS!
+st_premium_bonus_money	BATTLE REWARD!
+st_premium_bonus_profile	Equipment profile
+st_premium_bonus_reputation	FACTION REPUTATION BONUS!
+st_premium_button_advert	Buy PREMIUM
+st_premium_day	24 hours
+st_premium_day_descr	(24 hours)
+st_premium_discount	Discount
+st_premium_left	Left:
+st_premium_money	Gold
+st_premium_money_name	Gold
+st_premium_month	Month
+st_premium_month_descr	(30 days)
+st_premium_post_reward_descr	Activate premium account now,\nand get all the bonuses\nfor the last week as a reward!
+st_premium_post_reward_label	Get more with a premium account!
+st_premium_profile_hint	Available with premium account
+st_premium_profile_unlock_description	The third equipment profile is available only with premium account
+st_premium_reward_part_1	After the battle you will find 
+st_premium_reward_part_2	more items
+st_premium_week	Week
+st_premium_week_descr	(7 days)
+st_premium_year	Year
+st_premium_year_descr	(365 days)
+st_prepare_to_battle_notes	Preparing for battle
+st_prepare_to_battle_notes_frame_1_text_1	There are two teams in a match
+st_prepare_to_battle_notes_frame_2_text_1	Your allies are marked\nwith symbols above their heads
+st_prepare_to_battle_notes_frame_2_text_2	show teammates' names
+st_prepare_to_battle_notes_frame_3_text_1	Be careful, the enemy\nmay be concealed
+st_prepare_to_battle_notes_frame_3_text_2	Move cautiously
+st_prepare_to_battle_notes_frame_4_text_1	The wound indicator displays\nthe current state of the body
+st_prepare_to_battle_notes_frame_4_text_2	Use a medkit, it will help\nto ease pain and heal wounds
+st_prepare_to_battle_notes_frame_5_text_1	You can get a critical wound\nof your hand or foot
+st_prepare_to_battle_notes_frame_5_text_2	It imposes a penalty on shooting accuracy\nand the movement speed
+st_prepare_to_battle_notes_frame_6_text_1	If both your arms are broken,\nyou won't be able to use\ntwo-handed weapons
+st_prepare_to_battle_notes_frame_7_text_1	If both your legs are broken,\nyou won't be able to move
+st_prev_weapon	Previous weapon
+st_private_messages_in_game_option	Hide chat in match
+st_profile	Profile
+st_profile_check_failed	Impossible to enter the battle without weapons!
+st_profile_check_failed_weapon	Cannot enter the battle without weapons!
+st_profile_check_failed_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
+st_profile_check_failed_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
+st_profile_play_time	Play time
+st_profile_rename	Rename profile
+st_profile_rename_label	Rename profile
+st_profile_selection_warning	20 seconds respawn time when changing profile
+st_profile_warning_weapon	Cannot enter the battle without weapons!
+st_profile_warning_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
+st_profile_warning_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
+st_ptt_action	PTT
+st_ptt_button_option	PTT
+st_put_item	Put ({USE})
+st_quest_change_warning	Warning! Changing tasks will lower your faction loyalty!
+st_quest_completed	Mission accomplished!
+st_quest_failed	Mission failed!
+st_quest_progress	Task accomplishment progress
+st_quest_reward_info	The final reward depends on the level of a match
+st_quests	Missions
+st_quests_label	Missions
+st_quests_progress_text_alpha_option	Transparency
+st_quick_fix	Quick repair
+st_quick_use_action_1	Item 1
+st_quick_use_action_2	Item 2
+st_quick_use_action_3	Item 3
+st_quick_use_action_4	Item 4
+st_quick_use_action_5	Item 5
+st_quick_use_action_6	Item 6
+st_rank_up_to_commander_message	Are you sure you want the player to become the clan commander instead of you?
+st_ranking	Ranking
+st_ranking_diff	Difference
+st_rattle_activation_hint	Rattle is activated! Your footsteps cannot be heard by your enemy.
+st_rattle_pickup_hint	Rattle artifact. Hushes the sound of steps by 50%.
+st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_name	Smoke grenade RDG-M
+st_reach_level	reached <green>Level</green>
+st_ready	Ready
+st_refill_ammo_btn	Apply
+st_refill_ammo_label	Ammo
+st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
+st_regen_booster_name	Rations
+st_registration_str	Create account
+st_regular_fix	Repair
+st_regular_money	Silver
+st_reload_speed_description	Reload speed
+st_reload_speed_name	Reload
+st_relocate	Relocate
+st_rem700_description	An American rifle, ammo: 7.62х51. Got recognition as a sports, hunting and sniper rifle. Clip capacity: 5 rounds.
+st_rem700_name	Remington 700
+st_rem700_premium_description	An American rifle, ammo: 7.62x51. Got recognition as a sports, hunting and sniper rifle. Clip capacity: 5 rounds. Premium version in a special camouflage finish.
+st_rem700_premium_name	Remington 700 "Executioner"
+st_rem870_description	An American pump-action rifle, ammo: 12x70. Was widely used as a police firearm or that of a hunter. The hunter's modifications provides for a barrel-attached tube clip of 4 rounds of shots. 
+st_rem870_name	Remington 870
+st_remove	Remove
+st_remove_from_friends	Remove from friends
+st_remove_from_ignore	Remove from ignore
+st_remove_from_squad	Remove from squad
+st_remove_from_team	Kick from the team
+st_ren_back_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_1_name	Assault fighter's backpack
+st_ren_back_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_3_name	Cylinder "Zarya 4N"
+st_ren_back_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_back_5_name	"UKV-1" cylinder
+st_ren_boots_1_desc	Reliable army boots that protect the wearer's feet against mechanical damage and small traps. 
+st_ren_boots_1_name	Army boots
+st_ren_boots_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_3_name	Scout's boots
+st_ren_boots_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_4_name	Reinforced boots
+st_ren_boots_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_5_name	"OZK-18KB" Boots
+st_ren_boots_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_boots_6_name	"Zubr UM-4" Boots
+st_ren_gloves_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_1_name	Assault gloves
+st_ren_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_4_name	Reinforced gloves
+st_ren_gloves_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_5_name	"OZK-18KB" Gloves
+st_ren_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_gloves_6_name	"Zubr UM-4" Gloves 
+st_ren_helmet_1_desc	USSR paratrooper's helmet. It is hard to underestimate the role of this symbol for the Renaissance Army. Serves as good head protection against impact, while the sewn-in steel plates can stop small calibre bullets.
+st_ren_helmet_1_name	Paratrooper's helmet
+st_ren_helmet_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_2_name	Helmet "Vityaz-S"
+st_ren_helmet_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_3_name	Scout's helmet
+st_ren_helmet_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_4_name	"Molot UM-2" helmet
+st_ren_helmet_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_5_name	"OZK-18KB" Helmet
+st_ren_helmet_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_helmet_6_name	"Zubr UM-4" helmet
+st_ren_legs_1_desc	Camouflage pants with home made reinforced knee protection. Owing to the production quality and comfortable cut they allow the wearer to move freely and enable a fully-packed soldier to move faster. The pants contain an extra item pocket. 
+st_ren_legs_1_name	Army pants
+st_ren_legs_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_2_name	"Shturm" pants
+st_ren_legs_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_3_name	Scout's pants
+st_ren_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_4_name	"Molot UM-2" pants
+st_ren_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_5_name	"OZK-18KB" Pants
+st_ren_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_legs_6_name	"Zubr UM-4" pants
+st_ren_mask_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_2_name	Assault mask
+st_ren_mask_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_3_name	Respirator "Zanaves"
+st_ren_mask_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_mask_5_name	"PMK-7S" Gas mask
+st_ren_rep_modifier	"The Renaissance Army" reputation
+st_ren_torso_1_desc	A common class II military armored vest, adapted for use in the post-apocalyptic world. A large number of pouches provides maximum capacity for ammunition and equipment.
+st_ren_torso_1_name	Military armored vest
+st_ren_torso_2_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_2_name	Body Armor Vest "Shturm"
+st_ren_torso_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_3_name	"Sokol" bulletproof vest
+st_ren_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_4_name	"Molot UM-2" Vest
+st_ren_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_5_name	"OZK-18KB" Vest
+st_ren_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ren_torso_6_name	"Zubr UM-4" bulletproof vest
+st_renaissance_bring_x_items_descr	The new world has set its challenges for us. In order to survive, it's not enough to eliminate the enemy, we need to activate a special device to protect us against the Storm.
+st_renaissance_bring_x_items_name	Protection against Storm
+st_renaissance_bring_x_items_obj	Find and bring batteries:
+st_renaissance_defend_items_descr	In war there are no trifles. A good defense is as important as your offense. Defend your base from enemy attacks, prevent the loss of blood that molded your allies.
+st_renaissance_defend_items_name	Reliable Defense
+st_renaissance_defend_items_obj	Win a match without losing batteries
+st_renaissance_faction	The Renaissance Army
+st_renaissance_grenade_enemies_descr	Grenades proved their effectiveness when used in offensive and defensive operations. You definetely should know how to use them.
+st_renaissance_grenade_enemies_name	Grenadier
+st_renaissance_grenade_enemies_obj	Kill enemies with grenade in a match:
+st_renaissance_headshots_descr	Prove you are a master of handling weapons. It doesn't matter what kind of gun you're holding - be it a submachine gun or a sniper rifle. A good soldier always aims accurately. 
+st_renaissance_headshots_name	Sharp shooter
+st_renaissance_headshots_obj	Enemies to kill with headshot:
+st_renaissance_kd_ratio_descr	A good soldier is not a fanatic cut-throat. Self-control and discipline make us stand out from the mob and make us stronger. Prove that for real! 
+st_renaissance_kd_ratio_name	Superiority!
+st_renaissance_kd_ratio_obj	Win a match with the kill/death ratio of at least
+st_renaissance_kill_enemies_descr	à la guerre comme à la guerre.It is not always possible to win with minimal bloodshed, so make sure you deal with the enemy quickly. Remember, every opponent killed brings us closer to victory!
+st_renaissance_kill_enemies_name	Fire for effect
+st_renaissance_kill_enemies_obj	Kill opponents in one match:
+st_renaissance_killstreak_descr	Military glory awaits you on the battlefield. But only a true hero can earn it! Prove that you are worthy of the title of a Hero of the Renaissance Army!
+st_renaissance_killstreak_name	Hero!
+st_renaissance_killstreak_obj	Make a kill streak of:
+st_renaissance_level_0	Unknown
+st_renaissance_level_1	Soldier
+st_renaissance_level_10	Colonel
+st_renaissance_level_2	Lance Corporal
+st_renaissance_level_3	Sergeant
+st_renaissance_level_4	First Sergeant
+st_renaissance_level_5	Warrant Officer
+st_renaissance_level_6	Lieutenant
+st_renaissance_level_7	Captain
+st_renaissance_level_8	Major
+st_renaissance_level_9	Lieutenant Colonel
+st_renaissance_level_unlock_0	Congratulations! You have unlocked the Renaissance Army tasks!
+st_renaissance_level_unlock_1	Congratulations! You are a Renaissance Army Soldier now!
+st_renaissance_level_unlock_10	Congratulations! You have been promoted to the rank of Renaissance Army Colonel!
+st_renaissance_level_unlock_2	Congratulations! You are a Renaissance Army Lance Corporal now!
+st_renaissance_level_unlock_3	Congrats on reaching the Renaissance Army Sergeant rank!
+st_renaissance_level_unlock_4	Congrats! You are a Renaissance Army Elder now!
+st_renaissance_level_unlock_5	Congrats! Now you are a Renaissance Army Warrant Officer!
+st_renaissance_level_unlock_6	Congratulations! You are a Renaissance Army Lieutenant now!
+st_renaissance_level_unlock_7	Congrats! You have been promoted to a Renaissance Army Captain!
+st_renaissance_level_unlock_8	Congrats! You are a Renaissance Army Major now!
+st_renaissance_level_unlock_9	Congratulations! You are a Renaissance Army Lieutenant Colonel now!
+st_renaissance_meele_kill_descr	Soldiers of the Renaissance Army are strong not only physically, but also in spirit. Endurance and courage are our way to victory. Learn how to defend yourself in close combat.
+st_renaissance_meele_kill_name	Quick response
+st_renaissance_meele_kill_obj	Kill enemies using melee:
+st_renaissance_represent	You must be dressed to represent the Renaissance Army.
+st_renaissance_steal_box_descr	Fighting face to face is respectable. But not always effective. A good sabotage behind enemy lines can turn the tide of the battle and bring victory!
+st_renaissance_steal_box_name	Saboteur
+st_renaissance_steal_box_obj	Steal a battery from the enemy base and bring it to your base.
+st_renaissance_win_score_descr	Never rest on our laurels - that's the motto of the Renaissance Army. The more batteries connected to the circuit - the less we will suffer from the storm.
+st_renaissance_win_score_name	Glorious victory!
+st_renaissance_win_score_obj	Win a match with batteries brought:
+st_renaissance_win_x_games_descr	Step by step, fight the battle, victory after victory - this is our way to a revival of the Renaissance Army! We have nowhere to retreat, victory at all costs!
+st_renaissance_win_x_games_name	For the Motherland!
+st_renaissance_win_x_games_obj	Win matches:
+st_rename_account_voucher_descr	This voucher entitles you to change your nickname for free.
+st_rename_account_voucher_name	Character rename voucher
+st_rep_reward_match	Reputation gain
+st_rep_reward_premium	Premium bonus
+st_rep_reward_quest	Quest reward
+st_repair_time	Repairing
+st_repair_time_label	time
+st_repair_voucher_descr	With the repair kit you can fix any critical equipment failure.
+st_repair_voucher_name	Repair kit
+st_repair_window_label	Repair
+st_reputation	Reputation
+st_reroll	Clear
+st_reroll_message_broken_item	You can't modify the damaged item.
+st_reroll_modifier_lock_hint	You can change this modifier only.
+st_reroll_timer_hint	Will be available in
+st_research_unit_a_captured	Unit A captured
+st_research_unit_a_lost	Unit A lost
+st_research_unit_b_captured	Unit B captured
+st_research_unit_b_lost	Unit B lost
+st_research_unit_c_captured	Unit C captured
+st_research_unit_c_lost	Unit C lost
+st_resolution_option	Resolution
+st_respawn_booster_description	Civil "FD3" radio. Extremely useful in combat for squad organization and cooperation.
+st_respawn_booster_name	Radio
+st_respawn_time_pref	Respawn in
+st_resupply_check_empty_inventory	Not enough ammo in storage
+st_resupply_check_full_ammo	Ammo is full
+st_resupply_finished	Ammo and supplies refilled!
+st_revenue	Income
+st_reward	Reward
+st_rgd5_descr	Offensive anti-personnel hand grenade. When exploding fragments of ruptured shell are dispersed.
+st_rgd5_name	RGD-5 grenade
+st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rgo_name	RGO
+st_right_strafe_action	Strafe right
+st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rpd_name	RPD
+st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rpk_name	RPK-74M
+st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_name	Saiga-12K
+st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_premium_name	Saiga-12S
+st_save_password_str	Save password
+st_scav_back_1_desc	A hand-made container for artifact storage, designed as backpack. A useful item when going out to hunt artifacts.
+st_scav_back_1_name	Backpack with container
+st_scav_boots_1_desc	Crude boots found at trash dump or removed from a dead body. Protect the legs from injuries and damage, frequently save the day at challenging trips.
+st_scav_boots_1_name	Leather boots
+st_scav_boots_2_desc	A hermetic leg protection when moving over toxic surfaces. With such boots one can reach out for tough areas, which most survivors are unable to access.
+st_scav_boots_2_name	Chemical protection boots
+st_scav_boots_3_desc	Sturdy waterproof boots with steel toe-cap and insulation. These boots are seen as priceless loot for a scavenger. In severe weather they considerably raise your chances of survival. Increase your movement speed by 2%.
+st_scav_boots_3_name	Military boots
+st_scav_gloves_1_desc	Simple fingerless gloves. Helps to keep your hands warm and protected when on missions. Comfortable to use - no need to take them off to produce or use something. Increase the aiming speed by 2%.
+st_scav_gloves_1_name	Cut gloves
+st_scav_gloves_2_desc	Rubberized isolation gloves for working with contaminated and anomalous materials. A must-have for any artifact hunter.
+st_scav_gloves_2_name	Chemical protection gloves
+st_scav_gloves_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_gloves_4_name	Rough gloves
+st_scav_helmet_1_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_helmet_1_name	Mounting helmet
+st_scav_legs_1_desc	Crude pants. They keep your legs warm and endure the traveling around ruins of constructions.
+st_scav_legs_1_name	Linen pants
+st_scav_legs_2_desc	Isolation pants hand-made by the scavengers. Protect your legs against toxic substances. A handy pocket makes room for a couple medikits or grenades.
+st_scav_legs_2_name	Chemical protection pants
+st_scav_legs_3_desc	Neatly sewn pants of durable material with knee protection and extra gear support. They ensure good leg protection against severe conditions when on a mission. A handy pocket makes room for a couple medikits or grenades.
+st_scav_legs_3_name	Field pants
+st_scav_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_legs_4_name	Survivor's pants
+st_scav_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_legs_5_name	Reinforced pants
+st_scav_rep_modifier	"Scavengers" reputation
+st_scav_resp_1_desc	A respirator modified by scavengers to protect your respiratory organs. Protects against toxic vapor and radioactive dust
+st_scav_resp_1_name	Amber respirator
+st_scav_torso_1_desc	A light and simple to manufacture quilted jacket. The first scavenger's outfit. Helps survive tough weather conditions. Spacious pockets provide room for a couple medikits or grenades, as well as extra packs of ammo. 
+st_scav_torso_1_name	Quilted jacket
+st_scav_torso_2_desc	An indispensable thing when exploring ecologically contaminated territories. Protects your torso and arms from coming into contact with toxic and poisonous substances. Contains in-built artifact container.
+st_scav_torso_2_name	Chemical protection jacket
+st_scav_torso_3_desc	An army vest modified by the scavengers. Removed from a dead soldier or procured from a looted army warehouse. A number of pouches available allows grabbing a couple medikits or grenades, so as extra ammo packs.
+st_scav_torso_3_name	Light armored vest
+st_scav_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_scav_torso_4_name	Survivor's jacket
+st_scav_torso_5_desc	Quilted cotton jacket. Fortified inside with curved metal plates and leather patches on the outside. Good choice for an experienced Scavenger.
+st_scav_torso_5_name	Reinforced padded jacket
+st_scavenger_starter_bundle_descr	<white>Contains the following items:\n"Survivor's jacket".\n"Survivor's pants".\n- Improved OTs-02 "Kiparis".\n- 1000 rounds of 9x18 PM ammo.</white>
+st_scavenger_starter_bundle_name	"Survivor" bundle
+st_scavengers_accuracy_descr	What's the use in shooting in all directions? One bullet is enough to take a life. Learn to conserve your ammo.
+st_scavengers_accuracy_name	Shooting skills
+st_scavengers_accuracy_obj	Win a match with accuracy rate higher than
+st_scavengers_bring_x_items_descr	A battle is not always won with weapons. Remember your main purpose - to collect as many batteries as you can to power the protective device.
+st_scavengers_bring_x_items_name	Victory contribution
+st_scavengers_bring_x_items_obj	Find and bring batteries:
+st_scavengers_defend_items_descr	Remember that the enemy will not always play by the rules. Don't forget to defend your base and thwart any attempts of the enemy to steal batteries from it.
+st_scavengers_defend_items_name	Possessions defence
+st_scavengers_defend_items_obj	Win a match without losing batteries
+st_scavengers_faction	Scavengers
+st_scavengers_find_artifacts_descr	Explore anomalies in search of artifacts. In a tense battle strengthen yourself by placing an artifact on your belt. Protection from anomalies significantly helps one in the search for artifacts.
+st_scavengers_find_artifacts_name	Find artifacts
+st_scavengers_find_artifacts_obj	Find artifacts in one match:
+st_scavengers_grenade_enemies_descr	Throwing grenades well is as important as shooting accurately. Sometimes there's no other way to get the enemy than with a grenade.
+st_scavengers_grenade_enemies_name	Accurate throw
+st_scavengers_grenade_enemies_obj	Kill enemies with grenade in a match:
+st_scavengers_kd_ratio_descr	It's not difficult to be a hero. But staying alive is. The longer you live - the more useful you become for the team. Don't be a coward who hides all the time. Learn to survive!
+st_scavengers_kd_ratio_name	Survival
+st_scavengers_kd_ratio_obj	Win a match with the kill/death ratio of at least
+st_scavengers_kill_enemies_descr	When you find yourself face to face with the enemy - there's no time for sentiment. There's only one winner of the duel. And it better be you!
+st_scavengers_kill_enemies_name	Self-defence
+st_scavengers_kill_enemies_obj	Kill opponents in one match:
+st_scavengers_level_0	Unknown
+st_scavengers_level_1	Rookie
+st_scavengers_level_2	Determined
+st_scavengers_level_3	Experienced
+st_scavengers_level_4	Die-Hard
+st_scavengers_level_5	Veteran
+st_scavengers_level_unlock_0	Congrats! You have the Scavengers tasks available to you now!
+st_scavengers_level_unlock_1	Congrats! You are a Scavengers Newbie now!
+st_scavengers_level_unlock_2	Congratulations! You are a Proven Scavenger now!
+st_scavengers_level_unlock_3	Congrats! You are an Experienced Scavenger now!
+st_scavengers_level_unlock_4	Congrats! You are a Hardened Scavenger now!
+st_scavengers_level_unlock_5	Congrats! You have been promoted to a Scavengers Veteran!
+st_scavengers_meele_kill_descr	If conflict is unavoidable, try to resolve it quickly and quietly. Sneaking to the enemy and stabbing him is much less likely to attract attention.
+st_scavengers_meele_kill_name	Without fanfare
+st_scavengers_meele_kill_obj	Kill enemies using melee:
+st_scavengers_represent	You must wear a "Scavengers" outfit.
+st_scavengers_steal_box_descr	Taking a battery away from the enemy is a double pleasure. Some will call it theft, but if the enemies don't protect their property then they just don't need it.
+st_scavengers_steal_box_name	Petty theft
+st_scavengers_steal_box_obj	Steal a battery from the enemy base and bring it to your base.
+st_scavengers_win_score_descr	The more batteries that are activated in the device - the greater will be your reward for winning the match.
+st_scavengers_win_score_name	Flawless victory
+st_scavengers_win_score_obj	Win a match with batteries brought:
+st_scavengers_win_x_games_descr	We live in a cruel world. The Winner takes everything while the loser is forced to be content with leftovers. Remember, the winning team receives the greater reward.
+st_scavengers_win_x_games_name	Taste of victory
+st_scavengers_win_x_games_obj	Win matches:
+st_scientists_faction	Institute
+st_search_label	Search
+st_search_range	Match level
+st_second_weapon_action	Weapon 2
+st_seconds_short	s.
+st_seed_settings	Seeding in lobby
+st_seeding_max_upload_in_kb_option	Limit upload speed:
+st_select_send_to_action	Select recepient
+st_sell	Sell
+st_send	Send  
+st_send_message	Send message
+st_send_message_action	Send message
+st_server_maintenance	Time before regular server maintenance begins
+st_settings	Settings
+st_settings_label	Settings
+st_shading_quality_option	Shaders quality
+st_shadow_quality_option	Shadows quality
+st_shooting_skills_label	Firearms training
+st_shop	Shop
+st_shop_label	Shop
+st_shop_scope_1p69_hyperon_description	Scope with x4 magnification
+st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" optical sight, x4
+st_shop_scope_acog_ta31_description	Scope with x4 magnification
+st_shop_scope_acog_ta31_name	TA31 optical sight, x4
+st_shop_scope_aimpoint_compm4_description	Swedish red dot sight with a 2 MOA dot and a battery that lasts up to eight years of constant use. Adopted by the US Army as the M68 CCO; mounts on a Picatinny rail.
+st_shop_scope_aimpoint_compm4_name	CompM4 collimator
+st_shop_scope_cobra_ekp_8_description	Russian collimator sight with four selectable red reticles. Lets the shooter aim fast with both eyes open; mounts on the side rail of Kalashnikov-type weapons.
+st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 collimator
+st_shop_scope_docter_description	Compact German open reflex sight with a red dot. Light and quick to aim with; made for shotguns, handguns and short weapons.
+st_shop_scope_docter_name	Docter collimator
+st_shop_scope_elcan_specterdr_description	Scope with x4 magnification
+st_shop_scope_elcan_specterdr_name	SpecterDR optical sight, x4
+st_shop_scope_eotech_552_description	American holographic sight: a 65 MOA ring with a 1 MOA dot in the centre, powered by AA batteries. Fast on close and medium ranges; mounts on a Picatinny rail.
+st_shop_scope_eotech_552_name	EOTech 552 collimator
+st_shop_scope_leupold_deltapoint_description	Compact American reflex sight with a red triangle aiming mark. Made for handguns and light weapons; small enough to stay out of the way.
+st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint collimator
+st_shop_scope_leupold_mk4_description	Scope with x4 magnification
+st_shop_scope_leupold_mk4_name	Leupold MK4 optical sight, x4
+st_shop_scope_pso_1_description	Scope with x4 magnification
+st_shop_scope_pso_1_name	PSO-1 optical sight, x4
+st_shop_scope_pso_1_old_description	Scope with x4 magnification
+st_shop_scope_pso_1_old_name	PSO-1 O optical sight, x4
+st_shop_scope_pu_3_5x_description	Scope with x3.5 magnification
+st_shop_scope_pu_3_5x_name	PU optical sight, x3.5
+st_shop_showcase	Main
+st_short_clan_string	The name is too short
+st_show_ammo	Show ammo 
+st_show_character_action	Character window
+st_show_enemy_killed_marker	Show kill indicator
+st_show_friends_action	Friends
+st_show_inventory_action	Inventory
+st_show_options_action	Options
+st_show_player_info_button_hint	Show player’s information
+st_show_player_info_hint	Double click to show information
+st_show_quest_list	Show missions window
+st_show_quests_progress_option	Show quest progress in match
+st_show_shop_action	Shop
+st_show_squad_list	Show squad window
+st_skills_already_rerolled	Skills already reset
+st_sks_description	Semi-automatic Simonov carbine, chambered for 7.62x39 ammunition. Was adopted by Soviet army in 1949, but later superseded by automatic rifles. Equipped with a non-removable 10 round magazine.
+st_sks_name	SKS
+st_sks_premium_2_description	Semi-automatic Simonov carbine, chambered for 7.62x39 ammunition. Was adopted by Soviet army in 1949, but later superseded by automatic rifles. Equipped with a non-removable 10 round magazine. Premium version in a special camouflage finish.
+st_sks_premium_2_name	SKS "Arrow Head"
+st_sks_premium_description	Semi-automatic Simonov carbine, chambered for 7.62x39 ammunition. Was adopted by Soviet army in 1949, but later superseded by automatic rifles. Equipped with a non-removable 10 round magazine. Premium version in a special camouflage finish.
+st_sks_premium_name	SKS-MF
+st_slide1_button_accept_label	Next
+st_slide1_text	Hello, Survivor. You were lucky to survive the end of the world. After weeks of wandering, you finally managed to get to places that have not yet been absorbed by the Forest.
+st_slide1_text_enter_name	What name will you choose in the new world?
+st_slide1_tutorial_reward	On finishing the tutorial you'll get a reward:
+st_slot_control_label	Select amount
+st_slots	Slots
+st_sniper_skills_descr	Improves your weapons handling skills.Increases shooting accuracy and aiming speed.
+st_sniper_skills_name	Firearm training
+st_snp_fast_draw_desc	Your skills enable you to change weapons faster.
+st_snp_fast_draw_name	Quick weapon swop
+st_snp_fast_reload_desc	You have learned to reload your guns quicker.
+st_snp_fast_reload_name	Quick reload
+st_snp_fast_shot_desc	Increases trigger squeezing speed with semi-automatic weapons.
+st_snp_fast_shot_name	Trigger discipline
+st_snp_iron_breath_desc	Allows you to hold your breath longer when aiming.
+st_snp_iron_breath_name	Irons lungs
+st_snp_sniper_desc	Considerably increases your accuracy of fire when using sniper, tactical and collimator sights.
+st_snp_sniper_name	Sniper
+st_snp_steady_breath_desc	You get restored faster after holding breath.
+st_snp_steady_breath_name	Smooth exhaling
+st_snp_steady_grip_desc	Increases your accuracy of fire when moving.
+st_snp_steady_grip_name	Firm grip
+st_soc_vepr_description	Russian self-loading carbine of the Vepr family, ammo: 7.62x39. Made by the Molot plant in Vyatskiye Polyany on the reinforced RPK machine gun receiver, as a hunting and sporting weapon. Equipped with a 10-round magazine. Single shots only.
+st_soc_vepr_name	SOK-94
+st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_socom16_name	SOCOM 16
+st_sort	Sort
+st_sort_cost	By price
+st_sort_label	Filter
+st_sort_level	By level
+st_sort_reset	Reset
+st_space_symbol_clan_string	Invalid delimeters
+st_spam_filter_block_notification	The spam filter has blocked your message. Please, wait for
+st_spam_filter_block_notification_fin	sec.
+st_spas12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_spas12_name	Franchi SPAS-12
+st_special_offer	Special offer
+st_speed_booster_description	Energy drink with caffeine and taurine. Invigorates and stimulates the central nervous system.
+st_speed_booster_name	Tornado Energy Drink
+st_spot_action	Enemy spotted
+st_spring_activation_hint	Spring activated! Speed of movement and aiming +10%. Energy regeneration increased! Bullets do not slow you!
+st_spring_pickup_hint	Spring artifact. Increases movement speed and aiming speed by 5%.
+st_sprint_action	Sprint (hold)
+st_sprint_toggle_action	Sprint 
+st_squad	Squad
+st_squad_list_locked_hint	You can’t create a squad, being in a clan team
+st_squad_not_ready	Squad not ready
+st_sr2m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sr2m_name	SR-2M "Veresk"
+st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vikhr".\n- 2000 rounds of 9x39 SP-6 ammo.</white>\n
+st_sr3m_bundle_name	SR-3M "Vikhr" bundle
+st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sr3m_name	SR-3M "Vikhr"
+st_srp_attachments	Attachments
+st_srp_equipment029_bm_back_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_back_6_name	Watchman backpack
+st_srp_equipment029_bm_back_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_back_8_name	Life support system M-1
+st_srp_equipment029_bm_back_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_back_9_name	Antiradar Veil
+st_srp_equipment029_bm_boots_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_boots_5_name	Boots "Viper"
+st_srp_equipment029_bm_boots_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_boots_8_name	Boots "Omicron"
+st_srp_equipment029_bm_boots_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_boots_9_name	Mercenary boots
+st_srp_equipment029_bm_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_gloves_6_name	Watchman gloves
+st_srp_equipment029_bm_gloves_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_gloves_8_name	Gloves "Omicron"
+st_srp_equipment029_bm_gloves_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_gloves_9_name	Mercenary gloves
+st_srp_equipment029_bm_helmet_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_helmet_6_name	Helmet "Viper"
+st_srp_equipment029_bm_helmet_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_helmet_8_name	Helmet "Omicron"
+st_srp_equipment029_bm_helmet_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_helmet_9_name	Mercenary helmet
+st_srp_equipment029_bm_legs_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_legs_5_premium_name	"Marodeur MKII" pants
+st_srp_equipment029_bm_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_legs_6_name	Pants "Viper"
+st_srp_equipment029_bm_legs_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_legs_7_name	Watchman pants
+st_srp_equipment029_bm_legs_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_legs_8_name	Pants "Omicron"
+st_srp_equipment029_bm_legs_8_premium_name	Pants "Omicron MKII"
+st_srp_equipment029_bm_legs_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_legs_9_name	Mercenary pants
+st_srp_equipment029_bm_mask_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_mask_8_name	Mask "Omicron"
+st_srp_equipment029_bm_torso_5_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_torso_5_premium_name	"Marodeur MKII" jacket
+st_srp_equipment029_bm_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_torso_6_name	Bulletproof vest "Viper"
+st_srp_equipment029_bm_torso_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_torso_7_name	Watchman jacket
+st_srp_equipment029_bm_torso_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_torso_8_name	Bulletproof vest "Omicron"
+st_srp_equipment029_bm_torso_8_premium_name	Bulletproof vest "Omicron MKII"
+st_srp_equipment029_bm_torso_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_bm_torso_9_name	Mercenary jacket
+st_srp_equipment029_edge_boots_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_boots_0_name	Mocassins
+st_srp_equipment029_edge_helmet_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_helmet_7_name	Warrior helmet
+st_srp_equipment029_edge_legs_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_legs_0_name	Animal skin pants
+st_srp_equipment029_edge_legs_1_desc	Pants made of thick mutant hides provide good protection against both anomalies and small calibre bullets. Movement speed increased by 3%.
+st_srp_equipment029_edge_legs_1_name	Hunter's pants
+st_srp_equipment029_edge_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_legs_4_name	"Leshy" pants
+st_srp_equipment029_edge_legs_5_special_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_legs_5_special_name	Keeper Of The Sun Pants
+st_srp_equipment029_edge_legs_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_legs_7_name	Warrior pants
+st_srp_equipment029_edge_legs_7_premium_name	Pants "Berserker"
+st_srp_equipment029_edge_legs_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_legs_8_premium_name	Follower pants
+st_srp_equipment029_edge_torso_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_torso_0_name	Animal skin vest
+st_srp_equipment029_edge_torso_1_desc	Hunter's jacket made of hide and enriched with protective amulets against the wrath of nature. Wolf's skin scares the predators away and fills the enemy with terror. Handy pouch provides room for items.
+st_srp_equipment029_edge_torso_1_name	Hunter's jacket  
+st_srp_equipment029_edge_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_torso_4_name	"Leshy" vest
+st_srp_equipment029_edge_torso_5_special_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_torso_5_special_name	Keeper Of The Sun Vest
+st_srp_equipment029_edge_torso_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_torso_7_name	Warrior jacket
+st_srp_equipment029_edge_torso_7_premium_name	Jacket "Berserker"
+st_srp_equipment029_edge_torso_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_edge_torso_8_premium_name	Follower jacket
+st_srp_equipment029_ren_back_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_back_8_name	Paratrooper backpack
+st_srp_equipment029_ren_boots_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_boots_0_name	Private boots
+st_srp_equipment029_ren_legs_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_legs_0_name	Private pants
+st_srp_equipment029_ren_legs_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_legs_3_premium_name	"Sokol-M" pants
+st_srp_equipment029_ren_legs_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_legs_4_premium_name	"Molot UM-2A" pants
+st_srp_equipment029_ren_legs_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_legs_8_name	Paratrooper pants
+st_srp_equipment029_ren_legs_8_premium_name	Guards pants
+st_srp_equipment029_ren_torso_0_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_torso_0_name	Private jacket
+st_srp_equipment029_ren_torso_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_torso_3_premium_name	"Sokol-M" bulletproof vest
+st_srp_equipment029_ren_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_torso_4_premium_name	"Molot UM-2A" Vest
+st_srp_equipment029_ren_torso_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_ren_torso_8_name	Paratrooper bulletproof vest
+st_srp_equipment029_ren_torso_8_premium_name	Guards bulletproof vest
+st_srp_equipment029_scav_back_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_back_7_name	Field radio
+st_srp_equipment029_scav_back_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_back_8_name	Big backpack
+st_srp_equipment029_scav_back_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_back_9_name	Double cylinder
+st_srp_equipment029_scav_boots_10_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_boots_10_name	Nomad Boots
+st_srp_equipment029_scav_boots_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_boots_8_name	Combat boots
+st_srp_equipment029_scav_boots_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_boots_9_name	Firefighter boots
+st_srp_equipment029_scav_gloves_10_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_gloves_10_name	Nomad Gloves
+st_srp_equipment029_scav_gloves_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_gloves_6_name	Saboteur gloves
+st_srp_equipment029_scav_gloves_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_gloves_7_name	Pathfinder gloves
+st_srp_equipment029_scav_gloves_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_gloves_8_name	Combat gloves
+st_srp_equipment029_scav_gloves_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_gloves_9_name	Firefighter gloves
+st_srp_equipment029_scav_helmet_10_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_helmet_10_name	Nomad Helmet 
+st_srp_equipment029_scav_helmet_3_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_helmet_3_name	Scavenger hood
+st_srp_equipment029_scav_helmet_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_helmet_7_name	Pathfinder helmet
+st_srp_equipment029_scav_helmet_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_helmet_8_name	Combat helmet
+st_srp_equipment029_scav_helmet_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_helmet_9_name	Metal helmet
+st_srp_equipment029_scav_legs_10_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_10_name	Nomad Pants
+st_srp_equipment029_scav_legs_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_6_name	Saboteur pants
+st_srp_equipment029_scav_legs_6_premium_name	Guerrilla pants
+st_srp_equipment029_scav_legs_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_7_name	Pathfinder pants
+st_srp_equipment029_scav_legs_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_8_name	Combat pants
+st_srp_equipment029_scav_legs_8_premium_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_8_premium_name	Veteran pants
+st_srp_equipment029_scav_legs_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_legs_9_name	Firefighter pants
+st_srp_equipment029_scav_mask_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_mask_9_name	Gas mask "Barrier"
+st_srp_equipment029_scav_torso_10_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_torso_10_name	Nomad Vest 
+st_srp_equipment029_scav_torso_6_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_torso_6_name	Saboteur jacket
+st_srp_equipment029_scav_torso_6_premium_name	Guerrilla jacket
+st_srp_equipment029_scav_torso_7_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_torso_7_name	Pathfinder bulletproof vest
+st_srp_equipment029_scav_torso_8_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_torso_8_name	Combat Bulletproof Vest
+st_srp_equipment029_scav_torso_8_premium_name	Veteran Bulletproof Vest
+st_srp_equipment029_scav_torso_9_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_srp_equipment029_scav_torso_9_name	Firefighter Bulletproof Vest
+st_srp_exchange_balance	Balance
+st_srp_exchange_button	Exchange
+st_srp_exchange_gold	Gold
+st_srp_exchange_pay	Pay
+st_srp_exchange_receive	Receive
+st_srp_exchange_short_gold	Not enough gold
+st_srp_exchange_short_silver	Not enough silver
+st_srp_exchange_title	Exchange
+st_srp_inventory_search	Search
+st_srp_language_option	Language:
+st_srp_language_restart	Applies after restart.
+st_srp_loadout_block_ammo	Too little ammo for a weapon
+st_srp_loadout_block_locked	This profile is locked
+st_srp_loadout_block_maintenance	Server maintenance soon: in %1$s min
+st_srp_loadout_block_pocket_twice	One item type in two pockets
+st_srp_loadout_block_shared_slot	Two items share a slot
+st_srp_loadout_block_weapon	No weapon
+st_srp_loadout_empty	empty
+st_srp_loadout_refused	The loadout could not be chosen.
+st_srp_loadout_sell_and	 and 
+st_srp_loadout_sell_item	Loadout %1$s
+st_srp_loadout_sell_many	Used in %1$s. Sell anyway?
+st_srp_loadout_sell_one	Used in Loadout %1$s. Sell anyway?
+st_srp_loadout_title	Loadout
+st_srp_loadout_unfit	can't play
+st_srp_login_account_hint	Account created on first sign-in
+st_srp_map_chemical_plant	Chemical Plant
+st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
+st_srp_map_cologne	Cologne
+st_srp_map_london	London
+st_srp_map_mamayev_kurgan	Mamayev Kurgan
+st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
+st_srp_map_rudnya	Rudnya
+st_srp_map_school	School
+st_srp_map_tarakanovsky_fort	Tarakanovsky Fort
+st_srp_map_vector	Vector Laboratory
+st_srp_map_vostok	Vostok Radar Station
+st_srp_map_vostok_v011	Vostok Radar Station (v0.11)
+st_srp_map_vostok_v021	Vostok Radar Station (v0.21)
+st_srp_matches_another_joining	Another player is joining
+st_srp_matches_balanced	Match is already balanced
+st_srp_matches_cannot_join	You cannot join now
+st_srp_matches_closed	This match is closed
+st_srp_matches_ends_soon	Match ends soon
+st_srp_matches_full	No free place in this match
+st_srp_matches_in_match	You are already in a match
+st_srp_matches_in_squad	Leave your squad first
+st_srp_matches_joining	joining…
+st_srp_matches_maintenance	Ends after maintenance starts
+st_srp_matches_mode_protective_device	Protective device
+st_srp_matches_no_answer	No answer, try again
+st_srp_matches_no_late_join	Match takes no new players
+st_srp_matches_no_place	No free place in this match
+st_srp_matches_none	No matches right now
+st_srp_matches_not_in_play	Match has not started yet
+st_srp_matches_outdated	Update your game
+st_srp_matches_played_before	You already played in this match
+st_srp_matches_queued	Leave the search first
+st_srp_matches_starting	starting
+st_srp_matches_title	Matches
+st_srp_matches_waiting	waiting
+st_srp_mode_blackout	Protective device: blackout
+st_srp_mode_chargers	Protective device: chargers
+st_srp_mode_protective_device	Protective device
+st_srp_mode_research	Research
+st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_optics	Optics
+st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
+st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
+st_srp_pvb_busy	%1$s (busy)
+st_srp_pvb_checking	Checking…
+st_srp_pvb_clan_match	Switch off "Clan match" first
+st_srp_pvb_demo_start	Demo: the server would start the match now: %1$s
+st_srp_pvb_gear_max	Equipment level must be %1$s or lower
+st_srp_pvb_gear_max_yours	Equipment level must be %1$s or lower (yours: %2$s)
+st_srp_pvb_generic	A bot match cannot start now
+st_srp_pvb_hint	A match against bots, with bots on your team too
+st_srp_pvb_in_match	You are already in a match
+st_srp_pvb_in_squad	Leave your squad first
+st_srp_pvb_maintenance	Maintenance starts soon, no new bot matches
+st_srp_pvb_no_answer	No answer from the server
+st_srp_pvb_off	Matches with bots are switched off now
+st_srp_pvb_outdated	Update your game
+st_srp_pvb_retry	No answer, try again
+st_srp_pvb_searching	Leave the search first
+st_srp_pvb_team_size	%1$s vs %2$s
+st_srp_pvb_title	Player vs Bots
+st_srp_pvb_unknown_choice	This map or team size is not available now
+st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
+st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_close	CLOSE
+st_srp_replay_demo_quest	Victory contribution
+st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
+st_srp_replay_demo_seller	Scavengers
+st_srp_replay_download	DOWNLOAD AND WATCH
+st_srp_replay_failed	The server could not prepare the replay of this match.
+st_srp_replay_gone	The replay of this match is no longer kept on the server.
+st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_made_now	Being made now. Waiting: %1$s s.
+st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
+st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_off	Replays are switched off on this server.
+st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_size	%1$s.%2$s MB
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
+st_srp_replay_title	Watch replay
+st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_reroll_description	You can change any modifier of an item, any number of times. You then choose one of three random modifiers.
+st_srp_rooms_all	All
+st_srp_rooms_all_rooms	All rooms
+st_srp_rooms_any	Any
+st_srp_rooms_back	Back
+st_srp_rooms_code_10	The owner removed you from that room.
+st_srp_rooms_code_11	Leave your clan team first.
+st_srp_rooms_code_12	Your equipment is above the max level.
+st_srp_rooms_code_13	Your kit could not play (no weapon or too little ammo): you were taken out of the room.
+st_srp_rooms_code_14	The loadout could not be chosen.
+st_srp_rooms_code_16	Press Play to enter a public room.
+st_srp_rooms_code_2	That room is gone.
+st_srp_rooms_code_3	Wrong PIN.
+st_srp_rooms_code_4	That room is full.
+st_srp_rooms_code_5	You are in a match.
+st_srp_rooms_code_6	Too many rooms now.
+st_srp_rooms_code_7	Update your game.
+st_srp_rooms_code_8	Pick at least one map.
+st_srp_rooms_code_9	Maintenance soon.
+st_srp_rooms_code_label	code
+st_srp_rooms_countdown	Starts
+st_srp_rooms_create	Create
+st_srp_rooms_enter_anyway	Enter anyway
+st_srp_rooms_exit	Exit
+st_srp_rooms_experimental	exp.
+st_srp_rooms_in_match	Playing
+st_srp_rooms_in_queue	In queue
+st_srp_rooms_join	Join
+st_srp_rooms_join_in	Into the match in %1$s s, or now with Join match
+st_srp_rooms_join_match	Join match
+st_srp_rooms_join_room	Join room
+st_srp_rooms_join_why_1	Another player is joining the match; you go in after.
+st_srp_rooms_join_why_2	A player's game is loading; joining opens in a moment.
+st_srp_rooms_join_why_3	Under 30 s left: you'll play the next match.
+st_srp_rooms_join_why_4	The match is full.
+st_srp_rooms_join_why_5	Server maintenance soon: no new joins.
+st_srp_rooms_join_why_6	The match is ending: you'll play the next one.
+st_srp_rooms_join_why_7	This match has reached its player limit. You'll join the next match.
+st_srp_rooms_joined_room	%1$s joined the room
+st_srp_rooms_late_hint	Who joins now sees the room, then goes into the match.
+st_srp_rooms_leave	Leave
+st_srp_rooms_leave_queue	Leave queue
+st_srp_rooms_leave_room	Leave room
+st_srp_rooms_left_room	%1$s left the room
+st_srp_rooms_level	Level
+st_srp_rooms_map	Map
+st_srp_rooms_max	Max level
+st_srp_rooms_modes	Modes
+st_srp_rooms_my_room	My room
+st_srp_rooms_name	Name
+st_srp_rooms_new	Private room
+st_srp_rooms_next_map	Next
+st_srp_rooms_none	No rooms yet. Make one, or press Play.
+st_srp_rooms_none_no_play	No rooms yet. Make one.
+st_srp_rooms_none_quiet	No rooms yet.
+st_srp_rooms_nothing	None
+st_srp_rooms_offer_fits	Your gear %2$s is over the room's max level %1$s. Loadout %3$s is level %4$s.
+st_srp_rooms_offer_higher	Room max level %1$s, your gear %2$s. Loadout %3$s is level %4$s.
+st_srp_rooms_offer_unfit	Your loadout can't play. Loadout %1$s is level %2$s.
+st_srp_rooms_open	open
+st_srp_rooms_open_slots	%1$s open
+st_srp_rooms_owner_tag	owner
+st_srp_rooms_pin	PIN
+st_srp_rooms_pin_4_digits	The PIN is 4 digits.
+st_srp_rooms_pin_hint	4 digits required
+st_srp_rooms_players	Players
+st_srp_rooms_playing	Match in progress
+st_srp_rooms_pool	Pool
+st_srp_rooms_pool_hint	The vote draws 3 cards from these.
+st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
+st_srp_rooms_queue	Queue
+st_srp_rooms_queue_room	Queue for room
+st_srp_rooms_room	Room
+st_srp_rooms_room_chat	Room Chat
+st_srp_rooms_servers	Rooms
+st_srp_rooms_start_hint	Press Start when everyone is in.
+st_srp_rooms_start_match	Start
+st_srp_rooms_starts	Match starts in
+st_srp_rooms_state	State
+st_srp_rooms_switch_enter	Switch and enter
+st_srp_rooms_switch_to	Switch room
+st_srp_rooms_switch_who	%1$s's room · %2$s players
+st_srp_rooms_switch_why	Fairer match: opponents' gear up to level %1$s
+st_srp_rooms_team_1	Team 1
+st_srp_rooms_team_2	Team 2
+st_srp_rooms_teams	Teams are drawn when the match starts.
+st_srp_rooms_teams_later	The teams can be changed after the match.
+st_srp_rooms_teams_member	The creator arranges the teams.
+st_srp_rooms_teams_owner	Move players between the teams with « and ».
+st_srp_rooms_unfit_gear	Your equipment is above the max level: lower it, or you leave the room at the start.
+st_srp_rooms_unfit_kit	Your kit cannot play (no weapon or too little ammo): fix it, or you leave the room at the start.
+st_srp_rooms_vote	Vote for the next map
+st_srp_rooms_vote_hint	3 cards from the pool. Most votes wins; a tie is drawn at random. Click to change your vote.
+st_srp_rooms_vote_now	Vote for the next map: click a card. The match starts on the winner when the time is up.
+st_srp_rooms_voting	Map vote
+st_srp_rooms_waiting	Waiting for players
+st_srp_rooms_waiting_owner	Waiting for the creator to start.
+st_srp_rooms_waiting_short	Waiting
+st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_unit_meters	%1$sm
+st_srp_unit_percent	%1$s%
+st_srp_unit_seconds	%1$ss
+st_srp_unit_times	%1$sx
+st_srp_weapon_aim_zoom	Base aim zoom
+st_srp_weapon_chamber	Chambering time
+st_srp_weapon_draw_time	Draw time
+st_srp_weapon_full_damage	Full damage up to
+st_srp_weapon_hip_spread	Hip-fire spread
+st_srp_weapon_holster_time	Holster time
+st_srp_weapon_kick_side	Horizontal recoil
+st_srp_weapon_kick_side_variability	Horizontal recoil variation
+st_srp_weapon_kick_up	Vertical recoil
+st_srp_weapon_kick_up_variability	Vertical recoil variation
+st_srp_weapon_minimum_damage	Minimum damage
+st_srp_weapon_minimum_damage_from	Minimum damage from
+st_srp_weapon_recoil_heading	Recoil, spread and sway
+st_srp_weapon_reload	Reload
+st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_spread_growth	Spread growth rate
+st_srp_weapon_spread_max	Maximum extra spread
+st_srp_weapon_spread_per_shot	Spread added per shot
+st_srp_weapon_spread_recovery	Spread recovery rate
+st_srp_weapon_stamina_damage	Stamina damage
+st_srp_weapon_stats	Weapon stats
+st_srp_weapon_sway_cycle	Sway cycle
+st_srp_weapon_sway_horizontal	Horizontal sway
+st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weather_before_rain	before rain
+st_srp_weather_day	day
+st_srp_weather_evening	evening
+st_srp_weather_night	night
+st_srp_weather_rain	rain
+st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
+st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.
+st_srp_weight_speed	Movement speed: %1$s
+st_srp_weight_sprint_stamina	Sprint stamina use: %1$s
+st_srp_weight_title	Weight effects
+st_stamina_boost_name	Second wind
+st_stamina_boost_time_description	Energy recovered by killing the enemy:
+st_stamina_loss_on_hit_description	Stamina penalty when wounded.
+st_stamina_loss_on_hit_name	Unstoppable
+st_stamina_regen_correction_perc_name	Stamina regeneration
+st_stamina_regeneration_speed_description	Energy recovery speed:
+st_stamina_regeneration_speed_name	Breath
+st_stamina_spending_speed_description	Energy consumption:
+st_stamina_spending_speed_name	Endurance
+st_start_chat_action	Chat
+st_start_match_welcome_message	Find batteries and deliver them to your base!
+st_start_match_welcome_message_2	Locate and protect battery charging stations!
+st_start_match_welcome_message_3	Eliminate as many enemies as possible!
+st_start_match_welcome_message_5	Find and capture research units!
+st_statistic_sync_text	Receiving match stats
+st_statistics_daily_bonus	Daily bonus
+st_statistics_equipment_bonus	Equipment bonus
+st_statistics_exp	Experience gained:
+st_statistics_money	Money gained:
+st_statistics_rating_delta	Rating change
+st_statistics_score	Score gained:
+st_statistics_score_game_events	Match Activity Rewards
+st_statistics_score_help	Help ally
+st_statistics_score_kills	Enemies killed
+st_statistics_score_match	According to the results of the match
+st_statistics_score_premium	Premium account
+st_statistics_score_quests	For completed missions
+st_stats_accuracy	Accuracy:
+st_stats_artefacts_gathered	Artifacts collected:
+st_stats_assists	Assists:
+st_stats_deaths	Deaths:
+st_stats_headshots	Headshots:
+st_stats_healed	Healed:
+st_stats_items_defended	Batteries defended:
+st_stats_items_gathered	Batteries found:
+st_stats_kills	Kills:
+st_stats_max_killstreak	Killstreak:
+st_stats_melee_kills	Melee kills:
+st_stats_saved	Saved:
+st_stats_silent_kills	Silent kills:
+st_stats_stolen_victory_items	Batteries stolen:
+st_status_str	Status:
+st_storage	Storage
+st_string_pattern_error	The name contains invalid characters or it's too long/short
+st_support	Support
+st_survival_notes	Survivor's Notes
+st_survival_notes_complete	You've finished
+st_survival_skills_label	Survival skills
+st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_sv_98_name	SV-98
+st_svd_description	Dragunov self-loading sniper rifle, ammo: 7.62х54. For years it was the main sniper rifle of the USSR army. Ammo clip supply: 5 rounds of shots. 
+st_svd_name	SVD
+st_swear_clan_string	The line contains profanity
+st_swearing_claim	Obscene language
+st_team_already_has_commander	The clan team already has a leader.
+st_team_member_is_not_commander	The team member is not a commander.
+st_texture_quality_option	Textures quality
+st_there_is_no_item_in_inventory	Item not found in your inventory
+st_thief_item	Grab container
+st_throw_grenade_action	Use grenade
+st_time_current	Picking up players:
+st_time_was_resynchronized	Restoring connection...
+st_to_all	To all
+st_top100	Top 100
+st_total	Total
+st_tournaments	Tournaments
+st_toz122_description	Multi-round rifled carbine, ammo: 7.62х51. Designed specifically for amateur and professional hunting. 5 round box magazine.
+st_toz122_name	TOZ-122
+st_toz34_description	Hunter's rifle with vertical barrel structure, ammo: 12x70. One of the first hunter's rifles manufactured as a series. Characterized by low weight and high grouping. 
+st_toz34_name	TOZ-34
+st_toz66_description	A hunter's double-barrel rifle shotgun, ammo: 12x70. Its ability to make two shots almost instantly makes it a really effective close-range weapon. 
+st_toz66_name	TOZ-66
+st_trap_damage	Trap damage
+st_treasure_map_advert	Use the stash map to find more items.
+st_tt_description	Tulsky Tokarev was introduced in 1933, ammo: 7.62х25mm. Designed in the 1930s to become the first self-loading army pistol in USSR. Clip capacity: 8 rounds.
+st_tt_name	TT-33
+st_turn_down_action	
+st_turn_left_action	
+st_turn_right_action	
+st_turn_up_action	
+st_tutorial_apply_ammo_message_1	Confirm your action by pressing <tutorial_highlight>«Apply»</tutorial_highlight> or <tutorial_highlight>«Hide ammo»</tutorial_highlight>.
+st_tutorial_choose_ammo_message_1	The number of rounds is indicated on the boxes. Note that different types of ammo may contain different number of rounds in the box.
+st_tutorial_choose_ammo_message_2	Take the maximum amount of ammo.
+st_tutorial_choose_faction_message_1	You can work with only one faction at a time. There're two ways to gain reputation with a faction: for the execution of any successful action in the battle, and for performing faction's missions.
+st_tutorial_choose_faction_message_2	Join one of the factions.
+st_tutorial_choose_wpn_message_1	You can take into battle only two weapons at a time. Choose carefully what you want to fight with.
+st_tutorial_choose_wpn_message_2	Drag the Mosin carbine or\nPPSh-41 in the empty slot for weapons.
+st_tutorial_click_ammo_message_1	Remember that you can carry a limited amount of ammo. <tutorial_highlight>Click "show ammunition",</tutorial_highlight> to manually choose how many rounds you want to take into battle.
+st_tutorial_click_inventory_message_1	Unfortunately, the Forest is not the only danger of the new world. The state fell, now every man is for himself. You have to fight for everything: for food, for medicines, for the right to survive. The weapons found in the old stashes may not be the best choice, but better are than nothing.
+st_tutorial_click_inventory_message_2	Open "Equipment" tab to give weapons and armor to your character.
+st_tutorial_complete_label	Congratulations!\nYou've finished the tutorial.
+st_tutorial_complete_reward_label	Your reward for this action:
+st_tutorial_equip_drop_message_1	There're several ways to obtain new weapons and equipment. After each battle you have a chance to find an item on the battle field. You can also improve relations with factions to get access to their unique goods.
+st_tutorial_equip_drop_message_2	Open the faction selection window.
+st_tutorial_exit_warning	Leaving the tutorial, you will not be able to return to it later and get a reward. Are you sure?
+st_tutorial_press_play_message_1	Click <tutorial_highlight>Play</tutorial_highlight> to start your first battle. To get more information, please see <tutorial_highlight>"Survivor's Notes"</tutorial_highlight>. You will be able to view them after the battle.
+st_two_handed	Primary
+st_ump45_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_ump45_name	H&K UMP45
+st_unknown_faction	Neutral
+st_unlimited_upload	unlimit
+st_use_action	Use
+st_use_artefact_container	Procure artifact ({USE})
+st_use_fix_voucher	Repair kit
+st_use_item_message	Are you sure you want to use this item?
+st_use_ladder	Ladder
+st_use_microphone_option	Use microphone
+st_use_resupply_zone	Add ammunition ({USE})
+st_use_two_double_handed_weapons_description	You can carry two two-handed weapons into a match.
+st_use_two_double_handed_weapons_name	Terminator
+st_using_progress_message	Progress:
+st_uzi_description	Submachine gun, ammo: 9х19. Designed in 1954 for the needs of the Israeli army. It has become one of the most popular weapons in the world. Supports single and burst shooting.
+st_uzi_name	Uzi
+st_uzi_premium_2_description	Submachine gun, ammo: 9x19. Designed in 1954 for the needs of the Israeli army. It has become one of the most popular weapons in the world. Supports single and burst shooting. Premium version in a special camouflage finish.
+st_uzi_premium_2_name	UZI "Shadow"
+st_val_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_val_name	AS "Val"
+st_valmet_description	Finnish assault rifle, ammo: 7.62x39. Built on the Kalashnikov design by Valmet and Sako and adopted by the Finnish Defence Forces in 1962, which gave it its name. Known for its accuracy and reliability in arctic conditions. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_valmet_name	Valmet Rk.62
+st_vepr_12_description	Russian self-loading shotgun, 12 gauge. Made by the Molot plant in Vyatskiye Polyany on the reinforced RPK machine gun receiver; introduced in the 2000s for sport shooting, hunting and security services. Equipped with an 8-round box magazine. Single shots only.
+st_vepr_12_name	Vepr-12
+st_vepr_12_premium_description	Russian self-loading shotgun, 12 gauge. Made by the Molot plant in Vyatskiye Polyany on the reinforced RPK machine gun receiver; introduced in the 2000s for sport shooting, hunting and security services. Equipped with an 8-round box magazine. Single shots only. Premium version in a special camouflage finish.
+st_vepr_12_premium_name	Vepr-12 Molot
+st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vepr_name	Vepr
+st_vepr_premium_description	Russian carbine of the Vepr family, ammo: 5.45x39. Made by the Molot plant in Vyatskiye Polyany on the reinforced receiver of the RPK-74 machine gun. Equipped with a 30-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
+st_vepr_premium_name	Vepr Wanderer
+st_victory	Victory
+st_victory_screen_no_dropped_item	You haven't found anything on the battlefield.
+st_vityaz_bundle_descr	<white>Contains the following items:\n- Improved PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>
+st_vityaz_bundle_name	PP-19-01 "Vityaz" bundle
+st_vityaz_description	Submachine gun, ammo: 9х19. Designed in 2004 in line with the needs of the Russian special forces. Supports single and burst shooting.
+st_vityaz_name	PP-19-01 Vityaz
+st_voice_chat_volume_option	Voice chat
+st_vsk94_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vsk94_name	VSK-94
+st_vsk94_premium_description	Russian sniper rifle, ammo: 9x39. Developed by the KBP bureau in Tula in the 1990s on the basis of the 9A-91, with a sound suppressor and a sniper stock; meant for quiet shooting at short and medium range. Equipped with a 20-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
+st_vsk94_premium_name	VSK-94 Guardian
+st_vss_bundle_descr	<white>Contains the following items:\n- Improved VSS "Vintorez".\n- 1000 rounds of 9x39 SP-5 ammo.</white>\n
+st_vss_bundle_name	VSS "Vintorez" bundle
+st_vss_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vss_name	VSS "Vintorez"
+st_vssk_camo_description	Russian bolt-action sniper rifle, ammo: 12.7x55. Developed by TsKIB SOO in Tula in the 2000s with a large sound suppressor, for special units that need quiet shots against targets behind cover or in body armour. Equipped with a 5-round magazine. Single shots only. Version in a special camouflage finish.
+st_vssk_camo_name	SV-1367 Dusk
+st_vssk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_vssk_name	VSSK "Vychlop"
+st_vsync_option	Vertical synchronization
+st_vz58_description	Czechoslovak assault rifle, ammo: 7.62x39. Designed by Jiří Čermák and adopted in 1958; it looks like a Kalashnikov but works on its own short-stroke piston and locking system. The P version has a fixed wooden stock. Equipped with a 30-round magazine. Supports single and automatic fire.
+st_vz58_name	vz. 58 P
+st_waiting_for_players	Awaiting other players:
+st_walther_competition2_collimator_desc	German red dot collimator sight made by Walther, originally designed for sport shooting. Its tube body holds an illuminated aiming dot.
+st_walther_competition2_collimator_name	Competition II collimator
+st_wasted	Consumption
+st_weapon_aim_action	Aim (hold)
+st_weapon_could_not_be_used	Arms wounded! Unable to use weapons
+st_weapon_fire_action	Shoot
+st_weapon_reload_action	Reload
+st_wear	Apply
+st_weight_booster_description	Protein containing essential nutrients for muscle growth and strength improvement. However using it without physical exertion is ineffective.
+st_weight_booster_name	Anomalous Force Protein
+st_winchester1894_description	Developed by an American engineer in 1894, this rifle was manufactured by up to 2006 which made it one of the most well-known and popular hunting rifles. Lever-action equipped with a 6 round tube magazine.
+st_winchester1894_name	Winchester Model 1894
+st_wrong_skill_points_count	Wrong number of skill points
+st_wrong_symbol_clan_string	The string contains non-printable character
+st_you_have_no_voucher_for_premium	You don't have a Premium activation voucher
+st_you_have_no_voucher_for_rename	You don't have a Character rename voucher
+st_you_have_no_voucher_for_repair	You don't have a repair-kit.
+st_youtube_video_tutorial_button	Watch the video guide!

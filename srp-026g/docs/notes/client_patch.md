@@ -891,7 +891,7 @@ The owner's wish: a player can kill their own character in a match, to respawn a
 - **What `commit_suicide` is** (PROVEN). A game action, not a console command or a message: the action table 0xA74AF0..0xA74FB4 (20-byte entries `{name, action, kind, toggle, default key}`) has `commit_suicide` at 0xA74D20, action 1Fh, kind 5, default key `kK`; no other action has K by default. A key bound to an action reaches `player_input_handler::on_keyboard_action` (0x23FE00), which asks `key_binder::get_binded_action` (0x207D50) and pushes `{action, state}` into the handler's event buffer (+98h: the write and read indexes, then 65 pairs; push_back 0x242580); key down is state 0 (0x23FEA4), a repeat 1, up 2. So K puts action 1Fh in the buffer in the original.
 - **Why nothing happened** (PROVEN). `player_input_handler::process_first_person_mode` (0x241250) builds the input's action mask (handler+33Ch, the `actions_mask` the relay carries) by asking `action_present` (0x242460: `(handler, action, &state)`, `ret 0Ch`; true for an action in the buffer, with its state, or held, state 2) for 35 actions, one bit each (the table in `drive.rs::key`). Action 1Fh is not asked, and bit 24 (1000000h) is the one bit of 0..28 it never sets.
 - **What bit 24 does** (PROVEN). `base_player::process_quick_slots` (0x2D8BB0, called only from the input apply 0x2D86E0 at 0x2D8777, which every game runs for every player's input) begins with `test dword [edi+4],1000000h` (0x2D8BC1): with the bit it builds the bone name "brain" (0xA1067C), pushes two floats 1.0 and calls the player's hit receiver (+118h, vtable+20h = `base_player::hit` 0x2D9AE0, which calls `hit_impl` 0x2D9B90), the attacker the player itself (+110h); then it stops if the player is dead (+33Dh). `hit_impl` returns at once for a dead player. `on_player_killed` (0x2F4EB0) counts a kill whose killer is the victim (0x2F4F38) as a death (event 2) and a suicide (event 3), no kill; Team Deathmatch charges it one ticket (0x31614E, `rules.rs::tdm_death_costs_ticket`); the score weighs a suicide 0.
-- **The patch** (`SUICIDE_KEY_HOOK` in `patch_026g.py`; `suicide_key_026g.asm` at `.srp`+980h, after the pickup code, before the seek code, 40 bytes): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes `call suicide`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and jumps to 0x242460 with the original arguments and return address. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
+- **The patch** (`SUICIDE_KEY_HOOK` in `patch_026g.py`; the arena's block `suicide_key.code`: `suicide_key_026g.asm`'s `RUST_HOOK` entry and the Rust crate `rust/suicide_key`, the Rust framework's example, `rust_patches.md`; 40 bytes of NASM at `.srp`+980h before it): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes `call suicide`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and jumps to 0x242460 with the original arguments and return address. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
 - **Why every game does the same.** The bit is an ordinary input bit: the owner's game applies the input at once and the server relays it unchecked (0xDC/0xDD → 0xEB), as the fire or grenade bit; every game, of any revision, applies it through 0x2D86E0 → 0x2D8BC1 at the input's tick, from what the world holds. A game without the patch cannot send the bit but plays it from the others, so no revision is needed for the match to agree. The server must not take the bit out of a relayed input: the owner has applied it already (as §20 of `match.md` says for any bit).
 - **Replays and recordings.** What a match computes does not change (the simulation is the original's; only the input a key makes does): no row in `simulation_changes.tsv`. The server's bots never send bit 24 (`drive.rs::key::NEVER`).
 - **Rules.** A suicide is a death in the statistics and in Team Deathmatch a ticket, and no one's kill, in the game's own counting; the respawn time is a death's. No server guard: the server cannot drop the bit without parting the worlds, and the game already charges it.
@@ -1570,18 +1570,21 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's block `artefacts.code`, a code page (0xA431000 as the link places it today, §0.3; the hooks jump to its six global entries by name), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
 
-### 3.53 The keys 1, 2 and 3 pick a kit; a match chat option (written 2026-10-23, README patch 58, the next release's revision; the rules: `match-hud-options.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own cvar code; not run in a game
+### 3.53 The keys 1, 2 and 3 pick a kit; a match chat option (written 2026-10-23, README patch 58, the next release's revision; the rules: `match-hud-options.md`) — PROVEN in the code, the four entries run with Unicorn with the game's own cvar code and input tick; not run in a game
 
 A player's asks (board T29): number keys for the kit choice before a respawn (misclicks), and an option to turn the in-game chat off.
 
 - **The kit picker** (PROVEN). The kits before a respawn and before the start are the hud movie's `_profilePanel` (`HUDProfileSelector`, its `SrvProfileSelectorHUD`, a `ProfileSelector` whose `tabPage` is a CLIK ButtonBar of three tabs, `SrvPlayerProfileTabHUD`), shown by `root.show_profiles_selector` (0x2383B0, with `show_cursor` 0x23A930: the hud's +2DCh). A click changes `tabPage.selectedIndex`; its INDEX_CHANGE runs `onProfileSelected`, which calls `ExternalInterface.call("profile_changed", index)`: the exe's 0x233F06 -> 0x1F8070 queues the kit input (§3.29; patch 31 keeps the kits shown after it). A tab is greyed (`enabled` false, `setup_player_profiles`: a kit that is not complete) and does nothing; a click on the chosen tab changes nothing (`set selectedIndex` returns on the same index). No new message: a key does what a click does.
-- **Where the keys go** (PROVEN). `vostok::input` hands a key to the input handlers by priority; the game world's (`input_priority` 0x1F63D0: 7) comes before the player's (10). The game world's `on_keyboard_action` (0x25CD00, slot 0 of the vtable 0x9FC588 at game_world+1F8h; thiscall, the input world, the DirectInput key, the kind; `ret 0Ch`; re-kit abi rows) asks the input world whether Tab is held (0x2384C0, `root.show_player_list`), returns 0 for a held Tab, then at 0x25CD41 `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` (kind 1, a key down; 0x25CF0D `xor al,al` and the epilogue) and handles chat (0x3F, Enter, numpad Enter), L, Esc and its actions 11h..19h by bind; anything else returns 0 and goes on to the player's handler (`on_keyboard_action` 0x23FE00, kinds 1/2/3 pushed as states 0/1/2). The hud movie gets keys only from the chat handler (0x20899D, `0x1FDD70`, while the chat is typed in): `HUD.as` sees no 1, 2 or 3 on the kit screen.
+- **Where the keys go** (PROVEN). `vostok::input` hands a key to the input handlers by priority; the game world's (`input_priority` 0x1F63D0: 7) comes before the player's (10). The game world's `on_keyboard_action` (0x25CD00, slot 0 of the vtable 0x9FC588 at game_world+1F8h; thiscall, the input world, the DirectInput key, the kind; `ret 0Ch`; re-kit abi rows) asks the input world whether Tab is held (0x2384C0, `root.show_player_list`), returns 0 for a held Tab, then at 0x25CD41 `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` (kind 1, a key down; 0x25CF0D `xor al,al` and the epilogue; the kinds are the keyboard's: 1 down, 2 up, 3 held) and handles chat (0x3F, Enter, numpad Enter), L, Esc and its actions 11h..19h by bind; anything else returns 0 and goes on to the player's handler (`on_keyboard_action` 0x23FE00, kinds 1/2/3 pushed as states 0/1/2). The hud movie gets keys only from the chat handler (0x20899D, `0x1FDD70`, while the chat is typed in): `HUD.as` sees no 1, 2 or 3 on the kit screen.
 - **The patch, keys** (`MATCH_KEYS_HOOKS[0]`, JUMP at 0x25CD41, ten bytes -> `jmp match_keys_keyboard` + five nops): the kind's test again; for a key down with DIK 2..4 while the handler's +2E0h (the hud's cursor) is set and the movie is there, `engine_movie_invoke([[[edi+0Ch]+108h]+4], "root.select_kit_key", 0, {0, 4 uint, key-2}, 1)` (as the hud's own calls, 0x2384C0), all registers kept (pushad), then `jmp 0x25CD4B`; any other kind `jmp 0x25CF0D`. The key is not taken. `HUD.select_kit_key` returns unless `_profilePanel.visible` and the chat is not being typed in (a flag `focus_chat` sets and clears, or `stage.focus` on its input; not the input's `visible`, which `SrvGameChat`'s timeline starts true until the chat is first closed); `ProfileSelector.pickByKey` sets `tabPage.selectedIndex` for a kit that is enabled and not the chosen one.
+- **The input tick** (PROVEN, 2026-10-25). `game::tick` (0x1EC890) runs the input world's tick (0x3B7BD0, slot 0 of the input world 0xAA5430, `[game+5358h]`, at 0x1ECB67) before the game world's update (`[game+539Ch]` vtable+8 at 0x1ECBE1), whose hud turns to the kits when the local player dies. The tick (thiscall, the time; `ret 4`; it runs while the world is active, +34h) polls each device (the keyboard is +24h: its execute, vtable+20h 0x3B8D20, `GetDeviceData` into its buffer +408h, 14h a DIDEVICEOBJECTDATA, the count +404h, and the state of each key +4 + 4 x DIK, 80h down), then calls every handler's slot +14h with the input world, then each device's process (the keyboard's, vtable+24h 0x3B9AF0: each polled event in order, kind 1 for 80h down and 2 for up, then kind 3 for every key down, every tick), then every handler's slot +18h. A key's kind 1 is an edge: a key held makes kind 3 only. The game world's handler has `ret 4` (0x75AF0) in both slots (0x9FC59C, 0x9FC5A0).
+- **Why kit 3 came after a death** (PROVEN, the owner's report 2026-10-25: "I often press 3 mid-fight to heal with the medkit, I die, and I swap to my 3rd kit"). Not a held key (that is kind 3, which the hook let by), and no queue of the patch's own: the hook asked the cursor when the key was handed out, not when it went down. A tick hands out what its poll got, every key that went down since the poll before; the death turns the hud to the kits in the game world's update after that poll. So the first tick on the death screen handed out, as kind 1 with the cursor shown, the key 3 pressed in play in the frame of the death (after that frame's poll), and `select_kit_key(2)` picked kit 3 at once: `profile_changed` queues the kit input (0xDE) for the next send, and the server makes it the next life's kit at its tick (§3.29); only another pick undoes it. The keys were taken in every state with the cursor: the death screen from the first tick after the death through the respawn countdown (the death camera is that screen, patch 46), and the kits before the start (patch 31). Run on main's build (rev 34) with the game's tick: 3 held at the death, nothing; 3 pressed or tapped in the death's frame, kit 3.
+- **The patch, the kits' first 300 ms** (`MATCH_KEYS_POLL_SLOT`, SLOT at 0x9FC59C, `ret 4` 0x75AF0 -> `match_keys_poll`): the slot runs after each poll, before its keys are handed out, and moves `kit_keys` (match_keys.state) by the cursor (+2E0h) and GetTickCount (its import 0x870090, as bake_cache's): hidden CLOSED (`kit_keys_since` cleared); shown, from CLOSED OPENING with the time now in `kit_keys_since` (the kits came after the last poll: a key of this one may have gone down before them); from OPENING OPEN once now - since (unsigned, over the wrap) is `KIT_KEYS_DELAY` (300 ms) or more, else OPENING; from OPEN OPEN. The owner's rule (2026-10-25, after the first version, which opened at the next poll): a player still pressing 3 to heal just after the death presses on the kits before seeing them, so the keys pick nothing for 300 ms after the kits appear. `match_keys_keyboard` picks only in OPEN (and with the cursor still shown). OPEN comes at a later poll than the one that saw the kits, so a key pressed in their frame is OPENING's; a key pressed in their first 300 ms (less a frame: a press is taken at the poll that hands it out) is OPENING's; held, either makes no kind 1 until let go and pressed again. The same holds for the kits before the start. Nothing else changes: the keys go on to the game as before (1/2/3 the quick slots in play). The pointer in .rdata is the vtable's, under a base relocation already (the exe is never rebased).
 - **The option** (PROVEN). The gameplay options (`options_tab::options_tab` 0x262300, tab 0) make option 4 at 0x262454: `options_item_bool` (vtable 0xA06744) named "g_private_messages_in_game" (0xA064FC, in the exe there alone), labelled `st_private_messages_in_game_option`. `options_item_base::options_item_base` (0x260E90) looks its command up by name (0xEB7C0, the list 0x1F1D66C) and logs a warning when there is none: there is none, so the option has no value and nothing reads it; `main_menu.swf`'s timeline greys its checkbox (`_no_in_batle.enabled = false`, as the other social options, which are dead the same way: g_invite_from_friends, g_friends_signin_notification, g_messages_only_from_friends, g_hide_spam). The options are made by `game_options::on_resources_ready` (from `game_options::initialize` 0x1FFC10, called at 0x1EAC7C after the base resources).
-- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; the content edit `match-chat-off-1.json` labels it "Hide chat in match".
+- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; `client-patches/localization/*.tsv` labels it "Hide chat in match".
 - **The patch, the lines** (`MATCH_KEYS_HOOKS[2]`, CALLEE at 0x26B916, `call 0x208AD0` -> `call match_keys_chat`): `process_incoming_text_message` (0x26B6F0, message 0xA2) gives every line it shows to `chat_handler::add_message` (0x208AD0; stdcall: the handler, the channel, the body, the name, the tag; `ret 14h`). `chat_handler::set_mode` (0x209430) sets the handler's movie (+14h) and +0Dh: 1 with the hud (the game world's `on_activate`, 0x1F93C5), 0 with the lobby's (0x21D34F); add_message gives channels 1 and 4 to the lobby's movie while +0Dh is set. `match_keys_chat`: option on, +0Dh set and channel 3 or 5..9 -> `ret 14h` (eax not kept: add_message's own eax is garbage, the caller's next call `add_to_recent_list` 0x209330 takes the name and edi); else `jmp 0x208AD0`. The server relays a line to everyone but its sender (`relay`, `**id != from`), and the sender's own line is shown by the local echo (`messaging_client` 0x26ADF4, another call): it stays.
 - **What changes:** in a match, keys 1, 2 and 3 pick kit 1, 2 and 3 on the kit screen (the key also reaches the player's handler as before, which a dead player's game does not send); with "Hide chat in match" checked, no other player's line appears in the match chat. No simulation change.
-- **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): 72 key cases, the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
+- **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): the poll's ten cases (299 and 300 ms, over GetTickCount's wrap too), 216 key cases (each state of `kit_keys`), 64 input-tick runs of the game's own tick and keyboard process (keys 1 to 4, GetTickCount from 1000 and from before its wrap: pressed 100 and 250 ms after the kits appear, none; 350 ms after, a pick; pressed at 100 ms and held into OPEN, none until let go and pressed again; held into the kits; pressed in their frame; in play; a respawn and a death), the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
 
 ### 3.54 One key hides the interface, in a match and in the lobby (written 2026-10-23, README patch 62, the next release's revision; the rules: `hide-ui-key.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own show_ui and get_binded_action; not run in a game
 
@@ -1598,6 +1601,114 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
 - **The lobby movie** (`LobbyMenu.toggle_interface`): the interface is the root, hidden in one step (`visible`). What the game put on the stage is in the root: `makeStageLayer` (before `init`) makes `_stageLayer`, the root's last child at the stage's scale (1/scaleFactor; kept last by `addChild`, `addChildAt` and `setChildIndex`), holding `_layers` (the front, top (messages) and top2 containers, the wheels, the loading screen, the fades; the right-click menu, `SrvContextMenu.registerStage(stage, _layers)`; CLIK's popup canvas, `PopUpManager.layer`) and over it `_overlay` (the tooltips' container and CLIK's drag canvas, `DragManager.init(stage, _overlay)`): no polling, nothing of the interface on the stage beside the root. First an open right-click menu is closed (only when open: `SrvContextMenu.hide` with none ever opened threw on `removeChild(null)` and nothing was hidden, the owner's test of 64ce3ce7) and the item cards (on Scaleform's topmost level, which is drawn whatever the parents' visibility, to be above the windows). `enable_element` does it structurally now: the exe's lobby state (`lobby_menu_state`, vtable 0xA0CBF4, slot 1 0x2A3EA0, at every entry of the lobby) calls it with `root.statusPanel.btn_off` and `btn_settings` and true (0x2A3F22), a match's loading (0x220400) with false; with true it put the two buttons on the topmost level (above every modal: a message's dim, the results, the wheels) and, through its RENDER handler, the tooltips, the drag canvas and the tutorial's highlights, and the corner buttons stayed on the screen with the root hidden (the owner's test of 335343b6). Now with true it moves the two buttons into `_overlay`'s `_corner`, placed as the status panel is (`placeOverlay`, again after each of the panel's layouts: `StatusPanel.LAID_OUT`), and with false back into the panel at their index; any other element (the tutorial's) is ignored. `_overlay` holds, bottom to top, `_corner`, `_cards` (the item cards, placed as the root is: no longer on the topmost level, so the tooltips are above them), the drag canvas and the tooltips: above every modal, inside the root. The tutorial's private test functions (testDragTutor, testPlayTutor, testAmmoTutor, testAmmoTutor2, testFactionPreTutor, testFactionTutor, testCloseSlide, showSlideOnVs, testTutorComplete) were never called and are gone; the functions the exe still names (show_slide, close_slide, highlight_element, clean_highlight, highlight_inventory_items, set_sybsystem_active, show_tutorial_complete_message) stay. Two KEY_DOWN listeners on the stage, priority 100, capture and target (the target is the stage when nothing has the focus), show it and stop the key, and two KEY_UP listeners stop that key's release once (a message box hidden with the interface keeps the focus and acts on Enter's release: MessageAcceptBase, MessageBox, MessageEnterName; SquadList on Backspace's); a new press of that key or a match found (the exe passes no key then, 0x26CBCE) clears a release never seen; `interface_hidden` answers the exe; `has_active_window` says true while hidden (the exe's Esc then calls `close_active_window`, which shows it); `get_mouse_over` false while hidden; a match found (`set_mm_sync_state`), the loading and the results show it.
 - **What changes:** F11 in a match hides the hud, crosshair, minimap and markers until F11 or the kits; F11 in the lobby hides the lobby's interface until a key. Rendering and input only, no simulation change.
 - **Checked:** `selftest_026g.py` check 62 and the call shapes; `check_hide_ui_026g.py` (Unicorn): 16 match cases, 28 lobby cases, 5 of the options (README patch 62). **Not run:** a game: that show_ui's hide leaves nothing of the hud (the hit marks and blood effects are the hud movie's, LIKELY), that the player icons' movie is +20Ch (LIKELY: initialize_resources' third movie, the exe's names in that order), that a stage child of the lobby keeps its own `visible`, and that Scaleform's capture listeners run as Flash's.
+
+### 3.55 The kill feed shows a kill through a wall, by a ricochet and by pain (written 2026-10-25, README patch 67, the next release's revision; the rules: `kill-feed-icons.md`) — PROVEN in the code, the three sites run with Unicorn with the game's own part lookup; tested in game by the owner, 2026-10-25 (before the explicit melee test)
+
+The owner: "when a character is killed from pain, the character should get <weapon> <white painkiller> icon"; "when through a wall: <weapon> <wall shot> icon (available in last patches)"; then yes to retail's ricochet icon.
+
+- **The kill event** (PROVEN). `base_player::hit_impl` (0x2D9B90) runs the kill path once the dying flag (+33Dh, set by `on_affect` 0x2DA480 for the death affect of an empty body, head, pain or infection pool) is up: `generate_killed_event` (0x2DA170; esi the victim; stdcall: the time, the killer's place, the hit's bone name, the hit's damage source, the bullet `[ebp-4]` of hit_impl, from `[hit+20h]`'s vtable 0, `ret 14h`; 0x2D9EFC..0x2D9F15). It takes a node of the world's events (`world+12740h`, 0x2D43B0: +0, +4, +8 zeroed), writes the victim (+0, place +114h), the killer (+1), the weapon's icon (+2: the bullet's damage parameters' +50h when not 0, else the damage source's +224h) and the cause icon (+4), type 0 (+18h), and queues it (0x2D0A60; eax the node, edx the world). The cause icon: 3 for no killer or the victim himself; else 1 when the bone is `brain` or `face` (0xA1067C, 0xA10714) and the damage is not the weapon's melee (`[bullet+40h]` the weapon's +53Ch); else 0. 2 (a drop) and 4 (a fist) have frames in the movie but are never sent.
+- **The hud** (PROVEN). The world's events are played by frame (0x1FB660, the list from +12744h); the hud's handler (0x23B5F0; edi the node) gives type 0 to `game_world_ui::on_player_killed` (0x237C70: the hud, victim, killer, weapon icon, cause icon, each a byte widened; `ret 14h`), which makes the description object (action_id 1, or 2 when the killer is the victim; who_name, who_team, victim_name, victim_team, object_icon, extra_icon as a GFx int from the fifth argument's first byte alone, `movzx eax,byte [esp+104h]` 0x2380EA, mastery_icon 0) and invokes `root.add_log_message` (0x2381A5). `CombatLogItem` shows extra_icon's frame (value + 1) after the weapon: 2 headshot, 3 a red drop, 4 a skull, 5 a fist; one cause, no other icon.
+- **The pools** (PROVEN). The damage model is the player's +2E0h; its parts a list at +108h (first node +110h; a node's next +0, name +80h, health +0A0h, max +9Ch), found by name with 0x2E58B0 (eax the list, ecx the address of the name's pointer; eax the part or 0; keeps ebx, esi, edi, ebp), as hit_impl finds `pain` (0x2D9C3D). Health is clamped at 0 (pain-limbs, re-kit damage notes), so an empty pool's bits are 0 and a live one's are above 0 as an int.
+- **The bullet** (PROVEN). +84h counts its trajectory's segments past the first: 0x32EE20 (`inc dword [esi+84h]`, then the new segment's start) is called by try_pierce (0x32D960, at 0x32DE2C, after the hit object's hit and the bullet's slowing) and by try_reflect (0x32DE40, at 0x32E335); +88h counts the reflections (`inc byte [ebx+88h]` 0x32E33A, at most 2). Both are zero at construction (0x32BB1B) and serialized (0x32BFFC). The killing hit happens inside try_pierce before its own increment, so at the kill +84h counts the pierces and reflections before it (a wall, a prop or another player pierced), +88h the reflections.
+- **0.69d0, the movie** (PROVEN, its hud.swf, resources.43.db of the 0.69d0 build; the base 0.69 volume's hud and every earlier build's, 0.27d to 0.46c2, have none of it). `CombatLogContainer` maps four flags of the description, `ricochet_icon`, `penetration_icon`, `hipfire_icon` and `blind_kill_icon` (1: shown), to `log/icon_<name>.png`; `CombatLogItemRenderer.makeLayout` places the weapon, then blind_kill, hipfire, penetration, ricochet, then extra_icon, then the victim. No pain icon.
+- **0.69d0, the exe** (PROVEN statically: `game/binaries/x64/survarium.exe` of the 0.69d0 Survarium.zip, image base 0x200000000, x64, unpacked; no earlier exe we have names the flags). The bullet keeps the 0.26g counters as bytes: +68h its segments, one more in `change_trajectory` (0x20039AA10, `inc byte [rcx+68h]`), called by try_pierce (0x200399F00, at 0x20039A546, after an object's or a player's hit and for static geometry alike: no material or character check) and by try_reflect (0x20039A590, at 0x20039A9BC, then `inc byte [rsi+69h]`); +69h its reflections (at most 2, `cmp byte [rdi+69h],2` 0x200399E15); +68h capped at 30 (0x200399EE9). try_pierce copies them into the hit (0x20039A17F: hit +0ADh = +68h, +0AEh = +69h; +0ACh the melee flag) before its own increment. hit_impl's caller of generate_killed_event (0x200303B19) passes penetration = segments and no reflection, ricochet = segments and a reflection; generate_killed_event (0x2003046B0) writes the event's +9 (1 penetration, 2 ricochet, ricochet first: `cmovne` at 0x200304B68) and clears both for a melee hit or when there is no other killer (0x200304A80..0x200304AC3); the hud's handler (0x2001A97E6) passes +9 to on_player_killed (0x2001A4BD0), which sets `penetration_icon` for 1 and `ricochet_icon` for 2 (0x2001A4E53, 0x2001A4E80). So 0.69d0's marks are, for a shot and someone else the killer: ricochet when the bullet reflected before the killing hit; else penetration when it pierced anything (a body included). INFERRED only: that 0.69d0's try_pierce is reached for a player's body as 0.26g's is (its object path, 0x200399F69, is the same shape).
+- **The patch** (`KILL_FEED_HOOKS`, `KILL_FEED_ARGUMENT`; kill_feed_026g.asm in the arena's kill_feed.code): at 0x2DA3D1 (`mov [eax+4],bl / mov edx,[esi+120h]`, INLINE) `call kill_feed_event` + four nops: +4 the cause icon, +5 the flags (0.69d0's rules, for ebp not 0, the cause icon not 3 and generate_killed_event's melee flag `[esp+14h]` 0 (0x2DA2D7; `[esp+20h]` in the hook): 4 for `byte [ebp+88h]` not 0, else 1 for `[ebp+84h]` not 0; 2: the pain part's health 0 or less as an int, the body's and the head's above 0), edx the world; at 0x23B6F0 `movzx edx,byte [edi+4]` -> `movzx edx,word [edi+4]` (the fifth argument carries the flags in its second byte, which on_player_killed never read); at 0x23814F (`mov edx,[esp+30h] / mov ecx,[esp+2Ch]`, INLINE, before mastery_icon) `call kill_feed_row` + three nops: SetMember (the description's interface vtable +14h, as the site's own calls) of `penetration_icon`, `ricochet_icon` and `pain_icon`, GFx ints 0 or 1, then the two moves. The hud movie's `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's icon_penetration.png), `CombatLogRicochetIcon` (0.69d0's icon_ricochet.png) and `CombatLogPainIcon` (a white lightning bolt for pain shock, drawn by make_icons.py) after the weapon, before extra_icon, for a kill or a suicide row; the build adds the three bitmaps (`flash/hud/bitmaps/`, `tools/actionscript/flash_tree.py`).
+- **What changes:** the kill feed's row only. The flags are read from the simulation's state (the bullet, the pools) in every game's own run; the node's +5 was zero and is read by the hud alone; nothing a match computes changes (no `simulation_changes` row).
+- **Checked:** `selftest_026g.py` check 67; `check_kill_feed_026g.py` (Unicorn): the event in 26 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head together (no pain icon: the owner, damage wins), a headshot through pain, pain all but empty, a toxic death, through a wall, a ricochet, pierces and a ricochet (the ricochet only, as 0.69d0), a ricochet then a pierce, a ricochet to pain, a ricochet with no killer (none), melee hits with a straight bullet, with segments and with a reflection (none) and by pain (pain only), through another player, a wall with no killer (no wall), a headshot through a wall, a wall and pain, no bullet, no damage model, the parts in another order, no head pool), the handler's argument and the row's members for each, against the original. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
+
+### 3.56 A fall's speed counts the time it fell, not the steps it took (written 2026-10-25, README patch 72, the next release's revision; the rules: `fall_damage.md` "Split ticks") — PROVEN in the code, step_down's free fall run with Unicorn; not run in a game
+
+The owner, 2026-10-25: "the fall damage problem is back… it seems to be something stacking up"; "you can now die from falling 1 meter".
+
+- **The cause** (PROVEN). `game_world_core::tick_events` (0x2D21E0) ends each step of the world at the next 50 ms boundary or at the next input's time (+1BCh of its node), whichever is first. A precise input (a change of the fire bit at an off-grid time, sent as 0xDD; `match.md` §5.2) is such a time, in every game alike, so the tick it falls in is stepped in two parts, and each further one cuts it again. Each step ticks the physics (the updater 0x2D1D00 -> `bullet_physics_world::tick` 0x75550: `stepSimulation(ms x 0.001, 3, 1/60)`, whose `updateActions` (0x9B810) runs once with the whole dt). `bullet_character_controller::updateAction` (0x7B730) runs `player_step` (0x7BDA0) for dt = 0.05 (+2C704h, the constant the constructor writes at 0x7B4A1), or for any other dt when the body moved since its last step (+0B0h against m_last_pos +50h), as a falling body has. player_step moves the body dt / 0.05 of the step it computes (0x7C734), but step_down's free fall (0x7E6E6..0x7E75C) took gravity x 0.05 off the velocity at every call. A tick in k parts so gave a falling player k ticks of speed: 0.49 m/s more a part, and a landing (on_physical_controller_landing 0x2D8220, the velocity's vertical part) as from a fall k times higher. Deterministic: every game cuts the same ticks, so nothing desyncs.
+- **Not the cause** (PROVEN). The history: the controller's velocity, flags and m_last_pos are in its serialize (0x7F7F0, `m_fall_and_slide_velocity`), inside base_player::serialize (0x2DAF60), which game_world_core::serialize (0x2D2570 -> 0x3218E0) writes into each history item; deserialize (0x7FB10) reads them back and base_player::deserialize then sets the body's transform (0x7F6D0). A frame's step past the newest item restores that item first (game_world_core::move 0x2D3568..0x2D357A), so a frame's partial step never stays. No real time: gravity's dt is the constant.
+- **The patch** (`FALL_GRAVITY`; in place, two sites): the free fall takes xmm3 = min(dt, +2C704h), dt read from player_step's frame (step_down's saved ebp, +8: step_down's only caller is player_step, 0x7C4F6; both start `push ebp / mov ebp,esp`), for the three products by xmm3 that were the tick's. 0x7E6E6: `lea eax,[ebx+2C704h] / movss xmm0,[eax+4] / jmp 0x7E74C`; 0x7E720: the velocity's three updates through eax, then the dt load (`mov ecx,[ebp] / movss xmm3,[ecx+8] / minss xmm3,[eax]`) and `jmp 0x7E6F6`. 0x7E6F6..0x7E720 (the three products, with the up axis's three relocated addresses) are the original's. eax and ecx are written at 0x7E762 and 0x7E75C before any read. No base relocation under a site; no branch aims inside one.
+- **What changes:** a tick stepped in parts adds one tick of gravity in all; a whole tick's dt is the constant itself (`50 x 0.001f` as a float), and minss gives the constant back, so whole ticks are the original's bit for bit. A simulation change (`simulation_changes.tsv` `next` row).
+- **Checked:** `selftest_026g.py` check 72; `check_fall_gravity_026g.py` (Unicorn): step_down from its entry on a made-up controller (the sweep finds nothing), 40 whole ticks bit for bit the original's, ticks of 20 + 30, 5 x 10 and 7 + 43 ms one tick of gravity in all (the original: 2, 5 and 2), a dt over the tick one tick, the velocity's other parts and the saved registers kept.
+
+### 3.57 The baked camouflage and decal textures are kept, and baked or loaded once while asked for again (written 2026-10-25, README patch 70, the next release's revision; the rules: `baked-textures.md`) — PROVEN in the code and in the owner's log; the sites run with Unicorn; not run in a game
+
+The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 fps. The owner's running game's log (`Survarium_sheep.log`, 14:55..15:11): bursts of "camouflage/decal cook [ bake …, compress … ]" in matches (14:56:30, 15:00:14, 15:01:17, 15:01:29, 15:01:42, 15:04:12, 15:05:42, 15:06:54, 15:07:12, 15:07:26), 6 to 51 bakes each, 0.06 to 0.4 s of them back to back. Each is a new file in `streamed_textures`, its mtime the burst's second. That log has no "remove file" line.
+
+- **The folder is deleted at every start and exit** (PROVEN). `survarium::game::game` (0x1E9070) at 0x1E9351..0x1E9455 and `game::exit` (0x1EC730) at 0x1EC74D..0x1EC832 convert `user_data/streamed_textures` to its physical path and call 0x1E8DA0: SHFileOperationA (delay import 0xAEFE78) with wFunc 3 (FO_DELETE) and flags 414h (silent, no confirmation, no error UI). The baker's list lives only in memory (the static 0xA264E80, set up by 0x12CCE0: list 0xA2650B0 begin, end, capacity end 0xA2AE0BC, storage 0xA2650BC). So each game bakes every item it sees once. The log agrees: all 141 files are from this game (14:55 on), and the first bake's "GetDiskFreeSpaceExW error: 2" is the folder not being there yet (remove_unwanted_files 0x131F90, at 0x13207A).
+- **Within a game the list works** (PROVEN). "%s, new id = %u" (0x131E53) is check_loaded_baked_texture's (0x131B40) good load, with the age renewed: a cache hit. The second match (15:10:48) loaded ~200 textures from the folder and baked none.
+- **Duplicate bakes** (PROVEN). translate_query (0x12D1D0) looks the path up (0x131ED0) and bakes when there is no record. process_compression (0x12EC40) pushes the record (0x132640, at 0x12F3F2) only once its bake is done, so every query of the path before then bakes it too. The log: 15:06:54 baked 18 textures into 6 files, 15:00:14 12 into 6, the minute 15:01 51 into 21; the first match 115 into 62. A place has a player object for each of its three kits (section 3.34). #400 (revision 32, server only) gives a new account three kits wearing the same seven items: a newcomer's three objects bake the same textures three times.
+- **The type queries** (PROVEN, the diagnostics' signatures). on_baked_texture_loaded(queries_result&, camouflage_decal_texture_type_cook_parameters*, render_surface_instance*, query_result_for_cook*) and process_compression(…, render_surface_instance* (stack arg 5), …, decal_texture_type (arg 9), …) put the texture into the surface's slot of its type (surface+4×type: 0x12C6D0..0x12C760, 0x12F0E0..0x12F168). They give the query a resource of 108h bytes (0x12DE30 on the allocator [1F1D960h], 0xE4F90) through 0xF0080 (edx the query; the pointer, 0x21E76C8, 108h; `ret 0Ch`) and finish it: finish_query_impl 0xF0D00 (stdcall: query, result, 1, 0; `ret 10h`; results 1 error, 2 postponed, 3 success, 4 requery, 5 out of memory). The "cook of '' [class 107] failed" lines are fresnel queries of surfaces with no `t_fresnel` (0x12DA01).
+- **The patch** (`BAKE_CACHE_HOOKS`, `BAKE_CACHE_KEEP`; bake_cache_026g.asm and .c in the arena's bake_cache.code and .state):
+  - 0x1E9455 `call 0x1E8DA0` (CALLEE) → bake_cache_start. bc_open reads the folder's `srp_baked_textures.txt`. If it says "Skhid baked textures, revision N" for this exe's revision byte (0x380866), each `*.dds` that is a whole DDS ("DDS ", header 124, DXT1 or DXT5, the file 128 + its linear size) goes into the list as a record (path `user_data/streamed_textures/<file>`, CRC 0, its size, an age; the list's bytes grow by it), at most 512 files and 512 MB; the rest are deleted. Otherwise: the stock delete, then bc_stamp makes the folder and writes the stamp.
+  - 0x1EC832 (game::exit's delete): a 5-byte nop.
+  - 0x131C90 `cmp eax,[edi+114h]` (INLINE) → bake_cache_adopt: a record of CRC 0 takes the CRC loaded, then the compare.
+  - 0x12D4CD `call 0x131ED0` (CALLEE) → bake_cache_lookup: bc_lookup registers the first query of a path as its owner (with its surface and type). A later query of the same path and type, while the owner is listed, becomes a waiter: it takes a reference to its model instance (parameters+790h, count +0D0h) and leaves translate_query at 0x12D42D, unfinished, with no look-up and no bake. 0x12D42D is translate_query's own end after a refused query: the surfaces' list emptied, its own reference released, `ret 4`.
+  - 0x12F18F and 0x12DDB4 `call 0x420789` (CALLEE) → bake_cache_baked / bake_cache_loaded, once the texture is in the owner's slot. bc_take takes the owner out of the table if the texture is in its surface's slot of its type. Then, for each waiter: its slot gets the texture (count +4 up, the old texture released through 0x3BEE00); its query gets a resource as on_baked_texture_loaded makes one (0x12DD53..0x12DE0E's sequence) and is finished with 3; its reference is released (0xE0210 at zero). Then `lea eax,[ecx+8]` as 0x420789.
+  - 0xF0D00 (ENTRY) → bake_cache_finish: with owners listed, a finished query that is an owner is taken out. If it has waiters: the function, then each waiter's query made again (translate_query, its cook), then its reference released. Every other query: the function at once (`push ebp / mov ebp,esp / and esp,-8`, then 0xF0D06).
+  - The tables: 64 owners, 192 waiters, 16 per owner, behind a spin lock (no game call is made while it is held). An owner still listed 10 s after its look-up (GetTickCount, import 0x870090) is taken over, waiters and all, by the next query of its path: a guard for an owner that never ends (none is known).
+  - The CRC (the owner's live game, 16:37:47: a 0.4 s stall in a 9-texture bake burst, almost all in 0x42050's loop): 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`; 43 callers, among them process_compression at 0x12F340 over every baked DDS and the loaded resource's CRC 0x3C0F70 at 0x3C0FF0 over every file read) is a byte a step, `crc = T[(crc ^ b) & 0xFF] ^ (crc >> 8)`, T at 0x225FD68 made by 0x1C210 from 04C11DB7h reflected (EDB88320h); the callers do the start and the end. Its entry jumps to bake_cache_crc32 (ENTRY): the bytes to a dword one at a time, then eight a step through eight tables made once from EDB88320h (bc_crc_build), the rest one at a time; [eax] the new CRC, ecx it, edx past the bytes, the others kept, as the original. Unicorn: 24 buffers of 0 to 10 MB from starts 0 to 3 past a dword with random CRCs give the original's CRC and registers; 3.25 instructions a byte against 11. Not done: check_loaded could trust a record's CRC and skip the read's; it would lose the check against a file another game (the replay viewer) rewrote or a damaged one, for what is now a third of the cost.
+  - The stamp after a delete (bc_stamp): every `.dds` left is deleted one by one, and with one left (held open by another game) the folder is not stamped, so the next start deletes it again.
+  - Held textures: a load's texture shared (bake_cache_loaded, bc_take's check 2) is also held for the game: its count +4 one up, its path's record size counted, at most 256 textures and 256 MB, the least used let go (bc_release_texture: the count down, 0x3BEE00 at zero, as 0x12C6D0). bc_lookup answers a held path with the texture: bake_cache_lookup completes the query at once (the waiter's sequence) and leaves translate_query at 0x12D42D. Why: the owner's log (15:39:59 match) reads one player's `renesanse_heavy_com_tank_01_torso_s1{d,n,s}` from disk again at 15:40:43, 15:40:57 and 15:43:59, once per respawn: the player's model is built again, and the old instance's textures went with it.
+- **Nothing a match computes:** textures only. No `simulation_changes` row.
+- **Builds:** without a server sha256 `d1c5510502230dda0e0362b30c588a81fe5c3928849d0687ef26cca292f97f94`, with `--server=skhid.link:1234` `f0538e3b2bf059e2248858f5a9e8dddcd5157c85a5ee1f495a558c5cc50dc7db` (the revision byte REVISION's, 33); the test build `--revision=34 --server=127.0.0.1:2234` `7144092fee48fdff7f3011693d284dbaaa769a156c8872d64b851a4241cfb03f`.
+- **Checked:** `selftest_026g.py` check 70 (the sites' instructions in the original; the hooks; no relocation under them; no branch into them; the link's code). `check_bake_cache_026g.py` (Unicorn 2.1.4) runs the sites from the game's code:
+  - game::game: a stamped folder of this revision is kept and goes into the list; a file cut short is deleted; past 512 files the rest are deleted. Another revision, no stamp, or no folder: deleted and stamped. The original deletes every time.
+  - The game's own check_loaded: a kept file's first load is used and takes the CRC; a second load of other bytes is erased.
+  - translate_query from 0x12D4C5: the original bakes for both queries of a path. In the build the second and third wait (out of translate_query by its own end, registers back); another path, another type and a 17th query go on.
+  - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
+  - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
+  **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
+### 3.58 Blackout: a battery match with no interface, the players' markers on Tab (written 2026-10-24, the Rust framework's 2026-10-26; README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options read, the markers' feed, Tab and the input run with Unicorn from the game's own code before each site; not run in a game
+
+- **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
+  them): a team colour painted into each torso's sleeve, carried in each player's profile; the
+  findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
+- **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
+  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
+  +57870h. The options are read for 0xE4 (process_static_match_info, its call at 0x27B928: ESI the
+  options, which the call keeps; the reader {begin, cursor, size} its local at EBP-2Ch) and for a
+  replay's chunk 1 (0x1F096C: the options the function's first argument, [esp+40h]; the reader its
+  local at esp+14h). After either call the reader's cursor is where the options end: srp's block
+  is read from there (patch 63 reads it inside, at the function's end 0x1F0F30, the same bytes).
+- **The markers** (PROVEN in the code). The player icons' movie (`player_icons.swf`) is loaded with
+  each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons (0x23AA10,
+  from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props 0x23B1C0).
+  Its ids: a player's is his index (player::initialize_player_icon 0x1F29D0, 0x1F29E8); the
+  match's objects' from 25h (initialize_match 0x235771.., update_player_icons 0x23AA83: their
+  own list, each visible by team). The first Blackout build hid the movie at initialize_match's
+  reset with root.hide_interface and the owner still saw a teammate's name and marker: LIKELY the
+  hud then still held a movie that did not take it (the game world's own comes with it). So the
+  forced state is told from the feed: at update_player_icons' start (each frame) the movies the hud
+  holds are told it at a change of movie or state, and again while the Invoke answers 0. Forced,
+  the player icons hide their objects' icons (ids from 37) and show the players' only while Tab is
+  held (`root.force_interface_tab`, told with it; the owner, 2026-10-26).
+- **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
+  (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
+  the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
+  ebx the handler) builds the input's actions mask at handler+33Ch from action_present (0x242460)
+  per action (bits 0..28: forward 0Bh 1, back 0Ch 2, rstrafe 0Eh 8, lstrafe 0Dh 4, jump 4 10h, fire
+  26h 20h, reload 27h 40h, aim 28h/29h 80h, crouch 5/6 100h, sprint 7/8 200h, fire mode 9 400h, ammo
+  type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
+  use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
+  8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
+  After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
+  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
+  bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
+  kits Tab shows and show_player_list still gets Tab.
+- **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
+  them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
+  kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`
+  (scaleform_callback 0x233F06: game_world::select_profile 0x1F8070, then
+  show_profiles_selector(false), which does nothing while the game's +53C8h is set, 0x2383D8).
+  The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
+  0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
+- **The patch:** README patch 65: the Rust module `patches::blackout` (rust/patches/src/
+  blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
+  (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
+  0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
+  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
+  (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
+  62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
+  (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.
+- **Checked:** selftest check 65; `check_blackout_026g.py` (Unicorn, from the game's code before each
+  site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
+  (Ruffle). **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1976,14 +2087,13 @@ section table (0x210..0x400): 12 slots
   .srp .srpd .srpc .srpw                           (ours, 8..11)
   .srpx                                            (the arena, 12)
 
-.srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
-  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
-                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
-  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
-  artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
-  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
-  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000, 0x108
-  match_keys.state state 0x1000   its option's variable                  -> 0xA434000, 0x4A
+.srpx (VA 0xA42D000), its first blocks (the lock records every block):
+  research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3874
+  research.state   state 0x1000  research_arena STATE                 -> 0xa431000, 0x44
+  artefacts.code   code  0x1000  artefacts_026g.asm                   -> 0xa432000, 0x440
+  engine.code      code  0x1000  engine_026g.asm (0.5)                -> 0xa433000, 0x5dd
+  match_keys.code  code  0x1000  match_keys_026g.asm (patch 58)       -> 0xa434000, 0x168
+  match_keys.state state 0x1000  its option's variable, kit_keys      -> 0xa435000, 0x50
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 
@@ -2258,3 +2368,159 @@ malloc_impl 0xE4F90's result, and the pool lookup 0x2E58B0, the artefact
 effect 0x313350, the allocation's name 0x420789 and query_resources 0xE5B60
 in full. The asm patches still call by hand; moving them is a follow-up
 (README, the library's section).
+
+### Medical consumable activity (patch 77)
+
+`consumable_activity` is a Rust presentation hook before the native quick-slot
+update (0x23B7A0). `vostok::QuickSlotActivity` reads the live local player's
+mapped item. Only the medkit primary vtable permits reading medical state.
+Inactive/dead, waiting for the native use delay, and active are distinct states;
+waiting and active each carry their remaining milliseconds and skill-modified
+duration. Waiting uses modifier 33 with weight 1, active uses modifier 34 with
+the medicine's skill weight, matching native set_active.
+No inventory, simulation timer, or snapshot is modified.
+
+The HUD receives `set_quick_slot_activity(slot, phase, remaining, duration)`.
+QuickSlots owns the combination of that snapshot with the native slot descriptor:
+an exhausted stack retains its icon during its remaining delay/effect, and is
+removed when the native effect ends. Waiting maps to the existing gray icon and
+filled cooldown sector. Active displays only ceiling seconds in the native
+countdown field; no custom outlined ring is added. Artefacts retain their
+native countdown/cooldown behavior. No wall-clock timer runs in ActionScript.
+
+### Lobby weight explanation
+
+`weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
+`weight_ui.state` arena blocks. The jump at 0x22110F saves the machine state,
+reads the current lobby's player stamina config, replays `mov eax,[esi+108h]`,
+then continues at 0x221115. The call at 0x2222EB replaces only the lobby weight
+GFx invocation: the original movie arguments supply current and modified maximum
+weight; `engine_apply_modifier` (0x2D5AE0) on `profile + F4h + kit * 704h`
+supplies modifiers 26, 31 and 32, matching the stamina calculation. The profile
+equipment helper at 0x2F7660 cannot accept these indices: its unchecked item
+switch crashes with equipped gear, now covered by the native regression check.
+The callback gains movement/spending fractions and sprint state
+(0 permitted by weight, 1 blocked by weight, 2 blocked by Heavyweight).
+It retains the original two arguments if the config is unavailable or invalid.
+The shim preserves registers, flags and floating-point state and returns with
+the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
+the original callback and kit evaluator; `data.md` records the formula evidence.
+No gameplay calculation or release revision changes.
+
+### Knowledge database link
+
+The lobby's Knowledge database button keeps its confirmation dialog and native
+`go_to_knowledge_base` callback (0x28CAB0), but opens
+`https://026g.skhid.link/wiki`. `KNOWLEDGE_BASE` replaces the fixed URL prefix at
+0xA0A7A8 and NOPs the two `strcat_s` calls at 0x28CBA3/0x28CBB7 that appended
+the old support site's language and path. Their argument pushes and cdecl stack
+cleanup remain paired. ShellExecuteA, `AL=1`, and `ret 4` stay unchanged. The wiki
+uses browser language selection and its own language switch. No new code arena
+is needed for these constant-data/in-place removals. `check_knowledge_base_026g.py`
+executes the original and patched callback in every game language, capturing
+the browser call and checking its URL, arguments, preserved ESI and stack.
+
+### Weapon detail cards
+
+`weapon-details-ui-1.json` copies each weapon's existing configuration values
+into non-comparable UI properties 138–159; it changes no simulation parameters.
+`WeaponDetails.as` reads those values for inventory and shop cards. The compact
+card replaces the ambiguous distance row with the full-damage distance and the
+minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
+draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
+spread/recovery and sway. Wear rates and reliability are deliberately excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded.
+
+Recoil and spread are not labelled degrees: the native recoil loader at
+0x331840 divides horizontal config values by 21.48 and vertical values by
+63.735. The dispersion loader at 0x330EE0 copies growth and recovery rates
+directly, as the breath loader at 0x2DEBC0 does for amplitudes and period.
+The UI reports each weapon's own base recoil/spread/sway values, named in each
+language's own recoil, spread and sway words (the stock dictionary's: Russian
+отдача, разброс, раскачивание). Vertical (initial upward) recoil
+shows `[min_top, max_top]`; horizontal (initial sideways) recoil shows
+`[min_right - max_left, max_right - min_left]`, matching the engine's independent
+right-minus-left draws. Variability is the standard deviation: upward range
+width divided by `sqrt(12)`, sideways `sqrt((right_width² + left_width²) / 12)`.
+These describe the initial shot impulse before accumulation and recovery.
+Signed sideways ranges stay neutral; lower variability compares as better.
+Upward ranges compare as better only when both endpoints are no higher and at
+least one is lower, using displayed precision; crossing ranges stay neutral.
+The values are relative configuration units, not degrees.
+An early AK-74M = 100% benchmark was removed because it looked like a
+weapon parameter and obscured the actual values.
+Missing detail metadata retains the original distance row. Native card layout
+owns resizing, and lobby positioning is refreshed when Shift changes its height.
+
+Focused check: `scripts/weight-ui/check_ui.sh <lobby.swf> <output-dir>
+scripts/weapon-details/WeaponDetailsHarness.as DETAILS` exercises native card
+expansion/collapse, comparison colors, translated heights, base values and old
+content fallback. In every language, compact and expanded, and beside the widest
+values of the live weapons (MSBS: -0.58…0.58, 1.98…2.2), every label is one line
+ending left of its value and every heading one line, with 5% of the width to
+spare (Ruffle lays out the embedded Calibri close to, not exactly as, Scaleform);
+each miss is printed as a `DETAILS OVERFLOW` line. A label that would not fit
+wraps before its value rather than under it (`LabelDiffIndicator`), the row
+taking the lines. The existing weight harness also checks the shop constructor.
+
+Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
+`WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,
+transforms and original row spacing from `ItemCompare`.
+An initial dynamic `TextField` copied from the empty description rendered with
+tiny black fallback text in Scaleform despite looking legible in Ruffle.
+An intermediate fix still overrode the original gray/bold labels, gold numbers
+and column geometry. `LabelDiffIndicator.setDetailText` now follows the original
+formatter and only substitutes the read-only value string and hides bars (these
+base fields have no comparison ranges). Native unit spacing is retained; long
+notes wrap at the original columns. The harness compares font, size, boldness,
+alignment, color, global text scale, columns and row spacing against the card's
+original rows, as well as checking value and frame bounds in every language (the texts are
+`st_srp_weapon_*` and `st_srp_unit_*` dictionary keys, localization/README.md).
+
+Headings and the Shift hint are separate caption entries,
+rendered with native embedded-font fields by `WeaponDetailCaption`; headings
+have brighter, larger text on a near-black divider band, while the Shift hint is muted gray.
+Only numeric entries use the stat-row formatter. Comparison cards reserve the
+larger of each pair's wrapped label heights. Missing `from_the_hip_multiplier`
+now displays 1x (including Kiparis), matching the loader's 0x330FE3 branch to the
+1.0 constant at 0xA70884, rather than omitting the row and shifting every later
+stat. The harness verifies matching row positions and caption contrast as well.
+Compared weapon cards also reserve the larger natural header height, including
+wrapped optics descriptions, so their original and added stats align. Returning
+to a single card restores its natural header. The redundant "Weapon modifiers
+only" note is omitted. Early comparison resize events wait for the three bonus
+list containers as well as their data providers before laying out the card.
+
+Each stat has a stable property id and an explicit comparison direction. Higher
+damage/range and recovery rate are better; lower times, recoil, spread and sway
+amplitudes are better. Zoom and sway period are neutral traits. Draw/holster,
+damage-floor distance/amount and horizontal/vertical sway have separate rows so
+one value cannot inherit another value's color. The native row formatter supplies
+red/green; equal displayed values retain the original neutral color (comparison
+scores use display precision, avoiding float-noise differences).
+Holding Ctrl suppresses comparison colors and difference bars in both original
+and added card rows, independently of Shift's expanded view. Releasing Ctrl
+restores comparisons without changing values. The harness covers both key orders
+and restores both original and added colors.
+
+Audit of all 83 weapon configurations: none of these displayed parameters is
+constant across every weapon. The minimum damage fraction is the closest: 60%
+for 82 weapons, 80% for Winchester 1894. No varying stat was removed as a constant.
+
+`WeaponDetails.read` applies only `item.modifiers` (already containing defaults),
+never the profile, gloves or other equipped items. Property 24 scales both
+falloff distances by `max(0, 1 + sum)`; property 114 scales weapon reload time by
+`max(0, 1 - sum)`. The opposite reload sign is explicit in weapon modification
+2040..2044 and defect 3040: the UI calls a reload improvement positive while its
+config change to `parameters/reload_time` is negative. The native type-2 operator
+at 0x358010 sums percentages, clamps `1 + sum` at zero, then multiplies the base.
+Values are copied before modification and comparisons use the resulting values.
+
+Existing data issue, deliberately not masked by UI: recoil modifications
+2080..2084 and defect 3060 target `max_first_shoot_*` / `*_queue_shoot_*` fields,
+absent from current weapons' recoil blocks. `find_modifier_target` 0x2F1430
+returns null for missing paths; the cook skips them at 0x2F1ABF. Current recoil
+loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
+The card therefore does not invent a recoil reduction. Likewise a base-dispersion
+upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+separate view FOV does not change the explicitly labelled base aim-zoom parameter.

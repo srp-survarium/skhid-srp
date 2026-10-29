@@ -9,7 +9,9 @@
 //!   `survarium::v026g::loadouts::BOT_MEDKIT`, is the first filled slot)
 //!   pressed once, then still and crouched for `wait_min_s` to
 //!   `wait_max_s`, fire held; an enemy seen meanwhile ends it.
-//! - **Medkits per life:** the kit has `medkits` (two). What the bot's
+//! - **Medkits per life:** `medkits` (two), at most what the kit's first
+//!   pocket holds (`BotFacts::medkits`: one in a pocket of one unit, none
+//!   in a kit of level 0). What the bot's
 //!   facts keep of past plays is only the last end of each
 //!   (`BotFacts::last_ran`), so a heal ended since the spawn
 //!   (`PlaceView::spawned`) is all that can be told: [`medkits_used`]
@@ -55,7 +57,9 @@ pub fn medkits_used(cx: &Ctx) -> u32 {
 
 /// Medkits it may still use this life.
 pub fn medkits_left(cx: &Ctx) -> u32 {
-    (cx.num(PlayKind::Heal, "medkits").max(0.0) as u32).saturating_sub(medkits_used(cx))
+    (cx.num(PlayKind::Heal, "medkits").max(0.0) as u32)
+        .min(u32::from(cx.bot.medkits))
+        .saturating_sub(medkits_used(cx))
 }
 
 /// Whether an enemy it knows of has a clear line to it (crouched), or is

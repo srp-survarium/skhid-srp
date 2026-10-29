@@ -1,0 +1,17 @@
+# Patch 79: the game language is a setting, kept in user.cfg
+# (docs/notes/language-option.md). Only the decisions: which sites, and the
+# handlers. The sites are sites_026g.tsv's; the logic is language.rs.
+name = "language"
+patch = 79
+
+[[hook]]
+site = "configs.start"
+handler = "on_configs_start"
+
+[[hook]]
+site = "configs.texts"
+handler = "on_configs_texts"
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"

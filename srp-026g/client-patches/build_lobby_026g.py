@@ -45,7 +45,7 @@ OLDER = {
 # the last of a kind), one Flex run. The owner checked c3898574…, built from
 # this tree before the build compiled every tree from one place: the same
 # code laid out by compc in another order ("good, it works").
-RESULT_SHA256 = "8b099212b42baffd663e00d5f7a6447f2edf664999c11d7e01bf4c94c656791e"
+RESULT_SHA256 = "f9c8fb082bc724884638022f327a08d592a6dc20d789549df73eb8f5a0c22146"
 
 
 def build(movie, tools, report=print):

@@ -95,12 +95,16 @@ pub struct MatchSetup {
     /// ([`MatchResult::private`]: the rewards pay nothing).
     pub private: bool,
     /// A room's match: the room's own minimum of players to start (2 for
-    /// 1 v 1, 4, 6; `docs/notes/rooms.md`). With it, a match the clients'
+    /// 1 v 1, 4, 6; 1 for a private room, which its owner starts with whoever
+    /// is in, 1 v 0 too: no side needs a player; `docs/notes/rooms.md`). With it, a match the clients'
     /// own rule cannot start starts with the players who are in, and one
     /// that not even that many can play is called off
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
+    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
+    /// static info's flag (exe patch 65), on a battery map only.
+    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -192,6 +196,9 @@ pub(crate) struct Formed {
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// Whether the static info says Blackout (exe patch 65), the same for a
+    /// late joiner's.
+    pub blackout: bool,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -447,6 +454,7 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
+        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
         let options = MatchOptions {
             players: setup
                 .players
@@ -457,6 +465,7 @@ impl MatchRegistry {
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
+            blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -482,6 +491,7 @@ impl MatchRegistry {
                 places,
                 profiles,
                 score_weights,
+                blackout: options.blackout,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -596,6 +606,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
+                blackout: next.blackout,
             },
             Dictionary::shared(),
         )
@@ -892,6 +903,9 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::snapshot::event`). `None`: no
     /// trusted snapshot had statistics.
     pub statistics: Option<PlayerStatistics>,
+    /// Payment-only counters after anti-farming limits. `None` pays the
+    /// ordinary statistics; scores, quests and rating never use this copy.
+    pub pay_statistics: Option<PlayerStatistics>,
     /// The scoreboard's score from those counters and the match's weights;
     /// the client rounds each event as it happens, so its own last digit
     /// can differ [LIKELY].
@@ -953,6 +967,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
+    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
+    pub blackout: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

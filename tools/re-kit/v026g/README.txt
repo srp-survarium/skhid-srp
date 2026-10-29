@@ -2,7 +2,7 @@ Survarium v0.26g executable labels
 
 Game and engine function names for inspecting and patching v0.26g build 2777.
 Names come from comparison with the v0.21d EXE/PDB and from qualified names
-in the v0.26g executable's own diagnostics. Vendor-library entries are omitted.
+in the v0.26g executable's own diagnostics. Vendor-library entries are included when needed to document a client patch.
 
 Files (tab-separated, one header line; va is a preferred-image VA)
   functions.tsv    va, status, ref_021d, name   Reviewed names.
@@ -13,12 +13,12 @@ Files (tab-separated, one header line; va is a preferred-image VA)
   lookup.py        Search by name or address; prints RVA, file offset and ABI.
 
 status
-  reviewed, verified  Checked by hand against the v0.21d body.
+  reviewed, verified  Checked by hand against the v0.21d body or matching vendor source.
   observed            A v0.26g diagnostic name, peer-reviewed against its body.
   inferred-high, inferred-medium
                       Translation-unit order and body likeness. Not reviewed
                       and without ABI rows; check the code before patching.
-ref_021d is the matched v0.21d address; empty for observed names. An address
+ref_021d is the matched v0.21d address; empty for observed names or vendor-source matches. An address
 with several names, or a name at several addresses, has several rows.
 
 ABI rows

@@ -42,6 +42,10 @@ use super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::item_params;
 use super::match_msgs::static_info::MatchProfile;
 
+pub mod bot_gear;
+
+use bot_gear::category;
+
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
 
@@ -118,6 +122,35 @@ impl Loadout {
     pub fn slot(&self, slot: u8) -> Option<&SlotItem> {
         self.items.iter().find(|item| item.slot == slot)
     }
+
+    /// Its equipment level ([`gear_level`]).
+    pub fn gear_level(&self) -> u8 {
+        gear_level(
+            self.items
+                .iter()
+                .map(|item| (item.slot, item.dict_id, item.count)),
+        )
+    }
+}
+
+/// The equipment level a kit shows: the highest `match_making_level` of
+/// what its slots hold, each times its slot's `slots_weight`, rounded; a
+/// stack counts only while it has units (the client's rule, 0x2F79A0;
+/// `session::v026g::matchmaking` step 1, which reads an account's kit with
+/// it). `items` are `(slot, dict id, units)`.
+pub fn gear_level(items: impl IntoIterator<Item = (u8, u16, u32)>) -> u8 {
+    let dictionary = Dictionary::shared();
+    let weights = &dictionary.match_maker.slots_weight;
+    let highest = items
+        .into_iter()
+        .filter(|&(_, dict_id, units)| !dictionary.is_stack(dict_id) || units > 0)
+        .filter_map(|(slot, dict_id, _)| {
+            let level = item_params::item_params(dict_id)?.match_making_level;
+            Some(f32::from(level) * weights.get(usize::from(slot)).copied().unwrap_or(1.0))
+        })
+        .fold(0.0_f32, f32::max);
+    // The client adds 0.5 and floors (0x2F7A9E).
+    (highest + 0.5).floor().clamp(0.0, 255.0) as u8
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -312,8 +345,14 @@ pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 /// for quick use.
 pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
 
-/// What every one of the match server's own bots wears
-/// (`lobby-server` `play::server_bot`), whatever its role: gear with three
+/// Two bandages (`bandages`, `drugs`) in the first pocket, quick use 1: the
+/// medkit's place in a kit of a level under the medkit's
+/// (`bot_gear::bot_kit_of`), so the pockets never raise a kit's level.
+pub const BOT_BANDAGES: BotKitItem = kit_item("bandages", 13, 2, Some(QUICK_USE_FIRST_BIT));
+
+/// What every one of the match server's own bots wears in its role's fixed
+/// kit (`lobby-server` `play::server_bot`, when no player has a kit of its
+/// role: `session::v026g::bot_kits`), whatever its role: gear with three
 /// pockets of two for a medkit, the radio and a grenade, and no weapon 2.
 /// Its role adds weapon 1, its ammo and armour ([`BotRole::gear`]);
 /// [`bot_kit`] is the whole kit.
@@ -330,11 +369,12 @@ pub const BOT_KIT: [BotKitItem; 5] = [BOT_BACK, BOT_LEGS, BOT_MEDKIT, BOT_RADIO,
 pub const BOT_AMMO_NOTE: () = ();
 
 /// A server bot's role: the match server's play personality of the same
-/// name (`match-server` `bots::tuning::Personality::defaults`), and the
-/// weapon and armour it wears for it ([`BotRole::gear`]). Every role's
-/// pieces are of item level 1 to 5 or the starter's free ones, and none is
-/// premium.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// name (`match-server` `bots::tuning::Personality::defaults`), the class
+/// of weapon it carries ([`BotRole::class`]) and its fixed kit, the weapon
+/// and armour it wears when no player has a kit of its role
+/// ([`BotRole::gear`]). Every fixed kit's pieces are of item level 1 to 5
+/// or the starter's free ones, and none is premium.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BotRole {
     Flanker,
     Support,
@@ -429,8 +469,33 @@ impl BotRole {
         }
     }
 
-    /// What the role wears besides [`BOT_KIT`]: weapon 1 (slot 7) and its
-    /// ammo first, then armour.
+    /// The dictionary categories of its weapons (`bot_gear::category`):
+    /// the SMGs; the assault rifles and the machine guns [choice: the
+    /// support is the middle of the four, and a machine gun its kind of
+    /// fire]; the shotguns; the sniper rifles. The match server's aim takes
+    /// them as its personality's kind (`bots::reflex::WeaponKind::of_role`).
+    pub fn categories(self) -> &'static [u8] {
+        match self {
+            BotRole::Flanker => &[category::SMGS],
+            BotRole::Support => &[category::ASSAULT_RIFLES, category::MACHINE_GUNS],
+            BotRole::Rusher => &[category::SHOTGUNS],
+            BotRole::Camper => &[category::SNIPER_RIFLES],
+        }
+    }
+
+    /// The most rounds of weapon 1 in each of [`BOT_AMMO_SLOTS`]: its fixed
+    /// kit's ([`BOT_AMMO_NOTE`]), fewer where the carry limit wants
+    /// (`bot_gear::bot_kit_of`).
+    pub fn rounds_a_slot(self) -> u32 {
+        match self {
+            BotRole::Flanker | BotRole::Support => 200,
+            BotRole::Rusher => 60,
+            BotRole::Camper => 40,
+        }
+    }
+
+    /// What the role's fixed kit wears besides [`BOT_KIT`]: weapon 1 (slot
+    /// 7) and its ammo first, then armour.
     pub fn gear(self) -> &'static [BotKitItem] {
         match self {
             BotRole::Flanker => &FLANKER,
@@ -455,14 +520,14 @@ impl BotRole {
         }
     }
 
-    /// The role whose weapon 1 is `dict_id`.
+    /// The role whose category ([`BotRole::categories`]) the weapon
+    /// `dict_id` is of; none for a pistol, any other item or one the
+    /// dictionary lacks.
     pub fn of_weapon(dict_id: u16) -> Option<BotRole> {
-        let dictionary = Dictionary::shared();
-        BotRole::ALL.into_iter().find(|role| {
-            dictionary
-                .item_named(role.gear()[0].name)
-                .is_some_and(|item| item.dict_id == dict_id)
-        })
+        let category = Dictionary::shared().item(dict_id)?.category;
+        BotRole::ALL
+            .into_iter()
+            .find(|role| role.categories().contains(&category))
     }
 
     /// The role of a team's `k`-th bot (0 on): smooth weighted round
@@ -547,10 +612,12 @@ pub fn bot_kit(role: BotRole) -> &'static Loadout {
     bot_kits(role)[0]
 }
 
-/// The role a profile's weapon 1 (slot 7 of its first kit) says: what the
-/// match server reads from the profile it has of each place
-/// (`Formed::profiles`). `None` for a player, or any profile whose weapon
-/// 1 is no role's.
+/// The role a profile's weapon 1 (slot 7 of its first kit) says, by its
+/// category ([`BotRole::of_weapon`]): what the match server reads from the
+/// profile it has of each of its bots (`Formed::profiles`). `None` for a
+/// profile with no kit, or whose weapon 1 is of no role's category (a
+/// player's weapon may be of one: the match server asks only of its
+/// bots).
 pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
     let kit = profile.kits.first()?;
     let (index, _) = kit.slots[7]?;

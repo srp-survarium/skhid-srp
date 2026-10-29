@@ -1,5 +1,14 @@
 # content-edit: game data changes as resources.db patches
 
+Native dictionary text is maintained in
+[`client-patches/localization/*.tsv`](../../client-patches/localization/README.md),
+one complete file per language. `localization-1.json`, the final manifest edit,
+compiles them all. The text-only edit lists described historically below have
+been folded into those TSVs; add new item names and descriptions there in every
+language, then run `python3 srp-026g/client-patches/check_localization_026g.py`
+from the repository root. Gameplay values and UI key mappings remain edit lists; srp's own
+menu texts (`st_srp_*`) need no mapping: the compile maps each for the lobby and login movies.
+
 `content_edit.py` makes a patch folder by editing the live game configs in place:
 only the bytes of the edited values change (a renamed key's table is re-sorted by
 name CRC, as the game's lookup needs; new names and strings go after the file's
@@ -11,7 +20,8 @@ on other data.
 ## Making the patch
 
 An edit list is live when it has its row in `release/content.tsv` (`edit<TAB><file>.json<TAB>-<TAB><what>`,
-after the edit rows already there: they are applied in that order). `release/build-content
+after the other relevant edit rows, but before the final localization catalog edit:
+they are applied in that order). `release/build-content
 <revision>` applies every one to the files as the base patches and the packs leave them (so the
 `from` values are those, never a later release's), compares the results with what players have,
 and packs only the files that differ into `resources.db.patch_<revision>`, with the server game data
@@ -21,6 +31,22 @@ only `gameplay/` (the server game data holds only the files srp reads).
 
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
+
+### Headwear render assets
+
+`headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
+(`file`, expected `vertices`). `headwear.py` checks the native bind order,
+skin layout, weights and index bounds. `require_headwear_bind` checks the
+actual `body_parts/bind_pose` reference in `gameplay/bodyparts/default`
+against the binds being extended, so the assembled character gets the
+extra bone. It appends a Head-equivalent render
+bone and rebinds only the approved helmet surfaces; all geometric and
+texture data stays exact. The Biker's three blended neck vertices become
+rigid. The seven helmets without inner faces and the level-2 ported beanie also
+set their existing material’s
+`two_sided` flag, using the original textures on the reverse side; Keeper
+already has an interior and keeps its material. These edits require the matching client hooks; build and ship them
+together through the normal release. See `docs/notes/ragdoll.md` section 15.
 
 ### The value-type check
 
@@ -60,6 +86,19 @@ Then run `weapon_balance_1_changes_only_its_values`
 (`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
 server game data carries no localization tables: the test reads the texts in the patches themselves.
+
+### Map edit lists
+
+The map editor (`~/Projects/survarium/map-editor`) saves one edit list per map: moves and turns
+of a project's entries (`set_entry` with vectors and nested keys such as `spawned_item/position`),
+copies (`add_entry`, with nested keys such as `collision_geometries[0]/name`), an anomaly's
+artefact containers (`add_item`, `remove_item`) and deletions (`remove_entry`). Its `map_editor`
+table is the editor's own; `content_edit.py` ignores it. The editor's tests apply its lists with
+this script and compare the projects with its own (`crates/map-core/tests/real_maps.rs`).
+A map's list may also edit its Research mode configs (`gameplay/game_modes/<level>_<weather>_5.options`,
+the capture units' `capture_zones`). Moving spawns or capture units, or changing what collision
+stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
+list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -104,11 +143,7 @@ Applied to revision 22's live files: 6 files edited, 0 unexpected differences. W
 
 ## duty-name-uk-1.json (2026-10-20)
 
-| change | why |
-|---|---|
-| Ukrainian: `"Обов'язку"` -> `"Долгу"` in the seven Duty exo texts (`st_duty_026_suit_name`, `_head_desc`, `_helmet_name`, `_gloves_name`, `_gloves_desc`, `_boots_name`, `_boots_desc`) | the owner's: the faction is called Долг in Ukrainian too. The plain word обов'язок elsewhere (`st_edge_steal_box_descr`, `st_edge_defend_items_descr`) stays |
-
-Applied to revision 24's live `localization/ukrainian/localization` (from the server game data): 1 file edited, 0 unexpected differences. Text only: no simulation change.
+Removed: its text is in `client-patches/localization/*.tsv`.
 
 ## battery-pickup-1.json (2026-10-20)
 
@@ -383,12 +418,7 @@ scene, which the game does not read) is left as it is.
 
 ## ban-texts-1.json (2026-10-22)
 
-| change | why |
-|---|---|
-| `st_login_menu_status_user_banned` -> "You are banned. " (and its five translations), in the six localization tables | the stock header said "(Use / distribution / advertisement of prohibited software)" for every ban, whatever the reason. The client puts the reason text right after it, with no space: the new text ends in one |
-| `st_ban_reason_administrator` -> "Decision of the administration." (Entscheidung der Administration, Decyzja administracji, Решение администрации, Рішення адміністрації) | the login server sends this code (0x1C) for an admin's reason with none of its words (`BAN_REASONS`, login-server `v026g.rs`), meant as the neutral one; its stock text was "Pretending to be administrator of the game". A player banned 1 h for friendly fire read both stock texts (the owner, 2026-10-22) |
-
-Applied to revision 29's live tables (from the stock db and patches 12 to 29): 6 files edited, 0 unexpected differences. Text only: no server data, no simulation change.
+Removed: its text is in `client-patches/localization/*.tsv`.
 
 ## third-mod-1.json (2026-10-23)
 
@@ -407,19 +437,7 @@ game data). No simulation change: a match applies only the modifications an item
 
 ## artefact-texts-1.json (2026-10-23)
 
-| change | why |
-|---|---|
-| `st_spring_pickup_hint`: movement speed by 2 % -> "movement speed and aiming speed by 5 %" (German said 5 % already) | `artefacts-1.json`: passive movement speed +5 %, aim time -5 % (the gloves' texts call aim time "aiming speed") |
-| `st_spring_activation_hint`: "Speed of movement and aiming +10 %" (German's total +15 %), and "Bullets do not slow you!" | the active's aim time -10 % and `stopping_power_mod` -1 (client patch 54) |
-| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds | patch 54 fills pain, body and head at the active; the pickup hint ("increases health regeneration") is still right |
-| `st_onyx_pickup_hint` 10 % -> 5 % (German "auf 15 %" -> "um 5 %"), `st_onyx_activation_hint` 95 % -> 90 % (German "auf 90 %" -> "um 90 %") | stock mistakes: `damage_mul` and `armor_piercing_mul` are 0.95 passive, 0.1 active, never both |
-
-These hints are the artefacts' only texts: fixed sentences in the localization tables (`data/pickup_hint`,
-`data/activation_hint`), nothing computed from the config; an artefact has no lobby card (its `ui_desc`
-name and description keys have no text, `props_list` is empty). The "Onyx artifact." / "Артефакт Онікс."
-openings, which the maps tab and the damage calculator take the names from, stay. Applied to revision
-29's live tables: 6 files edited, 0 unexpected differences.
-Text only: no server data, no simulation change.
+Removed: its text is in `client-patches/localization/*.tsv`.
 
 ## protective-mask-1.json (2026-10-23)
 
@@ -436,20 +454,11 @@ file edited, 0 unexpected differences. No simulation change: the slot rule is th
 
 ## match-chat-off-1.json (2026-10-23)
 
-| change | why |
-|---|---|
-| `st_private_messages_in_game_option` "Disable private messages at the time of battle" -> "Hide chat in match" (Chat im Kampf ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою), in the six localization tables | the gameplay options' checkbox of that label (option 4, `g_private_messages_in_game`) named no console variable and was greyed; exe patch 58 gives it one and the main menu enables it: checked, the other players' chat lines are not shown in a match (`../../docs/notes/match-hud-options.md`; a player's ask, board T29) |
-
-Applied to revision 30's live tables (from the stock db and patches 12 to 30): 6 files edited, 0
-unexpected differences. Text only: no server data, no simulation change.
+Removed: its text is in `client-patches/localization/*.tsv`.
 
 ## hide-interface-1.json (2026-10-24)
 
-| change | why |
-|---|---|
-| a new `st_hide_interface_action` "Hide interface" (Oberfläche ausblenden, Ukryj interfejs, Скрыть интерфейс, Сховати інтерфейс), in the six localization tables | the label of the controls options' row exe patch 62 adds for `toggle_replay_ui` (F11), the key that hides the interface in a match and the lobby and the replay's controls in a replay (`../../docs/notes/hide-ui-key.md`; the owner, 2026-10-24: "there is no in settings option to switch it") |
-
-Text only: no server data, no simulation change.
+Removed: its text is in `client-patches/localization/*.tsv`.
 
 ## bandages-1.json (2026-10-24)
 
@@ -461,3 +470,71 @@ Text only: no server data, no simulation change.
 
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
+
+## socom-nerf-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
+| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
+
+Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
+edited, 0 unexpected differences. The simulation changes (the `next` row of
+`simulation_changes.tsv`).
+
+## network-texts-1.json (2026-10-25)
+
+Removed: its text is in `client-patches/localization/*.tsv`.
+
+## svd-level-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
+
+Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
+differences. Not a simulation change.
+
+## kill-feed-weapons-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
+
+## london-1.json (2026-10-26)
+
+London has no anomalies in any of its four modes (`projects/level_09/day_2` to `day_5`:
+batteries, batteries with chargers, Team Deathmatch and Research). Each of the seven anomalies
+loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
+project. The damage zones own their idle sound and particles. The decorative rock piles stay.
+The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
+spawn point keeps its own 6 seconds of invulnerability.
+
+The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
+positions and rotations, retaining their names, order, teams and other properties. All four
+projects use the same placements:
+
+| team in the project (server team) | placement | walking distance to its battery container |
+|---|---|---|
+| team1 (0, west) | building_06_1's first floor, y = 9.25; 10 points placed to match team2 | 44–65 m |
+| team2 (1, east) | building_10's first floor, y = 9.52–9.56; the owner's eight points plus two beside them | 68–74 m |
+
+Team1's points are 13–26.5 m on foot from the door with stairs to the street. A point moved
+without being turned keeps its original facing. These placements replace the earlier proposed
+spawns beside the ground-floor doors. The owner's accidental prop moves are excluded.
+
+Checks compare the built projects with the live projects and the editor's placements: 10 + 10
+points per mode, every position and rotation as placed, no remaining anomaly objects or old
+spawn zones, and every unrelated value unchanged. `release/build-content` also checks the
+complete manifest against the live patches. The simulation change is recorded by the `next`
+row in `simulation_changes.tsv`; the release resolves it to its revision.
+
+The server reads the updated spawn table from the generated `server-game-data.db`. For bots,
+regenerate all four `level_09_day_*.mapdata` files with `mapdata-dump` over the release's complete
+patch list and new content patch. These files then contain the same 20 points and no anomaly
+zones; they are generated game data, not repository sources. The Maps tab is rebuilt from the
+same content by `release/build-site`.
+
+`feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
+PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
+before they can ship on top of this list.

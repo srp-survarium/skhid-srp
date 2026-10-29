@@ -307,6 +307,46 @@ fn a_room_allowing_more_than_the_kits_offers_a_higher_preset() {
     assert_eq!(gear(&world, carol), 0);
 }
 
+/// A private room has no max level (the owner's of 2026-10-26): its join
+/// offers no preset for the gear, over its window's max level or under it,
+/// and goes in with the kits as they are.
+#[test]
+fn a_private_room_offers_no_preset_for_the_gear() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 3,
+            ..spec(8)
+        },
+        Some(1234),
+    );
+    // Bob plays preset 2, level 5 (over the window's 3); preset 1 is his
+    // starter kit.
+    copied_into(&mut world, bob, 2);
+    with_gear(&mut world, bob, 5);
+    assert_eq!(
+        rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
+        [format!("S1;O;{key};0;0;0;5;0")]
+    );
+    // Carol made preset 3 of level 5 and plays her starter: nothing higher.
+    copied_into(&mut world, carol, 3);
+    with_gear(&mut world, carol, 5);
+    choose(&mut world, carol, 1);
+    assert_eq!(
+        rows(&mut world, carol, ROOM_OFFER_BASE + key, 1),
+        [format!("S1;O;{key};0;0;0;0;0")]
+    );
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    let state = rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
+    assert_eq!(gear(&world, bob), 5);
+}
+
 #[test]
 fn no_preset_that_fits_keeps_the_refusal() {
     let mut world = World::new();
@@ -353,7 +393,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         &mut world,
         alice,
         RoomSpec {
-            max_level: 7,
+            max_level: 10,
             ..spec(8)
         },
         None,
@@ -364,7 +404,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     choose(&mut world, erin, 1);
     assert_eq!(
         rows(&mut world, erin, ROOM_OFFER_BASE, 1),
-        [format!("S1;O;{key};1;2;5;0;7")]
+        [format!("S1;O;{key};1;2;5;0;10")]
     );
     // "Switch and enter": preset 2 active, then Play, which takes that room.
     let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);

@@ -742,13 +742,13 @@ fn a_modification_is_changed_for_one_of_three() {
     let chosen = choose_modifier(&mut account, rifle, 2000, 1).unwrap();
     assert_eq!(chosen.old_modification, 2000);
     assert_eq!(chosen.new_modification, rolled.choices[1]);
-    // The next change costs a tenth more.
+    // The next change costs the same (the owner's rule of 2026-10-25).
     assert_eq!(
         chosen.window,
         RerollWindow {
             item_id: rifle,
-            regular_cost: 2640,
-            premium_cost: 13,
+            regular_cost: 2400,
+            premium_cost: 12,
             changed: Some((rolled.choices[1], 0)),
             offer: None
         }
@@ -758,12 +758,12 @@ fn a_modification_is_changed_for_one_of_three() {
     assert_eq!(own_modifications(item), [rolled.choices[1], 2010]);
     assert_eq!(item.reroll.offer, None);
     let message =
-        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [2640, 13, 0]);
+        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [2400, 12, 0]);
     let mut expected = vec![0x83, 0x46, 0x08];
     expected.extend(rifle.to_le_bytes());
     expected.extend(2000_u32.to_le_bytes());
     expected.extend(chosen.new_modification.to_le_bytes());
-    expected.extend([0x50, 0x0A, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0]);
+    expected.extend([0x60, 0x09, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
     assert_eq!(
@@ -776,11 +776,11 @@ fn a_modification_is_changed_for_one_of_three() {
     // (`every_modification_of_an_item_may_be_changed`).
     let new = chosen.new_modification;
     let rolled = reroll(&mut account, rifle, new, true, NOW + 100, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (0, 13));
-    assert_eq!(account.premium_money, 1_000 - 13);
+    assert_eq!(rolled.paid, (0, 12));
+    assert_eq!(account.premium_money, 1_000 - 12);
     assert_eq!(rolled.reroll_seconds, 0);
     let chosen = choose_modifier(&mut account, rifle, new, 0).unwrap();
-    assert_eq!(chosen.window.regular_cost, 2904);
+    assert_eq!(chosen.window.regular_cost, 2400);
     // Silver pays again at once.
     let later = NOW + 200;
     assert_eq!(reroll_window(&account, rifle).unwrap().changed, {
@@ -795,7 +795,7 @@ fn a_modification_is_changed_for_one_of_three() {
         &mut rng,
     )
     .unwrap();
-    assert_eq!(rolled.paid, (2904, 0));
+    assert_eq!(rolled.paid, (2400, 0));
 
     // A damaged item, a stack and an item in repair can not be changed.
     let mut account = rich();
@@ -873,13 +873,13 @@ fn a_change_may_be_given_up_for_the_old_one() {
     let kept = choose_modifier(&mut account, rifle, 2000, KEEP_OLD_MODIFICATION).unwrap();
     assert_eq!(kept.old_modification, 2000);
     assert_eq!(kept.new_modification, 2000);
-    // The change counts for the price; no wait.
+    // The same price for the next change; no wait.
     assert_eq!(
         kept.window,
         RerollWindow {
             item_id: rifle,
-            regular_cost: 2640,
-            premium_cost: 13,
+            regular_cost: 2400,
+            premium_cost: 12,
             changed: Some((2000, 0)),
             offer: None
         }
@@ -900,7 +900,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
     expected.item_mut(rifle).unwrap().reroll.offer = None;
     assert_eq!(account, expected);
     // The client's copies stay as they were.
-    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [2640, 13, 0]);
+    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [2400, 12, 0]);
     takes(&mut client, &message, &account);
 
     // Answered once: neither a choice nor keeping it again.
@@ -915,8 +915,8 @@ fn a_change_may_be_given_up_for_the_old_one() {
     // The next change is paid again (gold now: silver waits), and its
     // choice takes the new one in the old one's place.
     let rolled = reroll(&mut account, rifle, 2000, true, NOW + 60, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (0, 13));
-    assert_eq!(account.premium_money, 1_000 - 13);
+    assert_eq!(rolled.paid, (0, 12));
+    assert_eq!(account.premium_money, 1_000 - 12);
     let chosen = choose_modifier(&mut account, rifle, 2000, 2).unwrap();
     assert_eq!(chosen.new_modification, rolled.choices[2]);
     assert_eq!(
@@ -925,18 +925,19 @@ fn a_change_may_be_given_up_for_the_old_one() {
     );
     assert_eq!(
         (account.generic_money, account.premium_money),
-        (paid, 1_000 - 13)
+        (paid, 1_000 - 12)
     );
 }
 
 /// The owner's rule of 2026-10-22: any modification of an item may be
 /// changed, each any number of times; the one changed before locks
-/// nothing. Every change of the item, of whichever modification, kept or
-/// not, makes the next cost a tenth more (`docs/notes/reroll-keep-old.md`).
+/// nothing (`docs/notes/reroll-keep-old.md`). Every change of the item, of
+/// whichever modification, kept or not, costs the same (the owner's rule of
+/// 2026-10-25, `docs/notes/flat-reroll.md`).
 #[test]
 fn every_modification_of_an_item_may_be_changed() {
     let mut account = rich();
-    // A level 10 rifle: 2400 silver or 12 gold for its first change.
+    // A level 10 rifle: 2400 silver or 12 gold a change.
     let rifle = give(&mut account, "ak_74m", &[2000, 2010, 2020]);
     let mut client = client_of(&account);
     let mut rng = Rng::new(11);
@@ -975,24 +976,25 @@ fn every_modification_of_an_item_may_be_changed() {
     let (paid, first, window) = change(&mut account, &mut client, 2000, false, 0);
     assert_eq!(paid, (2400, 0));
     assert_eq!(window.changed, Some((first, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (2640, 13));
+    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
 
-    // The second, another one: not locked out, and a tenth more.
+    // The second, another one: not locked out, and the same price.
     let (paid, second, window) = change(&mut account, &mut client, 2010, false, 1);
-    assert_eq!(paid, (2640, 0));
+    assert_eq!(paid, (2400, 0));
     assert_eq!(window.changed, Some((second, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (2904, 15));
+    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
     );
 
-    // The third, in gold, kept: paid all the same, and it counts.
-    let (paid, kept, window) = change(&mut account, &mut client, 2020, true, KEEP_OLD_MODIFICATION);
-    assert_eq!(paid, (0, 15));
+    // The third, in gold, kept: paid all the same.
+    let (paid, kept, window) =
+        change(&mut account, &mut client, 2020, true, KEEP_OLD_MODIFICATION);
+    assert_eq!(paid, (0, 12));
     assert_eq!(kept, 2020);
     assert_eq!(window.changed, Some((2020, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (3194, 16));
+    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
@@ -1001,7 +1003,7 @@ fn every_modification_of_an_item_may_be_changed() {
     // The first changed again. While it is offered, naming another one
     // shows the same three and takes nothing: one offer at a time.
     let rolled = reroll(&mut account, rifle, first, false, NOW, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (3194, 0));
+    assert_eq!(rolled.paid, (2400, 0));
     let again = reroll(&mut account, rifle, second, true, NOW, &mut rng).unwrap();
     assert_eq!((again.choices, again.paid), (rolled.choices, (0, 0)));
     assert_eq!((rolled.replaced, rolled.again), (first, false));
@@ -1018,7 +1020,7 @@ fn every_modification_of_an_item_may_be_changed() {
     );
     assert_eq!(
         (chosen.window.regular_cost, chosen.window.premium_cost),
-        (3514, 18)
+        (2400, 12)
     );
 
     // Four changes, each paid once.
@@ -1033,8 +1035,51 @@ fn every_modification_of_an_item_may_be_changed() {
     );
     assert_eq!(
         (account.generic_money, account.premium_money),
-        (1_000_000 - 2400 - 2640 - 3194, 1_000 - 15)
+        (1_000_000 - 3 * 2400, 1_000 - 12)
     );
+}
+
+/// The owner's rule of 2026-10-25 (`docs/notes/flat-reroll.md`): the
+/// Nth change costs what the first did, and the window shows what is
+/// taken. An item with many changes from before pays the same.
+#[test]
+fn every_change_costs_the_first_ones_price() {
+    let mut rng = Rng::new(3);
+    for count in [0, 1, 4, 9, 1_000, u32::MAX] {
+        for gold in [false, true] {
+            let mut account = rich();
+            let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
+            account.item_mut(rifle).unwrap().reroll.count = count;
+            let window = reroll_window(&account, rifle).unwrap();
+            assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
+            let shown = if gold {
+                window.premium_cost
+            } else {
+                window.regular_cost
+            };
+            let before = (account.generic_money, account.premium_money);
+            let rolled = reroll(&mut account, rifle, 2000, gold, NOW, &mut rng).unwrap();
+            let taken = (
+                before.0 - account.generic_money,
+                before.1 - account.premium_money,
+            );
+            let expected = if gold { (0, shown) } else { (shown, 0) };
+            assert_eq!((rolled.paid, taken), (expected, expected));
+            // The count does not wrap round.
+            assert_eq!(
+                account.item(rifle).unwrap().reroll.count,
+                count.saturating_add(1)
+            );
+            // Not a coin short.
+            let mut poor = rich();
+            let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
+            poor.item_mut(rifle).unwrap().reroll.count = count;
+            poor.generic_money = 2399;
+            poor.premium_money = 11;
+            assert!(reroll(&mut poor, rifle, 2000, gold, NOW, &mut rng).is_err());
+            assert_eq!((poor.generic_money, poor.premium_money), (2399, 11));
+        }
+    }
 }
 
 #[test]
@@ -2014,8 +2059,8 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     assert_eq!(
         (window.regular_cost, window.premium_cost),
         (
-            table.reroll.price(level, false, 0),
-            table.reroll.price(level, true, 0)
+            table.reroll.price(level, false),
+            table.reroll.price(level, true)
         )
     );
     let mut client = client_of(&account);

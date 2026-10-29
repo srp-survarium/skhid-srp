@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # usage: release/build-site --tree <checkout> [--with <resources.db.patch_<n>>]
 #
-# Builds the website's pages made from the game data, the Maps tab (/maps)
-# and the damage calculator (/damage), in <checkout> (release/release.sh: a
+# Builds the website's pages made from the game data, the wiki's maps (/wiki/maps)
+# and damage calculator (/wiki/calculator), in <checkout> (release/release.sh: a
 # worktree of the commit it releases; by hand: yours, for a preview), from
 # the stock resources.db ($SKHID_STOCK_DB) with exactly the patches of the
 # offered-patch list (release/patches.tsv) over it, and --with the
@@ -25,7 +25,8 @@
 #      fails.
 # Relative paths (--with, $SKHID_STOCK_DB, $SKHID_PATCH_LIST, $SKHID_DBGRAB)
 # are of the folder it is run in.
-# Writes srp-026g/servers/web-server/{maps,damage}/ of <checkout> and the
+# Writes srp-026g/servers/web-server/{maps,damage,wiki}/ of <checkout> (wiki:
+# the calculator's wiki pages and their icons) and the
 # cache, nothing else. About 2 minutes, at nice 10 (the downloads aside).
 . "$(dirname "$0")/lib.sh"
 

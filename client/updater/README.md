@@ -186,8 +186,8 @@ for Windows Security, the way out, one line each:
 ```text
 Windows Security blocked survarium_skhid.exe: a false positive.
 1. Windows Security > Protection history > this item > Allow on device (or Restore).
-2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
-E:\Survarium_SkhidSRP_0_26
+2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
+E:\Survarium_SkhidSRP_0_26\game\binaries\x86
 Then try again. PLAY stays off until then.
 ```
 
@@ -208,6 +208,40 @@ write revision 27's `survarium_skhid.exe` (error 225), then, once it was in
 place, read it (225 again). The updater took a file it could not read for
 one that was the same, said "up to date" and turned PLAY on, and the
 launcher crashed at PLAY a minute later.
+
+## A server not reached
+
+When the update server, or its list of patches, cannot be reached at all
+(WinHTTP's 12007 name not resolved, 12029 cannot connect, 12002 timeout,
+12030 connection cut off: `logic/src/network.rs`), after the usual tries,
+and the run ends in an error or in PLAY without an update check, the player
+is told in the updater's own box, in the launcher's language, with Retry
+and Cancel, as a stop above. Players in Russia meet it most: their
+providers block the server, and a VPN with the game's three programs in its
+split tunnelling gets them through (`VPN.txt` beside `Skhid.bat`). Three
+lines: what failed, by the error, why it may have, and what to do:
+
+```text
+skhid.link didn't answer.
+Your internet provider may be blocking it (common in Russia), or a firewall is blocking the game.
+Allow the game in your firewall (Skhid-network-setup.cmd); in Russia, use a VPN and add launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe to it (see VPN.txt). Then try again.
+```
+
+The first line is "Couldn't find skhid.link." (12007), "skhid.link refused
+the connection." (12029), "skhid.link didn't answer." (12002) or "The
+connection to skhid.link was cut off." (12030). Retry runs the update again
+from the start; Cancel ends the run as it came out (an error with PLAY off,
+or PLAY with what is installed), and the launcher is not told the English
+words again: the log has them ("No update check: skhid.link didn't answer.
+Your provider (common in Russia) or a firewall may block it: see VPN.txt.
+..."). `check quiet` shows no box. A patch file's download address that
+cannot be reached is not this box: the list was reached, and the patch
+step's error names the file.
+
+**Why.** On 2026-10-25 players in Russia saw "skhid.link did not answer in
+time. Check the internet connection and try again.", in English under a
+Russian launcher, and found the way out (the three programs in their VPN's
+split tunnelling) on Discord.
 
 ## Watch replay
 
@@ -247,9 +281,10 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe" -localization=<the launcher's language>
-   -mt_allocator=768 -minimum_resources_memory_size=768
-   -match_replay="<the file>"`. The game reads its command line as ANSI
+   `"<x86>\survarium_skhid.exe" -mt_allocator=768
+   -minimum_resources_memory_size=768 -match_replay="<the file>"`, no
+   `-localization=`: the game plays it in its own language (the one chosen
+   in its Settings, game patch 79). The game reads its command line as ANSI
    text and a value in quotes as one value, spaces and all (read in the exe:
    `srp-026g/docs/notes/client_patch.md` section 3.27). The path is given as
    it is when the ANSI code page holds every character of it and it is at

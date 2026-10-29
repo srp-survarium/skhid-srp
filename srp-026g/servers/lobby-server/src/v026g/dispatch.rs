@@ -303,8 +303,7 @@ impl Core<'_> {
                         self.push_account(who);
                     }
                     Err(error) => {
-                        log::info!("{}: purchase refused: {error}", who.name);
-                        self.deny(addr, id::SHOP, error.text_key());
+                        self.refuse_purchase(who, &error, error.text_key(), target_slot);
                     }
                 }
             }

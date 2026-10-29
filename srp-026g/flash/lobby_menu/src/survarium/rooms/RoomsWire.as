@@ -18,13 +18,21 @@ package survarium.rooms
         public static const UNQUEUE:int = FIRST + 7;
         public static const JOIN_MATCH:int = FIRST + 8;
         // The create window's start: the player's last room made by hand,
-        // kept by the server (the owner's of 2026-10-20).
+        // kept by the server (the owner's of 2026-10-20); asked once as the
+        // lobby comes up (RoomsWindow._form).
         public static const SETTINGS:int = FIRST + 9;
         // The room's chat tab is up: its last lines, and its new ones from
         // now on (answered with the state; social.md 9.8).
         public static const CHAT:int = FIRST + 30;
         // The asker's friends who are members of a room (`S1;Y`).
         public static const FRIEND_ROOMS:int = FIRST + 40;
+        // A private room's owner starts its match now (answered with the
+        // state; the owner's of 2026-10-26: no countdown in a private room).
+        public static const START:int = FIRST + 41;
+        // The owner of a private room moves a member to the other team:
+        // MOVE + place + MEMBERS_MAX * (the room's serial % KICK_CHECKS), as a
+        // kick (answered with the state, whose `A;<sides>` row has the teams).
+        public static const MOVE:int = FIRST + 20000;
         public static const QUEUE:int = FIRST + 200000;
         public static const VOTE:int = FIRST + 3;
         public static const POOL:int = FIRST + 10;

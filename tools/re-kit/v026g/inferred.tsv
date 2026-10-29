@@ -68,7 +68,9 @@ va	status	ref_021d	name
 0x0002a050	inferred-high	0x00020ec1	vostok::render::volume_fog_parameters::volume_fog_parameters
 0x0002a810	inferred-medium	0x00021526	boost::_bi::bind_t<void,boost::_mfi::mf3<void,vostok::render::engine::world,vostok::resources::resource_ptr<vostok::render::render_model_instance,vostok::resources::unmanaged_intrusive_base> const &,unsigned int,bool>,boost::_bi::list4<boost::_bi::value<vostok::render::engine::world *>,boost::_bi::value<vostok::resources::resource_ptr<vostok::render::render_model_instance,vostok::resources::unmanaged_intrusive_base> >,boost::_bi::value<unsigned int>,boost::_bi::value<bool> > >::bind_t<void,boost::_mfi::mf3<void,vostok::render::engine::world,vostok::resources::resource_ptr<vostok::render::render_model_instance,vostok::resources::unmanaged_intrusive_base> const &,unsigned int,bool>,boost::_bi::list4<boost::_bi::value<vostok::render::engine::world *>,boost::_bi::value<vostok::resources::resource_ptr<vostok::render::render_model_instance,vostok::resources::unmanaged_intrusive_base> >,boost::_bi::value<unsigned int>,boost::_bi::value<bool> > >
 0x00030a10	inferred-medium	0x00024173	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,vostok::render::engine::world>,boost::_bi::list1<boost::_bi::value<vostok::render::engine::world *> > > >::manager
+0x00033390	inferred-medium		vostok::math::float4x4::identity
 0x00033590	inferred-medium	0x0002549f	vostok::memory::allocator_adapter<vostok::memory::single_size_fixed_allocator<57460,1024,vostok::threading::multi_threading_policy> >::call_malloc
+0x00033870	inferred-medium		vostok::render::update_skeleton_command::update_skeleton_command
 0x00033ab0	inferred-medium	0x000259af	vostok::render::ui::draw_vertices_command::execute
 0x00033d70	inferred-medium	0x000254e2	vostok::buffer_vector<vostok::render::ui::vertex>::resize
 0x000340c0	inferred-medium	0x000260ad	boost::asio::ip::basic_resolver<boost::asio::ip::tcp,boost::asio::ip::resolver_service<boost::asio::ip::tcp> >::basic_resolver<boost::asio::ip::tcp,boost::asio::ip::resolver_service<boost::asio::ip::tcp> >
@@ -124,7 +126,9 @@ va	status	ref_021d	name
 0x0003acf0	inferred-medium	0x0002b49d	vostok::collision::aabb_object::aabb_test
 0x0003ad50	inferred-medium	0x0002b4ec	vostok::collision::aabb_object::cuboid_test
 0x0003aee0	inferred-medium	0x0002b601	vostok::buffer_vector<vostok::collision::triangle_result>::push_back
+0x0003af60	inferred-high		vostok::animation::skeleton::get_non_root_bones_count
 0x0003b3f0	inferred-medium	0x0002b879	vostok::collision::animated_object::~animated_object
+0x0003b480	inferred-high		vostok::collision::animated_object::update
 0x0003b5a0	inferred-medium	0x0002b9ad	vostok::detail::strcmp_s
 0x0003b690	inferred-medium	0x0002ba17	vostok::collision::triangle_mesh_geometry::`scalar deleting destructor'
 0x0003b890	inferred-high	0x0002bbda	vostok::collision::helper::predicate
@@ -315,6 +319,7 @@ va	status	ref_021d	name
 0x00072300	inferred-medium	0x000547e4	vostok::physics::bt_animated_rigid_body::get_surface_point_transform
 0x00072490	inferred-medium	0x000548a8	vostok::physics::bt_animated_rigid_body::get_random_surface
 0x000728f0	inferred-high	0x000549f1	vostok::physics::bullet_physics_world::get_world_aabb
+0x00073d70	inferred-medium		btCollisionWorld::ConvexResultCallback::needsCollision
 0x00073da0	inferred-medium	0x0005556f	btCollisionWorld::ClosestConvexResultCallback::addSingleResult
 0x000741b0	inferred-medium	0x0005575c	btConvexInternalShape::serialize
 0x00074270	inferred-medium	0x000557ce	btSphereShape::getName
@@ -337,6 +342,7 @@ va	status	ref_021d	name
 0x00075aa0	inferred-medium	0x000565d3	vostok::physics::bullet_physics_world::move
 0x00075b00	inferred-high	0x00056630	vostok::physics::bullet_physics_world::add
 0x00075b20	inferred-high	0x00056644	vostok::physics::bullet_physics_world::remove
+0x00075b40	inferred-medium		vostok::physics::closest_ray_result_callback::closest_ray_result_callback
 0x00075bd0	inferred-medium	0x00056656	vostok::physics::closest_ray_result_callback::needsCollision
 0x00075c40	inferred-medium	0x000566b9	vostok::physics::closest_ray_result_callback::addSingleResult
 0x00075e20	inferred-high	0x00056846	vostok::physics::bullet_physics_world::ray_test
@@ -351,6 +357,7 @@ va	status	ref_021d	name
 0x00078310	inferred-high	0x000582ca	vostok::physics::bullet_physics_world::subscribe_on_contact
 0x000783a0	inferred-medium	0x0005837d	vostok::physics::bullet_physics_world::unsubscribe_from_contact
 0x00078420	inferred-high	0x000583ee	vostok::physics::bullet_physics_world::set_debug_draw_flags
+0x00078730	inferred-medium		vostok::vectora<vostok::physics::closest_ray_result>::push_back
 0x00079d00	inferred-medium	0x00058d08	btStridingMeshInterface::`scalar deleting destructor'
 0x00079ed0	inferred-medium	0x00058e27	btBvhTriangleMeshShape::getName
 0x0007a090	inferred-medium	0x00058ef7	vostok::physics::bt_collision_shape::~bt_collision_shape
@@ -412,7 +419,17 @@ va	status	ref_021d	name
 0x00083e50	inferred-medium	0x0005a77d	vostok::physics::animated_model_instance_cook::delete_resource
 0x00083f30	inferred-medium	0x0005a83d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::physics::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::physics::animated_model_instance_cook *>,boost::arg<1> > > >::manager
 0x000869d0	inferred-medium	0x002227e9	vostok::physics::character_up_sweep_test_callback::addSingleResult
+0x00094c70	inferred-medium		btAxisSweep3Internal<unsigned short>::rayTest
 0x000a14c0	inferred-medium	0x00220975	vostok::physics::closest_ray_result_callback::`scalar deleting destructor'
+0x000a14e0	inferred-medium		btCollisionWorld::objectQuerySingle
+0x000a2b30	inferred-medium		BridgeTriangleConvexcastCallback::reportHit
+0x000a33a0	inferred-high		btCollisionWorld::rayTest
+0x000a3420	inferred-medium		btSingleSweepCallback::btSingleSweepCallback
+0x000a3660	inferred-medium		btSingleSweepCallback::process
+0x000a36e0	inferred-high		btCollisionWorld::convexSweepTest
+0x000b4fe0	inferred-medium		btDbvtBroadphase::rayTest
+0x000b5ca0	inferred-medium		btDbvt::rayTestInternal
+0x000b8010	inferred-medium		btTriangleRaycastCallback::processTriangle
 0x000de210	inferred-medium	0x000ac9b4	vostok::command_line::check_keys
 0x000de5f0	inferred-medium	0x000acc4a	vostok::command_line::show_help_and_exit
 0x000deb00	inferred-medium	0x000acfc1	vostok::command_line::key_is_set_impl
@@ -667,6 +684,7 @@ va	status	ref_021d	name
 0x0010d1c0	inferred-medium	0x000ce273	vostok::tasks::thread_pool::deactivate_if_oversubscribed
 0x0010d250	inferred-medium	0x000ce2e9	vostok::tasks::thread_pool::on_current_thread_locks
 0x0010d300	inferred-medium	0x000ce392	vostok::tasks::thread_pool::on_current_thread_unlocks
+0x0010d4e0	inferred-high		vostok::tasks::thread_pool::wait_for_all_children
 0x0010d530	inferred-medium	0x000ce4fe	vostok::tasks::thread_pool::wait_for_task_list
 0x0010dca0	inferred-medium	0x000ceaaa	vostok::tasks::task_allocator::deallocate
 0x0010dde0	inferred-medium	0x000cebb5	vostok::tasks::create_new_task_type
@@ -683,6 +701,8 @@ va	status	ref_021d	name
 0x001108b0	inferred-medium	0x000d049b	vostok::network::network_world::`scalar deleting destructor'
 0x00110f30	inferred-medium	0x000d0923	vostok::one_way_threads_channel<vostok::intrusive_spsc_queue<vostok::network::response,vostok::network::response,8>,vostok::intrusive_spsc_queue<vostok::network::response,vostok::network::response,8> >::delete_value
 0x00111080	inferred-medium	0x000d0950	vostok::one_way_threads_channel<vostok::intrusive_spsc_queue<vostok::network::order,vostok::network::order,8>,vostok::intrusive_spsc_queue<vostok::network::order,vostok::network::order,8> >::delete_value
+0x001113a0	inferred-high		vostok::animation::skeleton::get_bone_index
+0x001113f0	inferred-medium		vostok::animation::find_bone_by_name
 0x00111700	inferred-medium	0x000d0c39	vostok::logging::filter_tree::push_filter
 0x00111810	inferred-medium	0x000d0cb8	vostok::logging::filter_tree::build_tree
 0x00111860	inferred-medium	0x000d0d66	vostok::logging::has_passed_filters
@@ -766,6 +786,7 @@ va	status	ref_021d	name
 0x0011fb00	inferred-medium	0x000d9b82	vostok::buffer_vector<unsigned short>::push_back
 0x0011fb80	inferred-medium	0x000d9bf0	stlp_std::priv::_Rb_tree<vostok::render::render_model_instance *,stlp_std::less<vostok::render::render_model_instance *>,stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects>,stlp_std::priv::_Select1st<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,vostok::render::std_allocator<stlp_std::pair<vostok::render::render_model_instance *,vostok::render::material_effects> > >::_M_erase
 0x0011fbf0	inferred-medium	0x000d9c7d	vostok::buffer_vector<vostok::render::vertex_colored>::push_back
+0x00120560	inferred-medium		vostok::math::modf
 0x001206a0	inferred-medium	0x000da281	vostok::render::fill_dds_header
 0x00120780	inferred-medium	0x000da37a	vostok::render::surfaces_cache::get_rt
 0x00120930	inferred-medium	0x000da4df	vostok::render::surfaces_cache::get_tex
@@ -944,6 +965,7 @@ va	status	ref_021d	name
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_shotgun_reload_base_substate::execute
 0x001af330	inferred-medium	0x001aa14d	survarium::weapon_core_throw_grenade_base_substate::execute
 0x001af330	inferred-medium	0x0020960a	survarium::weapon_core_melee_state::execute
+0x001af330	inferred-medium		survarium::weapon::add_modifiers
 0x001af3b0	inferred-medium	0x00125574	vostok::render::create_color_grading_base_lut
 0x001af450	inferred-medium	0x00125607	vostok::render::bloom_shader_constants::bloom_shader_constants
 0x001af500	inferred-medium	0x00125682	vostok::render::bloom_shader_constants::set
@@ -1041,6 +1063,7 @@ va	status	ref_021d	name
 0x001f01b0	inferred-medium		survarium::open_file_impl
 0x001f1070	inferred-medium	0x001f5c52	survarium::player_profile::deserialize_static
 0x001f1350	inferred-medium	0x001f5b53	survarium::inventory_item_descr::deserialize
+0x001f17c0	inferred-medium		survarium::player::collision_transform
 0x001f1990	inferred-medium	0x00156074	survarium::player_creation_params::load
 0x001f1a90	inferred-medium	0x00156151	survarium::player::player
 0x001f2010	inferred-medium	0x00156596	survarium::player::`scalar deleting destructor'
@@ -1884,6 +1907,7 @@ va	status	ref_021d	name
 0x002d71f0	inferred-medium	0x001d3529	survarium::base_player::`scalar deleting destructor'
 0x002d7610	inferred-high	0x001d3740	survarium::base_player::on_broken_limb_affect
 0x002d7650	inferred-high	0x001d3773	survarium::base_player::tick_active_object
+0x002d77c0	inferred-medium		survarium::base_player::on_player_death
 0x002d7800	inferred-medium	0x001d3980	survarium::base_player::on_fire
 0x002d7920	inferred-medium		survarium::base_player::jump
 0x002d7b90	inferred-medium	0x001d3ca1	survarium::base_player::animation_id_resolver
@@ -1912,6 +1936,8 @@ va	status	ref_021d	name
 0x002d9f40	inferred-high	0x001d54b4	survarium::base_player::generate_hit_event
 0x002da170	inferred-high	0x001d560c	survarium::base_player::generate_killed_event
 0x002da480	inferred-high	0x001d57be	survarium::base_player::on_affect
+0x002da4b0	inferred-medium	0x001d57e4	survarium::base_player::computed_head_transform
+0x002da540	inferred-medium		survarium::base_player::get_bone_transform
 0x002da5b0	inferred-high	0x001d5851	survarium::base_player::recompute_damage_collision_bones
 0x002da790	inferred-high	0x001d59c8	survarium::base_player::remove
 0x002da850	inferred-high	0x001d5a25	survarium::base_player::insert
@@ -1932,6 +1958,8 @@ va	status	ref_021d	name
 0x002e39b0	inferred-medium	0x001e48e3	survarium::weapon_core::computed_vertical_recoil_time
 0x002e3c10	inferred-medium	0x001e4a4b	survarium::weapon_core::chamber_a_round_pred
 0x002e3cb0	inferred-medium	0x001e4ac4	survarium::weapon_core::fire_pred
+0x002e4850	inferred-high		boost::random::normal_distribution<float>::operator()<boost::random::minstd_rand>
+0x002e49f0	inferred-high		boost::random::uniform_real_distribution<float>::operator()<boost::random::minstd_rand>
 0x002e5bb0	inferred-medium		survarium::game_effect_ptr_wrapper::serialize_root_emitter
 0x002e5c90	inferred-medium		survarium::game_effect_ptr_wrapper::serialize
 0x002e5d70	inferred-medium	0x00200dd3	survarium::loose_ptr<survarium::game_effect,survarium::loose_ptr_data,vostok::threading::single_threading_policy>::c_ptr
@@ -1979,6 +2007,7 @@ va	status	ref_021d	name
 0x002fc230	inferred-medium	0x001e0e71	survarium::weapon_user_animations_selector::is_trying_to_jump
 0x002fc2a0	inferred-high	0x001e0f03	survarium::weapon_user_animations_selector::is_going_to_aim
 0x002febc0	inferred-medium	0x001e6471	survarium::portable_interactive_object_core::portable_interactive_object_core
+0x002ff600	inferred-medium		survarium::portable_interactive_object_core::update_bones_matrices
 0x002fffd0	inferred-medium	0x001e70bb	survarium::inventory_item::register_in_game_world
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_fire_state>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::double_barreled_weapon_core_reload_state>::fake_callback
@@ -1993,7 +2022,12 @@ va	status	ref_021d	name
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_shotgun_reload_start_substate>::fake_callback
 0x00300040	inferred-medium	0x0018ec72	survarium::weapon_sound_events_channel_subscriber<survarium::weapon_core_show_state>::fake_callback
 0x00300770	inferred-medium	0x001e73be	survarium::victory_item_core::use_info
+0x00300900	inferred-medium	0x001e7415	survarium::victory_item_core::insert
+0x003009b0	inferred-medium	0x001e7449	survarium::victory_item_core::set_transform
+0x00300a20	inferred-medium	0x001e7514	survarium::victory_item_core::get_transform
 0x00300b00	inferred-medium	0x001e7565	survarium::victory_item_core::set_user
+0x00300e50	inferred-medium	0x001e7730	survarium::victory_item_core::drop
+0x00300f40	inferred-medium	0x001e77ad	survarium::victory_item_core::deactivate
 0x00301270	inferred-medium	0x001e793c	survarium::victory_item_core::is_ready_to_be_deactivated
 0x003012a0	inferred-medium	0x001e7966	survarium::victory_item_core::selected_animations
 0x00301470	inferred-medium	0x001e7a74	survarium::victory_item_core::serialize
@@ -2250,13 +2284,22 @@ va	status	ref_021d	name
 0x0032d300	inferred-medium	0x0020244f	survarium::bullet::compute_max_error
 0x0032f190	inferred-medium	0x00203bbd	vostok::network_core::buffer_writer::w<signed char>
 0x0032fc40	inferred-medium	0x002043f7	vostok::buffer_vector<survarium::player_shootmarks_storage::sm>::push_back
+0x0032fe40	inferred-medium		survarium::linear_interpolator::tick
 0x003309b0	inferred-medium		survarium::hit_animations_selector::hit_body_part::serialize
+0x00331150	inferred-medium		survarium::dispersion_calculator::fire
+0x00331220	inferred-medium		survarium::dispersion_calculator::get_static_dispersion
+0x00331330	inferred-medium		survarium::dispersion_calculator::tick
+0x00331480	inferred-medium		survarium::character_dispersion_calculator::get_skill_influence
+0x00331560	inferred-medium		survarium::character_dispersion_calculator::get_target_koef
+0x003317c0	inferred-medium		survarium::character_dispersion_calculator::get_broken_hands_penalty
 0x00333580	inferred-medium		survarium::composite_game_effect::on_event
 0x003340c0	inferred-medium		survarium::composite_game_effect::activate_effect
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
 0x00334310	inferred-medium		survarium::composite_game_effect::serialize
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
+0x00338280	inferred-medium		survarium::player_logic_dead_state::get_death_animations
 0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
+0x00338540	inferred-medium		survarium::player_logic_dead_state::selected_animations
 0x00338850	inferred-medium	0x002073c6	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_logic_dead_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_logic_dead_state *>,boost::arg<1> > > >::manager
 0x00339900	inferred-high	0x001f86b6	survarium::weapon_core_shotgun_reload_state::weapon_core_shotgun_reload_state
 0x00339b70	inferred-medium	0x001f8701	survarium::weapon_core_shotgun_reload_state::`scalar deleting destructor'
@@ -2285,6 +2328,10 @@ va	status	ref_021d	name
 0x003438c0	inferred-medium	0x0020dc93	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_start,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_start *>,boost::arg<1> > > >::manager
 0x003440e0	inferred-medium	0x0020dfae	survarium::jump_logic_state_landing::initialize
 0x003443f0	inferred-medium	0x0020e20a	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_landing,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_landing *>,boost::arg<1> > > >::manager
+0x00344b30	inferred-medium		survarium::victory_item_core_base_state::execute
+0x00344c30	inferred-medium		survarium::victory_item_core_base_state::finalize
+0x00344c90	inferred-medium		survarium::victory_item_core_base_state::is_user_dead
+0x00344e40	inferred-medium		survarium::victory_item_core_base_state::compute_carried_transform
 0x003460b0	inferred-medium	0x0020fa1b	vostok::ui::ui_world::ui_world
 0x003461c0	inferred-medium	0x0020faae	vostok::ui::ui_world::set_base_screen_size
 0x00346220	inferred-medium	0x0020fb12	vostok::ui::ui_font::~ui_font
@@ -2742,6 +2789,8 @@ va	status	ref_021d	name
 0x00390d20	inferred-medium	0x0024a89e	vostok::animation::fingers_to_weapon_corrector::deserialize
 0x00390d90	inferred-medium	0x0024a94e	vostok::fixed_string<128>::createf
 0x003915f0	inferred-medium	0x002477ee	vostok::animation::animation_player::skip_time_if_needed
+0x00391960	inferred-medium		vostok::animation::animation_player::set_object_transform
+0x003919a0	inferred-medium		vostok::animation::animation_player::get_object_transform
 0x00392780	inferred-medium	0x002483ae	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::math::float4x4,boost::_mfi::cmf1<vostok::math::float4x4,transform_getter,void const *>,boost::_bi::list2<boost::_bi::value<transform_getter *>,boost::arg<1> > > >::manager
 0x003927d0	inferred-medium	0x002483f7	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::math::float4x4,vostok::math::float4x4 (__cdecl*)(vostok::math::float4x4 const &,void const *),boost::_bi::list2<boost::reference_wrapper<vostok::math::float4x4 const >,boost::arg<1> > > >::manager
 0x00393af0	inferred-medium	0x0024b8b3	vostok::animation::hand_to_weapon_ik_solver::serialize
@@ -2799,8 +2848,11 @@ va	status	ref_021d	name
 0x0039bb10	inferred-medium	0x002512ca	stlp_std::priv::__unguarded_linear_insert<vostok::animation::mixing::animated_object_holder *,vostok::animation::mixing::animated_object_holder,vostok::animation::mixing::animated_object_id_predicate>
 0x0039e500	inferred-medium	0x00252e02	vostok::animation::mixing::n_ary_tree_comparer::n_ary_tree_comparer
 0x0039e9c0	inferred-medium	0x00253252	stlp_std::priv::__unguarded_linear_insert<vostok::animation::mixing::n_ary_tree_animation_node * *,vostok::animation::mixing::n_ary_tree_animation_node *,vostok::animation::mixing::animation_comparer_less_predicate>
+0x0039f360	inferred-medium		vostok::animation::mixing::n_ary_tree::get_object_transform
 0x0039f6f0	inferred-medium	0x00253ac4	vostok::animation::mixing::n_ary_tree::set_objects_transform
 0x0039f750	inferred-medium	0x00253b1a	vostok::animation::mixing::n_ary_tree::compute_bones_matrices
+0x0039f7a0	inferred-high		vostok::animation::mixing::n_ary_tree::compute_bones_local_matrices
+0x0039f7f0	inferred-high		vostok::animation::mixing::n_ary_tree::convert_to_object_matrices
 0x003a00c0	inferred-medium	0x002540d1	vostok::animation::mixing::n_ary_tree::update_animation_state
 0x003a0190	inferred-medium	0x00254160	vostok::animation::mixing::n_ary_tree::update_time_synchronization_group
 0x003a0260	inferred-medium	0x0025420c	vostok::animation::mixing::n_ary_tree::need_new_transform
@@ -2832,6 +2884,9 @@ va	status	ref_021d	name
 0x003aaa40	inferred-medium	0x0025a47b	boost::detail::function::functor_manager<boost::_bi::bind_t<void,void (__cdecl*)(vostok::resources::queries_result &,vostok::resources::query_result_for_cook *),boost::_bi::list2<boost::arg<1>,boost::_bi::value<vostok::resources::query_result_for_cook *> > > >::manager
 0x003aaed0	inferred-medium	0x0025a71f	vostok::animation::make_interpolator
 0x003aafc0	inferred-medium	0x0025a7ae	vostok::animation::skeleton_animation_scene_cook::on_animation_loaded
+0x003acd30	inferred-high		vostok::animation::get_bones_count
+0x003acda0	inferred-high		vostok::animation::add_bone
+0x003acfb0	inferred-medium		vostok::animation::skeleton_cook::on_sub_resources_loaded
 0x003adbf0	inferred-medium	0x0025c155	vostok::animation::single_animation_cook::on_sub_resources_loaded
 0x003ae2e0	inferred-medium	0x0025c60a	vostok::animation::animation_collection_cook::collection_config_loaded
 0x003ae460	inferred-medium	0x0025c717	vostok::animation::animation_collection_cook::request_items
@@ -2852,6 +2907,12 @@ va	status	ref_021d	name
 0x003b0e90	inferred-medium	0x0025f458	vostok::animation::mixing::n_ary_tree_weight_calculator::visit
 0x003b0f00	inferred-medium	0x0025f4c4	vostok::animation::mixing::n_ary_tree_weight_calculator::visit
 0x003b1300	inferred-medium	0x0025f7d0	vostok::animation::mixing::n_ary_tree_time_scale_calculator::remove_transition
+0x003b1910	inferred-medium		vostok::animation::bone_matrices_computer::bone_matrices_computer
+0x003b1ab0	inferred-medium		vostok::animation::bone_matrices_computer::~bone_matrices_computer
+0x003b2aa0	inferred-high		vostok::animation::bone_matrices_computer::convert_skeleton_branch
+0x003b2b40	inferred-medium		vostok::animation::bone_matrices_computer::compute_bones_matrices
+0x003b2bf0	inferred-medium		vostok::animation::bone_matrices_computer::compute_bones_local_matrices
+0x003b2c90	inferred-high		vostok::animation::bone_matrices_computer::convert_to_object_matrices
 0x003b3b80	inferred-medium	0x00261777	vostok::animation::mixing::n_ary_tree_destroyer::visit
 0x003b3d80	inferred-medium	0x00261902	vostok::animation::mixing::n_ary_tree_node_cloner::visit
 0x003b3e00	inferred-medium	0x00261977	vostok::animation::mixing::n_ary_tree_node_cloner::visit
@@ -3038,6 +3099,46 @@ va	status	ref_021d	name
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
 0x00207450	inferred-medium		survarium::key_binder::bind_command_save
+0x0023b5f0	inferred-medium		survarium::game_world_ui::on_world_event
+0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
+0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
+0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
+0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
+0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
+0x0012cce0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::`dynamic initializer for the static baker'
+0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
+0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
+0x001e8da0	inferred-high		survarium::delete_folder
+0x003b7bd0	inferred-medium		vostok::input::input_world::tick
+0x003b8cc0	inferred-medium		vostok::input::platform::keyboard::on_activate
+0x003b8cf0	inferred-medium		vostok::input::platform::keyboard::on_deactivate
+0x003b8d00	inferred-medium		vostok::input::platform::keyboard::is_key_down
+0x003b9af0	inferred-medium		vostok::input::platform::keyboard::process
+0x00301cb0	inferred-medium		survarium::victory_item_core::activate_physics
+0x00306d50	inferred-medium		survarium::game_material_manager::material_pair
+0x00332440	inferred-medium		survarium::ammo_data::load
+0x00018bd0	observed		vostok::engine::engine_world::get_user_data_directory
+0x0032e3e0	inferred-medium		survarium::bullet::apply_hit_impulse
+0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
+0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
+0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list
+0x000e3c10	observed		vostok::core::preinitialize
+0x000ddeb0	observed		vostok::command_line::key<string>::is_set
+0x0084e3e0	observed		vostok::core::`dynamic initializer for 's_localization''
+0x001e9030	observed		survarium::game::save_user_config
+0x001e9c00	observed		survarium::game::~game
+0x00229400	inferred-high		survarium::lobby_menu::set_ui_element_lock_state
+0x00276360	inferred-high		survarium::lobby_client::on_buy_item_result
+0x002f7470	inferred-medium		survarium::player_profile::add_item_kit_parameters
+0x0028a2c0	inferred-medium		survarium::items_dictionary::copy_item_record
+0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
+0x002e13a0	inferred-medium		survarium::weapon_core::get_camera_shake_lexeme
+0x00329ff0	inferred-medium		survarium::body_part_parameters::hit_by_type
+0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
+0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
+0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
+0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
 0x002f1750	inferred-high		survarium::item_config_cook::translate_query
 0x002f2060	inferred-medium		survarium::item_config_query::get_item
 0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body

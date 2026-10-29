@@ -1,0 +1,22 @@
+site	va	kind	callee	span	exits	holds	what
+input_builder.spot_query	0x242196	call	engine_action_present	-	-	-	the input builder's last action query (spot)
+game_world.after_move	0x1F7C3C	lohook	-	5	-	world=EBX:survarium::game_world	game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)
+player_draw.cull	0x24757C	lohook	-	7	-	player=EBX:survarium::player	mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)
+player_draw.bones	0x247716	lohook	-	6	-	player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame	mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)
+player_draw.post_bones	0x2477DF	lohook	-	9	posted@0x24781E	player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame	mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command
+render.skeleton_updated	0x15A950	lohook	-	7	-	instance=EDI:vostok::render::skeleton_instance	update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization
+player.killed_event	0x2DA3DF	lohook	-	6	-	victim=ESI:survarium::player	generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]
+camera.eye	0x1F3643	lohook	-	6	-	player=EBX:survarium::player	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
+bullet.ray_traced	0x32D627	lohook	-	10	-	bullet=EDI:survarium::bullet result=EAX:vostok::physics::ray_result frame=ESP:survarium::check_collision_frame	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
+player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	player=EBX:survarium::player	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
+static_info.options_read	0x27b92d	lohook	-	5	-	options=ESI:survarium::match_options frame=EBP:survarium::static_info_frame	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
+replay.options_read	0x1f0971	lohook	-	5	-	frame=ESP:survarium::replay_options_frame	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
+player_icons.update_start	0x23aa10	lohook	-	6	-	frame=ESP:survarium::update_player_icons_frame	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
+keyboard.tab_state	0x25cd2c	lohook	-	7	-	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
+input_builder.end	0x2421b0	lohook	-	5	-	handler=EBX:survarium::player_input_handler	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
+player_names.visibility	0x1F2F10	lohook	-	7	-	player=ESI:survarium::player frame=ESP:survarium::render_name_frame	render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only
+text_input.char_target	0x79D369	lohook	-	6	ignore@0x79D4AD	field=EDI:scaleform::avm_text_field	AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated
+quick_slots.activity	0x23B7A0	lohook	-	7	-	ui=ESI:survarium::game_world_ui player=EBP:survarium::player inventory=EBX:survarium::inventory	update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer
+configs.start	0x1EA210	lohook	-	6	-	-	game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)
+configs.texts	0x1EA306	lohook	-	6	-	-	on_configs_loaded after user.cfg, before load_text_localization (lea eax,[edi+52A8h]; the call at 0x1EA30D): the dictionary not yet loaded
+options.callback	0x1FF5D0	lohook	-	6	done@0x1FF971	options=ECX:survarium::game_options_interface frame=ESP:survarium::options_callback_frame	game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`

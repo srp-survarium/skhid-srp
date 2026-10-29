@@ -543,6 +543,7 @@ impl Server {
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
                     private: formed.private,
+                    blackout: formed.blackout,
                     players: formed
                         .places
                         .iter()
@@ -559,6 +560,7 @@ impl Server {
                             left: false,
                             time_in_match_ms: 0,
                             statistics: None,
+                            pay_statistics: None,
                             score: 0,
                             kills: 0,
                             deaths: 0,

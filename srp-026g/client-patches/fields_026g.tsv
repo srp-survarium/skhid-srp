@@ -1,0 +1,124 @@
+kind	field	offset	type	about
+survarium::player_input_handler	actions	0x33C	u32	the action mask of the input being built (process_first_person_mode 0x241250; bit 24 commit_suicide)
+survarium::game_world	game	0x9C	ptr<survarium::game>	the game (game_world::tick 0x1F77E0; ragdoll.md section 8)
+survarium::game	network_client	0x53AC	ptr<survarium::network_client>	the network client (its vtable 0x9FFB14; ragdoll.md section 8)
+survarium::network_client	local_player	0x4	ptr<survarium::player>	the local player (patch 46's LOCAL; death-camera.md)
+survarium::match_options	places	0x577B5	u8	the match's places' count (match_options 0x219990, abi.tsv)
+survarium::player	references	0xD0	u32	its reference count (get_active_player 0x27A9C0 adds one; released by 0x0E0210 at 0)
+survarium::player	inventory	0x10C	ptr<survarium::inventory>	its inventory (inventory::serialize from base_player 0x2DB1E0)
+survarium::player	place	0x114	u8	its place in the match
+survarium::player	held_item	0x128	ptr<survarium::item>	the held item (mt_draw's [+128h]; 0 none)
+survarium::player	spawned	0x328	u32	m_inserted_time_in_ms, the life's spawn time (set 0x2DAC43, serialized 0x2DB2FE): a death's key
+survarium::player	alive	0x33C	u8	m_is_alive (serialized 0x2DAFA1)
+survarium::player	inserted	0x33F	u8	m_has_been_inserted
+survarium::player	profile	0x6B8	ptr<survarium::player_profile>	the match profile (render_name 0x1F2B3D, 0x1F2F33)
+survarium::player_profile	team	0x45EC	u32	the player's team: 0 or 1 (render_name 0x1F2B43, 0x1F2F3D)
+survarium::render_name_frame	local_team	0x14	u32	ESP+14h at player_names.visibility (0x1F2F10); 2 when no local player (0x1F2B31)
+survarium::player	physics_world	0x350	ptr<vostok::physics::bullet_physics_world>	the physics world (ray_test's ECX)
+survarium::player	transform	0x40C	f32	the simulated transform, a row-vector 4x4 (16 f32)
+survarium::player	eye	0x44C	f32	the camera's transform, bone Item x +40Ch (computed_head_transform 0x2DA4B0; update_camera gives &it at 0x1F356E)
+survarium::player	hit_model	0x498	ptr<survarium::hit_model>	the hit model (activate_physics 0x2D9930 adds its +12Ch to the world)
+survarium::player	model	0xF290	ptr<survarium::player_model>	its model (mt_draw 0x247716)
+survarium::player_model	skeleton	0x10C	ptr<vostok::animation::skeleton>	the model's skeleton (mt_draw 0x24771C)
+vostok::animation::skeleton	bone_count	0x108	u32	the bones' count, object_movement first (add_bone 0x3ACDA0; 70 for scavengers_01)
+vostok::animation::skeleton	bones	0x110	obj<vostok::animation::skeleton_bone>	the bones' array, 1Ch a bone (add_bone 0x3ACDA0)
+vostok::animation::skeleton_bone	name	0x0	ptr<u8>	the bone's name (a C string)
+vostok::animation::skeleton_bone	parent	0x4	ptr<vostok::animation::skeleton_bone>	the parent bone's record (the array's first for the root's children)
+vostok::animation::skeleton_bone	size	0x1C	size	a bone's record: 1Ch bytes, the next one's after it (add_bone 0x3ACDA0)
+survarium::hit_model	body	0x12C	ptr<vostok::physics::bt_animated_rigid_body>	the hit model's body in the physics world (a bt_animated_rigid_body; activate_physics 0x2D9930)
+vostok::physics::hit_object	vtable	0x0	u32	its vtable: ANIMATED_BODY_VTABLE for a bt_animated_rigid_body (its ctor 0x70E70 writes it)
+vostok::physics::hit_object	body	0x0	obj<vostok::physics::bt_animated_rigid_body>	itself as a bt_animated_rigid_body: only when its vtable is ANIMATED_BODY_VTABLE, which the reader checks first
+vostok::physics::bt_animated_rigid_body	material	0x38	u16	its game material (10, actor, for a hit model: the ctor 0x70E70)
+survarium::inventory	slots	0x10C	obj<survarium::inventory_slot>	its 23 slots' items (inventory::update_weight 0x2FC6E0; profile slots 0..6 helmet, mask, torso, back, legs, gloves, boots)
+survarium::item	weight	0x218	f32	its weight a piece, kg (update_weight 0x2FC740)
+survarium::item	entry	0x25C	ptr<survarium::item_entry>	its dictionary entry (update_weight 0x2FC71C)
+survarium::item	count	0x260	u16	a stack's count (update_weight 0x2FC72B)
+survarium::item_entry	stack	0x22A	u8	set: the item is a stack (update_weight 0x2FC722)
+survarium::bullet	id	0x4	u32	its id (add_shootmark's key; the ctor 0x32BA6F)
+survarium::bullet	shooter	0x8	ptr<survarium::bullet_owner>	its shooter (0: none; +4 the place; process_front_face_piercing 0x32E547)
+survarium::bullet	velocity	0x1C	f32	its segment's velocity, a float3 (the ctor 0x32BA8E, change_trajectory 0x32EE55)
+survarium::bullet	ammo	0x40	ptr<survarium::ammo_data>	its ammo's data (ammo_data::load 0x332440; the weapon's +53Ch, the ctor 0x32BB53)
+survarium::bullet	manager	0x44	ptr<survarium::bullet_manager>	the bullet manager
+survarium::bullet	material	0x48	ptr<survarium::game_material>	its game material
+survarium::bullet	quiet	0x80	u8	set: no hit sound (process_front_face_piercing 0x32E6CC)
+survarium::bullet	segment	0x84	u32	its segments past the first (pierces and ricochets; change_trajectory 0x32EE20)
+survarium::bullet_owner	place	0x4	u8	the shooter's place (add_shootmark's table index, 0x32E562)
+survarium::ammo_data	mass	0x14	f32	the ammo config's data.mass (ammo_data::load 0x33251F)
+survarium::bullet_manager	renderer	0x90	u32	the renderer (0: no effects; play_particle 0x3223EB)
+survarium::bullet_manager	materials	0x94	ptr<survarium::game_material_manager>	the game material manager (check_collision 0x32D845)
+survarium::game_material	id	0x64	u16	its id (the material pair's index, 0x306D50)
+survarium::material_pair	sound	0x18	u32	its sound's resource slot (process_front_face_piercing 0x32E6BA)
+survarium::material_pair	particles	0x24	ptr<survarium::particle_slot>	its particles' slots, begin (0x32E6E9)
+survarium::material_pair	particles_end	0x28	ptr<survarium::particle_slot>	their end (0x32E6EC)
+survarium::material_pair	parameter	0x74	u32	the particles' parameter (0x32E708)
+vostok::physics::ray_result	point	0x0	f32	the hit point, a float3 (ray_test 0x75E20, abi.tsv)
+vostok::physics::ray_result	normal	0x10	f32	the hit normal, a float3, toward the ray's start
+vostok::physics::ray_result	object	0x1C	ptr<vostok::physics::hit_object>	the object hit (the collision object's +0F8h; 0: none)
+vostok::physics::ray_result	size	0x28	size	the result's size: 28h bytes
+survarium::mt_draw_frame	bones	-0x14	ptr<f32>	mt_draw's bones' matrices (ebp-14h; the array of 0x2476AB)
+survarium::mt_draw_frame	bone_count	-0x1C	u32	their count (ebp-1Ch)
+survarium::check_collision_frame	length	0x14	f32	the ray's length (esp+14h at 0x32D627; check_collision 0x32D56C)
+survarium::check_collision_frame	direction	0x20	f32	the ray's unit direction, a float3 (esp+20h; 0x32D5A2)
+survarium::check_collision_frame	origin	0x90	f32	the ray's origin, a float3 (esp+90h: the by-value argument; 0x32D5FE)
+survarium::image	animated_body_vtable	0x9E2AF4	u32	bt_animated_rigid_body's vtable (RTTI; its ctor 0x70E70 writes it)
+survarium::inventory	slots_end	0x168	obj<survarium::inventory_slot>	the slots' end: 23 slots (inventory::update_weight's loop, 0x2FC6FF mov ebx,17h)
+survarium::inventory_slot	item	0x0	ptr<survarium::item>	the slot's item (0: empty; inventory::update_weight 0x2FC6E0)
+survarium::inventory_slot	size	0x4	size	a slot is the item's pointer: update_weight's loop steps 4 (0x2FC6E0)
+survarium::ammo_data	muzzle_speed	0x3C	f32	the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+survarium::player	game_world	0xF474	ptr<survarium::game_world>	its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
+survarium::game	renderer	0x5360	ptr<vostok::render::game::renderer>	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
+vostok::render::game::renderer	scene_renderer	0x200064	ptr<vostok::render::scene_renderer>	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
+survarium::player_model	render_instance	0x108	obj<vostok::render::render_model_instance>	its render instance (mt_draw 0x2477F6: &model+108h is update_skeleton's first argument)
+vostok::render::render_model_instance	instance	0x0	ptr<vostok::render::skeleton_instance>	the render instance the intrusive field holds (#699's headwear: update_render_matrices' EDI is the same object)
+vostok::render::skeleton_instance	original	0x62B4	ptr<vostok::render::skeleton_render_model>	immutable skeleton render model (update_render_matrices 0x15A5AA)
+vostok::render::skeleton_instance	previous_matrices	0x290	ptr<vostok::render::bone_matrix>	previous skinned matrix array, 128-matrix inline capacity (0x15A7BF)
+vostok::render::skeleton_instance	matrices	0x229C	ptr<vostok::render::bone_matrix>	current skinned matrix array, 128-matrix inline capacity (0x15A7B9)
+vostok::render::skeleton_instance	shadow_matrices	0x42A8	ptr<vostok::render::bone_matrix>	second skinned matrix array, 128-matrix inline capacity (0x15A844)
+vostok::render::skeleton_instance	first_update	0x62D8	u8	first update copies current into previous (0x15A950)
+vostok::render::skeleton_render_model	inverse_binds	0x140	ptr<vostok::render::bone_matrix>	inverse-bind vector begin, filled in file order by 0x15A000
+vostok::render::skeleton_render_model	inverse_binds_end	0x144	ptr<vostok::render::bone_matrix>	inverse-bind vector end (resize at 0x15A01F)
+vostok::render::bone_matrix	value	0x0	f32	the first of its 16 f32, a row-vector 4x4 (skinned or inverse-bind)
+vostok::render::bone_matrix	size	0x40	size	a 4x4 of f32: the matrix vectors step 40h
+survarium::image	victory_item_vtable	0xA042AC	u32	victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
+survarium::match_options	srp_blackout	0x57870	u32	patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
+vostok::buffer_reader	begin	0x0	ptr<u8>	a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
+vostok::buffer_reader	cursor	0x4	ptr<u8>	the next byte to read
+vostok::buffer_reader	size	0x8	u32	the bytes from begin
+survarium::game_world_ui	hud_movie	0x8	ptr<vostok::ui::movie_holder>	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
+survarium::game_world_ui	icons_movie	0x10	ptr<vostok::ui::movie_holder>	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+vostok::ui::movie_holder	view	0x108	ptr<vostok::ui::movie_view>	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
+vostok::ui::movie_view	movie	0x4	ptr<scaleform::gfx_movie>	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
+survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
+survarium::replay_options_frame	options	0x40	ptr<survarium::match_options>	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
+survarium::replay_options_frame	reader	0x14	obj<vostok::buffer_reader>	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
+survarium::update_player_icons_frame	ui	0x4	ptr<survarium::game_world_ui>	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+scaleform::avm_text_field	as3_collectible	-0x20	u32	collectible AS3 object pointer; low bit is its GC tag
+scaleform::avm_text_field	as3_raw	-0x1C	u32	raw AS3 object pointer, preferred when nonzero
+survarium::image	medkit_vtable	0xA1C79C	u32	medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
+survarium::item	vtable	0x0	u32	primary interface (an item's vtable); medkit type checked before reading its activity fields
+survarium::item	medkit	0x0	obj<survarium::medkit>	itself as a medkit: only when its vtable is MEDKIT_VTABLE (the ctor 0x33CAE6), which the reader checks first
+survarium::medkit	duration	0x29C	u32	configured activity milliseconds, modified by drug_activity_time (0x33D3EF)
+survarium::medkit	skill_weight	0x2A0	f32	drug_activity_time modifier weight (0x33D3CD)
+survarium::medkit	remaining	0x2A8	u32	activity milliseconds remaining, after the use delay (0x33D790)
+survarium::medkit	delay_remaining	0x2AC	u32	use delay milliseconds remaining (0x33D790)
+survarium::medkit	active	0x2B0	u8	set_active's activity flag; includes the initial use delay (0x33D39F)
+survarium::player	kit	0x115	u8	current kit, used by medkit::set_active at 0x33D3D5
+survarium::player_profile	kits	0xF4	obj<survarium::profile_kit>	the first kit, from its modifiers on: kit n's modifiers at +0F4h + n x 704h (medkit::set_active 0x33D3E2..0x33D3E8)
+survarium::profile_kit	size	0x704	size	stride of profile kits (0x33D3E2)
+survarium::profile_kit	modifiers	0x0	obj<survarium::player_params_modifiers_container>	the kit's modifiers (apply_modifier 0x2D5AE0's EAX, 0x33D3E8)
+survarium::medkit	use_delay	0x2A4	u32	configured activation delay ms; native set_active applies modifier 33 with weight 1 at 0x33D45A..0x33D491
+vostok::core::image	localization	0x21E75E0	obj<vostok::buffer_string>	the game language, a buffer_string {begin, end, capacity end} over 16 bytes at 21E75ECh: "original" (0x84E3E0) or -localization= (core::preinitialize 0xE3C52); every reader of the dictionary's name reads it (load_text_localization 0x1FEED6, the swear filter 0x1EA868, the Flash texts 0x21EC9E, the chat language 0x26C1DE)
+vostok::buffer_string	begin	0x0	ptr<u8>	the text's first byte (zero-terminated at end, +4)
+survarium::game_options_interface	menu	0x8	ptr<vostok::ui::movie_holder>	the main menu's movie holder (game_options+0Ch), the movie the options invoke ([[+8]+108h]+4, 0x1FF98F); not the callback's first argument, a static object
+survarium::game_options_interface	game	0x30	ptr<survarium::game>	the game (game_options+34h; game_options::scaleform_callback's ECX is game_options+4)
+survarium::game	text_translator	0x52A8	obj<survarium::text_translator>	the text translator (in the game: on_configs_loaded 0x1EA306 loads its dictionary, fill_labels 0x200087 translates with it)
+survarium::options_callback_frame	method	0x8	ptr<u8>	the method's name (a C string)
+survarium::options_callback_frame	arguments	0xC	ptr<scaleform::gfx_value>	its GFx arguments (24 bytes each)
+survarium::options_callback_frame	count	0x10	u32	their count
+scaleform::gfx_value	kind	0x4	u32	its type (Scaleform::GFx::Value): 2 bool, 4 uint, 6 string, with 40h a managed one (0x2384E2, 0x1FF611)
+scaleform::gfx_value	value	0x8	u32	a bool's or a uint's value (0x2384E2)
+scaleform::gfx_value	text	0x8	ptr<u8>	an unmanaged string's text, a C string
+scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed string's (40h) node (0x1FF611)
+scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
+scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
+vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)

@@ -5,6 +5,7 @@ package
    import flash.display.BitmapData;
    import flash.display.BlendMode;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -45,9 +46,13 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
+   import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.ForcedView;
+   import survarium.controls.KeptLayer;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.ResearchCountdownLayout;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -130,6 +135,10 @@ package
       protected const effectsDict:Dictionary = new Dictionary();
       
       protected const effectContainer:Sprite = new Sprite();
+
+      // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
+      // stage between the screen effects and the root, so the kits and the countdown are over it.
+      protected const deathEyes:DeathEyes = new DeathEyes();
       
       protected const BLOOD_EFFECT:uint = 0;
       
@@ -208,6 +217,8 @@ package
       
       public var researchUnits:ResearchUnits;
 
+      private var _researchCountdowns:ResearchCountdownLayout;
+
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
 
@@ -228,6 +239,7 @@ package
          stage.visible = false;
          this.init();
          this.setlayout();
+         this.placeMinimap();
          this.onResize(null);
          addEventListener(Event.RENDER,this.onInitRender);
       }
@@ -393,6 +405,11 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
+         _keptLayer = new KeptLayer(this,this.keepLaidOut);
+         _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
+                                      this.holdChatHistory);
+         stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          super.addChild(this._stageLayer);
@@ -469,6 +486,8 @@ package
          this._hudPlayerProfile.visible = false;
          tabMinimap = this.player_list.minimap;
          this.tabMinimap.centerPlayer = false;
+         this.minimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
+         this.tabMinimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
          this.contextInfo3.visible = false;
          var _iconContainer:IconContainer = new IconContainer("inventoryitems",171,83,new hudItems(),true,0,0,0,false);
          this.quick_slots.registerIconContainer(_iconContainer);
@@ -847,7 +866,18 @@ package
 
       private var _interfaceHidden:Boolean;
 
+      // Forced (Blackout, force_interface_hidden) the interface stays as forced: the key and a
+      // match's reset do nothing to it; the exe's patch 65 unforces it for a match without.
       public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._forcedView && this._forcedView.forced)
+         {
+            return;
+         }
+         this.setInterfaceHidden(hidden);
+      }
+
+      private function setInterfaceHidden(hidden:Boolean) : void
       {
          _interfaceHidden = hidden;
          visible = !hidden;
@@ -856,6 +886,83 @@ package
       public function interface_hidden() : Boolean
       {
          return this._interfaceHidden;
+      }
+
+      // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
+      // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
+      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // while the game shows the kits (the death screen, before the start), the
+      // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
+      // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
+      // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
+      // place in the root when not.
+      private var _keptLayer:KeptLayer;
+
+      private var _forcedView:ForcedView;
+
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this._forcedView.forced = forced;
+         this.setInterfaceHidden(forced);
+      }
+
+      public function interface_forced() : Boolean
+      {
+         return this._forcedView.forced;
+      }
+
+      private function keptWhenForced() : Array
+      {
+         return [this.pregameInfo];
+      }
+
+      private function keptOnTab() : Array
+      {
+         if(this._profilePanel.visible)
+         {
+            return [this._profilePanel,this.matchTime(),this.chat];
+         }
+         // Ammo and the body doll share a size-dependent, bottom-right layout.
+         // Keep their owner intact: removing either child changes its bounds
+         // and a reflow can push the other child beyond the viewport.
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
+      }
+
+      private function keptWhileTyping() : Array
+      {
+         return [this.chat];
+      }
+
+      // The chat's last lines held on screen (Tab's history), or let fade again as the chat does.
+      private function holdChatHistory(hold:Boolean) : void
+      {
+         if(!this.chat || !this.chat.messageContainer)
+         {
+            return;
+         }
+         if(hold)
+         {
+            this.chat.messageContainer.showLastMessages();
+            this.chat.messageContainer.stopHideout();
+         }
+         else
+         {
+            this.chat.messageContainer.resumeHideout();
+         }
+      }
+
+      // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
+      // its: placed by the same rule in the kept layer as in the root (the layer is placed as the
+      // root), at every resolution and interface scale, also when it was kept before the layout's
+      // first reflow (a match's start).
+      private function keepLaidOut(part:DisplayObject) : void
+      {
+         if(this.layout != null && part is Sprite && Sprite(part)["layoutData"] != null)
+         {
+            this.layout.manage(Sprite(part));
+         }
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1085,6 +1192,9 @@ package
       public function show_profiles_selector(value:Boolean) : void
       {
          this._profilePanel.visible = value;
+         // A death/respawn switches the Tab view even while Tab stays held.
+         // The game's show_player_list only invokes the movie when Tab changes.
+         this._forcedView.refresh();
       }
       
       public function set_game_stats(state:uint, fps:uint, latency:uint, lowFps:Boolean = false, lowLatenxy:Boolean = false) : void
@@ -1142,11 +1252,37 @@ package
          this.questList.alpha = value;
       }
       
+      // The minimap's position, the exe's setting (Settings, user.cfg's minimap_position): BOTTOM
+      // until the exe says. The exe may say before or after a match's map loads (setProps): the
+      // minimaps' visibility is the HUD's alone, from this and their maps (placeMinimap).
+      private var _minimapPosition:int = MinimapPosition.BOTTOM;
+
       public function set_minimap_position(value:uint) : void
       {
-         this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
-         this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
-         this.minimap.visible = value != MinimapPosition.HIDDEN;
+         _minimapPosition = MinimapPosition.parse(value);
+         this.placeMinimap();
+      }
+
+      // Runs on every position and every map loaded. The minimap shows with a map, unless hidden;
+      // hidden keeps the last place. The Tab map shows with a map (its list shows it on Tab).
+      private function placeMinimap() : void
+      {
+         if(this._minimapPosition != MinimapPosition.HIDDEN)
+         {
+            this.minimap.layoutData.alignV = this._minimapPosition == MinimapPosition.TOP ? "top" : "bottom";
+            this.minimap.layoutData.offsetV = this._minimapPosition == MinimapPosition.TOP ? 36 : -36;
+            if(this.layout)
+            {
+               this.layout.reflow();
+            }
+         }
+         this.minimap.visible = this.minimap.hasMap && this._minimapPosition != MinimapPosition.HIDDEN;
+         this.tabMinimap.visible = this.tabMinimap.hasMap;
+      }
+
+      private function onMinimapLoaded(e:Event) : void
+      {
+         this.placeMinimap();
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1259,10 +1395,9 @@ package
          this.progress_indicator.layoutData.alignH = "center";
          this.progress_indicator.layoutData.offsetV = 56;
          this.progress_indicator.layoutData.offsetH = 230;
+         // its alignV and offsetV are the position's (placeMinimap)
          this.minimap.layoutData = new LayoutData();
-         this.minimap.layoutData.alignV = "bottom";
          this.minimap.layoutData.alignH = "left";
-         this.minimap.layoutData.offsetV = -36;
          this.minimap.layoutData.offsetH = borderOffset + 22;
          this.container_icon.layoutData = new LayoutData();
          this.container_icon.layoutData.alignV = "center";
@@ -1427,6 +1562,8 @@ package
                this.chat.stopEnterMessage();
             }
          }
+         // forced (Blackout): the chat shows while typed in (keptWhileTyping)
+         this._forcedView.typing = bool;
       }
       
       public function set_friends_list(value:Array) : void
@@ -1531,6 +1668,15 @@ package
       {
       }
       
+      public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
+      {
+         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         {
+            _reflow = true;
+            addEventListener(Event.RENDER,this.onRender);
+         }
+      }
+
       public function fill_slot(_p:Object) : void
       {
          if(this.quick_slots.fillSlot(_p) && !this._reflow)
@@ -1667,6 +1813,12 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
+         this._forcedView.tab = bool;
+         if(this._forcedView.forced)
+         {
+            return;
+         }
          this.player_list.visible = bool;
          this.questTaskList.visible = bool && this.questList.visible;
       }
@@ -1714,6 +1866,7 @@ package
          {
             this.pregameInfo.premiumMembers.visible = false;
          }
+         this.placeResearchCountdowns();
       }
       
       public function set_pregame(value:String) : void
@@ -1730,6 +1883,7 @@ package
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
             this.pregameInfo.premiumMembers.x = 55;
          }
+         this.placeResearchCountdowns();
       }
       
       public function show_game_info(bool:Boolean) : void
@@ -1845,7 +1999,8 @@ package
       {
          trace("HUD::reset");
          // a new match starts with the interface shown (the movie is the last match's; the exe's
-         // patch 62 shows the player icons' with it)
+         // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
+         // tells the movie the new match's state
          this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
@@ -1866,6 +2021,7 @@ package
          this.connectionInfo.visible = false;
          this.show_pregame(false);
          this.set_match_time("");
+         this.deathEyes.countdown("");
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1929,10 +2085,26 @@ package
       
       public function set_game_type(type:uint) : void
       {
+         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.layoutData)
+         {
+            this.progress_indicator.layoutData.alignH = "center";
+         }
+         if(this._researchCountdowns != null)
+         {
+            this._researchCountdowns.restore();
+            this._researchCountdowns = null;
+         }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          if(type == this.GAME_MODE_RESEARCH)
          {
+            // Research centres the visible score bars on the actual viewport.
+            // Timeline labels can change width after generic layout offsets
+            // were measured; Research must not wait for a resize to settle.
+            if(this.progress_indicator.layoutData)
+            {
+               this.progress_indicator.layoutData.alignH = "none";
+            }
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
             if(this.progress_indicator.team1LastPlayers)
             {
@@ -1951,14 +2123,18 @@ package
       
       public function set_match_time(time:String) : void
       {
+         this.matchTime().text = time;
+      }
+
+      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
+      // other modes' (progress_indicator's frames).
+      private function matchTime() : Object
+      {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
-            this.progress_indicator.match_time_2_tdm.text = time;
+            return this.progress_indicator.match_time_2_tdm;
          }
-         else
-         {
-            this.progress_indicator.match_time_2.text = time;
-         }
+         return this.progress_indicator.match_time_2;
       }
       
       public function show_context(bool:Boolean) : void
@@ -2226,7 +2402,7 @@ package
       }
       
       // Research (mode 5), every frame the state changes and every second
-      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // (research_arena::research_update_hud): the game's own team, the teams'
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
@@ -2251,7 +2427,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":5 + 9 * count + i < values.length ? Number(values[5 + 9 * count + i]) : 0
             });
             i++;
          }
@@ -2271,8 +2448,8 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). The respawn
-      // countdown may overlap them (owner: less screen space).
+      // in the indicator's own space (its origin is its centre). Research's
+      // respawn and pre-match countdowns get a separate row below the units.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2296,15 +2473,11 @@ package
          this.followIndicator();
       }
 
-      // The units where the indicator is now: its x and y as the layout last
-      // put them, plus the units' place in its space. Rev 30 converted the
-      // bars' bounds with getBounds(this) at research_update only: early in a
-      // match that gave the indicator's own space, and the units sat in the
-      // screen's top-left corner until a later update.
+      // Centre Research on the live viewport, including before the first
+      // resize. Layout owns the vertical position; the points follow the bars.
       private function followIndicator() : void
       {
-         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
-         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+         this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
       // Every frame of a Research match: the layout moves the indicator at
@@ -2314,7 +2487,22 @@ package
          if(this.researchUnits.visible)
          {
             this.followIndicator();
+            this.placeResearchCountdowns();
          }
+      }
+
+      private function placeResearchCountdowns() : void
+      {
+         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+            !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
+         {
+            return;
+         }
+         if(this._researchCountdowns == null)
+         {
+            this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
+         }
+         this._researchCountdowns.place(this.researchUnits);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2334,7 +2522,9 @@ package
       
       public function set_respawn_time(time:String) : void
       {
+         this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
+         this.placeResearchCountdowns();
       }
       
       public function set_capture_progress(team:uint, text:String, value:uint) : void
@@ -2485,6 +2675,8 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
+         this._keptLayer.place();
+         this.deathEyes.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

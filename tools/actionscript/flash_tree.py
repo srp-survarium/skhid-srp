@@ -10,7 +10,9 @@
 
 A tree is the movie's complete ActionScript; movie.json names the original
 movie, whose graphics, fonts, sounds and symbol bindings (everything but the
-code) the build keeps. The build is one `compc` run of Apache Flex 4.16.1
+code) the build keeps. A bitmap the original lacks is bitmaps/<class>.png
+beside src/: the build adds it, bound to <class> (a BitmapData of the
+tree, as the original's bitmaps are). The build is one `compc` run of Apache Flex 4.16.1
 over src/ (strict, optimized, no debug information, the original's SWF
 version), against the Flash Player API (playerglobal.swc) only: every class
 the movie uses is in the tree.
@@ -84,11 +86,37 @@ def compile_tree(source, tools, version, work):
     return [(kind, raw) for kind, raw in tags if kind == swf.DO_ABC and swf.do_abc(raw)[1] not in roots]
 
 
-def assemble(original_data, code):
-    """The original movie with `code` (DoABC tags) in place of all of its code, where its code began."""
+def bitmaps(movie_dir):
+    """[(class name, width, height, RGBA)] of the tree's bitmaps/<class>.png, by name."""
+    folder = movie_dir / 'bitmaps'
+    if not folder.is_dir():
+        return []
+    out = []
+    for path in sorted(folder.iterdir()):
+        if path.suffix != '.png' or not path.stem.isidentifier():
+            raise ValueError(f'{path}: a bitmap is <class name>.png')
+        out.append((path.stem, *swf.png(path.read_bytes())))
+    return out
+
+
+def assemble(original_data, code, added=()):
+    """The original movie with `code` (DoABC tags) in place of all of its code, where its code began.
+
+    `added` (bitmaps()) are new bitmaps: each a DefineBitsLossless2 of a new character id before the
+    code, bound to its class (a BitmapData of the tree) by one SymbolClass after it."""
     header, tags = swf.split(original_data)
     first = next(i for i, (kind, _) in enumerate(tags) if kind in (swf.DO_ABC, swf.DO_ABC_OLD))
-    kept = tags[:first] + code + [t for t in tags[first:] if t[0] not in (swf.DO_ABC, swf.DO_ABC_OLD)]
+    taken = swf.character_ids(tags)
+    if {name for _, name in swf.symbol_classes(tags)} & {name for name, *_ in added}:
+        raise ValueError('A bitmap of bitmaps/ is a class the original already binds')
+    defines, bindings = [], []
+    for i, (name, width, height, rgba) in enumerate(added):
+        cid = max(taken, default=0) + 1 + i
+        defines.append((swf.DEFINE_BITS_LOSSLESS2, swf.bitmap(cid, width, height, rgba)))
+        bindings.append((cid, name))
+    bound = [(swf.SYMBOL_CLASS, swf.symbol_class(bindings))] if bindings else []
+    kept = tags[:first] + defines + code + bound \
+        + [t for t in tags[first:] if t[0] not in (swf.DO_ABC, swf.DO_ABC_OLD)]
     return swf.compressed(swf.join(header, kept), original_data)
 
 
@@ -129,8 +157,10 @@ def build(movie_dir, original_swf, tools, report=print):
             code = compile_tree(place / 'src', tools, swf.uncompressed(data)[3], Path(work))
         finally:
             shutil.rmtree(place / 'src')
-    movie = assemble(data, code)
-    report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics')
+    added = bitmaps(movie_dir)
+    movie = assemble(data, code, added)
+    report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics'
+           + (f', {len(added)} bitmaps added' if added else ''))
     return movie
 
 

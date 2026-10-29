@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# usage: release/bot-data list
+#        release/bot-data check [<folder>]
+#        release/bot-data add [--replace] <folder> <path>[=<name>]...
+#
+# The bots' data files a release puts in the data volume (the list
+# release/bot-data.tsv; why and how: lib.sh, "The bots' data files"). The
+# files themselves are private and stay out of git; the list holds their
+# names and sha256, so a release ships exactly what was benched, and stops
+# when a file is missing or another.
+#
+#   list     the list, one file a line: path under the volume, size, the
+#            name in the owner's folder when it is another, sha256
+#   check    every file of the list in <folder> (default $SKHID_BOT_DATA of
+#            release.env: a folder laid out as the volume, mapdata/<project>
+#            .mapdata and so on) by its size and sha256; fails on a missing
+#            or different file, printing which
+#   add      puts files in the list: <path> is the path under the volume,
+#            the file <folder>/<path> (or <folder>/<name> after `=`, for a
+#            benched file that is called otherwise: mapdata/bot-routes.json
+#            for bot-routes/routes-3d.json). A path already in the list with
+#            another sha256 is refused unless --replace (a new benched file:
+#            commit the list with the change that was benched)
+#
+# Maps and the foliage need no code here: one row each.
+. "$(dirname "$0")/lib.sh"
+
+mode=${1:-}
+case $mode in
+-h | --help | '') usage "$([[ $mode == '' ]] && echo 1 || echo 0)" ;;
+list | check | add) shift ;;
+*) die "unknown command $mode (--help)" ;;
+esac
+
+replace=0
+args=()
+while (($#)); do
+    case $1 in
+    --replace) replace=1; shift ;;
+    -*) die "unknown option $1 (--help)" ;;
+    *) args+=("$1"); shift ;;
+    esac
+done
+
+load_env_if_any
+read_bot_data_list
+
+case $mode in
+list)
+    ((${#args[@]} == 0)) || usage 1
+    for i in "${!BD_PATH[@]}"; do
+        printf '%s\t%s\t%s\t%s\n' "${BD_PATH[i]}" "${BD_SIZE[i]}" "$([[ ${BD_SOURCE[i]} != "${BD_PATH[i]}" ]] && printf '%s' "${BD_SOURCE[i]}" || true)" "${BD_SHA[i]}"
+    done
+    ;;
+check)
+    dir=${args[0]:-}
+    if [[ -z $dir ]]; then
+        load_env SKHID_BOT_DATA
+        dir=$SKHID_BOT_DATA
+    fi
+    [[ -d $dir ]] || die "$dir is not a folder"
+    if out=$(bot_data_check_folder "$dir"); then
+        say "$dir: ${#BD_PATH[@]} file(s), each as listed"
+    else
+        say "$dir:"
+        # shellcheck disable=SC2001 # every line
+        sed 's/^/  /' <<<"$out"
+        exit 1
+    fi
+    ;;
+add)
+    ((${#args[@]} >= 2)) || usage 1
+    dir=${args[0]}
+    [[ -d $dir ]] || die "$dir is not a folder"
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
+    cp "$BOT_DATA_LIST" "$tmp"
+    for spec in "${args[@]:1}"; do
+        path=${spec%%=*}
+        name=${spec#*=}
+        [[ $spec == *=* ]] || name=$path
+        bot_data_name_ok "$path" || die "$path is not a path under the volume"
+        bot_data_name_ok "$name" || die "$name is not a name in $dir"
+        file=$dir/$name
+        [[ -f $file ]] || die "$file: no such file"
+        sha=$(sha256_of "$file") size=$(size_of "$file")
+        row=$(printf '%s\t%s\t%s' "$path" "$sha" "$size")
+        [[ $name == "$path" ]] || row+=$(printf '\t%s' "$name")
+        old=$(awk -F '\t' -v p="$path" '$1 == p { print $2 }' "$tmp")
+        if [[ -z $old ]]; then
+            printf '%s\n' "$row" >>"$tmp"
+            say "added   $path ($size bytes, sha256 ${sha:0:12}…)"
+        elif [[ $old == "$sha" ]]; then
+            say "same    $path (already listed)"
+        elif ((replace)); then
+            awk -F '\t' -v p="$path" -v row="$row" '$1 == p { print row; next } { print }' "$tmp" >"$tmp.new"
+            mv "$tmp.new" "$tmp"
+            say "replaced $path (was sha256 ${old:0:12}…, now ${sha:0:12}…)"
+        else
+            die "$path is in the list with sha256 ${old:0:12}…, this file has ${sha:0:12}…: --replace says it is a new benched file"
+        fi
+    done
+    cp "$tmp" "$BOT_DATA_LIST"
+    say "$BOT_DATA_LIST written: commit it"
+    ;;
+esac

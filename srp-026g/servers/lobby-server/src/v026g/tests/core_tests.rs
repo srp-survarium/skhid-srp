@@ -2049,6 +2049,7 @@ impl World {
                     longest_killstreak: 0,
                     kit_changes: 0,
                     statistics: Some(statistics),
+                    pay_statistics: None,
                     supplies: None,
                 }
             })
@@ -2068,6 +2069,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2119,6 +2121,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: None,
+                pay_statistics: None,
                 supplies: None,
             })
             .collect();
@@ -2137,6 +2140,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self

@@ -115,6 +115,7 @@ use survarium::v026g::match_msgs::{
 use udp_transport::{Event, SendError, Transport};
 
 use super::battery_cap;
+use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
@@ -882,6 +883,8 @@ pub(crate) struct Game {
     mode_end_at: Option<u32>,
     state: Option<Observed>,
     best_streaks: Vec<u16>,
+    /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
+    kill_pairs: kill_cap::Pairs,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -956,6 +959,7 @@ impl Game {
             mode_end_at: None,
             state: None,
             best_streaks: vec![0; players],
+            kill_pairs: kill_cap::Pairs::default(),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -990,11 +994,12 @@ impl Game {
             "mode": map.mode,
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
+            "vs_bots": self.formed.vs_bots,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, header, now));
+        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
     }
 
     /// The places from `from` on, for a recording.
@@ -3559,6 +3564,19 @@ impl Game {
     }
 
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
+        // A solo human's inputs have no recipient. Keep the accepted
+        // action after rejection/retiming, not the unchecked inbound packet.
+        if self.formed.vs_bots
+            && !self.formed.places[index].driven
+            && let Some(recording) = self.recording.as_mut()
+        {
+            match what {
+                Relayed::Input(input) => recording.accepted_input(index, time, input, now),
+                Relayed::Profile { value, .. } => {
+                    recording.accepted_profile(index, time, *value, now)
+                }
+            }
+        }
         let message = relay(index, what);
         let clock = self.clock(now);
         for (other, peer) in self.peers.iter_mut().enumerate() {
@@ -3811,6 +3829,11 @@ impl Game {
                     .max(player.longest_killstreak)
                     .max(u16::from(player.killstreak));
             }
+            let before = self
+                .state
+                .as_ref()
+                .and_then(|state| state.statistics.as_ref());
+            self.kill_pairs.observe(before, statistics, &teams);
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -4732,6 +4755,33 @@ impl Game {
                 statistics
             });
         let statistics = statistics.as_ref();
+        let payment = statistics.map(|played| {
+            let payment = super::reward_caps::Payment::of(
+                played,
+                &self.kill_pairs,
+                self.game_mode(),
+                self.formed.vs_bots,
+            );
+            for cut in &payment.objectives {
+                log::info!(
+                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.scored,
+                    cut.paid
+                );
+            }
+            for cut in &payment.kills {
+                log::info!(
+                    "Match {:#x}: place {}'s repeated kills counted {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.counted,
+                    cut.paid
+                );
+            }
+            payment
+        });
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
@@ -4786,6 +4836,10 @@ impl Game {
                     left,
                     time_in_match_ms: in_match,
                     statistics: own.cloned(),
+                    pay_statistics: payment
+                        .as_ref()
+                        .and_then(|p| p.statistics.players.get(index))
+                        .cloned(),
                     score: own.map_or(0, |player| {
                         snapshot::score(player, &self.formed.score_weights)
                     }),
@@ -4815,6 +4869,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
+            blackout: self.formed.blackout,
         }
     }
 
