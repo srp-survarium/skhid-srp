@@ -255,7 +255,7 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
             self.thrown.thrown,

@@ -50,9 +50,19 @@ pub struct SmokeTuning {
     /// sensed the spot's shooter there within 15 s (`smoke::FAIR_SENSED_MS`) and the kit has a smoke. Off: none.
     pub cross_lane: bool,
     pub lane_ahead_m: Metres,
+    /// A life smokes the lanes it crosses with this chance, drawn once a life when its first lane smoke is planned
+    /// (a declined life throws none). The live players throw 2.97 smokes per 100 lives; with every crossing smoked the
+    /// bench's bots threw 15.1 (`h2h-free-vs-radio-20261029T1047`), so 0.35 brings them to about 5 (under 2x live).
+    pub cross_lane_chance: f32,
     /// [smoke use] A bot outranged by a sniper it sees (play 11's matchup: its weapon short of him) smokes the line
     /// between them, as near him as the throw reaches. Off: none.
     pub anti_sniper: bool,
+}
+
+impl SmokeTuning {
+    pub(super) fn check(&self) -> Result<(), String> {
+        check((0.0..=1.0).contains(&self.cross_lane_chance), "smoke.cross_lane_chance")
+    }
 }
 
 impl Default for SmokeTuning {
@@ -71,6 +81,7 @@ impl Default for SmokeTuning {
             told_ms: 400,
             cross_lane: false,
             lane_ahead_m: Metres::of(20.0),
+            cross_lane_chance: 0.35,
             anti_sniper: false,
         }
     }

@@ -648,6 +648,10 @@ fn smoke_uses(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
     let Some((plan, why)) = sniper.or_else(lane) else {
         return;
     };
+    // A lane smoke only in a life that drew it (`cross_lane_chance`).
+    if plan.for_use == SmokeUse::CrossLane && !bot.reflex.lane_smokes(t.cross_lane_chance, &mut bot.rng) {
+        return;
+    }
     if bot.reflex.start_smoke(plan, now) {
         #[cfg(test)]
         {

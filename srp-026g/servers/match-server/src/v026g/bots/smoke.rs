@@ -754,8 +754,9 @@ pub mod tally {
 
     pub const EVENTS: usize = 9;
 
-    /// What became of the bots' smoke throws: begun, thrown (the key let go), given up.
-    pub const THROW_STEPS: usize = 3;
+    /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
+    /// died (the life ended with it under way). Every throw begun ends in one of the last three.
+    pub const THROW_STEPS: usize = 4;
     const ROLES: usize = survarium::v026g::loadouts::BotRole::ALL.len();
     /// By team, role and use ([`super::SmokeUse::ALL`]), each step.
     pub type Throws = [[[[u64; THROW_STEPS]; super::SmokeUse::ALL.len()]; ROLES]; 2];
@@ -788,6 +789,11 @@ pub mod tally {
     /// A smoke throw let go (`true`) or given up (`false`).
     pub fn thrown(team: u8, for_use: super::SmokeUse, done: bool) {
         step(team, for_use, if done { 1 } else { 2 });
+    }
+
+    /// A smoke throw under way when its thrower's life ended.
+    pub fn died(team: u8, for_use: super::SmokeUse) {
+        step(team, for_use, 3);
     }
 
     pub fn throws() -> Throws {

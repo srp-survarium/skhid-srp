@@ -1547,6 +1547,15 @@ struct SmokeThrowing {
     phase: SmokePhase,
 }
 
+/// [smoke use] This life's draw for a lane smoke (`smoke.cross_lane_chance`): not drawn yet, or drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum LaneDraw {
+    #[default]
+    Undrawn,
+    Smokes,
+    Declines,
+}
+
 /// Where a smoke throw is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SmokePhase {
@@ -2453,6 +2462,7 @@ pub struct Reflex {
     /// under way.
     smoke_key: Option<u32>,
     smoke_throw: Option<SmokeThrowing>,
+    lane_draw: LaneDraw,
     /// [smoke] The sniper that outranges its weapon now (play 11's matchup, whatever `outranged_cover`): who, where,
     /// and the match clock it was seen at. Read by `smoke.anti_sniper`; no decision of the reflex reads it.
     outranged_by: Option<(Place, Vec3, u32)>,
@@ -3220,6 +3230,15 @@ impl Reflex {
         self.outranged_by
     }
 
+    /// [smoke use] Whether this life smokes a lane it crosses: drawn once a life, with `chance`, the first time a lane
+    /// smoke is planned; the same answer for the rest of the life.
+    pub fn lane_smokes(&mut self, chance: f32, rng: &mut Rng) -> bool {
+        if self.lane_draw == LaneDraw::Undrawn {
+            self.lane_draw = if rng.unit() < chance { LaneDraw::Smokes } else { LaneDraw::Declines };
+        }
+        self.lane_draw == LaneDraw::Smokes
+    }
+
     /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.
     pub fn can_smoke(&self) -> bool {
         self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none()
@@ -3400,6 +3419,11 @@ impl Reflex {
     /// and the rounds its kit has left.
     fn new_life(&mut self, me: &PlaceView) {
         if self.life != Some(me.spawned) {
+            // [smoke] A smoke throw under way ends with the life: counted, so every throw begun has its exit.
+            #[cfg(test)]
+            if let Some(t) = self.smoke_throw {
+                super::smoke::tally::died(me.team, t.plan.for_use);
+            }
             if self.life.is_some() {
                 *self = Self::armed_carrying(self.arms, self.left());
             }
