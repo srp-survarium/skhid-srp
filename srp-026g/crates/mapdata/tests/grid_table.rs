@@ -482,6 +482,24 @@ fn the_jump_cap_per_map() {
                 mapdata::OffMeshLinks::Gaps,
             );
             let row = table_row(&map, &grid);
+            // `SRP_GRID_COST_OUT=<file>`: the grid's cost (metres of walk and link penalties) from every spawn to every seed
+            // (spawns, batteries, containers, stations) on the first cap's grid, appended: project, spawn, seed, cost.
+            if let Some(out) = std::env::var_os("SRP_GRID_COST_OUT")
+                && cap == mapdata::grid::STANDING_JUMP_M
+            {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new().create(true).append(true).open(out).unwrap();
+                let targets: Vec<Option<NodeId>> = map.grid_seeds().iter().map(|&p| grid.locate(p, OBJECTIVE_M)).collect();
+                for (i, &spawn) in spawns.iter().enumerate() {
+                    let Some(from) = grid.locate(spawn, SPAWN_M) else { continue };
+                    let costs = grid.distances_from(&[from]);
+                    for (j, target) in targets.iter().enumerate() {
+                        if let Some(target) = target {
+                            writeln!(file, "{project}\t{i}\t{j}\t{:.1}", costs.get(*target)).unwrap();
+                        }
+                    }
+                }
+            }
             let (mut standing, mut capped, mut sprint, mut below_step) = (0usize, 0usize, 0usize, 0usize);
             // `SRP_GRID_SPOT=x,z`: the Jump links of a rise under the step within 1.5 m of this spot are listed.
             let spot = std::env::var("SRP_GRID_SPOT").ok().and_then(|v| {

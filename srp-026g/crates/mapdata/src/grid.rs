@@ -1004,13 +1004,14 @@ impl WalkGrid {
         if failing.is_empty() {
             return (0, 0);
         }
-        // What the seeds and the spawns get to, and what gets back to them, before and after the cut.
+        // What each spawn gets to, and what gets back to it, and what the seeds together get to and get back to, before and after
+        // the cut: a start's own ways are kept (a team's spawn is not served by the other's).
         let n = self.height.len();
-        let starts: Vec<u32> = seeds
-            .iter()
-            .filter_map(|&s| self.locate(s, SEED_M))
-            .chain(spawns.iter().filter_map(|&s| self.locate(s, SPAWN_M)))
-            .collect();
+        let locate_all = |points: &[Vec3], within: f32| -> Vec<u32> { points.iter().filter_map(|&p| self.locate(p, within)).collect() };
+        let mut groups: Vec<Vec<u32>> = locate_all(spawns, SPAWN_M).into_iter().map(|s| vec![s]).collect();
+        groups.sort_unstable();
+        groups.dedup();
+        groups.push(locate_all(seeds, SEED_M));
         let (first, to) = wide.adjacency();
         let mut back_first = vec![0u32; n + 1];
         for &b in &to {
@@ -1027,7 +1028,8 @@ impl WalkGrid {
                 filled[b as usize] += 1;
             }
         }
-        let flood = |reach: &mut Vec<bool>, queue: &mut Vec<u32>, forward: bool, cut: &std::collections::HashSet<(u32, u32)>| {
+        type Cut = std::collections::HashSet<(u32, u32)>;
+        let flood = |reach: &mut Vec<bool>, queue: &mut Vec<u32>, forward: bool, cut: &Cut| {
             while let Some(x) = queue.pop() {
                 let x = x as usize;
                 let range = if forward { first[x] as usize..first[x + 1] as usize } else { back_first[x] as usize..back_first[x + 1] as usize };
@@ -1040,10 +1042,10 @@ impl WalkGrid {
                 }
             }
         };
-        let reach_from = |cut: &std::collections::HashSet<(u32, u32)>, forward: bool| {
+        let reach_from = |group: &[u32], cut: &Cut, forward: bool| {
             let mut reach = vec![false; n];
             let mut queue = Vec::new();
-            for &s in &starts {
+            for &s in group {
                 if !reach[s as usize] {
                     reach[s as usize] = true;
                     queue.push(s);
@@ -1052,9 +1054,10 @@ impl WalkGrid {
             flood(&mut reach, &mut queue, forward, cut);
             reach
         };
-        let mut cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
-        let (forward0, back0) = (reach_from(&std::collections::HashSet::new(), true), reach_from(&std::collections::HashSet::new(), false));
-        let (mut forward, mut back) = (reach_from(&cut, true), reach_from(&cut, false));
+        let mut cut: Cut = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        let none = Cut::new();
+        let before: Vec<(Vec<bool>, Vec<bool>)> = groups.iter().map(|g| (reach_from(g, &none, true), reach_from(g, &none, false))).collect();
+        let mut after: Vec<(Vec<bool>, Vec<bool>)> = groups.iter().map(|g| (reach_from(g, &cut, true), reach_from(g, &cut, false))).collect();
         failing.sort_by(|p, q| q.2.total_cmp(&p.2).then(p.0.cmp(&q.0)).then(p.1.cmp(&q.1)));
         let mut kept = 0;
         for _ in 0..4 {
@@ -1064,21 +1067,25 @@ impl WalkGrid {
                 if !cut.contains(&(a, b)) {
                     continue;
                 }
-                let needed_in = forward[a as usize] && !forward[b as usize] && forward0[b as usize];
-                let needed_out = back[b as usize] && !back[a as usize] && back0[a as usize];
-                if !(needed_in || needed_out) {
+                let (au, bu) = (a as usize, b as usize);
+                let needed = (0..groups.len()).any(|g| {
+                    (after[g].0[au] && !after[g].0[bu] && before[g].0[bu]) || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
+                });
+                if !needed {
                     continue;
                 }
                 cut.remove(&(a, b));
                 kept += 1;
                 changed = true;
-                if forward[a as usize] && !forward[b as usize] {
-                    forward[b as usize] = true;
-                    flood(&mut forward, &mut vec![b], true, &cut);
-                }
-                if back[b as usize] && !back[a as usize] {
-                    back[a as usize] = true;
-                    flood(&mut back, &mut vec![a], false, &cut);
+                for (forward, back) in after.iter_mut() {
+                    if forward[au] && !forward[bu] {
+                        forward[bu] = true;
+                        flood(forward, &mut vec![b], true, &cut);
+                    }
+                    if back[bu] && !back[au] {
+                        back[au] = true;
+                        flood(back, &mut vec![a], false, &cut);
+                    }
                 }
             }
             if !changed {

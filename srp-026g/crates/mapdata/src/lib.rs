@@ -120,7 +120,7 @@ pub const GAP_LINKS_ALGO: u32 = 3;
 pub const WALK_OFF_LIPS_ALGO: u32 = 1;
 /// The same for the Jump links kept only where the top they land on goes on as far as the jump carries the body
 /// ([`Body::landing_carry`], `WalkGrid::drop_overshot_landings`), in [`grid_key_with_links`] only for a body that asks for it.
-pub const LANDING_CARRY_ALGO: u32 = 2;
+pub const LANDING_CARRY_ALGO: u32 = 3;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius).
