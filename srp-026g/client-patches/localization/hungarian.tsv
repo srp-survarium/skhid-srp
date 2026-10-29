@@ -262,6 +262,7 @@ st_artefact_booster_name	Artefaktummester
 st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
 st_artefact_search_failed	Nem találtál artefaktumot
 st_artefact_search_success	Szereztél egy artefaktumot! 
+st_artefact_take_teammate	Artefaktum felvétele ({USE})
 st_ash12_description	A leírás még nem érhető el.
 st_ash12_name	Ash-12
 st_attention	Hiba történt a Survarium indítóprogramjának indításakor. Próbáld újra később.
@@ -1217,6 +1218,7 @@ st_hk_mp7_silencer_description	Német önvédelmi fegyver, 4.6x30 lőszerrel, ha
 st_hk_mp7_silencer_name	H&K MP7A1
 st_hk_mp7_silencer_special_description	Német önvédelmi fegyver, 4.6x30 lőszerrel, hangtompítós MP7A1 változatban. A Heckler & Koch saját páncéltörő lőszerével együtt fejlesztette. A Bundeswehr és rendőrségi különleges egységek használják. 20 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
 st_hk_mp7_silencer_special_name	H&K MP7A1 "Legend"
+st_hold_artifact_action	Artefaktum tartása
 st_hour_short	óra
 st_hud_tutorial_frame_0_text_1	Kamera irányítása
 st_hud_tutorial_frame_0_text_2	Nézz körül az egérrel

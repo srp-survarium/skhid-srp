@@ -7,6 +7,9 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+# Client patch 78 ends each player's state with the carry's snapshot
+# (`v026g::match_msgs::motion`).
+artefact-carry = { path = "../artefact-carry" }
 binary-config-parser = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }

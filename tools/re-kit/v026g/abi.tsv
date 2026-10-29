@@ -578,7 +578,6 @@ va	name	source	ret_cleanup	result
 0x0016c1a0	vostok::render::effect_block_compression::compile	manual	12	
 0x0016c520	vostok::render::model_factory::create_render_surface	manual	0	EAX: constructed surface pointer or null on allocation failure; invalid target dispatch does not reach a normal result
 0x0016c8b0	vostok::render::model_factory::create_render_model	manual	0	EAX: model pointer or zero on observed allocation-null branches
-0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX (32bits): destination24-byte bounds pointer
 0x0016e460	vostok::render::static_render_model_instance::get_surfaces_count	manual	0	EAX (32bits): zero-extended byte surface count; EAX range0..255
 0x0016e500	vostok::render::static_render_surface::fill_lpv_vertex_color	manual	8	
 0x0016e550	vostok::render::static_render_surface::add_shadow_vertices	manual	8	
@@ -997,7 +996,6 @@ va	name	source	ret_cleanup	result
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
 0x00243dd0		auto	4	
-0x00243fa0		auto	4	
 0x00244570		auto	0	
 0x002445e0		auto	4	
 0x00244610		auto	4	
@@ -1147,7 +1145,6 @@ va	name	source	ret_cleanup	result
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
-0x002d77c0	survarium::base_player::on_player_death	manual		none; the same opening as 0x1F28E0: remove_alive(this, 1) at 0x2D77C6
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
@@ -2023,6 +2020,30 @@ va	name	source	ret_cleanup	result
 0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
+0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
+0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
+0x002d77c0	survarium::base_player::on_player_death	manual	4	ECX live player; remove_alive(this, 1) at 0x2D77C6, inventory death at 0x2D77D1; ret 4
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: encoded slot ((external array - inventory - 0x10c) SAR 2) + container ordinal, or fixed slot; 23 when absent
+0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
+0x00313470	survarium::artefact_base::on_taken	manual	0	no result used
+0x00313490	survarium::artefact_base::on_removed	manual	0	no result used
+0x002e30f0	survarium::weapon_core::register_in_game_world	manual	4	no result used
+0x002d4540	survarium::active_objects::append	manual	4	no result used
+0x00299830	survarium::empty_hands::empty_hands	manual	8	EAX: constructed object
+0x0025ebb0	survarium::artefact<artefact_spring_core>::update_client_state	manual	0	no result used
+0x0025f100	survarium::artefact<artefact_lifebone_core>::update_client_state	manual	0	no result used
+0x0025f640	survarium::artefact<artefact_onyx_core>::update_client_state	manual	0	no result used
+0x0025fb80	survarium::artefact<artefact_rattle_core>::update_client_state	manual	0	no result used
+0x002fec10	survarium::portable_interactive_object_core::selected_user_animations	manual	4	EAX: output expression pair address
+0x002df050	survarium::portable_interactive_object_core::set_user_animation_resource	manual	0	no result used
+0x002febc0	survarium::portable_interactive_object_core::portable_interactive_object_core	manual	4	EAX: destination
+0x002fb8a0	survarium::weapon_user_animations_selector::~weapon_user_animations_selector	manual	4	no result used
+0x00231bc0	survarium::hit_animations_selector::~hit_animations_selector	manual	0	no result used
+0x002d86e0	survarium::base_player::apply_new_input	manual	8	no result
+0x002daa60	survarium::base_player::tick	manual	4	no result
+0x00260270	survarium::artefact_lifebone::on_subresources_loaded	manual	4	none; retains queries_result resources 0/1/2 at Lifebone +4ACh/+4B0h/+4B4h; EDI this, entry ESP+4 result
+0x002fffd0	survarium::inventory_item::register_in_game_world	manual	4	ECX item; stack+4 core world written to +248h
+0x00313200	survarium::artefact_base::tick	manual	8	ECX item; stack delta_ms, now_ms; unowned states only cool down
 0x002e0f60	survarium::weapon_core::look_pitch	manual	0	ST0 = clamp([[ECX+8]+48Ch] (the player's base look pitch) + [ECX+474h+4] (the kick's y, recoil object at +468h), -1 (0xA2D778) .. 1 (0xA70884)); weapon_core vtable +8, read by look_time_factor_calculator 0x2FBF90
 0x002fbf90	survarium::base_player::look_time_factor_calculator	manual	24	ST0 = min((look_pitch + 1) * 0.5 (0x927A44), 0.99999 (0xA2D9D8)) * entry ESP+4 (clip length); look_pitch: [ECX+128h]'s vtable +8 (weapon_core::look_pitch 0x2E0F60). Drives the look clips; the first-person camera is bone Item (computed_head_transform 0x2DA4B0, Item's parent is Root), turned only by on_site_camera_look: +67.5 deg at time 0, 0 at the middle, -60.0 deg at the end, linear on each side (decoded from 0.26g's clip, 2026-10-29): 60 deg of view per pitch unit up, 67.5 down
 0x002e39b0	survarium::weapon_core::computed_vertical_recoil_time	manual	4	ST0 = [ECX+47Ch] (recoil object +14h: the camera-shake weight z, 0..1) if [ECX+8] (the user) and byte [user+33Ch] are set, else 0. One stack argument: the camerashake lexeme's weight calculator (lexeme +0Ch delegate, built by 0x2E13A0), not a time calculator; the name is the 0.21d match's.

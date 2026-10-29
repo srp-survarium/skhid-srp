@@ -40,6 +40,7 @@ pub mod vostok;
 
 pub mod ragdoll;
 pub mod blackout;
+mod artefact_carry;
 pub mod suicide_key;
 
 pub mod text_input;

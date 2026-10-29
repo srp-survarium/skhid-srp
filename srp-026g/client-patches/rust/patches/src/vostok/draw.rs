@@ -3,7 +3,7 @@
 //! What each site's registers hold is said here, once.
 
 use super::context::{Context, Flag, Flow, NoExit, Reg};
-use super::world::{Player, floats, read};
+use super::world::{Player, Skeleton, floats, read};
 use crate::raw;
 
 /// The player at `player_draw.held_item`, when it holds nothing: mt_draw
@@ -72,7 +72,12 @@ pub fn draw_anyway(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// the skeleton's model-space matrices, the game's order (the root,
 /// object_movement, has none: matrix `i` is bone `i + 1`'s). Only the draw
 /// reads them (its stack array); writing one changes what is drawn alone.
+#[derive(Clone, Copy)]
+enum BonePass { Render, Damage }
+impl BonePass { fn layer(self) -> u8 { match self { Self::Render => 1, Self::Damage => 2 } } }
 pub struct DrawnBones<'t> {
+    pass: BonePass,
+    skeleton: Skeleton<'t>,
     player: Player<'t>,
     bones: *mut [f32; 16],
     count: u32,
@@ -104,8 +109,20 @@ impl<'t> DrawnBones<'t> {
             (frame.bones(), read(frame.bone_count()))
         };
         let player = Player::of(ctx, player)?;
-        (!bones.is_null()).then_some(DrawnBones { player, bones: bones.cast(), count })
+        (!bones.is_null()).then_some(DrawnBones { pass: BonePass::Render, skeleton: player.skeleton()?, player, bones: bones.cast(), count })
     }
+
+    pub fn at_damage(ctx: &'t Context<'_>) -> Option<Self> {
+        // SAFETY: documented live player at the hit-model update site.
+        let player = Player::of(ctx, unsafe { raw::site::carry_damage_bones::player(ctx) })?;
+        // SAFETY: the same site's typed registers: the bones and their count.
+        let (bones, count) = unsafe { (raw::site::carry_damage_bones::bones(ctx)?, raw::site::carry_damage_bones::count(ctx)) };
+        // SAFETY: a bone matrix's 16 f32 start at its value.
+        Some(Self { pass: BonePass::Damage, skeleton: player.core_skeleton()?,
+            player, bones: unsafe { bones.value() }.cast(), count })
+    }
+    pub fn computed(&self, index: u32) -> bool { self.skeleton.bone_computed(index + 1, self.pass.layer()) }
+    pub fn skeleton(&self) -> &Skeleton<'t> { &self.skeleton }
 
     pub fn player(&self) -> Player<'t> {
         self.player

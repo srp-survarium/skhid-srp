@@ -207,10 +207,20 @@ class Run(hide.Run):
 
     # process_first_person_mode's epilogue (0x2421B0) on a handler whose mask is `mask`: the
     # mask after it, and whether it returned as the function (`ret 8`, edi esi ebx ebp popped).
-    def input(self, mask):
+    def input(self, mask, held=None):
         handler = hide.HANDLER
         self.emu.mem_write(handler, bytes(0x400))
         self.word(handler + INPUT_MASK, mask)
+        # `held`: the state of the action `artefact` (23h, patch 78's carry key,
+        # default H) this tick, pushed into the handler's event buffer (+98h)
+        # by the game's own push_back (0x242580), as on_keyboard_action does.
+        if held is not None:
+            pair, sp = WORK + 0x6000, hide.STACK + 0x8000
+            self.word(pair, 0x23)
+            self.word(pair + 4, held)
+            self.word(sp, hide.SENTINEL)
+            self.run(0x242580, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ECX: handler + 0x98,
+                                                      UC_X86_REG_EDX: pair})
         ebp = hide.STACK + 0x9000
         for i, value in enumerate((0x0BADEBB0, hide.SENTINEL, handler, 1)):
             self.word(ebp + 4 * i, value)
@@ -334,6 +344,7 @@ def main():
     blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
         | USE | 0x400000 | GRENADE | MELEE
     b = patched.input(0xFFFFFFFF)
+    blocked |= 1 << 29  # the carry chord's marker is produced only by a valid chord
     report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves "
            "and acts")
     patched.tab(0)
