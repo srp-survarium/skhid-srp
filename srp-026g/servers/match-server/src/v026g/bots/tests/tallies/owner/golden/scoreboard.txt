@@ -1,0 +1,113 @@
+scoreboard:  | place 0 team 0 kind bot | kills 0 deaths 0 assists 1 streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5
+  scoreboard:  | place 1 team 0 kind bot | kills 0 deaths 0 assists 4 streak 0 | events {1: 4} | objective {delivered: 0.0, carrier_kill: 0.0} | score 20
+  scoreboard:  | place 2 team 0 kind bot | kills 0 deaths 0 assists 1 streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5
+  scoreboard:  | place 3 team 1 kind bot | kills 0 deaths 0 assists 2 streak 0 | events {1: 2} | objective {delivered: 0.0, carrier_kill: 0.0} | score 10
+  scoreboard:  | place 4 team 1 kind bot | kills 0 deaths 0 assists 1 streak 0 | events {1: 1} | objective {delivered: 0.0, carrier_kill: 0.0} | score 5
+  scoreboard:  | place 5 team 1 kind bot | kills 0 deaths 0 assists 2 streak 0 | events {1: 2} | objective {delivered: 0.0, carrier_kill: 0.0} | score 10
+  owner-test scoreboard: team 0 score 30, team 1 score 25; assists 11 of 0 kills = 0.00 a kill (live 0.19; the rule is a GUESS: a teammate's hit within 10 s)
+{
+  "scoreboard": [
+    {
+      "assists": 1,
+      "deaths": 0,
+      "events": {
+        "1": 1
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 0,
+      "score": 5,
+      "streak": 0,
+      "team": 0
+    },
+    {
+      "assists": 4,
+      "deaths": 0,
+      "events": {
+        "1": 4
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 1,
+      "score": 20,
+      "streak": 0,
+      "team": 0
+    },
+    {
+      "assists": 1,
+      "deaths": 0,
+      "events": {
+        "1": 1
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 2,
+      "score": 5,
+      "streak": 0,
+      "team": 0
+    },
+    {
+      "assists": 2,
+      "deaths": 0,
+      "events": {
+        "1": 2
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 3,
+      "score": 10,
+      "streak": 0,
+      "team": 1
+    },
+    {
+      "assists": 1,
+      "deaths": 0,
+      "events": {
+        "1": 1
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 4,
+      "score": 5,
+      "streak": 0,
+      "team": 1
+    },
+    {
+      "assists": 2,
+      "deaths": 0,
+      "events": {
+        "1": 2
+      },
+      "kills": 0,
+      "kind": "bot",
+      "objective": {
+        "carrier_kill": 0.0,
+        "delivered": 0.0
+      },
+      "place": 5,
+      "score": 10,
+      "streak": 0,
+      "team": 1
+    }
+  ]
+}

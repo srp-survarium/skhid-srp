@@ -1,5 +1,5 @@
 owner-test counter runs split: {"flat 20-40m reached 0 holder-died 0": 1, "flat <20m reached 0 holder-died 0": 1}
-  owner-test campers: runs of 3+ from one spot 1 (3 kills, longest 3); a team's deaths in a row to one shooter's spot, 3+ 0 (longest 2); entries into a held line 27 fatal 0, in the killed lane 12 fatal 0; Trade takes 5 died to the partner's killer 0 killed him 0; counter runs on a holder 2 (Flank 0); holders killed 5 from off their lanes 3; the stand-in camper {"deaths":2,"deaths_in_row_3":0,"deaths_in_row_longest":2,"killed_holding":2,"killed_off_lane":0,"kills":3,"place":3,"reentries":8,"reentries_fatal":0,"reentries_lane":5,"run_kills":3,"run_longest":3,"runs_3":1}
+  owner-test campers: runs of 3+ from one spot 1 (3 kills, longest 3); a team's deaths in a row to one shooter's spot, 3+ 0 (longest 2); entries into a held line 27 fatal 0, in the killed lane 12 fatal 0; Trade takes 5 died to the partner's killer 0 killed him 0; counter runs on a holder 2 (Flank 0); holders killed 5 from off their lanes 2; the stand-in camper {"deaths":2,"deaths_in_row_3":0,"deaths_in_row_longest":2,"killed_holding":2,"killed_off_lane":0,"kills":3,"place":3,"reentries":8,"reentries_fatal":0,"reentries_lane":5,"run_kills":3,"run_longest":3,"runs_3":1}
 {
   "by_team": {
     "0": {
@@ -14,7 +14,7 @@ owner-test counter runs split: {"flat 20-40m reached 0 holder-died 0": 1, "flat 
     }
   },
   "camper_kills": 5,
-  "camper_kills_off_lane": 3,
+  "camper_kills_off_lane": 2,
   "camper_run_kills": 3,
   "camper_run_longest": 3,
   "camper_runs_3": 1,

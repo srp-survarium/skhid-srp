@@ -78,3 +78,22 @@ crouched, height change, jump) and the fix's age, in a direction drawn evenly, c
 The write-up (the A138 OFF arm on `all_off.json`, Vector Laboratory in the batteries stage, the camper stages, the new counters in `smoke-compare.py` and `features-report.py`, `switch-audit.py` after #701, the head-to-head arms `ARMS=h2h` with the by-side script) edits private files, so it lives with the shared notes: `private/pvb-343-check/traces-20261028/fx-bench-private-scripts.md`. This PR touches none of those files.
 
 Two facts about the model that a reader of that file needs: the trap counters exist for team 1 only under `SRP_BENCH_ENEMY_HUMAN_LANES=team1`, so a trap fix's by-side table compares team 1 in run A with team 1 in run B; and the stand-in camper plays by a fixed tuning (the build's defaults), the same opponent in both runs.
+
+## 5. Bench metrics (A148): what a bench run now reports for a decision
+
+`BENCH-DECISIONS.md` (shared notes) is the rule; this is what the bench prints for it.
+
+- **The scoreboard** (`tallies/owner/scoreboard.rs`, golden `golden/scoreboard.txt`): one line per player at the match's end,
+  `scoreboard: <project> NvN seed S | place P team T kind bot|camper|human | kills K deaths D assists A streak B | events {id: count} |
+  objective {delivered, carrier_kill} | score X`, and the same objects as `sums.owner.scoreboard`. The score is the client's own sum
+  (`snapshot::score` over `static_info::score_weights(mode)`; the table is not copied); events are the game's ids: 0 kill, 1 assist,
+  2 death, 6 brought (100 hundredths: the stand-in's carrier delivers alone), 20 put in, 10 enemy carrier killed. Headshot (15), steal
+  (17) and found (19) are not counted (no part in the stand-in / not in its log as counts). **Assists are a GUESS** (a non-killer teammate who hit the
+  victim within 10 s); the line `owner-test scoreboard:` prints their share of the kills next to the live 0.19 a kill, and the
+  window is the thing to move. The owner's bar (BENCH-DECISIONS §5) is read from these lines: the rank an average player's live score
+  per minute would take in each team.
+- **One hold definition.** The camper topic and the outcomes use the same hold: kills from one place within 10 m of the first, 120 s
+  apart, a killer from a flank at 60 degrees or more off every victim's bearing (an-anticamper §2.5: the live holds and the owner's the
+  report counted). The camper topic's old 8 m / 45 degrees (K1) and the stand-in camper's special 10 m are gone; every decision
+  compares arms of one binary, so the old benches' numbers are not comparable and need not be. The camper topic still counts a holder
+  killed after one kill, the outcomes after two.

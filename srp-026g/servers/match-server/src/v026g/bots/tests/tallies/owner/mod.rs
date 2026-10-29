@@ -60,6 +60,7 @@ mod pockets;
 mod pre;
 mod resupply;
 mod run;
+mod scoreboard;
 mod shot_offsets;
 mod sight;
 mod smoke;
@@ -81,6 +82,7 @@ use pockets::*;
 use pre::*;
 use resupply::*;
 use run::*;
+use scoreboard::*;
 use shot_offsets::*;
 use sight::*;
 use smoke::*;
@@ -130,10 +132,14 @@ impl OwnerTally {
         }
     }
 
+    /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
+    pub(crate) fn set_scoreboard(&mut self, context: String, human: Option<Place>, camper: Option<Place>) {
+        self.topic::<Scoreboard>().set_context(context, human, camper);
+    }
+
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are also given apart.
     pub(crate) fn set_camper(&mut self, camper: Option<Place>) {
         self.run.camper = camper;
-        self.topic::<CamperCounts>().camper = camper;
     }
 
     /// After a game step, before the hit tally takes the game's hits: each topic reads the bots, then

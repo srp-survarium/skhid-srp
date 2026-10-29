@@ -912,6 +912,7 @@ pub(crate) fn real_bot_cost() {
                 .map(|place| BenchCamper::new(place, camper_options, seed, Arc::new(Tuning::default())));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
+            owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), bots.bench_human, camper_place);
             if let Some(place) = camper_place
                 && camper_options.long_gun
             {
