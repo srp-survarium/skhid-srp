@@ -256,6 +256,56 @@ pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The named exits of ragdoll::on_post_bones (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum RagdollOnPostBonesExit { Posted }
+/// The entry `ragdoll_on_post_bones` (0x2477df, mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_post_bones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_post_bones` calls this, from the game's jump at 0x2477df,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_post_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_render_bones` (0x15a950, update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_render_bones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_render_bones` calls this, from the game's jump at 0x15a950,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_render_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_killed` (0x2da3df, generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_killed` calls this, from the game's jump at 0x2da3df,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_killed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

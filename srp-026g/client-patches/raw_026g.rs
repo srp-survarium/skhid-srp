@@ -1382,6 +1382,190 @@ impl Renderer {
     }
 }
 
+/// A vostok::render::render_model_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderModelInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderModelInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::skeleton_instance>): the render instance the intrusive field holds (#699's headwear: update_render_matrices' EDI is the same object)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn instance(self) -> Option<SkeletonInstance> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SkeletonInstance>>().read_volatile() }
+    }
+}
+
+/// A vostok::render::skeleton_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkeletonInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkeletonInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x62b4 (ptr<vostok::render::skeleton_render_model>): immutable skeleton render model (update_render_matrices 0x15A5AA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn original(self) -> Option<SkeletonRenderModel> {
+        unsafe { self.0.byte_add(0x62b4).cast::<Option<SkeletonRenderModel>>().read_volatile() }
+    }
+
+    /// +0x290 (ptr<vostok::render::bone_matrix>): previous skinned matrix array, 128-matrix inline capacity (0x15A7BF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn previous_matrices(self) -> Option<BoneMatrix> {
+        unsafe { self.0.byte_add(0x290).cast::<Option<BoneMatrix>>().read_volatile() }
+    }
+
+    /// +0x229c (ptr<vostok::render::bone_matrix>): current skinned matrix array, 128-matrix inline capacity (0x15A7B9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn matrices(self) -> Option<BoneMatrix> {
+        unsafe { self.0.byte_add(0x229c).cast::<Option<BoneMatrix>>().read_volatile() }
+    }
+
+    /// +0x42a8 (ptr<vostok::render::bone_matrix>): second skinned matrix array, 128-matrix inline capacity (0x15A844)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn shadow_matrices(self) -> Option<BoneMatrix> {
+        unsafe { self.0.byte_add(0x42a8).cast::<Option<BoneMatrix>>().read_volatile() }
+    }
+
+    /// +0x62d8 (u8): first update copies current into previous (0x15A950)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_update(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x62d8).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::skeleton_render_model (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkeletonRenderModel(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkeletonRenderModel {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x140 (ptr<vostok::render::bone_matrix>): inverse-bind vector begin, filled in file order by 0x15A000
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inverse_binds(self) -> Option<BoneMatrix> {
+        unsafe { self.0.byte_add(0x140).cast::<Option<BoneMatrix>>().read_volatile() }
+    }
+
+    /// +0x144 (ptr<vostok::render::bone_matrix>): inverse-bind vector end (resize at 0x15A01F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inverse_binds_end(self) -> Option<BoneMatrix> {
+        unsafe { self.0.byte_add(0x144).cast::<Option<BoneMatrix>>().read_volatile() }
+    }
+}
+
+/// A vostok::render::bone_matrix (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BoneMatrix(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BoneMatrix {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): the first of its 16 f32, a row-vector 4x4 (skinned or inverse-bind)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x40 bytes: a 4x4 of f32: the matrix vectors step 40h
+    pub const SIZE: usize = 0x40;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::bone_matrixs (0x40 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BoneMatrixStorage([u8; 0x40]);
+
+#[allow(dead_code)]
+impl BoneMatrixStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x40])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BoneMatrix {
+        BoneMatrix(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BoneMatrix> {
+        (!rooms.is_empty()).then(|| BoneMatrix(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::buffer_reader (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -2108,21 +2292,6 @@ impl SceneRenderer {
     }
 }
 
-/// A vostok::render::render_model_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RenderModelInstance(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl RenderModelInstance {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
 /// A scaleform::gfx_movie (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -2269,6 +2438,60 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
+        }
+    }
+
+    /// player_draw.post_bones (0x2477df): mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command
+    pub mod player_draw_post_bones {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// EBP: a survarium::mt_draw_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
+        }
+    }
+
+    /// render.skeleton_updated (0x15a950): update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization
+    pub mod render_skeleton_updated {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::render::skeleton_instance (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn instance(machine: &impl Machine) -> Option<SkeletonInstance> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SkeletonInstance)
+        }
+    }
+
+    /// player.killed_event (0x2da3df): generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]
+    pub mod player_killed_event {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 

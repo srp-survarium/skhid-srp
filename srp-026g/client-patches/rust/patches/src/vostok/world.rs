@@ -32,6 +32,14 @@ pub(in crate::vostok) unsafe fn floats<const N: usize>(at: *mut f32) -> [f32; N]
     unsafe { at.cast::<[f32; N]>().read_unaligned() }
 }
 
+/// Writes `N` f32 from a field on.
+///
+/// # Safety
+/// As `floats`, and the run is the caller's to write now.
+pub(in crate::vostok) unsafe fn write_floats<const N: usize>(at: *mut f32, value: [f32; N]) {
+    unsafe { at.cast::<[f32; N]>().write_unaligned(value) }
+}
+
 /// The game world, at `game_world.after_move`.
 pub struct GameWorld<'t> {
     this: raw::GameWorld,
@@ -134,6 +142,12 @@ impl<'t> Player<'t> {
 
     pub fn id(&self) -> PlayerId {
         PlayerId(self.this.address())
+    }
+
+    /// The player's place in the match roster.
+    pub fn place(&self) -> u8 {
+        // SAFETY: the live base player's place byte.
+        unsafe { read(self.this.place()) }
     }
 
     /// In the match's world (m_has_been_inserted).

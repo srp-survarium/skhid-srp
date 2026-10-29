@@ -22,6 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
+  "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
+                                                       type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
@@ -84,6 +86,11 @@ Edits (edits.json):
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
+  "require_headwear_bind": [{"file"}]                 verify the character config’s body_parts/bind_pose
+                                                       names one of this list’s append_headwear_bind files
+  "append_headwear_bind": [{"file"}]                   append the render-only Head copy to a native bind
+  "rigid_headwear": [{"file", "vertices"}]             bind a checked Head/Neck surface to that render bone;
+                                                       geometry, UVs and indices stay byte for byte
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -189,6 +196,20 @@ def set_number(buf, path, frm, to, as_float=False):
         raise ValueError('%s is an int; %r needs "as_float": true' % (path, to))
     raw = struct.unpack('<I', struct.pack('<f' if t == T_FLOAT else '<i', to if t == T_FLOAT else int(to)))[0]
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
+
+
+def set_bool(buf, path, frm, to):
+    """Set a native boolean without interpreting it as an integer or changing its type."""
+    if type(frm) is not bool or type(to) is not bool:
+        raise TypeError('set_bool requires JSON booleans for from and to')
+    off = find(buf, path)
+    data, name, crc, kind, count = rec(buf, off)
+    if kind != T_BOOL:
+        raise TypeError('%s is not a boolean' % path)
+    old = data & 0xffffffff
+    if old not in (0, 1) or old != int(frm):
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    REC.pack_into(buf, off, (data & ~0xffffffff) | int(to), name, crc, kind, count)
 
 
 def append(buf, blob):
@@ -756,6 +777,17 @@ def runtime_vegetation(data):
     return result
 
 
+def require_headwear_bind(config, paths):
+    """The character cook must use one of the render binds this edit extends."""
+    data, _, _, kind, count = rec(config, find(config, 'body_parts/bind_pose'))
+    if kind != T_STR:
+        raise TypeError('body_parts/bind_pose must be a resource path string')
+    reference = bytes(config[data:data + count - 1]).decode('utf-8')
+    prefix = 'resources/'
+    if not reference.startswith(prefix) or reference[len(prefix):] not in paths:
+        raise ValueError('character bind is not extended by append_headwear_bind: ' + reference)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
@@ -815,6 +847,9 @@ def main():
         print('prefix %s with %s: %d values' % (e['key'], e['prefix'], n))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_bool', []):
+        set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
@@ -987,6 +1022,31 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+
+    for e in edits.get('require_headwear_bind', []):
+        source = open(files[e['file']], 'rb').read()
+        require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
+        print('character bind reference verified: ' + e['file'])
+
+    # Binary render assets: each operation checks its format and unchanged bytes.
+    if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('headwear', os.path.join(os.path.dirname(__file__), 'headwear.py'))
+        headwear = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(headwear)
+        for operation, transform in (
+            ('append_headwear_bind', lambda b, e: headwear.append_headwear_bind(b)),
+            ('rigid_headwear', lambda b, e: headwear.rigid_headwear(b, e['vertices'])),
+        ):
+            for e in edits.get(operation, []):
+                p = e['file']
+                if p in bufs or p in clips:
+                    sys.exit('%s: %s already edited' % (operation, p))
+                if p not in files:
+                    sys.exit('%s: not in the live folder' % p)
+                source = open(files[p], 'rb').read()
+                clips[p] = transform(source, e)
+                print('%s %s: %d -> %d bytes' % (operation, p, len(source), len(clips[p])))
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])

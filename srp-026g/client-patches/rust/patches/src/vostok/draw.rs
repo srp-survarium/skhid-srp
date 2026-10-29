@@ -33,6 +33,18 @@ pub fn post_bones(player: &Player<'_>, bones: &[[f32; 16]]) -> bool {
     true
 }
 
+/// A command owning copies of all 69 animation matrices and the separate
+/// render bone. update_skeleton copies both arrays before returning.
+pub fn post_headwear(player: &Player<'_>, bones: &[[f32; 16]], extra: Option<[f32; 16]>) -> bool {
+    if bones.len() != super::headwear::BONE || super::headwear::of_player(player).is_none() {
+        return false;
+    }
+    let mut extended = [[0.0; 16]; super::headwear::COUNT];
+    extended[..bones.len()].copy_from_slice(bones);
+    extended[super::headwear::BONE] = extra.unwrap_or(bones[super::headwear::HEAD]);
+    post_bones(player, &extended)
+}
+
 /// The most matrices update_skeleton takes (its abi row: at most 80).
 pub const MAX_BONES: usize = 80;
 
@@ -70,12 +82,28 @@ impl<'t> DrawnBones<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
         use raw::site::player_draw_bones as site;
         // SAFETY: the context is this site's: the player mt_draw draws and
-        // its frame, whose locals are the bones' array and its count, alive
-        // while it draws, on its thread.
-        let (player, bones, count) = unsafe {
-            let frame = site::frame(ctx)?;
-            (Player::of(ctx, site::player(ctx))?, frame.bones(), read(frame.bone_count()))
+        // its frame, alive while it draws, on its thread.
+        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
+        Self::of(ctx, player, frame)
+    }
+
+    /// The same bones at `player_draw.post_bones` (mt_draw's frame and
+    /// player, before update_skeleton's arguments are pushed).
+    pub fn at_post_bones(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
+        use raw::site::player_draw_post_bones as site;
+        // SAFETY: as `at`, this site's player and frame.
+        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
+        Self::of(ctx, player, frame)
+    }
+
+    fn of(ctx: &'t Context<'_>, player: Option<raw::Player>, frame: Option<raw::MtDrawFrame>) -> Option<DrawnBones<'t>> {
+        // SAFETY: mt_draw's frame, whose locals are the bones' array and its
+        // count, alive while it draws.
+        let (bones, count) = unsafe {
+            let frame = frame?;
+            (frame.bones(), read(frame.bone_count()))
         };
+        let player = Player::of(ctx, player)?;
         (!bones.is_null()).then_some(DrawnBones { player, bones: bones.cast(), count })
     }
 
@@ -99,5 +127,17 @@ impl<'t> DrawnBones<'t> {
             // SAFETY: as get; the draw's own array.
             unsafe { self.bones.add(index as usize).write_volatile(matrix) }
         }
+    }
+
+    pub fn post_headwear(&self, extra: Option<[f32; 16]>) -> bool {
+        if self.count as usize != super::headwear::BONE {
+            return false;
+        }
+        let mut matrices = [[0.0; 16]; super::headwear::BONE];
+        for (i, matrix) in matrices.iter_mut().enumerate() {
+            let Some(value) = self.get(i as u32) else { return false };
+            *matrix = value;
+        }
+        post_headwear(&self.player, &matrices, extra)
     }
 }

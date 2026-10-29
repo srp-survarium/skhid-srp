@@ -959,6 +959,104 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
   update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
   (the original's je), and a carrier's ragdoll with no gun.
 
+## 15. Cosmetic helmet fly-off (2026-10-28)
+
+The owner's candidate list, with Pilgrim explicitly excluded: the currently
+available Biker's helmet, Explorer's hat, Keeper, Paratrooper's helmet,
+Vityaz-S, Scout's helmet, OZK-18KB and Mounting helmet, plus the level-2
+ported beanie (`novice_026_helmet`, 241 vertices). Other names in the
+list are not present in the mounted helmet configs and are not ported here.
+Hoods, closed helmets with replacement heads, and the exoskeleton helmets
+retain their existing bindings.
+
+`headwear-1.json`, listed in `release/content.tsv`, changes source assets
+through `content_edit.py` / `headwear.py`. It appends `SrpHeadwear` at render
+bind index 69, an exact copy of Head (44), to the combined character's bind
+and the nine standalone headwear binds. The combined bind is selected by
+`gameplay/bodyparts/default` → `body_parts/bind_pose`: it is
+`scavengers_01_torso_s1.skinned_model/render/bind_pose`. The build checks
+that this exact referenced asset is extended; extending only
+`base_character_full` leaves the assembled model at 69 bones and makes
+the rebound helmets invisible. The nine surfaces bind rigidly to 69. Positions, normals, UVs, material references and indices stay exact.
+The Biker's three vertices with neck influence deliberately become rigid.
+The animation skeleton, animation clips and hit model are unchanged.
+
+The underside audit found no inner crown faces on Biker, Explorer,
+Paratrooper, Vityaz-S, Scout, OZK-18KB and Mounting. The same edit list sets
+those seven materials plus the beanie’s
+`material/g_stage/effect/two_sided/value`
+from false to true so their backfaces render.
+Their original texture maps also cover the reverse side. Keeper already
+has a textured inner surface and keeps its one-sided material. No new
+geometry, UVs, texture maps or material instances are added.
+
+**PROVEN in the executable:** `skeleton_render_model::load_bind_pose`
+(0x15A000, called at 0x128D46) takes its count and order from the render
+bind file, skips names, and builds inverse matrices without consulting the
+animation skeleton. `update_render_matrices` uses the command's count;
+its current, alternate and previous matrix buffers each hold 128 matrices.
+The scene command copies at most 80 matrices. The extended count is 70.
+
+Three additional Rust lohooks:
+
+- `player.killed_event` (0x2DA3DF), after `generate_killed_event` enqueues
+  the native death event: ESI is the victim and BL is its cause icon (1 is
+  a headshot). The enqueue preserves both. The hook records this result
+  against the victim's place and spawn time, outside patch 67's span.
+  Only a matching fatal headshot creates an independent headwear body;
+  body hits, suicide/environmental kills and unknown deaths keep Head's
+  pose. A recent head impact alone cannot enable detachment. Alive,
+  absent and uninserted players clear the record; a new life cannot use
+  an old result. A corrected non-headshot event also restores Head's pose.
+
+- `player_draw.post_bones` (0x2477DF), before the original render command's
+  arguments are pushed: for an extended bind, copy the 69 drawn matrices
+  and append the cosmetic bone. Alive or canned bodies use Head's pose;
+  ragdolls use their own headwear pose. The command copies the temporary
+  arrays, then the hook exits to 0x24781E. The unheld-corpse path uses the
+  same posting API. No pointer to temporary data survives the call.
+- `render.skeleton_updated` (0x15A950), on the rendering thread after the
+  matrix loop: a 69-matrix command with the extended bind copies Head's
+  skinned matrices into 69, including previous/shadow data and first-update
+  initialization. This covers ordinary commands and baking. A 70-matrix
+  command already supplies the detached pose and is left alone.
+
+The extra channel is recognized by the immutable render bind: exactly 70
+matrices and inverse bind 69 equal to finite inverse bind 44. Stock data
+therefore keeps the original draw path. Only edited meshes use the extra
+channel; it is visually unused for other equipment, including Pilgrim.
+The cosmetic body exists with an extended character rig even when no mesh
+uses that channel, avoiding a second item table in client code.
+
+The channel starts exactly at the captured Head pose, inherits its motion,
+and gets a small release velocity (0.8 m/s up, 0.5 m/s sideways) and tumble.
+It uses the solver's ground/battery queries, fixed substeps, friction,
+finite fallback and settling. It shares the corpse's ownership and death
+key: rollback/respawn discards it, the same death keeps it, slot eviction
+falls back to the worn pose. It is cosmetic: no inventory removal, armour
+change, pickup, simulation-world body or replay compatibility change.
+Like the dropped gun, it has no collision response against the corpse and
+does not receive subsequent bullet hits. Shape and release motion need
+in-game visual tuning; the initial capsule is 0.04 m half-length and 0.10 m
+radius with a 0.10 m offset above the captured Head bone.
+
+Validation: solver tests cover independent fall, ground contact and death
+ownership; Unicorn executes the eight linked hooks, extended commands,
+stock fallback, first-update/shadow/previous matrices, unheld corpses and
+rollback; content edits are checked against the actual stock meshes.
+The executable and content must ship together through the normal release.
+The isolated PR's full manifest build passed on 2026-10-28: all 2,643
+manifest files match when its generated patch overlays the listed player
+patches. The 19 bind/skin transformations are checked against the source
+assets, including the beanie from the published content patches. The
+packed material audit confirms exactly one boolean byte changed in each
+of the eight edited materials; Keeper’s material and all geometry, UVs
+and texture maps are preserved. Offline underside renders cover the
+eight original candidates. A local capture client and an isolated bot
+server now support a visual pass: bots cycle through all nine headwear
+items in both kits. Native lighting, shape and release motion still need
+the owner’s visual assessment before release.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |

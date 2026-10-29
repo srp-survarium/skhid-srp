@@ -1819,6 +1819,7 @@ va	status	ref_021d	name
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
 0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent
+0x0015a000	observed		vostok::render::skeleton_render_model::load_bind_pose
 0x00426ae1	verified		setlocale
 0x00329b20	verified		survarium::player_stamina::update_weight_modifiers
 0x00329290	verified		survarium::player_stamina::player_stamina

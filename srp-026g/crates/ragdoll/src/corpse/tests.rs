@@ -9,6 +9,56 @@ use crate::skeleton::BONE_COUNT;
 
 const UP: Vec3 = Vec3::Y;
 
+#[test]
+fn headwear_belongs_to_one_death_and_rollback_discards_it() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let Seen::Dead(mut death) = dead(7) else {
+        unreachable!()
+    };
+    death.headwear = Some(HeadwearShape);
+    let places = [Seen::Dead(death)];
+    for _ in 0..30 {
+        frame(&mut corpses, &places, None, &mut ground);
+    }
+    let Corpse::Body { slot, .. } = corpses.place(0) else {
+        panic!("missing body")
+    };
+    let pose = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
+    frame(&mut corpses, &places, None, &mut ground);
+    assert!(
+        (corpses
+            .slot(slot)
+            .body()
+            .unwrap()
+            .headwear_pose()
+            .unwrap()
+            .position
+            - pose.position)
+            .length()
+            < 0.2
+    );
+    frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    assert!(matches!(corpses.slot(slot), Slot::Free));
+    for _ in 0..3 {
+        frame(&mut corpses, &places, None, &mut ground);
+    }
+    let Corpse::Body { slot, .. } = corpses.place(0) else {
+        panic!("missing replayed body")
+    };
+    assert!(
+        corpses
+            .slot(slot)
+            .body()
+            .unwrap()
+            .headwear_pose()
+            .unwrap()
+            .position
+            .y
+            > 1.5
+    );
+}
+
 fn dead(key: u32) -> Seen {
     Seen::Dead(Death::new(
         DeathKey(key),
