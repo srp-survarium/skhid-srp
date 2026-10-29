@@ -18,6 +18,15 @@ pub struct TrapTuning {
     /// is 2.0 m (PROVEN) and the view looks down at most 1.0 rad
     /// (`body::MAX_PITCH`), so at the eye's 1.6 m the floor is hit 1.0 m out.
     pub reach_m: f32,
+    /// The trap lands at least this far from the placer's feet, metres: the habit looks down only so steeply that
+    /// the head ray meets the floor this far out from the eye the body has (`view::eye_height`: crouched it is
+    /// 0.3 m lower and the steepest look lands 0.55 m out, on the feet), presses only when the landing predicted
+    /// from the pose at that moment is this far from the feet and, off the bot's own route ahead, by `lateral_m`,
+    /// and plans its spot at the distance that look reaches (`reach_m` at least). The trigger reaches 0.6 m from
+    /// a foot point (PROVEN, `bear_traps.md`: 565 of 566 catches), a foot is about 0.2 m, and 0.2 m is margin.
+    /// `None`: the habit as it was, the planned spot 1 m out for the standing eye of 1.6 m, so a crouched placer
+    /// caught itself (74 % of the stand-in's catches were the placer's, the players' 4 %).
+    pub press_landing_m: Option<f32>,
     /// The least the trap lies off the bot's own route ahead, metres: the
     /// placer was the victim in 4.2 % of catches, 3 s after placing (PROVEN).
     pub lateral_m: f32,
@@ -195,6 +204,7 @@ impl Default for TrapTuning {
             per_life: 2,
             cap_team: 6,
             reach_m: 1.0,
+            press_landing_m: Some(1.0),
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             friend_m: 2.5,
@@ -222,6 +232,12 @@ impl Check for TrapTuning {
         check(
             self.reach_m > 0.0 && self.reach_m <= 1.2 && self.lateral_m >= 0.0 && self.route_ahead_m >= 0.0,
             "traps.reach_m",
+        )?;
+        check(
+            self.press_landing_m
+                .is_none_or(|m| m >= super::super::traps::TRIGGER_M)
+                && super::super::traps::press_reachable(self),
+            "traps.press_landing_m",
         )?;
         check(
             self.friend_m >= 0.0 && self.near_own_m >= 0.0 && self.jump_ahead_m >= 0.0,
