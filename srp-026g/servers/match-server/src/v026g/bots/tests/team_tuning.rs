@@ -104,6 +104,30 @@ fn the_bots_of_team_1_are_made_of_team_1s_tuning() {
     assert_eq!(bots.bots[1].as_ref().unwrap().motor.feel.lip_guard_ticks, lip);
 }
 
+/// The bench gives the tracker every body's pockets from its profile (`bench_throws`), as the live server does: each
+/// is a bot's pockets, and the frags it can throw are the frags its first kit holds, so the bots' frag rolls go by
+/// them (`aim.combat.grenade_kit_cap`) and not by an assumed frag.
+#[test]
+fn the_bench_reads_every_bodys_pockets_from_its_profile() {
+    use crate::v026g::bots::live_grenades::Throws;
+    use survarium::v026g::loadouts::{BotEquipment, BotTier, RusherKits, bot_equipment_of, bot_kits_kit, grenades_in};
+    let teams = [0u8, 0, 0, 0, 1, 1, 1, 1];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let tunings = tunings(Tuning::default(), Tuning::default());
+    let roster = bench_roster(&teams, equipment, &tunings);
+    let throws = crate::v026g::bots::tests::bench::bench_throws(&roster, &tunings);
+    assert_eq!(throws.len(), teams.len());
+    for (place, (throws, profile)) in throws.iter().zip(&roster.profiles).enumerate() {
+        assert!(matches!(throws, Throws::Bot(_)), "place {place}: {throws:?}");
+        let (equipment, role) = bot_equipment_of(profile).expect("a bot");
+        let first = bot_kits_kit(equipment, role, tunings.of(teams[place]).kit.pockets())[0];
+        assert_eq!(throws.frags_left(), Some(grenades_in(first) as u16), "place {place} {role:?}");
+    }
+    let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0x5E10);
+    bots.set_throws(crate::v026g::bots::tests::bench::bench_throws(&bench_roster(&[0, 0, 1, 1], equipment, &tunings), &tunings));
+    assert!((0..4).all(|place| bots.tracker.frags_left(place).is_some()));
+}
+
 /// The kits of a bench team are built with its own tuning's pocket store (`kit.pocket_store`): team 1 on the old store has
 /// profiles whose stacks are stored at the count, the stand-in's drugs and the bots' prior follow them, and team 0 keeps the
 /// store of 100.
