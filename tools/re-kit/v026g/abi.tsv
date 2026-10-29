@@ -1928,6 +1928,7 @@ va	name	source	ret_cleanup	result
 0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	manual	8	EAX the state (EDI)
 0x00233810	survarium::game_world_ui::game_world_ui	manual	4	
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
+0x00025f30	vostok::math::curve_line_points<float,0>::value_at	manual	20	xmm0: the curve at x; 1.0 with one key (0x25F54), linear between two keys (0x25F6D..0x25F87)
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
@@ -2008,8 +2009,10 @@ va	name	source	ret_cleanup	result
 0x002e4100	survarium::weapon_core::melee_pred	manual	0	AL 1 when the input mask has bit 27 (melee)
 0x002e4140	survarium::weapon_core::jump_blocks_reload	manual	0	AL 1 when the jump blocks a reload: selector state 4, or the jump action, or is_trying_to_jump (0x2FC230)
 0x002e4170	survarium::weapon_core::sprint_blocks_reload	manual	0	AL 1 when the sprint blocks a reload
+0x00307870	survarium::collision_sensor::min_normalised_distance	manual	4	xmm0: the least damage_zone_shape::normalised_distance over the shapes (array +14h, count +18h), from 1.0
 0x0030ef80	survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl	manual	8	calls reload_one_round (0x2E1A00: one round from the ammo stack into the magazine) with EDI the weapon_core, then sets the byte at the first stack argument to 1
 0x0030f070	survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl	manual	8	sets the byte at [this+168h] and the byte at the first stack argument to 1; with chamber_a_round_on_reload (+5F2h) and a round in the magazine takes one into the chamber
+0x0031a410	survarium::damage_zone_core::damage_of_body	manual	4	xmm0: c2 x c1, the zone curve at d (zone+168h) times the curve at [body+334h] (zone+188h), each clamped to [0, 1]
 0x00339de0	survarium::weapon_core_shotgun_reload_state::finish_reload_pred	manual	0	AL 1 when the magazine is full, or the ammo stack is empty, or a round is in the weapon and fire (0x339EA0) or the sights (0x339EE0) are held: the one-round loop goes on to the finish clip
 0x00339ea0	survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred	manual	0	AL 1 when a round is in the weapon (magazine + chambered, +5E5h, +5F1h) and the input mask has bit 5 (fire)
 0x00339ee0	survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred	manual	0	AL 1 when a round is in the weapon (magazine + chambered, +5E5h, +5F1h) and the input mask has bit 7 (aim)

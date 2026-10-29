@@ -190,8 +190,10 @@ impl Reserve {
 }
 
 /// The armour a body wears against a zone's hits: the largest of its items against each hit type
-/// on each part (the client sums the items' `hit_params`; the repo's damage rule takes the largest
-/// ([`damage`]'s module doc), the same as for bullets).
+/// on each part. The client adds the items' armour on a part (`armor::on_holder_assigned` 0x33F0C0,
+/// PROVEN); the repo's damage rule takes the largest ([`damage`]'s module doc), the same as for
+/// bullets, and the two agree because a legal kit has one item on a box (the closed helmets and the
+/// exo suits lock the slots they cover).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ZoneArmour {
     items: Vec<&'static ArmourParams>,

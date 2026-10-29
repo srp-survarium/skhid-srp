@@ -29,8 +29,17 @@
 //! 3. A hit box's damage is `amount × (1 − clamp(armor − arp, 0, 1))`,
 //!    `armor` the box's `ranged` armour (`body_part_parameters::
 //!    hit_by_type` 0x32A058..0x32A0AC). PROVEN. The armour of a box is the
-//!    worn items' `hit_params/<box>/hit_types/ranged/armor`, the largest of
-//!    those covering it (`player_parameters_modifyer`: LIKELY).
+//!    worn items' `hit_params/<box>/hit_types/ranged/armor`, **added**
+//!    over the items covering the box (`armor::on_holder_assigned` 0x33F0C0
+//!    adds each item's eight per-hit-type floats to the part's node, `addss`
+//!    at 0x33F2DD..0x33F2EA, and `hit_by_type` reads that node: PROVEN).
+//!    Here the largest is taken, which is the same for every legal kit:
+//!    the only boxes two slots cover are the face (helmet, mask) and the
+//!    hips (legs, torso), and the six closed helmets and the two exo suits
+//!    that cover them lock the other slot (`session` `relocate_covering`);
+//!    the base armour of a box is 0. A kit that broke the lock would part
+//!    the two (a bot's kit never does: `loadouts` test
+//!    `no_bot_kit_puts_two_armour_items_on_one_box`).
 //! 4. The box feeds its pools: each `bdb_coeff` (pool, c) takes `c ×
 //!    amount` from the pool with no armour of its own (arp 0, the pool's
 //!    armour is 0: `hit_type_parameters::apply_damage` 0x33FA80). A pool

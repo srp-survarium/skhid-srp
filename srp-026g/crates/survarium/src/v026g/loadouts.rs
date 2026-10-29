@@ -2048,6 +2048,51 @@ mod tests {
         all
     }
 
+    /// A kit puts at most one armour item on a hit box, and no item stands in a slot another worn item covers (the lobby's lock:
+    /// `session` `relocate_covering`). The client **adds** the armour of every worn item on a box (`armor::on_holder_assigned` 0x33F0C0,
+    /// `addss` at 0x33F2DD..0x33F2EA; `fx-zones-armour-re.md`), our damage rule takes the largest: the two agree only while a box
+    /// has one item. A closed helmet over a respirator (`Masks::TopPlayers`) or an exo suit over a back or legs piece would part them.
+    #[test]
+    fn no_bot_kit_puts_two_armour_items_on_one_box() {
+        let mut checked = 0;
+        for (equipment, role, k, kit) in every_kit() {
+            let armour: Vec<(u8, u16)> = kit
+                .items
+                .iter()
+                .filter(|item| crate::v026g::damage::armour().iter().any(|a| a.dict_id == item.dict_id))
+                .map(|item| (item.slot, item.dict_id))
+                .collect();
+            let who = named(equipment, role, k);
+            for &(slot, dict_id) in &armour {
+                for &(other_slot, other) in &armour {
+                    if other != dict_id {
+                        assert!(
+                            !item_params::covered_slots(other).contains(&slot),
+                            "{who}: the item in slot {other_slot} covers slot {slot}, which holds another item"
+                        );
+                    }
+                }
+            }
+            let mut boxes: Vec<(&str, u16)> = Vec::new();
+            for &(_, dict_id) in &armour {
+                let Some(params) = crate::v026g::damage::armour().iter().find(|a| a.dict_id == dict_id) else {
+                    continue;
+                };
+                for (hit_box, _, value) in &params.typed {
+                    if *value > 0.0 && !boxes.contains(&(hit_box.as_str(), dict_id)) {
+                        assert!(
+                            boxes.iter().all(|&(b, d)| b != hit_box.as_str() || d == dict_id),
+                            "{who}: two armour items give armour on {hit_box}"
+                        );
+                        boxes.push((hit_box.as_str(), dict_id));
+                    }
+                }
+            }
+            checked += 1;
+        }
+        assert!(checked > 100, "{checked} kits checked");
+    }
+
     /// What names a bot in a message.
     fn named(equipment: BotEquipment, role: BotRole, k: usize) -> String {
         format!(

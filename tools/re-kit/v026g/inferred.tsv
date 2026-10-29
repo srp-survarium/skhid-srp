@@ -3088,6 +3088,7 @@ va	status	ref_021d	name
 0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x0001ddb0	inferred-high		vostok::console_commands::cc_value<bool>::cc_value
+0x00025f30	inferred-medium		vostok::math::curve_line_points<float,0>::value_at
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
@@ -3146,5 +3147,6 @@ va	status	ref_021d	name
 0x0025e030	inferred-medium		survarium::grenade_cook::query_for_derived_resources
 0x00303d10	inferred-medium		survarium::grenade_core::stop_fuse
 0x00303d50	inferred-high		survarium::grenade_core::remove_from_physics_world
+0x00307870	inferred-medium		survarium::collision_sensor::min_normalised_distance
 0x003576c0	inferred-medium		vostok::physics::rigid_body::set_linear_velocity
 0x00357750	inferred-medium		vostok::physics::rigid_body::set_angular_velocity
