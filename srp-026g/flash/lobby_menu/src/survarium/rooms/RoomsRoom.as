@@ -109,19 +109,21 @@ package survarium.rooms
                     cell.alpha = 0.45;
                 if (chosen)
                     look.text(cell, win.say("st_srp_rooms_next_map").toUpperCase(), cw - 120, 13, 108, 13, 0xFFFFFF, "right");
+                var votes:TextField = look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 if (e != null)
                 {
+                    // The mode's tag wider for a longer name (at most the card's
+                    // width less its margins); the map's name up to the votes.
+                    var mode:TextField = look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
                     var tag:Shape = new Shape();
                     tag.graphics.lineStyle(1, RoomsLook.modeColour(e.mode));
                     tag.graphics.beginFill(0x000000, 0.7);
-                    tag.graphics.drawRect(10, 10, cw * 0.55, 24);
+                    tag.graphics.drawRect(10, 10, Math.max(cw * 0.55, Math.min(cw - 20, mode.textWidth + 16)), 24);
                     tag.graphics.endFill();
-                    cell.addChild(tag);
-                    look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw * 0.55 - 12, 13, 0xFFFFFF);
-                    look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 80, 21, 0xFFFFFF);
+                    cell.addChildAt(tag, cell.getChildIndex(mode));
+                    look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
                     look.text(cell, win.weatherName(e.weather).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0);
                 }
-                look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 cell.buttonMode = true;
                 cell.mouseChildren = false;
                 cell.name = String(i);

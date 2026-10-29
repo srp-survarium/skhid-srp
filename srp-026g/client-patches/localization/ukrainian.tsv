@@ -2363,33 +2363,33 @@ st_srp_weapon_draw_time	Час діставання
 st_srp_weapon_full_damage	Повна шкода до
 st_srp_weapon_hip_spread	Розкид від стегна
 st_srp_weapon_holster_time	Час прибирання
-st_srp_weapon_kick_side	Початковий бічний поштовх
-st_srp_weapon_kick_side_variability	Мінливість бічного поштовху
-st_srp_weapon_kick_up	Початковий поштовх угору
-st_srp_weapon_kick_up_variability	Мінливість поштовху вгору
+st_srp_weapon_kick_side	Віддача вбік
+st_srp_weapon_kick_side_variability	Коливання віддачі вбік
+st_srp_weapon_kick_up	Віддача вгору
+st_srp_weapon_kick_up_variability	Коливання віддачі вгору
 st_srp_weapon_minimum_damage	Мінімальна шкода
-st_srp_weapon_minimum_damage_from	Мін. шкода від
-st_srp_weapon_recoil_heading	Відбій, розкид і хитання
-st_srp_weapon_reload	Перезаряджання
+st_srp_weapon_minimum_damage_from	Мінімальна шкода від
+st_srp_weapon_recoil_heading	Віддача, розкид, гойдання
+st_srp_weapon_reload	Перезарядка
 st_srp_weapon_shift_hint	Утримуйте Shift: подробиці
-st_srp_weapon_spread_growth	Швидкість зростання розкиду
-st_srp_weapon_spread_max	Максимальний додатковий розкид
+st_srp_weapon_spread_growth	Темп зростання розкиду
+st_srp_weapon_spread_max	Межа зростання розкиду
 st_srp_weapon_spread_per_shot	Розкид від пострілу
-st_srp_weapon_spread_recovery	Швидкість відновлення точності
-st_srp_weapon_stamina_damage	Шкода витривалості
+st_srp_weapon_spread_recovery	Швидкість зведення
+st_srp_weapon_stamina_damage	Шкода енергії
 st_srp_weapon_stats	Характеристики зброї
-st_srp_weapon_sway_cycle	Період хитання
-st_srp_weapon_sway_horizontal	Горизонтальне хитання
-st_srp_weapon_sway_vertical	Вертикальне хитання
+st_srp_weapon_sway_cycle	Період розгойдування
+st_srp_weapon_sway_horizontal	Розгойдування в сторони
+st_srp_weapon_sway_vertical	Розгойдування вгору-вниз
 st_srp_weather_before_rain	перед дощем
 st_srp_weather_day	день
 st_srp_weather_evening	вечір
 st_srp_weather_night	ніч
 st_srp_weather_rain	дощ
-st_srp_weight_no_sprint_heavyweight	Спринт недоступний через навичку важковаговика.
-st_srp_weight_no_sprint_limit	Спринт недоступний: досягнуто межі ваги.
-st_srp_weight_speed	Швидкість руху: %1$s
-st_srp_weight_sprint_stamina	Витрати витривалості під час спринту: %1$s
+st_srp_weight_no_sprint_heavyweight	Спринт недоступний: навичка «Важковаговик».
+st_srp_weight_no_sprint_limit	Спринт недоступний: перевантаження.
+st_srp_weight_speed	Швидкість пересування: %1$s
+st_srp_weight_sprint_stamina	Витрати енергії на спринт: %1$s
 st_srp_weight_title	Вплив ваги
 st_stamina_boost_name	Друге дихання
 st_stamina_boost_time_description	Відновлення енергії при вбивстві супротивника:

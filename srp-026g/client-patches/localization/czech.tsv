@@ -265,7 +265,7 @@ st_artefact_search_success	Získal jsi artefakt!
 st_ash12_description	Popis zatím není k dispozici.
 st_ash12_name	Ash-12
 st_attention	Při spouštění launcheru Survarium došlo k chybě. Zkus to později.
-st_auto	Automaticky
+st_auto	Auto
 st_auto_button_hint	Automaticky doplňovat munici
 st_auto_repair_button_label	Automatická oprava
 st_auto_repair_hint	Automaticky opravovat drobná poškození vybavení
@@ -444,7 +444,7 @@ st_btn_not_ready	Nepřipraven
 st_btn_paperdoll	Vybavení
 st_btn_premium_hint	Aktivovat prémiový účet
 st_btn_rank_down_clan_memeber_label	Snížit hodnost
-st_btn_rank_up_clan_memeber_label	Zvýšit hodnost
+st_btn_rank_up_clan_memeber_label	Povýšit
 st_btn_ready	Připraven
 st_btn_remove_rank_label	Odebrat hodnost
 st_btn_reroll_change_label	Změnit
@@ -755,7 +755,7 @@ st_checkbox_battle_commander_permission	Polní velitel
 st_checkbox_clan_change_rank_permission	Měnit hodnosti hráčů
 st_checkbox_clan_daily_message_permission	Měnit zprávu dne
 st_checkbox_clan_invite_permission	Zvát hráče
-st_checkbox_clan_member_kick_permission	Vyhazovat hráče
+st_checkbox_clan_member_kick_permission	Vyhazování
 st_checkbox_compare_items	Porovnávání předmětů
 st_checkbox_compare_items_hint	Zobrazit popis nasazeného předmětu
 st_checkbox_players_live_search	Průběžné hledání hráčů
@@ -1116,7 +1116,7 @@ st_faction_scientists_blocked_text	Vědci ti odmítají zadat úkoly
 st_fall_damage_description	Poškození pádem:
 st_fall_damage_name	Výsadkář
 st_few_alpha_clan_string	Neplatné jméno
-st_filter_all	Zobrazit vše
+st_filter_all	Vše
 st_filter_ammo	Munice
 st_filter_ammo_assault_rifle	Útočné pušky
 st_filter_ammo_machine_gun	Kulomety
@@ -1125,7 +1125,7 @@ st_filter_ammo_shotgun	Brokovnice
 st_filter_ammo_sniper_rifle	Odstřelovačské pušky
 st_filter_ammo_submachine_gun	Samopaly
 st_filter_assault_rifle	Útočné pušky
-st_filter_body_armor	Neprůstřelné vesty
+st_filter_body_armor	Brnění
 st_filter_boots	Boty
 st_filter_camo	Kamufláž
 st_filter_decal	Nášivky
@@ -1191,7 +1191,7 @@ st_friendly_user_compliment	Přátelský
 st_friends_online	Přátelé online
 st_friends_signin_notification_option	Upozornit na připojení přátel
 st_fullscreen_option	Celá obrazovka
-st_general_volume_option	Celková hlasitost
+st_general_volume_option	Celková
 st_generic_money_name	Rubly
 st_geometry_quality_option	Kvalita geometrie
 st_go_to_knowledge_base_message	Znalostní báze se otevře v novém okně prohlížeče.
@@ -2067,7 +2067,7 @@ st_shop_scope_pso_1_old_description	Optika se 4x zvětšením
 st_shop_scope_pso_1_old_name	Optika PSO-1 O, 4x
 st_shop_scope_pu_3_5x_description	Optika se 3,5x zvětšením
 st_shop_scope_pu_3_5x_name	Optika PU, 3,5x
-st_shop_showcase	Hlavní stránka
+st_shop_showcase	Hlavní
 st_short_clan_string	Jméno je příliš krátké
 st_show_ammo	Zobrazit munici 
 st_show_character_action	Okno postavy
@@ -2323,8 +2323,8 @@ st_srp_rooms_pin_hint	Musí mít 4 číslice
 st_srp_rooms_players	Hráči
 st_srp_rooms_playing	Probíhá zápas
 st_srp_rooms_pool	Výběr map
-st_srp_rooms_pool_hint	Do hlasování se náhodně vyberou 3 z těchto map.
-st_srp_rooms_private_room	Soukromá místnost: až 20 hráčů. Sestavuješ týmy a spouštíš zápas.
+st_srp_rooms_pool_hint	Do hlasování jdou 3 z nich.
+st_srp_rooms_private_room	Soukromá místnost: až 20 hráčů; týmy a start určuješ ty.
 st_srp_rooms_queue	Fronta
 st_srp_rooms_queue_room	Zařadit se do fronty
 st_srp_rooms_room	Místnost
@@ -2349,7 +2349,7 @@ st_srp_rooms_unfit_kit	Výbava není připravená (chybí zbraň nebo munice). U
 st_srp_rooms_vote	Hlasuj pro další mapu
 st_srp_rooms_vote_hint	3 mapy z výběru. Vyhrává nejvíc hlasů, remízu rozhodne náhoda. Kliknutím změníš svůj hlas.
 st_srp_rooms_vote_now	Hlasuj pro další mapu kliknutím na kartu. Po vypršení času začne zápas na vítězné mapě.
-st_srp_rooms_voting	Hlasování o mapě
+st_srp_rooms_voting	Hlasování
 st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
@@ -2363,12 +2363,12 @@ st_srp_weapon_draw_time	Doba tasení
 st_srp_weapon_full_damage	Plné poškození do
 st_srp_weapon_hip_spread	Rozptyl od boku
 st_srp_weapon_holster_time	Doba schování
-st_srp_weapon_kick_side	Počáteční boční ráz
-st_srp_weapon_kick_side_variability	Proměnlivost bočního rázu
-st_srp_weapon_kick_up	Počáteční ráz vzhůru
-st_srp_weapon_kick_up_variability	Proměnlivost rázu vzhůru
+st_srp_weapon_kick_side	Vodorovný zpětný ráz
+st_srp_weapon_kick_side_variability	Kolísání vodorovného rázu
+st_srp_weapon_kick_up	Svislý zpětný ráz
+st_srp_weapon_kick_up_variability	Kolísání svislého rázu
 st_srp_weapon_minimum_damage	Minimální poškození
-st_srp_weapon_minimum_damage_from	Min. poškození od
+st_srp_weapon_minimum_damage_from	Minimální poškození od
 st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
 st_srp_weapon_reload	Přebíjení
 st_srp_weapon_shift_hint	Podrž Shift pro podrobnosti

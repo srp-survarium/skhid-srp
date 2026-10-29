@@ -110,7 +110,132 @@ package
          checkQueueButton();
          checkCreate();
          checkWindowOrder();
+         checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // Ruffle draws the movie's embedded Calibri, yet not exactly as Scaleform lays it out: every
+      // text must fit with this much of its width to spare.
+      private static const FIT_MARGIN:Number = 0.05;
+
+      // Every language (the dictionaries' texts, as the exe gives them): the list, a room in each
+      // of its phases and hints, and the create window, each text on its line where it is drawn,
+      // none running into another on the same line and none cut at its field's end. Prints a
+      // "ROOMS OVERLAP" line for each miss.
+      private function checkFit() : void
+      {
+         var Loc:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.data.LocalizationData");
+         var misses:Array = [];
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            // The pool the cards and rows name: long map names, the longest weather, every mode.
+            tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+            var states:Array = [
+               ["private, owner", 1001, true, true, 0, "01010", 0, []],
+               ["private, member", 1002, true, false, 0, "01010", 0, []],
+               ["open, waiting", 1003, false, false, 0, null, 0, []],
+               ["open, vote", 1003, false, false, 3, null, 0, []],
+               ["open, countdown", 1003, false, false, 1, null, 0, []],
+               ["open, in match", 1003, false, false, 2, null, 0, []],
+               ["open, joining in", 1003, false, false, 2, null, 0, ["J;25"]],
+               ["open, kit unfit", 1003, false, false, 0, null, 1, []],
+               ["open, gear unfit", 1003, false, false, 0, null, 2, []]];
+            for(var why:int = 1; why <= 7; why++)
+               states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
+            for each(var s:Array in states)
+            {
+               tellRoom(s[1], s[2], s[3], s[4], s[5], s[6], s[7]);
+               misses = misses.concat(overlaps(language + ", " + s[0]));
+            }
+            // Out of the room: the list (a room in its match, any max level; one voting; a private one).
+            tell(["S1;N;0;0;0"]);
+            tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
+            misses = misses.concat(overlaps(language + ", list"));
+            var buttons:Array = [];
+            walk(win,[],[],0,0,buttons);
+            for each(var b:* in buttons)
+               if(b.label == say.st_srp_rooms_new)
+               {
+                  var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+                  b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+                  misses = misses.concat(overlaps(language + ", create"));
+               }
+         }
+         Loc.setData(HarnessText.DATA.english);
+         for each(var miss:String in misses)
+            trace("ROOMS OVERLAP " + miss);
+         trace("ROOMS every language's texts fit their places: " + (misses.length == 0 ? "yes" : misses.length + " misses"));
+         if(misses.length != 0)
+            failures.push(misses.length + " texts overlap or are cut (ROOMS OVERLAP lines)");
+      }
+
+      // The window told room `key`'s state: its cards, five members (the asker the first when it
+      // is the owner, else the second, its kit or gear unfit by `fit`), the teams and `extra` rows.
+      private function tellRoom(key:int, pin:Boolean, owner:Boolean, phase:int, teams:String, fit:int, extra:Array) : void
+      {
+         var size:int = 10;
+         var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";"),
+            "C;0;61;2;1","C;1;62;1;0","C;2;63;0;0"];
+         for(var i:int = 0; i < WHO.length; i++)
+         {
+            var me:Boolean = owner ? i == 0 : i == 1;
+            names.push(["P",i,15,i == 0 ? 1 : 0,me ? 1 : 0,phase == 2 && !me ? 1 : 0,me ? fit : 0,0,WHO[i]].join(";"));
+         }
+         if(teams != null)
+            names.push("A;" + teams);
+         names.push("L;0");
+         var rows:Array = [];
+         for(var r:int = 0; r < names.concat(extra).length; r++)
+            rows.push({"place":STATE + r, "nickname":names.concat(extra)[r]});
+         try
+         {
+            Win.take(rows);
+         }
+         catch(err:Error)
+         {
+            failures.push(key + ": " + err.message);
+         }
+      }
+
+      // What `what` shows: every shown text's drawn extent (its alignment in its field, the margin
+      // added), a single-line one cut at its field's end, and any two on one line that meet.
+      private function overlaps(what:String) : Array
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var misses:Array = [];
+         var spans:Array = [];
+         for each(var t:Object in texts)
+         {
+            var f:TextField = t.field as TextField;
+            if(f.text == "" || f.type == "input")
+               continue;
+            var w:Number = f.textWidth * (1 + FIT_MARGIN);
+            // Cut by its field, or to it (RoomsLook.fitName: its dots; the harness's names are short).
+            if(!f.wordWrap && (w > f.width - 4 || f.text.charAt(f.text.length - 1) == "…"))
+               misses.push(what + ": \"" + f.text + "\" cut: " + Math.round(f.textWidth) + " in " + Math.round(f.width - 4));
+            // What shows of it: a field clips its line (a cut one is a miss above).
+            w = Math.min(w, f.width - 4);
+            var align:String = f.getTextFormat().align;
+            var left:Number = t.x + 2;
+            if(align == "right")
+               left = t.x + f.width - 2 - w;
+            else if(align == "center")
+               left = t.x + (f.width - w) / 2;
+            spans.push({"text":f.text, "left":left, "right":left + w, "top":t.y + 2, "bottom":t.y + 2 + f.textHeight});
+         }
+         for(var i:int = 0; i < spans.length; i++)
+            for(var j:int = i + 1; j < spans.length; j++)
+            {
+               var a:Object = spans[i];
+               var c:Object = spans[j];
+               var high:Number = Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top);
+               if(high > 0.3 * Math.min(a.bottom - a.top, c.bottom - c.top) && a.left < c.right + 2 && c.left < a.right + 2)
+                  misses.push(what + ": \"" + a.text + "\" meets \"" + c.text + "\"");
+            }
+         return misses;
       }
 
       // The selected room's footer owns its queue action; there is no

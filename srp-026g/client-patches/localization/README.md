@@ -68,6 +68,11 @@ changing a language never touches an `.as` file.
   named by another movie (it is not given srp's texts), and an `st_srp_` text with
   braces. With a compiled resource tree it also fails an `st_srp_` key that the lobby's
   or the login's mapping does not map to itself.
+- **Fit and terms.** A label, header or button text fits its place on one line wherever the
+  English does; prefer a shorter natural wording to an abbreviation, and name things with the
+  stock dictionary's own words of that language (recoil, sway, energy/stamina, reload...). The
+  weapon card's and the rooms' Ruffle checks measure every language
+  (`scripts/weapon-details/`, `scripts/rooms-start/`; their `OVERFLOW`/`OVERLAP` lines).
 - The main menu's Language choice (`SrpLanguage.as`) gets its two texts from the exe's
   answer, which reads them from the dictionary (patch 79).
 - The inventory search's item-kind words (`InventoryList.SEARCH_KINDS`) are not shown

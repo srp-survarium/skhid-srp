@@ -265,7 +265,7 @@ st_artefact_search_success	Szereztél egy artefaktumot!
 st_ash12_description	A leírás még nem érhető el.
 st_ash12_name	Ash-12
 st_attention	Hiba történt a Survarium indítóprogramjának indításakor. Próbáld újra később.
-st_auto	Automatikus
+st_auto	Auto
 st_auto_button_hint	Automatikus lőszerutántöltés
 st_auto_repair_button_label	Automatikus javítás
 st_auto_repair_hint	Kisebb felszereléshibák automatikus javítása
@@ -448,14 +448,14 @@ st_btn_rank_up_clan_memeber_label	Előléptetés
 st_btn_ready	Kész
 st_btn_remove_rank_label	Rang eltávolítása
 st_btn_reroll_change_label	Módosítás
-st_btn_reroll_choose_label	Kiválasztás
+st_btn_reroll_choose_label	Választás
 st_btn_reroll_label	Módosítás
 st_btn_settings_label	Beállítások
 st_btn_show_log_list	Előzmények
 st_btn_show_log_list_hint	Az aktuális munkamenet eseményeinek mutatása
 st_btn_upgrade_hint	Tárgy kinézetének módosítása
 st_btn_upgrade_label	Kinézet
-st_btn_use_item	Tárgy használata
+st_btn_use_item	Használat
 st_btn_yes	Igen
 st_bundle_clik_hint	Kattints a csomagra a részletekért
 st_button_buy_profile_text	Karakterprofil vásárlása
@@ -857,7 +857,7 @@ st_craft_result_neutral_label	Sajnos nem sikerült fejleszteni a tárgyat.
 st_craft_result_success_label	A tárgy fejlesztése sikerült!
 st_critical_damages	Súlyos meghibásodások
 st_crosshair_static_option	Statikus célkereszt
-st_crosshair_type_option	Célkereszt kiválasztása
+st_crosshair_type_option	Célkereszt
 st_crouch_action	Guggolás (nyomva tartva)
 st_crouch_toggle_action	Guggolás
 st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
@@ -1116,7 +1116,7 @@ st_faction_scientists_blocked_text	A tudósok nem adnak neked feladatot
 st_fall_damage_description	Esési sebzés:
 st_fall_damage_name	Ejtőernyős
 st_few_alpha_clan_string	Érvénytelen név
-st_filter_all	Összes mutatása
+st_filter_all	Összes
 st_filter_ammo	Lőszer
 st_filter_ammo_assault_rifle	Gépkarabélyok
 st_filter_ammo_machine_gun	Géppuskák
@@ -1142,7 +1142,7 @@ st_filter_medkit	Gyógyszerek
 st_filter_mine	Aknák
 st_filter_pants	Nadrágok
 st_filter_pistol	Pisztolyok
-st_filter_rig	Taktikai mellények
+st_filter_rig	Mellények
 st_filter_scaner	Szkennerek
 st_filter_shop	Bolt
 st_filter_shop_and_inventory	Leltár és bolt
@@ -2092,7 +2092,7 @@ st_slide1_button_accept_label	Következő
 st_slide1_text	Üdv, túlélő! Szerencséd volt, hogy túlélted a világ végét. Hetekig tartó bolyongás után végre olyan helyre értél, amelyet még nem nyelt el az Erdő.
 st_slide1_text_enter_name	Milyen nevet választasz az új világban?
 st_slide1_tutorial_reward	Az oktatás végén ezt a jutalmat kapod:
-st_slot_control_label	Mennyiség kiválasztása
+st_slot_control_label	Mennyiség
 st_slots	Rekeszek
 st_sniper_skills_descr	Javítja a fegyverkezelést. Növeli a lövési pontosságot és a célzási sebességet.
 st_sniper_skills_name	Lövészeti kiképzés
@@ -2228,7 +2228,7 @@ st_srp_pvb_outdated	Frissítsd a játékot
 st_srp_pvb_retry	Nincs válasz, próbáld újra
 st_srp_pvb_searching	Előbb állítsd le a keresést
 st_srp_pvb_team_size	%1$s ellen %2$s
-st_srp_pvb_title	Játékos a botok ellen
+st_srp_pvb_title	Botok ellen
 st_srp_pvb_unknown_choice	Ez a pálya vagy csapatméret most nem érhető el
 st_srp_replay_asking	A meccs visszajátszásának lekérése a szerverről…
 st_srp_replay_being_made	A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n%1$s
@@ -2323,8 +2323,8 @@ st_srp_rooms_pin_hint	4 számjegy szükséges
 st_srp_rooms_players	Játékosok
 st_srp_rooms_playing	Meccs folyamatban
 st_srp_rooms_pool	Pályakészlet
-st_srp_rooms_pool_hint	Ezek közül 3 kerül véletlenszerűen a szavazásra.
-st_srp_rooms_private_room	Privát szoba: legfeljebb 20 játékos. Te állítod össze a csapatokat és indítasz.
+st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
+st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás
 st_srp_rooms_room	Szoba
@@ -2348,8 +2348,8 @@ st_srp_rooms_unfit_gear	A felszerelésed meghaladja a szintkorlátot. Csökkents
 st_srp_rooms_unfit_kit	Az összeállításod nem használható (nincs fegyver vagy kevés a lőszer). Javítsd ki, különben kezdéskor kikerülsz a szobából.
 st_srp_rooms_vote	Szavazz a következő pályára
 st_srp_rooms_vote_hint	3 kártya a készletből. A legtöbb szavazat nyer, döntetlennél sorsolás dönt. Kattints a szavazatod módosításához.
-st_srp_rooms_vote_now	Kattints egy kártyára a következő pálya kiválasztásához. Az idő lejártával a győztes pályán indul a meccs.
-st_srp_rooms_voting	Pályaszavazás
+st_srp_rooms_vote_now	Kattints a következő pálya kártyájára. Az idő lejártával a győztesen indul a meccs.
+st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
@@ -2363,19 +2363,19 @@ st_srp_weapon_draw_time	Elővételi idő
 st_srp_weapon_full_damage	Teljes sebzés hatótávja
 st_srp_weapon_hip_spread	Csípőlövés szórása
 st_srp_weapon_holster_time	Elrakási idő
-st_srp_weapon_kick_side	Kezdeti oldalirányú rúgás
-st_srp_weapon_kick_side_variability	Oldalirányú rúgás ingadozása
-st_srp_weapon_kick_up	Kezdeti felfelé rúgás
-st_srp_weapon_kick_up_variability	Felfelé rúgás ingadozása
+st_srp_weapon_kick_side	Vízszintes visszarúgás
+st_srp_weapon_kick_side_variability	Vízszintes ingadozás
+st_srp_weapon_kick_up	Függőleges visszarúgás
+st_srp_weapon_kick_up_variability	Függőleges ingadozás
 st_srp_weapon_minimum_damage	Minimális sebzés
 st_srp_weapon_minimum_damage_from	Minimális sebzés kezdete
-st_srp_weapon_recoil_heading	Visszarúgás, szórás és kilengés
+st_srp_weapon_recoil_heading	Visszarúgás, szórás, kilengés
 st_srp_weapon_reload	Újratöltés
-st_srp_weapon_shift_hint	Részletek: tartsd nyomva a Shiftet
+st_srp_weapon_shift_hint	Részletek: tartsd a Shiftet
 st_srp_weapon_spread_growth	Szórás növekedési sebessége
 st_srp_weapon_spread_max	Maximális többletszórás
 st_srp_weapon_spread_per_shot	Szórásnövekedés lövésenként
-st_srp_weapon_spread_recovery	Pontosság visszaállási sebessége
+st_srp_weapon_spread_recovery	Pontosság visszaállása
 st_srp_weapon_stamina_damage	Állóképesség-sebzés
 st_srp_weapon_stats	A fegyver statisztikái
 st_srp_weapon_sway_cycle	Kilengési ciklus
@@ -2387,7 +2387,7 @@ st_srp_weather_evening	este
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
 st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
-st_srp_weight_no_sprint_limit	Nem sprintelhetsz: elérted a teherbírásod határát.
+st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.
 st_srp_weight_speed	Mozgási sebesség: %1$s
 st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
 st_srp_weight_title	A súly hatásai
