@@ -379,6 +379,77 @@ pub enum KitSmoke {
     RadioPlace,
 }
 
+/// How many frags a bot's kit carries, by role (the owner's kit, [`new_kit`]; the old kit gives every role two and ignores this):
+/// the owner, 2026-10-29, "Measure, then match" the live players' frag share. Live players carry a frag in 37.5 % of their
+/// lives, 1.72 units when they do, whatever the primary weapon (assault rifle 40 %, submachine gun 35 %, bolt rifle 33 %,
+/// `traces-20261028/frag-share-humans.md`, 39,547 lives); the owner's kit carries one unit, in the support only (25 % of the
+/// bots, and the support's fourth pocket is open in every tier).
+///
+/// The roles' shares of a team ([`BotRole::share`]) are flanker 30 %, rusher 30 %, support 25 %, camper 15 %.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KitFrags {
+    /// The owner's kit as it is: the support carries one frag.
+    #[default]
+    Off,
+    /// The support carries two frags, a full pocket (the pocket size is two): 25 % of the lives carry, 2 units each, 0.50 units a
+    /// life against the live players' 0.645.
+    SupportTwo,
+    /// [`Self::SupportTwo`], and the camper carries one frag in the bandages' pocket (the pocket keeps its place, so the trap's
+    /// quick-use rank stays the third): 40 % of the lives carry, 1.63 units each, 0.65 units a life: the live players' 37.5 %,
+    /// 1.72 and 0.645.
+    SupportAndCamper,
+}
+
+impl KitFrags {
+    /// Every choice, in the order of [`Self::index`].
+    pub const ALL: [Self; 3] = [Self::Off, Self::SupportTwo, Self::SupportAndCamper];
+
+    /// The place of the choice in [`Self::ALL`].
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Off => 0,
+            Self::SupportTwo => 1,
+            Self::SupportAndCamper => 2,
+        }
+    }
+
+    /// The frags a bot of `role` carries with this choice, by the owner's kit.
+    pub fn units(self, role: BotRole) -> u32 {
+        match (self, role) {
+            (Self::Off, BotRole::Support) | (Self::SupportAndCamper, BotRole::Camper) => 1,
+            (Self::SupportTwo | Self::SupportAndCamper, BotRole::Support) => 2,
+            _ => 0,
+        }
+    }
+
+    /// `items` (a bot's pieces of the owner's kit, its pockets among them) of `role` with this choice's frags: the support's
+    /// frag pocket holds [`Self::units`], and the camper's bandages give their pocket to its frag. Only legal items: a frag is
+    /// a grenade of at most a pocket's size (two), in a pocket the armour opened, one item to a pocket.
+    pub fn apply(self, role: BotRole, mut items: Vec<BotKitItem>) -> Vec<BotKitItem> {
+        let units = self.units(role);
+        if units == 0 || self == Self::Off {
+            return items;
+        }
+        let in_pocket = |item: &BotKitItem| POCKET_SLOTS.contains(&item.slot);
+        let frag = items.iter().position(|item| in_pocket(item) && item.name == BOT_GRENADE.name);
+        match (role, frag) {
+            (_, Some(at)) => items[at].count = units,
+            (BotRole::Camper, None) => {
+                if let Some(at) = items.iter().position(|item| in_pocket(item) && item.name == BOT_BANDAGES.name) {
+                    items[at] = BotKitItem {
+                        slot: items[at].slot,
+                        count: units,
+                        ..BOT_GRENADE
+                    };
+                }
+            }
+            _ => {}
+        }
+        items
+    }
+}
+
 /// Where a kit's smoke went ([`KitSmoke::place`]), for the kit census.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SmokePlace {
@@ -462,23 +533,25 @@ fn is_grenade(name: &str) -> bool {
 pub struct BotPocketKit {
     pub store: PocketStore,
     pub smoke: KitSmoke,
+    pub frags: KitFrags,
 }
 
 impl BotPocketKit {
     /// The kits that differ, for a cache's slot ([`Self::index`]).
-    pub const COUNT: usize = PocketStore::ALL.len() * KitSmoke::ALL.len();
+    pub const COUNT: usize = PocketStore::ALL.len() * KitSmoke::ALL.len() * KitFrags::ALL.len();
 
     /// The `store` with no smoke: the kit before the smoke.
     pub const fn stored(store: PocketStore) -> Self {
         Self {
             store,
             smoke: KitSmoke::Off,
+            frags: KitFrags::Off,
         }
     }
 
     /// The place of the kit among [`Self::COUNT`].
     pub const fn index(self) -> usize {
-        self.store.index() * KitSmoke::ALL.len() + self.smoke.index()
+        (self.store.index() * KitSmoke::ALL.len() + self.smoke.index()) * KitFrags::ALL.len() + self.frags.index()
     }
 }
 
@@ -1751,6 +1824,8 @@ pub fn bot_kits_in_kit(
                 .filter(|item| !POCKET_SLOTS.contains(&item.slot))
                 .map(|item| item.name),
         );
+        // The frags are the owner's kit's (the old kit gives every role two), before the smoke so it goes after every grenade.
+        let items = if new { kit.frags.apply(role, items) } else { items };
         bot_loadout(&kit.smoke.place(items, open).0, kit.store)
     })
 }
@@ -1832,13 +1907,17 @@ pub fn bot_equipment_of(profile: &MatchProfile) -> Option<(BotEquipment, BotRole
             candidate_equipments(tier, role)
                 .into_iter()
                 .find(|&equipment| {
-                    // With or without a smoke ([`KitSmoke`]): the storage changes no item, the smoke does.
+                    // With or without a smoke ([`KitSmoke`]) and with the frags of any choice ([`KitFrags`]): the storage
+                    // changes no item, the smoke and a camper's frag do.
                     KitSmoke::ALL.into_iter().any(|smoke| {
-                        let kit = BotPocketKit {
-                            smoke,
-                            ..BotPocketKit::default()
-                        };
-                        holds_kits(&bot_kits_kit(equipment, role, kit), &held)
+                        KitFrags::ALL.into_iter().any(|frags| {
+                            let kit = BotPocketKit {
+                                smoke,
+                                frags,
+                                ..BotPocketKit::default()
+                            };
+                            holds_kits(&bot_kits_kit(equipment, role, kit), &held)
+                        })
                     })
                 })
                 .map(|equipment| (equipment, role))
@@ -3707,6 +3786,7 @@ mod tests {
                     let kit = |smoke| BotPocketKit {
                         store: PocketStore::PerLife,
                         smoke,
+                        frags: KitFrags::Off,
                     };
                     let without = bot_kits_in_kit(eq(tier), role, new, false, kit(KitSmoke::Off));
                     let with = bot_kits_in_kit(eq(tier), role, new, false, kit(placed));
@@ -3790,4 +3870,84 @@ mod tests {
         assert_eq!((&profile.kits, &profile.items), (&fresh.kits, &fresh.items));
         assert_eq!(BotPocketKit::default().smoke, KitSmoke::Off);
     }
+    /// The frags a kit carries by role (`KitFrags`): `Off` is the owner's kit untouched; `SupportTwo` fills the support's frag
+    /// pocket (two, the pocket's size); `SupportAndCamper` adds one frag to the camper in the bandages' pocket, so the pockets
+    /// keep their places and the trap stays the third quick-use key. Only legal items: the pockets the armour opens, one item a
+    /// pocket, a frag stack within the pocket's size, the bot still told by its kits, the old kit untouched.
+    #[test]
+    fn the_frag_choices_change_only_the_supports_and_the_campers_frags() {
+        let dictionary = Dictionary::shared();
+        let name = |item: &SlotItem| dictionary.item(item.dict_id).map_or("", |row| row.name.as_str()).to_owned();
+        let kit = |frags| BotPocketKit {
+            store: PocketStore::PerLife,
+            smoke: KitSmoke::Off,
+            frags,
+        };
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let off = bot_kits_in_kit(eq(tier), role, true, false, kit(KitFrags::Off));
+                for frags in [KitFrags::SupportTwo, KitFrags::SupportAndCamper] {
+                    let on = bot_kits_in_kit(eq(tier), role, true, false, kit(frags));
+                    for (k, (before, after)) in off.iter().zip(&on).enumerate() {
+                        let at = format!("{frags:?} {tier:?} {role:?} kit {k}");
+                        let pockets = |kit: &Loadout| -> Vec<(u8, String, u32)> {
+                            let mut held: Vec<_> = kit
+                                .items
+                                .iter()
+                                .filter(|item| POCKET_SLOTS.contains(&item.slot))
+                                .map(|item| (item.slot, name(item), item.count))
+                                .collect();
+                            held.sort();
+                            held
+                        };
+                        let (before_pockets, after_pockets) = (pockets(before), pockets(after));
+                        // Everything outside the pockets is the same kit.
+                        let outside = |kit: &Loadout| -> Vec<_> {
+                            kit.items.iter().filter(|item| !POCKET_SLOTS.contains(&item.slot)).map(|item| (item.slot, item.dict_id, item.count)).collect()
+                        };
+                        assert_eq!(outside(before), outside(after), "{at}");
+                        let frag_units = |held: &[(u8, String, u32)]| held.iter().filter(|(_, n, _)| n == BOT_GRENADE.name).map(|(_, _, c)| *c).sum::<u32>();
+                        assert_eq!(frag_units(&after_pockets), frags.units(role), "{at}: units");
+                        // Legal: one item a pocket, within the pocket's size, in the pockets the armour opens.
+                        let (open, size) = pockets_of(after);
+                        let slots: Vec<u8> = after_pockets.iter().map(|(s, _, _)| *s).collect();
+                        let mut unique = slots.clone();
+                        unique.dedup();
+                        assert_eq!(slots, unique, "{at}: two items in a pocket");
+                        assert!(after_pockets.iter().all(|(s, _, c)| POCKET_SLOTS[..open as usize].contains(s) && *c <= size), "{at}: {after_pockets:?}");
+                        let changed = before_pockets != after_pockets;
+                        assert_eq!(changed, matches!(role, BotRole::Support | BotRole::Camper) && frags.units(role) != KitFrags::Off.units(role) || role == BotRole::Camper && frags == KitFrags::SupportAndCamper, "{at}");
+                        if role == BotRole::Camper && frags == KitFrags::SupportAndCamper {
+                            // The bandages' pocket holds the frag, the trap stays the third key.
+                            let slot_of = |held: &[(u8, String, u32)], n: &str| held.iter().find(|(_, x, _)| x == n).map(|(s, _, _)| *s);
+                            assert_eq!(slot_of(&before_pockets, BOT_BANDAGES.name), slot_of(&after_pockets, BOT_GRENADE.name), "{at}");
+                            assert_eq!(slot_of(&before_pockets, BOT_TRAP.name), slot_of(&after_pockets, BOT_TRAP.name), "{at}");
+                            assert!(slot_of(&after_pockets, BOT_BANDAGES.name).is_none(), "{at}");
+                        }
+                    }
+                    // Still told by its kits, whatever the choice.
+                    let profile = bot_profile_kit(1, 0, role, eq(tier), kit(frags));
+                    assert_eq!(bot_role_of(&profile), Some(role), "{frags:?} {tier:?} {role:?}");
+                    // The old kit ignores the choice.
+                    assert_eq!(
+                        bot_kits_in_kit(eq(tier), role, false, false, kit(KitFrags::Off)).map(|k| k.items.len()),
+                        bot_kits_in_kit(eq(tier), role, false, false, kit(frags)).map(|k| k.items.len())
+                    );
+                }
+            }
+        }
+        // The shares: the roles' frags per 20 bots of a team (6 flankers, 6 rushers, 5 supports, 3 campers), against the live players'
+        // 0.645 units a life (37.5 % of lives, 1.72 units).
+        let units = |frags: KitFrags| (0..20).map(|k| frags.units(BotRole::nth(k))).sum::<u32>() as f32 / 20.0;
+        assert_eq!((units(KitFrags::Off), units(KitFrags::SupportTwo)), (0.25, 0.5));
+        assert!((units(KitFrags::SupportAndCamper) - 0.65).abs() < 1e-6);
+        let carrying = |frags: KitFrags| (0..20).filter(|&k| frags.units(BotRole::nth(k)) > 0).count();
+        assert_eq!((carrying(KitFrags::Off), carrying(KitFrags::SupportTwo), carrying(KitFrags::SupportAndCamper)), (5, 5, 8));
+    }
+
+    /// (pockets open, pocket size) of a loadout.
+    fn pockets_of(kit: &Loadout) -> (u32, u32) {
+        pockets(kit)
+    }
+
 }

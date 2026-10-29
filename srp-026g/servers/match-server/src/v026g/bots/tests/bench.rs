@@ -661,7 +661,15 @@ pub(crate) fn real_bot_cost() {
     for (level, mode) in maps {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
-        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
+        let file = dir.join(mapdata::format::file_name(&project));
+        let version = mapdata::format::file_version(&file).unwrap_or_else(|e| panic!("{e}"));
+        let allow_old = bench_settings().var("SRP_BENCH_MAPDATA_OLD").as_deref() == Ok("allow");
+        match super::settings::mapdata_format_verdict(&file, version, allow_old) {
+            Ok(Some(warning)) => eprintln!("{warning}"),
+            Ok(None) => {}
+            Err(refusal) => panic!("{refusal}"),
+        }
+        let map = mapdata::MapData::read(&file).unwrap();
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
@@ -775,7 +783,7 @@ pub(crate) fn real_bot_cost() {
             }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
-            if bench_settings().flag("SRP_BENCH_WEAPONS") {
+            if bench_settings().is_on("SRP_BENCH_WEAPONS") {
                 let weapons = bots
                     .bots
                     .iter()
@@ -1000,6 +1008,7 @@ pub(crate) fn real_bot_cost() {
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
+            let mut trap_habit = human.as_ref().and_then(|h| standin_trap_habit::TrapHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
@@ -1077,6 +1086,16 @@ pub(crate) fn real_bot_cost() {
                     blocks.tick(&game, &bots, &mut events);
                     owner.tick(&mut game, &bots);
                     hits.tick(&mut game, &bots, &mut events);
+                    // The stand-in human's traps laid in the last step: with `SRP_BENCH_HUMAN_TRAPS_KNOWN=on` his team knows them from now on (off: it learns
+                    // them as a live team learns a human mate's, once seen; A168).
+                    if let Some(habit) = &mut trap_habit {
+                        let known = bench_settings().var("SRP_BENCH_HUMAN_TRAPS_KNOWN").as_deref() == Ok("on");
+                        for laid in std::mem::take(&mut habit.laid) {
+                            if known {
+                                bots.bench_team_knows_trap(laid.team, laid.place, laid.at, laid.tick);
+                            }
+                        }
+                    }
                     let play_of = |place: Place| {
                         bots.bots[place]
                             .as_ref()
@@ -1237,6 +1256,10 @@ pub(crate) fn real_bot_cost() {
                             })
                             .collect();
                         habit.tick(&game, &mut bots.tracker, now, |enemy| fresh[enemy]);
+                    }
+                    if let Some(habit) = &mut trap_habit {
+                        let now = game.tick;
+                        habit.tick(&mut game, now);
                     }
                     let mut holding = [false; 2];
                     for bot in bots.bots.iter().flatten() {
@@ -1753,6 +1776,7 @@ pub(crate) fn real_bot_cost() {
                     habit.armed, habit.placed, habit.died_placing, own.fired, own.own_team_caught
                 );
                 eprintln!("  trap gate: {}", crate::v026g::bots::traps::gates::line());
+                eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
                 eprintln!("  trap looks, team 1: {}", looks[1].line());
@@ -1812,6 +1836,12 @@ pub(crate) fn real_bot_cost() {
             }
             if let Some(habit) = &smoke_habit {
                 eprintln!("  {}", habit.line());
+            }
+            if let Some(habit) = &mut trap_habit {
+                eprintln!("  {}", habit.line(&game));
+                for line in habit.placement_lines(&game) {
+                    eprintln!("{line}");
+                }
             }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",

@@ -50,10 +50,20 @@ fn mapdata(dir: Option<&Path>) -> String {
         .collect();
     files.sort();
     let mut listing = String::new();
+    let mut formats = std::collections::BTreeMap::<String, usize>::new();
     for (name, size) in &files {
         let _ = writeln!(listing, "{name} {size}");
+        let version = mapdata::format::file_version(&dir.join(name)).map_or_else(|_| "unreadable".to_owned(), |v| v.to_string());
+        *formats.entry(version).or_default() += 1;
     }
-    format!("mapdata={} ({} files, names+sizes {})", dir.display(), files.len(), bytes_sha(listing.as_bytes()))
+    let formats: Vec<String> = formats.iter().map(|(version, n)| format!("{version}x{n}")).collect();
+    format!(
+        "mapdata={} ({} files, format {}, names+sizes {})",
+        dir.display(),
+        files.len(),
+        if formats.is_empty() { "none".to_owned() } else { formats.join(",") },
+        bytes_sha(listing.as_bytes())
+    )
 }
 
 /// The line `data files: ...` of a match: the tuning part ([`super::tuning::LoadedTuning::data_line`] for a server), the routes table, the foliage and
@@ -110,13 +120,32 @@ mod tests {
         assert!(line.starts_with("data files: tuning=defaults; routes="), "{line}");
         assert!(line.contains("bot-routes.json sha256:"), "{line}");
         assert!(line.contains("foliage=none; grass=none;"), "{line}");
-        assert!(line.contains("(1 files, names+sizes sha256:"), "{line}");
+        assert!(line.contains("(1 files, format unreadablex1, names+sizes sha256:"), "{line}");
         let off = data_files("tuning=defaults", Some(OsStr::new("off")), Some(OsStr::new("off")), None, Some(&dir));
         assert!(off.contains("routes=off; foliage=none"), "{off}");
         let tuning = dir.join("tuning.json");
         std::fs::write(&tuning, b"{}").unwrap();
         let with = data_files(&LoadedTuning::from_file(&tuning).unwrap().data_line(), None, None, None, None);
         assert!(with.contains("tuning=") && with.contains("tuning.json sha256:") && with.contains("mapdata=none"), "{with}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The mapdata part names the format of the files, so a run on an old dump shows in the header.
+    #[test]
+    fn the_mapdata_part_names_the_format_of_the_files() {
+        let dir = std::env::temp_dir().join(format!("srp-switch-log-formats-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(mapdata(Some(&dir)).contains("(0 files, format none,"), "{}", mapdata(Some(&dir)));
+        let bytes = mapdata::MapData::default().to_bytes();
+        std::fs::write(dir.join("level_01_day_2.mapdata"), &bytes).unwrap();
+        std::fs::write(dir.join("level_01_day_3.mapdata"), &bytes).unwrap();
+        let mut old = bytes.clone();
+        old[8..12].copy_from_slice(&4u32.to_le_bytes());
+        std::fs::write(dir.join("level_01_day_4.mapdata"), &old).unwrap();
+        let line = mapdata(Some(&dir));
+        let current = mapdata::format::VERSION;
+        assert!(line.contains(&format!("(3 files, format 4x1,{current}x2, names+sizes")), "{line}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

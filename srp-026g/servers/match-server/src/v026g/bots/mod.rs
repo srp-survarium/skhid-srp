@@ -373,6 +373,8 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
+    /// The frags its lives carried and threw (the lives over; the present life's throws are the reflex's).
+    frag_lives: live_grenades::FragLives,
     /// The kit of this life, and the one it picked for its next (a kit
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
@@ -513,7 +515,10 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
+            frag_lives: live_grenades::FragLives::default(),
             kit: 0,
+
+
             kit_chosen: 0,
             resupplies: 0,
             features: BotFeatures::default(),
@@ -549,6 +554,7 @@ impl Bot {
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
@@ -734,6 +740,7 @@ impl Bot {
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
                 self.life_carried = left.min(arms.primary.1);
@@ -1334,6 +1341,8 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            // A life begins: the frags its kit in use holds (the tracker refilled it with the world that began the life).
+            bot.frag_lives.spawn(self.tracker.frags_left(place));
             bot.note(
                 &mut notes,
                 time,
@@ -1632,6 +1641,19 @@ impl Bots {
         found.len()
     }
 
+    /// The bench's stand-in human put a trap down (`SRP_BENCH_HUMAN_TRAPS_KNOWN=on`): his team knows it from that tick, which is more
+    /// than a live team has (it learns a human mate's trap once seen, A168); the same entry a bot's release makes, confirmed by the next
+    /// world that shows it.
+    #[cfg(test)]
+    pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
+        let ring_m = self.tuning_of(team).traps.ring_m;
+        let state = &mut self.teams[usize::from(team)];
+        state.knowledge.traps.promise(by, at, released);
+        if let Some(tactics) = self.tactics.as_ref() {
+            state.refresh_traps(&tactics.world.grid, ring_m);
+        }
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
@@ -1653,12 +1675,13 @@ impl Bots {
             Vec::new()
         });
         let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        let rings = [self.tuning_of(0).traps.ring_m, self.tuning_of(1).traps.ring_m];
         for (team, state) in self.teams.iter_mut().enumerate() {
             if own {
                 let fired = state.knowledge.traps.sync(time, &found);
                 went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
                 if let Some(tactics) = self.tactics.as_ref() {
-                    state.refresh_traps(&tactics.world.grid);
+                    state.refresh_traps(&tactics.world.grid, rings[team & 1]);
                 }
             }
             state.features.traps.world_traps = armed.clone();
@@ -1723,6 +1746,22 @@ impl Bots {
                         .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
             });
             self.features.own_traps.own_team_caught += u32::from(caught);
+            #[cfg(test)]
+            for bot in self.bots.iter().flatten().filter(|bot| bot.team == team && bot.hurt.leg_broken) {
+                if view
+                    .place(bot.place)
+                    .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
+                    && bot.features.traps.near.is_some_and(|(trap, _, _)| trap.distance_xz(at) < 1.0)
+                {
+                    let placer = self.teams[usize::from(team)]
+                        .knowledge
+                        .traps
+                        .all()
+                        .iter()
+                        .any(|known| known.at.distance_xz(at) < 1.0 && known.by == bot.place);
+                    traps::passes::caught(bot, at, placer, view.place(bot.place).map_or(at, |p| p.feet));
+                }
+            }
         }
     }
 

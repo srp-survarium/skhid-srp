@@ -121,7 +121,8 @@ fn threat_tick(
                         text.push_str(&format!(", killed by {said}"));
                     }
                 }
-                threat::JobEvent::Given { spot, .. } => {
+                threat::JobEvent::Given { spot, role, place } => {
+                    threat::offers_reset(place, role);
                     // Fairness: a role on a spot whose shooter the team has
                     // not sensed for `SEEN_MS`.
                     let stale = held
@@ -131,6 +132,11 @@ fn threat_tick(
                     if stale {
                         threat::job_tally(team, threat::JobTally::GivenUnsensed);
                     }
+                }
+                threat::JobEvent::Passed { role, place, why: threat::PassedWhy::NoPlay, .. } => {
+                    // The bench's class of a role let go unplayed: its last offer, and the play its bot runs.
+                    let running = bots.iter().flatten().find(|b| b.place == place).and_then(|b| b.assignment.as_ref()).map(|a| format!("{:?}", a.kind));
+                    threat::passed_unplayed(place, role, running.as_deref());
                 }
                 threat::JobEvent::Passed { .. } => {}
             }
@@ -202,7 +208,7 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
-        state.refresh_traps(&tactics.world.grid);
+        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m);
         let field = state.features.traps.field.clone();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.features.traps.field = field.clone();
@@ -437,7 +443,13 @@ impl Bots {
             .map(|&(place, _, _)| place)
             .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
             .collect();
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky) {
+        // [gang-up] The trade partners of the team's bots (not counted as a second bot on one enemy).
+        let partners: Vec<(Place, Place)> = asked
+            .iter()
+            .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
+            .collect();
+        let gang = tuning.threat.gang_rule().map(|rule| team::GangUp { rule, partners: &partners, tally: &tactics.gang_tally });
+        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky, gang.as_ref()) {
             let Some(me) = view.place(place) else {
                 continue;
             };

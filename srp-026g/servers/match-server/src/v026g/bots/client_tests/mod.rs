@@ -99,6 +99,8 @@
 //! reaching the screen is LIKELY, not seen: hence the first step.
 
 mod check;
+#[cfg(test)]
+mod dry;
 mod frame;
 mod hook;
 mod plan;
@@ -107,7 +109,7 @@ mod run;
 mod step;
 mod time;
 
-pub use frame::{Body, BotView, Frame, Heard, Mind, Owner, Sight, group_of};
+pub use frame::{Body, BotView, Counters, Frame, Heard, Mind, Owner, Sight, group_of};
 pub use hook::script_bot;
 pub use report::{Output, card, line_of};
 pub use run::{Act, Action, Drive, Outcome, Provenance, Row, Runner, Todo, VoidWhy};
@@ -140,7 +142,13 @@ macro_rules! packages {
 }
 
 packages! {
+    cover,
+    fights,
+    gear,
+    grid,
     sample,
+    smoke,
+    threat,
     zones,
 }
 

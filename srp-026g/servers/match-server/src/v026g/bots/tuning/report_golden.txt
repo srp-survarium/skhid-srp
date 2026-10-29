@@ -29,14 +29,15 @@ switch values cover: pierce={"max_share":0.5,"pierce":0.3125}
 switch values feel: drop_truth=links
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: jump_snap=by_keys
-switch values kit: smoke=off
+switch values kit: frags=support_and_camper smoke=off
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
-changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0)
+switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5}
+changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
 changed numbers grid: jump_cap_m=0.998 (default 1.05)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)
 changed numbers sense: bush_notice=0.5 (default 0) grass_notice=0.1 (default 0) use_ray_m=1.8 (default 2)
-changed numbers traps: cap_team=6 (default 4) chance=0.7 (default 0.35) enemy_near_m=40 (default 50) enemy_quiet_s=2 (default 4) min_score=0.05 (default 0.2) per_life=2 (default 1)
+changed numbers traps: cap_team=6 (default 4) chance=0.7 (default 0.35) enemy_near_m=40 (default 50) enemy_quiet_s=2 (default 4) min_score=0.05 (default 0.2) per_life=2 (default 1) ring_m=1.3 (default 0)
