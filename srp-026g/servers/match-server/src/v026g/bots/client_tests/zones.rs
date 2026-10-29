@@ -225,6 +225,8 @@ fn far_from_26(frame: &Frame, progress: &Progress) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use mapdata::Vec3;
+
     use super::*;
 
     fn frame(clock: u32, y: f32, infection: f32, carried: bool) -> Frame {
