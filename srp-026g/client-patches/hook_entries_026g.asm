@@ -538,6 +538,86 @@ lobby_scene_on_scenes_ready_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x220b26
 
+; 0x21d4a0 lobby_menu::on_deactivate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+4): ECX the lobby menu, no longer the active scene (a match entered): its scene not drawn until on_activate: lohook -> lobby_scene_on_deactivate
+global lobby_scene_on_deactivate
+extern hook_lobby_scene_on_deactivate
+lobby_scene_on_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_deactivate
+lobby_scene_on_deactivate_flow:
+    mov edx, lobby_scene_on_deactivate_replay
+    cmp eax, 0
+    je lobby_scene_on_deactivate_go
+    mov edx, 0x21d4a6
+    cmp eax, 1
+    je lobby_scene_on_deactivate_go
+    ud2
+lobby_scene_on_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_deactivate_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x21d4a6
+
+; 0x21d2e0 lobby_menu::on_activate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+0, 0x9FFE74): ECX the lobby menu, about to be shown again (after a match, or the sign-in): lohook -> lobby_scene_on_activate
+global lobby_scene_on_activate
+extern hook_lobby_scene_on_activate
+lobby_scene_on_activate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_scene_on_activate
+lobby_scene_on_activate_flow:
+    mov edx, lobby_scene_on_activate_replay
+    cmp eax, 0
+    je lobby_scene_on_activate_go
+    mov edx, 0x21d2e6
+    cmp eax, 1
+    je lobby_scene_on_activate_go
+    ud2
+lobby_scene_on_activate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_scene_on_activate_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x21d2e6
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

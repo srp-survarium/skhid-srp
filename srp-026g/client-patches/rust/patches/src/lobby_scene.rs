@@ -22,8 +22,8 @@
 use core::ffi::CStr;
 
 use crate::vostok::language::{ConsoleString, save_user_config};
-use crate::vostok::lobby::{SceneQuery, SceneRequest, ScenesReady, arrived_faction};
-use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit};
+use crate::vostok::lobby::{HiddenLobby, SceneQuery, SceneRequest, ScenesReady, arrived_faction};
+use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit, Thread};
 
 /// A quest faction (factions_dict; the server's `faction::` ids).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,59 +115,164 @@ impl Lobby {
     }
 }
 
+/// What the lobby's query asks for in its project's place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ask {
+    /// A lobby's config alone: is its pack there?
+    Config(Lobby),
+    /// A lobby's project.
+    Project(Lobby),
+}
+
+impl Ask {
+    /// The first ask for a lobby: the classic's project at once (the stock
+    /// game's), another lobby's config first (a missing project would crash
+    /// its cook).
+    pub fn first(lobby: Lobby) -> Ask {
+        match lobby {
+            Lobby::Classic => Ask::Project(Lobby::Classic),
+            other => Ask::Config(other),
+        }
+    }
+
+    pub fn lobby(self) -> Lobby {
+        match self {
+            Ask::Config(lobby) | Ask::Project(lobby) => lobby,
+        }
+    }
+
+    pub fn request(self) -> SceneRequest {
+        match self {
+            Ask::Config(lobby) => SceneRequest::Config(lobby.config()),
+            Ask::Project(lobby) => SceneRequest::Project(lobby.project()),
+        }
+    }
+}
+
+/// Whether the lobby's scene is on screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum View {
+    /// The lobby menu is the active scene (or may be: from the start until
+    /// a match is entered).
+    Drawn,
+    /// A match (or any other scene) is: from on_deactivate to on_activate.
+    Hidden,
+}
+
+/// A swap's query in flight: the lobby it is for (the faction's when it
+/// was asked) and what it asks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fetch {
+    pub wanted: Lobby,
+    pub ask: Ask,
+}
+
 /// Where the lobby's scene is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scene {
     /// The lobby menu has not asked for it.
     Unasked,
-    /// Asked as the lobby's config (is it there?).
-    Probing(Lobby),
-    /// Asked as the lobby's project.
-    Asked(Lobby),
-    /// The lobby menu has it.
-    Shown(Lobby),
+    /// The start: the lobby menu's own query asks this (and the lobby menu
+    /// takes the project).
+    Starting(Ask),
+    /// The lobby menu has the lobby `shown`; `fetch` a swap's query in
+    /// flight.
+    Loaded { shown: Lobby, view: View, fetch: Option<Fetch> },
 }
 
-/// What the lobby's results lead to.
+/// What happens to the lobby's scene. `wanted` is the lobby of the faction
+/// saved at that moment (`srp_lobby_faction`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Next {
-    /// The lobby menu takes them (the original's code).
-    Take,
-    /// Asked again, these let go unused.
+pub enum Event {
+    /// The lobby menu builds its query (`lobby_menu.scene_request`).
+    Query { wanted: Lobby },
+    /// Its results are in (`lobby_menu.scenes_ready`); `loaded`: the
+    /// project's place holds what was asked, usable (ScenesReady::loaded).
+    Ready { loaded: bool, wanted: Lobby },
+    /// The lobby is no longer drawn (`lobby_menu.deactivate`: a match).
+    Hidden { wanted: Lobby },
+    /// The lobby is shown again (`lobby_menu.activate`).
+    Shown,
+}
+
+/// What the site does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Action {
+    /// The site's own code as it is: the query's own list, the results
+    /// taken by the lobby menu, the menu's (de)activation.
+    Original,
+    /// The start's query: this in the project's place.
+    Ask(SceneRequest),
+    /// A swap's query: this in the project's place, the lobby's config
+    /// (`filler`) in every other.
+    AskAlone { request: SceneRequest, filler: Lobby },
+    /// The results let go, the query asked again.
     AskAgain,
+    /// The results let go.
+    LetGo,
+    /// The results' project put in the lobby menu's (the lobby not drawn).
+    Swap,
+    /// The lobby's query asked (a swap's first).
+    Query,
 }
 
 impl Scene {
-    /// The query's request in the project's place; None leaves the
-    /// original's.
-    pub fn request(self) -> Option<SceneRequest> {
+    /// What its query asked in the project's place, when it is this
+    /// patch's.
+    pub fn asked(self) -> Option<SceneRequest> {
         match self {
-            Scene::Unasked => None,
-            Scene::Probing(lobby) => Some(SceneRequest::Config(lobby.config())),
-            Scene::Asked(lobby) | Scene::Shown(lobby) => Some(SceneRequest::Project(lobby.project())),
+            Scene::Starting(ask) | Scene::Loaded { fetch: Some(Fetch { ask, .. }), .. } => Some(ask.request()),
+            Scene::Unasked | Scene::Loaded { fetch: None, .. } => None,
         }
     }
 
-    /// The lobby menu builds its query: the first asks for the choice (the
-    /// classic's project at once, another lobby's config first); one this
-    /// patch asked again keeps what it set.
-    pub fn on_query(self, chosen: Lobby) -> Scene {
-        match self {
-            Scene::Unasked if chosen == Lobby::Classic => Scene::Asked(Lobby::Classic),
-            Scene::Unasked => Scene::Probing(chosen),
-            other => other,
-        }
-    }
+    /// The machine: the next scene and what the site does, for every scene
+    /// and every event. A swap's project is put in only while the lobby is
+    /// hidden; results that come while it is drawn are let go, and the next
+    /// match asks again.
+    pub fn step(self, event: Event) -> (Scene, Action) {
+        use Scene::{Loaded, Starting, Unasked};
+        match (self, event) {
+            (Unasked, Event::Query { wanted }) => (Starting(Ask::first(wanted)), Action::Ask(Ask::first(wanted).request())),
+            (Starting(ask), Event::Query { .. }) => (self, Action::Ask(ask.request())),
+            (Loaded { fetch: Some(Fetch { ask, .. }), .. }, Event::Query { .. }) => {
+                (self, Action::AskAlone { request: ask.request(), filler: ask.lobby() })
+            }
+            (Loaded { fetch: None, .. }, Event::Query { .. }) => (self, Action::Original),
 
-    /// The results are in; `loaded`: the project's place holds what was
-    /// asked, usable (ScenesReady::loaded).
-    pub fn on_ready(self, loaded: bool) -> (Scene, Next) {
-        match self {
-            Scene::Probing(lobby) if loaded => (Scene::Asked(lobby), Next::AskAgain),
-            Scene::Probing(_) => (Scene::Asked(Lobby::Classic), Next::AskAgain),
-            Scene::Asked(lobby) if loaded || lobby == Lobby::Classic => (Scene::Shown(lobby), Next::Take),
-            Scene::Asked(_) => (Scene::Asked(Lobby::Classic), Next::AskAgain),
-            other => (other, Next::Take),
+            (Unasked, Event::Ready { .. }) | (Loaded { fetch: None, .. }, Event::Ready { .. }) => (self, Action::Original),
+            (Starting(Ask::Config(lobby)), Event::Ready { loaded, .. }) => {
+                (Starting(Ask::Project(if loaded { lobby } else { Lobby::Classic })), Action::AskAgain)
+            }
+            (Starting(Ask::Project(lobby)), Event::Ready { loaded, .. }) if loaded || lobby == Lobby::Classic => {
+                (Loaded { shown: lobby, view: View::Drawn, fetch: None }, Action::Original)
+            }
+            (Starting(Ask::Project(_)), Event::Ready { .. }) => (Starting(Ask::Project(Lobby::Classic)), Action::AskAgain),
+            (Loaded { shown, view: View::Drawn, fetch: Some(_) }, Event::Ready { .. }) => {
+                (Loaded { shown, view: View::Drawn, fetch: None }, Action::LetGo)
+            }
+            (Loaded { shown, view: View::Hidden, fetch: Some(fetch) }, Event::Ready { loaded, wanted }) => {
+                let hidden = |fetch| Loaded { shown, view: View::Hidden, fetch };
+                let ask = |ask| (hidden(Some(Fetch { wanted, ask })), Action::AskAgain);
+                let classic = || if shown == Lobby::Classic { (hidden(None), Action::LetGo) } else { ask(Ask::Project(Lobby::Classic)) };
+                match fetch.ask {
+                    _ if fetch.wanted != wanted && wanted == shown => (hidden(None), Action::LetGo),
+                    _ if fetch.wanted != wanted => ask(Ask::first(wanted)),
+                    Ask::Config(lobby) if loaded => ask(Ask::Project(lobby)),
+                    Ask::Project(lobby) if loaded => (Loaded { shown: lobby, view: View::Hidden, fetch: None }, Action::Swap),
+                    Ask::Project(Lobby::Classic) => (hidden(None), Action::LetGo),
+                    Ask::Config(_) | Ask::Project(_) => classic(),
+                }
+            }
+
+            (Loaded { shown, fetch: None, .. }, Event::Hidden { wanted }) if wanted != shown => {
+                (Loaded { shown, view: View::Hidden, fetch: Some(Fetch { wanted, ask: Ask::first(wanted) }) }, Action::Query)
+            }
+            (Loaded { shown, fetch, .. }, Event::Hidden { .. }) => (Loaded { shown, view: View::Hidden, fetch }, Action::Original),
+            (Unasked | Starting(_), Event::Hidden { .. }) => (self, Action::Original),
+
+            (Loaded { shown, fetch, .. }, Event::Shown) => (Loaded { shown, view: View::Drawn, fetch }, Action::Original),
+            (Unasked | Starting(_), Event::Shown) => (self, Action::Original),
         }
     }
 }
@@ -196,12 +301,29 @@ pub fn on_faction(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The lobby of the faction saved now.
+fn wanted(thread: &Thread) -> Lobby {
+    Lobby::of_faction(Faction::parse(SAVED.get(thread)))
+}
+
+/// One step of the machine, the scene kept (before the site acts: a query
+/// it asks may come back at once).
+fn step(thread: &Thread, event: Event) -> Action {
+    let (scene, action) = SCENE.get(thread).step(event);
+    SCENE.set(thread, scene);
+    action
+}
+
 pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let scene = SCENE.get(thread).on_query(Lobby::of_faction(Faction::parse(SAVED.get(thread))));
-    SCENE.set(thread, scene);
-    if let (Some(request), Some(mut query)) = (scene.request(), SceneQuery::at(ctx)) {
-        query.ask(request);
+    let action = step(thread, Event::Query { wanted: wanted(thread) });
+    if let Some(mut query) = SceneQuery::at(ctx) {
+        match action {
+            Action::Ask(request) => query.ask(request),
+            Action::AskAlone { request, filler } => query.ask_alone(request, filler.config()),
+            // the query's own list; the other actions are not a query's
+            Action::Original | Action::AskAgain | Action::LetGo | Action::Swap | Action::Query => {}
+        }
     }
     Flow::Continue
 }
@@ -209,17 +331,33 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExit> {
     let Some(ready) = ScenesReady::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
-    let scene = SCENE.get(thread);
-    let loaded = scene.request().is_some_and(|asked| ready.loaded(asked));
-    let (scene, next) = scene.on_ready(loaded);
-    SCENE.set(thread, scene);
-    match next {
-        Next::Take => Flow::Continue,
-        Next::AskAgain => {
-            ready.ask_again();
-            Flow::Exit(LobbySceneOnScenesReadyExit::Done)
-        }
+    let loaded = SCENE.get(thread).asked().is_some_and(|asked| ready.loaded(asked));
+    match step(thread, Event::Ready { loaded, wanted: wanted(thread) }) {
+        Action::AskAgain => ready.ask_again(),
+        Action::Swap => ready.swap(),
+        Action::LetGo => {}
+        // the lobby menu takes them; the other actions are not a result's
+        Action::Original | Action::Ask(_) | Action::AskAlone { .. } | Action::Query => return Flow::Continue,
     }
+    Flow::Exit(LobbySceneOnScenesReadyExit::Done)
+}
+
+/// A match entered: the lobby not drawn until it is shown again. When the
+/// faction's lobby is not the one shown, its project is asked now.
+pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if step(thread, Event::Hidden { wanted: wanted(thread) }) == Action::Query
+        && let Some(lobby) = HiddenLobby::at(ctx)
+    {
+        lobby.ask();
+    }
+    Flow::Continue
+}
+
+/// The lobby shown again: a swap's results that come from now on are let go.
+pub fn on_activate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    step(ctx.thread(), Event::Shown);
+    Flow::Continue
 }
 
 #[cfg(test)]
@@ -254,21 +392,27 @@ mod tests {
         }
     }
 
-    /// The scene through its queries and results until the lobby has it:
-    /// the requests asked, in order, and the lobby shown.
+    /// The start: the scene through its queries and results until the
+    /// lobby menu takes it: the requests asked, in order, and the lobby
+    /// shown.
     fn run(chosen: Lobby, mut loads: impl FnMut(SceneRequest) -> bool) -> (std::vec::Vec<SceneRequest>, Lobby) {
         let mut scene = Scene::Unasked;
         let mut asked = std::vec::Vec::new();
         loop {
-            scene = scene.on_query(chosen);
-            let request = scene.request().expect("a query asks");
+            let (next, action) = scene.step(Event::Query { wanted: chosen });
+            let Action::Ask(request) = action else { panic!("a start's query asks: {action:?}") };
+            assert_eq!(next.asked(), Some(request));
             asked.push(request);
             assert!(asked.len() <= 3, "at most a probe, the lobby and the classic");
-            let (next, step) = scene.on_ready(loads(request));
+            let (next, action) = next.step(Event::Ready { loaded: loads(request), wanted: chosen });
             scene = next;
-            if step == Next::Take {
-                let Scene::Shown(lobby) = scene else { panic!("taken but not shown: {scene:?}") };
-                return (asked, lobby);
+            match action {
+                Action::AskAgain => continue,
+                Action::Original => {
+                    let Scene::Loaded { shown, view: View::Drawn, fetch: None } = scene else { panic!("{scene:?}") };
+                    return (asked, shown);
+                }
+                other => panic!("a start's results: {other:?}"),
             }
         }
     }
@@ -314,8 +458,252 @@ mod tests {
 
     #[test]
     fn results_this_patch_did_not_ask_for_are_the_lobby_menus() {
-        assert_eq!(Scene::Unasked.on_ready(false), (Scene::Unasked, Next::Take));
-        assert_eq!(Scene::Shown(Lobby::Camp069).on_ready(false), (Scene::Shown(Lobby::Camp069), Next::Take));
-        assert_eq!(Scene::Unasked.request(), None);
+        let wanted = Lobby::Camp069;
+        assert_eq!(Scene::Unasked.step(Event::Ready { loaded: false, wanted }), (Scene::Unasked, Action::Original));
+        let shown = Scene::Loaded { shown: Lobby::Camp069, view: View::Drawn, fetch: None };
+        assert_eq!(shown.step(Event::Ready { loaded: false, wanted }), (shown, Action::Original));
+        assert_eq!(shown.step(Event::Query { wanted }), (shown, Action::Original));
+        assert_eq!(Scene::Unasked.asked(), None);
+    }
+
+    /// A game after its start: the scene and each event's action, every
+    /// query and result played as the game plays them (`loads` says whether
+    /// what was asked is there).
+    struct Game {
+        scene: Scene,
+        wanted: Lobby,
+        loads: fn(SceneRequest) -> bool,
+        /// A swap's query asked and its results not yet in.
+        pending: Option<SceneRequest>,
+        actions: std::vec::Vec<Action>,
+    }
+
+    impl Game {
+        fn new(shown: Lobby, loads: fn(SceneRequest) -> bool) -> Game {
+            Game { scene: Scene::Loaded { shown, view: View::Drawn, fetch: None }, wanted: shown, loads, pending: None, actions: std::vec![] }
+        }
+
+        fn event(&mut self, event: Event) -> Action {
+            let (scene, action) = self.scene.step(event);
+            if action == Action::Swap {
+                assert!(matches!(self.scene, Scene::Loaded { view: View::Hidden, .. }), "a swap while drawn: {:?}", self.scene);
+            }
+            self.scene = scene;
+            self.actions.push(action);
+            action
+        }
+
+        /// The lobby's query built: what it asks in the project's place.
+        fn query(&mut self) {
+            match self.event(Event::Query { wanted: self.wanted }) {
+                Action::AskAlone { request, filler } => {
+                    assert_eq!(filler.config(), match request {
+                        SceneRequest::Config(name) => name,
+                        SceneRequest::Project(_) => filler.config(),
+                    });
+                    self.pending = Some(request);
+                }
+                other => panic!("a swap's query: {other:?}"),
+            }
+        }
+
+        fn faction(&mut self, lobby: Lobby) {
+            self.wanted = lobby;
+        }
+
+        fn match_entered(&mut self) {
+            if self.event(Event::Hidden { wanted: self.wanted }) == Action::Query {
+                self.query();
+            }
+        }
+
+        fn back(&mut self) {
+            self.event(Event::Shown);
+        }
+
+        /// The pending query's results come; each re-ask's too.
+        fn results(&mut self) {
+            while let Some(request) = self.pending.take() {
+                let loaded = (self.loads)(request);
+                if self.event(Event::Ready { loaded, wanted: self.wanted }) == Action::AskAgain {
+                    self.query();
+                }
+            }
+        }
+
+        fn shown(&self) -> Lobby {
+            let Scene::Loaded { shown, .. } = self.scene else { panic!("{:?}", self.scene) };
+            shown
+        }
+    }
+
+    #[test]
+    fn a_faction_change_shows_after_the_next_match() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        assert_eq!(game.shown(), Lobby::Classic, "not while the lobby is drawn");
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Hangar046);
+        assert!(game.actions.contains(&Action::Swap));
+        game.back();
+        assert_eq!(game.scene, Scene::Loaded { shown: Lobby::Hangar046, view: View::Drawn, fetch: None });
+        let before = game.actions.len();
+        game.match_entered();
+        game.back();
+        assert_eq!(game.actions[before..], [Action::Original, Action::Original], "the same faction: nothing asked");
+    }
+
+    #[test]
+    fn a_swap_asks_the_config_then_the_project_and_nothing_else() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Camp069);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.actions, [
+            Action::Query,
+            Action::AskAlone { request: SceneRequest::Config(Lobby::Camp069.config()), filler: Lobby::Camp069 },
+            Action::AskAgain,
+            Action::AskAlone { request: SceneRequest::Project(Lobby::Camp069.project()), filler: Lobby::Camp069 },
+            Action::Swap,
+        ]);
+    }
+
+    #[test]
+    fn back_to_the_classic_is_its_project_at_once() {
+        let mut game = Game::new(Lobby::Stk2Blockpost, |_| true);
+        game.faction(Lobby::Classic);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+        assert_eq!(game.actions[1], Action::AskAlone { request: SceneRequest::Project(c"lobby_scene/day"), filler: Lobby::Classic });
+    }
+
+    #[test]
+    fn a_missing_pack_is_the_classic_and_never_its_project() {
+        let missing = |request| request != SceneRequest::Config(Lobby::Stk2Blockpost.config());
+        let mut game = Game::new(Lobby::Hangar046, missing);
+        game.faction(Lobby::Stk2Blockpost);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+        assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone { request: SceneRequest::Project(name), .. }
+            if *name == Lobby::Stk2Blockpost.project())));
+        // the next match asks its config again, finds it missing, keeps the classic
+        game.back();
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+        assert_eq!(*game.actions.last().unwrap(), Action::LetGo);
+    }
+
+    #[test]
+    fn a_project_without_its_track_is_the_classic() {
+        let broken = |request| request != SceneRequest::Project(Lobby::Camp069.project());
+        let mut game = Game::new(Lobby::Hangar046, broken);
+        game.faction(Lobby::Camp069);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+    }
+
+    #[test]
+    fn the_classic_failing_keeps_the_lobby_shown() {
+        let mut game = Game::new(Lobby::Hangar046, |_| false);
+        game.faction(Lobby::Classic);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Hangar046);
+        assert_eq!(*game.actions.last().unwrap(), Action::LetGo);
+    }
+
+    #[test]
+    fn results_after_the_return_are_let_go_and_asked_at_the_next_match() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.match_entered();
+        game.back();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic, "never swapped while drawn");
+        assert_eq!(*game.actions.last().unwrap(), Action::LetGo);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Hangar046);
+    }
+
+    #[test]
+    fn a_query_in_flight_at_the_next_match_is_taken_then() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.match_entered();
+        game.back();
+        game.match_entered();
+        assert_eq!(*game.actions.last().unwrap(), Action::Original, "one query at a time");
+        game.results();
+        assert_eq!(game.shown(), Lobby::Hangar046);
+    }
+
+    #[test]
+    fn a_faction_changed_while_its_query_is_out_asks_the_new_one() {
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.match_entered();
+        game.back();
+        game.faction(Lobby::Camp069);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Camp069);
+        // and changed back to the one shown: let go
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.faction(Lobby::Hangar046);
+        game.match_entered();
+        game.back();
+        game.faction(Lobby::Classic);
+        game.match_entered();
+        game.results();
+        assert_eq!(game.shown(), Lobby::Classic);
+        assert_eq!(*game.actions.last().unwrap(), Action::LetGo);
+    }
+
+    #[test]
+    fn hidden_and_shown_before_the_scene_change_nothing() {
+        for scene in [Scene::Unasked, Scene::Starting(Ask::Config(Lobby::Camp069))] {
+            assert_eq!(scene.step(Event::Hidden { wanted: Lobby::Hangar046 }), (scene, Action::Original));
+            assert_eq!(scene.step(Event::Shown), (scene, Action::Original));
+        }
+    }
+
+    /// Every sequence of events (up to a length) from a lobby shown: a swap
+    /// only while hidden (Game::event), a query only while hidden, at most
+    /// one swap query in flight, and whatever comes the lobby shown is one a
+    /// faction asked or the classic.
+    #[test]
+    fn no_sequence_swaps_while_drawn() {
+        const LOADS: [fn(SceneRequest) -> bool; 3] = [|_| true, |_| false, |r| matches!(r, SceneRequest::Project(_))];
+        let steps = 6;
+        for loads in LOADS {
+            for code in 0..(6usize.pow(steps)) {
+                let mut game = Game::new(Lobby::Classic, loads);
+                let mut factions = std::vec![Lobby::Classic];
+                let mut c = code;
+                for _ in 0..steps {
+                    match c % 6 {
+                        0 => game.faction(Lobby::Hangar046),
+                        1 => game.faction(Lobby::Classic),
+                        2 => game.match_entered(),
+                        3 => game.back(),
+                        4 => game.results(),
+                        _ => game.faction(Lobby::Camp069),
+                    }
+                    factions.push(game.wanted);
+                    c /= 6;
+                }
+                game.results();
+                assert!(factions.contains(&game.shown()) || game.shown() == Lobby::Classic, "{code}: {:?}", game.scene);
+                if let Scene::Loaded { view: View::Drawn, fetch: None, shown } = game.scene {
+                    assert_eq!(game.scene.step(Event::Query { wanted: shown }).1, Action::Original);
+                }
+            }
+        }
     }
 }

@@ -13,7 +13,13 @@ struct bullet_manager;
 struct bullet_physics_world;
 struct cc_string;
 struct engine_cfg;
+struct game_effect;
+struct game_effect_list;
+struct game_effect_listener;
+struct game_effect_player;
+struct game_effect_slot;
 struct game_material_manager;
+struct game_project_resource;
 struct gfx_movie;
 struct gfx_value;
 struct lobby_menu;
@@ -24,9 +30,12 @@ struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
+struct pure_game_effect_emitter;
 struct ray_result;
 struct render_model_instance;
 struct scene_renderer;
+struct simple_game_project;
+struct static_collision;
 struct text_translator;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
@@ -202,5 +211,35 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lci
 
 /* 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0 */
 void engine_lobby_query_resources(struct lobby_menu *menu);
+
+/* 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0 */
+void engine_project_remove(struct simple_game_project *project);
+
+/* 0x285540 survarium::simple_game_project::insert: project EAX; pops 0 */
+void engine_project_insert(struct simple_game_project *project);
+
+/* 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_project_on_inserted(struct simple_game_project *project);
+
+/* 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world);
+
+/* 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world);
+
+/* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
+void engine_effects_stop(struct game_effect_list *effects);
+
+/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
+
+/* virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX */
+struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second);
+
+/* virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4 */
+void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0 */
+void engine_release_resource(struct game_project_resource *resource, unsigned int *count);
 
 #endif

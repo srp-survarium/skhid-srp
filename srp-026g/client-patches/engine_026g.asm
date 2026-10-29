@@ -62,6 +62,16 @@ global engine_save_user_config
 global engine_translate_text
 global engine_get_user_default_lcid
 global engine_lobby_query_resources
+global engine_project_remove
+global engine_project_insert
+global engine_project_on_inserted
+global engine_collision_insert
+global engine_collision_remove
+global engine_effects_stop
+global engine_effect_play
+global engine_emitter_emit
+global engine_emitter_destroy
+global engine_release_resource
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -76,6 +86,9 @@ engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP
 engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly
 engine_translate_text equ 0x1ff0f0   ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
 engine_get_user_default_lcid equ 0x87027c   ; the IAT slot 0x87027c (an import, stdcall)
+engine_project_on_inserted equ 0x2f8720   ; 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
+engine_collision_insert equ 0x2f8850   ; 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
+engine_collision_remove equ 0x2f8970   ; 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -835,6 +848,123 @@ engine_lobby_query_resources:
     push edi
     mov eax, [esp + 20]   ; menu
     call 0x21e450
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_project_remove:
+    ; 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; project
+    call 0x2855b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_project_insert:
+    ; 0x285540 survarium::simple_game_project::insert: project EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; project
+    call 0x285540
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_effects_stop:
+    ; 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; effects
+    call 0x2de7f0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_effect_play:
+    ; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; listener -> 20
+    push dword [esp + 40]   ; fourth -> 16
+    push dword [esp + 40]   ; third -> 12
+    push dword [esp + 40]   ; second -> 8
+    push dword [esp + 40]   ; effect -> 4
+    mov edi, [esp + 40]   ; player
+    call 0x2de090
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_emitter_emit:
+    ; virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; second -> 12
+    push dword [esp + 32]   ; first -> 8
+    push dword [esp + 32]   ; out -> 4
+    mov ecx, [esp + 32]   ; emitter
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x20]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_emitter_destroy:
+    ; virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; effect -> 4
+    mov ecx, [esp + 24]   ; emitter
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_resource:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; resource
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx

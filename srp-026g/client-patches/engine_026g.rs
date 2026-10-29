@@ -99,6 +99,20 @@ unsafe extern "C" {
     pub fn engine_cc_string(object: *mut c_void, name: *const u8, buffer: *mut u8, size: u32, saved: u32);
     /// 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
     pub fn engine_lobby_query_resources(menu: *mut c_void);
+    /// 0x2855b0 survarium::simple_game_project::remove: project ESI; pops 0
+    pub fn engine_project_remove(project: *mut c_void);
+    /// 0x285540 survarium::simple_game_project::insert: project EAX; pops 0
+    pub fn engine_project_insert(project: *mut c_void);
+    /// 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
+    pub fn engine_effects_stop(effects: *mut c_void);
+    /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    pub fn engine_effect_play(player: *mut c_void, effect: *mut c_void, second: u32, third: u32, fourth: u32, listener: *mut c_void);
+    /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
+    pub fn engine_emitter_emit(emitter: *mut c_void, out: *mut c_void, first: f32, second: f32) -> *mut c_void;
+    /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
+    pub fn engine_emitter_destroy(emitter: *mut c_void, effect: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
+    pub fn engine_release_resource(resource: *mut c_void, count: *mut u32);
 }
 
 #[allow(dead_code)]
@@ -125,6 +139,12 @@ unsafe extern "thiscall" {
     pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
+    /// 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
+    pub fn engine_project_on_inserted(project: *mut c_void);
+    /// 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_collision_insert(collision: *mut c_void, world: *mut c_void);
+    /// 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_collision_remove(collision: *mut c_void, world: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

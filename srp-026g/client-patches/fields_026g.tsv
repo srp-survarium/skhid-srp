@@ -124,6 +124,8 @@ scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C strin
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
 survarium::lobby_query_frame	scene	-0x68	obj<vostok::resources::request>	lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
 survarium::lobby_query_frame	scene_data	-0x34	obj<vostok::resources::user_data_slot>	its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
+survarium::lobby_query_frame	requests	-0x80	obj<vostok::resources::request>	its eight requests (8 bytes each; the count 8 at 0x21E5E7): game_scene, game_scene_view, sound_scene, the project, two movies, two binary configs
+survarium::lobby_query_frame	user_data	-0x40	obj<vostok::resources::user_data_slot>	their eight user data pointers (0x21E5DF)
 vostok::resources::request	name	0x0	ptr<u8>	a request's resource name (a C string the query reads while it runs)
 vostok::resources::request	class	0x4	u32	its resource class (40h a game project, 1Fh a binary config: lobby_menu::query_resources' list)
 vostok::resources::request	size	0x8	size	{name, class}: the request list's stride
@@ -133,4 +135,22 @@ survarium::scenes_ready_frame	results	0x4	ptr<survarium::lobby_scene_results>	on
 survarium::lobby_scene_results	scene	0x9CC	u32	the fourth result's resource (+12Ch of result 3, 2E0h each; 0x220DA2): 0 when its query failed
 survarium::lobby_scene_results	project	0x9CC	ptr<survarium::game_project_resource>	the same, as the lobby's project (its resource part, project+38h; 0x220DC7)
 survarium::game_project_resource	track	0x1AC	u32	the project's camera track (project+1E4h): on_render_scenes_ready calls its vtable+20h unchecked (0x220E80)
-survarium::lobby_menu	project	0x114	u32	the lobby's project (simple_game_project, the resource less 38h; 0x220E01), 0 before the scene is ready
+survarium::lobby_menu	scene	0x114	obj<survarium::lobby_project_slot>	where it keeps its project (0x220E01; clear_resources 0x21D0DD)
+survarium::lobby_menu	track_player	0x118	obj<survarium::game_effect_player>	the player of its project's track (0x220E57: stopped, cleared, the track's effect played)
+survarium::lobby_menu	listener	0x684	obj<survarium::game_effect_listener>	the listener its track's effect is played with (0x220E67)
+survarium::lobby_menu	physics_world	0x3104	ptr<vostok::physics::bullet_physics_world>	the physics world its project's static collisions are in (0x221966, 0x21D0B7)
+survarium::lobby_project_slot	project	0x0	ptr<survarium::simple_game_project>	the lobby's project (the resource less 38h; one reference of its count), 0 before the scene is ready
+survarium::lobby_project_slot	size	0x4	size	the lobby menu's +114h
+survarium::simple_game_project	collisions	0x28	ptr<survarium::static_collision>	its static collisions (an array, 50h each; 0x221956)
+survarium::simple_game_project	collision_count	0x2C	u32	how many
+survarium::simple_game_project	resource	0x38	obj<survarium::game_project_resource>	its resource part (what a query's result holds)
+survarium::simple_game_project	count	0x108	u32	its reference count (the resource's +0D0h; lock xadd, 0x220DE0; at 0 engine_release_object, 0x21D0FB)
+survarium::simple_game_project	track	0x1E4	ptr<survarium::pure_game_effect_emitter>	its track's emitter (on_render_scenes_ready makes the lobby's effect of it, 0x220E80)
+survarium::game_project_resource	project	-0x38	obj<survarium::simple_game_project>	the project it is the resource part of (0x220DC7)
+survarium::static_collision	size	0x50	size	one of a project's static collisions (new_array_helper<static_collision>, vtable 0xA029A8)
+survarium::game_effect_player	state	0x0	u32	cleared (0) after a stop and before a play (0x21D0D1, 0x220E74)
+survarium::game_effect_player	effects	0x8	obj<survarium::game_effect_list>	what it plays (game_effect_player::stop's EDI, 0x220E5D)
+survarium::game_effect	emitter	0xC	ptr<survarium::pure_game_effect_emitter>	the emitter that made it (its vtable+1Ch destroys it, 0x220EB8)
+survarium::game_effect	count	0x1C	u32	its reference count (not atomic: add [eax+1Ch],-1 at 0x220EAE)
+survarium::game_effect_slot	effect	0x0	ptr<survarium::game_effect>	an intrusive_ptr<game_effect>: an emitter's emit writes the made effect (its count taken) or 0
+survarium::game_effect_slot	size	0x4	size	one pointer (on_render_scenes_ready's [esp+28h])

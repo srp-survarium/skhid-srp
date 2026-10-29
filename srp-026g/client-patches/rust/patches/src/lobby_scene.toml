@@ -20,3 +20,11 @@ handler = "on_scene_request"
 [[hook]]
 site = "lobby_menu.scenes_ready"
 handler = "on_scenes_ready"
+
+[[hook]]
+site = "lobby_menu.deactivate"
+handler = "on_deactivate"
+
+[[hook]]
+site = "lobby_menu.activate"
+handler = "on_activate"

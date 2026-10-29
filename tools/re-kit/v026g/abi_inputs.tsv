@@ -4729,3 +4729,57 @@ va	name	location	role	basis
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+0Ch	locked (nonzero: lock)	observed
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	entry ESP+10h	a byte argument, meaning not established	observed
 0x0033e680	survarium::oxygen_tank::find_influence	EAX	the oxygen tank (+28Ch the influence rows, +290h their count)	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00299d40	survarium::post_process_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00299ff0	survarium::hud_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x0029a580	survarium::sound_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x002efeb0	survarium::composite_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	ECX	the emitter (this)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+4	out: the made effect's intrusive_ptr, written and returned in EAX	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+8	first float (0.0 from the lobby, 0x220E96)	observed
+0x00333360	survarium::hit_player_game_effect_emitter::emit	entry ESP+0Ch	second float (1.0 from the lobby, 0x220E65)	observed
+0x001f65d0	survarium::hud_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x001f65d0	survarium::hud_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x0029a320	survarium::particle_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x0029a320	survarium::particle_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002f0130	survarium::composite_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x002f0130	survarium::composite_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	ECX	the emitter (this; the effect's +0Ch)	observed
+0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	entry ESP+4	the effect to destroy (its count +1Ch at 0)	observed
+0x002855b0	survarium::simple_game_project::remove	ESI	the project (simple_game_project, lobby menu+114h)	observed
+0x00285540	survarium::simple_game_project::insert	EAX	the project (simple_game_project, lobby menu+114h)	observed
+0x002f8720	survarium::simple_game_project::on_inserted	ECX	the project (this)	observed
+0x002f8850	survarium::static_collision::insert	ECX	the static collision (this; one of the project's +28h, 50h each)	observed
+0x002f8850	survarium::static_collision::insert	entry ESP+4	the physics world (lobby menu+3104h)	observed
+0x002f8970	survarium::static_collision::remove	ECX	the static collision (this; one of the project's +28h, 50h each)	observed
+0x002f8970	survarium::static_collision::remove	entry ESP+4	the physics world (lobby menu+3104h)	observed
+0x002de7f0	survarium::game_effect_player::stop	EDI	the player's effects (the game effect player+8: lobby menu+120h)	observed
+0x002de090	survarium::game_effect_player::play	EDI	the game effect player (lobby menu+118h)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+4	&the effect to play (an intrusive_ptr: the emitter's made one)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+8	second argument (0 at the lobby, 0x220E72)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+0Ch	third argument (1 at the lobby, 0x220E70)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+10h	fourth argument (0 at the lobby, 0x220E6E)	observed
+0x002de090	survarium::game_effect_player::play	entry ESP+14h	the listener (lobby menu+684h, 0x220E6D)	observed

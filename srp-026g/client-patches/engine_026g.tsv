@@ -57,3 +57,13 @@ engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl
 engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(struct text_translator *translator, const char *key, char *out)	thiscall	
 engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	
 engine_lobby_query_resources	0x21e450	EAX:menu	void engine_lobby_query_resources(struct lobby_menu *menu)	thunk	
+engine_project_remove	0x2855b0	ESI:project	void engine_project_remove(struct simple_game_project *project)	thunk	
+engine_project_insert	0x285540	EAX:project	void engine_project_insert(struct simple_game_project *project)	thunk	
+engine_project_on_inserted	0x2f8720	ECX:project	void engine_project_on_inserted(struct simple_game_project *project)	thiscall	
+engine_collision_insert	0x2f8850	ECX:collision ESP+4:world	void engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world)	thiscall	
+engine_collision_remove	0x2f8970	ECX:collision ESP+4:world	void engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world)	thiscall	
+engine_effects_stop	0x2de7f0	EDI:effects	void engine_effects_stop(struct game_effect_list *effects)	thunk	
+engine_effect_play	0x2de090	EDI:player ESP+4:effect ESP+8:second ESP+12:third ESP+16:fourth ESP+20:listener	void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)	thunk	
+engine_emitter_emit	survarium::pure_game_effect_emitter+0x20	ECX:emitter ESP+4:out ESP+8:first ESP+12:second	struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)	virtual	
+engine_emitter_destroy	survarium::pure_game_effect_emitter+0x1c	ECX:emitter ESP+4:effect	void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect)	virtual	
+engine_release_resource	0x0e0210	ECX:instance EAX:count	void engine_release_resource(struct game_project_resource *resource, unsigned int *count)	thunk	

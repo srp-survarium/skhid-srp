@@ -4026,8 +4026,9 @@ def test_language(original, image, before):
 
 def test_lobby_scene(original, image, before):
     """Check 81: the lobby's scene follows the player's quest faction, the
-    last one kept in user.cfg (patch 81, the Rust patch `lobby_scene`, four
-    lohooks of lobby_scene.toml, one in a chain after patch 79's;
+    last one kept in user.cfg, swapped while a match is up (patch 81, the
+    Rust patch `lobby_scene`, six lohooks of lobby_scene.toml, one in a
+    chain after patch 79's;
     ../docs/notes/lobby-scenes.md). check_lobby_scene_026g.py runs each from
     the game's code on made-up objects, the original beside."""
     stock = Image(original)
@@ -4054,20 +4055,48 @@ def test_lobby_scene(original, image, before):
           and rows(0x225D00, 6) == ["mov edi,[eax+0x1ea998]"] and rows(0x21D428, 7) == ["cmp dword [eax+0x1ea998],byte +0x0"],
           "the 0x8E handler (0x271740) keeps the message's last byte, the quest faction, at the lobby client's "
           "+1EA998h (0x2717CF, EBX the client), which the faction's UI reads (0x225D00, 0x21D428)")
+    vtable = lambda at, n: list(struct.unpack(f"<{n}I", stock.read(at, 4 * n)))
+    check(rows(0x21D2E0, 6) == rows(0x21D4A0, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"]
+          and vtable(0x9FFE74, 2) == [0x21D2E0, 0x21D4A0] and vtable(0x9FFE74 + 0x28, 1) == [0x21D080],
+          "the lobby menu's vtable (0x9FFE74) is on_activate (0x21D2E0), on_deactivate (0x21D4A0), ..., "
+          "clear_resources (+28h, 0x21D080); both start push ebp / mov ebp,esp / and esp,-8")
+    # the swap redoes these halves (vostok::lobby::ScenesReady::swap)
+    check(rows(0x21D085, 6) == ["mov esi,[ebp+0x114]"] and rows(0x21D093, 5) == ["call 0x2855b0"]
+          and rows(0x21D0B1, 0xF) == ["mov edx,[edx+0x4]", "lea ecx,[eax+esi]", "mov eax,[ebp+0x3104]", "push eax",
+                                       "call edx"]
+          and rows(0x21D0C6, 0x11) == ["lea edi,[ebp+0x120]", "call 0x2de7f0", "mov [ebp+0x118],ebx"]
+          and rows(0x21D0F8, 8) == ["add ecx,byte +0x38", "call 0xe0210"]
+          and rows(0x220E4A, 0x1B) == ["mov ecx,[ebx+0x114]", "mov eax,[ecx]", "mov edx,[eax+0xc]", "call edx",
+                                        "lea esi,[ebx+0x118]", "lea edi,[esi+0x8]", "call 0x2de7f0"]
+          and rows(0x220E86, 5) == ["mov eax,[ecx]", "mov eax,[eax+0x20]"] and rows(0x220EA1, 5) == ["call 0x2de090"]
+          and rows(0x220EAE, 0x15) == ["add dword [eax+0x1c],byte -0x1", "jnz 0x220ec3", "mov eax,[esp+0x10]",
+                                        "mov ecx,[eax+0xc]", "mov edx,[ecx]", "push eax", "mov eax,[edx+0x1c]",
+                                        "call eax"]
+          and rows(0x22193E, 0xB) == ["mov eax,[ebx+0x114]", "call 0x285540"]
+          and rows(0x221961, 0xE) == ["mov edx,[edx]", "lea ecx,[eax+esi]", "mov eax,[ebx+0x3104]", "push eax",
+                                       "call edx"]
+          and vtable(0xA0A064 + 0xC, 1) == [0x2F8720] and vtable(0xA029A8, 2) == [0x2F8850, 0x2F8970],
+          "the project halves the swap redoes: clear_resources' (remove 0x2855B0, each static collision's "
+          "vtable+4 with the physics world +3104h, the track player's stop 0x2DE7F0 and +118h 0, the release "
+          "0xE0210) and on_render_scenes_ready's (the project's vtable+0Ch, simple_game_project's 0x2F8720; the "
+          "stop; the track's emitter's vtable+20h, play 0x2DE090, the effect's emitter's vtable+1Ch at 0; "
+          "insert 0x285540, each collision's vtable+0); static_collision's vtable 0xA029A8: insert 0x2F8850, "
+          "remove 0x2F8970")
     import hooks_026g
     every = hooks_026g.hooks()
     hooks = {h["site_name"]: h for h in every if h["patch"] == "lobby_scene"}
     heads = {h["site_name"]: h for h in every if h.get("chain")}
     linked = P.arena()
     block = linked.blocks["patches.code"]
-    check(sorted(hooks) == ["configs.start", "lobby_client.faction", "lobby_menu.scene_request",
-                            "lobby_menu.scenes_ready"]
+    check(sorted(hooks) == ["configs.start", "lobby_client.faction", "lobby_menu.activate", "lobby_menu.deactivate",
+                            "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
           and hooks["configs.start"].get("chained") and heads["configs.start"]["patch"] == "language"
           and heads["configs.start"]["chain"][-1] == hooks["configs.start"]["shim"],
-          "lobby_scene.toml's four hooks are lohooks; at configs.start in the chain after patch 79's handler "
+          "lobby_scene.toml's six hooks are lohooks; at configs.start in the chain after patch 79's handler "
           "(one entry, language's, calls both shims)")
-    for site in ("lobby_client.faction", "lobby_menu.scene_request", "lobby_menu.scenes_ready"):
+    for site in ("lobby_client.faction", "lobby_menu.scene_request", "lobby_menu.scenes_ready", "lobby_menu.activate",
+                 "lobby_menu.deactivate"):
         h = hooks[site]
         va, old = h["site"], h["original"]
         entry = linked.symbols[h["entry"]]
@@ -4924,8 +4953,8 @@ def test_ragdoll(original, image, before):
     texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
-               if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
+    library = {sym[f["symbol"]] if f["call"] in engine_026g.THUNKED else f["va"] for f in engine_026g.every_function()
+               if f["call"] != "import" and (f["symbol"] in sym or f["call"] not in engine_026g.THUNKED)}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
     # arena_rt exports weak intrinsics so multiple Rust arena crates share
