@@ -357,18 +357,6 @@ fn piece_html(
     });
     let bullets = best(armour, &PHYSICAL);
     let anomalies = best(armour, &ANOMALIES);
-    let flying = if flies_off(armour) {
-        format!(
-            " <span class=flies-off title=\"{tip}\">{label}</span>",
-            tip = lang.tr(
-                "Flies off on a fatal headshot",
-                "Злітає при смертельному влучанні в голову"
-            ),
-            label = lang.tr("flies off", "злітає")
-        )
-    } else {
-        String::new()
-    };
     let quick = |label: String, value: String, unit: &str| {
         format!(
             "<div><dt>{}</dt><dd>{}<small>{}</small></dd></div>",
@@ -390,8 +378,8 @@ fn piece_html(
     format!(
         "<details class=\"weapon gear\" id=\"{key}\" data-slot={slot_word} data-faction={faction_id} \
          data-level={level} data-name=\"{lower}\" data-weight={weight} data-armour={bullets} \
-         data-isolation={anomalies} data-set=\"{set}\" data-flies={flies}><summary>{picture}\
-         <span class=weapon-title><strong>{name_html}</strong><span>{slot_html} · {level_word} {level} · {faction_html}{premium}{flying}</span></span>\
+         data-isolation={anomalies} data-set=\"{set}\"><summary>{picture}\
+         <span class=weapon-title><strong>{name_html}</strong><span>{slot_html} · {level_word} {level} · {faction_html}{premium}</span></span>\
          <dl class=quick-stats>{q1}{q2}{q3}</dl>\
          <span class=expand-label>{details} <span aria-hidden=true>+</span></span></summary>\
          <div class=weapon-details>{protection}{about}<section class=gear-modifiers>{lists}\
@@ -402,7 +390,6 @@ fn piece_html(
         level = params.item_level,
         lower = escape(&name.to_lowercase()),
         weight = params.weight,
-        flies = u8::from(flies_off(armour)),
         set = escape(&set_key(item, params)),
         name_html = escape(&name),
         slot_html = escape(&slot),
@@ -616,7 +603,10 @@ mod tests {
             "Pilgrim stays on: {flying:?}"
         );
         assert!(flying.len() >= 8, "{flying:?}");
-        assert!(body(Lang::En).contains("class=flies-off"));
+        // A hidden detail: on the card, not on the list's row.
+        let page = body(Lang::En);
+        assert!(page.contains("<dt>Fatal headshot</dt><dd>flies off</dd>"));
+        assert!(!page.contains("class=flies-off"));
         let _ = dictionary;
     }
 
