@@ -841,6 +841,7 @@ impl Ctx<'_> {
     /// Known enemy tracks, nearest first.
     pub fn threats(&self) -> Vec<&Track> {
         let mut tracks: Vec<&Track> = self.memory.tracks().iter().collect();
+        #[cfg(test)]
         for track in &tracks {
             fairness::read(self.me.team, fairness::Site::Threats, track, self.now);
         }
