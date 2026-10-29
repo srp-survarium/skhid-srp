@@ -1641,8 +1641,9 @@ impl Bots {
         found.len()
     }
 
-    /// The bench's stand-in human put a trap down: his team knows it from that tick, as the players of a team see their own
-    /// team's traps (the same entry a bot's release makes, confirmed by the next world that shows it).
+    /// The bench's stand-in human put a trap down (`SRP_BENCH_HUMAN_TRAPS_KNOWN=on`): his team knows it from that tick, which is more
+    /// than a live team has (it learns a human mate's trap once seen, A168); the same entry a bot's release makes, confirmed by the next
+    /// world that shows it.
     #[cfg(test)]
     pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
         let ring_m = self.tuning_of(team).traps.ring_m;

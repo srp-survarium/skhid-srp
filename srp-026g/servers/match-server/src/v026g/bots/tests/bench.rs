@@ -1086,9 +1086,10 @@ pub(crate) fn real_bot_cost() {
                     blocks.tick(&game, &bots, &mut events);
                     owner.tick(&mut game, &bots);
                     hits.tick(&mut game, &bots, &mut events);
-                    // The stand-in human's traps laid in the last step: his team knows them from now on.
+                    // The stand-in human's traps laid in the last step: with `SRP_BENCH_HUMAN_TRAPS_KNOWN=on` his team knows them from now on (off: it learns
+                    // them as a live team learns a human mate's, once seen; A168).
                     if let Some(habit) = &mut trap_habit {
-                        let known = bench_settings().var("SRP_BENCH_HUMAN_TRAPS_KNOWN").as_deref() != Ok("off");
+                        let known = bench_settings().var("SRP_BENCH_HUMAN_TRAPS_KNOWN").as_deref() == Ok("on");
                         for laid in std::mem::take(&mut habit.laid) {
                             if known {
                                 bots.bench_team_knows_trap(laid.team, laid.place, laid.at, laid.tick);
