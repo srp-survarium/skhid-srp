@@ -161,21 +161,22 @@ impl CustomMeter for StillMeter {
             return;
         };
         let still = owner.body.speed < STILL_MPS;
-        if let Some((at, health, was_still)) = self.last {
-            if was_still && still {
-                self.still_ms += frame.clock.0.saturating_sub(at.0);
-                if owner.body.health < health - 1e-4 {
-                    self.hits += 1;
-                    let best = frame
-                        .side(Side::Enemies)
-                        .filter(|b| b.body.alive && b.mind.target == Some(owner.body.place) && b.body.keys & key::FIRE != 0)
-                        .filter_map(|b| frame.damage_share(eye_of(&b.body), chest_of(&owner.body), PIERCE_AK))
-                        .reduce(f32::max);
-                    match best {
-                        Some(share) if share <= 0.1 => self.low += 1,
-                        Some(_) => self.high += 1,
-                        None => self.unattributed += 1,
-                    }
+        if let Some((at, health, was_still)) = self.last
+            && was_still
+            && still
+        {
+            self.still_ms += frame.clock.0.saturating_sub(at.0);
+            if owner.body.health < health - 1e-4 {
+                self.hits += 1;
+                let best = frame
+                    .side(Side::Enemies)
+                    .filter(|b| b.body.alive && b.mind.target == Some(owner.body.place) && b.body.keys & key::FIRE != 0)
+                    .filter_map(|b| frame.damage_share(eye_of(&b.body), chest_of(&owner.body), PIERCE_AK))
+                    .reduce(f32::max);
+                match best {
+                    Some(share) if share <= 0.1 => self.low += 1,
+                    Some(_) => self.high += 1,
+                    None => self.unattributed += 1,
                 }
             }
         }
