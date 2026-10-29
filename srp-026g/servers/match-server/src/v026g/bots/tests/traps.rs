@@ -247,6 +247,24 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     assert!(bots.teams[0].knowledge.traps.all().is_empty());
 }
 
+/// A trap the stand-in human put down is in his team's list from that tick, and only his team's; the next world that shows
+/// it confirms it, as for a bot's own trap, and the bots' field of the team's traps has it.
+#[test]
+pub(crate) fn a_trap_of_the_stand_in_human_is_in_his_teams_list() {
+    let (_, mut bots) = run(None, Tuning::all_off(), 4);
+    let at = Vec3::new(25.0, 0.0, 10.0);
+    assert!(bots.teams[0].knowledge.traps.all().is_empty() && bots.teams[1].knowledge.traps.all().is_empty());
+    bots.bench_team_knows_trap(0, 0, at, 5_000);
+    assert_eq!(bots.teams[0].knowledge.traps.standing_count(), 1);
+    assert!(bots.teams[1].knowledge.traps.all().is_empty(), "the other team does not know it");
+    assert!(!bots.teams[0].features.traps.field.is_empty(), "the team keeps off its floors");
+    // The world that shows it (placed at the release) confirms it at its exact place.
+    bots.traps_from_world(&objects_with(at + Vec3::new(0.2, 0.0, 0.0), 1, 5_000), 5_500);
+    let known = bots.teams[0].knowledge.traps.all();
+    assert_eq!(known.len(), 1);
+    assert_eq!((known[0].by, known[0].placed_ms, known[0].phase), (0, 5_000, crate::v026g::bots::trap_know::Phase::Armed));
+}
+
 /// A trap of the team that goes off with a broken-legged body of the same
 /// team near it is an own-team catch; with the legs whole, or the body far,
 /// it is not.
