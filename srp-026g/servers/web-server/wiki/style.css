@@ -87,10 +87,13 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 @media(prefers-color-scheme:dark) { .weapon-comparison .better { color:#8bc779 } }
 .comparison-marker { font:.7rem var(--body) }
 #recoil-sim { margin-top:28px; border:1px solid var(--rule); padding:20px; background:var(--panel); scroll-margin-top:20px }
+.weapon-recoil { grid-column:1 / -1; border-top:1px solid var(--rule); padding-top:18px }
+.weapon-recoil>h2 { font-size:.9rem; margin-bottom:12px }
+.sim-timeline { display:block; margin:0 }
 #recoil-sim>h2 { margin-bottom:12px }
 .sim-inputs input { margin-top:7px }
-#sim-time { padding:0; accent-color:var(--accent) }
-#sim-time-label { float:right; font:.8rem var(--data); color:var(--ink) }
+.sim-time { display:block; width:100%; margin-top:6px; padding:0; accent-color:var(--accent) }
+.sim-time-label { float:right; font:.8rem var(--data); color:var(--ink) }
 .sim-plots { display:grid; grid-template-columns:1fr 1fr; gap:20px }
 .sim-plots figure { margin:16px 0 0; min-width:0 }
 .sim-plots figcaption { font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
@@ -104,9 +107,9 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-curve.future { opacity:.25 }
 .sim-shot { fill:var(--accent) }
 .sim-shot.series-1 { fill:#3684bd }
-#sim-legend { display:flex; flex-wrap:wrap; gap:8px 24px; margin-top:12px; font:.75rem var(--data) }
-#sim-legend p { margin:0; color:var(--accent) }
-#sim-legend .series-1 { color:#3684bd }
+.sim-legend { display:flex; flex-wrap:wrap; gap:8px 24px; margin-top:12px; font:.75rem var(--data) }
+.sim-legend p { margin:0; color:var(--accent) }
+.sim-legend .series-1 { color:#3684bd }
 .sim-sight { max-width:360px; margin:16px auto 0 }
 .sim-sight figcaption { font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
 .sim-sight svg { width:100%; height:auto; background:var(--bg); border:1px solid var(--rule) }

@@ -195,18 +195,8 @@
 </div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">Only differences</label><label class="check"><input type="checkbox" id="compare-colors" checked>Color better / worse values</label><button type="button" id="clear-comparison">Clear</button><a href="#recoil-sim">Recoil simulation ↓</a></div>
 <p id="compare-empty">Choose two weapons to compare; one is enough for its recoil simulation. Equal values and neutral traits keep their normal color.</p>
 <p id="compare-same" hidden>No differences in the displayed stats.</p><div id="compare-table"></div>
-<section id="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">Recoil simulation</h2>
-<p class="stat-note">Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.</p>
-<div class="sim-inputs"><label>Sample seed<input id="sim-seed" type="number" min="1" max="999999" value="1"></label></div>
-<p class="stat-note">Both weapons fire as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.</p>
-<div class="sim-buttons"><button id="sim-play" type="button">Play</button><button id="sim-step" type="button">Next shot</button><button id="sim-reset" type="button">Reset</button></div>
-<label for="sim-time">Timeline <output id="sim-time-label">0 s</output></label><input id="sim-time" type="range" min="0" max="1" step="0.01" value="0">
-<div id="sim-legend" aria-live="polite"></div>
-<figure class="sim-sight"><figcaption>Crosshair · game units</figcaption><svg id="sim-sight" viewBox="0 0 300 300" role="img" aria-label="Where each weapon aims as the recoil moves it"></svg></figure>
-<div class="sim-plots">
-<figure><figcaption>Vertical kick · game units</figcaption><svg id="sim-vertical" viewBox="0 0 600 250" role="img" aria-label="Vertical kick"></svg></figure>
-<figure><figcaption>Horizontal kick · game units</figcaption><svg id="sim-horizontal" viewBox="0 0 600 250" role="img" aria-label="Horizontal kick"></svg></figure>
-</div><p id="sim-unavailable" hidden>Recoil parameters are unavailable for this selection.</p></section></section>
+<section id="recoil-sim" class="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">Recoil simulation</h2><p class="stat-note">Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.</p><div class="sim-inputs"><label>Sample seed<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div><p class="stat-note">A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.</p><div class="sim-buttons"><button class="sim-play" type="button">Play</button><button class="sim-step" type="button">Next shot</button><button class="sim-reset" type="button">Reset</button></div><label class="sim-timeline">Timeline <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label><div class="sim-legend" aria-live="polite"></div><figure class="sim-sight"><figcaption>Crosshair · game units</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="Where each weapon aims as the recoil moves it"></svg></figure><div class="sim-plots"><figure><figcaption>Vertical kick · game units</figcaption><svg class="sim-vertical" viewBox="0 0 600 250" role="img" aria-label="Vertical kick"></svg></figure><figure><figcaption>Horizontal kick · game units</figcaption><svg class="sim-horizontal" viewBox="0 0 600 250" role="img" aria-label="Horizontal kick"></svg></figure></div><p class="sim-unavailable" hidden>Recoil parameters are unavailable for this selection.</p></section></section>
+<template id="recoil-template"><h2>Recoil simulation</h2><p class="stat-note">Modelled kick and recovery with no mouse compensation. Spread and camera shake are excluded. Horizontal kick is an internal value, not a confirmed screen angle.</p><div class="sim-inputs"><label>Sample seed<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div><p class="stat-note">A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.</p><div class="sim-buttons"><button class="sim-play" type="button">Play</button><button class="sim-step" type="button">Next shot</button><button class="sim-reset" type="button">Reset</button></div><label class="sim-timeline">Timeline <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label><div class="sim-legend" aria-live="polite"></div><figure class="sim-sight"><figcaption>Crosshair · game units</figcaption><svg viewBox="0 0 300 300" role="img" aria-label="Where each weapon aims as the recoil moves it"></svg></figure><div class="sim-plots"><figure><figcaption>Vertical kick · game units</figcaption><svg class="sim-vertical" viewBox="0 0 600 250" role="img" aria-label="Vertical kick"></svg></figure><figure><figcaption>Horizontal kick · game units</figcaption><svg class="sim-horizontal" viewBox="0 0 600 250" role="img" aria-label="Horizontal kick"></svg></figure></div><p class="sim-unavailable" hidden>Recoil parameters are unavailable for this selection.</p></template>
 <div id="weapon-list">
 <details class="weapon" id="wpn_mosin_nagant" data-name="mosin carbine" data-search-name="Mosin carbine" data-premium="0" data-class="Sniper rifle" data-level="0" data-damage="1.1" data-rpm="160.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 160.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
 <summary>
@@ -266,6 +256,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ppsh" data-name="ppsh-41" data-search-name="PPSH-41" data-premium="0" data-class="Submachine gun" data-level="0" data-damage="0.3" data-rpm="1000.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 1000.0, &quot;magazine&quot;: 35, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -326,6 +317,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_tt_33" data-name="tt-33" data-search-name="TT-33" data-premium="0" data-class="Pistol" data-level="0" data-damage="0.3" data-rpm="300.0" data-weight="0.8" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 8, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 0.8, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 0.8, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 0.8}">
@@ -386,6 +378,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_toz_34" data-name="toz-34" data-search-name="TOZ-34" data-premium="0" data-class="Shotgun" data-level="1" data-damage="1.0" data-rpm="240.0" data-weight="3.2" data-recoil="{&quot;rpm&quot;: 240.0, &quot;magazine&quot;: 2, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -446,6 +439,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_toz_66" data-name="toz-66" data-search-name="TOZ-66" data-premium="0" data-class="Shotgun" data-level="1" data-damage="1.0" data-rpm="300.0" data-weight="1.8" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 2, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -506,6 +500,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_aek_919k" data-name="aek-919k &quot;kashtan&quot;" data-search-name="AEK-919K &quot;Kashtan&quot;" data-premium="0" data-class="Submachine gun" data-level="2" data-damage="0.35" data-rpm="750.0" data-weight="1.7" data-recoil="{&quot;rpm&quot;: 750.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -566,6 +561,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_izh_27_lancaster_premium_2" data-name="mp-27m &quot;thunderbolt&quot;" data-search-name="MP-27M &quot;Thunderbolt&quot;" data-premium="0" data-class="Shotgun" data-level="2" data-damage="1.0" data-rpm="240.0" data-weight="3.2" data-recoil="{&quot;rpm&quot;: 240.0, &quot;magazine&quot;: 2, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -626,6 +622,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_izh_27_lancaster" data-name="mp-27m lancaster" data-search-name="MP-27M Lancaster" data-premium="0" data-class="Shotgun" data-level="2" data-damage="1.0" data-rpm="240.0" data-weight="3.2" data-recoil="{&quot;rpm&quot;: 240.0, &quot;magazine&quot;: 2, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -686,6 +683,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_izh_27_lancaster_premium" data-name="mp-27m lancaster (premium)" data-search-name="MP-27M Lancaster" data-premium="1" data-class="Shotgun" data-level="2" data-damage="1.0" data-rpm="240.0" data-weight="3.2" data-recoil="{&quot;rpm&quot;: 240.0, &quot;magazine&quot;: 2, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -746,6 +744,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_neostead_2" data-name="neostead 2000" data-search-name="NeoStead 2000" data-premium="0" data-class="Shotgun" data-level="2" data-damage="1.0" data-rpm="300.0" data-weight="3.9" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 12, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -806,6 +805,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_neostead" data-name="neostead 2000 m2" data-search-name="NeoStead 2000 M2" data-premium="0" data-class="Shotgun" data-level="2" data-damage="1.0" data-rpm="300.0" data-weight="3.9" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 12, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -866,6 +866,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_kiparis" data-name="ots-02 kiparis" data-search-name="OTs-02 Kiparis" data-premium="0" data-class="Submachine gun" data-level="2" data-damage="0.35" data-rpm="800.0" data-weight="1.5" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -926,6 +927,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_kiparis_premium" data-name="ots-02 kiparis (premium)" data-search-name="OTs-02 Kiparis" data-premium="1" data-class="Submachine gun" data-level="2" data-damage="0.35" data-rpm="800.0" data-weight="1.5" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -986,6 +988,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_pm" data-name="pm" data-search-name="PM" data-premium="0" data-class="Pistol" data-level="2" data-damage="0.35" data-rpm="250.0" data-weight="0.75" data-recoil="{&quot;rpm&quot;: 250.0, &quot;magazine&quot;: 8, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 0.8, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 0.8, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 0.8}">
@@ -1046,6 +1049,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_kedr" data-name="pp-91 &quot;kedr&quot;" data-search-name="PP-91 &quot;Kedr&quot;" data-premium="0" data-class="Submachine gun" data-level="2" data-damage="0.35" data-rpm="700.0" data-weight="1.4" data-recoil="{&quot;rpm&quot;: 700.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 2.0, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -1106,6 +1110,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_uzi" data-name="uzi" data-search-name="Uzi" data-premium="0" data-class="Submachine gun" data-level="2" data-damage="0.4" data-rpm="600.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 32, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1166,6 +1171,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_uzi_premium_2" data-name="uzi &quot;shadow&quot;" data-search-name="UZI &quot;Shadow&quot;" data-premium="0" data-class="Submachine gun" data-level="2" data-damage="0.4" data-rpm="600.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 32, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1226,6 +1232,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_uzi_premium" data-name="uzi (premium)" data-search-name="Uzi" data-premium="1" data-class="Submachine gun" data-level="2" data-damage="0.4" data-rpm="600.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 32, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1286,6 +1293,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_magnum" data-name="colt python" data-search-name="Colt Python" data-premium="0" data-class="Pistol" data-level="3" data-damage="0.6" data-rpm="120.0" data-weight="1.1" data-recoil="{&quot;rpm&quot;: 120.0, &quot;magazine&quot;: 6, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 0.8, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 0.8, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 0.8}">
@@ -1346,6 +1354,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_toz_122" data-name="toz-122" data-search-name="TOZ-122" data-premium="0" data-class="Sniper rifle" data-level="3" data-damage="1.2" data-rpm="200.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 200.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -1406,6 +1415,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_winchester_1894" data-name="winchester model 1894" data-search-name="Winchester Model 1894" data-premium="0" data-class="Sniper rifle" data-level="3" data-damage="1.0" data-rpm="200.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 200.0, &quot;magazine&quot;: 6, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -1466,6 +1476,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_mp_153" data-name="mp-153 baikal" data-search-name="MP-153 Baikal" data-premium="0" data-class="Shotgun" data-level="4" data-damage="1.0" data-rpm="200.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 200.0, &quot;magazine&quot;: 4, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1526,6 +1537,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vityaz" data-name="pp-19-01 vityaz" data-search-name="PP-19-01 Vityaz" data-premium="0" data-class="Submachine gun" data-level="4" data-damage="0.4" data-rpm="700.0" data-weight="3.0" data-recoil="{&quot;rpm&quot;: 700.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1586,6 +1598,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vityaz_premium" data-name="pp-19-01 vityaz (premium)" data-search-name="PP-19-01 Vityaz" data-premium="1" data-class="Submachine gun" data-level="4" data-damage="0.4" data-rpm="700.0" data-weight="3.0" data-recoil="{&quot;rpm&quot;: 700.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1646,6 +1659,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_rem_870" data-name="remington 870" data-search-name="Remington 870" data-premium="0" data-class="Shotgun" data-level="4" data-damage="1.1" data-rpm="180.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 180.0, &quot;magazine&quot;: 4, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -1706,6 +1720,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_soc_vepr" data-name="sok-94" data-search-name="SOK-94" data-premium="0" data-class="Assault rifle" data-level="4" data-damage="0.65" data-rpm="350.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 350.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.9, &quot;recoil_power&quot;: 0.88, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.54, &quot;min_right_recoil&quot;: 1.54, &quot;max_left_recoil&quot;: 2.0}">
@@ -1766,6 +1781,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_74u" data-name="aks-74u" data-search-name="AKS-74U" data-premium="0" data-class="Assault rifle" data-level="5" data-damage="0.5" data-rpm="650.0" data-weight="2.7" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -1826,6 +1842,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_74u_premium" data-name="aks-74u corsair (premium)" data-search-name="AKS-74U Corsair" data-premium="1" data-class="Assault rifle" data-level="5" data-damage="0.5" data-rpm="650.0" data-weight="2.7" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -1886,6 +1903,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_rem_700" data-name="remington 700" data-search-name="Remington 700" data-premium="0" data-class="Sniper rifle" data-level="5" data-damage="1.2" data-rpm="120.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 120.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -1946,6 +1964,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_rem_700_premium" data-name="remington 700 &quot;executioner&quot; (premium)" data-search-name="Remington 700 &quot;Executioner&quot;" data-premium="1" data-class="Sniper rifle" data-level="5" data-damage="1.2" data-rpm="120.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 120.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -2006,6 +2025,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_akmn" data-name="akm" data-search-name="AKM" data-premium="0" data-class="Assault rifle" data-level="6" data-damage="0.45" data-rpm="600.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -2066,6 +2086,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_akmn_premium_2" data-name="akm &quot;avenger&quot;" data-search-name="AKM &quot;Avenger&quot;" data-premium="0" data-class="Assault rifle" data-level="6" data-damage="0.45" data-rpm="600.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -2126,6 +2147,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_akmn_premium" data-name="akm &#x27;65 (premium)" data-search-name="AKM &#x27;65" data-premium="1" data-class="Assault rifle" data-level="6" data-damage="0.45" data-rpm="600.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -2186,6 +2208,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_aps" data-name="aps" data-search-name="APS" data-premium="0" data-class="Pistol" data-level="6" data-damage="0.35" data-rpm="500.0" data-weight="1.2" data-recoil="{&quot;rpm&quot;: 500.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 0.8, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 0.8, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 0.8}">
@@ -2246,6 +2269,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_fort_17" data-name="fort 17" data-search-name="Fort 17" data-premium="0" data-class="Pistol" data-level="6" data-damage="0.35" data-rpm="300.0" data-weight="0.75" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 12, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 0.8, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 0.8, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 0.8}">
@@ -2306,6 +2330,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sks" data-name="sks" data-search-name="SKS" data-premium="0" data-class="Assault rifle" data-level="6" data-damage="0.7" data-rpm="300.0" data-weight="3.75" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.9, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.0, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 1.0}">
@@ -2366,6 +2391,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sks_premium_2" data-name="sks &quot;arrow head&quot;" data-search-name="SKS &quot;Arrow Head&quot;" data-premium="0" data-class="Assault rifle" data-level="6" data-damage="0.7" data-rpm="300.0" data-weight="3.75" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.9, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.0, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 1.0}">
@@ -2426,6 +2452,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sks_premium" data-name="sks-mf (premium)" data-search-name="SKS-MF" data-premium="1" data-class="Assault rifle" data-level="6" data-damage="0.7" data-rpm="300.0" data-weight="3.75" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.9, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.0, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 1.0}">
@@ -2486,6 +2513,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_74n" data-name="ak-74n" data-search-name="AK-74N" data-premium="0" data-class="Assault rifle" data-level="7" data-damage="0.5" data-rpm="650.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -2546,6 +2574,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_74n_premium" data-name="ak-74n (premium)" data-search-name="AK-74N" data-premium="1" data-class="Assault rifle" data-level="7" data-damage="0.5" data-rpm="650.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -2606,6 +2635,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_benelli_m4" data-name="benelli m4 super 90" data-search-name="Benelli M4 Super 90" data-premium="0" data-class="Shotgun" data-level="7" data-damage="1.2" data-rpm="280.0" data-weight="3.8" data-recoil="{&quot;rpm&quot;: 280.0, &quot;magazine&quot;: 6, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -2666,6 +2696,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_spas_12" data-name="franchi spas-12" data-search-name="Franchi SPAS-12" data-premium="0" data-class="Shotgun" data-level="7" data-damage="1.2" data-rpm="240.0" data-weight="4.4" data-recoil="{&quot;rpm&quot;: 240.0, &quot;magazine&quot;: 8, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -2726,6 +2757,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ump45" data-name="h&amp;k ump45" data-search-name="H&amp;K UMP45" data-premium="0" data-class="Submachine gun" data-level="8" data-damage="0.55" data-rpm="600.0" data-weight="2.5" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 25, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -2786,6 +2818,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sr2m" data-name="sr-2m &quot;veresk&quot;" data-search-name="SR-2M &quot;Veresk&quot;" data-premium="0" data-class="Submachine gun" data-level="8" data-damage="0.4" data-rpm="800.0" data-weight="1.6" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.2, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -2846,6 +2879,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_valmet" data-name="valmet rk.62" data-search-name="Valmet Rk.62" data-premium="0" data-class="Assault rifle" data-level="8" data-damage="0.45" data-rpm="650.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.8, &quot;max_left_recoil&quot;: 1.8}">
@@ -2906,6 +2940,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_pp2000" data-name="pp-2000" data-search-name="PP-2000" data-premium="0" data-class="Submachine gun" data-level="9" data-damage="0.4" data-rpm="680.0" data-weight="1.4" data-recoil="{&quot;rpm&quot;: 680.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.6, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.5, &quot;min_top_recoil&quot;: 1.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.5}">
@@ -2966,6 +3001,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_rpd" data-name="rpd" data-search-name="RPD" data-premium="0" data-class="Machine gun" data-level="9" data-damage="0.45" data-rpm="600.0" data-weight="7.0" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 100, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.9, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 1.8}">
@@ -3026,6 +3062,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sv_98" data-name="sv-98" data-search-name="SV-98" data-premium="0" data-class="Sniper rifle" data-level="9" data-damage="1.2" data-rpm="220.0" data-weight="6.2" data-recoil="{&quot;rpm&quot;: 220.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -3086,6 +3123,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vz58" data-name="vz. 58 p" data-search-name="vz. 58 P" data-premium="0" data-class="Assault rifle" data-level="9" data-damage="0.45" data-rpm="700.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 700.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.54, &quot;max_left_recoil&quot;: 1.98}">
@@ -3146,6 +3184,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_74m" data-name="ak-74m" data-search-name="AK-74M" data-premium="0" data-class="Assault rifle" data-level="10" data-damage="0.5" data-rpm="650.0" data-weight="3.4" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -3206,6 +3245,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_fn_fnc" data-name="fn fnc" data-search-name="FN FNC" data-premium="0" data-class="Assault rifle" data-level="10" data-damage="0.5" data-rpm="650.0" data-weight="3.8" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -3266,6 +3306,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vepr" data-name="vepr" data-search-name="Vepr" data-premium="0" data-class="Assault rifle" data-level="10" data-damage="0.5" data-rpm="650.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -3326,6 +3367,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vepr_premium" data-name="vepr wanderer (premium)" data-search-name="Vepr Wanderer" data-premium="1" data-class="Assault rifle" data-level="10" data-damage="0.5" data-rpm="650.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -3386,6 +3428,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_rpk" data-name="rpk-74m" data-search-name="RPK-74M" data-premium="0" data-class="Machine gun" data-level="11" data-damage="0.5" data-rpm="600.0" data-weight="5.0" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 45, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.8, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.6, &quot;min_left_recoil&quot;: 1.6, &quot;min_right_recoil&quot;: 1.6, &quot;max_left_recoil&quot;: 1.8}">
@@ -3446,6 +3489,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.02]" data-direction="lower"><dt>Vertical sway</dt><dd>0.02</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[20.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>20 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_mp7" data-name="h&amp;k mp7" data-search-name="H&amp;K MP7" data-premium="0" data-class="Submachine gun" data-level="12" data-damage="0.4" data-rpm="950.0" data-weight="1.9" data-recoil="{&quot;rpm&quot;: 950.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.65, &quot;min_right_recoil&quot;: 1.8, &quot;max_left_recoil&quot;: 1.65}">
@@ -3506,6 +3550,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_mp7_silencer" data-name="h&amp;k mp7a1" data-search-name="H&amp;K MP7A1" data-premium="0" data-class="Submachine gun" data-level="12" data-damage="0.4" data-rpm="950.0" data-weight="1.9" data-recoil="{&quot;rpm&quot;: 950.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.65, &quot;min_right_recoil&quot;: 1.8, &quot;max_left_recoil&quot;: 1.65}">
@@ -3566,6 +3611,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_mp7_silencer_special" data-name="h&amp;k mp7a1 &quot;legend&quot;" data-search-name="H&amp;K MP7A1 &quot;Legend&quot;" data-premium="0" data-class="Submachine gun" data-level="12" data-damage="0.4" data-rpm="950.0" data-weight="1.9" data-recoil="{&quot;rpm&quot;: 950.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.65, &quot;min_right_recoil&quot;: 1.8, &quot;max_left_recoil&quot;: 1.65}">
@@ -3626,6 +3672,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_m4a1" data-name="m4a1" data-search-name="M4A1" data-premium="0" data-class="Assault rifle" data-level="12" data-damage="0.5" data-rpm="750.0" data-weight="3.0" data-recoil="{&quot;rpm&quot;: 750.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.88, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -3686,6 +3733,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_msbs_carbine" data-name="msbs radon" data-search-name="MSBS Radon" data-premium="0" data-class="Assault rifle" data-level="12" data-damage="0.5" data-rpm="750.0" data-weight="3.7" data-recoil="{&quot;rpm&quot;: 750.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.88, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.98, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.98}">
@@ -3746,6 +3794,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_saiga_12" data-name="saiga-12k" data-search-name="Saiga-12K" data-premium="0" data-class="Shotgun" data-level="12" data-damage="1.2" data-rpm="350.0" data-weight="3.6" data-recoil="{&quot;rpm&quot;: 350.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -3806,6 +3855,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_saiga_12_premium" data-name="saiga-12s (premium)" data-search-name="Saiga-12S" data-premium="1" data-class="Shotgun" data-level="12" data-damage="1.2" data-rpm="350.0" data-weight="3.8" data-recoil="{&quot;rpm&quot;: 350.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -3866,6 +3916,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vepr_12" data-name="vepr-12" data-search-name="Vepr-12" data-premium="0" data-class="Shotgun" data-level="12" data-damage="1.15" data-rpm="400.0" data-weight="3.2" data-recoil="{&quot;rpm&quot;: 400.0, &quot;magazine&quot;: 8, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -3926,6 +3977,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vepr_12_premium" data-name="vepr-12 molot (premium)" data-search-name="Vepr-12 Molot" data-premium="1" data-class="Shotgun" data-level="12" data-damage="1.15" data-rpm="400.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 400.0, &quot;magazine&quot;: 8, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -3986,6 +4038,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vss" data-name="vss &quot;vintorez&quot;" data-search-name="VSS &quot;Vintorez&quot;" data-premium="0" data-class="Sniper rifle" data-level="12" data-damage="0.5" data-rpm="600.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.5, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.7, &quot;max_top_recoil&quot;: 0.4, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 0.4, &quot;min_top_recoil&quot;: 0.3, &quot;min_left_recoil&quot;: 0.3, &quot;min_right_recoil&quot;: 0.3, &quot;max_left_recoil&quot;: 0.4}">
@@ -4046,6 +4099,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vss_premium" data-name="vss &quot;vintorez&quot; (premium)" data-search-name="VSS &quot;Vintorez&quot;" data-premium="1" data-class="Sniper rifle" data-level="12" data-damage="0.5" data-rpm="600.0" data-weight="3.1" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.5, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.7, &quot;max_top_recoil&quot;: 0.4, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 0.4, &quot;min_top_recoil&quot;: 0.3, &quot;min_left_recoil&quot;: 0.3, &quot;min_right_recoil&quot;: 0.3, &quot;max_left_recoil&quot;: 0.4}">
@@ -4106,6 +4160,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_a9_91" data-name="9a-91" data-search-name="9A-91" data-premium="0" data-class="Assault rifle" data-level="13" data-damage="0.5" data-rpm="700.0" data-weight="1.8" data-recoil="{&quot;rpm&quot;: 700.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.4, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.8, &quot;min_right_recoil&quot;: 1.2, &quot;max_left_recoil&quot;: 1.8}">
@@ -4166,6 +4221,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.01]" data-direction="lower"><dt>Vertical sway</dt><dd>0.01</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[10.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>10 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_val" data-name="as &quot;val&quot;" data-search-name="AS &quot;Val&quot;" data-premium="0" data-class="Assault rifle" data-level="13" data-damage="0.5" data-rpm="800.0" data-weight="2.5" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.2, &quot;min_right_recoil&quot;: 1.8, &quot;max_left_recoil&quot;: 1.4}">
@@ -4226,6 +4282,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_a545" data-name="a-545" data-search-name="A-545" data-premium="0" data-class="Assault rifle" data-level="14" data-damage="0.45" data-rpm="800.0" data-weight="3.3" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -4286,6 +4343,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_fn_p90" data-name="fn p90" data-search-name="FN P90" data-premium="0" data-class="Submachine gun" data-level="14" data-damage="0.4" data-rpm="900.0" data-weight="2.6" data-recoil="{&quot;rpm&quot;: 900.0, &quot;magazine&quot;: 50, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.65, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.6, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.2, &quot;min_left_recoil&quot;: 1.65, &quot;min_right_recoil&quot;: 1.65, &quot;max_left_recoil&quot;: 1.9}">
@@ -4346,6 +4404,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_hk416" data-name="h&amp;k 416a5" data-search-name="H&amp;K 416A5" data-premium="0" data-class="Assault rifle" data-level="14" data-damage="0.55" data-rpm="850.0" data-weight="3.5" data-recoil="{&quot;rpm&quot;: 850.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.88, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 1.98, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -4406,6 +4465,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_kriss_vector" data-name="kriss vector" data-search-name="KRISS Vector" data-premium="0" data-class="Submachine gun" data-level="14" data-damage="0.42" data-rpm="1000.0" data-weight="2.7" data-recoil="{&quot;rpm&quot;: 1000.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.8, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.65, &quot;min_top_recoil&quot;: 1.8, &quot;min_left_recoil&quot;: 1.65, &quot;min_right_recoil&quot;: 1.65, &quot;max_left_recoil&quot;: 1.65}">
@@ -4466,6 +4526,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sr3m" data-name="sr-3m &quot;vikhr&quot;" data-search-name="SR-3M &quot;Vikhr&quot;" data-premium="0" data-class="Assault rifle" data-level="14" data-damage="0.45" data-rpm="800.0" data-weight="2.2" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -4526,6 +4587,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_sr3m_premium" data-name="sr-3m &quot;vikhr&quot; (premium)" data-search-name="SR-3M &quot;Vikhr&quot;" data-premium="1" data-class="Assault rifle" data-level="14" data-damage="0.45" data-rpm="800.0" data-weight="2.2" data-recoil="{&quot;rpm&quot;: 800.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.8, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.2, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -4586,6 +4648,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vsk_94" data-name="vsk-94" data-search-name="VSK-94" data-premium="0" data-class="Sniper rifle" data-level="14" data-damage="0.5" data-rpm="600.0" data-weight="2.8" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.5, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.7, &quot;max_top_recoil&quot;: 0.4, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 0.6, &quot;min_top_recoil&quot;: 0.3, &quot;min_left_recoil&quot;: 0.4, &quot;min_right_recoil&quot;: 0.4, &quot;max_left_recoil&quot;: 0.6}">
@@ -4646,6 +4709,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vsk_94_premium" data-name="vsk-94 guardian (premium)" data-search-name="VSK-94 Guardian" data-premium="1" data-class="Sniper rifle" data-level="14" data-damage="0.5" data-rpm="600.0" data-weight="2.8" data-recoil="{&quot;rpm&quot;: 600.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.5, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.7, &quot;max_top_recoil&quot;: 0.4, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 0.6, &quot;min_top_recoil&quot;: 0.3, &quot;min_left_recoil&quot;: 0.4, &quot;min_right_recoil&quot;: 0.4, &quot;max_left_recoil&quot;: 0.6}">
@@ -4706,6 +4770,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_12" data-name="ak-12" data-search-name="AK-12" data-premium="0" data-class="Assault rifle" data-level="15" data-damage="0.5" data-rpm="650.0" data-weight="3.4" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -4766,6 +4831,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ak_12_premium" data-name="ak-12m1 (premium)" data-search-name="AK-12M1" data-premium="1" data-class="Assault rifle" data-level="15" data-damage="0.5" data-rpm="650.0" data-weight="3.4" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 30, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 0.5, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 1.8, &quot;min_top_recoil&quot;: 1.5, &quot;min_left_recoil&quot;: 1.4, &quot;min_right_recoil&quot;: 1.4, &quot;max_left_recoil&quot;: 1.8}">
@@ -4826,6 +4892,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_ash_12" data-name="ash-12" data-search-name="Ash-12" data-premium="0" data-class="Assault rifle" data-level="15" data-damage="0.6" data-rpm="400.0" data-weight="4.5" data-recoil="{&quot;rpm&quot;: 400.0, &quot;magazine&quot;: 20, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 2.5, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.0, &quot;min_top_recoil&quot;: 2.0, &quot;min_left_recoil&quot;: 1.5, &quot;min_right_recoil&quot;: 1.5, &quot;max_left_recoil&quot;: 2.0}">
@@ -4886,6 +4953,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_pkp_pecheneg" data-name="pkp &quot;pecheneg&quot;" data-search-name="PKP &quot;Pecheneg&quot;" data-premium="0" data-class="Machine gun" data-level="15" data-damage="0.45" data-rpm="650.0" data-weight="7.0" data-recoil="{&quot;rpm&quot;: 650.0, &quot;magazine&quot;: 100, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.8, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 8.0, &quot;max_right_recoil&quot;: 2.5, &quot;min_top_recoil&quot;: 2.5, &quot;min_left_recoil&quot;: 2.0, &quot;min_right_recoil&quot;: 2.0, &quot;max_left_recoil&quot;: 2.5}">
@@ -4946,6 +5014,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_socom16" data-name="socom 16" data-search-name="SOCOM 16" data-premium="0" data-class="Assault rifle" data-level="15" data-damage="0.6" data-rpm="300.0" data-weight="4.0" data-recoil="{&quot;rpm&quot;: 300.0, &quot;magazine&quot;: 10, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.9, &quot;recoil_power&quot;: 0.4, &quot;compensation_integral_gain&quot;: 10.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 1.0, &quot;max_top_recoil&quot;: 1.0, &quot;shake_time_scale&quot;: 3.0, &quot;max_right_recoil&quot;: 1.0, &quot;min_top_recoil&quot;: 0.8, &quot;min_left_recoil&quot;: 0.8, &quot;min_right_recoil&quot;: 0.8, &quot;max_left_recoil&quot;: 1.0}">
@@ -5006,6 +5075,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vssk_camo" data-name="sv-1367 dusk" data-search-name="SV-1367 Dusk" data-premium="0" data-class="Sniper rifle" data-level="15" data-damage="1.75" data-rpm="250.0" data-weight="7.0" data-recoil="{&quot;rpm&quot;: 250.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -5066,6 +5136,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_svd" data-name="svd" data-search-name="SVD" data-premium="0" data-class="Sniper rifle" data-level="15" data-damage="1.0" data-rpm="250.0" data-weight="4.5" data-recoil="{&quot;rpm&quot;: 250.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -5126,6 +5197,7 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 <details class="weapon" id="wpn_vssk" data-name="vssk &quot;vychlop&quot;" data-search-name="VSSK &quot;Vychlop&quot;" data-premium="0" data-class="Sniper rifle" data-level="15" data-damage="1.75" data-rpm="250.0" data-weight="7.0" data-recoil="{&quot;rpm&quot;: 250.0, &quot;magazine&quot;: 5, &quot;compensation_derivational_gain&quot;: 0.0, &quot;min_shake_recoil&quot;: 0.0, &quot;recoil_power&quot;: 1.0, &quot;compensation_integral_gain&quot;: 15.0, &quot;compensation_proportional_gain&quot;: 5.0, &quot;max_shake_recoil&quot;: 0.0, &quot;max_top_recoil&quot;: 3.0, &quot;shake_time_scale&quot;: 1.0, &quot;max_right_recoil&quot;: 3.0, &quot;min_top_recoil&quot;: 3.0, &quot;min_left_recoil&quot;: 3.0, &quot;min_right_recoil&quot;: 3.0, &quot;max_left_recoil&quot;: 3.0}">
@@ -5186,8 +5258,9 @@
 <div data-stat="breath_vibration.base_vertical_amplitude" data-values="[0.025]" data-direction="lower"><dt>Vertical sway</dt><dd>0.025</dd></div>
 <div data-stat="breath_vibration.base_period" data-values="[5.0]" data-direction="neutral"><dt>Aim sway period</dt><dd>5 s</dd></div>
 </dl></section>
+<div class="weapon-recoil recoil-sim"></div>
 <div class="compare-from-card" hidden><button type="button" data-compare-side="a">Set as weapon A</button><button type="button" data-compare-side="b">Set as weapon B</button></div>
 </div></details>
 </div><p id="weapons-empty" hidden>No weapons match. Try another name or class.</p>
 <p class="wiki-stamp">Skhid revision 37</p>
-<script src="/wiki/weapons.js?v=23c2c7683e7e" defer></script>
+<script src="/wiki/weapons.js?v=925a65243429" defer></script>

@@ -89,9 +89,6 @@
     document.querySelector('#compare-same').hidden = rowCount !== 0;
   }
 
-  const sim = document.querySelector('#recoil-sim'), timeInput = document.querySelector('#sim-time');
-  const seedInput = document.querySelector('#sim-seed');
-  let simulation = {kind: 'empty'};
   const svgNS = 'http://www.w3.org/2000/svg';
   function svgNode(tag, attrs, text) {
     const element = document.createElementNS(svgNS, tag);
@@ -102,137 +99,167 @@
   function sample(series, time) {
     return series.frames[Math.min(series.frames.length - 1, Math.floor(time / .05 + 1e-6))];
   }
-  function nextShot() {
-    if (simulation.kind !== 'ready') return undefined;
-    return simulation.series.flatMap(series => series.events).map(event => event.time)
-      .sort((a, b) => a - b).find(time => time > simulation.time + .001);
-  }
-  function drawSimulation() {
-    if (simulation.kind !== 'ready') return;
-    const time = simulation.time;
-    document.querySelector('#sim-step').disabled = nextShot() === undefined;
-    timeInput.value = time;
-    document.querySelector('#sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
-    const legend = document.querySelector('#sim-legend'); legend.replaceChildren();
-    for (const [index, series] of simulation.series.map(series => [series.side, series])) {
-      const point = sample(series, time);
-      legend.append(node('p', `${index ? 'B' : 'A'} · ${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)}`, `series-${index}`));
+  // One recoil simulation in `root` (the comparison's, or a weapon card's):
+  // its own controls, plots and crosshair view, every lookup inside `root`.
+  // `show(sides)` runs it for [{id, side}] (side 0 is A's colour, 1 B's).
+  function RecoilSim(root) {
+    const find = selector => root.querySelector(selector);
+    const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
+    let simulation = {kind: 'empty'}, sides = [], playing = null;
+    function nextShot() {
+      if (simulation.kind !== 'ready') return undefined;
+      return simulation.series.flatMap(series => series.events).map(event => event.time)
+        .sort((a, b) => a - b).find(time => time > simulation.time + .001);
     }
-    for (const axis of ['vertical', 'horizontal']) {
-      const svg = document.querySelector(`#sim-${axis}`); svg.replaceChildren();
-      const values = simulation.series.flatMap(series => series.frames.map(frame => frame[axis]));
-      const lo = Math.min(0, ...values), hi = Math.max(.1, ...values), margin = (hi - lo) * .1;
-      const min = lo - margin, max = hi + margin;
-      const x = t => 54 + t / simulation.duration * 530, y = v => 218 - (v - min) / (max - min) * 194;
-      for (let i = 0; i <= 4; i++) {
-        const value = min + (max - min) * i / 4;
-        svg.append(svgNode('line', {x1:54, x2:584, y1:y(value), y2:y(value), class:'sim-grid'}));
-        svg.append(svgNode('text', {x:47, y:y(value)+4, 'text-anchor':'end'}, value.toFixed(2)));
-        const t = simulation.duration * i / 4;
-        svg.append(svgNode('text', {x:x(t), y:241, 'text-anchor':'middle'}, `${t.toFixed(1)}s`));
+    function draw() {
+      if (simulation.kind !== 'ready') return;
+      const time = simulation.time;
+      find('.sim-step').disabled = nextShot() === undefined;
+      timeInput.value = time;
+      find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
+      const legend = find('.sim-legend'); legend.replaceChildren();
+      for (const series of simulation.series) {
+        const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
+        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${point.shots}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)}`, `series-${series.side}`));
       }
-      svg.append(svgNode('line', {x1:54, x2:584, y1:y(0), y2:y(0), class:'sim-zero'}));
-      for (const [index, series] of simulation.series.map(series => [series.side, series])) {
-        const path = frames => frames.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.time).toFixed(2)},${y(frame[axis]).toFixed(2)}`).join(' ');
-        svg.append(svgNode('path', {d:path(series.frames), class:`sim-curve series-${index} future`}));
-        svg.append(svgNode('path', {d:path(series.frames.filter(frame => frame.time <= time)), class:`sim-curve series-${index}`}));
+      for (const axis of ['vertical', 'horizontal']) {
+        const svg = find(`.sim-${axis}`); svg.replaceChildren();
+        const values = simulation.series.flatMap(series => series.frames.map(frame => frame[axis]));
+        const lo = Math.min(0, ...values), hi = Math.max(.1, ...values), margin = (hi - lo) * .1;
+        const min = lo - margin, max = hi + margin;
+        const x = t => 54 + t / simulation.duration * 530, y = v => 218 - (v - min) / (max - min) * 194;
+        for (let i = 0; i <= 4; i++) {
+          const value = min + (max - min) * i / 4;
+          svg.append(svgNode('line', {x1:54, x2:584, y1:y(value), y2:y(value), class:'sim-grid'}));
+          svg.append(svgNode('text', {x:47, y:y(value)+4, 'text-anchor':'end'}, value.toFixed(2)));
+          const t = simulation.duration * i / 4;
+          svg.append(svgNode('text', {x:x(t), y:241, 'text-anchor':'middle'}, `${t.toFixed(1)}s`));
+        }
+        svg.append(svgNode('line', {x1:54, x2:584, y1:y(0), y2:y(0), class:'sim-zero'}));
+        for (const series of simulation.series) {
+          const path = frames => frames.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.time).toFixed(2)},${y(frame[axis]).toFixed(2)}`).join(' ');
+          svg.append(svgNode('path', {d:path(series.frames), class:`sim-curve series-${series.side} future`}));
+          svg.append(svgNode('path', {d:path(series.frames.filter(frame => frame.time <= time)), class:`sim-curve series-${series.side}`}));
+          for (const event of series.events.filter(event => event.time <= time)) {
+            const point = sample(series, event.time);
+            svg.append(svgNode('circle', {cx:x(event.time), cy:y(point[axis]), r:2.8, class:`sim-shot series-${series.side}`}));
+          }
+        }
+        svg.append(svgNode('line', {x1:x(time), x2:x(time), y1:24, y2:218, class:'sim-cursor'}));
+      }
+      drawSight(time);
+    }
+    // The crosshair as the kick moves it: the kick climbing from the origin,
+    // the path so far and each shot's mark. The side kick is far smaller than
+    // the climb (and not a confirmed screen angle): it fills the width, its
+    // magnification written in the corner.
+    function drawSight(time) {
+      const svg = find('.sim-sight svg'); svg.replaceChildren();
+      const frames = simulation.series.flatMap(series => series.frames);
+      const up = Math.max(0, ...frames.map(frame => frame.vertical));
+      const down = Math.max(0, ...frames.map(frame => -frame.vertical));
+      const side = Math.max(0, ...frames.map(frame => Math.abs(frame.horizontal)));
+      const scale = 250 / Math.max(.1, up + down);
+      const sideScale = Math.max(scale, 120 / Math.max(side, 1e-6));
+      const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
+      const x = h => 150 + h * sideScale, y = v => oy - v * scale;
+      const magnified = Math.round(sideScale / scale);
+      if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
+      svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
+      svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
+      svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
+      for (const series of simulation.series) {
+        const past = series.frames.filter(frame => frame.time <= time);
+        svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
+          class:`sim-trail series-${series.side}`}));
         for (const event of series.events.filter(event => event.time <= time)) {
           const point = sample(series, event.time);
-          svg.append(svgNode('circle', {cx:x(event.time), cy:y(point[axis]), r:2.8, class:`sim-shot series-${index}`}));
+          svg.append(svgNode('circle', {cx:x(point.horizontal), cy:y(point.vertical), r:2.4, class:`sim-shot series-${series.side}`}));
         }
+        const point = sample(series, time), cx = x(point.horizontal), cy = y(point.vertical);
+        const cross = svgNode('g', {class:`sim-cross series-${series.side}`});
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          cross.append(svgNode('line', {x1:cx + dx * 5, y1:cy + dy * 5, x2:cx + dx * 15, y2:cy + dy * 15}));
+        }
+        cross.append(svgNode('circle', {cx, cy, r:1.6}));
+        svg.append(cross);
       }
-      svg.append(svgNode('line', {x1:x(time), x2:x(time), y1:24, y2:218, class:'sim-cursor'}));
     }
-    drawSight(time);
-  }
-  // The crosshair as the kick moves it: the kick climbing from the origin,
-  // the path so far and each shot's mark. The side kick is far smaller than
-  // the climb (and not a confirmed screen angle): it fills the width, its
-  // magnification written in the corner.
-  function drawSight(time) {
-    const svg = document.querySelector('#sim-sight'); svg.replaceChildren();
-    const frames = simulation.series.flatMap(series => series.frames);
-    const up = Math.max(0, ...frames.map(frame => frame.vertical));
-    const down = Math.max(0, ...frames.map(frame => -frame.vertical));
-    const side = Math.max(0, ...frames.map(frame => Math.abs(frame.horizontal)));
-    const scale = 250 / Math.max(.1, up + down);
-    const sideScale = Math.max(scale, 120 / Math.max(side, 1e-6));
-    const oy = 25 + (250 - (up + down) * scale) / 2 + up * scale;
-    const x = h => 150 + h * sideScale, y = v => oy - v * scale;
-    const magnified = Math.round(sideScale / scale);
-    if (magnified > 1) svg.append(svgNode('text', {x:292, y:292, 'text-anchor':'end', class:'sim-note'}, tr(`side ×${magnified}`, `убік ×${magnified}`)));
-    svg.append(svgNode('line', {x1:0, x2:300, y1:oy, y2:oy, class:'sim-grid'}));
-    svg.append(svgNode('line', {x1:150, x2:150, y1:0, y2:300, class:'sim-grid'}));
-    svg.append(svgNode('circle', {cx:150, cy:oy, r:3, class:'sim-origin'}));
-    for (const [index, series] of simulation.series.map(series => [series.side, series])) {
-      const past = series.frames.filter(frame => frame.time <= time);
-      svg.append(svgNode('path', {d:past.map((frame, i) => `${i ? 'L' : 'M'}${x(frame.horizontal).toFixed(2)},${y(frame.vertical).toFixed(2)}`).join(' '),
-        class:`sim-trail series-${index}`}));
-      for (const event of series.events.filter(event => event.time <= time)) {
-        const point = sample(series, event.time);
-        svg.append(svgNode('circle', {cx:x(point.horizontal), cy:y(point.vertical), r:2.4, class:`sim-shot series-${index}`}));
-      }
-      const point = sample(series, time), cx = x(point.horizontal), cy = y(point.vertical);
-      const cross = svgNode('g', {class:`sim-cross series-${index}`});
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        cross.append(svgNode('line', {x1:cx + dx * 5, y1:cy + dy * 5, x2:cx + dx * 15, y2:cy + dy * 15}));
-      }
-      cross.append(svgNode('circle', {cx, cy, r:1.6}));
-      svg.append(cross);
+    // Play: the burst in real time, from where the timeline is (or the start),
+    // to the last shot; the settling after it stays on the plots.
+    function stop() {
+      if (playing) cancelAnimationFrame(playing.frame);
+      playing = null; playButton.textContent = tr('Play', 'Відтворити');
     }
-  }
-  // Play: the burst in real time, from where the timeline is (or the start),
-  // to the last shot; the settling after it stays on the plots.
-  const playButton = document.querySelector('#sim-play');
-  let playing = null;
-  function stop() {
-    if (playing) cancelAnimationFrame(playing.frame);
-    playing = null; playButton.textContent = tr('Play', 'Відтворити');
-  }
-  function play() {
-    if (simulation.kind !== 'ready') return;
-    const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
-    const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
-    playButton.textContent = tr('Pause', 'Пауза');
-    const tick = now => {
-      if (simulation.kind !== 'ready') { stop(); return; }
-      simulation.time = Math.min(last, from + (now - start) / 1000); drawSimulation();
-      if (simulation.time >= last) stop(); else playing.frame = requestAnimationFrame(tick);
-    };
-    playing = {frame: requestAnimationFrame(tick)};
-  }
-  playButton.addEventListener('click', () => playing ? stop() : play());
-  function seek(time) {
-    stop();
-    if (simulation.kind !== 'ready') return;
-    simulation.time = time; drawSimulation();
-  }
-  function rebuildSimulation(time = 0) {
-    // One weapon chosen (A or B) or both: each keeps its side's colour.
-    const sides = [pickerA.value, pickerB.value].map((id, side) => ({id, side})).filter(({id}) => id);
-    const ids = sides.map(({id}) => id); sim.hidden = ids.length === 0;
-    stop(); simulation = {kind:'empty'};
-    if (sim.hidden) return;
-    const valid = ids.every(id => models.get(id));
-    for (const element of sim.querySelectorAll('input,select,button')) element.disabled = !valid;
-    document.querySelector('.sim-plots').hidden = !valid;
-    document.querySelector('.sim-sight').hidden = !valid;
-    document.querySelector('#sim-unavailable').hidden = valid;
-    if (!valid) { document.querySelector('#sim-legend').replaceChildren(); return; }
-    seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
-    // A burst of the smaller magazine: the same number of shots from each.
-    const shots = Math.min(...ids.map(id => models.get(id).magazine));
-    const series = sides.map(({id, side}) => {
-      const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value));
-      // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
-      result.frames.forEach(frame => {frame.time += .05;});
-      result.events.forEach(event => {event.time += .05;});
-      result.frames.unshift({time:0, vertical:0, horizontal:0, shots:0});
-      return {...result, id, side, duration: result.duration + .05};
+    function play() {
+      if (simulation.kind !== 'ready') return;
+      const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
+      const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
+      playButton.textContent = tr('Pause', 'Пауза');
+      const tick = now => {
+        if (simulation.kind !== 'ready') { stop(); return; }
+        simulation.time = Math.min(last, from + (now - start) / 1000); draw();
+        if (simulation.time >= last) stop(); else playing.frame = requestAnimationFrame(tick);
+      };
+      playing = {frame: requestAnimationFrame(tick)};
+    }
+    function seek(time) {
+      stop();
+      if (simulation.kind !== 'ready') return;
+      simulation.time = time; draw();
+    }
+    function rebuild(time = 0) {
+      const ids = sides.map(({id}) => id);
+      stop(); simulation = {kind:'empty'};
+      const valid = ids.length > 0 && ids.every(id => models.get(id));
+      for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
+      find('.sim-plots').hidden = !valid;
+      find('.sim-sight').hidden = !valid;
+      find('.sim-unavailable').hidden = valid;
+      if (!valid) { find('.sim-legend').replaceChildren(); return; }
+      seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
+      // A full magazine; with two weapons, the smaller one's from each.
+      const shots = Math.min(...ids.map(id => models.get(id).magazine));
+      const series = sides.map(({id, side}) => {
+        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value));
+        // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
+        result.frames.forEach(frame => {frame.time += .05;});
+        result.events.forEach(event => {event.time += .05;});
+        result.frames.unshift({time:0, vertical:0, horizontal:0, shots:0});
+        return {...result, id, side, duration: result.duration + .05};
+      });
+      const duration = Math.max(...series.map(series => series.duration));
+      simulation = {kind:'ready', series, time:Math.min(time, duration), duration};
+      timeInput.max = simulation.duration; draw();
+    }
+    playButton.addEventListener('click', () => playing ? stop() : play());
+    seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
+    find('.sim-reset').addEventListener('click', () => seek(0));
+    // Next shot stops at the last one: the settling after it is the timeline's.
+    find('.sim-step').addEventListener('click', () => {
+      const next = nextShot();
+      if (next !== undefined) seek(next);
     });
-    const duration = Math.max(...series.map(series => series.duration));
-    simulation = {kind:'ready', series, time:Math.min(time, duration), duration};
-    timeInput.max = simulation.duration; drawSimulation();
+    timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
+    return {show(chosen) { sides = chosen; rebuild(); }};
+  }
+  // The comparison's simulation: one weapon chosen (A or B) or both, each in
+  // its side's colour.
+  const sim = document.querySelector('#recoil-sim'), comparisonSim = RecoilSim(sim);
+  function rebuildSimulation() {
+    const sides = [pickerA.value, pickerB.value].map((id, side) => ({id, side})).filter(({id}) => id);
+    sim.hidden = sides.length === 0;
+    comparisonSim.show(sides);
+  }
+  // A weapon's own simulation, in its card, made when the card first opens.
+  const template = document.querySelector('#recoil-template');
+  for (const weapon of weapons) {
+    weapon.addEventListener('toggle', () => {
+      const host = weapon.querySelector('.weapon-recoil');
+      if (!weapon.open || !host || host.childElementCount) return;
+      host.append(template.content.cloneNode(true));
+      RecoilSim(host).show([{id: weapon.id, side: 0}]);
+    });
   }
   function selectionChanged() {
     for (const chooser of choosers) chooser.paint();
@@ -261,14 +288,6 @@
       selectionChanged(); comparison.scrollIntoView({block:'start'});
     });
   }
-  seedInput.addEventListener('change', () => rebuildSimulation(simulation.kind === 'ready' ? simulation.time : 0));
-  document.querySelector('#sim-reset').addEventListener('click', () => seek(0));
-  // Next shot stops at the last one: the settling after it is the timeline's.
-  document.querySelector('#sim-step').addEventListener('click', () => {
-    const next = nextShot();
-    if (next !== undefined) seek(next);
-  });
-  timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
   const query = new URLSearchParams(location.search);
   for (const [key, picker] of [['a', pickerA], ['b', pickerB]]) if (byId.has(query.get(key))) picker.value = query.get(key);
   comparison.hidden = false; selectionChanged();

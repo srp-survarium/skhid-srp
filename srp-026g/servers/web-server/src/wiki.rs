@@ -131,7 +131,8 @@ mod tests {
             assert!(page.body.contains("class=\"weapon-details\""));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
-            assert!(page.body.contains("id=\"sim-vertical\""));
+            assert!(page.body.contains("class=\"sim-vertical\""));
+            assert!(page.body.contains("id=\"recoil-template\""));
         }
     }
 }
