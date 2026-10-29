@@ -1,0 +1,8 @@
+{
+ "_about": "Exoskeleton suits' buff (the owner, 2026-10-29; docs/notes/exo-suits.md), after built-in-bonuses-1 (which already puts Freedom's movement speed 1112 at +4 % 1113 and its energy costs 1161 at -8 % 1163, the second-strongest rows). Freedom (freedom_exo_026, torso): stamina regeneration 1103 (+8 %) added beside its item slot 1030, ammo bag 1050, artefact container 1040, movement +4 % and energy costs -8 %. Duty (duty_exo_026, torso): weight limit 1124 (+5 kg) and regeneration 1094 (+15 %), the kinds' top rows, added to its item slot 1030, ammo bag 1050, pocket capacity 1170 and artefact container 1040.",
+ "append_item": [
+  {"file": "gameplay/items/armour/torso/freedom_exo_026.options", "path": "default_modifications", "value": 1103},
+  {"file": "gameplay/items/armour/torso/duty_exo_026.options", "path": "default_modifications", "value": 1124},
+  {"file": "gameplay/items/armour/torso/duty_exo_026.options", "path": "default_modifications", "value": 1094}
+ ]
+}
