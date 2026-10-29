@@ -1636,10 +1636,11 @@ impl Bots {
     /// team's traps (the same entry a bot's release makes, confirmed by the next world that shows it).
     #[cfg(test)]
     pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
+        let ring_m = self.tuning_of(team).traps.ring_m;
         let state = &mut self.teams[usize::from(team)];
         state.knowledge.traps.promise(by, at, released);
         if let Some(tactics) = self.tactics.as_ref() {
-            state.refresh_traps(&tactics.world.grid);
+            state.refresh_traps(&tactics.world.grid, ring_m);
         }
     }
 
