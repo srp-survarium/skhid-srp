@@ -17,7 +17,10 @@
 //! 1. A bullet starts with `bullet_damage × k_damage` and
 //!    `bullet_pierce × k_arp` (bullet ctor 0x32BB38..0x32BB7B; weapon
 //!    fields `weapon_damage_params` ctor 0x332330, ammo fields
-//!    `weapon_ammunition` ctor 0x332440). PROVEN.
+//!    `weapon_ammunition_params` ctor 0x332440: PROVEN that it builds a
+//!    0x54-byte plain struct, a member of `weapon_core` (0x2DF3D4) at +0x268
+//!    of the ammunition item; the class name is LIKELY, from its RTTI type
+//!    descriptor, twin of `weapon_damage_params` at 0x332330). PROVEN.
 //! 2. Both fall by one factor with the bullet's speed: full up to
 //!    `max_damage_distance × k_max_damage_distance`, down to
 //!    `min_damage_amount × k_min_damage_amount` of it at `min_damage_distance
@@ -29,8 +32,17 @@
 //! 3. A hit box's damage is `amount × (1 − clamp(armor − arp, 0, 1))`,
 //!    `armor` the box's `ranged` armour (`body_part_parameters::
 //!    hit_by_type` 0x32A058..0x32A0AC). PROVEN. The armour of a box is the
-//!    worn items' `hit_params/<box>/hit_types/ranged/armor`, the largest of
-//!    those covering it (`player_parameters_modifyer`: LIKELY).
+//!    worn items' `hit_params/<box>/hit_types/ranged/armor`, **added**
+//!    over the items covering the box (`armor::on_holder_assigned` 0x33F0C0
+//!    adds each item's eight per-hit-type floats to the part's node, `addss`
+//!    at 0x33F2DD..0x33F2EA, and `hit_by_type` reads that node: PROVEN).
+//!    Here the largest is taken, which is the same for every legal kit:
+//!    the only boxes two slots cover are the face (helmet, mask) and the
+//!    hips (legs, torso), and the six closed helmets and the two exo suits
+//!    that cover them lock the other slot (`session` `relocate_covering`);
+//!    the base armour of a box is 0. A kit that broke the lock would part
+//!    the two (a bot's kit never does: `loadouts` test
+//!    `no_bot_kit_puts_two_armour_items_on_one_box`).
 //! 4. The box feeds its pools: each `bdb_coeff` (pool, c) takes `c ×
 //!    amount` from the pool with no armour of its own (arp 0, the pool's
 //!    armour is 0: `hit_type_parameters::apply_damage` 0x33FA80). A pool
@@ -67,8 +79,8 @@ pub const HUMAN_HIT_PARAMS: &str = "gameplay/hit_params/human_hit_params.options
 /// The prefix of the armour items' configs.
 const ARMOUR_PATH: &str = "gameplay/items/armour/";
 
-/// An ammunition's multipliers and flight (`weapon_ammunition`, ctor
-/// 0x332440: `distance` +0, `k_damage` +8, `k_max_damage_distance` +0x18,
+/// An ammunition's multipliers and flight (`weapon_ammunition_params`, ctor
+/// 0x332440, its class name LIKELY: `distance` +0, `k_damage` +8, `k_max_damage_distance` +0x18,
 /// `k_min_damage_distance` +0x1C, `k_min_damage_amount` +0x20, `k_arp`
 /// +0x24, `air_resistance` +0x28, `muzzle_speed` +0x3C, `buck_shot` +0x44:
 /// PROVEN). The lobby's `parameters/damage` and `parameters/arp` are not
