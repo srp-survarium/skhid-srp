@@ -223,6 +223,18 @@ fn the_crossing_rule_is_read_from_the_tuning_of_the_bots_team() {
             }
             bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
         }
+        for team in 0..2 {
+            eprintln!("team {team} knows battery 0: {:?}", bots.teams[team].knowledge.battery(0));
+        }
+        if let Some(t) = bots.tactics.as_ref() {
+            let stand = t.stand_to_take(at);
+            let grid = &t.world.grid;
+            eprintln!(
+                "stand {stand:?} zones at stand {:?} past fixed {:?}",
+                stand.and_then(|s| grid.locate(s, 3.0)).map(|n| t.hazards.zones_at(n).count()),
+                stand.and_then(|s| grid.locate(s, 3.0)).map(|n| t.past_fixed_zones(n)),
+            );
+        }
         for (place, team) in teams.iter().enumerate() {
             let collects = bots.bots[place]
                 .as_ref()
