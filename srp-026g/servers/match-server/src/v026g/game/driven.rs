@@ -653,6 +653,9 @@ impl Game {
         walkers
             .bots
             .traps_from_world(decoded.sections.objects, snapshot.time);
+        walkers
+            .bots
+            .grenades_from_world(decoded.sections.objects, snapshot.time);
         let (read, missed) = walkers
             .bots
             .anomalies_from_world(decoded.sections.objects, snapshot.time);

@@ -60,6 +60,8 @@ pub struct Tuning {
     /// What counts as cover from a bullet (`mapdata`'s materials).
     pub cover: CoverTuning,
     pub hazard: HazardTuning,
+    /// What smoke hides from the bots (`bots/smoke.rs`).
+    pub smoke: SmokeTuning,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
 }
@@ -79,6 +81,7 @@ mod motion;
 mod play;
 mod report;
 mod sense;
+mod smoke;
 mod team;
 mod teams;
 mod traps;
@@ -108,6 +111,7 @@ pub use sense::CheatTuning;
 pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
+pub use smoke::SmokeTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::ModTuning;

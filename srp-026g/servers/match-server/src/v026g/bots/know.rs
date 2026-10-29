@@ -191,6 +191,8 @@ pub enum Miss {
     Cone,
     /// No part of him shows on the bullet mesh.
     Blocked,
+    /// No part of him shows, and a smoke cloud hides some (`smoke.rs`): lost as behind a wall.
+    Smoke,
     /// Dead, gone, or another life than the one seen (`PlaceView::spawned`).
     Dead,
 }
@@ -1618,6 +1620,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 

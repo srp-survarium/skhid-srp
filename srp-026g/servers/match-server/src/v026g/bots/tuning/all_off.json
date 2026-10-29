@@ -67,6 +67,9 @@
     "sprint_body_mps": null,
     "use_ray_m": 2.0
   },
+  "smoke": {
+    "sight": false
+  },
   "think": {
     "fall_lock": false,
     "rest_off_lip": false,

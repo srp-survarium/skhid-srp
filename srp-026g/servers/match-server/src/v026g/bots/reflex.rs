@@ -85,6 +85,7 @@ use super::guns::{
     RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
+use super::aimpoint::PartsLook;
 use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
 use super::recoil::{Cadence, Recoil, kick_of};
@@ -707,6 +708,10 @@ pub struct CombatTuning {
     /// (`player_bots_behaviour.md` §2.12): with the pings, +1.1 points of hit
     /// rate alone.
     pub lead_target: bool,
+    /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
+    /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
+    /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, as before.
+    pub aim_last_known: bool,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
     /// The aim is taken from the eye where its own keys put it at the tick
@@ -1162,6 +1167,7 @@ impl Default for CombatTuning {
             switch_facing_margin_m: 10.0,
             switch_between_thinks: true,
             lead_target: true,
+            aim_last_known: false,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -2348,6 +2354,10 @@ pub struct ReloadNote {
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
 
+/// Fire at a target this lately is still going, ms: a spray at the smoke he went into may go on
+/// (`SmokeTuning::spray_ms`). GUESS: longer than the pause between two bursts of the best players (`aim.pause_ms`).
+const SPRAY_FIRING_MS: u32 = 400;
+
 /// [measure] A gate trace note per bot and target at most this often, ms.
 pub const GATE_NOTE_MS: u32 = 1000;
 /// [measure] ... once its view has been this long on a seen target, within
@@ -2403,6 +2413,13 @@ pub struct Reflex {
     next_outranged: u32,
     /// No shot at the target before this: noticed + the reaction delay.
     first_shot_at: u32,
+    /// The last tick it fired, and at whom: a spray into smoke is only fire already going ([`SPRAY_FIRING_MS`]).
+    last_fire: Option<(Place, u32)>,
+    /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
+    /// a note when it begins); the notes not yet taken.
+    smoke_lost: bool,
+    spraying: bool,
+    smoke_notes: Vec<String>,
     /// The life it counts for (`PlaceView::spawned`).
     life: Option<u32>,
     /// Its health at the last think.
@@ -3066,6 +3083,7 @@ impl Reflex {
     /// show from the bot's eyes on `world`'s bullet mesh, and his sight told
     /// to `memory` ([`Self::sight_tick`]). A reflex never told this (no
     /// map) aims at the chest and holds no shot for the world.
+    #[cfg(test)]
     pub fn look(
         &mut self,
         me: &PlaceView,
@@ -3075,12 +3093,56 @@ impl Reflex {
         sense: &SenseTuning,
         now: u32,
     ) {
+        let off = super::tuning::SmokeTuning {
+            sight: false,
+            ..Default::default()
+        };
+        self.look_through(me, view, world, memory, sense, &off, now);
+    }
+
+    /// [`Self::look`] through the match's smoke as the team's `smoke` tuning
+    /// reads it ([`super::smoke::Clouds::veil`]): parts behind a cloud do not
+    /// show, and a target just lost in one may be sprayed ([`super::aimpoint::Aim::Spray`],
+    /// continuing fire only).
+    #[allow(clippy::too_many_arguments)]
+    pub fn look_through(
+        &mut self,
+        me: &PlaceView,
+        view: &MatchView,
+        world: &std::sync::Arc<mapdata::World>,
+        memory: &mut Memory,
+        sense: &SenseTuning,
+        smoke: &super::tuning::SmokeTuning,
+        now: u32,
+    ) {
         self.new_life(me);
         memory.set_sight_target(self.target);
-        let looked = self.sight.update(me, self.target, view, world, now);
+        let looked = self.sight.update(me, self.target, view, world, smoke, now);
+        // One note when the aim's look first finds its target behind smoke.
+        let smoked = looked.is_some_and(|look| look.fresh && look.look == PartsLook::Smoke);
+        if smoked && !self.smoke_lost {
+            if let Some(who) = self.target {
+                self.smoke_notes.push(format!("lost player {who} to smoke (the aim's look)"));
+            }
+            #[cfg(test)]
+            super::smoke::tally::add(me.team, super::smoke::tally::Event::AimLost);
+        }
+        if looked.is_some_and(|look| look.fresh) {
+            self.smoke_lost = smoked;
+        }
         if sense.sight_refresh {
             self.sight_tick(me, view, memory, sense, looked);
         }
+    }
+
+    /// The smoke notes of the last ticks (a target lost to smoke, a spray begun and ended), for the bot's log.
+    pub fn take_smoke_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.smoke_notes)
+    }
+
+    /// A smoke note of the senses, kept with the reflex's until its think takes them.
+    pub fn note_smoke(&mut self, text: String) {
+        self.smoke_notes.push(text);
     }
 
     /// The target's sight at this tick, told to the memory
@@ -3114,8 +3176,11 @@ impl Reflex {
             Some(enemy) => match super::sense::gate(me, enemy, since, sense) {
                 Err(miss) => LookOutcome::Failed(miss),
                 Ok(()) => match looked {
-                    Some(look) if look.fresh && look.shown => LookOutcome::Seen,
-                    Some(look) if look.fresh => LookOutcome::Failed(Miss::Blocked),
+                    Some(look) if look.fresh => match look.look {
+                        PartsLook::Shows => LookOutcome::Seen,
+                        PartsLook::Smoke => LookOutcome::Failed(Miss::Smoke),
+                        PartsLook::Hidden => LookOutcome::Failed(Miss::Blocked),
+                    },
                     _ => LookOutcome::Untested,
                 },
             },
@@ -4918,14 +4983,31 @@ impl Reflex {
         };
         // The seen body where it is now (a seen enemy is tracked by eye).
         let body = view.place(track.who()).filter(|p| p.alive);
-        let point = body.map_or(track.at() + Vec3::new(0.0, 1.3, 0.0), PlaceView::chest);
+        let known = track.at() + Vec3::new(0.0, 1.3, 0.0);
+        let point = body.map_or(known, PlaceView::chest);
         // [aimpoint] The part of him that shows (none: where he was last
-        // seen); a shot only clear of the world (the last test below).
-        let aimed = self.sight.aim(track.who(), body, point);
-        // Where he will be at the tick decided (`lead_target`).
-        let led = body.filter(|_| aimed.shows && c.lead_target);
-        let point = led.map_or(aimed.point, |body| {
-            aimed.point + lead(body, now, c.lead_most_ms)
+        // seen, else where the memory has him); a shot only clear of the
+        // world (the last test below). A spray into the smoke he just went
+        // into: only fire already going at him.
+        let aimed = self
+            .sight
+            .aim(track.who(), body, point, if c.aim_last_known { known } else { point });
+        let continuing = self
+            .last_fire
+            .is_some_and(|(who, at)| who == track.who() && now <= at + SPRAY_FIRING_MS);
+        let aimed = aimed.sprayed(continuing);
+        // A spray begun or ended: one note each.
+        let spraying = matches!(aimed, super::aimpoint::Aim::Spray(_));
+        if spraying != self.spraying {
+            let what = if spraying { "begins" } else { "ends" };
+            self.smoke_notes
+                .push(format!("spray at player {}'s last seen point {what}", track.who()));
+            self.spraying = spraying;
+        }
+        // Where he will be at the tick decided (`lead_target`): only a body seen.
+        let led = body.filter(|_| aimed.sees_body() && c.lead_target);
+        let point = led.map_or(aimed.point(), |body| {
+            aimed.point() + lead(body, now, c.lead_most_ms)
         });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
@@ -5083,6 +5165,14 @@ impl Reflex {
         if wants && !fire {
             failed |= gate::TRIGGER;
         }
+        if fire {
+            self.last_fire = Some((track.who(), now));
+            #[cfg(test)]
+            if spraying {
+                super::smoke::tally::add(me.team, super::smoke::tally::Event::Spray);
+                super::smoke::tally::sprayed(me.place, now);
+            }
+        }
         self.gates.bits |= failed;
         self.gates.target = Some(track.who());
         if self.tracing {
@@ -5146,7 +5236,7 @@ impl Reflex {
             strafe_away,
             glance: false,
             track: body
-                .filter(|_| aimed.shows && c.turn_feed)
+                .filter(|_| aimed.sees_body() && c.turn_feed)
                 .map(|body| bearing_rate(me, point, body.velocity)),
         }
     }
@@ -5232,7 +5322,7 @@ impl Reflex {
             "pause_in": self.pause_until as i64 - now as i64,
             "burst_in": self.burst_until as i64 - now as i64,
             "friend": self.held_for.map(|h| h.who),
-            "shows": aimed.shows, "looked_ms": self.sight.looked_ms(now),
+            "shows": aimed.may_fire(), "spray": matches!(aimed, super::aimpoint::Aim::Spray(_)), "looked_ms": self.sight.looked_ms(now),
             "ray": ray, "ray_m": ray_m, "lift": round(lift),
             "error": [round(error.0), round(error.1)],
         }));
@@ -5417,6 +5507,7 @@ mod tests {
             can_respawn: [true, true],
             next_battery: None,
             grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 

@@ -69,6 +69,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod smoke;
 pub mod stamina;
 pub mod stock;
 pub mod stuck;
@@ -1494,6 +1495,18 @@ impl Bots {
             tactics.hazards.set_fields(fields, &tactics.world.grid, time);
             tactics.hazards.live.fields().len()
         })
+    }
+
+    /// The launched grenades of a trusted world's objects section (`match_msgs::grenades`): each smoke cloud whose
+    /// grenade it shows is put where the grenade really is ([`view::Tracker::grenade_bodies`]). Returns how many it
+    /// held.
+    pub fn grenades_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        let found = survarium::v026g::match_msgs::grenades::find(objects, time);
+        if !found.is_empty() {
+            let world = self.tactics.as_ref().map(|t| t.world.clone());
+            self.tracker.grenade_bodies(&found, world.as_deref(), time);
+        }
+        found.len()
     }
 
     /// A trusted world's objects section: the bear traps the teams' bots
