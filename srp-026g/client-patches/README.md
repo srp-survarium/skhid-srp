@@ -3683,3 +3683,16 @@ after the existing confirmation. `KNOWLEDGE_BASE` changes the fixed URL and
 skips the old support-site path appends; the native browser call is preserved.
 The wiki uses browser language selection. `check_knowledge_base_026g.py`
 executes the original and redirected callbacks for every game language.
+
+## Artefact score (patch 80, unreleased)
+
+An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
+slot full (the owner, 2026-10-29; `docs/notes/artefact-score.md`). The game
+counts event 5 for every artefact an anomaly gives; the Rust `artefact_score`
+hook, before `artefact_container_core::use_execute` hands it over (0x31C810),
+counts event 16 too when one of the user's artefact slots is empty, in the
+user's place and kit cell, and tells the statistics' listener, as the game
+counts one. srp weighs event 5 5 and event 16 10. A match's computation
+changes: every client of a match needs it. `check_artefact_score_026g.py`
+runs the hook from the game's site and compares it with the game's own count
+of event 5 and `take_artefact`'s own slot search.

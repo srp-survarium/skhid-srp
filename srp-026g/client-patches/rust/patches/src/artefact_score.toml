@@ -1,0 +1,9 @@
+# Patch 80: an anomaly's artefact scores 15 into an empty artefact slot, 5
+# with every slot full. The site (use_execute before the transfer) is
+# sites_026g.tsv's; the logic is artefact_score.rs.
+name = "artefact_score"
+patch = 80
+
+[[hook]]
+site = "artefact_container.transfer"
+handler = "on_transfer"

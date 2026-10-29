@@ -26,6 +26,7 @@ struct player_params_modifiers_container;
 struct ray_result;
 struct render_model_instance;
 struct scene_renderer;
+struct statistics_listener;
 struct text_translator;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
@@ -50,7 +51,7 @@ void engine_write_u16(const void *value, void *writer, const char *file, unsigne
 void engine_write_u32(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
 
 /* 0x2f5d40 survarium::shared_statistics::notify_listener: listener EAX, place ESP+4, event ESP+8, amount ESP+12; pops 12 */
-void engine_statistics_notify(void *listener, unsigned int place, unsigned int event, unsigned int amount);
+void engine_statistics_notify(struct statistics_listener *listener, unsigned int place, unsigned int event, unsigned int amount);
 
 /* 0x102d10 vostok::resources::register_cook: cook EDI; pops 0 */
 void engine_register_cook(void *cook);

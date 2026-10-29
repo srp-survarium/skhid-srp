@@ -6,6 +6,45 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
+global artefact_score_on_transfer
+extern hook_artefact_score_on_transfer
+artefact_score_on_transfer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_score_on_transfer
+    mov edx, artefact_score_on_transfer_replay
+    cmp eax, 0
+    je artefact_score_on_transfer_go
+    mov edx, 0x31c816
+    cmp eax, 1
+    je artefact_score_on_transfer_go
+    ud2
+artefact_score_on_transfer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_score_on_transfer_replay:
+    db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
+    jmp 0x31c816
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info
