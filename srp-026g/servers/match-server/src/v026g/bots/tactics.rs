@@ -2000,6 +2000,8 @@ impl Tactics {
 
     /// The best spots for `query`, best first, at most `n`.
     pub fn spots(&self, query: &SpotQuery, time: u32, n: usize, rng: &mut Rng) -> Vec<Spot> {
+        #[cfg(test)]
+        super::bench_work::add(super::bench_work::Work::Spots, 1);
         let grid = &self.world.grid;
         let mut found: Vec<Spot> = Vec::new();
         for _ in 0..query.samples {

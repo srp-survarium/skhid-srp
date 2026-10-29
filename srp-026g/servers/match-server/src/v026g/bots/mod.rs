@@ -87,9 +87,12 @@ pub mod view;
 pub mod zone_cost;
 pub mod zone_search;
 
+#[cfg(test)]
+pub mod bench_work;
 mod commander;
 mod drive;
 mod facts;
+pub mod fairness;
 mod features;
 #[cfg(test)]
 pub mod hold_trace;
@@ -1721,6 +1724,8 @@ impl Bots {
                 }
             }
         }
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Shared);
         let mut rays = RayBudget::new(self.tunings.match_wide().think.rays_per_poll);
         rays.thinks_left = self.thinks_due(&view);
         self.features.searching.left = SEARCHES_PER_POLL;
@@ -1731,6 +1736,8 @@ impl Bots {
             if self.bots[index].is_none() {
                 continue;
             }
+            #[cfg(test)]
+            bench_work::set(bench_work::Who::Team(self.bots[index].as_ref().map_or(0, |bot| bot.team)));
             // Before play begins: no plays, no routes, only rest.
             if clock.playing {
                 self.think(index, &view, &mut rays, &mut notes);
@@ -1763,6 +1770,8 @@ impl Bots {
                 self.features.kit_choices.push((bot.place, kit as u8));
             }
         }
+        #[cfg(test)]
+        bench_work::set(bench_work::Who::Idle);
         self.polls.record(now, &rays);
         #[cfg(any(test, feature = "client-test"))]
         self.client_tests_tick(&clock, &view, &notes);
