@@ -1,6 +1,6 @@
 //! The runner's reach into the bots: the poll hands it the frame, a think asks it what a scripted bot does.
 
-use super::frame::{Body, BotView, Frame, Heard, Mind, Owner, Sight};
+use super::frame::{Body, BotView, Counters, Frame, Heard, Mind, Owner, Sight};
 use super::run::Act;
 use super::step::{Fight, Gait};
 use super::time::At;
@@ -32,6 +32,7 @@ impl Bots {
     /// The match as the runner sees it: the bodies of the view, each bot's reflex, the batteries, what was said.
     fn client_test_frame(&self, clock: &Clock, view: &MatchView, notes: &[Note], pools: Option<crate::v026g::bots::pools::Pools>) -> Frame {
         let sight = self.tactics.as_ref().map(|tactics| Sight(tactics.world.sight.clone()));
+        let exits = self.tactics.as_ref().map(|tactics| [tactics.exits(0).to_vec(), tactics.exits(1).to_vec()]);
         let owner = view.places.iter().find(|p| p.present && !p.bot).map(|p| Owner { body: body_of(p), pools });
         let bots = view
             .places
@@ -65,6 +66,8 @@ impl Bots {
                 })
                 .collect(),
             sight,
+            exits: exits.unwrap_or_default(),
+            counters: Counters { throws: self.tracker.throw_counts(), avoid: self.grenade_counts(), traps: self.own_trap_counts() },
         }
     }
 

@@ -1115,18 +1115,20 @@ impl Default for CombatTuning {
             spot_chance: 1.0,
             grenades: 2,
             grenade_roll_ms: 4_000,
-            grenade_chance: 0.15,
+            // The habit of the live players (A159, "Measure, then match"): the bots with a frag throw 42 per 100 carrying
+            // lives, the players 54.5; with the old 0.15 / 4.0 s / 12 m / 18 m they threw 8 (bench, v5, 56 pairs).
+            grenade_chance: 0.6,
             grenade_m: (12.0, 27.0),
             grenade_hold_ms: (500, 800),
             grenade_within_deg: 6.0,
-            grenade_friend_m: 6.0,
+            grenade_friend_m: 5.0,
             grenade_recheck: true,
-            grenade_lead_s: 4.0,
+            grenade_lead_s: 2.5,
             grenade_trace: true,
             grenade_launch_ms: 1_100,
             grenade_look_after_ms: 300,
-            grenade_land_m: 12.0,
-            grenade_wall_m: 18.0,
+            grenade_land_m: 10.0,
+            grenade_wall_m: 10.0,
             grenade_off_m: 8.0,
             grenade_lane_m: 2.0,
             grenade_places: 3,
@@ -1134,7 +1136,7 @@ impl Default for CombatTuning {
             grenade_track_ms: 4_000,
             grenade_track_gap_ms: 500,
             grenade_track_error_m: 8.0,
-            grenade_track_chance: 0.08,
+            grenade_track_chance: 0.45,
             grenade_search: true,
             grenade_search_off_m: 5.0,
             grenade_search_traces: 64,
@@ -6136,6 +6138,20 @@ mod tests {
     use crate::v026g::bots::view::{Mode, Sound};
 
     /// The combat tuning with the owner's options off (the bots as they were): what a test of an option's effect starts from.
+    /// The throw numbers before the habit of the live players (A159): the geometry of the tests below is made for
+    /// the 12 m floor, the 18 m wall, the 6 m mate rule and the 4 s lead.
+    fn earlier_habit() -> CombatTuning {
+        CombatTuning {
+            grenade_chance: 0.15,
+            grenade_friend_m: 6.0,
+            grenade_lead_s: 4.0,
+            grenade_land_m: 12.0,
+            grenade_wall_m: 18.0,
+            grenade_track_chance: 0.08,
+            ..CombatTuning::default()
+        }
+    }
+
     fn combat_off() -> CombatTuning {
         crate::v026g::bots::tuning::Tuning::all_off().aim.combat
     }
@@ -8886,7 +8902,7 @@ mod tests {
     /// the roll.
     #[test]
     fn a_mate_on_the_blast_segment_refuses_the_throw() {
-        let c = CombatTuning::default();
+        let c = earlier_habit();
         let mate_at = |x: f32, z: f32| body(3, 0, Vec3::new(x, 0.0, z), 0.0);
         // Alone: thrown.
         let alone = throw_run(25.0, &[], c.clone(), None, 6_000);
@@ -9247,7 +9263,7 @@ mod tests {
     fn a_throw_is_weighed_on_the_ground_it_meets() {
         let me = body(0, 0, Vec3::ZERO, 0.0);
         let view = view_of(vec![me.clone()]);
-        let c = CombatTuning::default();
+        let c = earlier_habit();
         let at = Vec3::new(0.0, 0.0, 20.0);
         let weigh =
             |ground: &dyn arc::Ground| weigh_throw(&me, &view, at, (0.0, 0.0), &c, true, ground);

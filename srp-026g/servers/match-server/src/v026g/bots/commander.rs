@@ -209,7 +209,7 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
-        state.refresh_traps(&tactics.world.grid);
+        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m);
         let field = state.features.traps.field.clone();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.features.traps.field = field.clone();
