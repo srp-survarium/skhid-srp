@@ -362,17 +362,21 @@ impl PocketStore {
     }
 }
 
-/// Whether a bot's kit carries a smoke grenade ([`BOT_SMOKE`]): the owner (2026-10-29) "smokes important also for
-/// anti-campers and anti-snipers", "smoke can replace radio if no pocket available".
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// Whether and where a bot's kit carries a smoke grenade ([`BOT_SMOKE`]): the owner (2026-10-29) "smokes important
+/// also for anti-campers and anti-snipers", "smoke can replace radio if no pocket available", and "bench decides"
+/// between the two placements (the radio is the respawn booster: a kit without it respawns 20 % later).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum KitSmoke {
     /// No smoke: the kit as before.
     #[default]
-    None,
+    Off,
+    /// One smoke in the first free pocket after every grenade pocket; none in a kit without one. The radio stays.
+    FreePocket,
     /// One smoke, last in the pockets: in the first free pocket after every grenade pocket, else in the radio's place
     /// (the radio leaves, the pockets after it move up one, the smoke takes the last); never in place of a medkit,
     /// the bandages, a frag or a trap, and in no kit with neither a free pocket nor a radio ([`KitSmoke::place`]).
-    Carried,
+    RadioPlace,
 }
 
 /// Where a kit's smoke went ([`KitSmoke::place`]), for the kit census.
@@ -382,31 +386,33 @@ pub enum SmokePlace {
     Free { slot: u8 },
     /// The radio's place: the radio left and the pockets after it moved up one.
     Radio { slot: u8 },
-    /// No smoke: the kit has no free pocket after its grenades and no radio, and nothing else gives its pocket.
+    /// No smoke: the kit has no free pocket after its grenades and (with [`KitSmoke::RadioPlace`]) no radio; nothing
+    /// else gives its pocket.
     Refused,
 }
 
 impl KitSmoke {
-    /// Both, in the order of [`Self::index`].
-    pub const ALL: [Self; 2] = [Self::None, Self::Carried];
+    /// Every choice, in the order of [`Self::index`].
+    pub const ALL: [Self; 3] = [Self::Off, Self::FreePocket, Self::RadioPlace];
 
     /// The place of the choice in [`Self::ALL`].
     pub const fn index(self) -> usize {
         match self {
-            Self::None => 0,
-            Self::Carried => 1,
+            Self::Off => 0,
+            Self::FreePocket => 1,
+            Self::RadioPlace => 2,
         }
     }
 
     /// `items` (a kit's pieces, its pockets among them) with the smoke placed, when its armour opens `open` pockets,
-    /// and where it went (`None` for [`KitSmoke::None`]).
+    /// and where it went (`None` for [`KitSmoke::Off`]).
     ///
     /// Last, after every grenade pocket, because the throw key ([`GRENADE_BIT`]) throws from the first pocket with any
     /// grenade, frag or smoke (0x2FE8B0, PROVEN): a smoke before a frag would be thrown in its place. The smoke is
     /// thrown by its own quick-use key. In a free pocket it moves no other pocket's quick-use key; in the radio's
     /// place only the pockets after the radio move up one (the old kit's frag, which goes by the throw key).
     pub fn place(self, mut items: Vec<BotKitItem>, open: u32) -> (Vec<BotKitItem>, Option<SmokePlace>) {
-        if self == Self::None {
+        if self == Self::Off {
             return (items, None);
         }
         let in_pocket = |item: &BotKitItem| POCKET_SLOTS.contains(&item.slot);
@@ -422,6 +428,9 @@ impl KitSmoke {
         if let Some(slot) = free {
             items.push(BotKitItem { slot, ..BOT_SMOKE });
             return (items, Some(SmokePlace::Free { slot }));
+        }
+        if self == Self::FreePocket {
+            return (items, Some(SmokePlace::Refused));
         }
         let Some(radio) = items.iter().position(|item| item.name == BOT_RADIO.name && in_pocket(item)) else {
             return (items, Some(SmokePlace::Refused));
@@ -463,7 +472,7 @@ impl BotPocketKit {
     pub const fn stored(store: PocketStore) -> Self {
         Self {
             store,
-            smoke: KitSmoke::None,
+            smoke: KitSmoke::Off,
         }
     }
 
@@ -3680,7 +3689,7 @@ mod tests {
         assert_eq!(PocketStore::default(), PocketStore::PerLife);
     }
 
-    /// The kit smoke ([`KitSmoke::Carried`]), over every tier, role and both kits (the owner's of 2026-10-26 and the
+    /// The kit smoke ([`KitSmoke::FreePocket`], [`KitSmoke::RadioPlace`]), over every tier, role and both kits (the owner's of 2026-10-26 and the
     /// old): every item but the radio is kept with its count; the medkit and the bandages keep their pockets (their
     /// quick-use keys); the pockets keep their order; the smoke is the last pocket, after every grenade (the throw key
     /// throws the first grenade), stored as the other stacks; the radio leaves only when no free pocket follows the
@@ -3690,7 +3699,8 @@ mod tests {
         use std::collections::BTreeMap;
         let dictionary = Dictionary::shared();
         let name = |item: &SlotItem| dictionary.item(item.dict_id).map_or("", |row| row.name.as_str()).to_owned();
-        let mut census: BTreeMap<(bool, String, &str), u32> = BTreeMap::new();
+        let mut census: BTreeMap<(KitSmoke, bool, String, &str), u32> = BTreeMap::new();
+        for placed in [KitSmoke::FreePocket, KitSmoke::RadioPlace] {
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
                 for new in [false, true] {
@@ -3698,10 +3708,10 @@ mod tests {
                         store: PocketStore::PerLife,
                         smoke,
                     };
-                    let without = bot_kits_in_kit(eq(tier), role, new, false, kit(KitSmoke::None));
-                    let with = bot_kits_in_kit(eq(tier), role, new, false, kit(KitSmoke::Carried));
+                    let without = bot_kits_in_kit(eq(tier), role, new, false, kit(KitSmoke::Off));
+                    let with = bot_kits_in_kit(eq(tier), role, new, false, kit(placed));
                     for (k, (old, kit)) in without.iter().zip(&with).enumerate() {
-                        let at = format!("{tier:?} {role:?} new {new} kit {k}");
+                        let at = format!("{placed:?} {tier:?} {role:?} new {new} kit {k}");
                         let pockets = |kit: &Loadout| -> Vec<(u8, String, u32)> {
                             let mut held: Vec<_> = kit
                                 .items
@@ -3742,11 +3752,12 @@ mod tests {
                                     && before.iter().any(|(_, n, _)| n == BOT_RADIO.name);
                                 let kept = named(&after[..after.len() - 1], "");
                                 assert_eq!(kept, named(&before, if gave { BOT_RADIO.name } else { "" }), "{at}");
+                                assert!(!gave || placed == KitSmoke::RadioPlace, "{at}: the radio stays");
                                 if gave { "radio" } else { "free" }
                             }
                             _ => {
                                 assert_eq!(before, after, "{at}: no smoke, the kit unchanged");
-                                "refused: no free pocket, no radio"
+                                "refused"
                             }
                         };
                         // The medkit's and the bandages' pockets (their quick-use keys) do not move.
@@ -3754,28 +3765,29 @@ mod tests {
                             let slot = |held: &[(u8, String, u32)]| held.iter().find(|(_, n, _)| n == kept).map(|(s, _, _)| *s);
                             assert_eq!(slot(&before), slot(&after), "{at}: {kept}");
                         }
-                        *census.entry((new, format!("{role:?}"), place)).or_default() += 1;
+                        *census.entry((placed, new, format!("{role:?}"), place)).or_default() += 1;
                     }
                     // The bot is told by its kits, with the smoke or without.
-                    let profile = bot_profile_kit(1, 0, role, eq(tier), kit(KitSmoke::Carried));
+                    let profile = bot_profile_kit(1, 0, role, eq(tier), kit(placed));
                     assert_eq!(bot_equipment_of(&profile).map(|(e, r)| (e.tier, r)), Some((tier, role)), "{tier:?} {role:?}");
                 }
             }
         }
-        for ((new, role, place), kits) in &census {
-            eprintln!("kit smoke census: {} kit, {role}: {place} x{kits}", if *new { "owner's" } else { "old" });
         }
-        let placed = |place: &str| census.iter().filter(|((_, _, p), _)| *p == place).map(|(_, n)| n).sum::<u32>();
-        assert!(placed("free") + placed("radio") > 0, "{census:?}");
+        for ((placed, new, role, place), kits) in &census {
+            eprintln!("kit smoke census: {placed:?}, {} kit, {role}: {place} x{kits}", if *new { "owner's" } else { "old" });
+        }
+        let placed = |place: &str| census.iter().filter(|((_, _, _, p), _)| *p == place).map(|(_, n)| n).sum::<u32>();
+        assert!(placed("free") > 0 && placed("radio") > 0, "{census:?}");
         // The registry's rebuild gives a lobby-built bot the smoke.
         let mut profile = bot_profile(1, 1, BotRole::Support, eq(BotTier::Mid));
         let carried = BotPocketKit {
-            smoke: KitSmoke::Carried,
+            smoke: KitSmoke::RadioPlace,
             ..BotPocketKit::default()
         };
         assert!(with_bot_pockets(&mut profile, carried));
         let fresh = bot_profile_kit(1, 1, BotRole::Support, eq(BotTier::Mid), carried);
         assert_eq!((&profile.kits, &profile.items), (&fresh.kits, &fresh.items));
-        assert_eq!(BotPocketKit::default().smoke, KitSmoke::None);
+        assert_eq!(BotPocketKit::default().smoke, KitSmoke::Off);
     }
 }

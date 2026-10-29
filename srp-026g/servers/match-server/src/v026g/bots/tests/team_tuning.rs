@@ -410,18 +410,31 @@ fn the_spacing_switches_are_the_switches_of_the_team_that_asks() {
         [0u8, 1].map(|team| bots.tuning_of(team).spacing.callouts.steer_age_ms()),
         [None, Some(8_000)]
     );
-/// The edge watch (`smoke.react_watch`) through the real poll: a cloud between the teams from the start, nobody sees
-/// anybody, and each team's bots glance at the edge that faces them (a note a cloud); the switch off, none.
+}
+
+/// The edge watch (`smoke.react_watch`) through the real poll, one team's switch on: a cloud of each team between them
+/// from the start, nobody sees anybody. Only the team whose tuning has it watches, and only the other team's cloud
+/// (its own is told after `told_ms`); its bots look at the edge on the cloud's floor (a note a cloud).
 #[test]
-fn bots_that_see_an_enemy_cloud_watch_its_near_edge() {
+fn only_the_team_whose_tuning_reads_react_watch_watches_a_clouds_near_edge() {
     use crate::v026g::bots::smoke::tally::{self, Event};
-    let run = |watch: bool| {
+    let run = |on: u8| {
         let before = tally::counts();
-        let mut tuning = Tuning::default();
-        tuning.smoke.react_watch = watch;
-        let mut bots = facing_bots(tuning.clone(), tuning, 0x5E0F);
-        // The cloud is team 1's: team 0's bots watch it; team 1's own cloud is not watched.
+        let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
+        if on == 0 {
+            team0.smoke.react_watch = true;
+        } else {
+            team1.smoke.react_watch = true;
+        }
+        let mut bots = facing_bots(team0, team1, 0x5E0F);
+        // Team 1's cloud (thrown by place 2) across the middle; team 0's (place 0) beside it.
         bots.tracker.add_cloud(across_middle(0));
+        bots.tracker.add_cloud(crate::v026g::bots::smoke::Cloud {
+            by: 0,
+            team: 0,
+            centre: Vec3::new(35.0, 0.0, 42.0),
+            ..across_middle(0)
+        });
         let mut notes = Vec::new();
         for clock in (1_100..=6_000).step_by(100) {
             let (_, polled) = bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
@@ -429,11 +442,61 @@ fn bots_that_see_an_enemy_cloud_watch_its_near_edge() {
         }
         let after = tally::counts();
         let watched = [0, 1].map(|team| after[team][Event::EdgeWatch as usize] - before[team][Event::EdgeWatch as usize]);
-        let noted = notes.iter().filter(|n| n.text.contains("watches the edge of player 2's smoke")).count();
-        (watched, noted)
+        let edges: Vec<String> = notes.iter().filter(|n| n.text.contains("watches the edge")).map(|n| n.text.clone()).collect();
+        (watched, edges)
     };
-    let (watched, noted) = run(true);
+    let (watched, edges) = run(0);
     assert!(watched[0] > 0 && watched[1] == 0, "{watched:?}");
-    assert_eq!(noted, 2, "one note per bot of team 0");
-    assert_eq!(run(false), ([0, 0], 0));
+    assert_eq!(edges.len(), 2, "one note per bot of team 0: {edges:?}");
+    for edge in &edges {
+        assert!(edge.contains("player 2's smoke"), "only the other team's cloud: {edge}");
+        // On the cloud's floor (y 0): the glance looks a chest's height over it.
+        assert!(edge.contains(", 0.0, "), "{edge}");
+    }
+    let (watched, edges) = run(1);
+    assert!(watched[1] > 0 && watched[0] == 0, "{watched:?}");
+    assert!(edges.iter().all(|edge| edge.contains("player 0's smoke")), "{edges:?}");
+}
+
+/// The kit smoke (`kit.smoke`) of a bench team is built with its own tuning: team 1 on carries a `rdg-m` in its profiles,
+/// team 0's kits are those without the smoke.
+#[test]
+fn only_the_kits_of_the_team_whose_tuning_has_kit_smoke_carry_a_smoke() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::loadouts::{BotEquipment, BotPocketKit, BotTier, RusherKits, bot_kits_kit, bot_equipment_of};
+    let mut team1 = Tuning::default();
+    team1.kit.smoke = survarium::v026g::loadouts::KitSmoke::RadioPlace;
+    let teams = [0u8, 0, 1, 1];
+    let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+    let roster = bench_roster(&teams, equipment, &tunings(Tuning::default(), team1));
+    let dictionary = Dictionary::shared();
+    let mut carried = 0;
+    for (place, &team) in teams.iter().enumerate() {
+        let profile = &roster.profiles[place];
+        let smokes = profile
+            .items
+            .iter()
+            .filter(|item| dictionary.item(item.dict_id).is_some_and(|row| row.name == "rdg-m"))
+            .count();
+        if team == 0 {
+            assert_eq!(smokes, 0, "place {place}");
+            let (equipment, role) = bot_equipment_of(profile).expect("a bot");
+            let plain = bot_kits_kit(equipment, role, BotPocketKit::default());
+            let ids: Vec<Vec<u16>> = plain.iter().map(|kit| kit.items.iter().map(|item| item.dict_id).collect()).collect();
+            let held: Vec<Vec<u16>> = profile
+                .kits
+                .iter()
+                .map(|kit| kit.slots.iter().flatten().map(|&(index, _)| profile.items[usize::from(index)].dict_id).collect())
+                .collect();
+            for (want, have) in ids.iter().zip(&held) {
+                let (mut want, mut have) = (want.clone(), have.clone());
+                want.sort_unstable();
+                have.sort_unstable();
+                assert_eq!(want, have, "place {place}: the kits without the smoke");
+            }
+        } else {
+            carried += smokes;
+        }
+    }
+    assert!(carried > 0, "team 1's kits carry a smoke");
 }

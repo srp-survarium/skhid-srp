@@ -75,7 +75,6 @@
     "use_ray_m": 2.0
   },
   "smoke": {
-    "react_watch": false,
     "sight": false
   },
   "think": {

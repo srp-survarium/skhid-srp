@@ -23,9 +23,10 @@ pub struct SmokeTuning {
     /// size, so the metres carry over: GUESS for 0.26g's 5 m puffs, whose alpha per metre was not read (client test S1). Above
     /// nothing (0 would hide every line while any cloud lives).
     pub thin_m: Positive,
-    /// React to an enemy cloud the bot knows (it saw it, or heard it pop, `smoke::KnownClouds`): with no target, glance
-    /// at the cloud's edge that faces it, where a man coming through steps out ("watch for enemies covering the
-    /// smoke's far edge", "peek the smoke's edge", `bp-anticamper-human.md` S26/S15). Off: no reaction.
+    /// React to a cloud the bot knows (it saw it, heard it pop, `smoke::KnownClouds`) and was not told is its team's:
+    /// with nothing else holding its look, glance at the cloud's edge that faces it, where a man coming through steps
+    /// out ("watch for enemies covering the smoke's far edge", "peek the smoke's edge", `bp-anticamper-human.md`
+    /// S26/S15). Off: no reaction, and no cloud is learnt (no ray is cast for it). OFF until its bench (#719's clouds).
     pub react_watch: bool,
     /// A cloud is seen from this far at most, metres (its middle in the view and a clear line to it). GUESS: the
     /// 5 m puffs of a cloud are plain at 80 m.
@@ -36,6 +37,14 @@ pub struct SmokeTuning {
     /// A watch lasts this long, and comes again this often while the cloud lasts, ms (the glance of a callout).
     pub watch_ms: u32,
     pub watch_every_ms: u32,
+    /// A cloud's pop is heard whatever way the bot faces within this, metres, while it begins to pour
+    /// (`heard_ms`). GUESS: the smoke grenade's pop and hiss, no sound data read (client step S5b).
+    pub heard_m: Metres,
+    pub heard_ms: u32,
+    /// A mate's smoke is known to the thrower's team this long after its pop, ms: a callout (the justified-cheat
+    /// ledger's "own smoke told" row, as `avoid.told_ms` for a mate's frag; the thrower knows his own at once).
+    /// Until then a mate's cloud seen or heard is of unknown side and watched as a possible enemy's.
+    pub told_ms: u32,
 }
 
 impl Default for SmokeTuning {
@@ -44,11 +53,14 @@ impl Default for SmokeTuning {
             sight: true,
             spray_ms: 750,
             thin_m: Positive::of(2.0),
-            react_watch: true,
+            react_watch: false,
             see_m: Metres::of(80.0),
             watch_m: Metres::of(40.0),
             watch_ms: 1_500,
             watch_every_ms: 4_000,
+            heard_m: Metres::of(15.0),
+            heard_ms: 2_000,
+            told_ms: 400,
         }
     }
 }

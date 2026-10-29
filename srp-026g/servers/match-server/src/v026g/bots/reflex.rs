@@ -3601,11 +3601,14 @@ impl Reflex {
         }
     }
 
-    /// [smoke] A glance at `at` (an enemy cloud's edge) until `until`, if nothing else holds the look: no target, no
-    /// glance, threat or sound under way. Whether it was taken.
+    /// [smoke] A glance at `at` (a cloud's edge, on its floor) until `until`, if nothing else holds the look: no
+    /// target nor one lost within [`LOST_MS`] (the pre-aim at where he went), no glance, trade watch, threat or sound
+    /// under way. Whether it was taken.
     pub fn watch_smoke(&mut self, at: Vec3, now: u32, until: u32) -> bool {
         let busy = self.target.is_some()
+            || self.lost.is_some_and(|(_, lost)| now <= lost + LOST_MS)
             || self.glance.is_some_and(|(_, end)| now < end)
+            || self.trade.is_some_and(|(_, end)| now < end)
             || self.threat.is_some_and(|t| now < t.until)
             || self.sound.is_some_and(|(_, end)| now < end);
         if !busy {

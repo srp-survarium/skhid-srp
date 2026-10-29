@@ -202,7 +202,7 @@ impl SmokeCounts {
         let eyes: [[u64; smoke::tally::EVENTS]; 2] =
             std::array::from_fn(|team| std::array::from_fn(|e| now[team][e] - self.eyes_start[team][e]));
         let by = |e: smoke::tally::Event| [eyes[0][e as usize], eyes[1][e as usize]];
-        use smoke::tally::Event::{AimLost, EdgeWatch, NotSeen, SightLost, Spray};
+        use smoke::tally::Event::{AimLost, EdgeWatch, LearntHeard, LearntSeen, LearntTold, NotSeen, SightLost, Spray, WatchBusy};
         let secs = |ticks: u64| (10.0 * ticks as f64 * f64::from(TICK_S)).round() / 10.0;
         let in_smoke_s = [secs(self.in_smoke_ticks[0]), secs(self.in_smoke_ticks[1])];
         let json = serde_json::json!({
@@ -217,6 +217,10 @@ impl SmokeCounts {
             "smoke_aim_lost": by(AimLost),
             "smoke_spray_ticks": by(Spray),
             "smoke_edge_watches": by(EdgeWatch),
+            "smoke_watches_busy": by(WatchBusy),
+            "smoke_learnt_seen": by(LearntSeen),
+            "smoke_learnt_heard": by(LearntHeard),
+            "smoke_learnt_told": by(LearntTold),
             "smoke_hits_through": self.hits_through,
             "smoke_spray_hits": self.spray_hits,
             "smoke_kills_through": self.kills_through,
@@ -226,7 +230,7 @@ impl SmokeCounts {
             "smoke_fair_fire_through": self.fire_through,
         });
         let text = format!(
-            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, enemy smoke edges watched {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
+            "owner-test smoke (by team 0, 1): thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke {:?}, fire through smoke not a spray {:?}",
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
@@ -238,6 +242,10 @@ impl SmokeCounts {
             by(AimLost),
             by(Spray),
             by(EdgeWatch),
+            by(WatchBusy),
+            by(LearntSeen),
+            by(LearntHeard),
+            by(LearntTold),
             self.hits_through,
             self.spray_hits,
             self.kills_through,

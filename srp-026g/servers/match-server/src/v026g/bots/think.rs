@@ -533,40 +533,49 @@ fn smoke_react(due: &Due, bot: &mut Bot, notes: &mut Vec<Note>) {
         tuning,
     } = *due;
     let t = &tuning.smoke;
-    if view.smoke.is_empty() {
+    // No reader of what the bot knows of clouds is on: nothing learnt, no ray cast.
+    if !t.react_watch || view.smoke.is_empty() {
         return;
     }
     let (eye, feet, yaw, view_deg) = (me.eye(), me.feet, me.yaw, tuning.sense.view_deg);
-    // A cloud is seen in the view, within `see_m`, along a clear line on the map.
+    let who = super::smoke::Watcher {
+        me: bot.place,
+        team: bot.team,
+        eye,
+    };
+    // A cloud is seen in the view, within `see_m`, along a clear line on the map no other cloud hides.
     let see_m = t.see_m.get();
-    bot.clouds.update(bot.team, eye, &view.smoke, view.clock, |middle| {
+    let veil = view.smoke.veil(view.clock, t);
+    let _learnt = bot.clouds.update(who, &view.smoke, veil, view.clock, t, |middle| {
         eye.distance_xz(middle) <= see_m
             && super::sense::in_view(feet, yaw, middle, view_deg)
             && tactics.sees(eye, middle)
     });
-    if !t.react_watch {
-        return;
+    #[cfg(test)]
+    for (source, &n) in super::smoke::CloudSource::ALL.iter().zip(&_learnt) {
+        for _ in 0..n {
+            super::smoke::tally::add(bot.team, super::smoke::tally::Event::learnt(*source));
+        }
     }
-    let Some(watch) = bot
-        .clouds
-        .edge_to_watch(bot.team, feet, &view.smoke, view.clock, t.watch_m.get(), t.watch_every_ms)
-    else {
+    let Some(watch) = bot.clouds.edge_to_watch(who, feet, &view.smoke, view.clock, t) else {
         return;
     };
-    if bot.reflex.watch_smoke(watch.at, now, now + t.watch_ms) {
-        #[cfg(test)]
-        super::smoke::tally::add(bot.team, super::smoke::tally::Event::EdgeWatch);
-        if watch.first {
-            let at = watch.at;
-            bot.note(
-                notes,
-                now,
-                format!(
-                    "watches the edge of player {}'s smoke at ({:.1}, {:.1}, {:.1})",
-                    watch.key.by, at.x, at.y, at.z
-                ),
-            );
-        }
+    let shown = bot.reflex.watch_smoke(watch.at, now, now + t.watch_ms);
+    #[cfg(test)]
+    super::smoke::tally::add(
+        bot.team,
+        if shown { super::smoke::tally::Event::EdgeWatch } else { super::smoke::tally::Event::WatchBusy },
+    );
+    if shown && watch.first {
+        let at = watch.at;
+        bot.note(
+            notes,
+            now,
+            format!(
+                "watches the edge of player {}'s smoke at ({:.1}, {:.1}, {:.1})",
+                watch.key.by, at.x, at.y, at.z
+            ),
+        );
     }
 }
 
